@@ -3,39 +3,74 @@ import Analytics from '@/components/Analytics.astro';
 // The destination check, documented for the people wiring payment agents.
 //
 // Not a feature tour and not merchant copy: an agent builder should leave this page
-// knowing the one call to make, the three answers it can give, and why anything but
-// `proven` fails closed. Public and indexable — this page IS the distribution.
+// knowing the one call to make, the one rule for reading its answer (proceed only on
+// status proven + level verified + expect passed), and why everything else is a hold.
+// Public and indexable — this page IS the distribution.
+//
+// Today /api/verify/check derives `status` from the domain match alone and does not look
+// at `level`, so `proven` alone over-reports (a lapsed anchor, or a self-send wallet in an
+// account that holds a business name) and `mismatch` also fires when no domain vouches
+// for the destination at all. The copy below teaches agents to read status AND level
+// together, and says plainly what `verified` covers today: `domain` can be the account's
+// first business-name domain rather than the listing domain (not re-checked), and a
+// payment link is `proven` on registration, not on an ownership proof. Update those
+// caveats in the same change that fixes the code, not before.
+// tests/verify/agentDocs.test.ts pins the rule and the caveats so they cannot silently regress.
+// Verify warns and flags; the payer decides. Keep the verbs to hold / flag / escalate.
 import '@/styles/tokens.css';
 
 export const prerender = false;
 
-const STATUSES = [
+const ANSWERS = [
   {
-    s: 'proven',
+    code: 'proven + verified',
     cls: 'good',
-    h: 'The destination has a live proof of control',
-    p: 'Someone proved they control this destination, and if you passed expect, the proving domain matches the business you intend to pay. Proceed under your own policy.',
+    h: 'The only answer to proceed on',
+    p: 'The domain in the answer matches the expect you passed, and level says a proof is current. Proceed under your own policy, and only when you passed expect. Read what verified covers, below, before you rely on it: today the domain can be the payee account\'s business-name domain rather than the domain that lists the destination, and a payment-link answer is weaker than an address answer.',
   },
   {
-    s: 'mismatch',
-    cls: 'bad',
-    h: 'Proven, but by a DIFFERENT domain than you expected',
-    p: 'The loudest signal this API can emit. The invoice says one business; the destination belongs to another party who proved control of it. This is the swapped-invoice attack made machine-visible. Do not pay. Surface it to a human.',
-  },
-  {
-    s: 'unknown',
+    code: 'proven + claimed',
     cls: 'warn',
-    h: 'No proof on record',
-    p: 'Nobody has proven control of this destination with Almstins. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate, and fail closed.',
+    h: 'Control was proven or the destination was registered, but no domain vouches for it',
+    p: "For a crypto address, control was proven by a self-send (a small amount sent from the address to itself); for a payment link, it was registered to an account. Either way, no domain currently vouches for it: it was never listed on a proven domain, its listing has not been re-confirmed in the last 24 hours, or, for a payment link, the account holds no verified business name or the link's monitoring has gone stale. Today this answer can come back even with expect passed, because domain may name the holder's business domain, or a payment link's own host, rather than a domain that lists this destination. Treat it as not verified for payments: hold and confirm with the payee.",
+  },
+  {
+    code: 'mismatch + verified',
+    cls: 'bad',
+    h: 'A domain stands behind this destination, and it is not the one you expected',
+    p: 'The loudest signal this API can emit: your records say one business, and the domain in a verified answer says another. It is consistent with a swapped invoice, so hold the payment, flag it, and escalate to a human. Escalate it as a discrepancy to confirm with the payee through a channel you already trust, not as confirmed fraud: today it can also come back when the payee\'s account reports a different domain of its own, when you passed a subdomain (pay.acme.com) of the domain they proved, when a platform\'s published list includes this destination (an exchange deposit address, for example), or when another account registered this payment link first.',
+  },
+  {
+    code: 'mismatch + claimed',
+    cls: 'warn',
+    h: 'No domain vouches for it, so nothing could match',
+    p: "Today mismatch also comes back when level is claimed. If domain is null, a control-only proof is on record (a self-send for a crypto address, or an account registration for a payment QR) and no domain is attached, so there was nothing to match your expect against. That is not fraud: it is a payee who has not reached Level 2. Hold and ask the payee, through a channel you already trust, to confirm the destination. If domain is set, it names a domain that does not currently vouch for this destination (a lapsed listing, the holder's business domain, or a payment link's own host). That is weaker than a verified mismatch, but hold it the same way, and escalate to a human if the payee cannot confirm.",
+  },
+  {
+    code: 'unknown',
+    cls: 'warn',
+    h: 'No current proof on record',
+    p: 'No current proof of this destination is on record: it was never proven, or its listing lapsed or was withdrawn. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate. Fail closed: hold and escalate.',
   },
 ];
 
+const FIELDS = [
+  ['status', 'proven, mismatch or unknown. Read it together with level: on its own it is not enough. Treat a status you do not recognize as a hold.'],
+  ['level', 'verified when a proof is current: for a crypto address, a listing on a proven domain re-confirmed within the last 24 hours; for a platform\'s list, a list refreshed within the last 24 hours; for a payment link, an account that holds a domain-verified business name (no ownership proof, and no freshness check unless the link is monitored). claimed when control was proven by a self-send, or a payment link was registered, but no domain vouches for the destination; a merchant listing not re-confirmed within 24 hours also drops to claimed. A platform listing that goes stale, or an address withdrawn from a listing, reads unknown instead. null when status is unknown.'],
+  ['domain', 'The domain your expect was matched against, or null. When the holder\'s account has a verified business name, it is that name\'s domain (the account\'s first), which can differ from the domain that lists the destination. Business-name domains are not re-checked today; only the listing\'s freshness goes into level. Otherwise it is the domain that publishes or lists the destination, or, for a payment link, the link\'s own host. It is null when the account has no verified business name and the destination is a self-send-only address or an EMV or UPI payload that carries no link.'],
+  ['label', 'The holder\'s verified business name or their own freeform label, or null. A freeform label is not checked against anything, and the answer does not say which one you got: display it if you like, but never decide on it. Never an identity we derived.'],
+  ['chain', 'The rail the destination is on: usually ethereum, polygon, avalanche, bitcoin, solana or litecoin, though a platform\'s published list may use its own chain names. url for any payment link or payment QR (EMV and UPI payloads included), or null.'],
+  ['since', 'The date the destination was proven (YYYY-MM-DD): for a payment link, the date it was registered; for a platform\'s list, the date the platform proved its domain. Or null.'],
+  ['proofAgeDays', 'Whole days since since. This is not freshness: an old proof can still be verified, and a lapsed listing reads claimed or unknown. Freshness lives in level.'],
+  ['checkedAt', 'When this answer was computed (ISO 8601, UTC).'],
+];
+
 const PRINCIPLES = [
-  ['Proof, never reputation.', 'We answer "is this destination proven to belong to this domain," never "is this party good." No risk scores, no success counts, no endorsements. proven means the domain stands behind the address, not that the deal is wise.'],
-  ['Always pass expect.', 'Without it you only learn that someone proved this destination. With it you learn whether the party you intend to pay proved it. The second is the product.'],
-  ['503 is not unknown.', 'A 200 with status unknown means the registry has no proof: act on your fail-closed policy. A 503 means the check itself is unavailable: retry with backoff. We will never disguise an outage as an absence of proof.'],
-  ['Nobody approves anybody.', 'Payees prove control of their own destinations (a self-send, a file on their own domain). We maintain no list of legitimate businesses and decide nothing. We check proofs the way a browser checks certificates.'],
-  ['The contract is additive-only.', 'Fields are added, never removed or repurposed. The v field bumps only on a breaking change, which we intend never to ship.'],
+  ['Proof, never reputation.', 'We answer "is there a current proof tying this destination to a domain," never "is this party good." No risk scores, no success counts, no endorsements. A verified answer means a domain stands behind the destination, not that the deal is wise. The check is proof-only: it does not screen for sanctions or scams, so a verified destination has not been screened. Run your own screening, or the free wallet checker at almstins.com/wallet-checker, separately.'],
+  ['Always pass expect.', 'Without it you only learn that some proof exists for this destination. With it you learn whether it is tied to the party you intend to pay. The second is the product, and the rule above requires it. Take expect from your own records, never from the page that supplied the address.'],
+  ['503 is not unknown.', 'A 200 with status unknown means the registry has no current proof: act on your fail-closed policy and hold. A 503 means the check itself is unavailable: retry with backoff, honoring Retry-After. Treat any other 5xx the same way. We will never disguise an outage as an absence of proof.'],
+  ['Nobody approves anybody.', 'Payees prove their own destinations (a self-send, a file on their own domain) or register payment links to their own accounts. We maintain no list of legitimate businesses and decide nothing. We check proofs the way a browser checks certificates.'],
+  ['The contract is additive-only.', 'Fields are added, never removed or repurposed. New status values may be added: treat any status you do not recognize as a hold. The v field bumps only on a breaking change, which we intend never to ship.'],
 ];
 ---
 <!doctype html>
@@ -44,7 +79,7 @@ const PRINCIPLES = [
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Destination check for payment agents — Almstins Verify</title>
-  <meta name="description" content="One GET before your agent authorizes a payment: is this destination proven to belong to the business you intend to pay? proven, mismatch, or unknown — treat anything but proven as fail-closed." />
+  <meta name="description" content="One GET before your agent authorizes a payment: does the business you intend to pay vouch for this destination? Proceed only when status is proven, level is verified, and you passed expect. Hold everything else for a human." />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,6 +103,9 @@ const PRINCIPLES = [
       font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
     }
     pre b { color: var(--accent); font-weight: 600; }
+    ol.rule { margin: 0 0 .9rem 1.3rem; display: flex; flex-direction: column; gap: .4rem; }
+    ol.rule li { font-size: .93rem; color: var(--text-secondary); }
+    ol.rule b { color: var(--text-primary); font-weight: 650; }
     .st { border-left: 2px solid var(--border-bright); padding-left: .95rem; margin-bottom: 1rem; }
     .st code {
       font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .9rem;
@@ -81,6 +119,10 @@ const PRINCIPLES = [
     ul.pr { list-style: none; display: flex; flex-direction: column; gap: .8rem; }
     ul.pr li { font-size: .9rem; color: var(--text-secondary); }
     ul.pr b { color: var(--text-primary); font-weight: 650; }
+    ul.pr code {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .85rem;
+      color: var(--text-primary);
+    }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .note { font-size: .82rem; color: var(--text-muted); }
@@ -94,8 +136,9 @@ const PRINCIPLES = [
       <h1>Call this before you authorize.</h1>
       <p class="lede">
         One GET answers the question your agent cannot feel its way through:
-        <b>is this destination proven to belong to the business I intend to pay?</b>
-        Treat anything but <b>proven</b> as fail-closed.
+        <b>does the business I intend to pay vouch for this destination?</b>
+        Proceed only when <b>status is proven</b>, <b>level is verified</b>, and you passed
+        <b>expect</b>. Hold everything else for a human.
       </p>
     </header>
 
@@ -104,31 +147,93 @@ const PRINCIPLES = [
       <pre><b>GET</b> https://almstins.com/api/verify/check?value=&lt;address or payment URL&gt;&amp;expect=&lt;domain&gt;</pre>
       <p class="body">
         <b>value</b> is a crypto address, a payment link (Stripe, PayPal), or an EMV/UPI payload.
-        <b>expect</b> is the domain of the business your agent believes it is paying, taken from the
-        invoice, the order, or your vendor record. Optional, but see the principles below: always pass it.
+        <b>expect</b> is the domain of the business your agent intends to pay, taken from your own
+        vendor record or the order you placed, never from the invoice, message or page that supplied
+        the address: whoever swaps the address on an invoice can swap the domain on it too. Pass the
+        payee's own domain at its registrable level (acme.com rather than pay.acme.com). expect also
+        matches any subdomain of it, so never pass a processor, hosting or platform domain (stripe.com,
+        github.io, pages.dev and similar); for a payee hosted on one, pass their full host. expect is
+        optional in the API, and an empty expect is ignored, but the rule below requires it: always pass it.
       </p>
       <pre>{`{
+  // proceed only if status is "proven" AND level is "verified" AND you passed expect
   "v": 1,
-  "status": "proven",          // or "mismatch" | "unknown"
-  "level": "verified",         // "verified" (domain-anchored) | "claimed" (control only) | null
-  "domain": "x-capital.com",   // the proving domain, or null
-  "label": null,               // a merchant's own label, or null — never a derived identity
+  "status": "proven",          // or "mismatch" | "unknown" (read it together with level)
+  "level": "verified",         // "verified" | "claimed" | null: see what verified covers
+  "domain": "x-capital.com",   // what your expect was matched against (may be a business-name domain)
+  "label": null,               // a business name or the holder's own label: display only, never decide on it
   "chain": "ethereum",
-  "since": "2026-07-14",       // when the proof was made
-  "proofAgeDays": 59,
+  "since": "2026-07-14",       // when the proof was made (for a payment link, when it was registered)
+  "proofAgeDays": 59,          // age of the proof, not freshness (freshness lives in level)
   "checkedAt": "2026-09-11T14:30:00Z"
 }`}</pre>
     </section>
 
     <section>
-      <h2>The three answers</h2>
-      {STATUSES.map((x) => (
+      <h2>The rule: proceed only when all three hold</h2>
+      <ol class="rule">
+        <li>You passed <b>expect=&lt;the payee's domain&gt;</b>, taken from your own records. Never take it from the page that supplied the address, and never pass a processor, hosting or platform domain (such as stripe.com). The API ignores an empty expect and then answers proven for any domain, so your agent must hold when it has no domain to pass.</li>
+        <li><b>status</b> is <b>proven</b>.</li>
+        <li><b>level</b> is <b>verified</b>.</li>
+      </ol>
+      <pre>{`// payeeDomain: the payee's registrable domain from YOUR records, e.g. 'acme.com'
+const want = String(payeeDomain ?? '').trim().toLowerCase();
+if (!want) return holdForReview({ reason: 'no expect' });  // the API ignores an empty expect
+const url = 'https://almstins.com/api/verify/check'
+  + '?value=' + encodeURIComponent(value)
+  + '&expect=' + encodeURIComponent(want);                 // always pass expect
+let res;
+try { res = await fetch(url); } catch { return retryWithBackoff(); }
+if (res.status >= 500 || res.status === 429) return retryWithBackoff(res.headers.get('Retry-After'));
+let body;
+try { body = await res.json(); } catch { return holdForReview({ reason: 'unreadable answer' }); }
+const got = String(body.domain ?? '').toLowerCase();
+const mayProceed = res.ok
+  && body.status === 'proven' && body.level === 'verified'
+  && (got === want || got.endsWith('.' + want));           // the answer is about your payee
+if (!mayProceed) return holdForReview(body);               // flag it and escalate to a human`}</pre>
+      <p class="body">
+        Anything else is a hold: flag the payment and escalate to a human, or confirm the destination
+        with the payee through a channel you already trust. <b>Status alone is not enough today.</b>
+        proven can come back with level <b>claimed</b>, which means no domain currently vouches for
+        the destination, and mismatch can come back with <b>domain null</b>, which means there was
+        nothing to match. Read level on every answer. The last line of mayProceed also checks that the
+        answer's domain is the one you passed (or a subdomain of it), so an expect lost along the way
+        cannot pass. The rule is written so your agent stays correct if proven is later narrowed to
+        verified destinations only.
+      </p>
+    </section>
+
+    <section>
+      <h2>The answers, read with level</h2>
+      {ANSWERS.map((x) => (
         <div class={`st ${x.cls}`}>
-          <code>{x.s}</code>
+          <code>{x.code}</code>
           <h3>{x.h}</h3>
           <p>{x.p}</p>
         </div>
       ))}
+    </section>
+
+    <section>
+      <h2>What verified covers today</h2>
+      <p class="body">
+        verified means something different for each kind of destination. The rule above holds for all
+        of them; this is what you rely on when you proceed.
+      </p>
+      <ul class="pr">
+        <li><b>A crypto address a payee listed.</b> The address is in the address file on a domain the payee's account proved, and that listing was re-confirmed within the last 24 hours. A listing not re-confirmed in 24 hours reads claimed; an address removed from the file reads unknown.</li>
+        <li><b>A platform's published list.</b> The address is on the list a platform serves from its own proven domain, refreshed within the last 24 hours. A list that goes stale reads unknown, not claimed.</li>
+        <li><b>A payment link or payment QR.</b> Weaker today. proven means the link or QR was registered to an account first, not that the account proved it owns it. verified means that account holds a domain-verified business name, and it is not re-checked unless the link is monitored. Read it as the account's registration, not proof of ownership. If your policy needs a current ownership proof, hold payment-link answers for a human for now.</li>
+        <li><b>The domain in the answer.</b> When the payee's account holds a verified business name, domain is that name's domain (the account's first), which can differ from the domain that lists the destination. The account proved that domain when it reserved the name, but business-name domains are not re-checked today: only the listing's freshness goes into level. That is one more reason expect must come from your own records, and why a verified mismatch can come back for an honest payee with more than one domain.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Reading the fields</h2>
+      <ul class="pr">
+        {FIELDS.map(([f, d]) => (<li><code>{f}</code> {d}</li>))}
+      </ul>
     </section>
 
     <section>
@@ -150,22 +255,30 @@ const PRINCIPLES = [
       </p>
       <p class="note">Rate-limited calls return 429 with Retry-After. The check makes no outbound requests and reads only proof state that is already public — which is why keys can be self-served: a leaked key is a quota nuisance, not a breach.</p>
       <p class="body">
-        <b>Cache your results.</b> Proof state changes slowly, so a <b>proven</b> answer is safe to
-        cache for a few minutes (we suggest 5 to 15, keyed by value plus expect) rather than
-        re-checking the same destination on every invoice in a batch. On a 503, retry with backoff,
-        and your policy may reasonably honor a recently cached <b>proven</b> while the check is
-        unavailable. Never cache your way past a <b>mismatch</b>, and never treat a 503 as
-        <b>unknown</b>: an outage is not an absence of proof, which is exactly why the two are
-        different signals.
+        <b>Cache your results.</b> Proof state changes slowly, so a <b>proven</b> answer with level
+        <b>verified</b> is safe to cache for a few minutes (we suggest 5 to 15, keyed by value plus
+        expect) rather than re-checking the same destination on every invoice in a batch. On a 503,
+        retry with backoff, and your policy may reasonably honor a recently cached proven + verified
+        answer while the check is unavailable. Never cache your way past a <b>mismatch</b> or a
+        <b>claimed</b>, and never treat a 503 as <b>unknown</b>: an outage is not an absence of proof,
+        which is exactly why the two are different signals.
       </p>
     </section>
 
     <section>
       <h2>If you are the one being paid</h2>
       <p class="body">
-        Your agents' counterparties can only get <b>proven</b> if you have proven your destinations.
-        It takes minutes and never touches a wallet connection or a key:
-        <a href="/verify">register your receiving addresses and prove they are yours</a>.
+        Agents that follow this page proceed only on a <b>verified</b> answer. A self-send (Level 1)
+        proves you control an address, and it answers <b>claimed</b>, which careful agents hold for a
+        human. To be paid by agents without a hold, reach <b>Level 2, domain-verified</b>: publish the
+        small file on your site that proves your domain, and list your receiving addresses in it. The
+        file is what makes an address verified. A DNS record also proves your domain and attaches your
+        business name, but it lists no addresses, so on its own it leaves your addresses claimed. An
+        address you already proved by a self-send is not yet upgraded when you list it in the file, so
+        it keeps answering claimed until that upgrade ships. A listed address stays verified only while
+        your listing has been re-confirmed within the last 24 hours. Neither level touches a wallet
+        connection or a key:
+        <a href="/verify">prove your domain and list your receiving addresses</a>.
         An unproven destination is not accused of anything. It is simply invisible to an agent that
         checks, the way an unencrypted store is invisible to a careful customer.
       </p>
