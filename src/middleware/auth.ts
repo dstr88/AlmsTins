@@ -16,6 +16,9 @@
  * DB calls, or env-var reads to this file.
  */
 
+// Import-free constant (no env, no db): whether the PetroTins pages are public.
+import { PETRO_TINS_PUBLIC } from '../lib/petroTinsFlag.mjs';
+
 export function isPublicPath(pathname: string): boolean {
 	return (
 		// Homepage — public marketing surface (merged with the login page 2026-06-15).
@@ -78,15 +81,21 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/demo/end' ||
 		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
 		pathname === '/aave-alisis' ||
-		// PetroTins standalone login page — must be reachable without a session
-		pathname === '/petro-tins' ||
-		// PetroTins demo — clears session cookie then starts demo, no auth needed
-		pathname === '/api/petro-tins/demo' ||
-		// PetroTins docs — public documentation page
-		pathname === '/petro-tins/docs' ||
-		// PetroTins legal pages — public Terms & Privacy
-		pathname === '/petro-tins/terms' ||
-		pathname === '/petro-tins/privacy' ||
+		// PetroTins public pages — only while PetroTins is public (src/lib/petroTinsFlag.mjs).
+		// While it is owner-only, src/middleware.ts 404s these for everyone but the owner
+		// before this list is consulted, and the owner goes through app.ts like any
+		// signed-in page.
+		(PETRO_TINS_PUBLIC && (
+			// PetroTins standalone login page — must be reachable without a session
+			pathname === '/petro-tins' ||
+			// PetroTins demo — clears session cookie then starts demo, no auth needed
+			pathname === '/api/petro-tins/demo' ||
+			// PetroTins docs — public documentation page
+			pathname === '/petro-tins/docs' ||
+			// PetroTins legal pages — public Terms & Privacy
+			pathname === '/petro-tins/terms' ||
+			pathname === '/petro-tins/privacy'
+		)) ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||

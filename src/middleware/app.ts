@@ -23,6 +23,7 @@ import { runWithDbContext } from '../lib/dbContext';
 import { applySecurityHeaders } from './securityHeaders';
 import { cutSignInQuery, loginPathForLang } from '../lib/authErrorRedirect';
 import { getUserLang } from '../lib/i18n/userLang';
+import { PETRO_TINS_PUBLIC } from '../lib/petroTinsAccess';
 
 /**
  * Mutation endpoints that demo users are allowed to call.
@@ -155,7 +156,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
 				return finish(new Response(null, { status: 301, headers: { Location: `https://tradifitins.com${url.pathname}${url.search}` } }));
 			}
-			if (pathname === '/' || pathname === '') {
+			// Only while PetroTins is public; while it is owner-only its landing is not advertised.
+			if (PETRO_TINS_PUBLIC && (pathname === '/' || pathname === '')) {
 				return finish(Response.redirect('https://tradifitins.com/petro-tins', 303));
 			}
 			// Fall through to normal auth middleware — login redirects will use almstins.com
@@ -237,8 +239,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					),
 				);
 			}
-			// PetroTins dashboard → PetroTins login page
-			if (pathname.startsWith('/dashboard/petro-tins')) {
+			// PetroTins dashboard → PetroTins login page (only while PetroTins is public; while it
+			// is owner-only, src/middleware.ts has already answered 404 for a signed-out visitor)
+			if (PETRO_TINS_PUBLIC && pathname.startsWith('/dashboard/petro-tins')) {
 				return finish(Response.redirect(`https://${canonicalHost}/petro-tins${cutQuery ? `?${cutQuery}` : ''}`, 303));
 			}
 			// Verify dashboard → the Verify login (titled for Verify), not the general

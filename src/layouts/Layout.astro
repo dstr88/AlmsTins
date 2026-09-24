@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
 import { tenantHasTaxAccess } from '@/lib/taxAuth';
+import { isPetroTinsOwnerSession, petroTinsVisibility } from '@/lib/petroTinsAccess';
 import kingSolomon from '@/assets/KingSolomon.png';
 
 import minerva from '@/assets/Minerva.png';
@@ -128,6 +129,15 @@ const tNav = getDashboardCommon(navLang);
 const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
   Astro.request.headers.get('x-forwarded-host') ?? Astro.url.hostname
 );
+
+// PetroTins is owner-only while PETRO_TINS_PUBLIC is false (src/lib/petroTinsFlag.mjs):
+// its links render for the owner alone, so nobody else sees that it exists. The owner check
+// agrees with the middleware gate (an older token without a tenant is resolved the same way).
+const petroNav = petroTinsVisibility({
+  isOwner: await isPetroTinsOwnerSession(Astro.request, session),
+  isAdmin,
+  isTradfiDomain,
+});
 
 // ── Promo expiry banner ───────────────────────────────────────────────────────
 const PROMO_EXPIRY_SENTINEL = '9999-12-31T23:59:59Z';
@@ -258,7 +268,7 @@ const memberSinceDisplay = memberSinceIso
 				</div>
 				<button id="nav-toggle" class="nav-toggle" aria-label={tNav.chrome.ariaOpenMenu} aria-expanded="false" aria-controls="nav-drawer">☰</button>
 				<nav id="nav-drawer">
-				{isTradfiDomain ? (
+				{petroNav.tradfiNav ? (
 					<!-- TradfiTins-only nav -->
 					<>
 						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>Dashboard</a>
@@ -288,8 +298,10 @@ const memberSinceDisplay = memberSinceIso
 							Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
 						</a>
 						<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
-						<a href="/dashboard/petro-tins" class={`nav-link nav-link--admin ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>⛽ PetroTins</a>
 					</>
+				)}
+				{petroNav.navLink && (
+					<a href="/dashboard/petro-tins" class={`nav-link nav-link--admin ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>⛽ PetroTins</a>
 				)}
 
 					<!-- Language switcher -->

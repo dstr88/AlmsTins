@@ -76,6 +76,18 @@ export function needsPublicHeaders(pathname: string): boolean {
 }
 
 /**
+ * Every 404 the middleware returns: never stored, never indexed. Applied to all of them alike
+ * so a hidden page's 404 (src/lib/petroTinsAccess.ts) carries the same headers as any path that
+ * does not exist.
+ */
+export function withNotFoundHeaders(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'no-store');
+	headers.set('X-Robots-Tag', 'noindex, nofollow');
+	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+/**
  * applySecurityHeaders, plus for financing pages: never index them, and never send their
  * URL (which can carry a single-use token or a receivable ID) to another site. same-origin
  * rather than no-referrer, so same-origin POSTs keep a real Origin header.

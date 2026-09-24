@@ -7,8 +7,13 @@
 //
 // Everywhere else the existing denylist applies unchanged.
 //
+// PetroTins pages are left out entirely while PetroTins is owner-only (PETRO_TINS_PUBLIC in
+// src/lib/petroTinsFlag.mjs); they come back on their own when it is made public.
+//
 // @astrojs/sitemap passes absolute URLs ("https://almstins.com/verify/"), so match on the
 // pathname, with or without a trailing slash.
+
+import { PETRO_TINS_PUBLIC } from '../petroTinsFlag.mjs';
 
 const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 	'/verify/',
@@ -40,6 +45,7 @@ export function sitemapFilter(page) {
 		path = page;
 	}
 	const withSlash = path.endsWith('/') ? path : `${path}/`;
+	if (!PETRO_TINS_PUBLIC && withSlash.toLowerCase().startsWith('/petro-tins/')) return false;
 	if (withSlash.startsWith('/verify/') || withSlash.startsWith('/receivables/')) {
 		return PUBLIC_UNDER_PRODUCT_PREFIXES.has(withSlash);
 	}

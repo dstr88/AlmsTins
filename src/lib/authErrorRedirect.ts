@@ -3,18 +3,27 @@
  *
  * Auth.js redirects every sign-in error to pages.signIn (/login), in English, whichever
  * page the form was posted from. The password and magic-link forms also live on /es, /fr,
- * /verify/login and /petro-tins, so an error there would drop the visitor on a different
- * page, possibly in a different language. This rewrites such a redirect's Location to the
- * same-origin page named by the Referer (the site's Referrer-Policy keeps the path on
- * same-origin requests), keeping `error` and `code`. /verify/login and /receivables/login
+ * /verify/login (and /petro-tins while PetroTins is public), so an error there would drop
+ * the visitor on a different page, possibly in a different language. This rewrites such a
+ * redirect's Location to the same-origin page named by the Referer (the site's
+ * Referrer-Policy keeps the path on same-origin requests), keeping `error` and `code`. /verify/login and /receivables/login
  * (served as a rewrite of /verify/login, so the Referer names it) also keep a `next` that
  * passes safeNextPath. Anything else (no Referer, another page, another host) keeps the
  * Auth.js /login redirect, which still shows the message.
  */
 import { safeNextPath } from './safeNext';
 import type { SessionCutReason } from './sessionGate';
+import { PETRO_TINS_PUBLIC } from './petroTinsFlag.mjs';
 
-const LOGIN_FORM_PAGES = new Set(['/es', '/fr', '/verify/login', '/receivables/login', '/petro-tins']);
+// /petro-tins only while PetroTins is public: while it is owner-only that page is a 404 to a
+// signed-out visitor, so its sign-in errors fall back to /login.
+const LOGIN_FORM_PAGES = new Set([
+	'/es',
+	'/fr',
+	'/verify/login',
+	'/receivables/login',
+	...(PETRO_TINS_PUBLIC ? ['/petro-tins'] : []),
+]);
 const PAGES_KEEPING_NEXT = new Set(['/verify/login', '/receivables/login']);
 
 /**
