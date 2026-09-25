@@ -125,13 +125,7 @@ Authorization: Bearer <your-key>
           <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
           <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentSigninBtn}</a>
           <div class="vdemo">
-            <div class="vdemo__row">
-              <input class="vdemo__input" id="agent-demo-addr" placeholder={t.tools.agentDemo.addrPlaceholder} spellcheck="false" autocomplete="off" />
-              <input class="vdemo__input" id="agent-demo-domain" placeholder={t.tools.agentDemo.domainPlaceholder} spellcheck="false" autocomplete="off" />
-              <button class="vdemo__btn" id="agent-demo-btn" type="button">{t.tools.agentDemo.button}</button>
-            </div>
-            <pre class="vdemo__result" id="agent-demo-result" hidden></pre>
-            <p class="vdemo__hint">{t.tools.agentDemo.hint}</p>
+            <a class="vdemo__btn vdemo__btn--link" href="/verify/agents#try-it">{t.tools.agentDemo.button}</a>
           </div>
         </article>
 
@@ -159,11 +153,13 @@ Authorization: Bearer <your-key>
           <span class="vtool__body">{t.tools.levels[2].body}</span>
           <span class="vtool__price">{t.tools.levels[2].price}</span>
           <a class="vtool__cta" href={LOGIN_HREF}>{t.tools.levels[2].cta} <span aria-hidden="true">→</span></a>
-          <p class="vtool__key-hint">{t.tools.dnsDemo.watchLabel}</p>
           <div class="vdemo">
-            <p class="vdemo__label">{t.tools.dnsDemo.label}</p>
-            <code class="vdemo__code">_almstins-verify.yourdomain.com&nbsp;&nbsp;TXT&nbsp;&nbsp;"0x7a3b…41f0"</code>
-            <p class="vdemo__hint">{t.tools.dnsDemo.hint}</p>
+            <button class="vdemo__btn" id="dns-demo-btn" type="button">{t.tools.dnsDemo.watchLabel}</button>
+            <div class="vdemo__reveal" id="dns-demo-reveal" hidden>
+              <p class="vdemo__label">{t.tools.dnsDemo.label}</p>
+              <code class="vdemo__code">_almstins-verify.yourdomain.com&nbsp;&nbsp;TXT&nbsp;&nbsp;"0x7a3b…41f0"</code>
+              <p class="vdemo__hint">{t.tools.dnsDemo.hint}</p>
+            </div>
           </div>
         </article>
       </div>
@@ -492,6 +488,7 @@ Authorization: Bearer <your-key>
   }
   .vdemo__btn:hover { filter: brightness(1.08); }
   .vdemo__btn:disabled { opacity: 0.6; cursor: default; }
+  .vdemo__btn--link { display: inline-block; text-align: center; text-decoration: none; }
   .vdemo__result {
     font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.72rem; line-height: 1.5;
     background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
@@ -505,6 +502,10 @@ Authorization: Bearer <your-key>
     background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
     padding: 0.55rem 0.7rem; overflow-x: auto; white-space: pre; color: var(--text-primary);
   }
+  /* :not([hidden]) so this declaration never fights the [hidden] UA rule while
+     the reveal is collapsed -- author-origin display would otherwise win the
+     cascade over [hidden] even though it's unhidden later via JS. */
+  .vdemo__reveal:not([hidden]) { display: flex; flex-direction: column; gap: 0.4rem; }
   .vtool--scan { background: var(--surface-card-2); border-style: dashed; border-color: var(--border-bright); }
   .vtool__badge {
     align-self: flex-start;
@@ -684,33 +685,9 @@ Authorization: Bearer <your-key>
 </style>
 
 <script>
-  // Agent tile demo: genuinely live, hits the real free/anonymous check endpoint —
-  // no mock here, unlike the store-owner tile below, since this is exactly what an
-  // agent developer landing on this tile would want to see actually work.
-  const agentBtn = document.getElementById('agent-demo-btn') as HTMLButtonElement | null;
-  const agentAddr = document.getElementById('agent-demo-addr') as HTMLInputElement | null;
-  const agentDomain = document.getElementById('agent-demo-domain') as HTMLInputElement | null;
-  const agentResult = document.getElementById('agent-demo-result') as HTMLElement | null;
-  agentBtn?.addEventListener('click', async () => {
-    const value = agentAddr?.value.trim();
-    if (!value || !agentResult) return;
-    const domain = agentDomain?.value.trim();
-    agentBtn.disabled = true;
-    agentResult.hidden = false;
-    agentResult.textContent = '…';
-    try {
-      const url = new URL('/api/verify/check', window.location.origin);
-      url.searchParams.set('value', value);
-      if (domain) url.searchParams.set('expect', domain);
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      agentResult.textContent = JSON.stringify(data, null, 2);
-    } catch {
-      agentResult.textContent = '{ "error": "could not reach the check endpoint" }';
-    } finally {
-      agentBtn.disabled = false;
-    }
-  });
+  // Agent tile demo moved to /verify/agents#try-it (a full page, not a cramped card,
+  // is the right place for the live checker now that it also carries specs and
+  // examples) -- the tile itself just links there.
 
   // Store-owner tile demo: deliberately mocked, never a real network call — this tile
   // is about showing what claiming a wallet will look like, not checking a real address
@@ -726,5 +703,17 @@ Authorization: Bearer <your-key>
       storeResult.hidden = false;
       storeBtn.disabled = false;
     }, 500);
+  });
+
+  // Domain-verified tile demo: nothing to submit -- the "demo" is just the static
+  // DNS record format. Clicking reveals it instead of showing it permanently, so
+  // the tile matches the click-to-reveal pattern the other two tiles use instead
+  // of pairing a "Watch a demo" label with content that was already on screen.
+  const dnsBtn = document.getElementById('dns-demo-btn') as HTMLButtonElement | null;
+  const dnsReveal = document.getElementById('dns-demo-reveal') as HTMLElement | null;
+  dnsBtn?.addEventListener('click', () => {
+    if (!dnsReveal) return;
+    dnsReveal.hidden = false;
+    dnsBtn.disabled = true;
   });
 </script>

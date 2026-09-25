@@ -42,6 +42,7 @@ function download(filename: string, contents: string) {
 }
 
 export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
+  const [tab, setTab] = useState<'how' | 'setup'>('how');
   const [domain, setDomain] = useState('');
   const [challenge, setChallenge] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -139,26 +140,57 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
   }
 
   const activeStep = !challenge ? 1 : 2;
-  const progressTile = (
-    <section className="rt-progress rt-tile">
-      <h2 className="rt-how__title">{t.progressTitle}</h2>
-      <ul className="rt-progress__list">
-        {t.progressSteps.map((label, i) => {
-          const step = i + 1;
-          const active = step === activeStep;
-          return (
-            <li className={`rt-progress__item${active ? ' rt-progress__item--active' : ''}`} key={label}>
-              <span className="rt-progress__num" aria-hidden="true">{String(step).padStart(2, '0')}</span>
-              <span className="rt-progress__label">{label}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
 
   return (
     <div className="rt">
+      <section className="rt-tabs-card">
+        <div className="rt-tabs" role="tablist" aria-label={t.tabsAriaLabel}>
+          <button type="button" id="rt-tab-how" className={`rt-tab${tab === 'how' ? ' rt-tab--active' : ''}`}
+            role="tab" aria-selected={tab === 'how'} aria-controls="rt-panel-how" onClick={() => setTab('how')}>
+            {t.howItWorksTitle}
+          </button>
+          <button type="button" id="rt-tab-setup" className={`rt-tab${tab === 'setup' ? ' rt-tab--active' : ''}`}
+            role="tab" aria-selected={tab === 'setup'} aria-controls="rt-panel-setup" onClick={() => setTab('setup')}>
+            {t.progressTitle}
+          </button>
+        </div>
+
+        {tab === 'how' ? (
+          <div id="rt-panel-how" role="tabpanel" aria-labelledby="rt-tab-how" className="rt-tabpanel">
+            <div className="rt-panel__cols">
+              {[t.howItWorksItems.slice(0, 2), t.howItWorksItems.slice(2, 4)].map((col, ci) => (
+                <ul className="rt-how__list" key={ci}>
+                  {col.map((item, ii) => (
+                    <li className="rt-how__item" key={item.title}>
+                      <span className="rt-how__num" aria-hidden="true">{String(ci * 2 + ii + 1).padStart(2, '0')}</span>
+                      <div>
+                        <p className="rt-how__item-title">{item.title}</p>
+                        <p className="rt-how__item-desc">{item.desc}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div id="rt-panel-setup" role="tabpanel" aria-labelledby="rt-tab-setup" className="rt-tabpanel">
+            <ul className="rt-progress__list">
+              {t.progressSteps.map((label, i) => {
+                const step = i + 1;
+                const active = step === activeStep;
+                return (
+                  <li className={`rt-progress__item${active ? ' rt-progress__item--active' : ''}`} key={label}>
+                    <span className="rt-progress__num" aria-hidden="true">{String(step).padStart(2, '0')}</span>
+                    <span className="rt-progress__label">{label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </section>
+
       <div className="rt-tiles">
         {!challenge ? (
           <div className="rt-step1-wrap">
@@ -244,28 +276,7 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
             </div>
           </div>
         )}
-
-        {progressTile}
       </div>
-
-      <section className="rt-how-wide">
-        <h2 className="rt-how__title">{t.howItWorksTitle}</h2>
-        <div className="rt-how-wide__cols">
-          {[t.howItWorksItems.slice(0, 2), t.howItWorksItems.slice(2, 4)].map((col, ci) => (
-            <ul className="rt-how__list" key={ci}>
-              {col.map((item, ii) => (
-                <li className="rt-how__item" key={item.title}>
-                  <span className="rt-how__num" aria-hidden="true">{String(ci * 2 + ii + 1).padStart(2, '0')}</span>
-                  <div>
-                    <p className="rt-how__item-title">{item.title}</p>
-                    <p className="rt-how__item-desc">{item.desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

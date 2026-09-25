@@ -54,6 +54,7 @@ export interface VerifyRosterLocale {
   progressTitle: string;
   progressSteps: string[]; // exactly 4 — steps 1-2 highlight per RosterEditor's own state;
                             // 3-4 (encrypted / DNS-published) are informational only for now
+  tabsAriaLabel: string; // labels the how-it-works/set-up tablist at the top of the roster page
 }
 
 const en: VerifyRosterLocale = {
@@ -106,13 +107,14 @@ const en: VerifyRosterLocale = {
     { title: 'Wallet addresses stay private', desc: 'Only you can see which addresses are on your list. A label is just for you, to tell your own wallets apart — it stays private too.' },
     { title: 'Stale listings expire on their own', desc: 'If the file disappears from your site, or the DNS record changes, your addresses stop showing as verified within a day.' },
   ],
-  progressTitle: 'The process',
+  progressTitle: 'Set up',
   progressSteps: [
     'Name your website',
     'Identify your wallets',
     'Encrypt the addresses',
     'Save it in the main folder of your website',
   ],
+  tabsAriaLabel: 'Guide',
 };
 
 const es: VerifyRosterLocale = {
@@ -165,13 +167,14 @@ const es: VerifyRosterLocale = {
     { title: 'Las direcciones de billetera permanecen privadas', desc: 'Solo tú puedes ver qué direcciones están en tu lista. Una etiqueta es solo para ti, para distinguir tus propias billeteras — también permanece privada.' },
     { title: 'Las listas obsoletas caducan solas', desc: 'Si el archivo desaparece de tu sitio, o cambia el registro DNS, tus direcciones dejan de mostrarse como verificadas en un día.' },
   ],
-  progressTitle: 'El proceso',
+  progressTitle: 'Configuración',
   progressSteps: [
     'Nombra tu sitio web',
     'Identifica tus billeteras',
     'Cifra las direcciones',
     'Guárdalo en la carpeta principal de tu sitio web',
   ],
+  tabsAriaLabel: 'Guía',
 };
 
 const fr: VerifyRosterLocale = {
@@ -224,13 +227,14 @@ const fr: VerifyRosterLocale = {
     { title: 'Les adresses de portefeuille restent privées', desc: 'Vous seul pouvez voir quelles adresses figurent sur votre liste. Un libellé est seulement pour vous, pour distinguer vos propres portefeuilles — il reste privé lui aussi.' },
     { title: 'Les listes obsolètes expirent d’elles-mêmes', desc: 'Si le fichier disparaît de votre site, ou que l’enregistrement DNS change, vos adresses cessent d’apparaître comme vérifiées en une journée.' },
   ],
-  progressTitle: 'Le processus',
+  progressTitle: 'Configuration',
   progressSteps: [
     'Nommez votre site web',
     'Identifiez vos portefeuilles',
     'Chiffrez les adresses',
     'Enregistrez-le dans le dossier principal de votre site web',
   ],
+  tabsAriaLabel: 'Guide',
 };
 
 const MAP: Record<Lang, VerifyRosterLocale> = { en, es, fr };

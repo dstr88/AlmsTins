@@ -1,25 +1,46 @@
 .rt { display: block; }
 
-/* Either state's primary card paired with the progress tile: one column up
-   to 800px, side by side above it — same breakpoint the /verify landing
-   page's own tile grid uses. Sizing steps up again at that breakpoint. */
+/* Single primary card now that the process tile no longer sits beside it
+   (moved into the tabs card above) -- a form-width column reads better
+   than stretching a domain input or address rows to the old two-column
+   58rem span. */
 .rt-tiles {
-  max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 1.5rem;
+  max-width: 42rem; margin: 0 auto; padding: 2rem 1.25rem 1.5rem;
   display: grid; grid-template-columns: 1fr; align-items: start; gap: 1.5rem;
 }
+
+/* Tabs card: "How it works" / "Set up", the two info panels that used to be
+   a sidebar tile (process) and a full-width block below everything else
+   (how-it-works) -- now one card at the top of the page so either is
+   visible before the visitor even starts typing a domain. */
+.rt-tabs-card {
+  max-width: 55.5rem; margin: 2rem auto 0; padding: 1.5rem 1.25rem;
+  background: var(--surface-card); border: 2px solid var(--accent-dim);
+  border-radius: 16px; box-shadow: 0 8px 28px var(--accent-glow);
+}
+.rt-tabs {
+  display: flex; gap: 1.5rem; margin: -1.5rem -1.25rem 1.5rem; padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rt-tab {
+  font-family: inherit; padding: 0.9rem 0.1rem; font-size: 0.85rem; font-weight: 700;
+  color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s;
+}
+.rt-tab:hover { color: var(--text-secondary); }
+.rt-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
+
 @media (min-width: 800px) {
-  .rt-tiles { grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .rt-tabs-card { padding: 2.25rem; margin-top: 3rem; }
+  .rt-tabs { margin: -2.25rem -2.25rem 1.75rem; padding: 0 2.25rem; }
+  .rt-tab { font-size: 0.95rem; padding: 1.05rem 0.15rem; }
 }
 
-.rt-tile {
-  background: var(--surface-card); border: 2px solid var(--accent-dim);
-  border-radius: 16px; padding: 1.5rem; box-shadow: 0 8px 28px var(--accent-glow);
+.rt-panel__cols { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 800px) {
+  .rt-panel__cols { grid-template-columns: 1fr 1fr; gap: 2.5rem; }
 }
-.rt-how__title {
-  margin: 0 0 1.25rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em;
-  text-transform: uppercase; color: var(--text-muted);
-  padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle);
-}
+
 .rt-how__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.25rem; }
 .rt-how__item { display: flex; gap: 0.9rem; align-items: flex-start; }
 .rt-how__num {
@@ -32,8 +53,6 @@
 .rt-how__item-desc { margin: 0.3rem 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--text-muted); }
 
 @media (min-width: 800px) {
-  .rt-tile { padding: 2.25rem; }
-  .rt-how__title { font-size: 0.8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; }
   .rt-how__list { gap: 1.6rem; }
   .rt-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
   .rt-how__item-title { font-size: 1.05rem; }
@@ -61,27 +80,6 @@
   .rt-progress__list { gap: 1.2rem; }
   .rt-progress__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
   .rt-progress__label { font-size: 0.95rem; }
-}
-
-/* How-this-works: full width, below both tiles, points 1-2 in one column
-   and 3-4 in the other (not a plain 4-item auto-flow grid). Card width
-   matches the tile row's content width above it (58rem minus its 1.25rem
-   side padding, roughly), so the two line up. */
-.rt-how-wide {
-  max-width: 55.5rem; margin: 0 auto 3rem; padding: 1.5rem 1.25rem;
-  background: var(--surface-card); border: 2px solid var(--accent-dim);
-  border-radius: 16px; box-shadow: 0 8px 28px var(--accent-glow);
-}
-.rt-how-wide .rt-how__title { margin-bottom: 1.25rem; }
-.rt-how-wide__cols { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-@media (min-width: 800px) {
-  .rt-how-wide { padding: 2.25rem; margin-bottom: 4rem; }
-  .rt-how-wide .rt-how__title { font-size: 0.8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; }
-  .rt-how-wide__cols { grid-template-columns: 1fr 1fr; gap: 2.5rem; }
-  .rt-how-wide .rt-how__list { gap: 1.6rem; }
-  .rt-how-wide .rt-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
-  .rt-how-wide .rt-how__item-title { font-size: 1.05rem; }
-  .rt-how-wide .rt-how__item-desc { font-size: 0.92rem; margin-top: 0.4rem; }
 }
 
 .rt-step1-wrap { position: relative; }

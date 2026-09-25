@@ -17,6 +17,11 @@ import Analytics from '@/components/Analytics.astro';
 // tests/verify/agentDocs.test.ts pins the rule and the field/status contract so they
 // cannot silently regress.
 // Verify warns and flags; the payer decides. Keep the verbs to hold / flag / escalate.
+//
+// "Try it live" below hits /api/verify/check client-side, unauthenticated — the same
+// free endpoint documented above, not a mock. The Verify landing page's Agents tile
+// used to embed this same widget inline; it now just links to #try-it, since a full
+// page with the spec around it is a better first look than a cramped card.
 import '@/styles/tokens.css';
 
 export const prerender = false;
@@ -27,24 +32,28 @@ const ANSWERS = [
     cls: 'good',
     h: 'The only answer to proceed on',
     p: "level is verified, and (you passed no expect, or the domain that anchors this destination matches it). Proceed under your own policy, and only when you passed expect: without it you only learn that some proof exists, not that it's your payee.",
+    sample: '{ "status": "proven", "level": "verified", "domain": "acme.com" }',
   },
   {
     code: 'mismatch',
     cls: 'bad',
     h: 'A domain stands behind this destination, and it is not the one you expected',
     p: "level is verified — a domain currently vouches for this destination — but it is not the one you passed. The loudest signal this API can emit: your records say one business, the destination belongs to another. Hold the payment, flag it, and escalate to a human as a discrepancy to confirm with the payee through a channel you already trust, not as confirmed fraud: it can also come back when the payee genuinely operates more than one proven domain and you had the wrong one, or when you passed a subdomain that is not actually a subdomain of the one they proved.",
+    sample: '{ "status": "mismatch", "level": "verified", "domain": "not-the-domain-you-expected.com" }',
   },
   {
     code: 'unanchored',
     cls: 'warn',
     h: 'Something is on record, but no domain currently vouches for it',
     p: "level is claimed: control was proven (a self-send for a crypto address) or a payment link was registered to an account, but no domain backs it right now — never listed, removed from a listing, not re-confirmed within the last 24 hours, or (a payment link) the account holds no verified business name. Not fraud: a payee who has not reached Level 2, or whose proof has gone stale. Hold and confirm the destination with the payee through a channel you already trust.",
+    sample: '{ "status": "unanchored", "level": "claimed", "domain": null }',
   },
   {
     code: 'unknown',
     cls: 'warn',
     h: 'No current proof on record',
     p: 'level is null: no proof of this destination is on record at all — it was never proven, or the listing that was its only proof lapsed or was withdrawn. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate. Fail closed: hold and escalate.',
+    sample: '{ "status": "unknown", "level": null, "domain": null }',
   },
 ];
 
@@ -66,6 +75,16 @@ const PRINCIPLES = [
   ['Nobody approves anybody.', 'Payees prove their own destinations (a self-send, a file on their own domain) or register payment links to their own accounts. We maintain no list of legitimate businesses and decide nothing. We check proofs the way a browser checks certificates.'],
   ['The contract is additive-only.', 'Fields are added, never removed or repurposed. New status values may be added: treat any status you do not recognize as a hold. The v field bumps only on a breaking change, which we intend never to ship.'],
 ];
+
+const TOC = [
+  ['the-call', 'The call'],
+  ['try-it', 'Try it live'],
+  ['the-rule', 'The rule'],
+  ['answers', 'The answers'],
+  ['specs', 'Specs'],
+  ['limits', 'Limits & keys'],
+  ['for-payees', 'For payees'],
+];
 ---
 <!doctype html>
 <html lang="en">
@@ -77,49 +96,153 @@ const PRINCIPLES = [
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 17px; }
     body {
       background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+      line-height: 1.65; padding: 5rem 1.1rem 4rem;
     }
     .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
     .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
-    h1 { font-size: clamp(1.7rem, 4.2vw, 2.2rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
-    .lede { color: var(--text-secondary); font-size: 1rem; margin-top: .5rem; }
+    h1 { font-size: clamp(1.9rem, 4.6vw, 2.5rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: 1.08rem; margin-top: .5rem; }
     .lede b { color: var(--text-primary); }
-    section { border-top: 1px solid var(--border-subtle); padding-top: 1.4rem; }
-    h2 { font-size: 1.08rem; font-weight: 700; margin-bottom: .6rem; }
-    p.body { font-size: .93rem; color: var(--text-secondary); margin-bottom: .8rem; }
+
+    /* Hero tiles — get-started CTA + how-it-works summary, one row of two.
+       Same green-bordered/glowing card language as the roster page's tiles
+       (--accent-dim border, --accent-glow shadow), sitting above the rest of
+       the page's text as the first thing a visitor acts on or skims. */
+    .hero-tiles { display: grid; grid-template-columns: 1fr; gap: 1.25rem; align-items: start; }
+    @media (min-width: 640px) {
+      .hero-tiles { grid-template-columns: 1fr 1fr; }
+    }
+    .hero-tile {
+      background: var(--surface-card); border: 2px solid var(--accent-dim);
+      border-radius: 16px; padding: 1.5rem; box-shadow: 0 8px 28px var(--accent-glow);
+    }
+    .hero-tile__title { font-size: 1.1rem; font-weight: 800; margin-bottom: .9rem; }
+    .hero-tile__body { font-size: .95rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.1rem; }
+    .hero-tile__cta {
+      display: inline-block; padding: .7rem 1.1rem; border-radius: 10px;
+      background: var(--accent); color: var(--surface-bg); font-size: .9rem; font-weight: 700;
+      text-decoration: none; transition: filter .15s;
+    }
+    .hero-tile__cta:hover { filter: brightness(1.06); text-decoration: none; }
+    .hero-tile__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
+    .hero-tile__list li { display: flex; gap: .75rem; align-items: flex-start; }
+    .hero-tile__num {
+      flex: 0 0 auto; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+      border: 1px solid var(--border-bright); background: var(--surface-bg);
+      color: var(--accent); font-size: .68rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hero-tile__item-title { margin: 0; font-size: .85rem; font-weight: 700; color: var(--text-primary); }
+    .hero-tile__item-desc { margin: .2rem 0 0; font-size: .78rem; line-height: 1.5; color: var(--text-muted); }
+
+    /* Quick nav — jump straight to a section, same pill-row idea as the tool-tile
+       banner on the main Verify landing page, scaled down for a doc page. */
+    .toc { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .toc a {
+      font-size: .82rem; font-weight: 650; color: var(--text-secondary); text-decoration: none;
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 999px;
+      padding: .35rem .8rem;
+    }
+    .toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.4rem; scroll-margin-top: 1.4rem; }
+    h2 { font-size: 1.32rem; font-weight: 700; margin-bottom: .7rem; }
+    p.body { font-size: 1.02rem; color: var(--text-secondary); margin-bottom: .8rem; }
     p.body b { color: var(--text-primary); font-weight: 650; }
     pre {
       background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 10px;
-      padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.55;
+      padding: 1rem 1.1rem; overflow-x: auto; font-size: .92rem; line-height: 1.55;
       font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
     }
     pre b { color: var(--accent); font-weight: 600; }
+
+    /* Terminal chrome around the one big example response -- one high-impact visual
+       moment near the top rather than wrapping every code block in it. Dots are
+       decorative (not semantic), so plain --border-bright rather than gain/loss/warning. */
+    .term { border: 1px solid var(--border-subtle); border-radius: 10px; overflow: hidden; margin-bottom: .9rem; }
+    .term__bar { display: flex; align-items: center; gap: .4rem; padding: .55rem .8rem; background: var(--surface-card-2); border-bottom: 1px solid var(--border-subtle); }
+    .term__dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--border-bright); }
+    .term__title { margin-left: .4rem; font-size: .78rem; color: var(--text-muted); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+    .term pre { border: none; border-radius: 0; margin: 0; }
+
     ol.rule { margin: 0 0 .9rem 1.3rem; display: flex; flex-direction: column; gap: .4rem; }
-    ol.rule li { font-size: .93rem; color: var(--text-secondary); }
+    ol.rule li { font-size: 1.02rem; color: var(--text-secondary); }
     ol.rule b { color: var(--text-primary); font-weight: 650; }
     .st { border-left: 2px solid var(--border-bright); padding-left: .95rem; margin-bottom: 1rem; }
     .st code {
-      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .9rem;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: 1rem;
       padding: .1rem .45rem; border-radius: 6px;
     }
     .st.good code { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
     .st.bad  code { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
     .st.warn code { color: var(--text-primary); background: var(--surface-card-2); border: 1px solid var(--border-bright); }
-    .st h3 { font-size: .93rem; font-weight: 700; margin: .35rem 0 .1rem; }
-    .st p { font-size: .87rem; color: var(--text-secondary); }
+    .st h3 { font-size: 1.05rem; font-weight: 700; margin: .35rem 0 .1rem; }
+    .st p { font-size: .97rem; color: var(--text-secondary); }
+    .st__sample {
+      display: inline-block; margin-top: .5rem; font-size: .82rem; padding: .5rem .7rem;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 8px;
+    }
     ul.pr { list-style: none; display: flex; flex-direction: column; gap: .8rem; }
-    ul.pr li { font-size: .9rem; color: var(--text-secondary); }
+    ul.pr li { font-size: 1rem; color: var(--text-secondary); }
     ul.pr b { color: var(--text-primary); font-weight: 650; }
     ul.pr code {
-      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .85rem;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .92rem;
       color: var(--text-primary);
     }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .note { font-size: .82rem; color: var(--text-muted); }
+    .note { font-size: .85rem; color: var(--text-muted); }
+
+    /* Technical specs — scannable reference tables, the prose sections elsewhere
+       on the page carry the nuance a table can't. */
+    .spec-wrap { overflow-x: auto; margin-bottom: 1.1rem; }
+    table.spec { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    table.spec caption { text-align: left; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); padding-bottom: .5rem; }
+    table.spec th, table.spec td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; overflow-wrap: anywhere; }
+    table.spec th { color: var(--text-primary); font-weight: 650; width: 34%; }
+    table.spec td { color: var(--text-secondary); }
+    table.spec tr:last-child th, table.spec tr:last-child td { border-bottom: none; }
+    table.spec code {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: .88rem; color: var(--accent);
+      overflow-wrap: anywhere;
+    }
+
+    /* Try it live — the same live, unauthenticated widget the Verify landing page's
+       Agents tile used to embed inline, ported here where it has room to breathe. */
+    .try-box {
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem;
+      display: flex; flex-direction: column; gap: .6rem;
+    }
+    .try-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .try-input {
+      flex: 1 1 180px; min-width: 0; font-family: inherit; font-size: .92rem; padding: .55rem .7rem;
+      background: var(--surface-bg); border: 1px solid var(--border-bright); border-radius: 7px;
+      color: var(--text-primary); outline: none;
+    }
+    .try-input:focus { border-color: var(--accent); }
+    .try-input::placeholder { color: var(--text-muted); }
+    .try-btn {
+      font-family: inherit; font-size: .9rem; font-weight: 700; padding: .55rem 1rem;
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 7px;
+      cursor: pointer; white-space: nowrap;
+    }
+    .try-btn:hover { filter: brightness(1.08); }
+    .try-btn:disabled { opacity: .6; cursor: default; }
+    .try-result {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: .85rem; line-height: 1.55;
+      background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
+      padding: .7rem .85rem; margin: 0; overflow-x: auto; white-space: pre-wrap; color: var(--gain);
+    }
+    .try-hint { font-size: .82rem; color: var(--text-muted); }
+
+    @media (max-width: 480px) {
+      table.spec th { width: 42%; }
+    }
   </style>
 	<Analytics />
 </head>
@@ -136,7 +259,43 @@ const PRINCIPLES = [
       </p>
     </header>
 
-    <section>
+    <section class="hero-tiles">
+      <div class="hero-tile">
+        <h2 class="hero-tile__title">Get started</h2>
+        <p class="hero-tile__body">
+          Free and anonymous to try — 30 checks a minute, no login. Building a
+          fleet? Mint your own key with one DNS record for 300 a minute.
+        </p>
+        <a class="hero-tile__cta" href="/verify/login?next=/verify/agent-keys">Log in to get started <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="hero-tile">
+        <h2 class="hero-tile__title">How this works</h2>
+        <ul class="hero-tile__list">
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">01</span>
+            <div><p class="hero-tile__item-title">One free GET request</p><p class="hero-tile__item-desc">Pass the address and the domain you expect — anonymous, no key required.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">02</span>
+            <div><p class="hero-tile__item-title">Proceed only when proven + verified</p><p class="hero-tile__item-desc">Anything else is a hold for a human — never a guess.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">03</span>
+            <div><p class="hero-tile__item-title">Nobody approves anybody</p><p class="hero-tile__item-desc">Payees prove their own destinations. We only check the proof.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">04</span>
+            <div><p class="hero-tile__item-title">Cache your results</p><p class="hero-tile__item-desc">Proof state changes slowly — a few minutes is safe.</p></div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <nav class="toc" aria-label="Page sections">
+      {TOC.map(([id, label]) => (<a href={`#${id}`}>{label}</a>))}
+    </nav>
+
+    <section id="the-call">
       <h2>The call</h2>
       <pre><b>GET</b> https://almstins.com/api/verify/check?value=&lt;address or payment URL&gt;&amp;expect=&lt;domain&gt;</pre>
       <p class="body">
@@ -149,7 +308,12 @@ const PRINCIPLES = [
         github.io, pages.dev and similar); for a payee hosted on one, pass their full host. expect is
         optional in the API, and an empty expect is ignored, but the rule below requires it: always pass it.
       </p>
-      <pre>{`{
+      <div class="term">
+        <div class="term__bar">
+          <span class="term__dot"></span><span class="term__dot"></span><span class="term__dot"></span>
+          <span class="term__title">GET /api/verify/check</span>
+        </div>
+        <pre>{`{
   // proceed only if status is "proven" AND level is "verified" AND you passed expect
   "v": 1,
   "status": "proven",          // or "mismatch" | "unanchored" | "unknown"
@@ -161,9 +325,27 @@ const PRINCIPLES = [
   "proofAgeDays": 59,          // age of that proof, not freshness (freshness lives in level)
   "checkedAt": "2026-09-11T14:30:00Z"
 }`}</pre>
+      </div>
     </section>
 
-    <section>
+    <section id="try-it">
+      <h2>Try it live</h2>
+      <p class="body">
+        Paste a real address or payment link. This calls the exact same free, anonymous
+        endpoint documented above — no mock, no login, no key required.
+      </p>
+      <div class="try-box">
+        <div class="try-row">
+          <input class="try-input" id="live-demo-addr" placeholder="0x… or a payment link" spellcheck="false" autocomplete="off" />
+          <input class="try-input" id="live-demo-domain" placeholder="the domain you expect (optional)" spellcheck="false" autocomplete="off" />
+          <button class="try-btn" id="live-demo-btn" type="button">Run the check</button>
+        </div>
+        <pre class="try-result" id="live-demo-result" hidden></pre>
+        <p class="try-hint">Most addresses you try will come back <code>unknown</code> — that's correct, not broken: it just means nobody has published proof for it yet.</p>
+      </div>
+    </section>
+
+    <section id="the-rule">
       <h2>The rule: proceed only when all three hold</h2>
       <ol class="rule">
         <li>You passed <b>expect=&lt;the payee's domain&gt;</b>, taken from your own records. Never take it from the page that supplied the address, and never pass a processor, hosting or platform domain (such as stripe.com). The API ignores an empty expect and then answers proven for any domain, so your agent must hold when it has no domain to pass.</li>
@@ -196,13 +378,14 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </p>
     </section>
 
-    <section>
+    <section id="answers">
       <h2>The answers, read with level</h2>
       {ANSWERS.map((x) => (
         <div class={`st ${x.cls}`}>
           <code>{x.code}</code>
           <h3>{x.h}</h3>
           <p>{x.p}</p>
+          <pre class="st__sample">{x.sample}</pre>
         </div>
       ))}
     </section>
@@ -228,6 +411,59 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </ul>
     </section>
 
+    <section id="specs">
+      <h2>Technical specs</h2>
+      <p class="body">Quick reference — the sections around this one carry the full explanation and the nuance a table can't.</p>
+
+      <div class="spec-wrap">
+        <table class="spec">
+          <caption>Endpoint</caption>
+          <tr><th>Method</th><td><code>GET</code></td></tr>
+          <tr><th>URL</th><td><code>https://almstins.com/api/verify/check</code></td></tr>
+          <tr><th>Auth</th><td>None required for anonymous use. Optional <code>Authorization: Bearer &lt;key&gt;</code> for a raised rate limit.</td></tr>
+          <tr><th>Query params</th><td><code>value</code> (required), <code>expect</code> (optional in the API, required by the rule above)</td></tr>
+          <tr><th>Response</th><td><code>application/json</code>, always <code>v: 1</code> today — additive-only, never a breaking change</td></tr>
+        </table>
+      </div>
+
+      <div class="spec-wrap">
+        <table class="spec">
+          <caption>Rate limits</caption>
+          <tr><th>Anonymous</th><td>30 requests / minute / IP</td></tr>
+          <tr><th>With a key</th><td>300 requests / minute — <a href="#limits">self-served, see Limits &amp; keys</a></td></tr>
+          <tr><th>Over limit</th><td><code>429</code> with a <code>Retry-After</code> header — honor it</td></tr>
+        </table>
+      </div>
+
+      <div class="spec-wrap">
+        <table class="spec">
+          <caption>HTTP status codes</caption>
+          <tr><th><code>200</code></th><td>Always an answer — read <code>status</code> and <code>level</code>, never the HTTP code alone</td></tr>
+          <tr><th><code>401</code></th><td>Key revoked or malformed — never a silent downgrade to anonymous</td></tr>
+          <tr><th><code>429</code></th><td>Rate limited — retry after the <code>Retry-After</code> header</td></tr>
+          <tr><th><code>503</code></th><td>The check itself is unavailable — retry with backoff; this is <b>not</b> the same signal as <code>status: "unknown"</code></td></tr>
+        </table>
+      </div>
+
+      <div class="spec-wrap">
+        <table class="spec">
+          <caption>Supported value types</caption>
+          <tr><th>Crypto addresses</th><td>Ethereum, Polygon, Avalanche, Bitcoin, Solana, Litecoin (plus whatever chain names a platform's own published list uses)</td></tr>
+          <tr><th>Payment links</th><td>Stripe, PayPal</td></tr>
+          <tr><th>QR payloads</th><td>EMV and UPI</td></tr>
+        </table>
+      </div>
+
+      <div class="spec-wrap">
+        <table class="spec">
+          <caption>Caching</caption>
+          <tr><th>Safe to cache</th><td><code>proven</code> + <code>verified</code>, for 5–15 minutes, keyed by <code>value</code> plus <code>expect</code></td></tr>
+          <tr><th>Never cache past</th><td>a <code>mismatch</code> or an <code>unanchored</code> answer</td></tr>
+          <tr><th>On a <code>503</code></th><td>retry with backoff; your policy may reasonably honor a recently cached <code>proven</code> answer while the check is unavailable</td></tr>
+        </table>
+      </div>
+    </section>
+
     <section>
       <h2>Principles the contract keeps</h2>
       <ul class="pr">
@@ -235,7 +471,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </ul>
     </section>
 
-    <section>
+    <section id="limits">
       <h2>Limits and keys</h2>
       <p class="body">
         Anonymous calls are free and stay free: 30 requests per minute per IP, enough for a human-paced
@@ -257,7 +493,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </p>
     </section>
 
-    <section>
+    <section id="for-payees">
       <h2>If you are the one being paid</h2>
       <p class="body">
         Agents that follow this page proceed only on a <b>verified</b> answer. A self-send (Level 1)
@@ -285,5 +521,34 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </p>
     </section>
   </div>
+
+  <script>
+    // Same fetch the code sample above documents, run for real against the free,
+    // anonymous endpoint -- no login, no key, no mock.
+    const liveBtn = document.getElementById('live-demo-btn') as HTMLButtonElement | null;
+    const liveAddr = document.getElementById('live-demo-addr') as HTMLInputElement | null;
+    const liveDomain = document.getElementById('live-demo-domain') as HTMLInputElement | null;
+    const liveResult = document.getElementById('live-demo-result') as HTMLElement | null;
+    liveBtn?.addEventListener('click', async () => {
+      const value = liveAddr?.value.trim();
+      if (!value || !liveResult) return;
+      const domain = liveDomain?.value.trim();
+      liveBtn.disabled = true;
+      liveResult.hidden = false;
+      liveResult.textContent = '…';
+      try {
+        const url = new URL('/api/verify/check', window.location.origin);
+        url.searchParams.set('value', value);
+        if (domain) url.searchParams.set('expect', domain);
+        const res = await fetch(url.toString());
+        const data = await res.json();
+        liveResult.textContent = JSON.stringify(data, null, 2);
+      } catch {
+        liveResult.textContent = '{ "error": "could not reach the check endpoint" }';
+      } finally {
+        liveBtn.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>
