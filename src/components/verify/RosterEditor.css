@@ -1,4 +1,44 @@
-.rt { display: flex; flex-direction: column; gap: 0.6rem; max-width: 640px; }
+.rt { display: block; }
+
+/* Domain-entry state: Step One paired with How-this-works, one column up to
+   800px, side by side above it — same breakpoint the /verify landing page's
+   own tile grid uses. Sizing steps up again at that breakpoint. */
+.rt-tiles {
+  max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 4rem;
+  display: grid; grid-template-columns: 1fr; align-items: start; gap: 1.5rem;
+}
+@media (min-width: 800px) {
+  .rt-tiles { grid-template-columns: 1fr 1fr; gap: 2rem; }
+}
+
+.rt-tile {
+  background: var(--surface-card); border: 2px solid var(--accent-dim);
+  border-radius: 16px; padding: 1.5rem; box-shadow: 0 8px 28px var(--accent-glow);
+}
+.rt-how__title {
+  margin: 0 0 1.25rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-muted);
+  padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle);
+}
+.rt-how__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.25rem; }
+.rt-how__item { display: flex; gap: 0.9rem; align-items: flex-start; }
+.rt-how__num {
+  flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 50%;
+  border: 1px solid var(--border-bright); background: var(--surface-bg);
+  color: var(--accent); font-size: 0.72rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.rt-how__item-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
+.rt-how__item-desc { margin: 0.3rem 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--text-muted); }
+
+@media (min-width: 800px) {
+  .rt-tile { padding: 2.25rem; }
+  .rt-how__title { font-size: 0.8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; }
+  .rt-how__list { gap: 1.6rem; }
+  .rt-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
+  .rt-how__item-title { font-size: 1.05rem; }
+  .rt-how__item-desc { font-size: 0.92rem; margin-top: 0.4rem; }
+}
 
 .rt-step1-wrap { position: relative; }
 .rt-step1-glow {
@@ -44,6 +84,70 @@
   .rt-step1__input { font-size: 1.05rem; padding: 1.05rem 1.2rem; }
   .rt-step1__btn { font-size: 1.05rem; padding: 1rem; }
   .rt-step1__help { font-size: 0.88rem; }
+}
+
+/* Address-editing state: one full-width card (same column width the tile
+   pair used above) instead of squeezed into half a grid column. */
+.rt-editor-wrap { position: relative; max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+.rt-editor-glow {
+  position: absolute; inset: 1.5rem 1.25rem; border-radius: 24px;
+  background: var(--accent-glow); filter: blur(28px); opacity: 0.22;
+  pointer-events: none;
+}
+.rt-editor {
+  position: relative; display: flex; flex-direction: column; gap: 1.75rem;
+  background: var(--surface-card); border: 2px solid var(--accent-dim); border-radius: 16px;
+  padding: 1.5rem; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35), 0 0 28px var(--accent-glow);
+}
+.rt-editor__section { display: flex; flex-direction: column; gap: 0.75rem; }
+.rt-editor__label {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rt-editor__label svg { flex: 0 0 auto; color: var(--accent); }
+
+.rt-csv-btn {
+  display: flex; align-items: center; gap: 0.85rem; width: 100%; padding: 1rem;
+  text-align: left; cursor: pointer; color: inherit; font-family: inherit;
+  background: var(--surface-bg); border: 1px dashed var(--border-bright);
+  border-radius: 10px; transition: border-color 0.15s, background 0.15s;
+}
+.rt-csv-btn:hover { border-color: var(--accent-dim); background: var(--accent-soft); }
+.rt-csv-btn__icon {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 2.2rem; height: 2.2rem; border-radius: 8px;
+  border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--accent);
+}
+.rt-csv-btn__title { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.rt-csv-btn__sub { display: block; margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-muted); }
+
+.rt-editor__encrypt {
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding-top: 1.5rem; border-top: 1px solid var(--border-subtle);
+}
+.rt-editor__encrypt-btn {
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  width: 100%; padding: 1rem; font-family: inherit; font-size: 0.95rem; font-weight: 700;
+  color: var(--surface-bg); background: var(--accent); border: none; border-radius: 10px;
+  cursor: pointer; box-shadow: 0 6px 20px var(--accent-glow); transition: filter 0.15s, transform 0.1s;
+}
+.rt-editor__encrypt-btn:hover:not(:disabled) { filter: brightness(1.06); }
+.rt-editor__encrypt-btn:active:not(:disabled) { transform: translateY(1px); }
+.rt-editor__encrypt-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+
+@media (min-width: 800px) {
+  .rt-editor { padding: 2.25rem; gap: 2rem; }
+  .rt-editor__label { font-size: 0.78rem; }
+  .rt-csv-btn { padding: 1.25rem; }
+  .rt-csv-btn__icon { width: 2.5rem; height: 2.5rem; }
+  .rt-csv-btn__title { font-size: 0.92rem; }
+  .rt-csv-btn__sub { font-size: 0.8rem; }
+  .rt-editor__encrypt-btn { font-size: 1.05rem; padding: 1.1rem; }
+  .rt-input { font-size: 0.95rem; padding: 0.65rem 0.85rem; }
+  .rt-input--addr { font-size: 0.88rem; }
+  .rt-row-del { width: 2.1rem; height: 2.1rem; font-size: 0.85rem; }
+  .rt-btn { font-size: 0.88rem; padding: 0.6rem 1.1rem; }
 }
 
 .rt-label { font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); }

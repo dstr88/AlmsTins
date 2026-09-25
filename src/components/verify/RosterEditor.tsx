@@ -141,66 +141,105 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
   return (
     <div className="rt">
       {!challenge ? (
-        <div className="rt-step1-wrap">
-          <div className="rt-step1-glow" aria-hidden="true" />
-          <form className="rt-step1" onSubmit={(e) => { e.preventDefault(); void start(); }}>
-            <label className="rt-step1__label" htmlFor="rt-domain">{t.stepOneLabel}</label>
-            <input id="rt-domain" className="rt-step1__input" value={domain} onChange={(e) => setDomain(e.target.value)}
-              placeholder={t.domainPlaceholder} spellCheck={false} autoComplete="url" inputMode="url" />
-            <button type="submit" className="rt-step1__btn" disabled={starting || !domain.trim()}>
-              {t.getChallengeBtn}
-            </button>
-            <p className="rt-step1__help">
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.2M8 4.8v.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-              <span>{t.lightPathHint}</span>
-            </p>
-            {outcome && <div className={`rt-outcome ${outcome.ok ? 'rt-outcome--ok' : 'rt-outcome--warn'}`}>{outcome.text}</div>}
-          </form>
+        <div className="rt-tiles">
+          <div className="rt-step1-wrap">
+            <div className="rt-step1-glow" aria-hidden="true" />
+            <form className="rt-step1" onSubmit={(e) => { e.preventDefault(); void start(); }}>
+              <label className="rt-step1__label" htmlFor="rt-domain">{t.stepOneLabel}</label>
+              <input id="rt-domain" className="rt-step1__input" value={domain} onChange={(e) => setDomain(e.target.value)}
+                placeholder={t.domainPlaceholder} spellCheck={false} autoComplete="url" inputMode="url" />
+              <button type="submit" className="rt-step1__btn" disabled={starting || !domain.trim()}>
+                {t.getChallengeBtn}
+              </button>
+              <p className="rt-step1__help">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.2M8 4.8v.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <span>{t.lightPathHint}</span>
+              </p>
+              {outcome && <div className={`rt-outcome ${outcome.ok ? 'rt-outcome--ok' : 'rt-outcome--warn'}`}>{outcome.text}</div>}
+            </form>
+          </div>
+
+          <section className="rt-how rt-tile">
+            <h2 className="rt-how__title">{t.howItWorksTitle}</h2>
+            <ul className="rt-how__list">
+              {t.howItWorksItems.map((item, i) => (
+                <li className="rt-how__item" key={item.title}>
+                  <span className="rt-how__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                  <div>
+                    <p className="rt-how__item-title">{item.title}</p>
+                    <p className="rt-how__item-desc">{item.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       ) : (
-        <>
-          {cacheNote && <p className="rt-cache-note">{cacheNote}</p>}
+        <div className="rt-editor-wrap">
+          <div className="rt-editor-glow" aria-hidden="true" />
+          <div className="rt-editor">
+            {cacheNote && <p className="rt-cache-note">{cacheNote}</p>}
 
-          <h2 className="rt-section-title">{t.addressesTitle}</h2>
-          <div className="rt-rows">
-            {rows.map((r) => (
-              <div className="rt-editrow" key={r.id}>
-                <input className="rt-input rt-input--addr" value={r.address}
-                  onChange={(e) => updateRow(r.id, 'address', e.target.value)}
-                  onPaste={(e) => onAddressPaste(e, r.id)}
-                  placeholder={t.addressPlaceholder} spellCheck={false} autoComplete="off" />
-                <input className="rt-input rt-input--label" value={r.label}
-                  onChange={(e) => updateRow(r.id, 'label', e.target.value)}
-                  placeholder={t.labelPlaceholder} spellCheck={false} autoComplete="off" />
-                <button type="button" className="rt-row-del" aria-label={t.removeRowAria}
-                  onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}>✕</button>
+            <section className="rt-editor__section">
+              <label className="rt-editor__label">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+                {t.addressesTitle}
+              </label>
+              <div className="rt-rows">
+                {rows.map((r) => (
+                  <div className="rt-editrow" key={r.id}>
+                    <input className="rt-input rt-input--addr" value={r.address}
+                      onChange={(e) => updateRow(r.id, 'address', e.target.value)}
+                      onPaste={(e) => onAddressPaste(e, r.id)}
+                      placeholder={t.addressPlaceholder} spellCheck={false} autoComplete="off" />
+                    <input className="rt-input rt-input--label" value={r.label}
+                      onChange={(e) => updateRow(r.id, 'label', e.target.value)}
+                      placeholder={t.labelPlaceholder} spellCheck={false} autoComplete="off" />
+                    <button type="button" className="rt-row-del" aria-label={t.removeRowAria}
+                      onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}>✕</button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="rt-row">
+                <button type="button" className="rt-btn" onClick={() => setRows((rs) => [...rs, newRow()])}>{t.addRowBtn}</button>
+              </div>
+            </section>
 
-          <div className="rt-row">
-            <button type="button" className="rt-btn" onClick={() => setRows((rs) => [...rs, newRow()])}>{t.addRowBtn}</button>
-            <button type="button" className="rt-btn" onClick={() => fileInput.current?.click()}>{t.csvImportBtn}</button>
-            <input ref={fileInput} type="file" accept=".csv,text/csv" className="rt-file-input" onChange={onCsvChange} />
-          </div>
-          <p className="rt-hint">{t.csvImportHint}</p>
-          {csvError && <div className="rt-outcome rt-outcome--warn">{t.csvError}</div>}
+            <section className="rt-editor__section">
+              <label className="rt-editor__label">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 17v-6"/><path d="m9 14 3-3 3 3"/></svg>
+                {t.csvImportBtn}
+              </label>
+              <button type="button" className="rt-csv-btn" onClick={() => fileInput.current?.click()}>
+                <span className="rt-csv-btn__icon">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 17v-6"/><path d="m9 14 3-3 3 3"/></svg>
+                </span>
+                <span>
+                  <span className="rt-csv-btn__title">{t.csvImportBtn}</span>
+                  <span className="rt-csv-btn__sub">{t.csvImportHint}</span>
+                </span>
+              </button>
+              <input ref={fileInput} type="file" accept=".csv,text/csv" className="rt-file-input" onChange={onCsvChange} />
+              {csvError && <div className="rt-outcome rt-outcome--warn">{t.csvError}</div>}
+            </section>
 
-          <div className="rt-row" style={{ marginTop: '0.75rem' }}>
-            <button className="rt-btn rt-btn--primary" onClick={encryptAndDownload} disabled={encrypting}>
-              {encrypting ? t.encryptingBtn : t.encryptBtn}
-            </button>
-          </div>
-          <p className="rt-hint">{t.downloadHint}</p>
-          {encryptError && <div className="rt-outcome rt-outcome--warn">{t.encryptError}</div>}
+            <section className="rt-editor__encrypt">
+              <button className="rt-editor__encrypt-btn" onClick={encryptAndDownload} disabled={encrypting}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                {encrypting ? t.encryptingBtn : t.encryptBtn}
+              </button>
+              <p className="rt-hint" style={{ textAlign: 'center' }}>{t.downloadHint}</p>
+              {encryptError && <div className="rt-outcome rt-outcome--warn">{t.encryptError}</div>}
+            </section>
 
-          <div className="rt-dns rt-row">
-            <a className="rt-btn rt-btn--primary" href={`/dashboard/verify/dns?domain=${encodeURIComponent(domain.trim())}`}>
-              {t.nextDnsLinkBtn}
-            </a>
-            <a className="rt-btn" href="/dashboard/verify/roster">{t.addAnotherWebpageLink}</a>
+            <div className="rt-dns rt-row">
+              <a className="rt-btn rt-btn--primary" href={`/dashboard/verify/dns?domain=${encodeURIComponent(domain.trim())}`}>
+                {t.nextDnsLinkBtn}
+              </a>
+              <a className="rt-btn" href="/dashboard/verify/roster">{t.addAnotherWebpageLink}</a>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
