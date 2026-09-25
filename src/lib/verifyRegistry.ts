@@ -16,6 +16,7 @@ import { randomUUID, createHash } from 'crypto';
 import { generateChallenge } from './verifyProof';
 import { detectOutgoingSince } from './verifyDeposit';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
+import { detectChain } from './walletChecker';
 import { sendMail } from '@/lib/email';
 import { isOwner } from '@/lib/owner';
 
@@ -34,7 +35,7 @@ const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0,
 
 export type DestinationKind = 'address' | 'qr';
 export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
-export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'micro_deposit' | 'account_claim';
+export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'roster_encrypted' | 'micro_deposit' | 'account_claim';
 
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
@@ -185,6 +186,15 @@ export async function ensureVerifyTables(): Promise<void> {
   }
   try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
   catch (e) { console.error('[verify] display_hint column not applied:', e); }
+  // Caches the last successfully decrypted + challenge-matched roster document
+  // verbatim (addresses + labels, as JSON) — the durable record of what the domain
+  // currently publishes, independent of which entries happened to become registered
+  // destinations. Backs the roster editor's pre-fill and lets a transient fetch/decrypt
+  // failure fall back to last-known-good instead of going straight to "no data".
+  try { await db.execute({ sql: `ALTER TABLE verify_domain_proofs ADD COLUMN IF NOT EXISTS roster_cache_json TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] roster_cache_json column not applied:', e); }
+  try { await db.execute({ sql: `ALTER TABLE verify_domain_proofs ADD COLUMN IF NOT EXISTS roster_cached_at TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] roster_cached_at column not applied:', e); }
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -728,6 +738,147 @@ export async function recordProofResult(
   // A proven domain unlocks its matching business name: reserve the domain-anchored name
   // for any of the tenant's labels that derive from this domain. Best-effort, non-fatal.
   for (const d of dests) {
+    if (d.label && nameMatchesDomain(d.label, domain)) {
+      try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
+    }
+  }
+  return flipped;
+}
+
+/** The last successfully decrypted + challenge-matched roster for (tenant, domain), or null. */
+export async function getCachedRoster(
+  tenantId: string,
+  domain: string,
+): Promise<{ addresses: Array<{ address: string; label: string | null }>; cachedAt: string } | null> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT roster_cache_json, roster_cached_at FROM verify_domain_proofs WHERE tenant_id = ? AND domain = ? LIMIT 1`,
+    args: [tenantId, domain],
+  });
+  const row = res.rows[0] as any;
+  if (!row?.roster_cache_json) return null;
+  try {
+    return { addresses: JSON.parse(row.roster_cache_json), cachedAt: row.roster_cached_at };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Same as recordProofResult, for the encrypted roster-document method (see
+ * verifyProof.ts's verifyRosterDocument). The roster IS the merchant's authoritative
+ * list — an address appearing in it registers a new destination if none exists yet;
+ * an address that drops out lapses its destination immediately, in this same call,
+ * rather than waiting for the watchman's next scheduled pass. The full decrypted
+ * roster is also cached verbatim (roster_cache_json) — the durable record of what's
+ * currently published, independent of which entries became registered destinations.
+ *
+ * Auto-created destinations still go through createDestination, so the existing
+ * free-tier address limit applies to them exactly as it does to a manually-added
+ * one — a roster larger than the plan's limit registers up to the limit and stops;
+ * it does not silently grant unlimited destinations to a free account.
+ */
+export async function recordRosterProofResult(
+  tenantId: string,
+  domain: string,
+  entries: Array<{ address: string; label: string | null }>,
+): Promise<string[]> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs
+          SET status = 'proven', proven_at = ?, last_checked_at = ?, updated_at = ?,
+              roster_cache_json = ?, roster_cached_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [now, now, now, JSON.stringify(entries), now, tenantId, domain],
+  });
+
+  const vouched = new Map<string, string | null>();
+  for (const e of entries) {
+    const key = normalizeDestinationValue(e.address);
+    if (key) vouched.set(key, e.label);
+  }
+
+  const dests = await listDestinations(tenantId);
+  const flipped: string[] = [];
+  const matchedValues = new Set<string>();
+  for (const d of dests) {
+    if (d.kind !== 'address') continue;
+    const key = normalizeDestinationValue(d.value);
+    if (!vouched.has(key)) continue;
+    matchedValues.add(key);
+    const rosterLabel = vouched.get(key) ?? null;
+    if (d.proofStatus === 'proven') {
+      flipped.push(d.id); // already proven, by this method or another — leave proof state alone
+      if (rosterLabel && rosterLabel !== d.label) {
+        await db.execute({
+          sql: `UPDATE verify_destinations SET label = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`,
+          args: [rosterLabel, now, d.id, tenantId],
+        });
+      }
+      continue;
+    }
+    try {
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_status = 'proven', proof_method = 'roster_encrypted', proof_domain = ?,
+                  label = COALESCE(?, label), proven_at = ?, updated_at = ?
+              WHERE id = ? AND tenant_id = ?`,
+        args: [domain, rosterLabel, now, now, d.id, tenantId],
+      });
+      flipped.push(d.id);
+    } catch (e) {
+      // Claim-once, same as the file method — leave unflipped rather than fail the batch.
+      console.warn('[verify] roster destination not flipped (already claimed elsewhere?):', d.id, e);
+    }
+  }
+
+  // A roster address with no matching destination yet: register it now, immediately
+  // proven, since the roster itself IS the proof — no separate manual add step first.
+  for (const [key, label] of vouched) {
+    if (matchedValues.has(key)) continue;
+    const original = entries.find((e) => normalizeDestinationValue(e.address) === key)?.address ?? key;
+    const chain = detectChain(original);
+    if (chain === 'unknown') {
+      console.warn('[verify] roster entry skipped — unrecognized address format:', domain);
+      continue;
+    }
+    // detectChain tells EVM apart from Bitcoin/Litecoin/Solana/etc. by shape, but an
+    // EVM address alone can't say WHICH EVM chain (Ethereum/Polygon/Avalanche share
+    // the same format) — defaults to ethereum here, same default createDestination
+    // already uses when no rail is given.
+    const rail = chain === 'evm' ? 'ethereum' : chain;
+    const created = await createDestination(tenantId, { kind: 'address', rail, value: original, label });
+    if (!created.ok) {
+      console.warn('[verify] roster entry not auto-registered:', domain, created.error);
+      continue;
+    }
+    const newId = created.destination.id;
+    try {
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_status = 'proven', proof_method = 'roster_encrypted', proof_domain = ?, proven_at = ?, updated_at = ?
+              WHERE id = ? AND tenant_id = ?`,
+        args: [domain, now, now, newId, tenantId],
+      });
+      flipped.push(newId);
+    } catch (e) {
+      console.warn('[verify] newly-registered roster destination not flipped (already claimed elsewhere?):', newId, e);
+    }
+  }
+
+  // Same goes for removal, immediately: a destination we previously proved via THIS
+  // roster, on THIS domain, that the current list no longer vouches for, lapses now —
+  // not at the next watchman pass. A destination proven some other way (self-send,
+  // the plain file) is untouched; dropping it from a roster it was never in doesn't
+  // affect it.
+  const droppedIds = dests
+    .filter((d) => d.kind === 'address' && d.proofMethod === 'roster_encrypted' && d.proofDomain === domain)
+    .filter((d) => !vouched.has(normalizeDestinationValue(d.value)))
+    .map((d) => d.id);
+  if (droppedIds.length) await markDestinationsLapsed(tenantId, droppedIds);
+
+  for (const d of await listDestinations(tenantId)) {
     if (d.label && nameMatchesDomain(d.label, domain)) {
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }

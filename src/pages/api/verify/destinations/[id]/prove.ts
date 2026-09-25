@@ -10,8 +10,8 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { getDestination, getChallenge, recordProofResult, recordDomainControlProof, markProofChecked } from '@/lib/verifyRegistry';
-import { normalizeProofDomain, verifyDomainProof, verifyDnsTxt } from '@/lib/verifyProof';
+import { getDestination, getChallenge, recordProofResult, recordRosterProofResult, recordDomainControlProof, markProofChecked } from '@/lib/verifyRegistry';
+import { normalizeProofDomain, verifyDomainProof, verifyRosterDocument, verifyDnsTxt } from '@/lib/verifyProof';
 
 export const prerender = false;
 
@@ -41,6 +41,20 @@ export const POST: APIRoute = async ({ request, params }) => {
   const result = await verifyDomainProof(domain, challenge);
   if (result.ok) {
     const flipped = await recordProofResult(session.tenantId, domain, result.addresses);
+    return json({
+      ok: true,
+      outcome: flipped.includes(id) ? 'proven' : 'address_not_listed',
+      flipped: flipped.length,
+    });
+  }
+
+  // Method 1b — the encrypted roster document a DNS TXT record points to (the
+  // multi-address path). Tried whenever no plain file answered; a domain using one
+  // method won't have the other configured, so this only ever adds a possibility,
+  // never a conflict.
+  const roster = await verifyRosterDocument(domain, challenge);
+  if (roster.ok) {
+    const flipped = await recordRosterProofResult(session.tenantId, domain, roster.addresses);
     return json({
       ok: true,
       outcome: flipped.includes(id) ? 'proven' : 'address_not_listed',
