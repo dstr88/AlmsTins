@@ -135,7 +135,7 @@ export interface WalletCheckResult {
   };
   entityLabel: {
     name: string;
-    type: 'exchange' | 'contract' | 'defi' | 'bridge';
+    type: 'exchange' | 'contract' | 'defi' | 'bridge' | 'mixer';
     subLabel: string | null;
     url: string | null;
     confidence: 'definite' | 'likely';
@@ -149,6 +149,8 @@ export interface WalletCheckResult {
   };
   /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
   partialCoverage: boolean;
+  /** True when the wallet's first on-chain activity is under 30 days ago — a common scam signal. */
+  newWallet: boolean;
 }
 
 // ─── In-memory LRU cache ──────────────────────────────────────────────────────
@@ -190,19 +192,101 @@ const FLAG_WEIGHTS: Record<keyof WalletCheckResult['flags'], number> = {
   mixer:                40,
 };
 
+// A CONFIRMED high-risk hit → red (danger). A mixer is a privacy tool (legal since the
+// March-2025 Tornado Cash delisting), so it is caution-grade — off green, but never red
+// on its own. Every other flag is a confirmed-malicious signal → danger.
+const CAUTION_GRADE_FLAGS = new Set<keyof WalletCheckResult['flags']>(['mixer']);
+
 export function calculateScamScore(flags: WalletCheckResult['flags']): {
   score: number;
   level: WalletCheckResult['scamLevel'];
 } {
-  const maxPossible = Object.values(FLAG_WEIGHTS).reduce((a, b) => a + b, 0);
-  let raw = 0;
+  // The score reflects the SEVERITY of the single worst signal present (0–100), so one
+  // confirmed serious hit (blacklisted 90, sanctioned 100) reads as high risk instead of
+  // being diluted by averaging across every possible flag. The LEVEL is graded: any
+  // confirmed-malicious flag → danger; a caution-grade flag alone (mixer) → caution;
+  // nothing → clean. This matches the model: red = confirmed hit, yellow = caution.
+  let score = 0;
+  let hasDanger = false;
+  let hasCaution = false;
   for (const [key, weight] of Object.entries(FLAG_WEIGHTS)) {
-    if (flags[key as keyof typeof flags]) raw += weight;
+    if (!flags[key as keyof typeof flags]) continue;
+    score = Math.max(score, weight);
+    if (CAUTION_GRADE_FLAGS.has(key as keyof WalletCheckResult['flags'])) hasCaution = true;
+    else hasDanger = true;
   }
-  const score = Math.min(100, Math.round((raw / maxPossible) * 100));
   const level: WalletCheckResult['scamLevel'] =
-    score === 0 ? 'clean' : score < 40 ? 'caution' : 'danger';
+    hasDanger ? 'danger' : hasCaution ? 'caution' : 'clean';
   return { score, level };
+}
+
+// ─── Known privacy mixers ───────────────────────────────────────────────────────
+// A positive mixer identification is a caution-level safety signal that MUST feed the
+// risk score — it can never sit under an all-clear (the consumer-safety fail-safe).
+// OFAC delisted Tornado Cash in March 2025, so the correct basis is "known mixer",
+// NOT "sanctioned". Addresses are stored lower-case. This is a curated core set;
+// isMixerName() is the wider net that also catches explorer-named mixer contracts.
+export const KNOWN_MIXER_ADDRESSES = new Set<string>([
+  '0x722122df12d4e14e13ac3b6895a86e84145b6967', // Tornado Cash: Proxy (TornadoProxy)
+  '0xd90e2f925da726b50c4ed8d0fb90ad053324f31b', // Tornado Cash: Router
+  '0x905b63fff465b9ffbf41dea908ceb12478ec7601', // Tornado Cash: Router (old)
+  '0x12d66f87a04a9e220743712ce6d9bb1b5616b8fc', // Tornado Cash: 0.1 ETH
+  '0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936', // Tornado Cash: 1 ETH
+  '0x910cbd523d972eb0a6f4cae4618ad62622b39dbf', // Tornado Cash: 10 ETH
+  '0xa160cdab225685da1d56aa342ad8841c3b53f291', // Tornado Cash: 100 ETH
+  '0xb541fc07bc7619fd4062a54d96268525cbc6ffef', // Tornado Cash: MultiSig proxy
+]);
+
+/** True when the address is a known privacy-mixer contract. */
+export function isMixerAddress(address: string): boolean {
+  return KNOWN_MIXER_ADDRESSES.has(address.toLowerCase());
+}
+
+/** True when a resolved contract/entity name looks like a known mixer (Tornado, etc.). */
+export function isMixerName(name?: string | null): boolean {
+  if (!name) return false;
+  return /tornado|(^|[^a-z])mixer([^a-z]|$)|blender\.io|sinbad/i.test(name);
+}
+
+/**
+ * True when an identified entity is a known-compromised / exploited contract a user
+ * must not interact with (e.g. the Multichain bridge exploited in 2023). A positive
+ * identification like this is a confirmed high-risk destination — it must feed the
+ * verdict, never leave a green all-clear.
+ */
+export function isCompromisedEntity(label: WalletCheckResult['entityLabel']): boolean {
+  if (!label) return false;
+  const hay = `${label.name} ${label.subLabel ?? ''}`;
+  return /compromis|exploit|hack|drain|stolen|do not use/i.test(hay);
+}
+
+// ─── Coverage / fail-safe ───────────────────────────────────────────────────────
+/**
+ * A green ("clean") verdict must mean every PRIMARY safety source actually ran.
+ * GoPlus (blacklist/sanctions/phishing) covers EVM/Solana; honeypot.is is EVM-only.
+ * If any primary source was unavailable or errored, the scan is PARTIAL and must not
+ * read as a confident all-clear. Chainabuse is community/secondary — it does not gate
+ * a verdict on its own. "No positive hit" is not "safe".
+ */
+/**
+ * True when a wallet is brand-new — first on-chain activity under 30 days ago. Fresh
+ * addresses with no history are a common scam signal, so this floors the verdict at
+ * caution (see checkWallet). Absent first-seen data is treated as not-new (unknown, not
+ * risky), never a false caution.
+ */
+export function isNewWallet(firstSeen: string | null, now: number = Date.now()): boolean {
+  if (!firstSeen) return false;
+  const t = new Date(firstSeen).getTime();
+  if (!Number.isFinite(t)) return false;
+  return (now - t) / 86_400_000 < 30;
+}
+
+export function computePartialCoverage(chain: string, coverage: WalletCheckResult['coverage']): boolean {
+  const goplusSupported = chain === 'evm' || chain === 'solana' || chain === 'tron';
+  const primary: Array<'ran' | 'skipped' | 'error'> = [];
+  if (goplusSupported) primary.push(coverage.goplus);
+  if (chain === 'evm') primary.push(coverage.honeypot);
+  return primary.length === 0 || primary.some((s) => s !== 'ran');
 }
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
@@ -730,7 +814,9 @@ async function fetchEntityLabel(address: string): Promise<WalletCheckResult['ent
             return {
               name: contractName,
               type: 'contract',
-              subLabel: 'Verified Contract',
+              // "Verified" here means the SOURCE CODE is published on Etherscan — it is
+              // not a safety signal. Worded so it can't read as reassurance.
+              subLabel: 'Source-verified on Etherscan (not a safety check)',
               url: `https://etherscan.io/address/${address}`,
               confidence: 'definite',
             };
@@ -964,6 +1050,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
       errors: [],
       coverage: { goplus: 'skipped', honeypot: 'skipped', chainabuse: 'skipped' },
       partialCoverage: true,
+      newWallet: false,
     };
   }
 
@@ -1014,7 +1101,43 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   );
 
   const flags: WalletCheckResult['flags'] = { ...emptyFlags, ...(goplus.flags ?? {}) };
-  const { score, level } = calculateScamScore(flags);
+
+  // Consumer-safety fail-safe: a positive known-mixer identification — by curated
+  // address OR by the resolved contract name (e.g. "TornadoProxy" from Etherscan) —
+  // MUST feed the risk score. Otherwise a mixer scores 0 and shows a green all-clear
+  // while a label lower on the page still identifies it as a mixer. "Known mixer",
+  // never "sanctioned" (OFAC delisted Tornado Cash in March 2025).
+  const knownMixer = isMixerAddress(address) || isMixerName(entityLabel?.name);
+  if (knownMixer) flags.mixer = true;
+
+  // Same fail-safe for a positive honeypot.is detection: an identified honeypot must
+  // feed the score even if GoPlus didn't independently flag it.
+  if (honeypot.honeypot.isHoneypot === true) flags.honeypotRelated = true;
+
+  // A known-compromised / exploited identified contract (e.g. the Multichain bridge) is
+  // a confirmed high-risk destination — route it into the verdict, never leave it green.
+  if (isCompromisedEntity(entityLabel)) flags.blacklisted = true;
+
+  const { score, level: baseLevel } = calculateScamScore(flags);
+
+  // A brand-new wallet (first seen < 30 days ago) is a common scam signal: a fresh
+  // address with no track record. It floors the verdict at caution (yellow) so a new
+  // wallet never reads as a confident green — the first-seen date is surfaced in the
+  // result as the basis. It never downgrades a real danger/caution hit.
+  const newWallet = isNewWallet(activity.activity.firstSeen);
+  const level: WalletCheckResult['scamLevel'] =
+    newWallet && baseLevel === 'clean' ? 'caution' : baseLevel;
+
+  // Present a mixer as a caution in the entity card, not a reassuring "verified contract".
+  const finalEntityLabel: WalletCheckResult['entityLabel'] = knownMixer
+    ? {
+        name: entityLabel?.name ?? 'Known mixer',
+        type: 'mixer',
+        subLabel: 'Known mixer — treat with caution',
+        url: entityLabel?.url ?? `https://etherscan.io/address/${address}`,
+        confidence: 'definite',
+      }
+    : entityLabel;
 
   // ── Coverage: did the PRIMARY scam source run for this chain? ──────────────────
   // GoPlus (blacklist/sanctions/phishing) is the primary source and covers EVM +
@@ -1032,7 +1155,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   };
   // Partial when no primary scam source ran: non-EVM/Solana chains have none at all;
   // EVM/Solana are partial only if GoPlus itself didn't run.
-  const partialCoverage = goplusSupported ? coverage.goplus !== 'ran' : true;
+  const partialCoverage = computePartialCoverage(chain, coverage);
 
   // Funding source: infer from GoPlus mixer flag for now
   const fundingSource: WalletCheckResult['fundingSource'] = {
@@ -1055,7 +1178,8 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     activity:      activity.activity,
     honeypot:      honeypot.honeypot,
     fundingSource,
-    entityLabel,
+    entityLabel: finalEntityLabel,
+    newWallet,
     errors: allErrors,
     coverage,
     partialCoverage,
