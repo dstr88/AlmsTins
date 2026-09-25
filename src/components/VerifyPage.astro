@@ -124,7 +124,6 @@ Authorization: Bearer <your-key>
           <a class="vtool__cta vtool__cta--ghost" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
           <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
           <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentSigninBtn}</a>
-          <p class="vtool__key-hint">{t.tools.agentDemoLabel}</p>
           <div class="vdemo">
             <div class="vdemo__row">
               <input class="vdemo__input" id="agent-demo-addr" placeholder={t.tools.agentDemo.addrPlaceholder} spellcheck="false" autocomplete="off" />
@@ -160,6 +159,7 @@ Authorization: Bearer <your-key>
           <span class="vtool__body">{t.tools.levels[2].body}</span>
           <span class="vtool__price">{t.tools.levels[2].price}</span>
           <a class="vtool__cta" href={LOGIN_HREF}>{t.tools.levels[2].cta} <span aria-hidden="true">→</span></a>
+          <p class="vtool__key-hint">{t.tools.dnsDemo.watchLabel}</p>
           <div class="vdemo">
             <p class="vdemo__label">{t.tools.dnsDemo.label}</p>
             <code class="vdemo__code">_almstins-verify.yourdomain.com&nbsp;&nbsp;TXT&nbsp;&nbsp;"0x7a3b…41f0"</code>
