@@ -49,7 +49,6 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
   const [csvError, setCsvError] = useState(false);
   const [encrypting, setEncrypting] = useState(false);
   const [encryptError, setEncryptError] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
   const [cacheNote, setCacheNote] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -64,18 +63,6 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
     if (fromQuery) { setDomain(fromQuery); void start(fromQuery); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const outcomeString = (code: string): string => ({
-    proven: t.outcomeProven,
-    address_not_listed: t.outcomeNotListed,
-    unreachable: t.outcomeUnreachable,
-    malformed: t.outcomeMalformed,
-    challenge_mismatch: t.outcomeChallengeMismatch,
-    invalid_domain: t.outcomeInvalidDomain,
-    no_pointer: t.outcomeUnreachable,
-    not_configured: t.outcomeUnreachable,
-    decrypt_failed: t.outcomeMalformed,
-  } as Record<string, string>)[code] ?? t.outcomeUnreachable;
 
   async function start(domainOverride?: string) {
     const dom = (domainOverride ?? domain).trim();
@@ -151,37 +138,24 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
     } finally { setEncrypting(false); }
   }
 
-  async function checkNow() {
-    const dom = domain.trim();
-    if (!dom) return;
-    setChecking(true); setOutcome(null);
-    try {
-      const res = await fetch('/api/verify/roster/check', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: dom }),
-      });
-      const data = await res.json();
-      setOutcome({ text: outcomeString(data.outcome), ok: data.outcome === 'proven' });
-    } catch {
-      setOutcome({ text: t.outcomeUnreachable, ok: false });
-    } finally { setChecking(false); }
-  }
-
-  const dnsRecord = `_almstins-verify.${domain.trim() || 'yourdomain.com'}`;
-
   return (
     <div className="rt">
       {!challenge ? (
-        <div className="rt-start">
-          <label className="rt-label" htmlFor="rt-domain">{t.domainLabel}</label>
-          <div className="rt-row">
-            <input id="rt-domain" className="rt-input" value={domain} onChange={(e) => setDomain(e.target.value)}
-              placeholder={t.domainPlaceholder} spellCheck={false} autoComplete="off"
-              onKeyDown={(e) => { if (e.key === 'Enter') void start(); }} />
-            <button className="rt-btn rt-btn--primary" onClick={() => void start()} disabled={starting || !domain.trim()}>
+        <div className="rt-step1-wrap">
+          <div className="rt-step1-glow" aria-hidden="true" />
+          <form className="rt-step1" onSubmit={(e) => { e.preventDefault(); void start(); }}>
+            <label className="rt-step1__label" htmlFor="rt-domain">{t.stepOneLabel}</label>
+            <input id="rt-domain" className="rt-step1__input" value={domain} onChange={(e) => setDomain(e.target.value)}
+              placeholder={t.domainPlaceholder} spellCheck={false} autoComplete="url" inputMode="url" />
+            <button type="submit" className="rt-step1__btn" disabled={starting || !domain.trim()}>
               {t.getChallengeBtn}
             </button>
-          </div>
-          {outcome && <div className={`rt-outcome ${outcome.ok ? 'rt-outcome--ok' : 'rt-outcome--warn'}`}>{outcome.text}</div>}
+            <p className="rt-step1__help">
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4.2M8 4.8v.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <span>{t.lightPathHint}</span>
+            </p>
+            {outcome && <div className={`rt-outcome ${outcome.ok ? 'rt-outcome--ok' : 'rt-outcome--warn'}`}>{outcome.text}</div>}
+          </form>
         </div>
       ) : (
         <>
@@ -220,18 +194,12 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
           <p className="rt-hint">{t.downloadHint}</p>
           {encryptError && <div className="rt-outcome rt-outcome--warn">{t.encryptError}</div>}
 
-          <div className="rt-dns">
-            <h3 className="rt-section-title rt-section-title--sm">{t.dnsStepTitle}</h3>
-            <p className="rt-hint">{t.dnsStepBody.replace('{record}', '')}<code className="rt-code">{dnsRecord}</code></p>
-            <p className="rt-hint">{t.dnsStepValue}</p>
+          <div className="rt-dns rt-row">
+            <a className="rt-btn rt-btn--primary" href={`/dashboard/verify/dns?domain=${encodeURIComponent(domain.trim())}`}>
+              {t.nextDnsLinkBtn}
+            </a>
+            <a className="rt-btn" href="/dashboard/verify/roster">{t.addAnotherWebpageLink}</a>
           </div>
-
-          <div className="rt-row" style={{ marginTop: '0.75rem' }}>
-            <button className="rt-btn rt-btn--primary" onClick={checkNow} disabled={checking}>
-              {checking ? t.checkingBtn : t.checkNowBtn}
-            </button>
-          </div>
-          {outcome && <div className={`rt-outcome ${outcome.ok ? 'rt-outcome--ok' : 'rt-outcome--warn'}`}>{outcome.text}</div>}
         </>
       )}
     </div>

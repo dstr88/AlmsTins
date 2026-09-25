@@ -13,46 +13,82 @@ const t = getVerifyRoster(lang);
 ---
 
 <Layout title={t.pageTitle} noindex={true} logoutRedirect="/verify">
-  <div class="rp-page">
-    <a class="rp-back" href="/dashboard/verify">{t.backLink}</a>
+  <div class="rp-shell">
+    <header class="rp-topbar">
+      <span class="rp-topbar__brand">{t.brandLabel}</span>
+      <a class="rp-topbar__back" href="/dashboard/verify">{t.backLink}</a>
+    </header>
 
-    <section class="rp-hero">
-      <p class="rp-hero__kicker">{t.heroKicker}</p>
-      <h1 class="rp-hero__title">{t.heroTitle}</h1>
-      <p class="rp-hero__sub">{t.heroSub}</p>
-      <p class="rp-hero__light">{t.lightPathHint}</p>
-    </section>
+    <div class="rp-page">
+      <section class="rp-hero">
+        <p class="rp-hero__kicker">{t.heroKicker}</p>
+        <h1 class="rp-hero__title">{t.heroTitle}</h1>
+      </section>
 
-    <RosterEditor client:load t={t} />
+      <RosterEditor client:load t={t} />
 
-    <section class="rp-faq">
-      <h2 class="rp-faq__title">{t.faqTitle}</h2>
-      <ul class="rp-faq__list">
-        {t.faqBody.map((line) => <li>{line}</li>)}
-      </ul>
-    </section>
+      <section class="rp-how">
+        <h2 class="rp-how__title">{t.howItWorksTitle}</h2>
+        <ul class="rp-how__list">
+          {t.howItWorksItems.map((item, i) => (
+            <li class="rp-how__item">
+              <span class="rp-how__num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <p class="rp-how__item-title">{item.title}</p>
+                <p class="rp-how__item-desc">{item.desc}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   </div>
 </Layout>
 
 <style>
-  .rp-page { max-width: 760px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-  .rp-back {
-    display: inline-block; font-size: 0.82rem; font-weight: 700; color: var(--text-secondary);
-    text-decoration: none; margin-bottom: 1.25rem;
-  }
-  .rp-back:hover { color: var(--accent); }
+  .rp-shell { background: var(--surface-bg); }
 
-  .rp-hero { margin-bottom: 1.75rem; }
+  .rp-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; max-width: 36rem; margin: 0 auto; padding: 0 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .rp-topbar__brand {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .rp-topbar__back {
+    font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .rp-topbar__back:hover { color: var(--accent); }
+
+  .rp-page { max-width: 36rem; margin: 0 auto; padding: 3.5rem 1.25rem 4rem; display: flex; flex-direction: column; gap: 3rem; }
+
+  .rp-hero { text-align: center; }
   .rp-hero__kicker {
-    margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.16em;
+    margin: 0; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.2em;
     text-transform: uppercase; color: var(--accent);
   }
-  .rp-hero__title { margin: 0.3rem 0 0; font-weight: 800; font-size: clamp(1.5rem, 2vw + 1rem, 2rem); color: var(--text-primary); }
-  .rp-hero__sub { margin: 0.5rem 0 0; max-width: 62ch; line-height: 1.6; color: var(--text-secondary); font-size: 0.95rem; }
-  .rp-hero__light { margin: 0.6rem 0 0; font-size: 0.82rem; color: var(--text-muted); }
+  .rp-hero__title {
+    margin: 0.6rem 0 0; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25;
+    font-size: clamp(1.6rem, 2vw + 1.2rem, 2.1rem); color: var(--text-primary);
+  }
 
-  .rp-faq { border-top: 1px solid var(--border-subtle); margin-top: 2rem; padding-top: 1.25rem; }
-  .rp-faq__title { font-size: 0.95rem; font-weight: 800; color: var(--text-primary); margin: 0 0 0.6rem; }
-  .rp-faq__list { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-  .rp-faq__list li { font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); }
+  .rp-how { border-top: 1px solid var(--border-subtle); padding-top: 1.5rem; }
+  .rp-how__title {
+    margin: 0 0 1.25rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--text-muted);
+    padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-subtle);
+  }
+  .rp-how__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.25rem; }
+  .rp-how__item { display: flex; gap: 0.9rem; align-items: flex-start; }
+  .rp-how__num {
+    flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 50%;
+    border: 1px solid var(--border-bright); background: var(--surface-card);
+    color: var(--accent); font-size: 0.72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rp-how__item-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
+  .rp-how__item-desc { margin: 0.3rem 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--text-muted); }
 </style>
