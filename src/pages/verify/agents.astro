@@ -18,10 +18,11 @@ import Analytics from '@/components/Analytics.astro';
 // cannot silently regress.
 // Verify warns and flags; the payer decides. Keep the verbs to hold / flag / escalate.
 //
-// "Try it live" below hits /api/verify/check client-side, unauthenticated — the same
-// free endpoint documented above, not a mock. The Verify landing page's Agents tile
-// used to embed this same widget inline; it now just links to #try-it, since a full
-// page with the spec around it is a better first look than a cramped card.
+// No interactive "try it" widget here on purpose — a random address almost
+// always comes back "unknown" (nobody's published proof for it), which read
+// as broken rather than correct. The static example under "The call" carries
+// that job instead. The Verify landing page's Agents tile links to this page
+// plainly (no anchor) rather than to a demo widget.
 import '@/styles/tokens.css';
 
 export const prerender = false;
@@ -78,7 +79,6 @@ const PRINCIPLES = [
 
 const TOC = [
   ['the-call', 'The call'],
-  ['try-it', 'Try it live'],
   ['the-rule', 'The rule'],
   ['answers', 'The answers'],
   ['specs', 'Specs'],
@@ -212,34 +212,6 @@ const TOC = [
       overflow-wrap: anywhere;
     }
 
-    /* Try it live — the same live, unauthenticated widget the Verify landing page's
-       Agents tile used to embed inline, ported here where it has room to breathe. */
-    .try-box {
-      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem;
-      display: flex; flex-direction: column; gap: .6rem;
-    }
-    .try-row { display: flex; flex-wrap: wrap; gap: .5rem; }
-    .try-input {
-      flex: 1 1 180px; min-width: 0; font-family: inherit; font-size: .92rem; padding: .55rem .7rem;
-      background: var(--surface-bg); border: 1px solid var(--border-bright); border-radius: 7px;
-      color: var(--text-primary); outline: none;
-    }
-    .try-input:focus { border-color: var(--accent); }
-    .try-input::placeholder { color: var(--text-muted); }
-    .try-btn {
-      font-family: inherit; font-size: .9rem; font-weight: 700; padding: .55rem 1rem;
-      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 7px;
-      cursor: pointer; white-space: nowrap;
-    }
-    .try-btn:hover { filter: brightness(1.08); }
-    .try-btn:disabled { opacity: .6; cursor: default; }
-    .try-result {
-      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: .85rem; line-height: 1.55;
-      background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
-      padding: .7rem .85rem; margin: 0; overflow-x: auto; white-space: pre-wrap; color: var(--gain);
-    }
-    .try-hint { font-size: .82rem; color: var(--text-muted); }
-
     @media (max-width: 480px) {
       table.spec th { width: 42%; }
     }
@@ -325,23 +297,6 @@ const TOC = [
   "proofAgeDays": 59,          // age of that proof, not freshness (freshness lives in level)
   "checkedAt": "2026-09-11T14:30:00Z"
 }`}</pre>
-      </div>
-    </section>
-
-    <section id="try-it">
-      <h2>Try it live</h2>
-      <p class="body">
-        Paste a real address or payment link. This calls the exact same free, anonymous
-        endpoint documented above — no mock, no login, no key required.
-      </p>
-      <div class="try-box">
-        <div class="try-row">
-          <input class="try-input" id="live-demo-addr" placeholder="0x… or a payment link" spellcheck="false" autocomplete="off" />
-          <input class="try-input" id="live-demo-domain" placeholder="the domain you expect (optional)" spellcheck="false" autocomplete="off" />
-          <button class="try-btn" id="live-demo-btn" type="button">Run the check</button>
-        </div>
-        <pre class="try-result" id="live-demo-result" hidden></pre>
-        <p class="try-hint">Most addresses you try will come back <code>unknown</code> — that's correct, not broken: it just means nobody has published proof for it yet.</p>
       </div>
     </section>
 
@@ -521,34 +476,5 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       </p>
     </section>
   </div>
-
-  <script>
-    // Same fetch the code sample above documents, run for real against the free,
-    // anonymous endpoint -- no login, no key, no mock.
-    const liveBtn = document.getElementById('live-demo-btn') as HTMLButtonElement | null;
-    const liveAddr = document.getElementById('live-demo-addr') as HTMLInputElement | null;
-    const liveDomain = document.getElementById('live-demo-domain') as HTMLInputElement | null;
-    const liveResult = document.getElementById('live-demo-result') as HTMLElement | null;
-    liveBtn?.addEventListener('click', async () => {
-      const value = liveAddr?.value.trim();
-      if (!value || !liveResult) return;
-      const domain = liveDomain?.value.trim();
-      liveBtn.disabled = true;
-      liveResult.hidden = false;
-      liveResult.textContent = '…';
-      try {
-        const url = new URL('/api/verify/check', window.location.origin);
-        url.searchParams.set('value', value);
-        if (domain) url.searchParams.set('expect', domain);
-        const res = await fetch(url.toString());
-        const data = await res.json();
-        liveResult.textContent = JSON.stringify(data, null, 2);
-      } catch {
-        liveResult.textContent = '{ "error": "could not reach the check endpoint" }';
-      } finally {
-        liveBtn.disabled = false;
-      }
-    });
-  </script>
 </body>
 </html>
