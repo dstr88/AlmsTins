@@ -30,6 +30,7 @@ export interface VerifyRosterLocale {
   encryptingBtn: string;
   encryptError: string;
   downloadHint: string;
+  dnsFileUrlExample: string; // "{url}" token — shown on the DNS page under dnsStepValue
   nextDnsLinkBtn: string; // roster page, shown once encrypted — links to the DNS page
   addAnotherWebpageLink: string; // secondary link on both pages — resets to a fresh domain
   dnsPageTitle: string;
@@ -78,7 +79,8 @@ const en: VerifyRosterLocale = {
   encryptBtn: 'Encrypt & download',
   encryptingBtn: 'Encrypting…',
   encryptError: "Couldn't reach the encryption key. Try again in a moment.",
-  downloadHint: 'Upload the downloaded file anywhere on your own site — a plain static file, nothing to configure.',
+  downloadHint: 'Upload almstins-roster.enc.json to the main folder of your website — the same place as your homepage file. That keeps its address simple, which is what you’ll need for the DNS record next.',
+  dnsFileUrlExample: 'If you uploaded it to the main folder, that’s: {url}',
   nextDnsLinkBtn: 'Next: point your DNS →',
   addAnotherWebpageLink: '+ Add another webpage',
   dnsPageTitle: 'Point your DNS — Almstins Verify',
@@ -136,7 +138,8 @@ const es: VerifyRosterLocale = {
   encryptBtn: 'Cifrar y descargar',
   encryptingBtn: 'Cifrando…',
   encryptError: 'No pudimos obtener la clave de cifrado. Intenta de nuevo en un momento.',
-  downloadHint: 'Sube el archivo descargado a cualquier parte de tu propio sitio — un archivo estático simple, nada que configurar.',
+  downloadHint: 'Sube almstins-roster.enc.json a la carpeta principal de tu sitio web — el mismo lugar que el archivo de tu página de inicio. Eso mantiene su dirección simple, que es lo que necesitarás para el registro DNS a continuación.',
+  dnsFileUrlExample: 'Si lo subiste a la carpeta principal, esa es: {url}',
   nextDnsLinkBtn: 'Siguiente: apunta tu DNS →',
   addAnotherWebpageLink: '+ Agregar otra página web',
   dnsPageTitle: 'Apunta tu DNS — Almstins Verify',
@@ -194,7 +197,8 @@ const fr: VerifyRosterLocale = {
   encryptBtn: 'Chiffrer et télécharger',
   encryptingBtn: 'Chiffrement…',
   encryptError: 'Impossible de joindre la clé de chiffrement. Réessayez dans un instant.',
-  downloadHint: 'Téléversez le fichier téléchargé n’importe où sur votre propre site — un simple fichier statique, rien à configurer.',
+  downloadHint: 'Téléversez almstins-roster.enc.json dans le dossier principal de votre site web — le même endroit que le fichier de votre page d’accueil. Cela garde son adresse simple, ce dont vous aurez besoin pour l’enregistrement DNS suivant.',
+  dnsFileUrlExample: 'Si vous l’avez téléversé dans le dossier principal, c’est : {url}',
   nextDnsLinkBtn: 'Suivant : pointez votre DNS →',
   addAnotherWebpageLink: '+ Ajouter une autre page web',
   dnsPageTitle: 'Pointez votre DNS — Almstins Verify',

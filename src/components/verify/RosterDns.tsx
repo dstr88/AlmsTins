@@ -43,6 +43,7 @@ export default function RosterDns({ t }: { t: VerifyRosterLocale }) {
   }
 
   const dnsRecord = `_almstins-verify.${domain.trim() || 'yourdomain.com'}`;
+  const fileUrl = `https://${domain.trim() || 'yourdomain.com'}/almstins-roster.enc.json`;
 
   return (
     <div className="rt">
@@ -59,6 +60,7 @@ export default function RosterDns({ t }: { t: VerifyRosterLocale }) {
         <h3 className="rt-section-title rt-section-title--sm">{t.dnsStepTitle}</h3>
         <p className="rt-hint">{t.dnsStepBody.replace('{record}', '')}<code className="rt-code">{dnsRecord}</code></p>
         <p className="rt-hint">{t.dnsStepValue}</p>
+        <p className="rt-hint">{t.dnsFileUrlExample.replace('{url}', '')}<code className="rt-code">{fileUrl}</code></p>
       </div>
 
       <div className="rt-row" style={{ marginTop: '0.75rem' }}>
