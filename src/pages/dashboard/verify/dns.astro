@@ -13,16 +13,18 @@ const t = getVerifyRoster(lang);
 ---
 
 <Layout title={t.dnsPageTitle} noindex={true} logoutRedirect="/verify">
-  <div class="rp-page">
-    <a class="rp-back" href="/dashboard/verify/roster">{t.backToRosterLink}</a>
+  <div class="dash-page">
+    <div class="rp-page">
+      <a class="rp-back" href="/dashboard/verify/roster">{t.backToRosterLink}</a>
 
-    <section class="rp-hero">
-      <p class="rp-hero__kicker">{t.heroKicker}</p>
-      <h1 class="rp-hero__title">{t.dnsPageHeroTitle}</h1>
-      <p class="rp-hero__sub">{t.dnsPageHeroSub}</p>
-    </section>
+      <section class="rp-hero">
+        <p class="rp-hero__kicker">{t.heroKicker}</p>
+        <h1 class="rp-hero__title">{t.dnsPageHeroTitle}</h1>
+        <p class="rp-hero__sub">{t.dnsPageHeroSub}</p>
+      </section>
 
-    <RosterDns client:load t={t} />
+      <RosterDns client:load t={t} />
+    </div>
   </div>
 </Layout>
 
