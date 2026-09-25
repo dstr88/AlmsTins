@@ -72,22 +72,24 @@ const t = getVerifyRoster(lang);
   }
   .rp-hero__title {
     margin: 0.6rem 0 0; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25;
-    font-size: clamp(1.6rem, 2vw + 1.2rem, 2.1rem); color: var(--text-primary);
+    font-size: clamp(1.6rem, 2vw + 1.2rem, 2.75rem); color: var(--text-primary);
   }
 
   /* Two tiles: one column (stacked) up to 800px, side by side above it — same
-     breakpoint the /verify landing page's own tile grid switches at. */
+     breakpoint the /verify landing page's own tile grid switches at. Sizing
+     (widths, padding, font) steps up again at the same breakpoint so the pair
+     reads as generously-sized on a large screen, not just "not-cramped." */
   .rp-tiles {
-    max-width: 52rem; margin: 0 auto; padding: 3rem 1.25rem 4rem;
+    max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 4rem;
     display: grid; grid-template-columns: 1fr; align-items: start; gap: 1.5rem;
   }
   @media (min-width: 800px) {
-    .rp-tiles { grid-template-columns: 1fr 1fr; }
+    .rp-tiles { grid-template-columns: 1fr 1fr; gap: 2rem; }
   }
 
   .rp-tile {
-    background: var(--surface-card); border: 1px solid var(--border-subtle);
-    border-radius: 16px; padding: 1.5rem;
+    background: var(--surface-card); border: 2px solid var(--accent-dim);
+    border-radius: 16px; padding: 1.5rem; box-shadow: 0 8px 28px var(--accent-glow);
   }
   .rp-how__title {
     margin: 0 0 1.25rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em;
@@ -98,10 +100,19 @@ const t = getVerifyRoster(lang);
   .rp-how__item { display: flex; gap: 0.9rem; align-items: flex-start; }
   .rp-how__num {
     flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 50%;
-    border: 1px solid var(--border-bright); background: var(--surface-card);
+    border: 1px solid var(--border-bright); background: var(--surface-bg);
     color: var(--accent); font-size: 0.72rem; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
   }
   .rp-how__item-title { margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
   .rp-how__item-desc { margin: 0.3rem 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--text-muted); }
+
+  @media (min-width: 800px) {
+    .rp-tile { padding: 2.25rem; }
+    .rp-how__title { font-size: 0.8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; }
+    .rp-how__list { gap: 1.6rem; }
+    .rp-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
+    .rp-how__item-title { font-size: 1.05rem; }
+    .rp-how__item-desc { font-size: 0.92rem; margin-top: 0.4rem; }
+  }
 </style>
