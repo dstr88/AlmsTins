@@ -80,16 +80,20 @@ Authorization: Bearer <your-key>
 
   <div class="vpage">
 
-    <!-- Section 1 — Hero -->
+    <!-- Section 1 — Hero: image + badge + sub on the left, headline on the right
+         (desktop); stacks to one column, same order, on mobile. Each half is its
+         own tile, matching the tool tiles below. No CTAs here anymore -- login
+         now lives on each tool's own tile. -->
     <header class="vhero">
-      <img class="vhero__mark" src={VerifyLogo} width="150" height="150" alt="Almstins Verify" loading="eager" decoding="async" />
-      <div class="vhero__eyebrow">{t.hero.eyebrow}</div>
-      <h1 class="vhero__title">{t.hero.title}</h1>
-      <p class="vhero__sub">{t.hero.sub}</p>
-      <div class="vhero__ctas">
-        <a class="vbtn" href={LOGIN_HREF}>{t.hero.ctaPrimary}</a>
-        <a class="vbtn vbtn--demo" href="/api/demo/start?next=/dashboard/verify" rel="nofollow">{t.hero.ctaDemo}</a>
-        <a class="vbtn vbtn--ghost" href="#how">{t.hero.ctaSecondary}</a>
+      <div class="vhero__grid">
+        <div class="vhero__tile vhero__tile--media">
+          <img class="vhero__mark" src={VerifyLogo} width="150" height="150" alt="Almstins Verify" loading="eager" decoding="async" />
+          <div class="vhero__eyebrow">{t.hero.eyebrow}</div>
+          <p class="vhero__sub">{t.hero.sub}</p>
+        </div>
+        <div class="vhero__tile vhero__tile--title">
+          <h1 class="vhero__title">{t.hero.title}</h1>
+        </div>
       </div>
     </header>
 
@@ -105,6 +109,10 @@ Authorization: Bearer <your-key>
         <a href="#tile-dns">{t.tools.bannerLabels[2]}</a>
       </nav>
 
+      <!-- Wider than the page's own 780px column, breaking out to the same 64rem
+           almstins.com's own doors grid uses -- the tiles were reading cramped
+           against how much side margin was going unused on a large screen. -->
+      <div class="vtools__wide">
       <div class="vtools__levels">
         <!-- Tile 1 — Agents, deliberately first in source order (not just labeled first):
              mobile stacking inherits DOM order, and this is the audience being marketed. -->
@@ -115,7 +123,8 @@ Authorization: Bearer <your-key>
           <span class="vtool__price">{t.tools.levels[0].price}</span>
           <a class="vtool__cta vtool__cta--ghost" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
           <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
-          <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentKeyBtn}</a>
+          <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentSigninBtn}</a>
+          <p class="vtool__key-hint">{t.tools.agentDemoLabel}</p>
           <div class="vdemo">
             <div class="vdemo__row">
               <input class="vdemo__input" id="agent-demo-addr" placeholder={t.tools.agentDemo.addrPlaceholder} spellcheck="false" autocomplete="off" />
@@ -170,6 +179,7 @@ Authorization: Bearer <your-key>
           <p class="vtools__login-body">{t.tools.login.body}</p>
         </div>
         <a class="vbtn" href={LOGIN_HREF}>{t.tools.login.button}</a>
+      </div>
       </div>
     </section>
 
@@ -325,35 +335,37 @@ Authorization: Bearer <your-key>
     box-shadow: 0 6px 22px var(--accent-glow);
   }
   .vbtn:hover { filter: brightness(1.08); transform: translateY(-1px); }
-  .vbtn--ghost {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-bright);
-    box-shadow: none;
-    font-weight: 600;
-  }
-  .vbtn--ghost:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }
-  .vbtn--demo {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border: 1px solid var(--accent-glow);
-    box-shadow: none;
-  }
-  .vbtn--demo:hover { color: var(--text-primary); border-color: var(--accent); }
   .vbtn--lg { padding: 0.95rem 2rem; font-size: 1.05rem; }
 
-  /* ── Hero ── */
+  /* ── Hero: two tiles, media+badge+sub on the left, headline on the right
+     (desktop); one column, same order, on mobile. Same tile language as the
+     tool cards below (18px radius, hover lift). ── */
   .vhero {
-    text-align: center;
     padding: 2.5rem 0 3rem;
     border-bottom: 1px solid var(--border-subtle);
     margin-bottom: 3rem;
   }
+  .vhero__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  @media (min-width: 800px) {
+    .vhero__grid { grid-template-columns: 1fr 1fr; align-items: center; gap: 2rem; }
+  }
+  .vhero__tile {
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 18px;
+    padding: 2rem 1.75rem;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .vhero__tile:hover { border-color: var(--border-bright); transform: translateY(-3px); }
+  .vhero__tile--media { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; }
   .vhero__mark {
     display: block;
-    width: 132px;
-    height: 132px;
-    margin: 0 auto 1.5rem;
+    width: 110px;
+    height: 110px;
     filter: drop-shadow(0 8px 26px var(--accent-glow));
   }
   .vhero__eyebrow {
@@ -367,31 +379,20 @@ Authorization: Bearer <your-key>
     border: 1px solid var(--accent-glow);
     padding: 0.3rem 0.9rem;
     border-radius: 999px;
-    margin-bottom: 1.5rem;
   }
   .vhero__title {
-    font-size: clamp(2rem, 5vw, 3.1rem);
+    font-size: clamp(1.8rem, 3vw + 1rem, 2.75rem);
     font-weight: 700;
     line-height: 1.18;
     letter-spacing: -0.02em;
-    margin: 0 0 1.25rem;
+    margin: 0;
     color: var(--text-primary);
-    max-width: 18ch;
-    margin-inline: auto;
   }
   .vhero__sub {
-    font-size: 1.12rem;
+    font-size: 1rem;
     color: var(--text-secondary);
-    line-height: 1.8;
-    max-width: 600px;
-    margin: 0 auto 2rem;
-  }
-  .vhero__ctas {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.85rem;
-    justify-content: center;
-    align-items: center;
+    line-height: 1.75;
+    margin: 0;
   }
 
   /* ── Section shell ── */
@@ -406,6 +407,11 @@ Authorization: Bearer <your-key>
 
   /* ── Section 1b: the tools ── */
   .vtools__lede { font-size: 0.97rem; color: var(--text-secondary); line-height: 1.75; margin: -0.5rem 0 1.25rem; }
+  /* Breaks the tile row (+ scan card, + login box) out of .vpage's 780px column
+     to almstins.com's own 64rem doors width -- heading/lede stay narrow above
+     it, same split the reference page itself uses (narrow hero, wider grid). */
+  .vtools__wide { width: 100vw; margin-left: 50%; transform: translateX(-50%); }
+  .vtools__wide > * { max-width: 64rem; margin-left: auto; margin-right: auto; padding-left: clamp(1.5rem, 4vw, 3rem); padding-right: clamp(1.5rem, 4vw, 3rem); box-sizing: border-box; }
   /* Mobile-only quick nav: three persona words, each jumping straight to its tile
      regardless of stack order. Desktop already shows all three at a glance. */
   .vtools__banner {
@@ -673,7 +679,6 @@ Authorization: Bearer <your-key>
   @media (max-width: 480px) {
     .vpage { padding: 2rem 1rem 4rem; }
     .vnav { padding: 0.75rem 1rem; }
-    .vhero__ctas .vbtn { width: 100%; text-align: center; }
     .vtools__login .vbtn { width: 100%; text-align: center; }
   }
 </style>
