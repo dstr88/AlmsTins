@@ -12,14 +12,15 @@
  *     TRANSITION of their endpoint (the public badge will lapse within the TTL — fail-safe,
  *     never stale-verified).
  *
- *  B. Merchant .well-known proofs — re-fetch each proven domain's proof file. On a
- *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
- *     no longer vouched) the affected destinations lose the domain anchor and the owner
- *     is alerted: a file-proven address lapses; a self-send-proven one keeps its control
- *     proof and drops verified→claimed (releaseDomainAnchor). A listed address the account
- *     holds only through a legacy (unbound) self-send claim is released too and never
- *     re-confirmed (recheckDomainListing).
- *     A transient unreachable is NOT treated as a swap (no lapse, no alert).
+ *  B. Merchant proofs — re-fetch each proven domain's proof, the plain .well-known file or,
+ *     when that's absent, the encrypted roster document its DNS TXT record points to (see
+ *     verifyProof.ts). On a DEFINITIVE change (challenge/file/document no longer validates,
+ *     or a proven address is no longer vouched) the affected destinations lose the domain
+ *     anchor and the owner is alerted: a file/roster-proven address lapses; a self-send-proven
+ *     one keeps its control proof and drops verified→claimed (releaseDomainAnchor). A listed
+ *     address the account holds only through a legacy (unbound) self-send claim is released
+ *     too and never re-confirmed (recheckDomainListing).
+ *     A transient unreachable on both methods is NOT treated as a swap (no lapse, no alert).
  *
  * Protected by CRON_SECRET (header or ?secret=). Alerts reuse the liquidation-email
  * pattern (alert_email + sendMail + per-recipient language). Owner→world boundary
@@ -39,7 +40,7 @@ import {
   releaseDomainAnchor, recheckDomainListing, markDomainProofFailed, markDomainProofRechecked,
   listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
-import { verifyDomainProof } from '@/lib/verifyProof';
+import { verifyDomainProof, verifyRosterDocument } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
 import { recordCronSuccess } from '@/lib/cronHeartbeat';
 
@@ -123,29 +124,49 @@ export const GET: APIRoute = async ({ request }) => {
       try {
         const proven = await getProvenAddressDestinations(d.tenantId, d.domain);
         const res = await verifyDomainProof(d.domain, d.challenge);
-        if (!res.ok) {
-          if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
-            // Definitive: the published proof changed. Release its addresses + alert once.
-            await releaseDomainAnchor(d.tenantId, d.domain, proven);
-            await markDomainProofFailed(d.tenantId, d.domain);
-            if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
-              merchant.proofChangedAlerts++;
-            }
-          } else {
-            // Transient (unreachable / invalid_domain) — don't treat as a swap.
-            await markDomainProofRechecked(d.tenantId, d.domain);
-          }
+
+        // Three-way outcome: still valid (a listed-addresses array), definitively changed
+        // (release), or transient (leave alone). A plain-file domain settles this from `res`
+        // alone. A roster domain has no file at all, so `res` always comes back 'unreachable'
+        // for them — not an error, just the normal shape of not using this method — and the
+        // roster document (if a DNS pointer exists) decides it instead.
+        let listedAddresses: string[] | null = null;
+        let definitiveFail = false;
+        if (res.ok) {
+          listedAddresses = res.addresses;
+        } else if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
+          definitiveFail = true;
         } else {
-          // Proof still holds — settle each anchored address against the file (matched on
+          const roster = await verifyRosterDocument(d.domain, d.challenge);
+          if (roster.ok) {
+            listedAddresses = roster.addresses.map((e) => e.address);
+          } else if (roster.code === 'challenge_mismatch' || roster.code === 'malformed' || roster.code === 'decrypt_failed') {
+            definitiveFail = true;
+          }
+          // else: neither method answered anything definitive — stays transient below.
+        }
+
+        if (definitiveFail) {
+          // Definitive: the published proof changed. Release its addresses + alert once.
+          await releaseDomainAnchor(d.tenantId, d.domain, proven);
+          await markDomainProofFailed(d.tenantId, d.domain);
+          if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
+            merchant.proofChangedAlerts++;
+          }
+        } else if (listedAddresses) {
+          // Proof still holds — settle each anchored address against the list (matched on
           // addressKey, as the owner's proof matched them). Dropped ones are released and alerted
           // on. Listed ones are positively re-confirmed (advancing last_confirmed_at keeps their
           // badge 'verified'), except a listing that leans only on a legacy self-send claim,
           // which is released instead. Addresses NOT confirmed this run keep their old timestamp
           // and lapse 'verified'→'claimed' via the max-stale TTL.
-          const { missing } = await recheckDomainListing(d.tenantId, d.domain, proven, res.addresses);
+          const { missing } = await recheckDomainListing(d.tenantId, d.domain, proven, listedAddresses);
           if (missing.length && (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value)))) {
             merchant.addressDroppedAlerts++;
           }
+          await markDomainProofRechecked(d.tenantId, d.domain);
+        } else {
+          // Transient (unreachable / invalid_domain on both methods) — don't treat as a swap.
           await markDomainProofRechecked(d.tenantId, d.domain);
         }
       } catch (err) {

@@ -20,8 +20,8 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { getDestination, getChallenge, recordProofResult, recordDomainControlProof, markProofChecked } from '@/lib/verifyRegistry';
-import { normalizeProofDomain, verifyDomainProof, verifyDnsTxt } from '@/lib/verifyProof';
+import { getDestination, getChallenge, recordProofResult, recordRosterProofResult, recordDomainControlProof, markProofChecked } from '@/lib/verifyRegistry';
+import { normalizeProofDomain, verifyDomainProof, verifyRosterDocument, verifyDnsTxt } from '@/lib/verifyProof';
 
 export const prerender = false;
 
@@ -52,6 +52,21 @@ export const POST: APIRoute = async ({ request, params }) => {
   const result = await verifyDomainProof(domain, challenge);
   if (result.ok) {
     const r = await recordProofResult(session.tenantId, domain, result.addresses);
+    const outcome = r.flipped.includes(id) ? 'proven'
+      : r.otherDomain.includes(id) ? 'anchored_other_domain'
+      : r.claimedElsewhere.includes(id) ? 'claimed_elsewhere'
+      : r.legacyUnbound.includes(id) ? 'reprove_required'
+      : 'address_not_listed';
+    return json({ ok: true, outcome, flipped: r.flipped.length });
+  }
+
+  // Method 1b — the encrypted roster document a DNS TXT record points to (the multi-address
+  // path). Tried whenever the plain file didn't answer; a domain using one method won't have
+  // the other configured, so this only ever adds a possibility, never a conflict. Same
+  // ProofRecordResult shape as Method 1, so the outcome mapping below is identical.
+  const roster = await verifyRosterDocument(domain, challenge);
+  if (roster.ok) {
+    const r = await recordRosterProofResult(session.tenantId, domain, roster.addresses);
     const outcome = r.flipped.includes(id) ? 'proven'
       : r.otherDomain.includes(id) ? 'anchored_other_domain'
       : r.claimedElsewhere.includes(id) ? 'claimed_elsewhere'
