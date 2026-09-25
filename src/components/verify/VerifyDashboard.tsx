@@ -1111,6 +1111,9 @@ function ProvePanel({ d, t, onProven, mode = 'prove' }: {
               placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
             <button className="vd-prove__get" onClick={getFile} disabled={busy || !domain.trim()}>{t.proveGetFileBtn}</button>
           </div>
+          <a className="vd-prove__roster-link" href={`/dashboard/verify/roster${domain.trim() ? `?domain=${encodeURIComponent(domain.trim())}` : ''}`}>
+            {t.proveRosterLink}
+          </a>
           {file && (
             <div className="vd-prove__file">
               <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
