@@ -144,6 +144,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
 		pathname === '/.well-known/almstins-signing-key.json' ||
+		// Roster-document encryption public key — published so a merchant's browser can
+		// encrypt a roster document to it; it's a public key, safe for anyone to fetch.
+		pathname === '/.well-known/almstins-verify-encryption-key.json' ||
 		// Public record verification — verify a proof bundle without an account
 		pathname === '/verify-record' ||
 		pathname === '/api/verify-record' ||
