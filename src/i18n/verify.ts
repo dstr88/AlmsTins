@@ -45,11 +45,10 @@ export interface VerifyCopy {
     levels: Array<{ persona: string; title: string; body: string; price: string; cta: string }>;
     agentKeyLine: string;
     agentSigninBtn: string;
-    agentDemoLabel: string;
     bannerLabels: [string, string, string];
     agentDemo: { addrPlaceholder: string; domainPlaceholder: string; button: string; checking: string; hint: string };
     storeDemo: { placeholder: string; button: string; checking: string; result: string; hint: string };
-    dnsDemo: { label: string; hint: string };
+    dnsDemo: { watchLabel: string; label: string; hint: string };
     scan: { badge: string; title: string; body: string; cta: string };
     login: { heading: string; body: string; button: string };
   };
@@ -122,17 +121,16 @@ const en: VerifyCopy = {
         title: 'Domain-verified',
         body: 'Prove your domain with a DNS record or a small file on your site, then list your addresses there. A swapped address on a fake page fails the check. More than a couple of addresses? Publish an encrypted roster instead.',
         price: 'Free during beta',
-        cta: 'Verify your domain',
+        cta: 'Log in to get started',
       },
     ],
     agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute.',
     agentSigninBtn: 'Log in to get started',
-    agentDemoLabel: 'Watch a demo',
     bannerLabels: ['Agent', 'Store owner', 'Small business'],
     agentDemo: {
       addrPlaceholder: '0x… or a payment link',
       domainPlaceholder: 'the domain you expect',
-      button: 'Check it',
+      button: 'Watch a demo',
       checking: 'Checking…',
       hint: 'Try it — this calls the real, free check endpoint.',
     },
@@ -144,6 +142,7 @@ const en: VerifyCopy = {
       hint: 'A preview, not a real check yet.',
     },
     dnsDemo: {
+      watchLabel: 'Watch a demo',
       label: 'What you publish, one line:',
       hint: 'No file to host, nothing to encrypt.',
     },
@@ -287,17 +286,16 @@ const es: VerifyCopy = {
         title: 'Dominio verificado',
         body: 'Demuestra tu dominio con un registro DNS o un pequeño archivo en tu sitio, y luego incluye tus direcciones ahí. Una dirección sustituida en una página falsa no pasa la comprobación. ¿Más de un par de direcciones? Publica una lista cifrada en su lugar.',
         price: 'Gratis durante la beta',
-        cta: 'Verifica tu dominio',
+        cta: 'Inicia sesión para empezar',
       },
     ],
     agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto.',
     agentSigninBtn: 'Inicia sesión para empezar',
-    agentDemoLabel: 'Ver una demo',
     bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
     agentDemo: {
       addrPlaceholder: '0x… o un enlace de pago',
       domainPlaceholder: 'el dominio que esperas',
-      button: 'Comprobar',
+      button: 'Ver una demo',
       checking: 'Comprobando…',
       hint: 'Pruébalo — esto llama al endpoint de comprobación real y gratuito.',
     },
@@ -309,6 +307,7 @@ const es: VerifyCopy = {
       hint: 'Una vista previa, aún no una comprobación real.',
     },
     dnsDemo: {
+      watchLabel: 'Ver una demo',
       label: 'Lo que publicas, en una línea:',
       hint: 'Sin archivo que alojar, nada que cifrar.',
     },
@@ -452,17 +451,16 @@ const fr: VerifyCopy = {
         title: 'Domaine vérifié',
         body: "Prouvez votre domaine avec un enregistrement DNS ou un petit fichier sur votre site, puis listez vos adresses là. Une adresse remplacée sur une fausse page échoue à la vérification. Plus de deux adresses ? Publiez plutôt une liste chiffrée.",
         price: 'Gratuit pendant la bêta',
-        cta: 'Vérifier votre domaine',
+        cta: 'Connectez-vous pour commencer',
       },
     ],
     agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute.',
     agentSigninBtn: 'Connectez-vous pour commencer',
-    agentDemoLabel: 'Voir une démo',
     bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
     agentDemo: {
       addrPlaceholder: '0x… ou un lien de paiement',
       domainPlaceholder: 'le domaine attendu',
-      button: 'Vérifier',
+      button: 'Voir une démo',
       checking: 'Vérification…',
       hint: "Essayez — ceci appelle le vrai point de contrôle, gratuit.",
     },
@@ -474,6 +472,7 @@ const fr: VerifyCopy = {
       hint: "Un aperçu, pas encore une vérification réelle.",
     },
     dnsDemo: {
+      watchLabel: 'Voir une démo',
       label: 'Ce que vous publiez, en une ligne :',
       hint: 'Aucun fichier à héberger, rien à chiffrer.',
     },
