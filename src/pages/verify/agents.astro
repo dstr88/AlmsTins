@@ -100,13 +100,44 @@ const TOC = [
     body {
       background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+      line-height: 1.65; padding: 5rem 1.1rem 4rem;
     }
     .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
     .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
     h1 { font-size: clamp(1.9rem, 4.6vw, 2.5rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
     .lede { color: var(--text-secondary); font-size: 1.08rem; margin-top: .5rem; }
     .lede b { color: var(--text-primary); }
+
+    /* Hero tiles — get-started CTA + how-it-works summary, one row of two.
+       Same green-bordered/glowing card language as the roster page's tiles
+       (--accent-dim border, --accent-glow shadow), sitting above the rest of
+       the page's text as the first thing a visitor acts on or skims. */
+    .hero-tiles { display: grid; grid-template-columns: 1fr; gap: 1.25rem; align-items: start; }
+    @media (min-width: 640px) {
+      .hero-tiles { grid-template-columns: 1fr 1fr; }
+    }
+    .hero-tile {
+      background: var(--surface-card); border: 2px solid var(--accent-dim);
+      border-radius: 16px; padding: 1.5rem; box-shadow: 0 8px 28px var(--accent-glow);
+    }
+    .hero-tile__title { font-size: 1.1rem; font-weight: 800; margin-bottom: .9rem; }
+    .hero-tile__body { font-size: .95rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.1rem; }
+    .hero-tile__cta {
+      display: inline-block; padding: .7rem 1.1rem; border-radius: 10px;
+      background: var(--accent); color: var(--surface-bg); font-size: .9rem; font-weight: 700;
+      text-decoration: none; transition: filter .15s;
+    }
+    .hero-tile__cta:hover { filter: brightness(1.06); text-decoration: none; }
+    .hero-tile__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
+    .hero-tile__list li { display: flex; gap: .75rem; align-items: flex-start; }
+    .hero-tile__num {
+      flex: 0 0 auto; width: 1.7rem; height: 1.7rem; border-radius: 50%;
+      border: 1px solid var(--border-bright); background: var(--surface-bg);
+      color: var(--accent); font-size: .68rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hero-tile__item-title { margin: 0; font-size: .85rem; font-weight: 700; color: var(--text-primary); }
+    .hero-tile__item-desc { margin: .2rem 0 0; font-size: .78rem; line-height: 1.5; color: var(--text-muted); }
 
     /* Quick nav — jump straight to a section, same pill-row idea as the tool-tile
        banner on the main Verify landing page, scaled down for a doc page. */
@@ -227,6 +258,38 @@ const TOC = [
         <b>expect</b>. Hold everything else for a human.
       </p>
     </header>
+
+    <section class="hero-tiles">
+      <div class="hero-tile">
+        <h2 class="hero-tile__title">Get started</h2>
+        <p class="hero-tile__body">
+          Free and anonymous to try — 30 checks a minute, no login. Building a
+          fleet? Mint your own key with one DNS record for 300 a minute.
+        </p>
+        <a class="hero-tile__cta" href="/verify/login?next=/verify/agent-keys">Log in to get started <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="hero-tile">
+        <h2 class="hero-tile__title">How this works</h2>
+        <ul class="hero-tile__list">
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">01</span>
+            <div><p class="hero-tile__item-title">One free GET request</p><p class="hero-tile__item-desc">Pass the address and the domain you expect — anonymous, no key required.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">02</span>
+            <div><p class="hero-tile__item-title">Proceed only when proven + verified</p><p class="hero-tile__item-desc">Anything else is a hold for a human — never a guess.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">03</span>
+            <div><p class="hero-tile__item-title">Nobody approves anybody</p><p class="hero-tile__item-desc">Payees prove their own destinations. We only check the proof.</p></div>
+          </li>
+          <li>
+            <span class="hero-tile__num" aria-hidden="true">04</span>
+            <div><p class="hero-tile__item-title">Cache your results</p><p class="hero-tile__item-desc">Proof state changes slowly — a few minutes is safe.</p></div>
+          </li>
+        </ul>
+      </div>
+    </section>
 
     <nav class="toc" aria-label="Page sections">
       {TOC.map(([id, label]) => (<a href={`#${id}`}>{label}</a>))}
