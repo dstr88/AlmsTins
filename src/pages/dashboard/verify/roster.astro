@@ -1,0 +1,58 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import RosterEditor from '../../../components/verify/RosterEditor';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getVerifyRoster } from '@/i18n/dashboard/verifyRoster';
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/verify');
+
+const lang = getLang(Astro.request);
+const t = getVerifyRoster(lang);
+---
+
+<Layout title={t.pageTitle} noindex={true} logoutRedirect="/verify">
+  <div class="rp-page">
+    <a class="rp-back" href="/dashboard/verify">{t.backLink}</a>
+
+    <section class="rp-hero">
+      <p class="rp-hero__kicker">{t.heroKicker}</p>
+      <h1 class="rp-hero__title">{t.heroTitle}</h1>
+      <p class="rp-hero__sub">{t.heroSub}</p>
+      <p class="rp-hero__light">{t.lightPathHint}</p>
+    </section>
+
+    <RosterEditor client:load t={t} />
+
+    <section class="rp-faq">
+      <h2 class="rp-faq__title">{t.faqTitle}</h2>
+      <ul class="rp-faq__list">
+        {t.faqBody.map((line) => <li>{line}</li>)}
+      </ul>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .rp-page { max-width: 760px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  .rp-back {
+    display: inline-block; font-size: 0.82rem; font-weight: 700; color: var(--text-secondary);
+    text-decoration: none; margin-bottom: 1.25rem;
+  }
+  .rp-back:hover { color: var(--accent); }
+
+  .rp-hero { margin-bottom: 1.75rem; }
+  .rp-hero__kicker {
+    margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .rp-hero__title { margin: 0.3rem 0 0; font-weight: 800; font-size: clamp(1.5rem, 2vw + 1rem, 2rem); color: var(--text-primary); }
+  .rp-hero__sub { margin: 0.5rem 0 0; max-width: 62ch; line-height: 1.6; color: var(--text-secondary); font-size: 0.95rem; }
+  .rp-hero__light { margin: 0.6rem 0 0; font-size: 0.82rem; color: var(--text-muted); }
+
+  .rp-faq { border-top: 1px solid var(--border-subtle); margin-top: 2rem; padding-top: 1.25rem; }
+  .rp-faq__title { font-size: 0.95rem; font-weight: 800; color: var(--text-primary); margin: 0 0 0.6rem; }
+  .rp-faq__list { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .rp-faq__list li { font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary); }
+</style>

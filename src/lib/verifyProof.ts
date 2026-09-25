@@ -22,6 +22,7 @@
 import { randomBytes } from 'node:crypto';
 import { lookup, resolveTxt } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { decryptRosterDocument } from './verifyEncryption';
 
 /** Where the owner publishes the proof. The path is fixed; the file is per-domain. */
 export const WELL_KNOWN_PATH = '/.well-known/almstins-verify.json';
@@ -267,6 +268,111 @@ export async function verifyDnsTxt(rawDomain: string, expectedChallenge: string)
   }
   if (!collected.length) return { ok: false, code: anyResolved ? 'challenge_mismatch' : 'unreachable' };
   return txtRecordsContainChallenge(collected, expectedChallenge) ? { ok: true } : { ok: false, code: 'challenge_mismatch' };
+}
+
+// ── Roster document (encrypted, multi-address, self-hosted) ──────────────────
+// A merchant with more than a couple of addresses publishes ONE file on their own
+// domain, same as the plain proof file, except its contents are encrypted to
+// Almstins' public key (see verifyEncryption.ts) — anyone can fetch it, only
+// Almstins can read it. The DNS TXT record at the same name used for the control-
+// only proof (`_almstins-verify.<domain>`) now carries a URL instead of a bare
+// challenge token; we tell the two apart by shape, no new record name needed. The
+// decrypted payload carries the SAME account-bound challenge as the plain file —
+// without it, copying someone else's already-published (identical) ciphertext onto
+// a different domain would decrypt to their real, valid address list and falsely
+// inherit their proof. The challenge is what still ties the document to THIS domain.
+
+export interface RosterAddressEntry { address: string; label: string | null }
+export type RosterFailCode = ProofFailCode | 'no_pointer' | 'not_configured' | 'decrypt_failed';
+export type RosterResult =
+  | { ok: true; addresses: RosterAddressEntry[] }
+  | { ok: false; code: RosterFailCode };
+
+/** Does this TXT value look like a document pointer rather than a bare challenge? */
+export function looksLikePointerUrl(value: string): boolean {
+  return /^https:\/\//i.test(value.trim());
+}
+
+/**
+ * Look up `_almstins-verify.<domain>` (and the bare domain, same fallback order as
+ * verifyDnsTxt) for a TXT value shaped like a URL. Returns the first one found, or
+ * null if every TXT value there is a plain challenge token or nothing resolves.
+ */
+export async function resolveRosterDocumentUrl(rawDomain: string): Promise<string | null> {
+  const host = normalizeProofDomain(rawDomain);
+  if (!host) return null;
+  const names = [`_almstins-verify.${host}`, host];
+  for (const name of names) {
+    try {
+      const recs = await withTimeout(resolveTxt(name), FETCH_TIMEOUT_MS);
+      for (const chunks of recs) {
+        const value = chunks.join('').trim();
+        if (looksLikePointerUrl(value)) return value;
+      }
+    } catch { /* NXDOMAIN / no TXT / timeout — try the next name */ }
+  }
+  return null;
+}
+
+/** Tolerant address-entry parse: accepts a bare string (legacy shape) or {address,label}. */
+function parseRosterAddressEntry(item: unknown): RosterAddressEntry | null {
+  if (typeof item === 'string') {
+    const address = item.trim();
+    return address ? { address, label: null } : null;
+  }
+  if (item && typeof item === 'object' && typeof (item as any).address === 'string') {
+    const address = (item as any).address.trim();
+    if (!address) return null;
+    const label = typeof (item as any).label === 'string' ? (item as any).label.trim() || null : null;
+    return { address, label };
+  }
+  return null;
+}
+
+function parseRosterPayload(plaintext: string): { challenge: string; addresses: RosterAddressEntry[] } | null {
+  let data: any;
+  try { data = JSON.parse(plaintext); } catch { return null; }
+  const node = data?.almstins ?? data;
+  const challenge = typeof node?.challenge === 'string' ? node.challenge.trim() : '';
+  if (!challenge) return null;
+  const rawAddresses = Array.isArray(node?.addresses) ? node.addresses : [];
+  const addresses = rawAddresses
+    .map(parseRosterAddressEntry)
+    .filter((e: RosterAddressEntry | null): e is RosterAddressEntry => e !== null);
+  return { challenge, addresses };
+}
+
+/**
+ * Resolve the DNS pointer, fetch the document it names (SSRF-guarded, same as every
+ * other user-supplied URL fetch in this module), decrypt it, and verify its embedded
+ * challenge matches the one issued for this (tenant, domain). Returns the address
+ * list (with optional labels) the domain vouches for.
+ */
+export async function verifyRosterDocument(rawDomain: string, expectedChallenge: string): Promise<RosterResult> {
+  const url = await resolveRosterDocumentUrl(rawDomain);
+  if (!url) return { ok: false, code: 'no_pointer' };
+
+  const fetched = await safeFetchPublicUrl(url, { accept: 'application/json' });
+  if (!fetched.ok) return { ok: false, code: fetched.code === 'invalid_url' ? 'invalid_domain' : 'unreachable' };
+
+  const decrypted = await decryptRosterDocument(fetched.text);
+  if (!decrypted.ok) {
+    return { ok: false, code: decrypted.code === 'not_configured' ? 'not_configured' : 'decrypt_failed' };
+  }
+
+  const payload = parseRosterPayload(decrypted.plaintext);
+  if (!payload) return { ok: false, code: 'malformed' };
+  if (payload.challenge !== expectedChallenge) return { ok: false, code: 'challenge_mismatch' };
+
+  // de-dup by address, first label wins
+  const seen = new Set<string>();
+  const addresses = payload.addresses.filter((e) => {
+    const key = e.address.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ok: true, addresses };
 }
 
 // ── Hosted-API-endpoint variant (Verified Entity) ────────────────────────────

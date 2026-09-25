@@ -103,6 +103,7 @@ export interface VerifyDashboardLocale {
   proveStep1: string; // "… ({url}) …"
   proveCopyBtn: string;
   proveVerifyBtn: string;
+  proveRosterLink: string;
   proveVerifyingBtn: string;
   proveError: string;
   // Self-send proof of control (micro-deposit) — Phase 4.
@@ -273,6 +274,7 @@ export const en: VerifyDashboardLocale = {
   proveStep1: 'Publish this exact file at {url}, then verify:',
   proveCopyBtn: 'Copy',
   proveVerifyBtn: 'Verify now',
+  proveRosterLink: 'Several addresses? Publish an encrypted roster instead →',
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
   proveMethodSelfSend: 'Self-send — no website',
@@ -458,6 +460,7 @@ export const es: VerifyDashboardLocale = {
   proveStep1: 'Publica este archivo exacto en {url} y luego verifica:',
   proveCopyBtn: 'Copiar',
   proveVerifyBtn: 'Verificar ahora',
+  proveRosterLink: '¿Varias direcciones? Publica una lista cifrada en su lugar →',
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
   proveMethodSelfSend: 'Autoenvío — sin sitio web',
@@ -643,6 +646,7 @@ export const fr: VerifyDashboardLocale = {
   proveStep1: 'Publiez ce fichier exact à {url}, puis vérifiez :',
   proveCopyBtn: 'Copier',
   proveVerifyBtn: 'Vérifier maintenant',
+  proveRosterLink: 'Plusieurs adresses ? Publiez une liste chiffrée à la place →',
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
   proveMethodSelfSend: 'Auto-envoi — sans site web',

@@ -10,10 +10,12 @@
  *     dropped from their list) or on the ok->fail TRANSITION of their endpoint
  *     (the public badge will lapse within the TTL — fail-safe, never stale-verified).
  *
- *  B. Merchant .well-known proofs — re-fetch each proven domain's proof file. On a
- *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
- *     no longer vouched) the affected destinations lapse and the owner is alerted.
- *     A transient unreachable is NOT treated as a swap (no lapse, no alert).
+ *  B. Merchant proofs — re-fetch each proven domain's proof, the plain .well-known
+ *     file or, when that's absent, the encrypted roster document its DNS TXT record
+ *     points to (see verifyProof.ts). On a DEFINITIVE change (challenge/file/document
+ *     no longer validates, or a proven address is no longer vouched) the affected
+ *     destinations lapse and the owner is alerted. A transient unreachable on both
+ *     methods is NOT treated as a swap (no lapse, no alert).
  *
  * Protected by CRON_SECRET (header or ?secret=). Alerts reuse the liquidation-email
  * pattern (alert_email + sendMail + per-recipient language). Owner→world boundary
@@ -33,7 +35,7 @@ import {
   markDestinationsLapsed, markDomainProofFailed, markDomainProofRechecked,
   normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
-import { verifyDomainProof } from '@/lib/verifyProof';
+import { verifyDomainProof, verifyRosterDocument } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
 
 export const prerender = false;
@@ -177,28 +179,47 @@ export const GET: APIRoute = async ({ request }) => {
       try {
         const proven = await getProvenAddressDestinations(d.tenantId, d.domain);
         const res = await verifyDomainProof(d.domain, d.challenge);
-        if (!res.ok) {
-          if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
-            // Definitive: the published proof changed. Lapse its addresses + alert once.
-            await markDestinationsLapsed(d.tenantId, proven.map((p) => p.id));
-            await markDomainProofFailed(d.tenantId, d.domain);
-            if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
-              merchant.proofChangedAlerts++;
-            }
-          } else {
-            // Transient (unreachable / invalid_domain) — don't treat as a swap.
-            await markDomainProofRechecked(d.tenantId, d.domain);
-          }
+
+        // Three-way outcome: still valid (vouched set), definitively changed (lapse),
+        // or transient (leave alone). A plain-file domain settles this from `res`
+        // alone. A roster domain has no file at all, so `res` always comes back
+        // 'unreachable' for them — not an error, just the normal shape of not using
+        // this method — and the roster document (if a DNS pointer exists) decides it.
+        let vouched: Set<string> | null = null;
+        let definitiveFail = false;
+        if (res.ok) {
+          vouched = new Set(res.addresses.map(normalizeDestinationValue));
+        } else if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
+          definitiveFail = true;
         } else {
+          const roster = await verifyRosterDocument(d.domain, d.challenge);
+          if (roster.ok) {
+            vouched = new Set(roster.addresses.map((e) => normalizeDestinationValue(e.address)));
+          } else if (roster.code === 'challenge_mismatch' || roster.code === 'malformed' || roster.code === 'decrypt_failed') {
+            definitiveFail = true;
+          }
+          // else: neither method answered anything definitive — stays transient below.
+        }
+
+        if (definitiveFail) {
+          // Definitive: the published proof changed. Lapse its addresses + alert once.
+          await markDestinationsLapsed(d.tenantId, proven.map((p) => p.id));
+          await markDomainProofFailed(d.tenantId, d.domain);
+          if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
+            merchant.proofChangedAlerts++;
+          }
+        } else if (vouched) {
           // Proof still holds — check each proven address is still vouched.
-          const vouched = new Set(res.addresses.map(normalizeDestinationValue));
-          const missing = proven.filter((p) => !vouched.has(normalizeDestinationValue(p.value)));
+          const missing = proven.filter((p) => !vouched!.has(normalizeDestinationValue(p.value)));
           if (missing.length) {
             await markDestinationsLapsed(d.tenantId, missing.map((m) => m.id));
             if (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value))) {
               merchant.addressDroppedAlerts++;
             }
           }
+          await markDomainProofRechecked(d.tenantId, d.domain);
+        } else {
+          // Transient (unreachable / invalid_domain on both methods) — don't treat as a swap.
           await markDomainProofRechecked(d.tenantId, d.domain);
         }
       } catch (err) {
