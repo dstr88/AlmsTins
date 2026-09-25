@@ -45,8 +45,12 @@ export interface VerifyCopy {
   tools: {
     heading: string;
     lede: string;
-    levelLabel: string;
-    levels: Array<{ title: string; body: string; price: string; cta: string }>;
+    levels: Array<{ persona: string; title: string; body: string; price: string; cta: string }>;
+    agentKeyLine: string;
+    bannerLabels: [string, string, string];
+    agentDemo: { addrPlaceholder: string; domainPlaceholder: string; button: string; checking: string; hint: string };
+    storeDemo: { placeholder: string; button: string; checking: string; result: string; hint: string };
+    dnsDemo: { label: string; hint: string };
     scan: { badge: string; title: string; body: string; cta: string };
     login: { heading: string; body: string; button: string };
   };
@@ -102,28 +106,50 @@ const en: VerifyCopy = {
   },
   tools: {
     heading: 'The tools',
-    lede: 'Three levels of proof for the destinations you publish, plus a free scan for the people who pay you. All three levels live behind one login.',
-    levelLabel: 'Level',
+    lede: "Three ways to prove what you publish, or check what someone else did — whether you're proving your own wallet, listing several, or building something that pays.",
     levels: [
       {
-        title: 'Proven wallet',
-        body: 'Prove a receiving address is yours by sending yourself a tiny amount. No wallet connection, no signing, no keys. Payment QRs and payment links register the same way. Scans show it as control confirmed.',
-        price: 'Free: 2 wallets + 1 QR',
-        cta: 'Start with a wallet',
-      },
-      {
-        title: 'Domain-verified',
-        body: 'Prove your domain with a DNS record or a small file on your site to attach your verified business name. List your addresses in that file and scans show them as a verified destination, so a swapped address on a fake page fails the check.',
-        price: 'Free during beta',
-        cta: 'Verify your domain',
-      },
-      {
+        persona: 'For anyone building something that pays',
         title: 'Agents',
-        body: 'Payment agents check a destination before they pay: one GET returns a status and a level, and an agent proceeds only when the answer is proven and verified. Mint your own API key with one DNS record for 300 checks a minute, and publish your full address list from your own domain.',
+        body: 'One GET returns a status and a level before your agent sends a payment. Proceed only when the answer is proven and verified — anything else means hold and confirm out of band.',
         price: 'Free during beta',
         cta: 'Read the agent docs',
       },
+      {
+        persona: 'For store owners accepting crypto',
+        title: 'Proven wallet',
+        body: 'Prove a receiving address is yours by sending yourself a tiny amount. No wallet connection, no signing, no keys. Payment QRs and payment links register the same way.',
+        price: 'Free: 2 wallets + 1 QR',
+        cta: 'Claim your wallet',
+      },
+      {
+        persona: 'For businesses with one or two receiving addresses',
+        title: 'Domain-verified',
+        body: 'Prove your domain with a DNS record or a small file on your site, then list your addresses there. A swapped address on a fake page fails the check. More than a couple of addresses? Publish an encrypted roster instead.',
+        price: 'Free during beta',
+        cta: 'Verify your domain',
+      },
     ],
+    agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute →',
+    bannerLabels: ['Agent', 'Store owner', 'Small business'],
+    agentDemo: {
+      addrPlaceholder: '0x… or a payment link',
+      domainPlaceholder: 'the domain you expect',
+      button: 'Check it',
+      checking: 'Checking…',
+      hint: 'Try it — this calls the real, free check endpoint.',
+    },
+    storeDemo: {
+      placeholder: 'Paste any wallet address',
+      button: 'See how it looks',
+      checking: 'Checking…',
+      result: '✓ Proven — this is how your own wallet will look once you claim it.',
+      hint: 'A preview, not a real check yet.',
+    },
+    dnsDemo: {
+      label: 'What you publish, one line:',
+      hint: 'No file to host, nothing to encrypt.',
+    },
     scan: {
       badge: 'Free · no login',
       title: 'Scan before you pay',
@@ -247,28 +273,50 @@ const es: VerifyCopy = {
   },
   tools: {
     heading: 'Las herramientas',
-    lede: 'Tres niveles de prueba para los destinos que publicas, más un escáner gratuito para quienes te pagan. Los tres niveles están detrás de un mismo inicio de sesión.',
-    levelLabel: 'Nivel',
+    lede: 'Tres formas de probar lo que publicas, o de comprobar lo que publicó otra persona — ya sea que estés probando tu propia billetera, listando varias, o construyendo algo que paga.',
     levels: [
       {
-        title: 'Billetera probada',
-        body: 'Demuestra que una dirección de recepción es tuya enviándote un pequeño monto. Sin conectar la billetera, sin firmar, sin claves. Los QR de pago y los enlaces de pago se registran igual. Los escaneos la muestran como control confirmado.',
-        price: 'Gratis: 2 direcciones + 1 QR',
-        cta: 'Empieza con una billetera',
-      },
-      {
-        title: 'Dominio verificado',
-        body: 'Demuestra tu dominio con un registro DNS o un pequeño archivo en tu sitio para vincular tu nombre comercial verificado. Incluye tus direcciones en ese archivo y los escaneos las mostrarán como destino verificado, así que una dirección sustituida en una página falsa no pasa la comprobación.',
-        price: 'Gratis durante la beta',
-        cta: 'Verifica tu dominio',
-      },
-      {
+        persona: 'Para quienes construyen algo que paga',
         title: 'Agentes',
-        body: 'Los agentes de pago comprueban un destino antes de pagar: una sola petición GET devuelve un estado y un nivel, y un agente solo sigue adelante si la respuesta es proven y verified. Genera tu propia clave de API con un registro DNS para 300 consultas por minuto, y publica tu lista completa de direcciones desde tu propio dominio.',
+        body: 'Una sola petición GET devuelve un estado y un nivel antes de que tu agente envíe un pago. Sigue adelante solo si la respuesta es proven y verified — cualquier otra cosa significa retener y confirmar por otro canal.',
         price: 'Gratis durante la beta',
         cta: 'Lee la documentación para agentes (en inglés)',
       },
+      {
+        persona: 'Para comercios que aceptan cripto',
+        title: 'Billetera probada',
+        body: 'Demuestra que una dirección de recepción es tuya enviándote un pequeño monto. Sin conectar la billetera, sin firmar, sin claves. Los QR de pago y los enlaces de pago se registran igual.',
+        price: 'Gratis: 2 direcciones + 1 QR',
+        cta: 'Reclama tu billetera',
+      },
+      {
+        persona: 'Para negocios con una o dos direcciones de recepción',
+        title: 'Dominio verificado',
+        body: 'Demuestra tu dominio con un registro DNS o un pequeño archivo en tu sitio, y luego incluye tus direcciones ahí. Una dirección sustituida en una página falsa no pasa la comprobación. ¿Más de un par de direcciones? Publica una lista cifrada en su lugar.',
+        price: 'Gratis durante la beta',
+        cta: 'Verifica tu dominio',
+      },
     ],
+    agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto →',
+    bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
+    agentDemo: {
+      addrPlaceholder: '0x… o un enlace de pago',
+      domainPlaceholder: 'el dominio que esperas',
+      button: 'Comprobar',
+      checking: 'Comprobando…',
+      hint: 'Pruébalo — esto llama al endpoint de comprobación real y gratuito.',
+    },
+    storeDemo: {
+      placeholder: 'Pega cualquier dirección de billetera',
+      button: 'Ver cómo se ve',
+      checking: 'Comprobando…',
+      result: '✓ Probada — así se verá tu propia billetera una vez que la reclames.',
+      hint: 'Una vista previa, aún no una comprobación real.',
+    },
+    dnsDemo: {
+      label: 'Lo que publicas, en una línea:',
+      hint: 'Sin archivo que alojar, nada que cifrar.',
+    },
     scan: {
       badge: 'Gratis · sin cuenta',
       title: 'Escanea antes de pagar',
@@ -392,28 +440,50 @@ const fr: VerifyCopy = {
   },
   tools: {
     heading: 'Les outils',
-    lede: 'Trois niveaux de preuve pour les destinations que vous publiez, plus un scanner gratuit pour celles et ceux qui vous paient. Les trois niveaux sont accessibles avec une seule connexion.',
-    levelLabel: 'Niveau',
+    lede: "Trois façons de prouver ce que vous publiez, ou de vérifier ce qu'a publié quelqu'un d'autre — que vous prouviez votre propre portefeuille, en listiez plusieurs, ou construisiez quelque chose qui paie.",
     levels: [
       {
-        title: 'Portefeuille prouvé',
-        body: "Prouvez qu'une adresse de réception est à vous en vous envoyant un petit montant. Sans connexion de portefeuille, sans signature, sans clés. Les QR de paiement et les liens de paiement s'enregistrent de la même façon. Les scans l'affichent comme contrôle confirmé.",
-        price: 'Gratuit : 2 adresses + 1 QR',
-        cta: 'Commencer avec un portefeuille',
-      },
-      {
-        title: 'Domaine vérifié',
-        body: "Prouvez votre domaine avec un enregistrement DNS ou un petit fichier sur votre site pour rattacher votre nom commercial vérifié. Listez vos adresses dans ce fichier et les scans les affichent comme destination vérifiée, donc une adresse remplacée sur une fausse page échoue à la vérification.",
-        price: 'Gratuit pendant la bêta',
-        cta: 'Vérifier votre domaine',
-      },
-      {
+        persona: 'Pour qui construit quelque chose qui paie',
         title: 'Agents',
-        body: "Les agents de paiement vérifient une destination avant de payer : une seule requête GET renvoie un statut et un niveau, et un agent ne poursuit que si la réponse est proven et verified. Créez votre propre clé API avec un enregistrement DNS pour 300 vérifications par minute, et publiez votre liste complète d'adresses depuis votre propre domaine.",
+        body: "Une seule requête GET renvoie un statut et un niveau avant que votre agent n'envoie un paiement. Ne poursuivez que si la réponse est proven et verified — tout le reste signifie retenir et confirmer par un autre canal.",
         price: 'Gratuit pendant la bêta',
         cta: 'Lire la documentation agents (en anglais)',
       },
+      {
+        persona: 'Pour les commerces qui acceptent les cryptos',
+        title: 'Portefeuille prouvé',
+        body: "Prouvez qu'une adresse de réception est à vous en vous envoyant un petit montant. Sans connexion de portefeuille, sans signature, sans clés. Les QR de paiement et les liens de paiement s'enregistrent de la même façon.",
+        price: 'Gratuit : 2 adresses + 1 QR',
+        cta: 'Réclamer votre portefeuille',
+      },
+      {
+        persona: 'Pour les entreprises avec une ou deux adresses de réception',
+        title: 'Domaine vérifié',
+        body: "Prouvez votre domaine avec un enregistrement DNS ou un petit fichier sur votre site, puis listez vos adresses là. Une adresse remplacée sur une fausse page échoue à la vérification. Plus de deux adresses ? Publiez plutôt une liste chiffrée.",
+        price: 'Gratuit pendant la bêta',
+        cta: 'Vérifier votre domaine',
+      },
     ],
+    agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute →',
+    bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
+    agentDemo: {
+      addrPlaceholder: '0x… ou un lien de paiement',
+      domainPlaceholder: 'le domaine attendu',
+      button: 'Vérifier',
+      checking: 'Vérification…',
+      hint: "Essayez — ceci appelle le vrai point de contrôle, gratuit.",
+    },
+    storeDemo: {
+      placeholder: 'Collez n\'importe quelle adresse de portefeuille',
+      button: 'Voir le rendu',
+      checking: 'Vérification…',
+      result: '✓ Prouvé — voici à quoi ressemblera votre portefeuille une fois réclamé.',
+      hint: "Un aperçu, pas encore une vérification réelle.",
+    },
+    dnsDemo: {
+      label: 'Ce que vous publiez, en une ligne :',
+      hint: 'Aucun fichier à héberger, rien à chiffrer.',
+    },
     scan: {
       badge: 'Gratuit · sans compte',
       title: 'Scannez avant de payer',
