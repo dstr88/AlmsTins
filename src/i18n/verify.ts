@@ -33,9 +33,6 @@ export interface VerifyCopy {
     eyebrow: string;
     title: string;
     sub: string;
-    ctaPrimary: string;
-    ctaSecondary: string;
-    ctaDemo: string;
   };
   /**
    * "The tools": the three priced levels (in order: proven wallet, domain-verified,
@@ -47,7 +44,8 @@ export interface VerifyCopy {
     lede: string;
     levels: Array<{ persona: string; title: string; body: string; price: string; cta: string }>;
     agentKeyLine: string;
-    agentKeyBtn: string;
+    agentSigninBtn: string;
+    agentDemoLabel: string;
     bannerLabels: [string, string, string];
     agentDemo: { addrPlaceholder: string; domainPlaceholder: string; button: string; checking: string; hint: string };
     storeDemo: { placeholder: string; button: string; checking: string; result: string; hint: string };
@@ -100,9 +98,6 @@ const en: VerifyCopy = {
     eyebrow: 'Early access · Free to start',
     title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
     sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 2 wallets and 1 QR.",
-    ctaPrimary: 'Log in to get started',
-    ctaSecondary: 'How it works ↓',
-    ctaDemo: 'Try the vendor demo →',
   },
   tools: {
     heading: 'The tools',
@@ -120,7 +115,7 @@ const en: VerifyCopy = {
         title: 'Proven wallet',
         body: 'Prove a receiving address is yours by sending yourself a tiny amount. No wallet connection, no signing, no keys. Payment QRs and payment links register the same way.',
         price: 'Free: 2 wallets + 1 QR',
-        cta: 'Claim your wallet',
+        cta: 'Log in to get started',
       },
       {
         persona: 'For businesses with one or two receiving addresses',
@@ -131,7 +126,8 @@ const en: VerifyCopy = {
       },
     ],
     agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute.',
-    agentKeyBtn: 'Mint your key',
+    agentSigninBtn: 'Log in to get started',
+    agentDemoLabel: 'Watch a demo',
     bannerLabels: ['Agent', 'Store owner', 'Small business'],
     agentDemo: {
       addrPlaceholder: '0x… or a payment link',
@@ -142,7 +138,7 @@ const en: VerifyCopy = {
     },
     storeDemo: {
       placeholder: 'Paste any wallet address',
-      button: 'See how it looks',
+      button: 'Watch a demo',
       checking: 'Checking…',
       result: '✓ Proven — this is how your own wallet will look once you claim it.',
       hint: 'A preview, not a real check yet.',
@@ -267,9 +263,6 @@ const es: VerifyCopy = {
     eyebrow: 'Acceso anticipado · Gratis para empezar',
     title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
     sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR.',
-    ctaPrimary: 'Inicia sesión para empezar',
-    ctaSecondary: 'Cómo funciona ↓',
-    ctaDemo: 'Prueba la demo para comercios →',
   },
   tools: {
     heading: 'Las herramientas',
@@ -287,7 +280,7 @@ const es: VerifyCopy = {
         title: 'Billetera probada',
         body: 'Demuestra que una dirección de recepción es tuya enviándote un pequeño monto. Sin conectar la billetera, sin firmar, sin claves. Los QR de pago y los enlaces de pago se registran igual.',
         price: 'Gratis: 2 direcciones + 1 QR',
-        cta: 'Reclama tu billetera',
+        cta: 'Inicia sesión para empezar',
       },
       {
         persona: 'Para negocios con una o dos direcciones de recepción',
@@ -298,7 +291,8 @@ const es: VerifyCopy = {
       },
     ],
     agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto.',
-    agentKeyBtn: 'Genera tu clave',
+    agentSigninBtn: 'Inicia sesión para empezar',
+    agentDemoLabel: 'Ver una demo',
     bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
     agentDemo: {
       addrPlaceholder: '0x… o un enlace de pago',
@@ -309,7 +303,7 @@ const es: VerifyCopy = {
     },
     storeDemo: {
       placeholder: 'Pega cualquier dirección de billetera',
-      button: 'Ver cómo se ve',
+      button: 'Ver una demo',
       checking: 'Comprobando…',
       result: '✓ Probada — así se verá tu propia billetera una vez que la reclames.',
       hint: 'Una vista previa, aún no una comprobación real.',
@@ -434,9 +428,6 @@ const fr: VerifyCopy = {
     eyebrow: 'Accès anticipé · Gratuit pour commencer',
     title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
     sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR.",
-    ctaPrimary: 'Connectez-vous pour commencer',
-    ctaSecondary: 'Comment ça marche ↓',
-    ctaDemo: 'Essayer la démo commerçant →',
   },
   tools: {
     heading: 'Les outils',
@@ -454,7 +445,7 @@ const fr: VerifyCopy = {
         title: 'Portefeuille prouvé',
         body: "Prouvez qu'une adresse de réception est à vous en vous envoyant un petit montant. Sans connexion de portefeuille, sans signature, sans clés. Les QR de paiement et les liens de paiement s'enregistrent de la même façon.",
         price: 'Gratuit : 2 adresses + 1 QR',
-        cta: 'Réclamer votre portefeuille',
+        cta: 'Connectez-vous pour commencer',
       },
       {
         persona: 'Pour les entreprises avec une ou deux adresses de réception',
@@ -465,7 +456,8 @@ const fr: VerifyCopy = {
       },
     ],
     agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute.',
-    agentKeyBtn: 'Créez votre clé',
+    agentSigninBtn: 'Connectez-vous pour commencer',
+    agentDemoLabel: 'Voir une démo',
     bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
     agentDemo: {
       addrPlaceholder: '0x… ou un lien de paiement',
@@ -476,7 +468,7 @@ const fr: VerifyCopy = {
     },
     storeDemo: {
       placeholder: 'Collez n\'importe quelle adresse de portefeuille',
-      button: 'Voir le rendu',
+      button: 'Voir une démo',
       checking: 'Vérification…',
       result: '✓ Prouvé — voici à quoi ressemblera votre portefeuille une fois réclamé.',
       hint: "Un aperçu, pas encore une vérification réelle.",
