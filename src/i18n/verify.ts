@@ -46,7 +46,7 @@ export interface VerifyCopy {
     agentKeyLine: string;
     agentSigninBtn: string;
     bannerLabels: [string, string, string];
-    agentDemo: { addrPlaceholder: string; domainPlaceholder: string; button: string; checking: string; hint: string };
+    agentDemo: { button: string };
     storeDemo: { placeholder: string; button: string; checking: string; result: string; hint: string };
     dnsDemo: { watchLabel: string; label: string; hint: string };
     scan: { badge: string; title: string; body: string; cta: string };
@@ -127,13 +127,7 @@ const en: VerifyCopy = {
     agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute.',
     agentSigninBtn: 'Log in to get started',
     bannerLabels: ['Agent', 'Store owner', 'Small business'],
-    agentDemo: {
-      addrPlaceholder: '0x… or a payment link',
-      domainPlaceholder: 'the domain you expect',
-      button: 'Watch a demo',
-      checking: 'Checking…',
-      hint: 'Try it — this calls the real, free check endpoint.',
-    },
+    agentDemo: { button: 'Watch a demo' },
     storeDemo: {
       placeholder: 'Paste any wallet address',
       button: 'Watch a demo',
@@ -292,13 +286,7 @@ const es: VerifyCopy = {
     agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto.',
     agentSigninBtn: 'Inicia sesión para empezar',
     bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
-    agentDemo: {
-      addrPlaceholder: '0x… o un enlace de pago',
-      domainPlaceholder: 'el dominio que esperas',
-      button: 'Ver una demo',
-      checking: 'Comprobando…',
-      hint: 'Pruébalo — esto llama al endpoint de comprobación real y gratuito.',
-    },
+    agentDemo: { button: 'Ver una demo' },
     storeDemo: {
       placeholder: 'Pega cualquier dirección de billetera',
       button: 'Ver una demo',
@@ -457,13 +445,7 @@ const fr: VerifyCopy = {
     agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute.',
     agentSigninBtn: 'Connectez-vous pour commencer',
     bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
-    agentDemo: {
-      addrPlaceholder: '0x… ou un lien de paiement',
-      domainPlaceholder: 'le domaine attendu',
-      button: 'Voir une démo',
-      checking: 'Vérification…',
-      hint: "Essayez — ceci appelle le vrai point de contrôle, gratuit.",
-    },
+    agentDemo: { button: 'Voir une démo' },
     storeDemo: {
       placeholder: 'Collez n\'importe quelle adresse de portefeuille',
       button: 'Voir une démo',
