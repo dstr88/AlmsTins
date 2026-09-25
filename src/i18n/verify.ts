@@ -28,7 +28,7 @@ export interface VerifyCopy {
   /** Page <title> is composed in the component as `${BRAND} — ${meta.tagline}`. */
   meta: { tagline: string; description: string };
   jsonld: { description: string; featureList: string[] };
-  nav: { brandAria: string; tagline: string; login: string };
+  nav: { brandAria: string; tagline: string };
   hero: {
     eyebrow: string;
     title: string;
@@ -47,6 +47,7 @@ export interface VerifyCopy {
     lede: string;
     levels: Array<{ persona: string; title: string; body: string; price: string; cta: string }>;
     agentKeyLine: string;
+    agentKeyBtn: string;
     bannerLabels: [string, string, string];
     agentDemo: { addrPlaceholder: string; domainPlaceholder: string; button: string; checking: string; hint: string };
     storeDemo: { placeholder: string; button: string; checking: string; result: string; hint: string };
@@ -94,7 +95,6 @@ const en: VerifyCopy = {
   nav: {
     brandAria: 'Almstins home',
     tagline: 'Verify the addresses your customers pay',
-    login: 'Sign in',
   },
   hero: {
     eyebrow: 'Early access · Free to start',
@@ -130,7 +130,8 @@ const en: VerifyCopy = {
         cta: 'Verify your domain',
       },
     ],
-    agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute →',
+    agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute.',
+    agentKeyBtn: 'Mint your key',
     bannerLabels: ['Agent', 'Store owner', 'Small business'],
     agentDemo: {
       addrPlaceholder: '0x… or a payment link',
@@ -261,7 +262,6 @@ const es: VerifyCopy = {
   nav: {
     brandAria: 'Inicio de Almstins',
     tagline: 'Verifica las direcciones donde te pagan tus clientes',
-    login: 'Iniciar sesión',
   },
   hero: {
     eyebrow: 'Acceso anticipado · Gratis para empezar',
@@ -297,7 +297,8 @@ const es: VerifyCopy = {
         cta: 'Verifica tu dominio',
       },
     ],
-    agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto →',
+    agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto.',
+    agentKeyBtn: 'Genera tu clave',
     bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
     agentDemo: {
       addrPlaceholder: '0x… o un enlace de pago',
@@ -428,7 +429,6 @@ const fr: VerifyCopy = {
   nav: {
     brandAria: 'Accueil Almstins',
     tagline: 'Vérifiez les adresses où vos clients vous paient',
-    login: 'Se connecter',
   },
   hero: {
     eyebrow: 'Accès anticipé · Gratuit pour commencer',
@@ -464,7 +464,8 @@ const fr: VerifyCopy = {
         cta: 'Vérifier votre domaine',
       },
     ],
-    agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute →',
+    agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute.',
+    agentKeyBtn: 'Créez votre clé',
     bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
     agentDemo: {
       addrPlaceholder: '0x… ou un lien de paiement',

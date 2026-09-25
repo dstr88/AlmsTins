@@ -72,7 +72,6 @@ Authorization: Bearer <your-key>
              aria-current={l.code === lang ? 'true' : undefined}>{l.label}</a>
         ))}
       </div>
-      <a class="vnav__login" href={LOGIN_HREF}>{t.nav.login}</a>
       <a class="vnav__logo" href="/" aria-label={t.nav.brandAria}>
         <img src={AlmstinsLogo.src} alt="AlmsTins" width="960" height="1104" loading="eager" decoding="async" />
       </a>
@@ -114,8 +113,9 @@ Authorization: Bearer <your-key>
           <span class="vtool__title">{t.tools.levels[0].title}</span>
           <span class="vtool__body">{t.tools.levels[0].body}</span>
           <span class="vtool__price">{t.tools.levels[0].price}</span>
-          <a class="vtool__cta" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
-          <a class="vtool__key-line" href="/verify/login?next=/verify/agent-keys">{t.tools.agentKeyLine}</a>
+          <a class="vtool__cta vtool__cta--ghost" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
+          <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
+          <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentKeyBtn}</a>
           <div class="vdemo">
             <div class="vdemo__row">
               <input class="vdemo__input" id="agent-demo-addr" placeholder={t.tools.agentDemo.addrPlaceholder} spellcheck="false" autocomplete="off" />
@@ -255,6 +255,12 @@ Authorization: Bearer <your-key>
 
 <style>
   /* All colors reference design tokens from src/styles/tokens.css (loaded by LoginLayout). */
+  /* Same gradient as almstins.com's own landing page (login.astro's .landing) --
+     an intentional, discussed extension of that pre-token background, not a
+     one-off. Applied to the whole scroll area, not just .vpage's own width. */
+  :global(body:has(.vpage)) {
+    background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
+  }
   .vpage {
     width: 100%;
     box-sizing: border-box;
@@ -294,13 +300,6 @@ Authorization: Bearer <your-key>
   }
   .vnav__lang:hover { color: var(--text-primary); }
   .vnav__lang[aria-current='true'] { color: var(--accent); }
-  .vnav__login {
-    font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
-    text-decoration: none; padding: 0.4rem 0.85rem; border-radius: 999px;
-    border: 1px solid var(--border-bright); transition: color 0.15s ease, border-color 0.15s ease;
-    white-space: nowrap;
-  }
-  .vnav__login:hover { color: var(--text-primary); border-color: var(--accent); }
   .vnav__logo { display: inline-flex; align-items: center; line-height: 0; flex-shrink: 0; }
   .vnav__logo img {
     height: 40px;
@@ -311,11 +310,12 @@ Authorization: Bearer <your-key>
   }
   @media (max-width: 480px) { .vnav__logo img { height: 34px; } }
 
-  /* ── Buttons ── */
+  /* ── Buttons (rounded-rect, matching almstins.com's hub-hero__cta -- pills
+     stay reserved for badges/tags, same split the hub page itself uses) ── */
   .vbtn {
     display: inline-block;
     padding: 0.8rem 1.5rem;
-    border-radius: 999px;
+    border-radius: 0.75rem;
     background: var(--accent);
     color: var(--surface-bg);
     font-size: 0.95rem;
@@ -371,7 +371,7 @@ Authorization: Bearer <your-key>
   }
   .vhero__title {
     font-size: clamp(2rem, 5vw, 3.1rem);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.18;
     letter-spacing: -0.02em;
     margin: 0 0 1.25rem;
@@ -426,10 +426,15 @@ Authorization: Bearer <your-key>
     gap: 0.45rem;
     background: var(--surface-card);
     border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border-radius: 18px;
     padding: 1.2rem 1.25rem;
-    transition: border-color 0.15s ease;
+    transition: border-color 0.15s ease, transform 0.1s ease;
   }
+  /* Same hover-lift as almstins.com's .door cards; the accent border on
+     hover/focus-within is kept on top of that -- unlike a .door (one big
+     link), each tile holds several separately-focusable controls (demo
+     inputs, the login button), so that feedback still earns its keep. */
+  .vtool:hover { transform: translateY(-3px); }
   .vtool:focus-within, .vtool:hover { border-color: var(--accent); }
   .vtool__persona {
     font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent);
@@ -442,12 +447,23 @@ Authorization: Bearer <your-key>
     background: var(--accent-soft); border: 1px solid var(--accent-glow);
     padding: 0.2rem 0.6rem; border-radius: 999px;
   }
-  .vtool__cta { font-size: 0.85rem; font-weight: 700; color: var(--accent); text-decoration: none; margin-top: 0.15rem; }
-  .vtool__cta:hover { text-decoration: underline; }
-  .vtool__key-line {
-    font-size: 0.78rem; font-weight: 700; color: var(--accent-dim); text-decoration: none; margin-top: -0.25rem;
+  /* Each tile's own login/action button — same rounded-rect language as .vbtn,
+     sized for a card rather than the hero. */
+  .vtool__cta {
+    display: inline-block; align-self: flex-start; margin-top: 0.3rem;
+    padding: 0.55rem 1.1rem; border-radius: 0.65rem;
+    background: var(--accent); color: var(--surface-bg);
+    font-size: 0.85rem; font-weight: 700; text-decoration: none;
+    transition: filter 0.15s ease;
   }
-  .vtool__key-line:hover { color: var(--accent); }
+  .vtool__cta:hover { filter: brightness(1.08); }
+  .vtool__cta--ghost {
+    background: transparent; color: var(--accent); border: 1px solid var(--border-bright);
+  }
+  .vtool__cta--ghost:hover { border-color: var(--accent); filter: none; }
+  .vtool__key-hint {
+    font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin: -0.1rem 0 0;
+  }
 
   /* Per-tile demo: a small interactive or illustrative strip at the bottom of each
      card, distinct enough from the CTA link above it to not be mistaken for it. */
