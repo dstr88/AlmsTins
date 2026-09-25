@@ -50,6 +50,9 @@ export interface VerifyRosterLocale {
   loadedFromCache: string; // "{time}" — shown when the editor pre-fills from a prior publish
   howItWorksTitle: string;
   howItWorksItems: { title: string; desc: string }[]; // exactly 4 — rendered 01-04
+  progressTitle: string;
+  progressSteps: string[]; // exactly 4 — steps 1-2 highlight per RosterEditor's own state;
+                            // 3-4 (encrypted / DNS-published) are informational only for now
 }
 
 const en: VerifyRosterLocale = {
@@ -98,8 +101,15 @@ const en: VerifyRosterLocale = {
   howItWorksItems: [
     { title: 'Encrypted before it leaves your browser', desc: "We never see your list in plain text until we decrypt it ourselves — and neither can anyone who finds the file on your site." },
     { title: 'Changes take effect instantly', desc: 'Adding or removing an address applies the moment you check again — no waiting for a scheduled recheck.' },
-    { title: 'Labels stay private', desc: 'A label is just for you, to tell your own wallets apart. It stays private inside the encrypted file.' },
+    { title: 'Wallet addresses stay private', desc: 'Only you can see which addresses are on your list. A label is just for you, to tell your own wallets apart — it stays private too.' },
     { title: 'Stale listings expire on their own', desc: 'If the file disappears from your site, or the DNS record changes, your addresses stop showing as verified within a day.' },
+  ],
+  progressTitle: 'The process',
+  progressSteps: [
+    'Name your website',
+    'Identify your wallets',
+    'Encrypt the addresses',
+    'Save it in the main folder of your website',
   ],
 };
 
@@ -149,8 +159,15 @@ const es: VerifyRosterLocale = {
   howItWorksItems: [
     { title: 'Cifrado antes de salir de tu navegador', desc: 'Nunca vemos tu lista en texto plano hasta descifrarla nosotros mismos — y tampoco puede hacerlo nadie que encuentre el archivo en tu sitio.' },
     { title: 'Los cambios surten efecto al instante', desc: 'Agregar o quitar una dirección aplica en cuanto vuelves a comprobar — sin esperar a una revisión programada.' },
-    { title: 'Las etiquetas permanecen privadas', desc: 'Una etiqueta es solo para ti, para distinguir tus propias billeteras. Permanece privada dentro del archivo cifrado.' },
+    { title: 'Las direcciones de billetera permanecen privadas', desc: 'Solo tú puedes ver qué direcciones están en tu lista. Una etiqueta es solo para ti, para distinguir tus propias billeteras — también permanece privada.' },
     { title: 'Las listas obsoletas caducan solas', desc: 'Si el archivo desaparece de tu sitio, o cambia el registro DNS, tus direcciones dejan de mostrarse como verificadas en un día.' },
+  ],
+  progressTitle: 'El proceso',
+  progressSteps: [
+    'Nombra tu sitio web',
+    'Identifica tus billeteras',
+    'Cifra las direcciones',
+    'Guárdalo en la carpeta principal de tu sitio web',
   ],
 };
 
@@ -200,8 +217,15 @@ const fr: VerifyRosterLocale = {
   howItWorksItems: [
     { title: 'Chiffré avant de quitter votre navigateur', desc: 'Nous ne voyons jamais votre liste en clair avant de la déchiffrer nous-mêmes — et personne qui trouve le fichier sur votre site ne le peut non plus.' },
     { title: 'Les changements prennent effet instantanément', desc: 'Ajouter ou retirer une adresse s’applique dès que vous revérifiez — sans attendre une revérification programmée.' },
-    { title: 'Les libellés restent privés', desc: 'Un libellé est seulement pour vous, pour distinguer vos propres portefeuilles. Il reste privé à l’intérieur du fichier chiffré.' },
+    { title: 'Les adresses de portefeuille restent privées', desc: 'Vous seul pouvez voir quelles adresses figurent sur votre liste. Un libellé est seulement pour vous, pour distinguer vos propres portefeuilles — il reste privé lui aussi.' },
     { title: 'Les listes obsolètes expirent d’elles-mêmes', desc: 'Si le fichier disparaît de votre site, ou que l’enregistrement DNS change, vos adresses cessent d’apparaître comme vérifiées en une journée.' },
+  ],
+  progressTitle: 'Le processus',
+  progressSteps: [
+    'Nommez votre site web',
+    'Identifiez vos portefeuilles',
+    'Chiffrez les adresses',
+    'Enregistrez-le dans le dossier principal de votre site web',
   ],
 };
 

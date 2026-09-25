@@ -1,10 +1,10 @@
 .rt { display: block; }
 
-/* Domain-entry state: Step One paired with How-this-works, one column up to
-   800px, side by side above it — same breakpoint the /verify landing page's
-   own tile grid uses. Sizing steps up again at that breakpoint. */
+/* Either state's primary card paired with the progress tile: one column up
+   to 800px, side by side above it — same breakpoint the /verify landing
+   page's own tile grid uses. Sizing steps up again at that breakpoint. */
 .rt-tiles {
-  max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 4rem;
+  max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 1.5rem;
   display: grid; grid-template-columns: 1fr; align-items: start; gap: 1.5rem;
 }
 @media (min-width: 800px) {
@@ -38,6 +38,50 @@
   .rt-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
   .rt-how__item-title { font-size: 1.05rem; }
   .rt-how__item-desc { font-size: 0.92rem; margin-top: 0.4rem; }
+}
+
+/* Progress tile: paired with whichever primary card is showing. Only the
+   step matching the current state reads bright; the rest stay dim -- steps
+   3-4 (encrypt, DNS-publish) are always dim from here since they're either
+   a later moment on this same page or a different page entirely. */
+.rt-progress__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.9rem; }
+.rt-progress__item { display: flex; align-items: center; gap: 0.75rem; }
+.rt-progress__num {
+  flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 50%;
+  border: 1px solid var(--border-bright); background: var(--surface-bg);
+  color: var(--text-muted); font-size: 0.72rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.2s, border-color 0.2s;
+}
+.rt-progress__label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); transition: color 0.2s; }
+.rt-progress__item--active .rt-progress__num { border-color: var(--accent); color: var(--accent); }
+.rt-progress__item--active .rt-progress__label { color: var(--text-primary); }
+
+@media (min-width: 800px) {
+  .rt-progress__list { gap: 1.2rem; }
+  .rt-progress__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
+  .rt-progress__label { font-size: 0.95rem; }
+}
+
+/* How-this-works: full width, below both tiles, points 1-2 in one column
+   and 3-4 in the other (not a plain 4-item auto-flow grid). Card width
+   matches the tile row's content width above it (58rem minus its 1.25rem
+   side padding, roughly), so the two line up. */
+.rt-how-wide {
+  max-width: 55.5rem; margin: 0 auto 3rem; padding: 1.5rem 1.25rem;
+  background: var(--surface-card); border: 2px solid var(--accent-dim);
+  border-radius: 16px; box-shadow: 0 8px 28px var(--accent-glow);
+}
+.rt-how-wide .rt-how__title { margin-bottom: 1.25rem; }
+.rt-how-wide__cols { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+@media (min-width: 800px) {
+  .rt-how-wide { padding: 2.25rem; margin-bottom: 4rem; }
+  .rt-how-wide .rt-how__title { font-size: 0.8rem; margin-bottom: 1.5rem; padding-bottom: 1rem; }
+  .rt-how-wide__cols { grid-template-columns: 1fr 1fr; gap: 2.5rem; }
+  .rt-how-wide .rt-how__list { gap: 1.6rem; }
+  .rt-how-wide .rt-how__num { width: 2.3rem; height: 2.3rem; font-size: 0.85rem; }
+  .rt-how-wide .rt-how__item-title { font-size: 1.05rem; }
+  .rt-how-wide .rt-how__item-desc { font-size: 0.92rem; margin-top: 0.4rem; }
 }
 
 .rt-step1-wrap { position: relative; }
@@ -86,11 +130,9 @@
   .rt-step1__help { font-size: 0.88rem; }
 }
 
-/* Address-editing state: one full-width card (same column width the tile
-   pair used above) instead of squeezed into half a grid column. */
-.rt-editor-wrap { position: relative; max-width: 58rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+.rt-editor-wrap { position: relative; }
 .rt-editor-glow {
-  position: absolute; inset: 1.5rem 1.25rem; border-radius: 24px;
+  position: absolute; inset: -1.5rem; border-radius: 24px;
   background: var(--accent-glow); filter: blur(28px); opacity: 0.22;
   pointer-events: none;
 }
