@@ -277,6 +277,14 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
         checks, the way an unencrypted store is invisible to a careful customer.
       </p>
       <p class="body">
+        More than a couple of addresses to list? Publish an encrypted roster instead of maintaining
+        the plain file by hand: your browser encrypts the list to our public key before it ever
+        leaves your computer, so the published file is unreadable to anyone but us, with nothing for
+        your own hosting to check or protect. Adding or removing an address from the roster takes
+        effect the next time it's checked, not on a delay. See
+        <a href="/verify">the roster tool</a> from your dashboard.
+      </p>
+      <p class="body">
         Platforms publishing many addresses serve a live list from their own domain at
         <b>/.well-known/payment-addresses</b> and connect it from a proven entity. The path carries
         no vendor's name on purpose: the format is meant to be boring, and anyone is free to serve
