@@ -230,9 +230,9 @@ describe('/verify/agents: the documented fields match check.ts', () => {
 
 describe('/verify landing: the Agents card reads status with level in every language', () => {
   it('en, es and fr all say an agent proceeds only on proven and verified', () => {
-    expect(landing).toContain('one GET returns a status and a level, and an agent proceeds only when the answer is proven and verified.');
-    expect(landing).toContain('devuelve un estado y un nivel, y un agente solo sigue adelante si la respuesta es proven y verified.');
-    expect(landing).toContain('renvoie un statut et un niveau, et un agent ne poursuit que si la réponse est proven et verified.');
+    expect(landing).toContain('Proceed only when the answer is proven and verified');
+    expect(landing).toContain('Sigue adelante solo si la respuesta es proven y verified');
+    expect(landing).toContain('Ne poursuivez que si la réponse est proven et verified');
     expect(landing).not.toMatch(/proven, mismatch,? (or|o|ou) unknown/);
   });
 });

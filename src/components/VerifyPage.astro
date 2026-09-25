@@ -19,8 +19,6 @@ const canonical = `https://almstins.com${here.href}`;
 // returns the merchant to their dashboard (the general /login would land them on
 // the tracker vault). Already signed in, it forwards straight to the dashboard.
 const LOGIN_HREF = '/verify/login?next=/dashboard/verify';
-// Matched by position to t.tools.levels: proven wallet, domain-verified, agents.
-const LEVEL_HREFS = [LOGIN_HREF, LOGIN_HREF, '/verify/agents'];
 
 // Language-neutral integration contract shown to exchanges (code, not translated).
 // The path is a deliberately UNBRANDED well-known URI — the standard must not carry
@@ -96,20 +94,69 @@ Authorization: Bearer <your-key>
       </div>
     </header>
 
-    <!-- Section 1b — The tools: three levels of proof, the free scan, one login -->
+    <!-- Section 1b — The tools: three audiences, each with its own demo, the free scan, one login -->
     <section class="vsection vtools" aria-labelledby="vtools-h">
       <h2 id="vtools-h" class="vsection__heading">{t.tools.heading}</h2>
       <p class="vtools__lede">{t.tools.lede}</p>
+
+      <!-- Mobile-only: jump straight to whichever tile applies, regardless of stack order. -->
+      <nav class="vtools__banner" aria-label={t.tools.heading}>
+        <a href="#tile-agent">{t.tools.bannerLabels[0]}</a>
+        <a href="#tile-store">{t.tools.bannerLabels[1]}</a>
+        <a href="#tile-dns">{t.tools.bannerLabels[2]}</a>
+      </nav>
+
       <div class="vtools__levels">
-        {t.tools.levels.map((l, i) => (
-          <a class="vtool" href={LEVEL_HREFS[i]}>
-            <span class="vtool__level">{t.tools.levelLabel} {i + 1}</span>
-            <span class="vtool__title">{l.title}</span>
-            <span class="vtool__body">{l.body}</span>
-            <span class="vtool__price">{l.price}</span>
-            <span class="vtool__cta">{l.cta} <span aria-hidden="true">→</span></span>
-          </a>
-        ))}
+        <!-- Tile 1 — Agents, deliberately first in source order (not just labeled first):
+             mobile stacking inherits DOM order, and this is the audience being marketed. -->
+        <article class="vtool" id="tile-agent">
+          <span class="vtool__persona">{t.tools.levels[0].persona}</span>
+          <span class="vtool__title">{t.tools.levels[0].title}</span>
+          <span class="vtool__body">{t.tools.levels[0].body}</span>
+          <span class="vtool__price">{t.tools.levels[0].price}</span>
+          <a class="vtool__cta" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
+          <a class="vtool__key-line" href="/verify/login?next=/verify/agent-keys">{t.tools.agentKeyLine}</a>
+          <div class="vdemo">
+            <div class="vdemo__row">
+              <input class="vdemo__input" id="agent-demo-addr" placeholder={t.tools.agentDemo.addrPlaceholder} spellcheck="false" autocomplete="off" />
+              <input class="vdemo__input" id="agent-demo-domain" placeholder={t.tools.agentDemo.domainPlaceholder} spellcheck="false" autocomplete="off" />
+              <button class="vdemo__btn" id="agent-demo-btn" type="button">{t.tools.agentDemo.button}</button>
+            </div>
+            <pre class="vdemo__result" id="agent-demo-result" hidden></pre>
+            <p class="vdemo__hint">{t.tools.agentDemo.hint}</p>
+          </div>
+        </article>
+
+        <!-- Tile 2 — Store owners: claim a wallet, optional satoshi test. -->
+        <article class="vtool" id="tile-store">
+          <span class="vtool__persona">{t.tools.levels[1].persona}</span>
+          <span class="vtool__title">{t.tools.levels[1].title}</span>
+          <span class="vtool__body">{t.tools.levels[1].body}</span>
+          <span class="vtool__price">{t.tools.levels[1].price}</span>
+          <a class="vtool__cta" href={LOGIN_HREF}>{t.tools.levels[1].cta} <span aria-hidden="true">→</span></a>
+          <div class="vdemo">
+            <div class="vdemo__row">
+              <input class="vdemo__input" id="store-demo-addr" placeholder={t.tools.storeDemo.placeholder} spellcheck="false" autocomplete="off" />
+              <button class="vdemo__btn" id="store-demo-btn" type="button">{t.tools.storeDemo.button}</button>
+            </div>
+            <p class="vdemo__result" id="store-demo-result" hidden>{t.tools.storeDemo.result}</p>
+            <p class="vdemo__hint">{t.tools.storeDemo.hint}</p>
+          </div>
+        </article>
+
+        <!-- Tile 3 — Small business, one or two addresses straight into DNS. -->
+        <article class="vtool" id="tile-dns">
+          <span class="vtool__persona">{t.tools.levels[2].persona}</span>
+          <span class="vtool__title">{t.tools.levels[2].title}</span>
+          <span class="vtool__body">{t.tools.levels[2].body}</span>
+          <span class="vtool__price">{t.tools.levels[2].price}</span>
+          <a class="vtool__cta" href={LOGIN_HREF}>{t.tools.levels[2].cta} <span aria-hidden="true">→</span></a>
+          <div class="vdemo">
+            <p class="vdemo__label">{t.tools.dnsDemo.label}</p>
+            <code class="vdemo__code">_almstins-verify.yourdomain.com&nbsp;&nbsp;TXT&nbsp;&nbsp;"0x7a3b…41f0"</code>
+            <p class="vdemo__hint">{t.tools.dnsDemo.hint}</p>
+          </div>
+        </article>
       </div>
       <a class="vtool vtool--scan" href="/verify/scan">
         <span class="vtool__badge">{t.tools.scan.badge}</span>
@@ -359,6 +406,18 @@ Authorization: Bearer <your-key>
 
   /* ── Section 1b: the tools ── */
   .vtools__lede { font-size: 0.97rem; color: var(--text-secondary); line-height: 1.75; margin: -0.5rem 0 1.25rem; }
+  /* Mobile-only quick nav: three persona words, each jumping straight to its tile
+     regardless of stack order. Desktop already shows all three at a glance. */
+  .vtools__banner {
+    display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  @media (min-width: 800px) { .vtools__banner { display: none; } }
+  .vtools__banner a {
+    flex: 1 1 auto; text-align: center; text-decoration: none;
+    font-size: 0.78rem; font-weight: 800; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    border-radius: 999px; padding: 0.4rem 0.9rem;
+  }
   .vtools__levels { display: grid; gap: 1rem; grid-template-columns: 1fr; margin-bottom: 1rem; }
   @media (min-width: 800px) { .vtools__levels { grid-template-columns: repeat(3, 1fr); } }
   .vtool {
@@ -369,22 +428,61 @@ Authorization: Bearer <your-key>
     border: 1px solid var(--border-subtle);
     border-radius: 14px;
     padding: 1.2rem 1.25rem;
-    text-decoration: none;
-    transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+    transition: border-color 0.15s ease;
   }
-  .vtool:hover { border-color: var(--accent); transform: translateY(-2px); background: var(--surface-hover); }
-  .vtool__level {
+  .vtool:focus-within, .vtool:hover { border-color: var(--accent); }
+  .vtool__persona {
     font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent);
   }
   .vtool__title { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); }
-  .vtool__body { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.65; flex: 1; overflow-wrap: anywhere; }
+  .vtool__body { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.65; overflow-wrap: anywhere; }
   .vtool__price {
     align-self: flex-start;
     font-size: 0.75rem; font-weight: 700; color: var(--accent);
     background: var(--accent-soft); border: 1px solid var(--accent-glow);
     padding: 0.2rem 0.6rem; border-radius: 999px;
   }
-  .vtool__cta { font-size: 0.85rem; font-weight: 700; color: var(--accent); margin-top: 0.15rem; }
+  .vtool__cta { font-size: 0.85rem; font-weight: 700; color: var(--accent); text-decoration: none; margin-top: 0.15rem; }
+  .vtool__cta:hover { text-decoration: underline; }
+  .vtool__key-line {
+    font-size: 0.78rem; font-weight: 700; color: var(--accent-dim); text-decoration: none; margin-top: -0.25rem;
+  }
+  .vtool__key-line:hover { color: var(--accent); }
+
+  /* Per-tile demo: a small interactive or illustrative strip at the bottom of each
+     card, distinct enough from the CTA link above it to not be mistaken for it. */
+  .vdemo {
+    margin-top: 0.4rem; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; gap: 0.4rem;
+  }
+  .vdemo__row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .vdemo__input {
+    flex: 1 1 120px; min-width: 0; font-family: inherit; font-size: 0.8rem; padding: 0.4rem 0.55rem;
+    background: var(--surface-bg); border: 1px solid var(--border-bright); border-radius: 7px;
+    color: var(--text-primary); outline: none;
+  }
+  .vdemo__input:focus { border-color: var(--accent); }
+  .vdemo__input::placeholder { color: var(--text-muted); }
+  .vdemo__btn {
+    font-family: inherit; font-size: 0.78rem; font-weight: 700; padding: 0.4rem 0.75rem;
+    background: var(--accent); color: var(--surface-bg); border: none; border-radius: 7px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .vdemo__btn:hover { filter: brightness(1.08); }
+  .vdemo__btn:disabled { opacity: 0.6; cursor: default; }
+  .vdemo__result {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.72rem; line-height: 1.5;
+    background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
+    padding: 0.55rem 0.7rem; margin: 0; overflow-x: auto; white-space: pre-wrap; color: var(--gain);
+  }
+  p.vdemo__result { font-family: inherit; }
+  .vdemo__hint { font-size: 0.74rem; color: var(--text-muted); margin: 0; }
+  .vdemo__label { font-size: 0.78rem; color: var(--text-secondary); margin: 0; }
+  .vdemo__code {
+    display: block; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.72rem;
+    background: var(--surface-bg); border: 1px solid var(--border-subtle); border-radius: 7px;
+    padding: 0.55rem 0.7rem; overflow-x: auto; white-space: pre; color: var(--text-primary);
+  }
   .vtool--scan { background: var(--surface-card-2); border-style: dashed; border-color: var(--border-bright); }
   .vtool__badge {
     align-self: flex-start;
@@ -563,3 +661,49 @@ Authorization: Bearer <your-key>
     .vtools__login .vbtn { width: 100%; text-align: center; }
   }
 </style>
+
+<script>
+  // Agent tile demo: genuinely live, hits the real free/anonymous check endpoint —
+  // no mock here, unlike the store-owner tile below, since this is exactly what an
+  // agent developer landing on this tile would want to see actually work.
+  const agentBtn = document.getElementById('agent-demo-btn') as HTMLButtonElement | null;
+  const agentAddr = document.getElementById('agent-demo-addr') as HTMLInputElement | null;
+  const agentDomain = document.getElementById('agent-demo-domain') as HTMLInputElement | null;
+  const agentResult = document.getElementById('agent-demo-result') as HTMLElement | null;
+  agentBtn?.addEventListener('click', async () => {
+    const value = agentAddr?.value.trim();
+    if (!value || !agentResult) return;
+    const domain = agentDomain?.value.trim();
+    agentBtn.disabled = true;
+    agentResult.hidden = false;
+    agentResult.textContent = '…';
+    try {
+      const url = new URL('/api/verify/check', window.location.origin);
+      url.searchParams.set('value', value);
+      if (domain) url.searchParams.set('expect', domain);
+      const res = await fetch(url.toString());
+      const data = await res.json();
+      agentResult.textContent = JSON.stringify(data, null, 2);
+    } catch {
+      agentResult.textContent = '{ "error": "could not reach the check endpoint" }';
+    } finally {
+      agentBtn.disabled = false;
+    }
+  });
+
+  // Store-owner tile demo: deliberately mocked, never a real network call — this tile
+  // is about showing what claiming a wallet will look like, not checking a real address
+  // (that would misleadingly suggest pasting any address here proves something).
+  const storeBtn = document.getElementById('store-demo-btn') as HTMLButtonElement | null;
+  const storeAddr = document.getElementById('store-demo-addr') as HTMLInputElement | null;
+  const storeResult = document.getElementById('store-demo-result') as HTMLElement | null;
+  storeBtn?.addEventListener('click', () => {
+    if (!storeAddr?.value.trim() || !storeResult) return;
+    storeBtn.disabled = true;
+    storeResult.hidden = true;
+    setTimeout(() => {
+      storeResult.hidden = false;
+      storeBtn.disabled = false;
+    }, 500);
+  });
+</script>
