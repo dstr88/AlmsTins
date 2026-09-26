@@ -127,6 +127,19 @@ export interface PublicAttestation {
   anchoredAt: string | null;
 }
 
+/** A past "Verify now" run. tenant_id (who ran it) is never surfaced -- same no-attribution
+ *  boundary as claims/attestations -- but the verdict and per-check detail are, since that's
+ *  the whole point of a re-verification: contemporaneous evidence of what the control found. */
+export interface PublicReverification {
+  id: string;
+  verdict: 'confirmed' | 'attention';
+  checks: ReverifyCheck[];
+  date: string;
+  signed: boolean;
+  anchored: boolean;
+  anchoredAt: string | null;
+}
+
 export interface ReceivableStatus {
   id: string;
   supplier: string;
@@ -159,6 +172,7 @@ export interface ReceivableStatus {
   settledAt: string | null;
   attestations: PublicAttestation[];
   claims: PublicClaim[];
+  reverifications: PublicReverification[];
   claimed: number;
   available: number;
   status: 'unfinanced' | 'partially_financed' | 'fully_financed' | 'over_financed';
@@ -801,6 +815,21 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     anchoredAt: anchoredAtOf(r.anchor_json),
   }));
 
+  const rr = await db.execute({
+    sql: `SELECT id, verdict, checks_json, created_at, signature_json, anchor_json
+          FROM receivable_reverifications WHERE receivable_id = ? ORDER BY created_at ASC`,
+    args: [rcv.id],
+  });
+  const reverifications: PublicReverification[] = (rr.rows as any[]).map((r) => ({
+    id: String(r.id),
+    verdict: (String(r.verdict) === 'confirmed' ? 'confirmed' : 'attention') as 'confirmed' | 'attention',
+    checks: JSON.parse(String(r.checks_json)) as ReverifyCheck[],
+    date: String(r.created_at),
+    signed: !!r.signature_json,
+    anchored: !!r.anchor_json,
+    anchoredAt: anchoredAtOf(r.anchor_json),
+  }));
+
   const dr = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM receivable_documents WHERE receivable_id = ? AND data IS NOT NULL`,
     args: [rcv.id],
@@ -843,6 +872,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
     attestations,
+    reverifications,
     claims, claimed, available, status, lifecycle,
   };
 }
@@ -1100,23 +1130,33 @@ export interface ReceivableSummary {
   /** True when that activity is newer than the last time this tenant looked — an unseen
    *  update for the desk's badge/bold/dot. */
   updated: boolean;
+  /** False when this tenant only holds an active claim against a receivable someone else
+   *  created -- a second lender's row, not theirs. Owner-only actions (settle, invite,
+   *  upload documents) should not be offered on a row where this is false. */
+  mine: boolean;
 }
 
-/** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped.
- *  Newest activity first, with an unseen-update flag from the tenant's read-state. */
+/** The receivables this tenant created, PLUS any receivable someone else created that this
+ *  tenant holds an active claim against -- a second lender used to have no way to find a
+ *  deal back in their own book once they'd claimed against it, short of keeping the ID
+ *  themselves. Each row is flagged `mine` so the desk knows which owner-only actions to
+ *  offer. Newest activity first, with an unseen-update flag from the tenant's own
+ *  read-state (never the receivable owner's, now that the owner and viewer can differ). */
 export async function listReceivables(tenantId: string): Promise<ReceivableSummary[]> {
   await ensureReceivablesTables();
   const r = await db.execute({
     sql: `SELECT r.id, r.supplier, r.buyer, r.invoice_no, r.face, r.currency, r.settled_at,
                  r.created_at, r.is_test,
                  COALESCE(r.updated_at, r.created_at) AS last_activity,
-                 s.seen_at AS seen_at
+                 s.seen_at AS seen_at,
+                 (r.tenant_id = ?) AS mine
           FROM receivables r
-          LEFT JOIN receivable_seen s ON s.receivable_id = r.id AND s.tenant_id = r.tenant_id
+          LEFT JOIN receivable_seen s ON s.receivable_id = r.id AND s.tenant_id = ?
           WHERE r.tenant_id = ?
+             OR EXISTS (SELECT 1 FROM receivable_claims c WHERE c.receivable_id = r.id AND c.tenant_id = ? AND c.status = 'active')
           ORDER BY COALESCE(r.updated_at, r.created_at) DESC
           LIMIT 200`,
-    args: [tenantId],
+    args: [tenantId, tenantId, tenantId, tenantId],
   });
   return (r.rows as any[]).map((row) => {
     const lastActivity = String(row.last_activity ?? row.created_at);
@@ -1130,14 +1170,18 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
       // A row with no seen record (created before this feature) is treated as seen, so an
       // existing book does not light up as one giant pile of updates on first load.
       updated: seenAt != null && lastActivity > seenAt,
+      mine: row.mine === true || row.mine === 1 || String(row.mine) === 'true',
     };
   });
 }
 
 /**
- * Delete a receivable this tenant created, cascading its claims and attestations.
- * Tenant-scoped: only the creator can delete, and only their own rows are touched.
- * Returns false when no such receivable belongs to the tenant.
+ * Delete a receivable this tenant created, cascading everything tied to it: owner-only
+ * rows (offers, documents, invites, access grants) outright, and this tenant's own claims,
+ * attestations and reverifications specifically -- another tenant's rows in those three
+ * tables are left alone even though they reference this receivable, since deleting it must
+ * never erase another party's own evidence of their stake in it. Returns false when no such
+ * receivable belongs to the tenant.
  */
 export async function deleteReceivable(tenantId: string, receivableId: string): Promise<boolean> {
   await ensureReceivablesTables();

@@ -571,6 +571,19 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </div>
         </li>`).join('');
       const attBlock = atts ? `<div class="att-head">Attestations</div><ul class="claims">${atts}</ul>` : '';
+      const reverifs = (rcv.reverifications || []).map((rv: any) => {
+        const when = String(rv.date || '').replace('T', ' ').slice(0, 16);
+        const confirmed = rv.verdict === 'confirmed';
+        const rows = (rv.checks || []).map((c: any) => {
+          const ic = c.state === 'pass' ? '✓' : c.state === 'warn' ? '!' : '✕';
+          return `<li class="rv-check rv-${esc(c.state)}"><span class="rv-ic">${ic}</span><span class="rv-body"><b>${esc(c.label)}</b><span>${esc(c.detail)}</span></span></li>`;
+        }).join('');
+        const head = confirmed
+          ? `<div class="rv-verdict rv-confirmed"><b>✔ Verified · ${esc(when)} UTC</b></div>`
+          : `<div class="rv-verdict rv-attention"><b>▲ Needed attention · ${esc(when)} UTC</b></div>`;
+        return `<li class="claim">${head}<ul class="rv-checks">${rows}</ul></li>`;
+      }).join('');
+      const reverifyBlock = reverifs ? `<div class="att-head">Verification history</div><ul class="claims">${reverifs}</ul>` : '';
       const settleBtn = rcv.settled
         ? `<div class="note note-gain"><b>Settled${rcv.settledAt ? ` ${esc(rcv.settledAt)}` : ''}.</b> The buyer paid — the receivable's lifecycle is closed.</div>`
         : `<div class="row"><button class="btn btn-sm" data-settle="${esc(rcv.id)}" type="button">Mark settled (buyer paid)</button></div>`;
@@ -594,6 +607,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="row" style="margin-top:.55rem; align-items:center">${rcv.signed ? stateChip('signed') : stateChip('recorded')}${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
         <ul class="claims">${claims}</ul>
         ${attBlock}
+        ${reverifyBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
         ${(!rcv.isTest && !(rcv.attestations || []).some((a: any) => a.role === 'buyer')) ? `<div class="note note-warn"><b>Not acknowledged by the debtor.</b> No buyer attestation is on record — this receivable is <b>Recorded</b>, not <b>Attested</b>. Any claim here rests on the supplier's word until the obligor confirms.</div>` : ''}
         ${settleBtn}
@@ -865,8 +879,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
         const rows = j.receivables.map((rc: any) => `
           <div class="mine-row" data-mid="${esc(rc.id)}">
-            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
-            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span><button class="mine-del" data-del="${esc(rc.id)}" type="button" title="Delete receivable" aria-label="Delete receivable">✕</button></div>
+            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.mine === false ? ' <span class="role" title="You hold a claim against this receivable, but did not create it">claimed only</span>' : ''}</div>
+            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.mine === false ? '' : `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="Delete receivable" aria-label="Delete receivable">✕</button>`}</div>
           </div>`).join('');
         $('mine-list').innerHTML = rows;
         $('mine-card').style.display = '';
