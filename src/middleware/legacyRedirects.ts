@@ -17,7 +17,7 @@ import { safeNextPath } from '../lib/safeNext';
 
 const MOVED = [
   'registry', 'desk', 'client', 'confirm', 'invite', 'offer', 'countersign', 'attest',
-  'authenticate', 'runsheet', 'guide', 'changelog', 'thanks',
+  'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'faq',
 ] as const;
 
 export const PAIRS: ReadonlyArray<readonly [string, string]> = [

@@ -1,0 +1,132 @@
+---
+import Analytics from '@/components/Analytics.astro';
+// FAQ for the two signed-in receivables workspaces (financing desk + client portal).
+//
+// The public registry (/verify/registry) has its own FAQ already, covering the
+// no-account tools. This one is for people already signed in to one of the two
+// role desks, so it is gated the same way they are rather than public like the
+// guide or run sheet.
+//
+// Deliberately does not mention /verify/confirm — that page currently writes the
+// same role:'buyer' attestation shape as the real debtor-confirmation flow but
+// skips its checklist, and pointing users at it here would just spread a known-broken
+// shortcut further. Send debtors through the desk's own "ask the debtor to confirm"
+// link instead (backed by authenticate.astro).
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+
+export const prerender = false;
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/faq', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
+
+const FINANCIER_FAQ = [
+  ["What's the difference between the desk and the public registry?", "The registry (/verify/registry) is a public workbench — anyone can check a receivable's status with no account. The desk is your own signed-in workspace: it's built for one job, deciding whether to advance against a receivable you're looking at, and recording the claim if you do."],
+  ['Why was I asked to accept responsibility before I could register my claim?', "That happens when there's no debtor confirmation on record yet. Almstins doesn't verify the debtor's identity for you — financing without that confirmation means you're relying on your client's paperwork alone, and the platform makes you say so explicitly rather than assuming it on your behalf. Your acceptance is itself signed and timestamped to Bitcoin."],
+  ['My claim was refused — why?', "Almost always because it exceeds the receivable's remaining headroom (face value minus every other active claim). The registry won't let two claims add up to more than the receivable is actually worth — that's the duplicate-financing guard doing its job."],
+  ["What does \"Your book\" show me?", "Every receivable you created, plus every receivable you've only claimed against as a second financier — the latter are tagged \"claimed only\" so you can tell them apart. You don't have to remember an ID yourself just because you weren't the one who recorded the original deal."],
+  ['What does "Verify now" actually check?', "Five things, fresh, every time you click it: the record's signature is still valid, the receivable isn't over-financed, whether the debtor has acknowledged the debt, whether every active claim has had its funds confirmed received, and whether the record is anchored to Bitcoin. A single warning anywhere demotes the whole result to \"needs attention\" — there's no partial credit."],
+  ['What does the "Test" toggle on the intake card do?', "It marks a receivable as practice data, baked directly into its signed record — a test receivable can't later be turned into a real one, because doing so would change its ID entirely. Use it for a walkthrough or a demo without touching your real book."],
+  ['How do I ask the debtor to confirm the debt?', "From the record, send the debtor a single-use link. It asks for their own reference number — not just the invoice number you already have, so they actually have to check — plus a short checklist, before it counts as a real acknowledgment. Nothing about it can be filled in on their behalf."],
+];
+
+const CLIENT_FAQ = [
+  ['What is the receivable ID, and how do I share it?', "It's both the identifier and the key — whoever holds it can look up the receivable's status. Copying it and handing it to a financier is the act that gives them access, so treat it the way you'd treat an account number: share it only with the financier you intend to work with."],
+  ["Can I revoke it once I've shared it?", "No — it doesn't expire on its own, and there's no way to un-share a copy once it's been sent. Don't post it anywhere public, and only hand it to financiers you actually intend to work with."],
+  ['What does "mark settled" do?', "It records that the debtor paid and closes the receivable out. It's your confirmation, not the financier's."],
+  ['Do I need to do anything once a financier claims against my receivable?', "Not automatically — their claim shows up on your record on its own. If they've registered an advance, they may separately ask you to confirm the money actually reached you; that confirmation is what turns their claim from their own word into something both sides have signed."],
+  ['What if the financier recorded something about my deal incorrectly?', "You may get a one-time link asking you to confirm the intake record is accurate. Use \"Something here is wrong\" instead of \"Confirm this is right\" if it isn't — that response is recorded as a dispute, not silently ignored."],
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FAQ — Almstins Receivables</title>
+  <meta name="description" content="Common questions for the financing desk and the client portal." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4.2vw, 2.2rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: 1rem; margin-top: .5rem; }
+    .back-links { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .9rem; }
+    .back-links a {
+      font-size: .82rem; font-weight: 650; color: var(--text-secondary); text-decoration: none;
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 999px;
+      padding: .35rem .8rem;
+    }
+    .back-links a:hover { color: var(--accent); border-color: var(--accent); }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.4rem; scroll-margin-top: 1rem; }
+    h2 { font-size: 1.15rem; font-weight: 700; }
+    .sub { font-size: .86rem; color: var(--text-muted); margin: .15rem 0 1rem; }
+
+    .faq-item { border-top: 1px solid var(--border-subtle); }
+    .faq-item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+    .faq-item summary {
+      cursor: pointer; padding: .85rem 0; font-weight: 650; font-size: .97rem;
+      list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: '+'; color: var(--text-muted); font-size: 1.15rem; line-height: 1; flex: none; }
+    .faq-item[open] summary::after { content: '\2212'; }
+    .faq-item summary:hover { color: var(--accent); }
+    .faq-item .a { padding: 0 0 1rem; font-size: .92rem; color: var(--text-secondary); line-height: 1.65; max-width: 62ch; }
+  </style>
+  <Analytics />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Receivables · signed in as {email ?? 'you'}</div>
+      <h1>FAQ</h1>
+      <p class="lede">Common questions for the two signed-in workspaces. For the public, no-account tools, see the registry's own FAQ.</p>
+      <nav class="back-links" aria-label="Back to a workspace">
+        <a href="/verify/desk">← Financing Desk</a>
+        <a href="/verify/client">← Client Portal</a>
+        <a href="/verify/registry">Public receivable check</a>
+        <a href="/verify/guide">Full user's guide</a>
+      </nav>
+    </header>
+
+    <section id="financiers">
+      <h2>For financiers</h2>
+      <p class="sub">Using the financing desk.</p>
+      <div class="faq">
+        {FINANCIER_FAQ.map(([q, a]) => (
+          <details class="faq-item">
+            <summary>{q}</summary>
+            <div class="a">{a}</div>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section id="clients">
+      <h2>For clients &amp; suppliers</h2>
+      <p class="sub">Using the client portal.</p>
+      <div class="faq">
+        {CLIENT_FAQ.map(([q, a]) => (
+          <details class="faq-item">
+            <summary>{q}</summary>
+            <div class="a">{a}</div>
+          </details>
+        ))}
+      </div>
+    </section>
+  </div>
+</body>
+</html>

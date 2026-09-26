@@ -69,6 +69,7 @@ export interface VerifyCopy {
     contractLabel: string;
     earlyNote: string; // developer-controlled; contains a mailto link → rendered with set:html
   };
+  faq: { heading: string; items: { q: string; a: string }[] };
 }
 
 const en: VerifyCopy = {
@@ -227,6 +228,19 @@ const en: VerifyCopy = {
     scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once (by approval during early access): prove your domain, then host a read-only endpoint and issue us an API key. We pull your list so it can be verified — no adding addresses one by one. Live monitoring is on the way.',
     contractLabel: 'Your endpoint returns:',
     earlyNote: 'Early access. Any key you give us only reads a list you already publish — it can never move funds or see anything private. To request access, email <a href="mailto:support@almstins.com">support@almstins.com</a>.',
+  },
+  faq: {
+    heading: 'FAQ',
+    items: [
+      { q: 'Which of the three tools is right for me?', a: "If you're building something that sends payments automatically, start with Agents. If you take crypto in one or two wallets and want to prove they're really yours, use Proven wallet. If you have several receiving addresses to prove at once, or you'd rather publish through your own domain, use Domain-verified." },
+      { q: 'Is this actually free?', a: "Yes — 2 wallets and 1 payment QR, free, while it's in beta. Pricing is coming, but nothing on this page is paywalled today." },
+      { q: 'Do I have to connect my wallet?', a: 'No, never. Proving a wallet is yours means sending yourself a tiny amount or hosting a small file on your own site — not connecting a wallet or signing anything. Verification never asks for signing permission and can’t move a coin.' },
+      { q: 'What’s the difference between the tools above and "Scan before you pay"?', a: 'The three tools above are for publishers — proving that an address, QR, or domain you control is really yours. "Scan before you pay" is the free side for the other direction: checking an address, link, or QR someone else gave you, before you send them money. No login needed for that one.' },
+      { q: 'Can Almstins see who my customers are?', a: 'No. You check your own published addresses — never the people who pay them. There’s no tracking built into any of this, and nothing here links an address to a customer’s identity.' },
+      { q: 'What does "verified" actually mean here?', a: 'It means you proved control of that specific address, file, or DNS record — by a tiny self-send, or by publishing something only you could publish — not that Almstins is vouching for your business. It’s your own provable record, checkable by anyone you hand it to.' },
+      { q: 'Can I change my addresses later?', a: 'Yes — add, prove, or remove addresses any time from your dashboard. A check always reflects what you have registered right now, not a cached list.' },
+      { q: 'I run an exchange or a large platform — is there a bulk option?', a: 'Yes — see Verified vendors below for the API-based path exchanges and platforms use to publish many addresses at once.' },
+    ],
   },
 };
 
@@ -387,6 +401,19 @@ const es: VerifyCopy = {
     contractLabel: 'Tu endpoint devuelve:',
     earlyNote: 'Acceso anticipado. Cualquier clave que nos des solo lee una lista que ya publicas — nunca puede mover fondos ni ver nada privado. Para solicitar acceso, escribe a <a href="mailto:support@almstins.com">support@almstins.com</a>.',
   },
+  faq: {
+    heading: 'Preguntas frecuentes',
+    items: [
+      { q: '¿Cuál de las tres herramientas es para mí?', a: '¿Estás construyendo algo que envía pagos automáticamente? Empieza con Agentes. ¿Recibes cripto en una o dos billeteras y quieres demostrar que son realmente tuyas? Usa Billetera probada. ¿Tienes varias direcciones de cobro que probar a la vez, o prefieres publicar a través de tu propio dominio? Usa Dominio verificado.' },
+      { q: '¿Esto es realmente gratis?', a: 'Sí — 2 billeteras y 1 QR de pago, gratis, mientras está en fase beta. Los precios llegarán pronto, pero nada en esta página tiene costo hoy.' },
+      { q: '¿Tengo que conectar mi billetera?', a: 'No, nunca. Demostrar que una billetera es tuya significa enviarte un pequeño monto o alojar un pequeño archivo en tu propio sitio — no conectar una billetera ni firmar nada. La verificación nunca pide permiso de firma y no puede mover ni una moneda.' },
+      { q: '¿Cuál es la diferencia entre las herramientas de arriba y "Escanea antes de pagar"?', a: 'Las tres herramientas de arriba son para quien publica — demostrar que una dirección, un QR o un dominio que controlas es realmente tuyo. "Escanea antes de pagar" es el lado gratuito para la otra dirección: comprobar una dirección, enlace o QR que alguien más te dio, antes de enviarle dinero. Ese no necesita cuenta.' },
+      { q: '¿Puede Almstins ver quiénes son mis clientes?', a: 'No. Tú compruebas tus propias direcciones publicadas — nunca a las personas que te pagan. No hay ningún rastreo integrado en nada de esto, y nada aquí vincula una dirección con la identidad de un cliente.' },
+      { q: '¿Qué significa realmente "verificado" aquí?', a: 'Significa que demostraste tener control sobre esa dirección, archivo o registro DNS específico — con un pequeño autoenvío, o publicando algo que solo tú podrías publicar — no que Almstins responde por tu negocio. Es tu propio registro comprobable, verificable por cualquiera a quien se lo muestres.' },
+      { q: '¿Puedo cambiar mis direcciones más adelante?', a: 'Sí — agrega, prueba o quita direcciones cuando quieras desde tu panel. Una comprobación siempre refleja lo que tienes registrado en este momento, no una lista guardada.' },
+      { q: 'Tengo un exchange o una plataforma grande — ¿hay una opción masiva?', a: 'Sí — mira Comercios verificados más abajo para conocer el camino basado en API que usan los exchanges y plataformas para publicar muchas direcciones a la vez.' },
+    ],
+  },
 };
 
 const fr: VerifyCopy = {
@@ -545,6 +572,19 @@ const fr: VerifyCopy = {
     scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup (sur approbation pendant l’accès anticipé) : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste pour qu’elle puisse être vérifiée — sans ajouter les adresses une par une. La surveillance en direct arrive bientôt.',
     contractLabel: 'Votre endpoint renvoie :',
     earlyNote: 'Accès anticipé. Toute clé que vous nous donnez lit seulement une liste que vous publiez déjà — elle ne peut jamais déplacer de fonds ni voir quoi que ce soit de privé. Pour demander l’accès, écrivez à <a href="mailto:support@almstins.com">support@almstins.com</a>.',
+  },
+  faq: {
+    heading: 'FAQ',
+    items: [
+      { q: 'Quel outil, parmi les trois, est fait pour moi ?', a: 'Vous construisez quelque chose qui envoie des paiements automatiquement ? Commencez par Agents. Vous acceptez la crypto sur un ou deux portefeuilles et voulez prouver qu’ils sont bien à vous ? Utilisez Portefeuille prouvé. Vous avez plusieurs adresses de réception à prouver à la fois, ou préférez publier via votre propre domaine ? Utilisez Domaine vérifié.' },
+      { q: 'Est-ce vraiment gratuit ?', a: 'Oui — 2 portefeuilles et 1 QR de paiement, gratuits, pendant la bêta. Les tarifs arrivent bientôt, mais rien sur cette page n’est payant aujourd’hui.' },
+      { q: 'Dois-je connecter mon portefeuille ?', a: 'Non, jamais. Prouver qu’un portefeuille est le vôtre signifie vous envoyer un petit montant ou héberger un petit fichier sur votre propre site — pas connecter un portefeuille ni rien signer. La vérification ne demande jamais de permission de signature et ne peut déplacer aucune pièce.' },
+      { q: 'Quelle est la différence entre les outils ci-dessus et « Scannez avant de payer » ?', a: 'Les trois outils ci-dessus s’adressent à celui qui publie — prouver qu’une adresse, un QR ou un domaine que vous contrôlez est bien à vous. « Scannez avant de payer » est le côté gratuit pour l’autre sens : vérifier une adresse, un lien ou un QR que quelqu’un d’autre vous a donné, avant de lui envoyer de l’argent. Celui-là ne demande aucun compte.' },
+      { q: 'Almstins peut-il voir qui sont mes clients ?', a: 'Non. Vous vérifiez vos propres adresses publiées — jamais les personnes qui vous paient. Rien de tout cela n’intègre de suivi, et rien ici ne relie une adresse à l’identité d’un client.' },
+      { q: 'Que signifie vraiment « vérifié » ici ?', a: 'Cela signifie que vous avez prouvé le contrôle de cette adresse, ce fichier ou cet enregistrement DNS précis — par un petit auto-envoi, ou en publiant quelque chose que vous seul pouviez publier — pas qu’Almstins se porte garant de votre entreprise. C’est votre propre preuve vérifiable, consultable par quiconque à qui vous la montrez.' },
+      { q: 'Puis-je modifier mes adresses plus tard ?', a: 'Oui — ajoutez, prouvez ou retirez des adresses à tout moment depuis votre tableau de bord. Une vérification reflète toujours ce que vous avez enregistré à l’instant, pas une liste mise en cache.' },
+      { q: 'Je gère un exchange ou une grande plateforme — existe-t-il une option groupée ?', a: 'Oui — voir Commerçants vérifiés plus bas pour le chemin basé sur une API qu’utilisent les exchanges et les plateformes pour publier de nombreuses adresses à la fois.' },
+    ],
   },
 };
 

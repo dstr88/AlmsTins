@@ -256,6 +256,22 @@ Authorization: Bearer <your-key>
       <p class="vexch__note" set:html={t.vendors.earlyNote}></p>
     </section>
 
+    <!-- Section 9 — FAQ -->
+    <section class="vsection vfaq" aria-labelledby="vfaq-h">
+      <h2 id="vfaq-h" class="vsection__heading">{t.faq.heading}</h2>
+      <div class="vfaq__list">
+        {t.faq.items.map((item) => (
+          <details class="vfaq__item">
+            <summary class="vfaq__q">
+              <span>{item.q}</span>
+              <span class="vfaq__chevron" aria-hidden="true">›</span>
+            </summary>
+            <p class="vfaq__a">{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
   </div>
 </LoginLayout>
 
@@ -676,6 +692,21 @@ Authorization: Bearer <your-key>
   .vexch__note { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; margin: 0; }
   .vexch__note a { color: var(--accent); text-decoration: none; }
   .vexch__note a:hover { text-decoration: underline; }
+
+  /* ── Section 9: FAQ ── */
+  .vfaq__list { display: flex; flex-direction: column; }
+  .vfaq__item { border-top: 1px solid var(--border-subtle); }
+  .vfaq__item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+  .vfaq__q {
+    cursor: pointer; padding: 1rem 0; font-size: 0.95rem; font-weight: 700;
+    color: var(--text-primary); list-style: none;
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  }
+  .vfaq__q::-webkit-details-marker { display: none; }
+  .vfaq__q:hover { color: var(--accent); }
+  .vfaq__chevron { flex: none; color: var(--text-muted); font-size: 1.2rem; line-height: 1; transition: transform 0.15s; }
+  .vfaq__item[open] .vfaq__chevron { transform: rotate(90deg); color: var(--accent); }
+  .vfaq__a { margin: 0 0 1.1rem; font-size: 0.9rem; line-height: 1.7; color: var(--text-secondary); max-width: 62ch; }
 
   @media (max-width: 480px) {
     .vpage { padding: 2rem 1rem 4rem; }

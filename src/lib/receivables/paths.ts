@@ -7,7 +7,7 @@
  */
 export const RECEIVABLES_PAGES = [
   'registry', 'desk', 'client', 'confirm', 'invite', 'offer', 'countersign',
-  'attest', 'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'login',
+  'attest', 'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'login', 'faq',
 ] as const;
 export type ReceivablesPage = (typeof RECEIVABLES_PAGES)[number];
 
