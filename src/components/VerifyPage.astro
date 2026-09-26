@@ -125,7 +125,7 @@ Authorization: Bearer <your-key>
           <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
           <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentSigninBtn}</a>
           <div class="vdemo">
-            <a class="vdemo__btn vdemo__btn--link" href="/verify/agents#try-it">{t.tools.agentDemo.button}</a>
+            <a class="vdemo__btn vdemo__btn--link" href="/verify/agents">{t.tools.agentDemo.button}</a>
           </div>
         </article>
 
@@ -685,9 +685,9 @@ Authorization: Bearer <your-key>
 </style>
 
 <script>
-  // Agent tile demo moved to /verify/agents#try-it (a full page, not a cramped card,
-  // is the right place for the live checker now that it also carries specs and
-  // examples) -- the tile itself just links there.
+  // Agent tile demo replaced with a plain link to /verify/agents -- the inline
+  // checker (and later, its full-page port) got dropped: a random address almost
+  // always answers "unknown," which read as broken rather than correct.
 
   // Store-owner tile demo: deliberately mocked, never a real network call — this tile
   // is about showing what claiming a wallet will look like, not checking a real address
