@@ -2368,7 +2368,7 @@ export async function readRecordRequest(token: string): Promise<
 > {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT receivable_id, role, claim_id, email, expires_at, accepted_at, revoked_at
+    sql: `SELECT receivable_id, role, claim_id, offer_id, email, expires_at, accepted_at, revoked_at
             FROM receivable_invites WHERE token = ? LIMIT 1`,
     args: [String(token || '').trim()],
   });
@@ -2377,7 +2377,7 @@ export async function readRecordRequest(token: string): Promise<
   if (row.revoked_at) return { ok: false, error: 'revoked' };
   if (row.accepted_at) return { ok: false, error: 'used' };
   if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
-  if (row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
+  if (row.offer_id || row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
     return { ok: false, error: 'wrong_kind' };
   }
 
