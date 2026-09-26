@@ -82,6 +82,25 @@
   .rt-progress__label { font-size: 0.95rem; }
 }
 
+.rt-faq { display: flex; flex-direction: column; }
+.rt-faq__item { border-top: 1px solid var(--border-subtle); }
+.rt-faq__item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+.rt-faq__q {
+  cursor: pointer; padding: 0.85rem 0; font-size: 0.85rem; font-weight: 700;
+  color: var(--text-primary); list-style: none;
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+.rt-faq__q::-webkit-details-marker { display: none; }
+.rt-faq__q:hover { color: var(--accent); }
+.rt-faq__chevron { flex: none; color: var(--text-muted); font-size: 1.1rem; line-height: 1; transition: transform 0.15s; }
+.rt-faq__item[open] .rt-faq__chevron { transform: rotate(90deg); color: var(--accent); }
+.rt-faq__a { margin: 0 0 1rem; font-size: 0.8rem; line-height: 1.65; color: var(--text-muted); }
+
+@media (min-width: 800px) {
+  .rt-faq__q { font-size: 0.95rem; padding: 1rem 0; }
+  .rt-faq__a { font-size: 0.88rem; }
+}
+
 .rt-step1-wrap { position: relative; }
 .rt-step1-glow {
   position: absolute; inset: -1.5rem; border-radius: 24px;
