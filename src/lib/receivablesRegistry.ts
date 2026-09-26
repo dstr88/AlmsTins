@@ -1134,10 +1134,20 @@ export async function deleteReceivable(tenantId: string, receivableId: string): 
     args: [id, tenantId],
   });
   if (!owned.rows.length) return false;
-  // Claims/attestations are keyed by receivable_id; scope the deletes by tenant too so a
-  // tenant can never remove another tenant's claim against a shared receivable.
+  // Claims, attestations and reverifications can each be written by a DIFFERENT tenant
+  // than the owner (a second lender's claim, a debtor's token-based attestation, another
+  // financier's own "Verify now" run) -- scope those deletes by tenant too, so deleting
+  // the receivable can never erase another tenant's evidence of their own stake in it.
+  // Offers, documents, invites and access grants are owner-only writes with no other
+  // party's stake to protect, so those are cleared for the whole receivable outright.
   await db.execute({ sql: `DELETE FROM receivable_claims WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
   await db.execute({ sql: `DELETE FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivable_reverifications WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivable_offers WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_documents WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_invites WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_access WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_seen WHERE receivable_id = ?`, args: [id] });
   await db.execute({ sql: `DELETE FROM receivables WHERE id = ? AND tenant_id = ?`, args: [id, tenantId] });
   return true;
 }
