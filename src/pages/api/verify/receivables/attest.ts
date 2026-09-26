@@ -18,7 +18,14 @@ export const prerender = false;
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-const ROLES: AttesterRole[] = ['buyer', 'supplier', 'inspector', 'other'];
+// 'buyer' is deliberately excluded. It must only ever come from the token-gated
+// debtor confirmation (confirmByToken, backing /verify/authenticate), where the
+// person answering had to type their own reference number and tick four specific
+// boxes. This endpoint has no way to check the caller is actually the debtor --
+// allowing 'buyer' here let anyone holding the receivable ID (the financier, or
+// the borrower themselves) self-attest as the debtor, indistinguishable
+// downstream from a real confirmation.
+const ROLES: AttesterRole[] = ['supplier', 'inspector', 'other'];
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
@@ -27,6 +34,10 @@ export const POST: APIRoute = async ({ request }) => {
 
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }
+
+  if (body.role === 'buyer') {
+    return json({ ok: false, error: 'role_requires_token' }, 403);
+  }
 
   const role = ROLES.includes(body.role) ? (body.role as AttesterRole) : 'other';
   const result = await addAttestation(session.tenantId, String(body.receivableId ?? ''), {

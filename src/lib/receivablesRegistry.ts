@@ -649,7 +649,27 @@ export type AddClaimResult =
   | { ok: true; claimId: string; digest: string; signed: boolean; claimed: number; available: number; face: number }
   | { ok: false; error: 'not_found'; message: string }
   | { ok: false; error: 'invalid'; message: string }
-  | { ok: false; error: 'exceeds_headroom'; message: string; available: number; claimed: number; face: number };
+  | { ok: false; error: 'exceeds_headroom'; message: string; available: number; claimed: number; face: number }
+  | { ok: false; error: 'diligence_required'; message: string };
+
+async function hasBuyerAttestation(receivableId: string): Promise<boolean> {
+  const r = await db.execute({
+    sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND role = 'buyer' LIMIT 1`,
+    args: [receivableId],
+  });
+  return r.rows.length > 0;
+}
+
+/** A diligence acceptance is filed under role 'other' with a DILIGENCE prefix (see
+ * acceptDiligence) -- scoped to the claiming tenant, since each financier accepts this
+ * responsibility for himself, not on another financier's behalf. */
+async function hasDiligenceAcceptance(receivableId: string, tenantId: string): Promise<boolean> {
+  const r = await db.execute({
+    sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ? AND statement LIKE 'DILIGENCE —%' LIMIT 1`,
+    args: [receivableId, tenantId],
+  });
+  return r.rows.length > 0;
+}
 
 /**
  * Register a financing claim against a receivable. The write is the duplicate-financing
@@ -674,6 +694,21 @@ export async function addClaim(
   if (!financier) return { ok: false, error: 'invalid', message: 'A financier name is required.' };
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, error: 'invalid', message: 'Claim amount must be a positive number.' };
+  }
+
+  // No genuine debtor confirmation on record -- financing this receivable would rest
+  // entirely on the supplier's word. Almstins does not verify a debtor's identity itself
+  // (that's what the token-gated /verify/authenticate flow is for); it also refuses to let
+  // that gap pass silently. Before a claim is allowed through, the claiming financier must
+  // accept responsibility for having verified this relationship himself -- see
+  // acceptDiligence(). Skipped for test records, matching the pledge-boundary warning's
+  // existing test-mode exemption. One acceptance per (tenant, receivable) covers every
+  // later claim by that same financier on the same receivable.
+  if (rcv.is_test !== true && !(await hasBuyerAttestation(rcv.id)) && !(await hasDiligenceAcceptance(rcv.id, tenantId))) {
+    return {
+      ok: false, error: 'diligence_required',
+      message: 'No debtor confirmation is on record for this receivable. Accept responsibility for having verified it yourself before financing.',
+    };
   }
 
   const claimed = await sumActiveClaims(receivableId);
@@ -1164,6 +1199,40 @@ export async function addAttestation(
   // confirmation. Each floats the record up as an unseen update in the creator's book.
   await touchReceivable(rcv.id);
   return { ok: true, attestationId, digest, signed: !!signature };
+}
+
+export type DiligenceMethod = 'phone' | 'relationship' | 'correspondence' | 'other';
+
+const DILIGENCE_METHOD_TEXT: Record<DiligenceMethod, string> = {
+  phone: 'a phone call',
+  relationship: 'an existing relationship with the debtor',
+  correspondence: 'written correspondence (email or letter)',
+  other: 'another method',
+};
+
+/**
+ * The financier's own accountability record -- not a debtor confirmation, and never
+ * mistaken for one. Required by addClaim()'s diligence_required gate when a financier
+ * wants to finance a receivable with no genuine buyer attestation on file. Filed under
+ * role 'other' with a DILIGENCE prefix (same pattern as the existing DISPUTED prefix),
+ * never role 'buyer': this is the financier vouching for his own process, not evidence
+ * the debtor confirmed anything. Almstins organizes and proves; it does not verify a
+ * debtor's identity on the financier's behalf -- that stays the financier's own job, and
+ * his own risk, on the record in his own name.
+ */
+export async function acceptDiligence(
+  tenantId: string,
+  receivableId: string,
+  input: { financier: string; method: DiligenceMethod; note?: string },
+): Promise<AddAttestationResult> {
+  const methodText = DILIGENCE_METHOD_TEXT[input.method] ?? DILIGENCE_METHOD_TEXT.other;
+  const note = clampStr(input.note || '', 300);
+  const statement = `DILIGENCE — accepts responsibility for having personally verified this debtor via ${methodText}. Almstins has not independently confirmed this.${note ? ` Note: ${note}` : ''}`;
+  return addAttestation(tenantId, receivableId, {
+    role: 'other',
+    label: clampStr(input.financier, 120),
+    statement,
+  });
 }
 
 // ── #1: Bitcoin anchoring — attach a receipt to a registry record ─────────────
