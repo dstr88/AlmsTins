@@ -1,10 +1,16 @@
 ---
 import Analytics from '@/components/Analytics.astro';
+import { receivablesPath } from '@/lib/receivables/paths';
 // What changed, dated, in public.
 //
 // Written for the financier, not for a repository. Every entry says what it does for him,
 // and the fixes say plainly what was broken rather than hiding behind "improvements".
 // A registry that asks people to trust its records should be willing to show its own.
+//
+// Branded Receivables, not Verify -- this file is still physically under src/pages/verify/
+// today (the "alias" phase of the /verify -> /receivables move documented in
+// src/middleware/legacyRedirects.ts), but /receivables/changelog is the address this page
+// is meant to be known by, so its own copy and footer links present it that way.
 import '@/styles/tokens.css';
 
 export const prerender = false;
@@ -13,6 +19,68 @@ type Kind = 'new' | 'fix' | 'change';
 interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
+  {
+    date: '2026-09-23',
+    label: 'Wednesday',
+    entries: [
+      { kind: 'new', what: 'Every financing page now also answers at /receivables/<name>, alongside its existing /verify/ address.',
+        why: 'The registry, the desk, the client portal, confirm, offer, invite and the rest work from either address, so nothing already bookmarked or already sent to someone breaks. The public pages also lock down harder: no embedding in someone else’s page, no search-engine indexing, and a same-origin referrer policy, so leaving one of these pages for another site does not hand it your full page address.' },
+      { kind: 'new', what: 'The receivables landing knows whether you are signed in.',
+        why: 'Signed in, you get your account menu and "Open the desk", no sign-in links, no demos. Signed out, you get "Log in to get started" and the interactive demos instead. The demo link also stopped signing a real account out just to show the demo: it sends you on to the page you asked for, or your dashboard.' },
+    ],
+  },
+  {
+    date: '2026-09-20',
+    label: 'Sunday',
+    entries: [
+      { kind: 'new', what: '"Verify now" on any receivable: an on-demand, fail-closed re-check.',
+        why: 'A signature proves what was true when it was signed, not that it stayed true. Verify now re-runs every load-bearing check at the moment you rely on the record: the signature itself, the financing headroom, the debtor’s acknowledgment, whether claims are confirmed as funded, and the Bitcoin anchor. It fails closed, so anything that cannot be re-confirmed drops the verdict to "needs attention" rather than passing quietly, and every run leaves its own dated, signed receipt as evidence the check was made.' },
+      { kind: 'fix', what: 'Signed-out visitors were quietly throwing a console error on every visit to the public registry.',
+        why: 'The page always asked for your own receivables list in the background, and that request was blocked for anyone not signed in. It now returns an empty list for a visitor instead of an error, and your own list once you are signed in. Also fixed: Verify now’s numbers are grouped with commas like the rest of the page (50,000,000, not 50000000), and the "See how it works" demo link is back at the bottom of the registry now that the demo shows the Verify-now step accurately too.' },
+      { kind: 'new', what: 'A home of its own for the receivables tools: almstins.com/receivables.',
+        why: 'One tile links the three tools you can open directly, the Financing Desk, Check a receivable, and the Client Portal, beside a tile marking what is still coming. A two-column hero previews the product instead of only describing it, and the three trust points (read-only and no custody, organizes but never decides, provable not promised) open into the fuller explanation of why each one holds. The steps that only open from a link sent to one specific party (accepting an offer, acknowledging a debt, confirming an invoice, attesting a deal, confirming funds arrived, accepting an invitation) are named on the page but not linked as cards, since visiting one directly used to dead-end on "this link is not valid".' },
+    ],
+  },
+  {
+    date: '2026-09-19',
+    label: 'Saturday',
+    entries: [
+      { kind: 'new', what: 'A loud warning before you finance a receivable the debtor has never acknowledged.',
+        why: 'Registering a claim already blocks a double-pledge over the available headroom. Now financing a receivable with no buyer attestation on record throws a clear caution instead of allowing it silently: "Recorded" is not "Attested", and any claim rests on the supplier’s word alone until the debtor confirms. It is a caution, not a block, so you can ask the debtor to acknowledge first, or finance anyway with your eyes open. The same warning shows on the public check, and the attestation role list now reads "inspector / surveyor", since an inspector or surveyor attests to the goods the same way a buyer attests to the debt.' },
+    ],
+  },
+  {
+    date: '2026-09-14',
+    label: 'Monday',
+    entries: [
+      { kind: 'new', what: 'USDC as a currency option on the New-deal form, defaulted for US financiers.',
+        why: 'The form reads your country from the request and pre-selects USDC if you are financing from the US; everyone else still sees NGN first. It is only a default. Every currency on the list stays one click away.' },
+    ],
+  },
+  {
+    date: '2026-09-06',
+    label: 'Sunday',
+    entries: [
+      { kind: 'new', what: 'A practice-run toggle on the client (supplier) side, not just the financier desk.',
+        why: 'The desk, the public check, and the offer, attest and countersign pages already marked test records everywhere, but a supplier recording a deal at the Client Portal had no way to flag one as practice, so every receivable a supplier recorded was real. A "Practice run, record as a test" checkbox now does the same job there: a loud TEST treatment on the record, on the tracking panel, and on your own receivables list.' },
+      { kind: 'new', what: 'The New client tin became three numbered steps that track your progress through them.',
+        why: 'Client intake, debtor confirmation, and client acceptance are now three sections divided by a green rule, each numbered with a short note on what it is for. Attaching the first contract marks intake done and dims it; recording marks debtor confirmation done and lights up client acceptance as the next thing to do, scrolling to it and focusing the email field. Recording no longer throws the check result over the desk, which had been burying the very step you needed next, and a "Start another deal" button resets the tin for the next client.' },
+      { kind: 'new', what: '"Your book" now works like an inbox: unseen updates, not just a list.',
+        why: 'A debtor confirming, a client accepting, or another financier registering a competing claim on one of your deals now bolds that row with an accent dot and floats it to the top, with a banner counting how many contracts changed since you last looked. An "Updated only" filter chip sits next to the existing search, and opening a contract clears its own flag right away.' },
+      { kind: 'change', what: 'A contract’s progress became a dated timeline instead of a plain horizontal bar.',
+        why: 'Recorded, debtor confirmed, terms accepted, advance registered, receipt confirmed, repaid: each stage now shows the date it actually happened, inside its own bordered card. A stage not yet reached shows no date rather than a guess, and every stage still jumps to its matching card.' },
+      { kind: 'new', what: 'A one-minute, plain-language primer before a new financier sees the desk.',
+        why: 'What the desk is, the terms in plain English (available to finance, debtor confirmation, claim, receipt), what it proves, and, just as prominently, what it does NOT prove: who actually answered or whether they had authority to, that goods were delivered, claims recorded outside this registry, and legal priority, which is decided by law, not by Almstins. It shows once; "How this works" in the header reopens it any time.' },
+      { kind: 'new', what: 'Attaching the contract now shows you it worked, and accepts more than one file.',
+        why: 'Choosing a file used to give no sense it had actually attached. Each file you choose now joins a running, removable list, and a "ready to attach" checklist appears just above Record so you can see exactly what will go up before you submit. Files still upload only once the receivable exists, on Record.' },
+      { kind: 'fix', what: 'Client acceptance (step 3) could get stranded, greyed out with no way back in.',
+        why: 'It only unlocked in the same browser session right after you recorded a deal. Come back later, even to a deal the debtor had since confirmed, and it sat disabled with nothing to click. It is now always available as its own tool: recording a deal fills in its receivable ID automatically, or you can paste the ID of any earlier deal to send the request without opening it from your book first.' },
+      { kind: 'change', what: 'Clicking Check now opens the result as a centered overlay instead of expanding the page.',
+        why: 'Closes with an × button, a click on the backdrop, or Escape, and locks the page behind it from scrolling while it is open.' },
+      { kind: 'new', what: 'A thank-you page for anyone who just confirmed something.',
+        why: 'A debtor, a client, or a party answering an offer or a receipt request used to land on a bare success message with nowhere to go. All four now land on one thank-you page that confirms the answer is signed and timestamped, and points to the same three Almstins tools (Wallet Checker, Verify, Wallet Watcher) shown elsewhere.' },
+    ],
+  },
   {
     date: '2026-09-05',
     label: 'Friday',
@@ -82,8 +150,8 @@ const KIND_LABEL: Record<Kind, string> = { new: 'New', fix: 'Fixed', change: 'Ch
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>What changed — Almstins Verify</title>
-  <meta name="description" content="Dated record of what changed in Almstins Verify, including what was broken." />
+  <title>What changed — Almstins Receivables</title>
+  <meta name="description" content="Dated record of what changed in Almstins Receivables, including what was broken." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
@@ -124,7 +192,7 @@ const KIND_LABEL: Record<Kind, string> = { new: 'New', fix: 'Fixed', change: 'Ch
 <body>
   <div class="wrap">
     <header>
-      <div class="eyebrow">Almstins Verify</div>
+      <div class="eyebrow">Almstins Receivables</div>
       <h1>What changed</h1>
       <p class="lede">
         Dated, and including what was broken. A registry that asks people to trust its records
@@ -148,8 +216,8 @@ const KIND_LABEL: Record<Kind, string> = { new: 'New', fix: 'Fixed', change: 'Ch
     ))}
 
     <p class="foot">
-      Beta. <a href="/verify/guide">User's guide</a> &middot; <a href="/verify/desk">Financing desk</a> &middot;
-      <a href="/verify/registry">Public check</a>.
+      Beta. <a href={receivablesPath('guide')}>User's guide</a> &middot; <a href={receivablesPath('desk')}>Financing desk</a> &middot;
+      <a href={receivablesPath('registry')}>Public check</a>.
       Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
     </p>
   </div>
