@@ -1371,6 +1371,19 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         ? 'The evidence so far, and what none of it proves.'
         : 'Nothing to weigh yet. Opens as evidence arrives.';
 
+      const reverifs = r.reverifications || [];
+      const historyRows = reverifs.map((rv: any) => {
+        const when = String(rv.date || '').replace('T', ' ').slice(0, 16);
+        const confirmed = rv.verdict === 'confirmed';
+        const bad = (rv.checks || []).filter((c: any) => c.state !== 'pass').map((c: any) => c.label);
+        return row(confirmed ? 'yes' : 'no',
+          `${confirmed ? 'Verified' : 'Needed attention'} · ${when} UTC`,
+          confirmed ? 'Every control re-confirmed at this moment.' : `Flagged: ${bad.join(', ')}.`);
+      }).join('');
+      const historyBlock = historyRows
+        ? `<div class="col-h" style="margin-top:1.2rem">Verification history</div>${historyRows}`
+        : '';
+
       document.getElementById('credit-body')!.innerHTML = `
         <p class="lead">${esc(headline)}</p>
         <div class="alloc">
@@ -1393,7 +1406,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
             <div class="col-h col-h--warn">What it does not prove</div>
             ${notProven}
           </div>
-        </div>`;
+        </div>
+        ${historyBlock}`;
     }
 
     // ── Intake: record a new deal ───────────────────────────────────────────
@@ -2027,7 +2041,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
           return `<tr class="book-row${v.updated ? ' book-row--new' : ''}">
             <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
-            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}</td>
+            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}${v.mine === false ? ' <span class="tpill" title="You hold a claim against this receivable, but did not create it -- settle, invite and document actions belong to whoever did">claimed only</span>' : ''}</td>
             <td>${esc(v.buyer)}</td>
             <td>${esc(v.invoiceNo)}</td>
             <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
