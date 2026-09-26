@@ -1395,16 +1395,22 @@ export async function createInvite(
   }
 
   const token = inviteToken();
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
+  let expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
     .toISOString().replace('T', ' ').slice(0, 19);
 
   const offerId = input.offerId ? String(input.offerId).trim() : null;
   if (offerId) {
     const owns = await db.execute({
-      sql: `SELECT 1 FROM receivable_offers WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      sql: `SELECT expires_at FROM receivable_offers WHERE id = ? AND tenant_id = ? LIMIT 1`,
       args: [offerId, fromTenant],
     });
     if (!owns.rows.length) return { ok: false, error: 'offer_not_found' };
+    // The invite link is the only way to reach the offer, so it must not expire before
+    // the offer itself does -- an offer valid up to OFFER_TTL_DAYS/90 days must not sit
+    // behind a link that dies at the flat INVITE_TTL_DAYS/7-day default. Both are the
+    // same 'YYYY-MM-DD HH:MM:SS' format, so string comparison sorts chronologically.
+    const offerExpiresAt = String((owns.rows[0] as any).expires_at);
+    if (offerExpiresAt > expiresAt) expiresAt = offerExpiresAt;
   }
 
   await db.execute({
