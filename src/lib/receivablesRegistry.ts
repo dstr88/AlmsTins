@@ -501,7 +501,8 @@ const isYmd = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2
 
 export type CreateReceivableResult =
   | { ok: true; id: string; digest: string; signed: boolean; keyId: string | null }
-  | { ok: false; error: 'invalid'; message: string };
+  | { ok: false; error: 'invalid'; message: string }
+  | { ok: false; error: 'id_collision'; message: string };
 
 /**
  * Create + sign a receivable. Its ID is the SHA-256 of the signed creation manifest,
@@ -579,9 +580,21 @@ export async function createReceivable(
   const { signature, digest } = sign(manifest);
   const id = sha256hex(canonicalManifestBytes(manifest));
 
-  // Deterministic ID → a re-create of the identical receivable is idempotent.
-  const existing = await db.execute({ sql: `SELECT id FROM receivables WHERE id = ? LIMIT 1`, args: [id] });
-  if (!existing.rows.length) {
+  // Deterministic ID -> a re-create of the identical receivable, by the SAME tenant, is
+  // idempotent. Without this check, a DIFFERENT tenant submitting byte-identical fields
+  // would silently succeed against the first tenant's row instead: the INSERT is skipped
+  // (the id already exists), but the caller was told ok:true as if they had created it,
+  // while every later owner-gated action against "their" receivable would then fail.
+  const existing = await db.execute({ sql: `SELECT id, tenant_id FROM receivables WHERE id = ? LIMIT 1`, args: [id] });
+  if (existing.rows.length) {
+    const existingTenant = String((existing.rows[0] as any).tenant_id);
+    if (existingTenant !== tenantId) {
+      return {
+        ok: false, error: 'id_collision',
+        message: 'A receivable with these exact details already exists under a different account. If this is genuinely a different deal, change at least one field (e.g. add a note) to record it separately.',
+      };
+    }
+  } else {
     await db.execute({
       sql: `INSERT INTO receivables
               (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, is_test, manifest_json, signature_json, digest)
