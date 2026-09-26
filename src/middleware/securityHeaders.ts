@@ -50,7 +50,7 @@ export function applySecurityHeaders(response: Response): Response {
 
 const FINANCING_PAGES = [
 	'registry', 'desk', 'client', 'confirm', 'invite', 'offer', 'countersign', 'attest',
-	'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'cairn', 'cairn-attest',
+	'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'cairn', 'cairn-attest', 'faq',
 ] as const;
 const FINANCING_VERIFY_PATHS = new Set<string>(FINANCING_PAGES.map((p) => `/verify/${p}`));
 
