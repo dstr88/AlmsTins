@@ -7,6 +7,10 @@
  * receivable's unencumbered headroom is REJECTED (409) with the available figure,
  * unless force:true is passed as an explicit, acknowledged over-claim. Signed with the
  * Almstins key; the returned digest can be Bitcoin-anchored via /api/verify/anchor.
+ *
+ * Also REJECTED (409, not force-able) when there's no genuine debtor confirmation on
+ * file: the financier must first accept responsibility for having verified the debtor
+ * himself, via POST /api/verify/receivables/diligence-accept.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -37,6 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
   const status =
     result.error === 'not_found' ? 404
     : result.error === 'exceeds_headroom' ? 409
+    : result.error === 'diligence_required' ? 409
     : 400;
   return json(result, status);
 };
