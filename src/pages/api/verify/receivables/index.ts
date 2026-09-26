@@ -50,10 +50,12 @@ export const POST: APIRoute = async ({ request }) => {
     isTest: body.isTest === true,
   });
 
-  return result.ok ? json(result) : json(result, 400);
+  if (result.ok) return json(result);
+  return json(result, result.error === 'id_collision' ? 409 : 400);
 };
 
-// Delete a receivable this tenant created (cascades its claims + attestations).
+// Delete a receivable this tenant created (cascades everything tied to it it owns
+// outright, and its own claims/attestations/reverifications on records it doesn't).
 export const DELETE: APIRoute = async ({ request, url }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
