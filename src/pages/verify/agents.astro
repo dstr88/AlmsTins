@@ -83,7 +83,18 @@ const TOC = [
   ['answers', 'The answers'],
   ['specs', 'Specs'],
   ['limits', 'Limits & keys'],
+  ['faq', 'FAQ'],
   ['for-payees', 'For payees'],
+];
+
+const FAQ = [
+  ['Is there an SDK or client library?', "No — it's a single unauthenticated GET that returns JSON. Fetch or curl it directly from any language; there's nothing to install."],
+  ['What does the API return if value or expect is malformed?', "A 400, with a JSON body naming the problem — { error: 'invalid address format' } for a value that isn't a recognized address or link, or { error: 'expect must be a domain' } for an expect that isn't domain-shaped. Neither is a proof answer: treat any non-200 as a hold, same as everywhere else on this page."],
+  ['Do I need to normalize expect myself — strip https://, www., a trailing slash?', 'No. expect accepts a bare domain or a full URL (acme.com, https://acme.com/pay, WWW.Acme.com.) and normalizes it the same way before comparing. Pass whatever format your own records already have.'],
+  ['Why isn’t there a live "try it" widget on this page?', "Because a random address almost always comes back unknown — nobody has published proof for it yet — and that reads as broken rather than correct. The static example under \"The call\" shows the real shape of a proven answer instead. Once you or a payee you know has proven a real destination, check that one for real."],
+  ['Does checking a destination notify the payee, or cost them anything?', "No. A check only reads proof state that's already public, silently and for free. It never contacts, involves, or bills the party being checked."],
+  ['Is there a sandbox or test destination I can safely check?', "No dedicated sandbox — the static example on this page is the fixed reference for what a proven answer looks like. To see a real one, prove a destination yourself for free (2 wallets, no card) and check that."],
+  ['Can I call this directly from a browser?', 'Yes — the response includes Access-Control-Allow-Origin: *, so client-side agents and demos can call it cross-origin without a server in between.'],
 ];
 ---
 <!doctype html>
@@ -215,6 +226,20 @@ const TOC = [
     @media (max-width: 480px) {
       table.spec th { width: 42%; }
     }
+
+    /* FAQ — same native details/summary accordion as the roster tool and the
+       receivables registry, for a consistent Verify-family pattern. */
+    .faq-item { border-top: 1px solid var(--border-subtle); }
+    .faq-item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+    .faq-item summary {
+      cursor: pointer; padding: .85rem 0; font-weight: 650; font-size: 1rem;
+      list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after { content: '+'; color: var(--text-muted); font-size: 1.15rem; line-height: 1; flex: none; }
+    .faq-item[open] summary::after { content: '\2212'; }
+    .faq-item summary:hover { color: var(--accent); }
+    .faq-item .a { padding: 0 0 1rem; font-size: .95rem; color: var(--text-secondary); line-height: 1.65; max-width: 62ch; }
   </style>
 	<Analytics />
 </head>
@@ -446,6 +471,18 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
         <b>unanchored</b>, and never treat a 503 as <b>unknown</b>: an outage is not an absence of proof,
         which is exactly why the two are different signals.
       </p>
+    </section>
+
+    <section id="faq">
+      <h2>FAQ</h2>
+      <div class="faq">
+        {FAQ.map(([q, a]) => (
+          <details class="faq-item">
+            <summary>{q}</summary>
+            <div class="a">{a}</div>
+          </details>
+        ))}
+      </div>
     </section>
 
     <section id="for-payees">
