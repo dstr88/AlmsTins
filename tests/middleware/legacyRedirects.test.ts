@@ -3,7 +3,7 @@ import { routeLegacy, financingNext, PAIRS } from '../../src/middleware/legacyRe
 
 const u = (pathAndQuery: string) => new URL(pathAndQuery, 'https://almstins.com');
 const MOVED = ['registry', 'desk', 'client', 'confirm', 'invite', 'offer', 'countersign', 'attest',
-  'authenticate', 'runsheet', 'guide', 'changelog', 'thanks'];
+  'authenticate', 'runsheet', 'guide', 'changelog', 'thanks', 'faq'];
 
 describe('PAIRS', () => {
   // Links already in inboxes, on printed run sheets and in chat threads depend on every pair.
