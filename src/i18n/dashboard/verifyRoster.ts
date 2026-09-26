@@ -54,7 +54,9 @@ export interface VerifyRosterLocale {
   progressTitle: string;
   progressSteps: string[]; // exactly 4 — steps 1-2 highlight per RosterEditor's own state;
                             // 3-4 (encrypted / DNS-published) are informational only for now
-  tabsAriaLabel: string; // labels the how-it-works/set-up tablist at the top of the roster page
+  tabsAriaLabel: string; // labels the how-it-works/set-up/faq tablist at the top of the roster page
+  faqTitle: string;
+  faqItems: { q: string; a: string }[];
 }
 
 const en: VerifyRosterLocale = {
@@ -115,6 +117,17 @@ const en: VerifyRosterLocale = {
     'Save it in the main folder of your website',
   ],
   tabsAriaLabel: 'Guide',
+  faqTitle: 'FAQ',
+  faqItems: [
+    { q: 'Who is this for?', a: "Merchants or businesses with more than one or two receiving addresses. If you only have one or two, a plain DNS TXT record is simpler — no file to host, no CSV to build." },
+    { q: 'Can Almstins read my address list?', a: 'Only when we check it, and only because we hold the private key. Your browser encrypts the list (RSA-OAEP-4096 + AES-256-GCM) with our public key before anything leaves your machine — we never see it in plain text until we decrypt it ourselves to run a check.' },
+    { q: 'Can anyone who finds the file on my site read it?', a: "No. The published file is exactly as public as any other file on your site — your hosting does zero authentication — but without our private key it's just noise. Nobody but Almstins can decrypt it, including anyone who stumbles across the URL." },
+    { q: 'What if I add or remove an address later?', a: "Re-encrypt and re-upload the file, then check again — the new list applies immediately. There's no scheduled recheck to wait out." },
+    { q: 'Are the labels I add private too?', a: "Yes. A label is only ever for you, to tell your own wallets apart — it's encrypted along with the address and never shown to anyone else." },
+    { q: 'What happens if the file disappears from my site, or I change my DNS?', a: 'Your addresses stop showing as verified within a day. Nothing is deleted on our side — republish the file or fix the DNS record and it recovers on its own.' },
+    { q: 'What format does the CSV need to be in?', a: "One column of addresses, and an optional second column for labels — with or without a header row. It's parsed entirely in your browser; the file itself is never uploaded anywhere, only the rows it produces." },
+    { q: 'Does every address on my list count against my plan?', a: "Yes — publishing a roster auto-registers any address that isn't already one of your destinations, same as adding it by hand. A free account registers up to 2 before it stops; it won't silently exceed your plan's limit." },
+  ],
 };
 
 const es: VerifyRosterLocale = {
@@ -175,6 +188,17 @@ const es: VerifyRosterLocale = {
     'Guárdalo en la carpeta principal de tu sitio web',
   ],
   tabsAriaLabel: 'Guía',
+  faqTitle: 'Preguntas frecuentes',
+  faqItems: [
+    { q: '¿Para quién es esto?', a: 'Para comercios o negocios con más de una o dos direcciones de cobro. Si solo tienes una o dos, un registro TXT de DNS por sí solo es más simple — sin archivo que alojar, sin CSV que armar.' },
+    { q: '¿Puede Almstins leer mi lista de direcciones?', a: 'Solo cuando la comprobamos, y solo porque nosotros guardamos la clave privada. Tu navegador cifra la lista (RSA-OAEP-4096 + AES-256-GCM) con nuestra clave pública antes de que nada salga de tu equipo — nunca la vemos en texto plano hasta descifrarla nosotros mismos para hacer una comprobación.' },
+    { q: '¿Puede alguien que encuentre el archivo en mi sitio leerlo?', a: 'No. El archivo publicado es tan público como cualquier otro archivo de tu sitio — tu hosting no hace ninguna verificación de acceso — pero sin nuestra clave privada es solo ruido. Nadie más que Almstins puede descifrarlo, ni siquiera alguien que encuentre la URL por casualidad.' },
+    { q: '¿Qué pasa si agrego o quito una dirección después?', a: 'Vuelve a cifrar y a subir el archivo, y comprueba de nuevo — la lista nueva aplica de inmediato. No hay que esperar ninguna revisión programada.' },
+    { q: '¿Las etiquetas que agrego también son privadas?', a: 'Sí. Una etiqueta es solo para ti, para distinguir tus propias billeteras — se cifra junto con la dirección y nunca se muestra a nadie más.' },
+    { q: '¿Qué pasa si el archivo desaparece de mi sitio, o cambio mi DNS?', a: 'Tus direcciones dejan de mostrarse como verificadas en un día. Nada se borra de nuestro lado — vuelve a publicar el archivo o corrige el registro DNS y se recupera solo.' },
+    { q: '¿Qué formato debe tener el CSV?', a: 'Una columna de direcciones, y una columna opcional de etiquetas — con o sin fila de encabezado. Se procesa por completo en tu navegador; el archivo en sí nunca se sube a ningún lado, solo las filas que produce.' },
+    { q: '¿Cada dirección de mi lista cuenta contra mi plan?', a: 'Sí — publicar una lista registra cada dirección nueva como uno de tus destinos en Almstins, igual que agregarlas a mano. Una cuenta gratuita registra hasta 2 y luego se detiene; no se salta el límite de tu plan en silencio.' },
+  ],
 };
 
 const fr: VerifyRosterLocale = {
@@ -235,6 +259,17 @@ const fr: VerifyRosterLocale = {
     'Enregistrez-le dans le dossier principal de votre site web',
   ],
   tabsAriaLabel: 'Guide',
+  faqTitle: 'FAQ',
+  faqItems: [
+    { q: "À qui s'adresse cet outil ?", a: "Aux commerces ou entreprises ayant plus d'une ou deux adresses de réception. Si vous n'en avez qu'une ou deux, un enregistrement TXT DNS seul est plus simple — aucun fichier à héberger, aucun CSV à préparer." },
+    { q: 'Almstins peut-il lire ma liste d’adresses ?', a: 'Seulement au moment de la vérification, et uniquement parce que nous détenons la clé privée. Votre navigateur chiffre la liste (RSA-OAEP-4096 + AES-256-GCM) avec notre clé publique avant que quoi que ce soit ne quitte votre machine — nous ne la voyons jamais en clair avant de la déchiffrer nous-mêmes pour effectuer une vérification.' },
+    { q: 'Quelqu’un qui trouve le fichier sur mon site peut-il le lire ?', a: "Non. Le fichier publié est aussi public que n'importe quel autre fichier de votre site — votre hébergeur ne fait aucune vérification d'accès — mais sans notre clé privée, ce n'est que du bruit. Personne d'autre qu'Almstins ne peut le déchiffrer, même quelqu'un qui tombe sur l'URL par hasard." },
+    { q: "Que se passe-t-il si j'ajoute ou retire une adresse plus tard ?", a: "Rechiffrez et retéléversez le fichier, puis vérifiez à nouveau — la nouvelle liste s'applique immédiatement. Aucune revérification programmée à attendre." },
+    { q: 'Les libellés que j’ajoute sont-ils aussi privés ?', a: "Oui. Un libellé n'est que pour vous, pour distinguer vos propres portefeuilles — il est chiffré avec l'adresse et jamais montré à personne d'autre." },
+    { q: 'Que se passe-t-il si le fichier disparaît de mon site, ou si je change mon DNS ?', a: "Vos adresses cessent d'apparaître comme vérifiées en une journée. Rien n'est supprimé de notre côté — republiez le fichier ou corrigez l'enregistrement DNS et tout se rétablit de soi-même." },
+    { q: 'Quel format doit avoir le CSV ?', a: "Une colonne d'adresses, et une colonne de libellés optionnelle — avec ou sans ligne d'en-tête. Il est traité entièrement dans votre navigateur ; le fichier lui-même n'est jamais téléversé nulle part, seules les lignes qu'il produit le sont." },
+    { q: 'Chaque adresse de ma liste compte-t-elle dans mon forfait ?', a: "Oui — publier une liste enregistre chaque nouvelle adresse comme l'une de vos destinations Almstins, comme si vous l'ajoutiez à la main. Un compte gratuit en enregistre jusqu'à 2 puis s'arrête ; il ne dépasse jamais silencieusement la limite de votre forfait." },
+  ],
 };
 
 const MAP: Record<Lang, VerifyRosterLocale> = { en, es, fr };

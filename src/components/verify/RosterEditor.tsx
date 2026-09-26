@@ -42,7 +42,7 @@ function download(filename: string, contents: string) {
 }
 
 export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
-  const [tab, setTab] = useState<'how' | 'setup'>('how');
+  const [tab, setTab] = useState<'how' | 'setup' | 'faq'>('how');
   const [domain, setDomain] = useState('');
   const [challenge, setChallenge] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -153,6 +153,10 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
             role="tab" aria-selected={tab === 'setup'} aria-controls="rt-panel-setup" onClick={() => setTab('setup')}>
             {t.progressTitle}
           </button>
+          <button type="button" id="rt-tab-faq" className={`rt-tab${tab === 'faq' ? ' rt-tab--active' : ''}`}
+            role="tab" aria-selected={tab === 'faq'} aria-controls="rt-panel-faq" onClick={() => setTab('faq')}>
+            {t.faqTitle}
+          </button>
         </div>
 
         {tab === 'how' ? (
@@ -173,7 +177,7 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
               ))}
             </div>
           </div>
-        ) : (
+        ) : tab === 'setup' ? (
           <div id="rt-panel-setup" role="tabpanel" aria-labelledby="rt-tab-setup" className="rt-tabpanel">
             <ul className="rt-progress__list">
               {t.progressSteps.map((label, i) => {
@@ -187,6 +191,20 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
                 );
               })}
             </ul>
+          </div>
+        ) : (
+          <div id="rt-panel-faq" role="tabpanel" aria-labelledby="rt-tab-faq" className="rt-tabpanel">
+            <div className="rt-faq">
+              {t.faqItems.map((item) => (
+                <details className="rt-faq__item" key={item.q}>
+                  <summary className="rt-faq__q">
+                    <span>{item.q}</span>
+                    <span className="rt-faq__chevron" aria-hidden="true">›</span>
+                  </summary>
+                  <p className="rt-faq__a">{item.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         )}
       </section>
