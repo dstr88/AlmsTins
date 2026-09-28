@@ -297,6 +297,12 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharged_at TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_json TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_digest TEXT`,
+  // Optional free text the discharging financier can attach ("wire received Sept 28").
+  // Part of the signed discharge_json manifest, not just this column. Tenant-only: never
+  // selected by getReceivableStatus (the public second-financier check) — see its own
+  // no-attribution comment. Omitted from the manifest entirely when blank, same convention
+  // as roster docs, so discharges signed before this existed stay byte-identical.
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_reason TEXT`,
   // Counter-signature: the supplier's confirmation that the money actually arrived.
   // A claim is an assertion by the lender until this is set. See affirmClaimByToken.
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS affirmed_at TEXT`,
@@ -1047,7 +1053,7 @@ export type DischargeClaimResult =
  * dated discharge event; the digest is Bitcoin-anchorable. Idempotent-safe: a claim
  * already discharged returns 'already_discharged' rather than double-signing.
  */
-export async function dischargeClaim(tenantId: string, claimId: string): Promise<DischargeClaimResult> {
+export async function dischargeClaim(tenantId: string, claimId: string, reason?: string): Promise<DischargeClaimResult> {
   await ensureReceivablesTables();
   const cr = await db.execute({
     sql: `SELECT id, receivable_id, financier, amount, currency, status FROM receivable_claims
@@ -1061,18 +1067,20 @@ export async function dischargeClaim(tenantId: string, claimId: string): Promise
   }
 
   const dischargedAt = nowUtc().slice(0, 10);
-  const manifest = {
+  const cleanReason = clampStr(reason, 300);
+  const manifest: Record<string, unknown> = {
     v: 1, kind: 'claim_discharge',
     receivableId: String(claim.receivable_id), claimId: String(claim.id),
     financier: String(claim.financier), amount: Number(claim.amount),
     currency: String(claim.currency), dischargedAt,
   };
+  if (cleanReason) manifest.reason = cleanReason;
   const { signature, digest } = sign(manifest);
   await db.execute({
     sql: `UPDATE receivable_claims
-          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?
+          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?, discharge_reason = ?
           WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
-    args: [dischargedAt, JSON.stringify(manifest), digest, claim.id, tenantId],
+    args: [dischargedAt, JSON.stringify(manifest), digest, cleanReason || null, claim.id, tenantId],
   });
 
   await touchReceivable(String(claim.receivable_id));
