@@ -48,7 +48,7 @@ export const en: DripLocale = {
       paragraphs: [
         'By now you’ve hopefully checked an address and started tracking what you own. Two last things worth knowing.',
         'If you take crypto for a business, Almstins Verify watches the addresses you publish — so a swapped QR or address never reaches your customers. It’s free while it’s in early access.',
-        'And if you’ve outgrown the free three wallets, the paid plans add more capacity plus the done-for-you tools: AI triage, receipt validation, and a year-end tax PDF for your accountant.',
+        'And if you’ve outgrown the free three wallets, the paid plans add more capacity plus the done-for-you tools: AI triage, receipt validation, and a year-end tax PDF, ready whenever you need it.',
         'Either way — thank you for being here this early. It means a lot.',
       ],
       ctaLabel: 'See the plans',
@@ -98,7 +98,7 @@ export const es: DripLocale = {
       paragraphs: [
         'A estas alturas ya habrás verificado una dirección y empezado a controlar lo que tienes. Dos últimas cosas que vale la pena saber.',
         'Si aceptas cripto en un negocio, Almstins Verify vigila las direcciones que publicas — para que una dirección o un QR sustituido nunca llegue a tus clientes. Es gratis durante el acceso anticipado.',
-        'Y si te has quedado corto con las tres billeteras gratis, los planes de pago añaden más capacidad y las herramientas listas para ti: AI triage, validación de recibos y un PDF de resumen anual para tu contador.',
+        'Y si te has quedado corto con las tres billeteras gratis, los planes de pago añaden más capacidad y las herramientas listas para ti: AI triage, validación de recibos y un PDF de resumen anual, listo cuando lo necesites.',
         'En cualquier caso — gracias por estar aquí tan pronto. Significa mucho.',
       ],
       ctaLabel: 'Ver los planes',
@@ -148,7 +148,7 @@ export const fr: DripLocale = {
       paragraphs: [
         'À ce stade, vous avez sans doute vérifié une adresse et commencé à suivre ce que vous possédez. Deux dernières choses qui valent la peine d’être connues.',
         'Si vous acceptez la crypto pour une activité, Almstins Verify surveille les adresses que vous publiez — pour qu’une adresse ou un QR remplacé n’atteigne jamais vos clients. C’est gratuit pendant l’accès anticipé.',
-        'Et si les trois portefeuilles gratuits ne vous suffisent plus, les forfaits payants ajoutent plus de capacité et les outils clé en main : AI triage, validation de reçus et un PDF de récapitulatif annuel pour votre comptable.',
+        'Et si les trois portefeuilles gratuits ne vous suffisent plus, les forfaits payants ajoutent plus de capacité et les outils clé en main : AI triage, validation de reçus et un PDF de récapitulatif annuel, prêt dès que vous en avez besoin.',
         'Dans tous les cas — merci d’être là aussi tôt. Cela compte beaucoup.',
       ],
       ctaLabel: 'Voir les forfaits',
