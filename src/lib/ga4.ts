@@ -130,7 +130,7 @@ export interface GA4Summary {
  *  signed-in session (unauthenticated hits are redirected to login before the page renders). */
 const MONITORED_TOOLS = [
   { path: '/verify/desk',  label: 'Financing Desk' },
-  { path: '/verify/cairn', label: 'Caire' },
+  { path: '/verify/cairn', label: 'Cairn' },
 ];
 
 export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {

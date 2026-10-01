@@ -556,16 +556,6 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-value">{loginsToday}</div>
 				<div class="stat-sub">{logins7d} in last 7 days</div>
 			</div>
-			<div class="stat-card green">
-				<div class="stat-label">Spam Checked</div>
-				<div class="stat-value">{checkCounts.wallet.toLocaleString()}</div>
-				<div class="stat-sub">unique addresses checked</div>
-			</div>
-			<a href="/wallet-checker" class="stat-card stat-card--link green" style="text-decoration:none; cursor:pointer;">
-				<div class="stat-label">dApp Checker</div>
-				<div class="stat-value">{checkCounts.dapp.toLocaleString()}</div>
-				<div class="stat-sub">unique sites checked →</div>
-			</a>
 			<div class="stat-card">
 				<div class="stat-label">Import rows</div>
 				<div class="stat-value">{totalImportRows.toLocaleString()}</div>
@@ -589,12 +579,26 @@ const fmtDate = (iso: string | null) => {
 		</div>
 	</div>
 
-	<!-- ── Safety-checker usage by country ─────────────────────────
-	     Country comes from Cloudflare's own cf-ipcountry header at request time,
-	     never from the hashed IP, so this works without weakening check_log's
-	     no-attribution design. Rows logged before this shipped read as 'Unknown'. -->
+	<!-- ── Safety-checker usage ─────────────────────────────────────
+	     Totals + geographic breakdown live together so they read as one metric,
+	     not two. Country comes from Cloudflare's own cf-ipcountry header at
+	     request time, never from the hashed IP, so this works without weakening
+	     check_log's no-attribution design. Rows logged before that column shipped
+	     (2026-09) read as 'Unknown' — expected for old data, not a bug. -->
 	<div class="section">
-		<div class="section-title">Checker usage by country</div>
+		<div class="section-title">Safety checker usage</div>
+		<div class="stat-grid" style="margin-bottom:1rem;">
+			<div class="stat-card green">
+				<div class="stat-label">Wallets checked</div>
+				<div class="stat-value">{checkCounts.wallet.toLocaleString()}</div>
+				<div class="stat-sub">unique addresses checked</div>
+			</div>
+			<a href="/wallet-checker" class="stat-card stat-card--link green" style="text-decoration:none; cursor:pointer;">
+				<div class="stat-label">dApp Checker</div>
+				<div class="stat-value">{checkCounts.dapp.toLocaleString()}</div>
+				<div class="stat-sub">unique sites checked →</div>
+			</a>
+		</div>
 		<div class="ga4-tables" style="grid-template-columns: 1fr 1fr;">
 			<div class="table-wrap">
 				<table class="data-table">
