@@ -3,7 +3,7 @@ import Analytics from '@/components/Analytics.astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
-import { countUniqueChecksByKind } from '@/lib/checkLog';
+import { countUniqueChecksByKind, countUniqueChecksByKindAndCountry } from '@/lib/checkLog';
 import MailboxWindows from '@/components/admin/MailboxWindows.astro';
 import { getAuthSession } from '@/lib/authSession';
 import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
@@ -126,6 +126,8 @@ const [
 
 // Unified safety-tool usage counter — one query → { wallet, dapp } (src/lib/checkLog.ts).
 const checkCounts = await countUniqueChecksByKind().catch(() => ({ wallet: 0, dapp: 0 } as Record<'wallet' | 'dapp', number>));
+const checkCountriesEmpty = { wallet: [], dapp: [] } as Record<'wallet' | 'dapp', { country: string; count: number }[]>;
+const checkCountries = await countUniqueChecksByKindAndCountry().catch(() => checkCountriesEmpty);
 
 // ── Adoption stats (separate pass — these need the above to finish first) ────
 const [
@@ -583,6 +585,58 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-label">Requests today</div>
 				<div class="stat-value">{requestsToday > 0 ? requestsToday.toLocaleString() : '—'}</div>
 				<div class="stat-sub">from request log</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ── Safety-checker usage by country ─────────────────────────
+	     Country comes from Cloudflare's own cf-ipcountry header at request time,
+	     never from the hashed IP, so this works without weakening check_log's
+	     no-attribution design. Rows logged before this shipped read as 'Unknown'. -->
+	<div class="section">
+		<div class="section-title">Checker usage by country</div>
+		<div class="ga4-tables" style="grid-template-columns: 1fr 1fr;">
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Country</th>
+							<th style="text-align:right">Wallets checked</th>
+						</tr>
+					</thead>
+					<tbody>
+						{checkCountries.wallet.slice(0, 10).map((c) => (
+							<tr>
+								<td>{c.country}</td>
+								<td style="text-align:right">{c.count.toLocaleString()}</td>
+							</tr>
+						))}
+						{checkCountries.wallet.length === 0 && (
+							<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Country</th>
+							<th style="text-align:right">Sites checked</th>
+						</tr>
+					</thead>
+					<tbody>
+						{checkCountries.dapp.slice(0, 10).map((c) => (
+							<tr>
+								<td>{c.country}</td>
+								<td style="text-align:right">{c.count.toLocaleString()}</td>
+							</tr>
+						))}
+						{checkCountries.dapp.length === 0 && (
+							<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+						)}
+					</tbody>
+				</table>
 			</div>
 		</div>
 	</div>

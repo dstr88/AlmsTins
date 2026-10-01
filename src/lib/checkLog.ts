@@ -13,7 +13,7 @@
  */
 import { db } from '@/lib/db';
 import { hashWithSalt } from '@/lib/analytics/hash';
-import { getClientIp } from '@/lib/analytics/ip';
+import { getClientIp, getClientCountry } from '@/lib/analytics/ip';
 
 export type CheckKind = 'wallet' | 'dapp';
 
@@ -35,6 +35,7 @@ function ensureTable(): Promise<void> {
 				        cache_hit    INTEGER DEFAULT 0
 				      )`,
 			})
+			.then(() => db.execute({ sql: `ALTER TABLE check_log ADD COLUMN IF NOT EXISTS country TEXT`, args: [] }))
 			.then(() => {})
 			.catch((e) => {
 				tableReady = null;
@@ -58,12 +59,15 @@ export function recordCheck(opts: {
 }): void {
 	const subjectHash = hashWithSalt(opts.subject);
 	const ipHash = hashWithSalt(getClientIp(opts.request) ?? opts.fallbackIp ?? 'unknown');
+	// Country is read straight from Cloudflare's own header, never derived from the IP
+	// we just hashed — the raw IP is never stored, hashed or otherwise retained for geo use.
+	const country = getClientCountry(opts.request);
 	void ensureTable()
 		.then(() =>
 			db.execute({
-				sql: `INSERT INTO check_log (created_at, kind, subject_hash, ip_hash, chain, cache_hit)
-				      VALUES (?, ?, ?, ?, ?, ?)`,
-				args: [new Date().toISOString(), opts.kind, subjectHash, ipHash, opts.chain ?? null, opts.cacheHit ? 1 : 0],
+				sql: `INSERT INTO check_log (created_at, kind, subject_hash, ip_hash, chain, cache_hit, country)
+				      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				args: [new Date().toISOString(), opts.kind, subjectHash, ipHash, opts.chain ?? null, opts.cacheHit ? 1 : 0, country],
 			}),
 		)
 		.catch((e) => console.warn('[checkLog] log failed:', e instanceof Error ? e.message : e));
@@ -81,6 +85,31 @@ export async function countUniqueChecksByKind(): Promise<Record<CheckKind, numbe
 	const out: Record<CheckKind, number> = { wallet: 0, dapp: 0 };
 	for (const row of r.rows as unknown as Array<{ kind: string; n: number | string }>) {
 		if (row.kind === 'wallet' || row.kind === 'dapp') out[row.kind] = Number(row.n);
+	}
+	return out;
+}
+
+/**
+ * Unique subjects checked, per kind and country — for the admin dashboard's
+ * geographic breakdown. Country is only populated for checks logged after this
+ * column was added, so earlier rows fall under 'Unknown' alongside any request
+ * Cloudflare couldn't place (local dev, Tor).
+ */
+export async function countUniqueChecksByKindAndCountry(): Promise<
+	Record<CheckKind, { country: string; count: number }[]>
+> {
+	await ensureTable();
+	const r = await db.execute({
+		sql: `SELECT kind, COALESCE(country, 'Unknown') AS country, COUNT(DISTINCT subject_hash) AS n
+		      FROM check_log
+		      GROUP BY kind, COALESCE(country, 'Unknown')
+		      ORDER BY n DESC`,
+	});
+	const out: Record<CheckKind, { country: string; count: number }[]> = { wallet: [], dapp: [] };
+	for (const row of r.rows as unknown as Array<{ kind: string; country: string; n: number | string }>) {
+		if (row.kind === 'wallet' || row.kind === 'dapp') {
+			out[row.kind].push({ country: row.country, count: Number(row.n) });
+		}
 	}
 	return out;
 }
