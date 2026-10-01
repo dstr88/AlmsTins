@@ -76,6 +76,15 @@ function shape(r: QueryResult) {
 	};
 }
 
+// Tracks the in-flight (then settled) "set session time zone" query for each
+// pooled client. pool.on('connect', ...) alone races: the pool hands a fresh
+// client to the next pool.connect() caller without waiting for 'connect'
+// listeners to finish, so that caller's first query could land on the wire
+// while SET TIME ZONE is still executing on the same client — the exact
+// "client.query() when the client is already executing a query" deprecation.
+// getClient() below awaits this before returning the client to a caller.
+const tzReady = new WeakMap<pg.PoolClient, Promise<void>>();
+
 function makePool(connectionString: string): pg.Pool {
 	// SSL selection by host:
 	//   • Render EXTERNAL host (a public "*.render.com" domain) REQUIRES SSL.
@@ -96,13 +105,42 @@ function makePool(connectionString: string): pg.Pool {
 	// timestamptz is read in the session time zone; outside UTC, a DST change would
 	// shift day counts such as the wash-sale window. Set after connect rather than as a
 	// startup option, so a proxy that rejects startup options can't block connections.
-	// The SET is queued on the new client before any query that checks it out.
+	// Recorded in tzReady (not just fired here) so the first real query on this
+	// client always waits for it instead of racing it — see getClient() below.
 	pool.on('connect', (client) => {
-		client.query("SET TIME ZONE 'UTC'").catch((e: unknown) =>
-			console.error('[db] could not set session time zone', e instanceof Error ? e.message : String(e)));
+		tzReady.set(
+			client,
+			client.query("SET TIME ZONE 'UTC'")
+				.then(() => {})
+				.catch((e: unknown) => {
+					console.error('[db] could not set session time zone', e instanceof Error ? e.message : String(e));
+				}),
+		);
 	});
 	pool.on('error', (e) => console.error('[db] postgres pool error', e instanceof Error ? e.message : String(e)));
 	return pool;
+}
+
+// Checks out a client and waits for its (once-per-connection) session setup
+// to finish before handing it back. A client reused from an earlier checkout
+// already has a settled promise in tzReady, so this costs nothing beyond the
+// first checkout of a given physical connection.
+async function getClient(pool: pg.Pool): Promise<pg.PoolClient> {
+	const client = await pool.connect();
+	await (tzReady.get(client) ?? Promise.resolve());
+	return client;
+}
+
+// Runs one query against a client checked out — and released — just for it.
+// The non-transactional equivalent of execute()'s client lifecycle, so every
+// path that touches a client, not only the transactional one, is tz-safe.
+async function withClient<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+	const client = await getClient(pool);
+	try {
+		return await fn(client);
+	} finally {
+		client.release();
+	}
 }
 
 // Set app.tenant_id / app.user_id LOCAL to this transaction (is_local = true), so
@@ -135,7 +173,7 @@ export function makePgDb(): Client {
 	const globalAny = globalThis as typeof globalThis & { [pingFlag]?: boolean };
 	if (!globalAny[pingFlag]) {
 		globalAny[pingFlag] = true;
-		ownerPool.query('SELECT 1')
+		withClient(ownerPool, (c) => c.query('SELECT 1'))
 			.then(() => console.log('[db] postgres ping ok' + (enforce ? ' (RLS web role active)' : ' (single role — RLS not enforced)')))
 			.catch((e) => console.error('[db] postgres ping failed', e instanceof Error ? e.message : String(e)));
 	}
@@ -158,11 +196,11 @@ export function makePgDb(): Client {
 
 	async function execute(stmt: Stmt, execArgs?: unknown[]) {
 		const { text, values } = norm(stmt, execArgs);
-		if (isSchemaDDL(text)) return shape(await ownerPool.query({ text, values }));
+		if (isSchemaDDL(text)) return shape(await withClient(ownerPool, (c) => c.query({ text, values })));
 		const ctx = tenantCtx();
-		if (!ctx) return shape(await ownerPool.query({ text, values }));
+		if (!ctx) return shape(await withClient(ownerPool, (c) => c.query({ text, values })));
 
-		const client = await webPool.connect();
+		const client = await getClient(webPool);
 		try {
 			await client.query('BEGIN');
 			await setTenantGuc(client, ctx);
@@ -182,7 +220,7 @@ export function makePgDb(): Client {
 		// A batch containing schema DDL runs as the owner (see execute()); otherwise
 		// it honors the per-request tenant context.
 		const ctx = normed.some((n) => isSchemaDDL(n.text)) ? null : tenantCtx();
-		const client = await (ctx ? webPool : ownerPool).connect();
+		const client = await getClient(ctx ? webPool : ownerPool);
 		try {
 			await client.query('BEGIN');
 			if (ctx) await setTenantGuc(client, ctx);
