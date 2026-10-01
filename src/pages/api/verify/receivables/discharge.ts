@@ -1,7 +1,8 @@
 /**
  * POST /api/verify/receivables/discharge — discharge a financing claim (authenticated).
  *
- * Body: { claimId }
+ * Body: { claimId, reason? } — reason is optional free text (e.g. "wire received Sept 28"),
+ * signed into the discharge manifest, tenant-only (never returned by the public lookup).
  *
  * Stage 4 (settlement): the financing was repaid/released, so the claim stops
  * encumbering the receivable and its amount returns to the unencumbered headroom.
@@ -25,7 +26,11 @@ export const POST: APIRoute = async ({ request }) => {
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }
 
-  const result = await dischargeClaim(session.tenantId, String(body.claimId ?? ''));
+  const result = await dischargeClaim(
+    session.tenantId,
+    String(body.claimId ?? ''),
+    typeof body.reason === 'string' ? body.reason : undefined,
+  );
   if (result.ok) return json(result);
   const status = result.error === 'not_found' ? 404 : 409;
   return json(result, status);
