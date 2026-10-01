@@ -33,3 +33,13 @@ export function getClientIp(request: Request): string | null {
 	return null;
 }
 
+/**
+ * Two-letter ISO country code for the request, or null if unknown (local dev,
+ * no Cloudflare in front). Render's Cloudflare sets `cf-ipcountry` itself —
+ * same trust basis as `cf-connecting-ip` above, so no GeoIP lookup is needed.
+ */
+export function getClientCountry(request: Request): string | null {
+	const country = request.headers.get('cf-ipcountry')?.trim().toUpperCase();
+	return country && country !== 'XX' && country !== 'T1' ? country : null;
+}
+

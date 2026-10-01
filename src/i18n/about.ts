@@ -73,7 +73,7 @@ export const en: AboutContent = {
     intro: `Almstins today is a portfolio tracker + safety checker + bookkeeping tool. The roadmap is longer:`,
     items: [
       `A MetaMask Snap that checks addresses before you sign, so safety reaches into your wallet itself.`,
-      `Deeper integration with tax professionals and advisories so Almstins isn't just a tool you use—it's a layer your accountant and your advisor both understand.`,
+      `Richer export and verification tools, so whatever you hand to an accountant, advisor, or auditor holds up on its own—no need to take Almstins' word for it.`,
       `Ecosystem tooling that lets other builders plug safety and accountability into their products.`,
     ],
     outro: `The north star: make it obvious that the best crypto product is the one that doesn't ask you to trust it blindly. Make documentation and verification as easy as the transaction itself.`,
