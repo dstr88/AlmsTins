@@ -22,14 +22,25 @@ const description =
 const canonical = 'https://almstins.com/receivables';
 
 // Every receivables service. The general Verify tools (safety scanner, publisher
-// attestation, the payment-agent API) live on /verify; the private milestone desk is
-// deliberately not listed here.
-// The three tools, shown together in one tile.
+// attestation, the payment-agent API) live on /verify.
+// The three invoice-financing tools, shown together in one tile.
 const tools = [
   { href: receivablesPath('desk'), title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
   { href: receivablesPath('registry'), title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
   { href: receivablesPath('client'), title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
 ];
+
+// The milestone desk (construction/tranche financing — "cairn") is a separate product
+// from invoice receivables; it deliberately has no /receivables alias (see
+// src/middleware/legacyRedirects.ts and src/lib/receivables/paths.ts's own header
+// comment — an unaliased 404 keeps an unauthenticated prober from telling "no such
+// page" apart from "page exists but you're not allowed"). Link to /verify/cairn
+// directly here rather than adding it to RECEIVABLES_PAGES.
+const milestoneDesk = {
+  href: '/verify/cairn',
+  title: 'Milestone Desk',
+  body: 'A sealed, signed milestone schedule. An independent inspector answers each one from the site, reached, not reached, or disputed, stamped to Bitcoin. It proves the milestone; the lender still decides the tranche.',
+};
 
 // Secondary utility + reference links (below the tools).
 const groups = [
@@ -154,7 +165,8 @@ const trust = [
       </div>
     </header>
 
-    <!-- The tools: three in one tile, plus a "coming soon" tile to balance -->
+    <!-- The tools: three invoice-financing tools in one tile, plus the milestone desk
+         in its own tile alongside them. -->
     <section class="rsection" aria-labelledby="rtools-h">
       <h2 id="rtools-h" class="rsection__heading">The tools</h2>
       <div class="rtiles">
@@ -166,11 +178,11 @@ const trust = [
             </a>
           ))}
         </div>
-        <div class="rtile rtile--soon">
-          <span class="rtile__badge">Coming soon</span>
-          <span class="rtile__soon-title">More tools coming soon</span>
-          <span class="rtile__soon-body">New ways to record, verify, and prove are in the works.</span>
-        </div>
+        <a class="rtile rtile--milestone" href={milestoneDesk.href}>
+          <span class="rtile__badge">Milestones</span>
+          <span class="rtile__milestone-title">{milestoneDesk.title}<span class="rtool__arrow" aria-hidden="true">→</span></span>
+          <span class="rtile__milestone-body">{milestoneDesk.body}</span>
+        </a>
       </div>
     </section>
 
@@ -387,17 +399,19 @@ const trust = [
   .rtool__title { display: flex; align-items: center; gap: 0.5rem; font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
   .rtool__arrow { margin-left: auto; color: var(--accent); font-weight: 700; }
   .rtool__body { font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55; }
-  .rtile--soon {
+  .rtile--milestone {
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0.55rem;
-    padding: 1.5rem 1.6rem; border-style: dashed; background: var(--surface-card-2);
+    padding: 1.5rem 1.6rem; background: var(--surface-card-2); text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
+  .rtile--milestone:hover { background: var(--surface-hover); border-color: var(--border-bright); }
   .rtile__badge {
     font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
     color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow);
     padding: 0.2rem 0.55rem; border-radius: 999px;
   }
-  .rtile__soon-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
-  .rtile__soon-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
+  .rtile__milestone-title { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
+  .rtile__milestone-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
 
   /* Card grid */
   .rgrid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
