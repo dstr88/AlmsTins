@@ -4,6 +4,8 @@ import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
 import { hasAnchor, merchantAddressAssurance, staleCutoffUtc } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
+import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
+import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -1214,6 +1216,8 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
   const [value, setValue] = useState('');
   const [state, setState] = useState<CheckState>({ status: 'idle' });
   const [safety, setSafety] = useState<SafetyState>({ s: 'idle' });
+  // True when GoPlus answered for the safety check (credited under it; see lib/goplusCredit.ts).
+  const [goplus, setGoplus] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1277,6 +1281,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
     if (!q) return;
     setState({ status: 'checking' });
     setSafety({ s: 'checking' });
+    setGoplus(false);
     void runSafety(q); // independent scam screen, in parallel with the match check
     try {
       const res = await fetch('/api/verify/compare', {
@@ -1305,6 +1310,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
         const res = await fetch(`/api/dapp-check?url=${encodeURIComponent(target)}`);
         const d = await res.json();
         setSafety({ s: d.verdict === 'red' ? 'danger' : d.verdict === 'yellow' ? 'unclear' : 'clean' });
+        setGoplus(goplusRanForSite(d));
       } else {
         const res = await fetch('/api/wallet-check', {
           method: 'POST',
@@ -1320,6 +1326,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
             : d.result.partialCoverage ? 'unclear'
             : 'clean',
         });
+        setGoplus(goplusRanForAddress(d.result));
       }
     } catch {
       setSafety({ s: 'error' });
@@ -1418,6 +1425,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
           }
         </div>
       )}
+      {goplus && safety.s !== 'idle' && safety.s !== 'checking' && <PoweredByGoPlus label={t.poweredByGoPlus} />}
     </section>
   );
 }

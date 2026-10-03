@@ -79,6 +79,9 @@ export interface VerifyDashboardLocale {
   safetyUnclear: string;
   safetyDanger: string;
   safetyError: string;
+  // GoPlus API License Agreement s.3 credit, shown under the safety check when GoPlus answered.
+  // A brand credit that mirrors the license wording: the same English phrase in every language.
+  poweredByGoPlus: string;
   // Phase 3 — proof-of-control (domain attestation) outcomes. verifyProof.ts returns
   // a code; the UI maps it to one of these. Defined locale-first ahead of the panel.
   proofProven: string;
@@ -302,6 +305,7 @@ export const en: VerifyDashboardLocale = {
   safetyUnclear: 'Not enough data to clear it — treat with caution.',
   safetyDanger: '⛔ Scam signals detected — do not pay this.',
   safetyError: 'Could not complete the safety check.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
   proofProven: '✓ Ownership proven — this domain published your address.',
   proofNameAttached: '✓ Domain verified — your business name is now attached. (Verify each wallet separately with a self-send if you haven’t.)',
   proveDnsOr: 'No website to host a file? Use a DNS record instead:',
@@ -523,6 +527,7 @@ export const es: VerifyDashboardLocale = {
   safetyUnclear: 'No hay datos suficientes para descartarlo — trátalo con precaución.',
   safetyDanger: '⛔ Señales de estafa detectadas — no pagues esto.',
   safetyError: 'No se pudo completar el control de seguridad.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
   proofProven: '✓ Propiedad verificada — este dominio publicó tu dirección.',
   proofNameAttached: '✓ Dominio verificado — tu nombre de negocio ya está adjunto. (Verifica cada billetera por separado con un autoenvío si aún no lo has hecho.)',
   proveDnsOr: '¿Sin sitio web para alojar un archivo? Usa un registro DNS:',
@@ -744,6 +749,7 @@ export const fr: VerifyDashboardLocale = {
   safetyUnclear: 'Données insuffisantes pour l’écarter — à traiter avec prudence.',
   safetyDanger: '⛔ Signaux d’arnaque détectés — ne payez pas.',
   safetyError: 'Impossible de terminer le contrôle de sécurité.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
   proofProven: '✓ Propriété prouvée — ce domaine a publié votre adresse.',
   proofNameAttached: '✓ Domaine vérifié — votre nom d’entreprise est maintenant rattaché. (Vérifiez chaque portefeuille séparément par auto-envoi si ce n’est pas déjà fait.)',
   proveDnsOr: 'Pas de site pour héberger un fichier ? Utilisez un enregistrement DNS :',

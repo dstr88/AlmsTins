@@ -96,6 +96,9 @@ export interface WalletCheckerLocale {
     reportBadgeMany: string;
     flaggedFor: string;
     resultsDisclaimer: string;
+    // GoPlus API License Agreement s.3 credit. A brand credit that mirrors the license wording,
+    // so it is deliberately the same English phrase in every language (src/lib/goplusCredit.ts).
+    poweredByGoPlus: string;
     scamRiskScore: string;
     scamClean: string;
     scamCaution: string;
@@ -383,6 +386,7 @@ export const en: WalletCheckerLocale = {
     reportBadgeMany: '🚨 {n} community reports',
     flaggedFor: 'Flagged for:',
     resultsDisclaimer: 'Results sourced from public scam databases (GoPlus, Etherscan, honeypot.is). Reported, not legally confirmed. Not financial or legal advice.',
+    poweredByGoPlus: 'Powered by GoPlus Security',
     scamRiskScore: 'Scam Risk Score',
     scamClean: '✅ No known risks detected',
     scamCaution: '⚠️ Exercise caution',
@@ -667,6 +671,7 @@ export const es: WalletCheckerLocale = {
     reportBadgeMany: '🚨 {n} reportes de la comunidad',
     flaggedFor: 'Señalado por:',
     resultsDisclaimer: 'Resultados obtenidos de bases de datos públicas de estafas (GoPlus, Etherscan, honeypot.is). Reportados, no confirmados legalmente. No es asesoramiento financiero ni legal.',
+    poweredByGoPlus: 'Powered by GoPlus Security',
     scamRiskScore: 'Puntuación de riesgo de estafa',
     scamClean: '✅ No se detectaron riesgos conocidos',
     scamCaution: '⚠️ Procede con precaución',
@@ -951,6 +956,7 @@ export const fr: WalletCheckerLocale = {
     reportBadgeMany: '🚨 {n} signalements de la communauté',
     flaggedFor: 'Signalé pour :',
     resultsDisclaimer: 'Résultats issus de bases de données publiques d’arnaques (GoPlus, Etherscan, honeypot.is). Rapportés, non confirmés légalement. Ni conseil financier ni juridique.',
+    poweredByGoPlus: 'Powered by GoPlus Security',
     scamRiskScore: 'Score de risque d’arnaque',
     scamClean: '✅ Aucun risque connu détecté',
     scamCaution: '⚠️ Faites preuve de prudence',

@@ -44,6 +44,9 @@ export interface VerifyScanCopy {
   safetyDanger: ByNoun;
   safetyUnclear: ByNoun;
   safetyError: string;
+  /** GoPlus API License Agreement s.3 credit, shown under the safety screen when GoPlus answered.
+   *  A brand credit that mirrors the license wording: the same English phrase in every language. */
+  poweredByGoPlus: string;
 }
 
 const en: VerifyScanCopy = {
@@ -120,6 +123,7 @@ const en: VerifyScanCopy = {
     code: 'Not enough data to clear this payment code. Proceed carefully.',
   },
   safetyError: 'Couldn’t run the safety check — try again.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
 };
 
 const es: VerifyScanCopy = {
@@ -196,6 +200,7 @@ const es: VerifyScanCopy = {
     code: 'No hay datos suficientes para dar por bueno este código de pago. Procede con cuidado.',
   },
   safetyError: 'No se pudo hacer la revisión de seguridad. Inténtalo de nuevo.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
 };
 
 const fr: VerifyScanCopy = {
@@ -272,6 +277,7 @@ const fr: VerifyScanCopy = {
     code: 'Pas assez de données pour valider ce code de paiement. Soyez prudent.',
   },
   safetyError: 'Le contrôle de sécurité n’a pas pu être effectué. Réessayez.',
+  poweredByGoPlus: 'Powered by GoPlus Security',
 };
 
 export const verifyScanCopy: Record<ScanLang, VerifyScanCopy> = { en, es, fr };

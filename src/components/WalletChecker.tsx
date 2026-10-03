@@ -3,6 +3,8 @@ import jsQR from 'jsqr';
 import type { WalletCheckResult } from '@/lib/walletChecker';
 import type { WalletCheckerLocale } from '@/i18n/walletChecker';
 import { publicVerifyCard, publisherText, fillTemplate, addressSafetyVerdict, type PublicVerifyCard, type PublicVerifyLookup } from '@/lib/verifyPublicCard';
+import { goplusRanForAddress } from '@/lib/goplusCredit';
+import PoweredByGoPlus from './PoweredByGoPlus';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -962,6 +964,10 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           <div style={{ minHeight: '120px' }}>
             <TabContent tab={activeTab} result={result} c={c} />
           </div>
+
+          {/* GoPlus API License Agreement s.3: credit the source when GoPlus answered for this
+              address. Shown for every tab, since GoPlus flags feed the Safety and Funding tabs. */}
+          {goplusRanForAddress(result) && <PoweredByGoPlus label={c.poweredByGoPlus} />}
         </div>
       )}
 
