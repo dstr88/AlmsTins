@@ -3,7 +3,7 @@
   margin: 0.75rem 0 0;
   font-size: 0.75rem;
   line-height: 1.5;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 .powered-by-goplus a {
   color: inherit;

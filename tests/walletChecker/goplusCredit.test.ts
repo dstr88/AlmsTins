@@ -58,7 +58,7 @@ describe('<PoweredByGoPlus>', () => {
 
   it('is styled with design tokens only: no hard-coded colors', () => {
     const css = read('src/components/PoweredByGoPlus.css').replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(css).toContain('var(--text-muted)');
+    expect(css).toContain('var(--text-secondary)');
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|\b(rgb|rgba|hsl|hsla)\(/i);
   });
 });
