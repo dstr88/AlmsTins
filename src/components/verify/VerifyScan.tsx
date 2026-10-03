@@ -3,6 +3,8 @@ import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
 import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, type PublicVerifyCard } from '../../lib/verifyPublicCard';
 import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } from '../../i18n/verifyScan';
+import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
+import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyScan.css';
 
 /**
@@ -108,6 +110,8 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
   const [done, setDone] = useState(false);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [safety, setSafety] = useState<Safety>('idle');
+  // True when GoPlus answered for the safety screen (credited under the card; see lib/goplusCredit.ts).
+  const [goplus, setGoplus] = useState(false);
   const [isUrl, setIsUrl] = useState(false);
   const [isPaymentQr, setIsPaymentQr] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -200,7 +204,7 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
     // phishing/sanctions list for these, so the MATCH is the safety (no extra screen).
     const paymentQr = /^upi:\/\//i.test(q) || /^0002\d{2}/.test(q);
     setIsUrl(url); setIsPaymentQr(paymentQr);
-    setBusy(true); setDone(false); setLookup(null); setSafety(paymentQr ? 'idle' : 'checking');
+    setBusy(true); setDone(false); setLookup(null); setSafety(paymentQr ? 'idle' : 'checking'); setGoplus(false);
     try {
       // Safety screen: a payment LINK → phishing/site checker; a crypto ADDRESS →
       // scam/sanctions checker; a PIX/UPI QR → none (the match itself is the safety).
@@ -226,10 +230,12 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
         // dapp-check returns verdict: 'red' | 'yellow' | 'green'
         const v = sf?.verdict;
         setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
+        setGoplus(goplusRanForSite(sf));
       } else if (sf && sf.ok && sf.result) {
         // Community reports count as a caution flag, as on the wallet-checker.
         const lvl = addressSafetyVerdict(sf.result.scamLevel, sf.result.chainabuseReports);
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
+        setGoplus(goplusRanForAddress(sf.result));
       } else setSafety('error');
     } catch {
       setLookup({ verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null });
@@ -287,6 +293,7 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
     <div className={`vs__card ${safety === 'clean' ? 'vs__card--ok' : safety === 'danger' ? 'vs__card--err' : 'vs__card--warn'}`}>
       <div className="vs__verdict">{t.safetyTitle}</div>
       <p className="vs__detail">{safetyText[safety]}</p>
+      {goplus && <PoweredByGoPlus label={t.poweredByGoPlus} />}
     </div>
   ) : null;
   // A flagged safety verdict always leads, whatever the Verify result.

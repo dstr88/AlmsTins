@@ -1,0 +1,17 @@
+/* GoPlus credit line (see PoweredByGoPlus.tsx). All colors via design tokens. */
+.powered-by-goplus {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.powered-by-goplus a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+.powered-by-goplus a:hover,
+.powered-by-goplus a:focus-visible {
+  color: var(--accent);
+}
