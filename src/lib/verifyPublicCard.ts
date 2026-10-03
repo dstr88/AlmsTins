@@ -80,6 +80,18 @@ export function addressSafetyVerdict(
   return scamLevel;
 }
 
+/**
+ * The safety state a /api/dapp-check response shows. Only an explicit 'green' verdict is
+ * clean: a response with no verdict (the endpoint's `{ error: true }` 400, a null body) or
+ * one this code does not know is an error, never a false all-clear.
+ */
+export function siteSafetyState(
+  data: Record<string, unknown> | null | undefined,
+): 'danger' | 'unclear' | 'clean' | 'error' {
+  const v = data?.verdict;
+  return v === 'red' ? 'danger' : v === 'yellow' ? 'unclear' : v === 'green' ? 'clean' : 'error';
+}
+
 // A shown name is plain text: Latin letters, digits, spaces and basic punctuation, up to
 // 80 characters. This rejects emoji and check marks ("Acme ✅"), bidi and zero-width
 // controls (a right-to-left override reorders the rest of the sentence), and non-Latin

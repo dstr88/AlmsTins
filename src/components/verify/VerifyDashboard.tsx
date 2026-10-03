@@ -5,6 +5,7 @@ import { decodeQrFromImageFile } from '../../lib/qrScan';
 import { hasAnchor, merchantAddressAssurance, staleCutoffUtc } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
+import { siteSafetyState } from '../../lib/verifyPublicCard';
 import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
 
@@ -1309,7 +1310,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
       if (kind === 'url') {
         const res = await fetch(`/api/dapp-check?url=${encodeURIComponent(target)}`);
         const d = await res.json();
-        setSafety({ s: d.verdict === 'red' ? 'danger' : d.verdict === 'yellow' ? 'unclear' : 'clean' });
+        setSafety({ s: siteSafetyState(d) });
         setGoplus(goplusRanForSite(d));
       } else {
         const res = await fetch('/api/wallet-check', {

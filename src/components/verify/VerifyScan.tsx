@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
-import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, type PublicVerifyCard } from '../../lib/verifyPublicCard';
+import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, siteSafetyState, type PublicVerifyCard } from '../../lib/verifyPublicCard';
 import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } from '../../i18n/verifyScan';
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
 import PoweredByGoPlus from '../PoweredByGoPlus';
@@ -228,8 +228,7 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
         setSafety('idle'); // no safety card — the match is the safety
       } else if (url) {
         // dapp-check returns verdict: 'red' | 'yellow' | 'green'
-        const v = sf?.verdict;
-        setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
+        setSafety(siteSafetyState(sf));
         setGoplus(goplusRanForSite(sf));
       } else if (sf && sf.ok && sf.result) {
         // Community reports count as a caution flag, as on the wallet-checker.
