@@ -71,6 +71,9 @@ export default function PetroTinsGrid() {
     const tin = tins.find(t => t.id === id);
     if (tin) (window as any).openAddEntry?.(id, tin.type);
   };
+  // Opens the same Add Budget dialog as the page's "＋ Budget" button, so a new register
+  // (budget tin) can be added from under the last one.
+  const handleAddRegister = () => { (window as any).openAddTin?.('budget'); };
 
   if (loading) return <p className="pt-grid__loading">Loading…</p>;
   if (signedOut) {
@@ -119,6 +122,11 @@ export default function PetroTinsGrid() {
               />
             ))
           }
+          {budgetTins.length > 0 && (
+            <button type="button" className="pt-grid__add-register" onClick={handleAddRegister}>
+              ＋ Add another register
+            </button>
+          )}
         </div>
         <div className="pt-grid__summary">
           <div className="pt-summary__title">Cash Flow Summary</div>

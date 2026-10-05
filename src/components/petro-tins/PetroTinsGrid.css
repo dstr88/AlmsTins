@@ -14,6 +14,21 @@
   .pt-grid__top { grid-template-columns: 1fr 1fr; }
 }
 
+/* Add another register: sits under the last budget register */
+.pt-grid__add-register {
+  margin-top: 0.75rem;
+  background: var(--surface-card);
+  border: 1px dashed var(--border-bright);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pt-grid__add-register:hover { background: var(--surface-hover); color: var(--accent); }
+.pt-grid__add-register:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Summary panel */
 .pt-grid__summary {
   background: var(--surface-card);
