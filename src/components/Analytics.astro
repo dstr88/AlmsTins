@@ -1,16 +1,36 @@
 ---
-// Google Analytics (GA4). Dropped into the <head> of pages and layouts that render their
-// own document, so every page is tracked. Layout.astro and LoginLayout.astro carry the same
-// tag inline, so they are intentionally NOT given this component (avoids double-counting).
+// The one Google Analytics (GA4) tag for the whole site. Every document puts <Analytics />
+// in its <head>: Layout.astro (the dashboard), LoginLayout.astro (the public pages) and each
+// page that renders its own document. Do not paste the snippet anywhere else. A second copy
+// double-counts and drifts, and tests/analytics/singleTag.test.ts fails if one appears.
+//
 // is:inline keeps the snippet verbatim, exactly as GA expects, instead of Astro bundling it.
-// AnalyticsPageContext strips query strings (tokens, IDs, scanned addresses) before GA sees them.
+// AnalyticsPageContext runs first: it rebuilds page_location and page_referrer from an
+// allowlist (no tokens, IDs or scanned addresses), marks the owner's own traffic internal and
+// counts sign-outs. See that file.
 import AnalyticsPageContext from './AnalyticsPageContext.astro';
+
+interface Props {
+  /** Public demo visitors: report the page under /demo, flag them as demo users, send demo_page_view. */
+  demo?: boolean;
+}
+const { demo = false } = Astro.props;
+
+// One property for every page. PUBLIC_GA_ID can point a preview deploy at a different one.
+const GA_ID = import.meta.env.PUBLIC_GA_ID || 'G-G3P0FSHN21';
 ---
 <AnalyticsPageContext />
-<script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-G3P0FSHN21"></script>
-<script is:inline>
+<script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
+<script is:inline define:vars={{ GA_ID, demo }}>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'G-G3P0FSHN21', window.__gaPage || {});
+  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, demo ? { page_path: '/demo' + window.location.pathname } : {}));
+  if (demo) {
+    gtag('set', 'user_properties', { demo_user: 'true' });
+    gtag('event', 'demo_page_view', {
+      event_category: 'demo',
+      event_label: window.location.pathname,
+    });
+  }
 </script>

@@ -2,7 +2,7 @@
 import './Layout.css';
 import '../styles/dashboard.css';
 import Footer from "@/components/Footer.astro";
-import AnalyticsPageContext from "@/components/AnalyticsPageContext.astro";
+import Analytics from "@/components/Analytics.astro";
 import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
@@ -15,7 +15,6 @@ import kingSolomon from '@/assets/KingSolomon.png';
 import minerva from '@/assets/Minerva.png';
 import { getLang, isLang } from '@/lib/i18n/locale';
 import { getDashboardCommon } from '@/i18n/dashboard/common';
-const GA_ID = import.meta.env.PUBLIC_GA_ID;
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -209,22 +208,8 @@ const memberSinceDisplay = memberSinceIso
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-		<!-- Google Analytics (AnalyticsPageContext strips query strings first) -->
-	<AnalyticsPageContext />
-	<script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
-<script is:inline define:vars={{ GA_ID, isDemo }}>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, isDemo ? { page_path: '/demo' + window.location.pathname } : {}));
-  if (isDemo) {
-    gtag('set', 'user_properties', { demo_user: 'true' });
-    gtag('event', 'demo_page_view', {
-      event_category: 'demo',
-      event_label: window.location.pathname,
-    });
-  }
-</script>
+		<!-- Google Analytics: the one tag component -->
+		<Analytics demo={isDemo} />
 	</head>
 	<body>
 		{isDemo && (

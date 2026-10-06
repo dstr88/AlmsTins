@@ -1,5 +1,6 @@
 ---
 import type { SignupLocale } from '@/i18n/signup';
+import Analytics from './Analytics.astro';
 
 interface Props {
 	t: SignupLocale;
@@ -178,6 +179,7 @@ const loginHref = t.lang === 'es' ? '/es' : t.lang === 'fr' ? '/fr' : '/login';
 				color: #fff;
 			}
 		</style>
+		<Analytics />
 	</head>
 	<body>
 		<nav class="lang-switch" aria-label="Language">

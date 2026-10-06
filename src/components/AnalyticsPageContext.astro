@@ -1,6 +1,6 @@
 ---
-// What Google Analytics is allowed to learn about the page. Include it BEFORE any
-// gtag('config', …) (Analytics.astro, Layout.astro, LoginLayout.astro).
+// What Google Analytics is allowed to learn about the page. Analytics.astro, the one tag
+// component, includes it BEFORE gtag('config', …); nothing else should include it.
 //
 // By default GA4 sends the full URL as page_location and the full referring URL as
 // page_referrer, query string included. On this site the query string can carry a
@@ -8,6 +8,11 @@
 // path (?next=), or an address someone scanned (?address=). None of that may leave for a
 // third party. So both values are rebuilt from an allowlist: origin + path, plus only the
 // campaign parameters (utm_*, gclid). Anything added later is dropped by default.
+//
+// Two more things GA is told, both anonymous:
+//  - traffic_type "internal" on the owner's own traffic, so GA4's built-in "Internal Traffic"
+//    data filter can drop it (see the script). Nothing about who, only that it is ours.
+//  - a bare "sign_out" event when a sign-out link or form is used. A count, never a person.
 ---
 <script is:inline>
   (function () {
@@ -23,6 +28,49 @@
       // like android-app://com.google.android.gm/ (Gmail, LinkedIn) still attribute.
       if (document.referrer) page.page_referrer = document.referrer.split(/[?#]/)[0];
     } catch (e) { /* keep the path-only defaults */ }
+
+    // Internal traffic. GA4's built-in "Internal Traffic" data filter drops events whose
+    // traffic_type is "internal". An IP rule alone misses a changing home IP, a phone and the
+    // CI runners, so the page marks itself: an automated browser (the scheduled Playwright
+    // runs), a local dev server, or a browser flagged once by visiting ?internal=1 (?internal=0
+    // clears it). The flag lives on this device only. It never reaches GA, because
+    // page_location above is rebuilt from an allowlist that does not include it.
+    try {
+      var host = location.hostname;
+      if (navigator.webdriver === true || host === 'localhost' || host === '127.0.0.1' ||
+          host === '[::1]' || host === '::1' || /\.localhost$/.test(host)) page.traffic_type = 'internal';
+    } catch (e) { /* leave the page as it is */ }
+    try {
+      var flag = new URL(location.href).searchParams.get('internal');
+      if (flag === '1') localStorage.setItem('almstins_internal', '1');
+      else if (flag === '0') localStorage.removeItem('almstins_internal');
+      if (localStorage.getItem('almstins_internal') === '1') page.traffic_type = 'internal';
+    } catch (e) { /* storage blocked: only the automatic rules apply */ }
+
     window.__gaPage = page;
+
+    // Sign-out count. The dashboard logs out through a form posting to /api/logout; the Verify
+    // menu and the login popup link to Auth.js's /api/auth/signout, a page this site does not
+    // render, so it cannot carry a tag. Listening here covers all three. Pushing the call
+    // straight onto dataLayer is exactly what gtag() does, and works whichever script defines
+    // gtag. The beacon transport lets the hit leave as the page navigates away.
+    try {
+      var signOutPaths = { '/api/logout': 1, '/api/auth/signout': 1 };
+      var pathOf = function (url) {
+        try { return new URL(url, location.href).pathname.replace(/\/+$/, ''); } catch (e) { return ''; }
+      };
+      var countSignOut = function () {
+        window.dataLayer = window.dataLayer || [];
+        (function () { window.dataLayer.push(arguments); })('event', 'sign_out', { transport_type: 'beacon' });
+      };
+      document.addEventListener('click', function (e) {
+        var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (a && signOutPaths[pathOf(a.href)]) countSignOut();
+      }, true);
+      document.addEventListener('submit', function (e) {
+        var f = e.target;
+        if (f && typeof f.action === 'string' && signOutPaths[pathOf(f.action)]) countSignOut();
+      }, true);
+    } catch (e) { /* analytics must never break a page */ }
   })();
 </script>
