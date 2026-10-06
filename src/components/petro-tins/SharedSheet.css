@@ -16,3 +16,11 @@
   gap: 1.25rem;
 }
 .sh__row > .xg { min-width: 0; }
+
+/* Under the grids: takes you to the spare "New person" field. */
+.sh__foot { margin-top: 0.75rem; }
+.sh__addbtn {
+  background: transparent; border: 1px dashed var(--border-bright); border-radius: 4px;
+  color: var(--text-secondary); cursor: pointer; font-size: 0.85rem; padding: 0.35rem 0.8rem;
+}
+.sh__addbtn:hover { color: var(--accent); border-color: var(--accent); }
