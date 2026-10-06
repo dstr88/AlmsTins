@@ -1,0 +1,31 @@
+---
+// The one logout control. Every "Log out" / "Sign out" button on the site renders this, so how
+// someone signs out (which endpoint, which method, where they land) is decided in one place.
+// tests/auth/logoutSingleComponent.test.ts fails if another page links to a logout endpoint.
+//
+// It posts to /api/logout, which clears the Auth.js cookies and redirects. A form post, not a
+// link: a link that signs you out can be fired by any page that embeds its URL.
+//
+// `next` is where to land afterwards (default: the sign-in page). The server checks it again
+// and ignores anything that is not a same-origin path, so it is safe to pass a request value.
+//
+// Styling stays with the page that uses it. Pass the page's own classes as `class`: Astro adds
+// the calling page's scope to a child's `class` prop, so that page's scoped rules reach the
+// button without any :global() in the page.
+interface Props {
+  next?: string;
+  class?: string;
+}
+const { next, class: className } = Astro.props;
+---
+<form class="logout-form" method="post" action="/api/logout">
+  {next && <input type="hidden" name="next" value={next} />}
+  <button type="submit" class={className}><slot>Log out</slot></button>
+</form>
+
+<style>
+  /* The form has no box of its own, so the button sits where a link used to in the page's block
+     and flex layouts. A button does not take the page font and line height the way a link does. */
+  .logout-form { display: contents; }
+  .logout-form button { font-family: inherit; line-height: inherit; }
+</style>

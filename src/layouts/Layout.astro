@@ -6,6 +6,7 @@ import AnalyticsPageContext from "@/components/AnalyticsPageContext.astro";
 import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import LogoutButton from '@/components/LogoutButton.astro';
 import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
 import { tenantHasTaxAccess } from '@/lib/taxAuth';
@@ -413,12 +414,8 @@ const memberSinceDisplay = memberSinceIso
 
 							<hr class="account-divider" />
 
-							<!-- Logout -->
-							<form id="logout" method={logoutRedirect ? 'get' : 'post'} action="/api/logout">
-								{/* A GET form replaces the action's query string, so `next` must be a field. */}
-								{logoutRedirect && <input type="hidden" name="next" value={logoutRedirect} />}
-								<button class="account-logout" type="submit">{tNav.chrome.logOut}</button>
-							</form>
+							<!-- Logout: the one logout component -->
+							<LogoutButton class="account-logout" next={logoutRedirect}>{tNav.chrome.logOut}</LogoutButton>
 						</div>
 					</details>
 					{isDemo && (

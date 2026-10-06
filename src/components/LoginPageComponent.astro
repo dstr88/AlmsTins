@@ -1,6 +1,7 @@
 ---
 import type { LoginPageLocale } from '../i18n/loginPage';
 import LoginLayout from '../layouts/LoginLayout.astro';
+import LogoutButton from './LogoutButton.astro';
 import Logo from '../assets/logo.jpeg';
 
 interface Props {
@@ -200,7 +201,7 @@ const isLockedOut = message === 'LOCKED_OUT';
         <h2 id="session-title">{t.sessionPopup.title}</h2>
         <p>{t.sessionPopup.body}</p>
         <div class="session-popup__actions">
-          <a class="session-popup__btn session-popup__btn--primary" href="/api/auth/signout">{t.sessionPopup.signOutBtn}</a>
+          <LogoutButton class="session-popup__btn session-popup__btn--primary">{t.sessionPopup.signOutBtn}</LogoutButton>
           <button class="session-popup__btn session-popup__btn--ghost" id="session-dismiss">{t.sessionPopup.dismissBtn}</button>
         </div>
       </div>
