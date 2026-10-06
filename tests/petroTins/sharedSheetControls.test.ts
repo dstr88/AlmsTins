@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { SplitsTin } from '../../src/components/petro-tins/types';
 
 /**
@@ -54,6 +56,25 @@ describe('housingCost sheet: Add person', () => {
 
   it('is there even before anyone has been added', () => {
     expect(render([])).toContain('＋ Add person</button>');
+  });
+});
+
+describe('housingCost sheet: the spare field looks like a field', () => {
+  // ".xg input" sets "border: none" and a plain text color. A bare ".xg__name--start" rule
+  // has lower specificity and silently loses to it, which left the spare on the live page
+  // as a gray caption with no box. The highlight rules must carry the element to outrank it.
+  const css = readFileSync(
+    path.resolve(__dirname, '../../src/components/petro-tins/ExpenseGrid.css'),
+    'utf8',
+  );
+
+  it('styles the spare with selectors that outrank ".xg input"', () => {
+    expect(css).toMatch(/^\.xg input\.xg__name--start \{/m);
+    expect(css).toMatch(/^\.xg input\.xg__name--start::placeholder \{/m);
+  });
+
+  it('has no bare .xg__name--start rule left to lose that fight', () => {
+    expect(css).not.toMatch(/^\.xg__name--start(::placeholder)? \{/m);
   });
 });
 

@@ -18,9 +18,12 @@
 .xg__name { font-size: 0.95rem; font-weight: 600; }
 
 /* The unnamed spare: a highlighted name field + a one-line prompt, so it reads as
-   "start a new person here" rather than a dead spreadsheet. */
-.xg__name--start { border: 1px dashed var(--accent); border-radius: 4px; color: var(--accent); }
-.xg__name--start::placeholder { color: var(--accent); opacity: 0.85; }
+   "start a new person here" rather than a dead spreadsheet. The selectors carry the
+   element as well as the class so they outrank ".xg input" (border: none, plain text
+   color) and ".xg input::placeholder"; as bare classes they lost, and the spare showed
+   as a gray caption with no box. */
+.xg input.xg__name--start { border: 1px dashed var(--accent); border-radius: 4px; color: var(--accent); }
+.xg input.xg__name--start::placeholder { color: var(--accent); opacity: 0.85; }
 .xg__starthint td { border: none; padding: 0.4rem 0.5rem; font-size: 0.8rem; color: var(--text-muted); }
 
 /* Item: the big left column */
