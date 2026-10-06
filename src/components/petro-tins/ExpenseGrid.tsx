@@ -2,12 +2,39 @@ import { useState } from 'react';
 import type { PetroTinEntry } from './types';
 import './ExpenseGrid.css';
 
+/** The parts of a budget entry that a bracketed name needs. */
+type BudgetRef = { description: string; amount: number; entryDate?: string };
+
+/**
+ * Which budget entry "[Name]" means. The register keeps every month, so the first entry
+ * with that description is the oldest one (an "Electric" from June), which is not the bill
+ * being split. This takes this month's entry; if the name has none yet this month, the most
+ * recent earlier month; and only if every match is in a later month, the nearest of those.
+ * Entries with no date fall back to the first match.
+ */
+export function budgetEntryFor(
+  name: string,
+  entries: BudgetRef[] | undefined,
+  month: string = new Date().toISOString().slice(0, 7),
+): BudgetRef | undefined {
+  const key = name.trim().toLowerCase();
+  const matches = (entries ?? []).filter(e => (e.description ?? '').toLowerCase() === key);
+  const dated = matches.filter(e => e.entryDate);
+  if (dated.length === 0) return matches[0];
+  const thisMonth = dated.find(e => e.entryDate!.startsWith(month));
+  if (thisMonth) return thisMonth;
+  const newestFirst = [...dated].sort((a, b) => b.entryDate!.localeCompare(a.entryDate!));
+  return newestFirst.find(e => e.entryDate!.slice(0, 7) < month) ?? newestFirst[newestFirst.length - 1];
+}
+
 /** Evaluate "300", "=1200*0.25", or "=[Rent]*0.25".
- *  [Name] resolves against another row on the same grid, then a budget entry. */
+ *  [Name] resolves against another row on the same grid, then a budget entry (this month's,
+ *  see budgetEntryFor). `month` is YYYY-MM and only needs passing in tests. */
 export function evalFormula(
   input: string,
   rows?: Array<{ name: string; amount: number }>,
-  budgetEntries?: Array<{ description: string; amount: number }>,
+  budgetEntries?: BudgetRef[],
+  month?: string,
 ): number {
   let s = input.trim().startsWith('=') ? input.trim().slice(1) : input.trim();
   if (!s) return NaN;
@@ -16,7 +43,7 @@ export function evalFormula(
     const key = String(name).trim().toLowerCase();
     const row = rows?.find(r => r.name.toLowerCase() === key);
     if (row) return String(row.amount);
-    const entry = budgetEntries?.find(e => (e.description ?? '').toLowerCase() === key);
+    const entry = budgetEntryFor(name, budgetEntries, month);
     if (entry) return String(entry.amount);
     ok = false;
     return '0';
