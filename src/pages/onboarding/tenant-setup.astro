@@ -1,5 +1,6 @@
 ---
 import Layout from '@/layouts/LoginLayout.astro';
+import LogoutButton from '@/components/LogoutButton.astro';
 ---
 
 <Layout title="Tenant Setup">
@@ -14,7 +15,7 @@ import Layout from '@/layouts/LoginLayout.astro';
 				<form id="onboarding-finish-setup" method="POST" action="/api/onboarding/complete">
 					<button type="submit" name="finish-setup" class="tenant-setup__button">Finish setup</button>
 				</form>
-				<a class="tenant-setup__button tenant-setup__button--ghost" href="/api/logout">Sign out</a>
+				<LogoutButton class="tenant-setup__button tenant-setup__button--ghost">Sign out</LogoutButton>
 			</div>
 		</section>
 	</main>

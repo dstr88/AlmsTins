@@ -19,6 +19,7 @@ import kingSolomon from '@/assets/KingSolomon.png';
 import minerva from '@/assets/Minerva.png';
 import { hasProjects } from '@/lib/cairnRegistry';
 import { DEMO_TENANT_ID } from '@/lib/demo';
+import LogoutButton from '@/components/LogoutButton.astro';
 
 interface Props {
   tenantId: string;
@@ -52,7 +53,6 @@ const others = DESKS.filter(
 // From the public landing, sign-out simply returns to the landing.
 const currentHref = DESKS.find((d) => d.key === current)?.href ?? '/verify/desk';
 const backTo = current === 'landing' ? '/receivables' : `/verify/login?next=${currentHref}`;
-const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}`;
 ---
 
 <details class="account-menu">
@@ -99,7 +99,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}
 
     <hr class="account-divider" />
 
-    <a href={signOutHref} class="account-logout">Log out</a>
+    <LogoutButton class="account-logout" next={backTo}>Log out</LogoutButton>
   </div>
 </details>
 

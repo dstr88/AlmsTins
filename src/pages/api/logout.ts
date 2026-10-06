@@ -19,15 +19,23 @@ const clearAuthCookies = (cookies: AstroCookies) => {
 	}
 };
 
-export const POST: APIRoute = async ({ cookies, redirect }) => {
+// Where to land after signing out: a same-origin path from `next`, else the sign-in page.
+// No /api remap here: logout legitimately hops to /api/demo/start.
+const landing = (next: unknown) => safeNextPath(next) ?? '/login';
+
+export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	return redirect('/login', 303);
+	// LogoutButton.astro posts `next` as a form field. Any other caller sends no readable form
+	// body and lands on the sign-in page.
+	let next: FormDataEntryValue | null = null;
+	try {
+		next = (await request.formData()).get('next');
+	} catch { /* no form body */ }
+	return redirect(landing(next), 303);
 };
 
+// Kept for links that already exist (old bookmarks, cached pages). Nothing in the app links here.
 export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	const next = new URL(request.url).searchParams.get('next');
-	// Same-origin paths only. No /api remap here: logout legitimately hops to /api/demo/start.
-	const destination = safeNextPath(next) ?? '/login';
-	return redirect(destination, 303);
+	return redirect(landing(new URL(request.url).searchParams.get('next')), 303);
 };
