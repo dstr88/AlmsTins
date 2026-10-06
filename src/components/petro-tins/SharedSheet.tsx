@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { SplitsTin, PetroTinEntry } from './types';
 import ExpenseGrid, { evalFormula, type GridRow } from './ExpenseGrid';
 import './SharedSheet.css';
@@ -15,7 +15,8 @@ interface Props {
  *
  * The row expands as people are added — two boys and a spare is three grids today,
  * three people and a spare is four. Naming the spare creates that person and a fresh
- * spare takes its place.
+ * spare takes its place. The "＋ Add person" button under the grids takes you to that
+ * spare, and each person's grid carries a labeled Delete.
  */
 export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }: Props) {
   const owed = useMemo(() => {
@@ -143,6 +144,18 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     onRefresh();
   }
 
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * The "＋ Add person" button. Naming the spare is what creates a person, so the button
+   * takes you to that field rather than adding a second way to do the same thing.
+   */
+  function startNewPerson() {
+    const field = rowRef.current?.querySelector<HTMLInputElement>('input.xg__name--start');
+    field?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    field?.focus();
+  }
+
   return (
     <div>
       <div className="sh__head">
@@ -150,7 +163,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
         <button className="sh__x" title="Delete this tin" onClick={() => onDelete(tin.id)}>✕</button>
       </div>
 
-      <div className="sh__row">
+      <div className="sh__row" ref={rowRef}>
         {tin.people.map(person => {
           const rows = rowsFor(person.id);
           const lookup = rows.map(r => ({ id: r.id, name: r.name, amount: r.amount }));
@@ -163,7 +176,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
               budgetEntries={budgetEntries}
               onRename={async next => { await api({ action: 'update_person', personId: person.id, name: next }); onRefresh(); }}
               onRemove={async () => {
-                if (!confirm(`Remove ${person.name} and their grid?`)) return;
+                if (!confirm(`Delete ${person.name}? This removes their whole sheet: every row, deposit and carried balance on it.`)) return;
                 await api({ action: 'delete_person', personId: person.id });
                 onRefresh();
               }}
@@ -194,6 +207,10 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
           locked
           onRename={async next => { await api({ action: 'add_person', splitsId: tin.id, name: next, isOwner: false }); onRefresh(); }}
         />
+      </div>
+
+      <div className="sh__foot">
+        <button type="button" className="sh__addbtn" onClick={startNewPerson}>＋ Add person</button>
       </div>
     </div>
   );

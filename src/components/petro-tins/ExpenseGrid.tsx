@@ -153,7 +153,10 @@ export default function ExpenseGrid({
             />
           </td>
           <td className="xg__right">
-            {onRemove && <button className="xg__x" title="Remove" onClick={onRemove}>✕</button>}
+            {onRemove && (
+              <button type="button" className="xg__del" title="Delete this person and their sheet"
+                onClick={onRemove}>Delete</button>
+            )}
           </td>
         </tr>
 
