@@ -101,7 +101,58 @@ describe('the component itself', () => {
 	});
 
 	it('is a submit button that takes the page\'s classes and label, with a default label', () => {
-		expect(markup()).toMatch(/<button type="submit" class=\{className\}><slot>Log out<\/slot><\/button>/);
+		expect(markup()).toMatch(/<button \{\.\.\.rest\} type="submit" class=\{className\}><slot>Log out<\/slot><\/button>/);
 		expect(component()).toMatch(/class: className/);
+	});
+
+	it('spreads the rest props onto the button, which is how the page\'s style scope reaches it', () => {
+		expect(component()).toMatch(/const \{ next, class: className, \.\.\.rest \} = Astro\.props/);
+	});
+});
+
+/**
+ * The first version of the component shipped with its buttons unstyled on the sign-in popup,
+ * the Verify desks' menu and the onboarding page. A page's scoped <style> only matches elements
+ * carrying that page's scope marker, and under Astro's default scoping (attribute) the marker is
+ * a `data-astro-cid-…` PROP handed to the child component, not a class. The component has to put
+ * it on the button, and it does so by spreading its rest props. Passing the marker as a prop is
+ * Astro's compiler behavior, so it is pinned here against the real call sites, in each of
+ * Astro's three scoping modes: if a future Astro stops passing it, this fails instead of the
+ * buttons quietly losing their styles.
+ *
+ * The dashboard menu is the exception: its .account-logout rule lives in the global
+ * src/layouts/Layout.css, so it needs no marker.
+ */
+describe('the page\'s styles reach the button', () => {
+	const PAGES_WITH_SCOPED_STYLES = [
+		'src/components/verify/AccountMenu.astro',
+		'src/components/LoginPageComponent.astro',
+		'src/pages/onboarding/tenant-setup.astro',
+	];
+	const STRATEGIES = ['attribute', 'where', 'class'] as const;
+
+	/** The props the compiled page passes to <LogoutButton>, as written in the compiler's output. */
+	async function propsPassedToLogoutButton(file: string, scopedStyleStrategy: (typeof STRATEGIES)[number]) {
+		const { transform } = await import('@astrojs/compiler');
+		const out = await transform(read(file), { filename: `/virtual/${file}`, scopedStyleStrategy });
+		const call = out.code.match(/\$\$renderComponent\(\$\$result,'LogoutButton',LogoutButton,(\{[^}]*\})/);
+		return call?.[1] ?? '';
+	}
+
+	describe.each(PAGES_WITH_SCOPED_STYLES)('%s', file => {
+		it('hands its scope marker to the button as a data-astro-cid prop (Astro\'s default scoping)', async () => {
+			expect(await propsPassedToLogoutButton(file, 'attribute')).toMatch(/"data-astro-cid-[a-z0-9]+":true/);
+		});
+
+		it.each(['where', 'class'] as const)('hands it as an extra class under the %s strategy', async strategy => {
+			const props = await propsPassedToLogoutButton(file, strategy);
+			expect(props).toMatch(/"class":"[^"]*\bastro-[a-z0-9]+"/);
+		});
+	});
+
+	it('the dashboard menu\'s .account-logout rule is global, so it needs no marker', () => {
+		expect(read('src/layouts/Layout.css')).toMatch(/^\.account-logout\s*\{/m);
+		const layoutStyleBlocks = read('src/layouts/Layout.astro').match(/<style[\s\S]*?<\/style>/g) ?? [];
+		expect(layoutStyleBlocks.filter(b => /\.account-logout/.test(b) && !/is:global/.test(b))).toEqual([]);
 	});
 });

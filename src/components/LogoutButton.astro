@@ -9,18 +9,21 @@
 // `next` is where to land afterwards (default: the sign-in page). The server checks it again
 // and ignores anything that is not a same-origin path, so it is safe to pass a request value.
 //
-// Styling stays with the page that uses it. Pass the page's own classes as `class`: Astro adds
-// the calling page's scope to a child's `class` prop, so that page's scoped rules reach the
-// button without any :global() in the page.
+// Styling stays with the page that uses it. Pass the page's own classes as `class`. A page's
+// scoped <style> only matches elements carrying that page's scope marker, and Astro hands the
+// marker to a child component as a prop: a `data-astro-cid-…` attribute (the default), or an
+// extra class under the other scoping modes. Spreading the rest props onto the button is what
+// puts the marker there. Without the spread the button renders unstyled, which is what shipped
+// the first time (tests/auth/logoutSingleComponent.test.ts pins the spread and the marker).
 interface Props {
   next?: string;
   class?: string;
 }
-const { next, class: className } = Astro.props;
+const { next, class: className, ...rest } = Astro.props;
 ---
 <form class="logout-form" method="post" action="/api/logout">
   {next && <input type="hidden" name="next" value={next} />}
-  <button type="submit" class={className}><slot>Log out</slot></button>
+  <button {...rest} type="submit" class={className}><slot>Log out</slot></button>
 </form>
 
 <style>
