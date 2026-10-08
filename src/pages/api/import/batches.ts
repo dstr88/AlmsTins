@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { canonicalImportSource } from '../../../lib/importSource';
 
 export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
@@ -8,11 +9,13 @@ export const GET: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 	const url = new URL(request.url);
 	const accountId = url.searchParams.get('accountId');
-	const source = url.searchParams.get('source');
+	const sourceParam = url.searchParams.get('source');
 
-	if (!accountId || !source) {
+	if (!accountId || !sourceParam) {
 		return new Response(JSON.stringify({ error: 'Missing accountId or source.' }), { status: 400 });
 	}
+	// The Crypto.com card sends its route slug 'crypto-com'; rows are stored as 'crypto_com'.
+	const source = canonicalImportSource(sourceParam);
 
 	const result = await db.execute({
 		sql: `SELECT
@@ -45,11 +48,12 @@ export const DELETE: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 	const url = new URL(request.url);
 	const batchId = url.searchParams.get('batchId');
-	const source = url.searchParams.get('source');
+	const sourceParam = url.searchParams.get('source');
 
-	if (!batchId || !source) {
+	if (!batchId || !sourceParam) {
 		return new Response(JSON.stringify({ error: 'Missing batchId or source.' }), { status: 400 });
 	}
+	const source = canonicalImportSource(sourceParam);
 
 	// Collect the IDs of every import_transaction in this batch first
 	const idResult = await db.execute({

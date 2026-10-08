@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID, createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { canonicalImportSource, importSourceDisplayName } from '../../../lib/importSource';
 import { toUtcIso } from '../../../lib/utcTimestamp';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -50,7 +51,7 @@ export const POST: APIRoute = async ({ request }) => {
 							text: `You are a financial transaction parser. Extract the transaction details from this screenshot and respond ONLY with a single JSON object — no explanation, no markdown.
 
 Required fields:
-- source: one of "cashapp", "coinbase", "gemini", "robinhood", "venmo", "crypto-com", or a short lowercase name you detect (e.g. "chase", "wells-fargo")
+- source: one of "cashapp", "coinbase", "gemini", "robinhood", "venmo", "crypto_com", or a short lowercase name you detect (e.g. "chase", "wells-fargo")
 - timestampUtc: ISO 8601 string (e.g. "2024-09-09T17:50:12Z"). If timezone is ambiguous, assume UTC.
 - description: short description of the transaction (e.g. "Bitcoin Purchase", "Payment to John")
 - currency: the asset or currency symbol (e.g. "BTC", "ETH", "USD")
@@ -94,8 +95,8 @@ If a field cannot be determined from the image, use null.`,
 		);
 	}
 
-	const source =
-		typeof parsed.source === 'string' ? parsed.source.toLowerCase().trim() : 'unknown';
+	// The model may answer 'crypto-com' or 'Crypto.com'; store the value the rest of the app reads.
+	const source = canonicalImportSource(parsed.source);
 
 	// Find or create an exchange account for this source
 	let accountId: string;
@@ -109,7 +110,7 @@ If a field cannot be determined from the image, use null.`,
 		accountId = randomUUID();
 		await db.execute({
 			sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
-			args: [accountId, tenantId, source, source.charAt(0).toUpperCase() + source.slice(1)],
+			args: [accountId, tenantId, source, importSourceDisplayName(source)],
 		});
 	}
 
