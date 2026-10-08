@@ -910,4 +910,17 @@ const { t, prefilledAddress } = Astro.props;
     const url = (e as CustomEvent).detail?.url as string | undefined;
     if (url) activateDappCheck(url);
   });
+
+  // Count the step from a free check to an account: a click on the banner's "Get started free"
+  // or the nav's sign-up button. Which one, never who. The beacon transport lets the hit leave
+  // as the page navigates to /login.
+  document.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement | null)?.closest?.('.cta-banner__btn, .topnav__signup');
+    if (!link || typeof (window as any).gtag !== 'function') return;
+    (window as any).gtag('event', 'checker_signup_click', {
+      event_category: 'interactive_tool',
+      event_label: link.classList.contains('cta-banner__btn') ? 'banner' : 'nav',
+      transport_type: 'beacon',
+    });
+  });
 </script>

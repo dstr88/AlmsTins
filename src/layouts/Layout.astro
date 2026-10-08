@@ -5,6 +5,8 @@ import Footer from "@/components/Footer.astro";
 import Analytics from "@/components/Analytics.astro";
 import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
+import { isOwner } from '@/lib/owner';
+import { newAccountKey } from '@/lib/analytics/newAccount';
 import { db } from '@/lib/db';
 import LogoutButton from '@/components/LogoutButton.astro';
 import { isDemoRequest } from '@/lib/demo';
@@ -58,6 +60,11 @@ if (user?.id) {
 
 // Prefer session email, fall back to DB email
 const displayEmail = user?.email || dbEmail;
+
+// What Google Analytics may learn about this session, and nothing about who: the owner's own
+// visits are internal, and a membership only minutes old is a new account to count once.
+const gaOwner = isOwner(tenantId);
+const gaNewAccount = gaOwner || isDemo ? null : newAccountKey(memberSinceIso);
 
 // Admin check — tenant ID is checked first (always in JWT, no email dependency).
 // Fall back to email match as a secondary check.
@@ -210,7 +217,7 @@ const memberSinceDisplay = memberSinceIso
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
 		<!-- Google Analytics: the one tag component -->
-		<Analytics demo={isDemo} />
+		<Analytics demo={isDemo} owner={gaOwner} newAccount={gaNewAccount} />
 	</head>
 	<body>
 		{isDemo && (

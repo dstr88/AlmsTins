@@ -86,16 +86,22 @@ describe('the tag script itself', () => {
   }
 
   /** Runs the snippet the way a browser does, with Astro's define:vars prepended. */
-  function run(vars: { GA_ID: string; demo: boolean }, gaPage: Record<string, string> | undefined, pathname = '/verify') {
-    const sandbox: any = { location: { pathname }, Date, Object };
+  function run(
+    vars: { GA_ID: string; demo: boolean },
+    gaPage: Record<string, string> | undefined,
+    pathname = '/verify',
+    globals: Record<string, unknown> = {},
+  ) {
+    const sandbox: any = { location: { pathname }, Date, Object, ...globals };
     sandbox.window = sandbox; // a browser's window is the global object
     if (gaPage) sandbox.__gaPage = gaPage;
     vm.createContext(sandbox);
+    // Astro's define:vars wraps the script in a function, exactly like this.
     vm.runInContext(
-      `const GA_ID = ${JSON.stringify(vars.GA_ID)}; const demo = ${vars.demo};\n${tagScript()}`,
+      `(function(){const GA_ID = ${JSON.stringify(vars.GA_ID)}; const demo = ${vars.demo};\n${tagScript()}})();`,
       sandbox,
     );
-    return (sandbox.dataLayer as any[]).map(a => Array.from(a));
+    return Object.assign((sandbox.dataLayer as any[]).map(a => Array.from(a)), { sandbox });
   }
 
   it('configures the property with the page context and nothing else', () => {
@@ -119,4 +125,24 @@ describe('the tag script itself', () => {
   it('sends no demo events for a normal visitor', () => {
     expect(run({ GA_ID: 'G-TEST', demo: false }, {}).map(c => c[0])).toEqual(['js', 'config']);
   });
+
+  it('makes gtag global, so window.gtag(...) calls elsewhere on the site are not silently dropped', () => {
+    const { sandbox } = run({ GA_ID: 'G-TEST', demo: false }, {});
+    expect(typeof sandbox.gtag).toBe('function');
+    sandbox.gtag('event', 'wallet_check_submitted', { event_category: 'interactive_tool' });
+    expect(Array.from(sandbox.dataLayer.at(-1))).toEqual(['event', 'wallet_check_submitted', { event_category: 'interactive_tool' }]);
+  });
+
+  it('sends a bare sign_up right after config when the page context decided it is a new account', () => {
+    const calls = run({ GA_ID: 'G-TEST', demo: false }, {}, '/dashboard/vault', { __gaSignUp: true });
+    expect(calls.slice(1, 3)).toEqual([['config', 'G-TEST', {}], ['event', 'sign_up']]);
+  });
+
+  it('passes the session to the page context only as a plain, escaped assignment before it', () => {
+    const text = read('src/components/Analytics.astro');
+    expect(text.indexOf('window.__gaSession')).toBeGreaterThan(-1);
+    expect(text.indexOf('window.__gaSession')).toBeLessThan(text.indexOf('<AnalyticsPageContext'));
+    expect(text).toMatch(/replace\(\/<\/g, '\\\\u003c'\)/);
+  });
 });
+

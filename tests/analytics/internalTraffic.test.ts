@@ -9,10 +9,11 @@ import vm from 'node:vm';
  * Layout.astro, LoginLayout.astro). These tests run the real script text in a sandbox standing
  * in for the browser, so what is tested is exactly what ships.
  *
- * Three jobs: (1) keep the privacy allowlist (origin + path, utm_* and gclid only); (2) mark
+ * Four jobs: (1) keep the privacy allowlist (origin + path, utm_* and gclid only); (2) mark
  * the owner's own traffic traffic_type "internal" so GA4's built-in Internal Traffic filter can
- * drop it: automated browsers (the scheduled Playwright runs), a local dev server, and a
- * browser flagged once with ?internal=1; (3) count sign-outs without saying who.
+ * drop it: automated browsers (the scheduled Playwright runs), a local dev server, a browser
+ * flagged once with ?internal=1, and any device the owner is signed in on; (3) count sign-outs
+ * without saying who; (4) decide, once per device, that a brand-new account's visit is a sign-up.
  */
 const source = readFileSync(
   path.resolve(__dirname, '../../src/components/AnalyticsPageContext.astro'),
@@ -26,6 +27,8 @@ type Options = {
   referrer?: string;
   /** Pre-existing localStorage contents, or 'blocked' when storage throws. */
   storage?: Record<string, string> | 'blocked';
+  /** What Analytics.astro puts in window.__gaSession for a dashboard page. */
+  session?: { owner?: boolean; newAccount?: string | null };
 };
 
 function load(options: Options = {}) {
@@ -33,7 +36,7 @@ function load(options: Options = {}) {
   const blocked = options.storage === 'blocked';
   const store: Record<string, string> = options.storage && !blocked ? { ...options.storage } : {};
   const handlers: Record<string, Array<(e: any) => void>> = { click: [], submit: [] };
-  const window: any = {};
+  const window: any = options.session ? { __gaSession: options.session } : {};
   const sandbox: any = {
     window,
     location: { origin: url.origin, pathname: url.pathname, href: url.href, hostname: url.hostname },
@@ -60,6 +63,8 @@ function load(options: Options = {}) {
   return {
     page: window.__gaPage as Record<string, string>,
     store,
+    /** Whether Analytics.astro will send sign_up after gtag('config'). */
+    signUp: window.__gaSignUp === true,
     /** Everything pushed onto dataLayer, each call as a plain array. */
     sent: () => ((window.dataLayer ?? []) as any[]).map(a => Array.from(a)),
     clickLink: (href: string | null) =>
@@ -162,5 +167,58 @@ describe('sign-outs are counted, never attributed', () => {
     p.clickLink('https://almstins.com/api/logout');
     const [, , params] = p.sent()[0];
     expect(Object.keys(params)).toEqual(['transport_type']);
+  });
+});
+
+describe('the signed-in owner flags the device', () => {
+  it('marks the page internal and remembers the device, so later public pages stay internal', () => {
+    const dashboard = load({ url: 'https://almstins.com/dashboard/vault', session: { owner: true } });
+    expect(dashboard.page.traffic_type).toBe('internal');
+    expect(dashboard.store.almstins_internal).toBe('1');
+    const later = load({ url: 'https://almstins.com/wallet-checker', storage: dashboard.store });
+    expect(later.page.traffic_type).toBe('internal');
+  });
+
+  it('still marks the page when storage is blocked', () => {
+    expect(load({ storage: 'blocked', session: { owner: true } }).page.traffic_type).toBe('internal');
+  });
+
+  it('leaves a signed-in customer alone', () => {
+    const p = load({ url: 'https://almstins.com/dashboard/vault', session: { owner: false } });
+    expect(p.page.traffic_type).toBeUndefined();
+    expect(p.store.almstins_internal).toBeUndefined();
+  });
+});
+
+describe('a new account is counted once, never attributed', () => {
+  const KEY = '2026-10-08 14:55:00';
+
+  it('decides to send sign_up on the first page of a new account', () => {
+    const p = load({ url: 'https://almstins.com/dashboard/vault', session: { newAccount: KEY } });
+    expect(p.signUp).toBe(true);
+    expect(p.store.almstins_signup_counted).toBe(KEY);
+  });
+
+  it('does not count the same account again on the next page', () => {
+    const first = load({ session: { newAccount: KEY } });
+    const second = load({ storage: first.store, session: { newAccount: KEY } });
+    expect(second.signUp).toBe(false);
+  });
+
+  it('counts a different new account on the same device', () => {
+    const first = load({ session: { newAccount: KEY } });
+    expect(load({ storage: first.store, session: { newAccount: '2026-10-09 08:00:00' } }).signUp).toBe(true);
+  });
+
+  it('sends nothing when storage is blocked, rather than counting every page', () => {
+    expect(load({ storage: 'blocked', session: { newAccount: KEY } }).signUp).toBe(false);
+  });
+
+  it('sends nothing without a new account, and never puts the timestamp in the page context', () => {
+    expect(load().signUp).toBe(false);
+    expect(load({ session: { newAccount: null } }).signUp).toBe(false);
+    const p = load({ session: { newAccount: KEY } });
+    expect(JSON.stringify(p.page)).not.toContain(KEY);
+    expect(p.sent()).toEqual([]);
   });
 });

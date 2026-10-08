@@ -9,10 +9,15 @@
 // third party. So both values are rebuilt from an allowlist: origin + path, plus only the
 // campaign parameters (utm_*, gclid). Anything added later is dropped by default.
 //
-// Two more things GA is told, both anonymous:
+// Three more things GA is told, all anonymous:
 //  - traffic_type "internal" on the owner's own traffic, so GA4's built-in "Internal Traffic"
 //    data filter can drop it (see the script). Nothing about who, only that it is ours.
 //  - a bare "sign_out" event when a sign-out link or form is used. A count, never a person.
+//  - a bare "sign_up" event on a brand-new account's first visit (Analytics.astro sends it
+//    after gtag('config'); this script only decides). A count, never a person.
+//
+// window.__gaSession, when present, comes from Analytics.astro: the dashboard layout is the
+// only place that knows who is signed in, and it passes { owner, newAccount }.
 ---
 <script is:inline>
   (function () {
@@ -46,6 +51,29 @@
       else if (flag === '0') localStorage.removeItem('almstins_internal');
       if (localStorage.getItem('almstins_internal') === '1') page.traffic_type = 'internal';
     } catch (e) { /* storage blocked: only the automatic rules apply */ }
+
+    // The signed-in owner flags the device the same way ?internal=1 does, so every later page on
+    // it, public pages included, stays internal without anyone remembering the parameter. While
+    // signed in, the owner's traffic is always internal (?internal=0 can't undo that).
+    var gaSession = window.__gaSession || {};
+    if (gaSession.owner === true) {
+      page.traffic_type = 'internal';
+      try { localStorage.setItem('almstins_internal', '1'); } catch (e) { /* this page is still marked */ }
+    }
+
+    // Sign-up count. A brand-new account's dashboard pages arrive with newAccount, the first
+    // membership's timestamp, for its first minutes; count it once per device by keeping that
+    // timestamp as the "already counted" mark. It stays on the device and never reaches GA.
+    // Without storage there is no way to count once, and an undercount beats counting every
+    // page of the first visit, so nothing is sent.
+    try {
+      var newAccount = gaSession.newAccount;
+      if (typeof newAccount === 'string' && newAccount &&
+          localStorage.getItem('almstins_signup_counted') !== newAccount) {
+        localStorage.setItem('almstins_signup_counted', newAccount);
+        window.__gaSignUp = true;
+      }
+    } catch (e) { /* storage blocked: no sign-up count */ }
 
     window.__gaPage = page;
 
