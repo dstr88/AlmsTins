@@ -6,26 +6,44 @@
 //
 // is:inline keeps the snippet verbatim, exactly as GA expects, instead of Astro bundling it.
 // AnalyticsPageContext runs first: it rebuilds page_location and page_referrer from an
-// allowlist (no tokens, IDs or scanned addresses), marks the owner's own traffic internal and
-// counts sign-outs. See that file.
+// allowlist (no tokens, IDs or scanned addresses), marks the owner's own traffic internal,
+// counts sign-outs and decides whether this visit is a new account's sign-up. See that file.
 import AnalyticsPageContext from './AnalyticsPageContext.astro';
 
 interface Props {
   /** Public demo visitors: report the page under /demo, flag them as demo users, send demo_page_view. */
   demo?: boolean;
+  /** The signed-in owner (src/lib/owner.ts): flag this device so all its traffic is internal. */
+  owner?: boolean;
+  /** A brand-new account's first-membership timestamp (src/lib/analytics/newAccount.ts): count one sign_up. */
+  newAccount?: string | null;
 }
-const { demo = false } = Astro.props;
+const { demo = false, owner = false, newAccount = null } = Astro.props;
 
 // One property for every page. PUBLIC_GA_ID can point a preview deploy at a different one.
 const GA_ID = import.meta.env.PUBLIC_GA_ID || 'G-G3P0FSHN21';
+
+// Only the dashboard layout knows who is signed in, so only it passes these. Rendered as a plain
+// assignment (no define:vars) so the page-context script can read it before gtag('config').
+// "<" is escaped so no value can close the script tag.
+const gaSession = owner || newAccount
+  ? JSON.stringify({ owner: !!owner, newAccount: newAccount ?? null }).replace(/</g, '\\u003c')
+  : null;
 ---
+{gaSession && <script is:inline set:html={`window.__gaSession = ${gaSession};`} />}
 <AnalyticsPageContext />
 <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
 <script is:inline define:vars={{ GA_ID, demo }}>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
+  // define:vars wraps this script in a function, so gtag above is local to it. Every
+  // window.gtag(...) call on the site (the wallet and site checkers, the demo banner, adding
+  // a wallet) checks for the global, and silently sends nothing without it.
+  window.gtag = gtag;
   gtag('js', new Date());
   gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, demo ? { page_path: '/demo' + window.location.pathname } : {}));
+  // A new account's first visit (decided in AnalyticsPageContext): a bare count, never who.
+  if (window.__gaSignUp) gtag('event', 'sign_up');
   if (demo) {
     gtag('set', 'user_properties', { demo_user: 'true' });
     gtag('event', 'demo_page_view', {
