@@ -293,7 +293,8 @@ class SafetyCheck extends HTMLElement {
       sub.className = 'sc__result-sub';
       sub.textContent = String(data.domain ?? data.url ?? '');
       result.appendChild(sub);
-      const flagged = (data.sources || []).filter((s: any) => s && s.verdict === 'flagged');
+      // Flags, plus a caution from Almstins' own spam-airdrop list, so a yellow says why.
+      const flagged = (data.sources || []).filter((s: any) => s && (s.verdict === 'flagged' || s.verdict === 'caution'));
       if (flagged.length) {
         const ul = document.createElement('ul');
         ul.className = 'sc__flags';

@@ -17,6 +17,13 @@ import { recordCheck } from '@/lib/checkLog';
  * Optional (activated by env vars):
  *   6. Google Safe Browsing          — GOOGLE_SAFE_BROWSING_KEY
  *   7. VirusTotal                    — VIRUSTOTAL_API_KEY
+ *
+ * Almstins' own list:
+ *   8. Spam airdrop names            — domains advertised inside unsolicited airdrop
+ *      token names (known_phishing_domains). Our own observation, not a third-party
+ *      report, so it can only raise a caution: it never makes a site red on its own and
+ *      never overrides MetaMask's verified-safe list. A token name is attacker-chosen
+ *      text, so anyone could airdrop "Claim at <real site>" to put a real site on it.
  */
 
 const TIMEOUT_MS      = 12_000;  // per-request API calls (GoPlus, URLScan, etc.)
@@ -117,7 +124,7 @@ async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Pr
 
 type SourceResult = {
   name:    string;
-  verdict: 'flagged' | 'clean' | 'whitelisted' | 'unscanned' | 'error' | 'skipped';
+  verdict: 'flagged' | 'caution' | 'clean' | 'whitelisted' | 'unscanned' | 'error' | 'skipped';
   detail:  string;
   icon:    string;
 };
@@ -306,7 +313,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
   const vt   = (process.env as any).VIRUSTOTAL_API_KEY       ?? import.meta.env.VIRUSTOTAL_API_KEY       ?? '';
 
-  // Local phishing DB — runs in parallel with external APIs; short-circuit if hit
+  // Local spam-airdrop list — runs in parallel with external APIs; a hit is a caution only
   const localDbPromise = checkLocalPhishingDb(domain);
 
   // Run all checks in parallel
@@ -318,22 +325,11 @@ export const GET: APIRoute = async ({ url, request }) => {
     vt   ? checkVirusTotal(fullUrl, vt)           : Promise.resolve<SourceResult>({ name: 'VirusTotal',           verdict: 'skipped', detail: 'API key not configured (VIRUSTOTAL_API_KEY)',       icon: '🦠' }),
   ]);
 
-  // Short-circuit: community-confirmed phishing domain
-  if (localDbHit) {
-    const localResult: SourceResult = {
-      name:    'Almstins Community',
-      verdict: 'flagged',
-      detail:  'Flagged via community-reported phishing airdrop token',
-      icon:    '🚨',
-    };
-    return new Response(
-      JSON.stringify({ url: fullUrl, domain, verdict: 'red', sources: [localResult], vtPending: false }),
-      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
-    );
-  }
+  const metamask = checkMetaMask(domain);
+  const isKnownSafe = metamask.verdict === 'whitelisted';
 
   const sources: SourceResult[] = [
-    checkMetaMask(domain),
+    metamask,
     checkScamSniffer(domain),
     goplusResult,
     urlscanResult,
@@ -342,10 +338,23 @@ export const GET: APIRoute = async ({ url, request }) => {
     vtResult,
   ];
 
+  // Every outside source failed or was skipped (decided before our own list is added).
+  const anyError = sources.every((s) => s.verdict === 'error' || s.verdict === 'skipped');
+
+  // Our spam-airdrop list: a caution next to the other sources, never a verdict of its
+  // own, and dropped for a site MetaMask lists as verified-safe (see the header).
+  if (localDbHit && !isKnownSafe) {
+    sources.push({
+      name:    'Spam airdrop names (Almstins)',
+      verdict: 'caution',
+      detail:  'This site was named inside an unsolicited airdrop token. Scam airdrops use token names to send people to drainer sites. This is not a scam report.',
+      icon:    '🪂',
+    });
+  }
+
   // Overall verdict
   const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
-  const anyError    = sources.every((s) => s.verdict === 'error' || s.verdict === 'skipped');
-  const isKnownSafe = sources.find((s) => s.name === 'MetaMask Blocklist')?.verdict === 'whitelisted';
+  const anyCaution  = sources.some((s) => s.verdict === 'caution');
 
   // VT "unscanned" means it was just submitted — not a security signal, don't penalise the verdict
   const vtPending = vtResult.verdict === 'unscanned';
@@ -354,7 +363,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const verdict: 'red' | 'yellow' | 'green' =
     isKnownSafe ? 'green' :
     anyFlagged  ? 'red'   :
-    anyError || unscanned ? 'yellow' :
+    anyCaution || anyError || unscanned ? 'yellow' :
     'green';
 
   return new Response(

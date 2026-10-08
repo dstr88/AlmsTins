@@ -927,6 +927,16 @@ async function fetchEntityLabel(address: string): Promise<WalletCheckResult['ent
   return null;
 }
 
+/**
+ * True only for an address on our curated KNOWN_ADDRESSES list whose label marks it
+ * compromised. An Etherscan contract name never counts: whoever deploys a contract picks
+ * its name, and "ShackleToken" or "HackathonRewards" would match the words below and
+ * show "On a scam blacklist" for an innocent contract.
+ */
+export function isCompromisedAddress(address: string): boolean {
+  return isCompromisedEntity(KNOWN_ADDRESSES.get(address.toLowerCase()) ?? null);
+}
+
 // ─── ENS reverse lookup ───────────────────────────────────────────────────────
 // Uses ENS ReverseRecords contract via Alchemy eth_call — no extra API key needed.
 // Contract 0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C · getNames(address[])
@@ -1097,7 +1107,7 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
 
   // A known-compromised / exploited identified contract (e.g. the Multichain bridge) is
   // a confirmed high-risk destination — route it into the verdict, never leave it green.
-  if (isCompromisedEntity(entityLabel)) flags.blacklisted = true;
+  if (isCompromisedAddress(address)) flags.blacklisted = true;
 
   const { score, level } = calculateScamScore(flags);
 
