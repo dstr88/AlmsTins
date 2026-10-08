@@ -38,11 +38,13 @@ const fmtQty = (v: number | null) =>
 const fmtDate = (v: string) => v.slice(0, 10);
 
 // ── Available years ───────────────────────────────────────────────────────────
+// disposed_at / timestamp_utc are ISO-8601 UTC text, so the first 4 chars are
+// the year (same year filter as annualBreakdown and the year-end summary).
 const yearsResult = await db.execute({
-	sql: `SELECT DISTINCT strftime('%Y', disposed_at) AS yr
+	sql: `SELECT DISTINCT substr(disposed_at, 1, 4) AS yr
 	      FROM tax_disposals WHERE tenant_id = ?
 	      UNION
-	      SELECT DISTINCT strftime('%Y', timestamp_utc) AS yr
+	      SELECT DISTINCT substr(timestamp_utc, 1, 4) AS yr
 	      FROM import_transactions WHERE tenant_id = ?
 	        AND category IN ('income','airdrop','loan-interest-paid')
 	      ORDER BY yr DESC`,
@@ -59,7 +61,7 @@ const disposalsResult = await db.execute({
 	      FROM tax_disposals d
 	      LEFT JOIN tax_lots l ON l.id = d.lot_id AND l.tenant_id = ?
 	      WHERE d.tenant_id = ?
-	        AND strftime('%Y', d.disposed_at) = ?
+	        AND substr(d.disposed_at, 1, 4) = ?
 	      ORDER BY d.disposed_at ASC`,
 	args: [tenantId, tenantId, String(taxYear)],
 });
@@ -86,12 +88,15 @@ const totalLTGain  = ltDisposals.reduce((sum, d) => sum + (d.gainLoss ?? 0), 0);
 const totalGain    = totalSTGain + totalLTGain;
 
 // ── Ordinary income (excludes Card Rebates) ───────────────────────────────────
+// A card rebate is an income row whose description starts with "Card Rebate",
+// in any case, after leading whitespace: the same test annualBreakdown uses.
+// Postgres LIKE is case-sensitive (SQLite's was not), so this uses ~*.
 const incomeResult = await db.execute({
 	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
 	      FROM import_transactions
 	      WHERE tenant_id = ? AND category = 'income'
-	        AND strftime('%Y', timestamp_utc) = ?
-	        AND (description IS NULL OR description NOT LIKE 'Card Rebate%')
+	        AND substr(timestamp_utc, 1, 4) = ?
+	        AND (description IS NULL OR description !~* '^[[:space:]]*card rebate')
 	      GROUP BY source, asset_symbol
 	      ORDER BY total_usd DESC`,
 	args: [tenantId, String(taxYear)],
@@ -108,7 +113,7 @@ const airdropResult = await db.execute({
 	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
 	      FROM import_transactions
 	      WHERE tenant_id = ? AND category = 'airdrop'
-	        AND strftime('%Y', timestamp_utc) = ?
+	        AND substr(timestamp_utc, 1, 4) = ?
 	      GROUP BY source, asset_symbol ORDER BY total_usd DESC`,
 	args: [tenantId, String(taxYear)],
 });
@@ -124,9 +129,9 @@ const cardRebateResult = await db.execute({
 	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
 	      FROM import_transactions
 	      WHERE tenant_id = ?
-	        AND strftime('%Y', timestamp_utc) = ?
+	        AND substr(timestamp_utc, 1, 4) = ?
 	        AND (category = 'card-rebate' OR
-	             (category = 'income' AND description LIKE 'Card Rebate%'))
+	             (category = 'income' AND description ~* '^[[:space:]]*card rebate'))
 	      GROUP BY source, asset_symbol
 	      ORDER BY total_usd DESC`,
 	args: [tenantId, String(taxYear)],
@@ -163,7 +168,7 @@ const interestResult = await db.execute({
 	sql: `SELECT source, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
 	      FROM import_transactions
 	      WHERE tenant_id = ? AND category = 'loan-interest-paid'
-	        AND strftime('%Y', timestamp_utc) = ?
+	        AND substr(timestamp_utc, 1, 4) = ?
 	      GROUP BY source ORDER BY total_usd DESC`,
 	args: [tenantId, String(taxYear)],
 });

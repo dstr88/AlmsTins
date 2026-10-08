@@ -10,10 +10,24 @@
  *   GA4_CLIENT_EMAIL — service account email (optional, falls back to constant)
  */
 
-import { createSign } from 'crypto';
+import { createSign, createPrivateKey } from 'crypto';
 
-const PROPERTY_ID  = process.env.GA4_PROPERTY_ID  ?? '';
-const PRIVATE_KEY  = (process.env.GA4_PRIVATE_KEY  ?? '').replace(/\\n/g, '\n');
+const PROPERTY_ID = process.env.GA4_PROPERTY_ID ?? '';
+
+// Defensive normalization — a key pasted into a dashboard env var UI can pick up stray
+// wrapping quotes, \r\n line endings, or literal \n pairs that never got unescaped. Node's
+// OpenSSL-3 PEM decoder rejects all of these with the opaque "DECODER routines::unsupported"
+// error instead of saying what's wrong, so clean up every known variant here rather than
+// making someone diff raw bytes in a dashboard text box.
+function normalizePemEnvVar(raw: string): string {
+  let v = raw.trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1);
+  }
+  return v.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+}
+
+const PRIVATE_KEY  = normalizePemEnvVar(process.env.GA4_PRIVATE_KEY ?? '');
 const CLIENT_EMAIL = process.env.GA4_CLIENT_EMAIL  ?? 'almstins-analytics@almstins.iam.gserviceaccount.com';
 
 // ── Token cache (valid 55 min, re-fetch before the 60-min expiry) ─────────────
@@ -44,9 +58,19 @@ async function getAccessToken(): Promise<string> {
     exp:   now + 3600,
   }));
 
+  // Parse into a KeyObject first rather than handing sign.sign() the raw PEM string — this
+  // surfaces a specific, actionable error (e.g. "Invalid PEM formatted message") instead of
+  // the opaque OpenSSL DECODER code when the env var's formatting is still off.
+  let keyObject;
+  try {
+    keyObject = createPrivateKey(PRIVATE_KEY);
+  } catch (e) {
+    throw new Error(`GA4_PRIVATE_KEY could not be parsed as a PEM private key: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   const sign = createSign('RSA-SHA256');
   sign.update(`${header}.${payload}`);
-  const sig = b64url(sign.sign(PRIVATE_KEY));
+  const sig = b64url(sign.sign(keyObject));
   const jwt = `${header}.${payload}.${sig}`;
 
   const res  = await fetch('https://oauth2.googleapis.com/token', {
@@ -130,7 +154,7 @@ export interface GA4Summary {
  *  signed-in session (unauthenticated hits are redirected to login before the page renders). */
 const MONITORED_TOOLS = [
   { path: '/verify/desk',  label: 'Financing Desk' },
-  { path: '/verify/cairn', label: 'Caire' },
+  { path: '/verify/cairn', label: 'Cairn' },
 ];
 
 export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {

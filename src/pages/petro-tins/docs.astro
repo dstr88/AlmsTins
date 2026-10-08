@@ -7,10 +7,12 @@ import SiteFooter from '@/components/petro-tins/SiteFooter.astro';
 import FaqList from '@/components/petro-tins/FaqList.astro';
 import CtaCard from '@/components/petro-tins/CtaCard.astro';
 import { PETRO_FAQ } from '@/lib/petro-tins/faq';
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
 
+// No demo while PetroTins is owner-only (src/lib/petroTinsFlag.mjs): only the owner sees this page.
 const nav = [
   { label: 'Home', href: '/petro-tins' },
-  { label: 'Try demo', href: '/api/petro-tins/demo' },
+  ...(PETRO_TINS_PUBLIC ? [{ label: 'Try demo', href: '/api/petro-tins/demo' }] : []),
   { label: 'Sign in', href: '/dashboard/petro-tins' },
 ];
 ---
@@ -193,14 +195,16 @@ const nav = [
       <FaqList items={PETRO_FAQ} />
     </section>
 
-    <CtaCard
-      title="Ready to see it?"
-      sub="The demo has sample credit cards, a budget register, and a splits tin — all pre-loaded."
-      btnLabel="⛽ Try the demo"
-      btnHref="/api/petro-tins/demo"
-      linkLabel="Or sign in to your account →"
-      linkHref="/petro-tins"
-    />
+    {PETRO_TINS_PUBLIC && (
+      <CtaCard
+        title="Ready to see it?"
+        sub="The demo has sample credit cards, a budget register, and a splits tin — all pre-loaded."
+        btnLabel="⛽ Try the demo"
+        btnHref="/api/petro-tins/demo"
+        linkLabel="Or sign in to your account →"
+        linkHref="/petro-tins"
+      />
+    )}
 
     <SiteFooter />
   </div>

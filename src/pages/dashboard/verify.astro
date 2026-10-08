@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import VerifyDashboard from '../../components/verify/VerifyDashboard';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { canPublishEntities } from '@/lib/verifyEntityAccess';
 import { getLang } from '@/lib/i18n/locale';
 import { getVerifyDashboard } from '@/i18n/dashboard/verify';
 import { getImage } from 'astro:assets';
@@ -13,6 +14,9 @@ if (!session) return Astro.redirect('/verify');
 
 const lang = getLang(Astro.request);
 const t = getVerifyDashboard(lang);
+// Platform lists are by approval during early access; the API enforces it, this only
+// decides whether the island shows the add/prove/connect controls.
+const entitiesApproved = !session.isDemo && canPublishEntities(session.tenantId);
 
 // Vault-style hero — portrait (mobile) / landscape (desktop), optimized to webp.
 const heroDesktop = await getImage({ src: heroDesktopImg, format: 'webp', width: 1376 });
@@ -50,7 +54,7 @@ const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 9
         </div>
       </section>
     </div>
-    <VerifyDashboard client:load t={t} isDemo={session.isDemo ?? false} />
+    <VerifyDashboard client:load t={t} isDemo={session.isDemo ?? false} entitiesApproved={entitiesApproved} />
   </div>
 </Layout>
 

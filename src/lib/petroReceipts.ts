@@ -56,7 +56,7 @@ const ENSURE_TABLE_SQL = `
     id           TEXT NOT NULL PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     receipt_date TEXT NOT NULL,
-    amount       REAL NOT NULL DEFAULT 0,
+    amount       DOUBLE PRECISION NOT NULL DEFAULT 0,
     description  TEXT,
     category     TEXT,
     filename     TEXT,
@@ -72,11 +72,27 @@ const ENSURE_INDEX_SQL = `
     ON petro_receipts (tenant_id, receipt_date DESC, created_at DESC)
 `;
 
+// The table was first created with amount REAL, which on Postgres is a 4-byte float:
+// above $262,144 it cannot hold cents. Widen it once to DOUBLE PRECISION (mirrored by
+// migrations-pg/0046_petro_receipts_amount_double.sql). Values already stored keep the
+// float4 value they were saved as; the widening itself loses nothing.
+async function widenAmountColumn(): Promise<void> {
+  const col = await db.execute({
+    sql: `SELECT data_type FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'petro_receipts' AND column_name = 'amount'`,
+    args: [],
+  });
+  if (String(col.rows[0]?.data_type ?? '') === 'real') {
+    await db.execute({ sql: `ALTER TABLE petro_receipts ALTER COLUMN amount TYPE DOUBLE PRECISION`, args: [] });
+  }
+}
+
 let tableEnsured = false;
 export async function ensureReceiptsTable(): Promise<void> {
   if (tableEnsured) return;
   await db.execute({ sql: ENSURE_TABLE_SQL, args: [] });
   await db.execute({ sql: ENSURE_INDEX_SQL, args: [] });
+  await widenAmountColumn();
   tableEnsured = true;
 }
 

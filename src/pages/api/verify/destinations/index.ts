@@ -1,10 +1,11 @@
 /**
- * GET  /api/verify/destinations  — list the tenant's registered Destinations
+ * GET  /api/verify/destinations  — list the tenant's registered Destinations (with the
+ *                                  owner-only needsReproof flag; see listDestinationsForOwner)
  * POST /api/verify/destinations  — register a new Destination (free-tier limited)
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { listDestinations, createDestination } from '@/lib/verifyRegistry';
+import { listDestinationsForOwner, createDestination } from '@/lib/verifyRegistry';
 
 export const prerender = false;
 
@@ -14,7 +15,7 @@ const json = (body: unknown, status = 200) =>
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
-  const destinations = await listDestinations(session.tenantId);
+  const destinations = await listDestinationsForOwner(session.tenantId);
   return json({ ok: true, destinations });
 };
 

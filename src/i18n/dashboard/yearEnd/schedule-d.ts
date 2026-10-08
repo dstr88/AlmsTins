@@ -35,7 +35,7 @@ export interface ScheduleDLocale {
   part3Title: string;
   /** Print button label */
   btnPrint: string;
-  /** "Next steps for your CPA" panel heading */
+  /** "Next steps" panel heading */
   nextStepsTitle: string;
   nextStep1: string;
   nextStep2: string;
@@ -133,7 +133,7 @@ export const en: ScheduleDLocale = {
   part2Sub: '(Assets held more than 1 year)',
   part3Title: 'Part III — Summary',
   btnPrint: '🖨 Print',
-  nextStepsTitle: 'Next steps for your CPA',
+  nextStepsTitle: 'Next steps',
   nextStep1:
     'Attach Form 8949 (both parts) to this Schedule D — download from the <a href="/dashboard/yearEnd/form8949">Form 8949 page</a>',
   nextStep2: 'Enter the Schedule D totals on Form 1040, Line 7 (capital gain/loss)',
@@ -219,7 +219,7 @@ export const es: ScheduleDLocale = {
   part2Sub: '(Activos mantenidos más de 1 año)',
   part3Title: 'Parte III — Resumen',
   btnPrint: '🖨 Imprimir',
-  nextStepsTitle: 'Próximos pasos para tu CPA',
+  nextStepsTitle: 'Próximos pasos',
   nextStep1:
     'Adjunta el Form 8949 (ambas partes) a este Schedule D — descárgalo desde la <a href="/dashboard/yearEnd/form8949">página del Form 8949</a>',
   nextStep2:
@@ -317,7 +317,7 @@ export const fr: ScheduleDLocale = {
   part2Sub: "(Actifs détenus plus d'un an)",
   part3Title: 'Partie III — Récapitulatif',
   btnPrint: '🖨 Imprimer',
-  nextStepsTitle: 'Prochaines étapes pour votre CPA',
+  nextStepsTitle: 'Prochaines étapes',
   nextStep1:
     'Joindre le Form 8949 (les deux parties) à ce Schedule D — télécharger depuis la <a href="/dashboard/yearEnd/form8949">page du Form 8949</a>',
   nextStep2:

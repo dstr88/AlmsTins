@@ -12,6 +12,7 @@ import '@/styles/tokens.css';
 import '@/styles/cairn.css';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
+import AccountMenu from '@/components/verify/AccountMenu.astro';
 
 export const prerender = false;
 
@@ -26,7 +27,6 @@ if (!sess || sess.isDemo) return Astro.redirect('/verify/login?next=/verify/cair
 
 const authSession = await getAuthSession(Astro.request);
 const email = authSession?.user?.email ?? null;
-const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify/login?next=/verify/cairn')}`;
 
 // Currency default follows the visitor: Render's Cloudflare front stamps the request
 // country on cf-ipcountry, so a US banker lands on USDC while the African corridors
@@ -59,10 +59,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           to Bitcoin: the dated trail a tranche can safely release against.
         </p>
       </div>
-      <div class="acct">
-        <span class="acct__email">{email ?? 'Account'}</span>
-        <a class="acct__out" href={signOutHref}>Sign out</a>
-      </div>
+      <AccountMenu tenantId={sess.tenantId} email={email} current="project" />
     </div>
 
     <div class="card accent" id="new-card">

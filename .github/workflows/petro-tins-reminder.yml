@@ -18,6 +18,7 @@ jobs:
             echo "SYNC_URL or CRON_SECRET secret missing."
             exit 1
           fi
-          curl -sS --fail --max-time 300 \
+          # Public repo, public log: print the status code only, never the response body.
+          curl -sS --fail --max-time 300 -o /dev/null -w '%{http_code}\n' \
             "$SYNC_URL/api/cron/petro-tins-reminder?secret=$CRON_SECRET" \
             -H "x-cron-secret: $CRON_SECRET"

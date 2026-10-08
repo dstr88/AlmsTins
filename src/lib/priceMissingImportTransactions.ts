@@ -17,10 +17,31 @@ export interface BackfillResult {
 	error?:   string;
 }
 
+/**
+ * The UPDATE below records how each price was derived in price_source, a column the base
+ * import_transactions schema does not have. Without it every UPDATE fails and the backfill
+ * prices nothing, so add it lazily (idempotent; routed to the owner pool by db.pg.ts as
+ * schema DDL). Mirrored by migrations-pg/0045_import_price_source.sql. Once per process.
+ */
+let priceSourceEnsured = false;
+async function ensurePriceSourceColumn(): Promise<void> {
+	if (priceSourceEnsured) return;
+	try {
+		await db.execute({ sql: `ALTER TABLE import_transactions ADD COLUMN IF NOT EXISTS price_source TEXT`, args: [] });
+		priceSourceEnsured = true;
+	} catch (err) {
+		// Not fatal: if the column already exists the UPDATEs still work; if it does not,
+		// they fail per row and are counted as errors.
+		console.warn('[backfill] could not ensure import_transactions.price_source', err);
+	}
+}
+
 export async function priceMissingImportTransactions(tenantId: string): Promise<BackfillResult> {
 	let scanned = 0, priced = 0, skipped = 0, errors = 0;
 
 	try {
+		await ensurePriceSourceColumn();
+
 		const res = await db.execute({
 			sql: `SELECT id, asset_symbol, amount, timestamp_utc
 			      FROM import_transactions

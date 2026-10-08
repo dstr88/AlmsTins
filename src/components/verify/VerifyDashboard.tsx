@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
+import { hasAnchor, merchantAddressAssurance, staleCutoffUtc } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
+import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
+import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -13,11 +17,18 @@ interface Destination {
   label: string | null;
   displayHint: string | null;
   proofStatus: ProofStatus;
+  proofMethod: string;
   proofDomain: string | null;
+  domainAnchoredAt: string | null;
+  lastConfirmedAt: string | null;
+  provenAt: string | null;
   registeredAt: string;
   monitorUrl: string | null;
   monitorStatus: string | null;
   monitorCheckedAt: string | null;
+  /** The claim was made under the old self-send check: the satoshi test must be taken again
+   *  (on this row) before a domain can verify it. The account's own view only. */
+  needsReproof?: boolean;
 }
 
 const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'];
@@ -37,12 +48,38 @@ function short(v: string): string {
 }
 
 // Localized three-tier badge label. The raw status still drives the CSS class.
-// Registered (unproven) → Claimed (proven, control only) → Verified (proven + domain).
-function statusLabel(s: ProofStatus, proofDomain: string | null, t: VerifyDashboardLocale): string {
+// Registered (unproven) → Claimed (proven, control only) → Verified (proven, anchored to a
+// domain, AND re-confirmed within the last 24h — `fresh`, from merchantAddressAssurance,
+// the exact rule the public lookup uses (F12: the owner's own badge must never claim
+// Verified a moment longer than a customer's scan would).
+export function statusLabel(s: ProofStatus, fresh: boolean, t: VerifyDashboardLocale): string {
   if (s === 'lapsed') return t.statusLapsed;
   if (s === 'revoked') return t.statusRevoked;
-  if (s === 'proven') return proofDomain ? t.statusProven : t.statusClaimed;
+  if (s === 'proven') return fresh ? t.statusProven : t.statusClaimed;
   return t.statusRegistered; // unproven = asserted, no proof yet
+}
+
+/** Whether THIS row's public answer is currently 'verified' — same rule as the badge, the
+ *  lookup and the check API, given here so a stale anchor never shows Verified anywhere. */
+export function isCurrentlyVerified(d: Destination): boolean {
+  if (d.kind !== 'address' || d.proofStatus !== 'proven') return false;
+  return merchantAddressAssurance(
+    { proofMethod: d.proofMethod, proofDomain: d.proofDomain, provenAt: d.provenAt, domainAnchoredAt: d.domainAnchoredAt, lastConfirmedAt: d.lastConfirmedAt },
+    staleCutoffUtc(),
+  ).level === 'verified';
+}
+
+/** "3h ago" / "2d ago" / "just now" for a stored 'YYYY-MM-DD HH:MM:SS' UTC stamp. */
+function timeAgo(stamp: string | null, t: VerifyDashboardLocale): string | null {
+  if (!stamp) return null;
+  const ms = Date.now() - Date.parse(stamp.replace(' ', 'T') + 'Z');
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return t.timeAgoJustNow;
+  if (mins < 60) return t.timeAgoMinutes.replace('{n}', String(mins));
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t.timeAgoHours.replace('{n}', String(hours));
+  return t.timeAgoDays.replace('{n}', String(Math.floor(hours / 24)));
 }
 
 // Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they take
@@ -65,7 +102,9 @@ function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   return { kind: 'address', value: noScheme.split(/[?@\s]/)[0].trim() };
 }
 
-export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashboardLocale; isDemo?: boolean }) {
+export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = false }: {
+  t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean;
+}) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +135,7 @@ export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashbo
 
       {error && <div className="vd__error">{error}</div>}
 
+      {!loading && destinations.length > 0 && !isDemo && <AlertEmailRow t={t} />}
       {!loading && destinations.length > 0 && <VerifySign t={t} />}
 
       <DestSection title={t.addressesTitle} kind="address" limit={LIMITS.address}
@@ -103,7 +143,7 @@ export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashbo
       <DestSection title={t.qrTitle} kind="qr" limit={LIMITS.qr}
         items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
 
-      {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} />}
+      {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} approved={entitiesApproved} />}
     </div>
   );
 }
@@ -133,6 +173,78 @@ function HowToAdd({ t }: { t: VerifyDashboardLocale }) {
   );
 }
 
+// SD1: a lapse or swap alert reaches this address (verify-monitor's getOwner falls back to
+// the sign-in email when no alert_email is set — this shows what that resolves to today,
+// so the merchant never has to guess). GET reads the effective address; POST/clear reuse
+// the existing /api/account/alert-email endpoint.
+function AlertEmailRow({ t }: { t: VerifyDashboardLocale }) {
+  const [email, setEmail] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/account/alert-email').then(r => r.json()).then(data => {
+      if (!cancelled && data.ok) setEmail(data.effective ?? null);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  async function save(value: string) {
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/account/alert-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertEmail: value }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setErr(t.alertsInvalid); return; }
+      // The server may have stored an explicit address, or (value === '') cleared it back
+      // to the sign-in default — re-read so the shown address always reflects the fallback.
+      const check = await fetch('/api/account/alert-email').then(r => r.json());
+      setEmail(check.ok ? check.effective ?? null : value || null);
+      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setErr(t.alertsInvalid);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (email === null && !editing) return null; // still loading, or nothing to show yet
+  return (
+    <div className="vd__alertemail">
+      {!editing ? (
+        <>
+          <span>{t.alertsGoTo.replace('{email}', email ?? '')}</span>
+          <button type="button" className="vd__alertemail-link" onClick={() => { setDraft(email ?? ''); setEditing(true); setErr(null); }}>
+            {t.alertsChange}
+          </button>
+          {saved && <span className="vd__alertemail-saved">{t.alertsSaved}</span>}
+        </>
+      ) : (
+        <form className="vd__alertemail-form" onSubmit={e => { e.preventDefault(); void save(draft.trim()); }}>
+          <input
+            type="email" value={draft} onChange={e => setDraft(e.target.value)}
+            placeholder={t.alertsPlaceholder} disabled={saving} autoFocus
+          />
+          <button type="submit" disabled={saving || !draft.trim()}>{t.alertsSave}</button>
+          <button type="button" onClick={() => void save('')} disabled={saving}>{t.alertsUseSignIn}</button>
+          <button type="button" onClick={() => { setEditing(false); setErr(null); }} disabled={saving}>{t.alertsCancel}</button>
+          {err && <span className="vd__alertemail-err">{err}</span>}
+        </form>
+      )}
+    </div>
+  );
+}
+
 // ── Verified entities (hosted-API-endpoint variant: exchanges / large platforms) ──
 interface VEntity {
   id: string;
@@ -153,7 +265,27 @@ function entityProofFile(challenge: string): string {
   return JSON.stringify({ almstins: { version: 1, challenge, addresses: [] } }, null, 2);
 }
 
-function EntitiesSection({ t }: { t: VerifyDashboardLocale }) {
+// A 403 { error: 'not_approved' } from an entity write (approval withdrawn mid-session).
+function isNotApproved(res: Response, data: any): boolean {
+  return res.status === 403 && data?.error === 'not_approved';
+}
+
+// "Platform lists are by approval…" with the {email} token rendered as a mailto link.
+const SUPPORT_EMAIL = 'support@almstins.com';
+function ApprovalNotice({ t }: { t: VerifyDashboardLocale }) {
+  const [before, after = ''] = t.entApprovalNotice.split('{email}');
+  return (
+    <p className="ve__approval">
+      {before}<a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>{after}
+    </p>
+  );
+}
+
+// Platform lists are by approval during early access. An account that is not approved
+// sees the explainer and the approval notice instead of the add form, and any rows it
+// already has show as "Not published" with Remove only (the API refuses prove/connect for
+// it, and the public lookup ignores its rows).
+function EntitiesSection({ t, approved }: { t: VerifyDashboardLocale; approved: boolean }) {
   const [entities, setEntities] = useState<VEntity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -171,12 +303,15 @@ function EntitiesSection({ t }: { t: VerifyDashboardLocale }) {
     <section className="vd-sec ve">
       <div className="vd-sec__head"><h2 className="vd-sec__title">{t.entHeading}</h2></div>
       <p className="ve__intro">{t.entIntro}</p>
-      <div className="vd-list">
-        {entities.map(e => <EntityCard key={e.id} e={e} t={t} onChange={load} />)}
-        {!loading && entities.length === 0 && <p className="vd-sec__empty">{t.entEmpty}</p>}
-        {loading && entities.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
-      </div>
-      <EntityAddForm t={t} onChange={load} />
+      {!approved && <ApprovalNotice t={t} />}
+      {(approved || entities.length > 0) && (
+        <div className="vd-list">
+          {entities.map(e => <EntityCard key={e.id} e={e} t={t} onChange={load} approved={approved} />)}
+          {approved && !loading && entities.length === 0 && <p className="vd-sec__empty">{t.entEmpty}</p>}
+          {approved && loading && entities.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
+        </div>
+      )}
+      {approved && <EntityAddForm t={t} onChange={load} />}
     </section>
   );
 }
@@ -194,6 +329,7 @@ function EntityAddForm({ t, onChange }: { t: VerifyDashboardLocale; onChange: ()
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: d }),
       });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setErr(t.entNotApproved); return; }
       if (data.outcome === 'invalid_domain') { setErr(t.proofInvalidDomain); return; }
       if (data.ok && data.entity) { setDomain(''); onChange(); }
       else setErr(t.entError);
@@ -211,7 +347,9 @@ function EntityAddForm({ t, onChange }: { t: VerifyDashboardLocale; onChange: ()
   );
 }
 
-function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; onChange: () => void }) {
+function EntityCard({ e, t, onChange, approved }: {
+  e: VEntity; t: VerifyDashboardLocale; onChange: () => void; approved: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
   const [endpoint, setEndpoint] = useState(e.apiEndpoint ?? '');
@@ -230,6 +368,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
     try {
       const res = await fetch(`/api/verify/entities/${encodeURIComponent(e.id)}/prove`, { method: 'POST' });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setOutcome({ text: t.entNotApproved, ok: false }); return; }
       const ok = data.outcome === 'proven';
       const map: Record<string, string> = {
         proven: t.proofProven, challenge_mismatch: t.proofChallengeMismatch,
@@ -249,6 +388,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
         body: JSON.stringify({ endpoint: endpoint.trim(), apiKey: apiKey.trim() }),
       });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setOutcome({ text: t.entNotApproved, ok: false }); return; }
       const ok = data.outcome === 'pulled';
       const map: Record<string, string> = {
         invalid_endpoint: t.entInvalidEndpoint, no_endpoint: t.entInvalidEndpoint, invalid_domain: t.entInvalidEndpoint,
@@ -268,14 +408,17 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
     <div className="ve-card">
       <div className="ve-card__head">
         <span className="ve-card__domain">{e.domain}</span>
-        <span className={`vd-badge vd-badge--${e.proofStatus}`}>{proven ? t.statusProven : t.statusUnproven}</span>
-        {proven && e.hasEndpoint && e.lastPullStatus === 'ok' && (
+        {/* Not approved: the public lookup ignores this list, so never show it as Verified or synced. */}
+        {approved
+          ? <span className={`vd-badge vd-badge--${e.proofStatus}`}>{proven ? t.statusProven : t.statusUnproven}</span>
+          : <span className="vd-badge vd-badge--unproven">{t.entNotPublished}</span>}
+        {approved && proven && e.hasEndpoint && e.lastPullStatus === 'ok' && (
           <span className="ve-card__synced">{t.entSynced.replace('{n}', String(e.lastPullCount))}</span>
         )}
         <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
       </div>
 
-      {!proven && (
+      {approved && !proven && (
         <div className="vd-prove">
           <p className="vd-prove__steps">{t.proveStep1.replace('{url}', wkUrl)}</p>
           <pre className="vd-prove__pre">{file}</pre>
@@ -286,7 +429,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
         </div>
       )}
 
-      {proven && (
+      {approved && proven && (
         <div className="vd-prove">
           <p className="vd-prove__hint">{t.entConnectPrompt}</p>
           <input className="vd-prove__input" value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}
@@ -445,8 +588,16 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
     }).catch(() => {});
   }
   // Domain attestation proves a domain vouches for an address — only meaningful for
-  // address destinations, and only until one is proven.
-  const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
+  // address destinations, until one is proven AND anchored to a domain. A wallet proven by
+  // self-send (Claimed) can still be listed in the domain file to become Verified, unless its
+  // claim was made under the old self-send check: then it takes the satoshi test again first,
+  // on this same row (it stays Claimed meanwhile).
+  const anchored = hasAnchor(d);
+  const fresh = isCurrentlyVerified(d);
+  const reprove = d.kind === 'address' && d.proofStatus === 'proven' && !!d.needsReproof;
+  const canAnchor = d.kind === 'address' && d.proofStatus === 'proven' && !anchored && !reprove;
+  const canProve = d.kind === 'address' && (d.proofStatus !== 'proven' || !anchored);
+  const proveMode: ProveMode = reprove ? 'reprove' : canAnchor ? 'anchor' : 'prove';
   // A proven address can show its shareable QR badge.
   const canBadge = d.kind === 'address' && d.proofStatus === 'proven';
   // Any proven destination can be watched on its published page for a swap.
@@ -478,11 +629,18 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
         </button>
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
-          title={d.proofStatus === 'proven' && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
-        >{statusLabel(d.proofStatus, d.proofDomain, t)}</span>
+          title={fresh && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
+        >{statusLabel(d.proofStatus, fresh, t)}</span>
+        {anchored && (
+          <span className="vd-row__confirmed">
+            {fresh
+              ? t.lastConfirmed.replace('{time}', timeAgo(d.lastConfirmedAt ?? d.domainAnchoredAt, t) ?? t.timeAgoJustNow)
+              : t.confirmationLapsed}
+          </span>
+        )}
         {canProve && (
           <button className="vd-row__prove" onClick={() => setProving(p => !p)} aria-expanded={proving}>
-            {t.proveBtn}
+            {proveMode === 'reprove' ? t.reproveBtn : proveMode === 'anchor' ? t.anchorBtn : t.proveBtn}
           </button>
         )}
         {canPayQr && (
@@ -510,7 +668,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
       {proving && canProve && (
         isDemo
           ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
-          : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
+          : <ProvePanel d={d} t={t} mode={proveMode} onProven={() => { setProving(false); onChange(); }} />
       )}
       {showPay && canPayQr && <PaymentQr d={d} t={t} />}
       {showBadge && canBadge && <QrBadge d={d} t={t} />}
@@ -582,54 +740,294 @@ function MonitorPanel({ d, t, onSaved }: { d: Destination; t: VerifyDashboardLoc
   );
 }
 
-// Self-send proof — the merchant sends any outgoing tx FROM the address. We issue a
-// challenge on open (stamps the start), then read the chain for a new outgoing tx
-// after it. Read-only: we never ask them to connect or sign, and never move funds.
-function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
+// The satoshi test (rule bound_v1): the merchant sends an EXACT amount FROM their
+// registered address TO that same address, from their own wallet app. The amount is
+// issued only when they tap "I'm ready to send" (never on panel open), and the panel
+// never shows an address to send to: only the first 6 / last 4 of their own, to check
+// against their wallet. Read-only: we never ask them to connect or sign, and never move funds.
+interface SelfSendChallenge {
+  amount: string;
+  baseAmount: string;
+  unit: string;
+  baseUnit: string | null;
+  issuedAt: string;
+  expiresAt: string;
+  /** End of the 2h after expiry in which a send made in time can still be found. */
+  checkUntil: string;
+  /** Past expiresAt but before checkUntil: we keep checking, and don't ask for a resend. */
+  late: boolean;
+  expired: boolean;
+}
 
-  // Issue the challenge on mount so issued_at predates the merchant's send.
+const EVM_RAILS = new Set(['ethereum', 'polygon', 'avalanche']);
+const SS_POLL_MS = 20_000;
+const SS_POLL_FOR_MS = 15 * 60_000;
+// Outcomes after which checking again can't help until the merchant acts. Not
+// 'checking_late': a send made in time can still turn up until checkUntil.
+const SS_FINAL = new Set(['proven', 'already_proven', 'expired', 'no_challenge', 'claimed_elsewhere', 'unsupported_rail', 'not_address']);
+// "I'm ready to send" errors, as panel codes. 'unavailable' here means we couldn't set the
+// test up, not that a test in progress couldn't be checked, so it gets its own code.
+const SS_ISSUE_ERRORS: Record<string, string> = {
+  unsupported_rail: 'unsupported_rail', already_proven: 'already_proven',
+  rate_limited: 'rate_limited', unavailable: 'issue_unavailable', busy: 'busy',
+};
+
+/** Replace {tokens} in a copy string. */
+function fill(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+}
+
+/** Replace {tokens} in a copy string, rendering the substituted values in bold. */
+function fillBold(template: string, vars: Record<string, string>): ReactNode[] {
+  return template.split(/(\{\w+\})/).map((part, i) => {
+    const key = /^\{\w+\}$/.test(part) ? part.slice(1, -1) : '';
+    return key && key in vars ? <strong key={i}>{vars[key]}</strong> : part;
+  });
+}
+
+/** An ISO timestamp in the viewer's local time (date + time, or time only). */
+function localTime(iso: string, lang: string, timeOnly = false): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  return timeOnly
+    ? when.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+    : when.toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
+  const [challenge, setChallenge] = useState<SelfSendChallenge | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [armed, setArmed] = useState(false); // "I've sent it" tapped: also check on tab focus
+  const [polling, setPolling] = useState(false); // the every-20-s window (15 minutes)
+  const [stopped, setStopped] = useState(false);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState<string | null>(null); // when a new amount can be drawn
+  const [copied, setCopied] = useState(false);
+  const inFlight = useRef(false);
+  const done = useRef(false);
+  const pollUntil = useRef(0);
+  const base = `/api/verify/destinations/${encodeURIComponent(d.id)}`;
+
+  // Resume a test already under way (a reload, another tab). Reading never issues one.
   useEffect(() => {
-    void fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-challenge`, { method: 'POST' }).catch(() => {});
+    let live = true;
+    void fetch(`${base}/deposit-challenge`)
+      .then((r) => r.json())
+      .then((data) => { if (live && data?.ok && data.challenge) setChallenge(data.challenge); })
+      .catch(() => {});
+    return () => { live = false; };
   }, [d.id]);
 
-  async function check() {
-    setBusy(true); setOutcome(null);
+  async function ready() {
+    setIssuing(true); setOutcome(null); setStopped(false);
     try {
-      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-verify`, { method: 'POST' });
-      const data = await res.json();
-      const ok = data.outcome === 'proven' || data.outcome === 'already_proven';
-      const map: Record<string, string> = {
-        proven: t.ssProven, already_proven: t.ssProven, not_yet: t.ssNotYet, no_challenge: t.ssNotYet,
-        claimed_elsewhere: t.ssClaimedElsewhere, unsupported_rail: t.ssUnsupported, unavailable: t.ssUnavailable,
-      };
-      setOutcome({ text: data.ok ? (map[String(data.outcome)] ?? t.proveError) : t.proveError, ok });
-      if (ok) setTimeout(onProven, 1400);
+      const res = await fetch(`${base}/deposit-challenge`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ready: true }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.ok && data.challenge) {
+        setChallenge(data.challenge); setArmed(false); setPolling(false); setLastChecked(null);
+      } else {
+        const err = String(data?.error ?? '');
+        setRetryAt(err === 'rate_limited' && typeof data?.retryAt === 'string' ? data.retryAt : null);
+        setOutcome(SS_ISSUE_ERRORS[err] ?? 'error');
+      }
     } catch {
-      setOutcome({ text: t.proveError, ok: false });
-    } finally { setBusy(false); }
+      setOutcome('offline');
+    } finally { setIssuing(false); }
   }
 
+  async function check() {
+    if (inFlight.current || done.current) return;
+    inFlight.current = true; setChecking(true);
+    try {
+      let res: Response;
+      try { res = await fetch(`${base}/deposit-verify`, { method: 'POST' }); }
+      catch { setOutcome('offline'); return; } // the browser couldn't reach us: keep checking
+      const data = await res.json().catch(() => null);
+      setLastChecked(new Date());
+      const code = data?.ok ? String(data.outcome) : 'error';
+      setOutcome(code);
+      if (SS_FINAL.has(code)) { setArmed(false); setPolling(false); }
+      if (code === 'expired') setChallenge((c) => (c ? { ...c, expired: true } : c));
+      if (code === 'checking_late') setChallenge((c) => (c && !c.late ? { ...c, late: true } : c));
+      if (code === 'no_challenge') setChallenge(null);
+      if (code === 'proven' || code === 'already_proven') { done.current = true; setTimeout(onProven, 1400); }
+    } finally { inFlight.current = false; setChecking(false); }
+  }
+
+  function sent() {
+    pollUntil.current = Date.now() + SS_POLL_FOR_MS;
+    setArmed(true); setPolling(true); setStopped(false);
+    void check();
+  }
+
+  // Check every 20 s for 15 minutes after "I've sent it".
+  useEffect(() => {
+    if (!polling) return;
+    const id = window.setInterval(() => {
+      if (Date.now() > pollUntil.current) { setPolling(false); setStopped(true); return; }
+      void check();
+    }, SS_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [polling]);
+
+  // And whenever the tab regains focus (back from the wallet app), even after the 15 minutes.
+  useEffect(() => {
+    if (!armed) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [armed]);
+
+  function copyAmount() {
+    if (!challenge) return;
+    void navigator.clipboard?.writeText(challenge.amount).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }).catch(() => {});
+  }
+
+  const chain = railLabel(d.rail, t);
+  const last = d.value.slice(-4);
+  const ok = outcome === 'proven' || outcome === 'already_proven';
+  const message = ((): string | null => {
+    switch (outcome) {
+      case null: case 'no_challenge': case 'checking_late': return null; // the late panel says it
+      case 'proven': case 'already_proven': return t.ssProven;
+      case 'not_yet': return fill(t.ssNotYet, { chain, last });
+      case 'expired': return t.ssExpired;
+      case 'wrong_amount':
+        return challenge ? fill(t.ssWrongAmount, { amount: challenge.amount, unit: challenge.unit }) : t.proveError;
+      case 'wrong_recipient': return t.ssWrongRecipient;
+      case 'sent_to_not_from': return t.ssSentToNotFrom;
+      case 'claimed_elsewhere': return t.ssClaimedElsewhere;
+      case 'unsupported_rail': return t.ssUnsupported;
+      case 'unavailable': return fill(t.ssUnavailable, { chain });
+      case 'offline': return t.ssOffline;
+      case 'rate_limited': return retryAt ? fill(t.ssRateLimited, { time: localTime(retryAt, t.lang) }) : t.proveError;
+      case 'issue_unavailable': return fill(t.ssIssueUnavailable, { chain });
+      case 'busy': return t.ssBusy;
+      default: return t.proveError;
+    }
+  })();
+  const outcomeBox = message && (
+    <div className={`vd-prove__outcome ${ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`} role="status">{message}</div>
+  );
+
+  // No test yet: explain it, and issue the amount only on "I'm ready to send".
+  if (!challenge) {
+    return (
+      <>
+        <p className="vd-prove__hint">{t.ssIntro}</p>
+        <p className="vd-ss__note">{t.ssNeverNote}</p>
+        <div className="vd-prove__row">
+          <button className="vd-prove__verify" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssReadyBtn}
+          </button>
+        </div>
+        {outcomeBox}
+      </>
+    );
+  }
+
+  // Expired: a new tap draws a NEW amount.
+  if (challenge.expired) {
+    return (
+      <>
+        <div className="vd-prove__outcome vd-prove__outcome--warn" role="status">{t.ssExpired}</div>
+        <div className="vd-prove__row" style={{ marginTop: '0.6rem' }}>
+          <button className="vd-prove__verify" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssNewAmountBtn}
+          </button>
+        </div>
+        {outcome !== 'expired' && outcomeBox}
+      </>
+    );
+  }
+
+  // Past the amount's 24 hours but inside the 2h grace: a send made in time may still be
+  // indexed or confirmed, so keep checking (button, polling, tab focus) and don't ask for a
+  // resend. A merchant who never sent can take a new amount instead.
+  if (challenge.late) {
+    return (
+      <>
+        <div className="vd-prove__outcome vd-prove__outcome--warn" role="status">
+          {fill(t.ssLate, { time: localTime(challenge.checkUntil, t.lang) })}
+        </div>
+        <div className="vd-prove__row" style={{ marginTop: '0.6rem' }}>
+          <button className="vd-prove__verify" onClick={sent} disabled={checking}>
+            {checking ? t.ssCheckingBtn : t.ssCheckAgainBtn}
+          </button>
+          <button className="vd-prove__get" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssNewAmountBtn}
+          </button>
+        </div>
+        {armed && polling && lastChecked && (
+          <p className="vd-ss__note vd-ss__note--status">
+            {fill(t.ssWaiting, { chain, time: localTime(lastChecked.toISOString(), t.lang, true) })}
+          </p>
+        )}
+        {outcomeBox}
+      </>
+    );
+  }
+
+  const validUntil = localTime(challenge.expiresAt, t.lang);
   return (
     <>
-      <p className="vd-prove__hint">{t.ssHint.replace('{address}', d.value)}</p>
-      <div className="vd-prove__row">
-        <button className="vd-prove__verify" onClick={check} disabled={busy}>{busy ? t.ssCheckingBtn : t.ssCheckBtn}</button>
+      <p className="vd-ss__heading">{t.ssHeading}</p>
+      <p className="vd-prove__hint">{fillBold(t.ssAddressStep, { first: d.value.slice(0, 6), last })}</p>
+      <div className="vd-ss__amount">
+        <span className="vd-ss__amount-label">{t.ssAmountLabel}</span>
+        <span className="vd-ss__amount-value">{challenge.amount} {challenge.unit}</span>
+        <button className="vd-prove__copy" onClick={copyAmount}>{copied ? t.copied : t.ssCopyAmountBtn}</button>
       </div>
-      {outcome && (
-        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+      {challenge.baseUnit && (
+        <p className="vd-ss__note">
+          {fill(t.ssBaseUnits, { n: Number(challenge.baseAmount).toLocaleString(t.lang), unit: challenge.baseUnit })}
+        </p>
       )}
+      <p className="vd-ss__note">{t.ssCommaNote}</p>
+      <p className="vd-prove__hint">{fill(t.ssFeeNote, { coin: challenge.unit })}</p>
+      {EVM_RAILS.has(d.rail) && <p className="vd-prove__hint">{fill(t.ssEvmNote, { chain })}</p>}
+      <p className="vd-ss__note">{t.ssNeverNote}</p>
+      <p className="vd-prove__hint">{fillBold(t.ssValidUntil, { time: validUntil })}</p>
+      <div className="vd-prove__row">
+        <button className="vd-prove__verify" onClick={sent} disabled={checking}>
+          {checking ? t.ssCheckingBtn : armed ? t.ssCheckAgainBtn : t.ssSentBtn}
+        </button>
+      </div>
+      {armed && polling && lastChecked && (
+        <p className="vd-ss__note vd-ss__note--status">
+          {fill(t.ssWaiting, { chain, time: localTime(lastChecked.toISOString(), t.lang, true) })}
+        </p>
+      )}
+      {armed && <p className="vd-ss__note">{t.ssDontResend}</p>}
+      {stopped && <p className="vd-ss__note">{fill(t.ssStopped, { time: validUntil })}</p>}
+      {outcomeBox}
     </>
   );
 }
 
-// "Prove ownership" — two methods. Self-send (no website): the merchant signs an
-// outgoing tx from the address. Domain: the owner publishes a /.well-known file we
-// fetch and match. Proof is per-address (self-send) or per-domain (the file covers
-// every address it lists).
-function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
-  const [method, setMethod] = useState<'selfsend' | 'domain'>('selfsend');
+// "Prove ownership" — two methods. The satoshi test (no website): the merchant sends an
+// exact amount from the address back to itself. Domain: the owner publishes a
+// /.well-known file we fetch and match. Proof is per-address (self-send) or per-domain
+// (the file covers every address it lists). Modes:
+//  - 'prove':   an unproven address, both methods.
+//  - 'anchor':  the Claimed → Verified step for an address already proven by self-send: only
+//               the file can anchor it, so there is no self-send tab and no DNS alternative
+//               (DNS carries no address list).
+//  - 'reprove': a claim made under the old self-send check. Only the satoshi test, taken again
+//               on this row (it keeps its claim and stays Claimed meanwhile); then 'anchor'.
+type ProveMode = 'prove' | 'anchor' | 'reprove';
+function ProvePanel({ d, t, onProven, mode = 'prove' }: {
+  d: Destination; t: VerifyDashboardLocale; onProven: () => void; mode?: ProveMode;
+}) {
+  const domainOnly = mode === 'anchor';
+  const [method, setMethod] = useState<'selfsend' | 'domain'>(domainOnly ? 'domain' : 'selfsend');
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState<{ path: string; file: string } | null>(null);
   const [challenge, setChallenge] = useState('');
@@ -638,8 +1036,11 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
 
   // Map a prove-endpoint outcome code → localized copy.
   const proofString = (code: string): string => ({
-    proven: t.proofProven,
+    proven: domainOnly ? t.proofAnchored : t.proofProven,
     name_attached: t.proofNameAttached,
+    anchored_other_domain: t.proofOtherDomain,
+    claimed_elsewhere: t.ssClaimedElsewhere,
+    reprove_required: t.proofReproveRequired,
     challenge_mismatch: t.proofChallengeMismatch,
     address_not_listed: t.proofAddressNotListed,
     unreachable: t.proofUnreachable,
@@ -669,10 +1070,11 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
     setBusy(true); setOutcome(null);
     try {
       const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/prove`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: domain.trim() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(domainOnly ? { domain: domain.trim(), method: 'file' } : { domain: domain.trim() }),
       });
       const data = await res.json();
-      const ok = data.outcome === 'proven' || data.outcome === 'name_attached';
+      const ok = data.outcome === 'proven' || (!domainOnly && data.outcome === 'name_attached');
       setOutcome({ text: data.ok ? proofString(data.outcome) : t.proveError, ok });
       if (ok) setTimeout(onProven, 1400); // let the success show, then refresh the list
     } catch {
@@ -682,24 +1084,38 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
 
   const url = `https://${domain.trim() || 'yourdomain.com'}${file?.path ?? ''}`;
 
+  if (mode === 'reprove') {
+    return (
+      <div className="vd-prove">
+        <p className="vd-prove__hint">{t.reproveHint}</p>
+        <SelfSendProof d={d} t={t} onProven={onProven} />
+      </div>
+    );
+  }
+
   return (
     <div className="vd-prove">
-      <div className="vd-prove__methods">
-        <button type="button" className={`vd-prove__method${method === 'selfsend' ? ' vd-prove__method--on' : ''}`}
-          onClick={() => setMethod('selfsend')}>{t.proveMethodSelfSend}</button>
-        <button type="button" className={`vd-prove__method${method === 'domain' ? ' vd-prove__method--on' : ''}`}
-          onClick={() => setMethod('domain')}>{t.proveMethodDomain}</button>
-      </div>
+      {!domainOnly && (
+        <div className="vd-prove__methods">
+          <button type="button" className={`vd-prove__method${method === 'selfsend' ? ' vd-prove__method--on' : ''}`}
+            onClick={() => setMethod('selfsend')}>{t.proveMethodSelfSend}</button>
+          <button type="button" className={`vd-prove__method${method === 'domain' ? ' vd-prove__method--on' : ''}`}
+            onClick={() => setMethod('domain')}>{t.proveMethodDomain}</button>
+        </div>
+      )}
       {method === 'selfsend' ? (
         <SelfSendProof d={d} t={t} onProven={onProven} />
       ) : (
         <>
-          <p className="vd-prove__hint">{t.proveHint}</p>
+          <p className="vd-prove__hint">{domainOnly ? t.anchorHint : t.proveHint}</p>
           <div className="vd-prove__row">
             <input className="vd-prove__input" value={domain} onChange={(e) => setDomain(e.target.value)}
               placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
             <button className="vd-prove__get" onClick={getFile} disabled={busy || !domain.trim()}>{t.proveGetFileBtn}</button>
           </div>
+          <a className="vd-prove__roster-link" href={`/dashboard/verify/roster${domain.trim() ? `?domain=${encodeURIComponent(domain.trim())}` : ''}`}>
+            {t.proveRosterLink}
+          </a>
           {file && (
             <div className="vd-prove__file">
               <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
@@ -707,7 +1123,7 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
               <div className="vd-prove__row">
                 <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
               </div>
-              {challenge && (
+              {challenge && !domainOnly && (
                 <>
                   <p className="vd-prove__steps">{t.proveDnsOr}</p>
                   <p className="vd-prove__hint">{t.proveDnsStep}</p>
@@ -800,6 +1216,8 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
   const [value, setValue] = useState('');
   const [state, setState] = useState<CheckState>({ status: 'idle' });
   const [safety, setSafety] = useState<SafetyState>({ s: 'idle' });
+  // True when GoPlus answered for the safety check (credited under it; see lib/goplusCredit.ts).
+  const [goplus, setGoplus] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -863,6 +1281,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
     if (!q) return;
     setState({ status: 'checking' });
     setSafety({ s: 'checking' });
+    setGoplus(false);
     void runSafety(q); // independent scam screen, in parallel with the match check
     try {
       const res = await fetch('/api/verify/compare', {
@@ -891,6 +1310,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
         const res = await fetch(`/api/dapp-check?url=${encodeURIComponent(target)}`);
         const d = await res.json();
         setSafety({ s: d.verdict === 'red' ? 'danger' : d.verdict === 'yellow' ? 'unclear' : 'clean' });
+        setGoplus(goplusRanForSite(d));
       } else {
         const res = await fetch('/api/wallet-check', {
           method: 'POST',
@@ -906,6 +1326,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
             : d.result.partialCoverage ? 'unclear'
             : 'clean',
         });
+        setGoplus(goplusRanForAddress(d.result));
       }
     } catch {
       setSafety({ s: 'error' });
@@ -1004,6 +1425,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
           }
         </div>
       )}
+      {goplus && safety.s !== 'idle' && safety.s !== 'checking' && <PoweredByGoPlus label={t.poweredByGoPlus} />}
     </section>
   );
 }

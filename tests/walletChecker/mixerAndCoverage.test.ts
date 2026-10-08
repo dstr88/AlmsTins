@@ -136,8 +136,11 @@ describe('partial coverage never reads as a confident all-clear', () => {
     expect(computePartialCoverage('evm', { goplus: 'ran', honeypot: 'ran', chainabuse: 'error' })).toBe(false);
   });
 
-  it('Solana (GoPlus ran, honeypot N/A) is NOT partial', () => {
-    expect(computePartialCoverage('solana', { goplus: 'ran', honeypot: 'skipped', chainabuse: 'ran' })).toBe(false);
+  it('Solana IS partial: GoPlus has no working Solana address check, so no primary source covers it', () => {
+    // Live GoPlus answers code 5000 for every chain_id=solana query (checked 2026-09-24),
+    // so Solana was dropped from the GoPlus chains; even a stray 'ran' does not count.
+    expect(computePartialCoverage('solana', { goplus: 'skipped', honeypot: 'skipped', chainabuse: 'ran' })).toBe(true);
+    expect(computePartialCoverage('solana', { goplus: 'ran', honeypot: 'skipped', chainabuse: 'ran' })).toBe(true);
   });
 
   it('a chain with no primary source at all IS partial', () => {

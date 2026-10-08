@@ -6,14 +6,21 @@
  * lookup, not here), detection-driven revocation, fail-safe to *unverified*.
  *
  *  A. Verified Entities — re-pull each proven entity's hosted list, refreshing the
- *     public mirror's `refreshed_at`. Alert the owner on a revocation (an address
- *     dropped from their list) or on the ok->fail TRANSITION of their endpoint
- *     (the public badge will lapse within the TTL — fail-safe, never stale-verified).
+ *     public mirror's `refreshed_at`. Only tenants approved to publish a platform list
+ *     (verifyEntityAccess.ts) are refreshed; any other list is never re-pulled. Alert the
+ *     owner on a revocation (an address dropped from their list) or on the ok->fail
+ *     TRANSITION of their endpoint (the public badge will lapse within the TTL — fail-safe,
+ *     never stale-verified).
  *
- *  B. Merchant .well-known proofs — re-fetch each proven domain's proof file. On a
- *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
- *     no longer vouched) the affected destinations lapse and the owner is alerted.
- *     A transient unreachable is NOT treated as a swap (no lapse, no alert).
+ *  B. Merchant proofs — re-fetch each proven domain's proof, the plain .well-known file or,
+ *     when that's absent, the encrypted roster document its DNS TXT record points to (see
+ *     verifyProof.ts). On a DEFINITIVE change (challenge/file/document no longer validates,
+ *     or a proven address is no longer vouched) the affected destinations lose the domain
+ *     anchor and the owner is alerted: a file/roster-proven address lapses; a self-send-proven
+ *     one keeps its control proof and drops verified→claimed (releaseDomainAnchor). A listed
+ *     address the account holds only through a legacy (unbound) self-send claim is released
+ *     too and never re-confirmed (recheckDomainListing).
+ *     A transient unreachable on both methods is NOT treated as a swap (no lapse, no alert).
  *
  * Protected by CRON_SECRET (header or ?secret=). Alerts reuse the liquidation-email
  * pattern (alert_email + sendMail + per-recipient language). Owner→world boundary
@@ -21,18 +28,19 @@
  */
 
 import type { APIRoute } from 'astro';
-import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
-import { isLang, type Lang } from '@/lib/i18n/locale';
+import type { Lang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
 import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert';
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
+import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
-  markDestinationsLapsed, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
-  normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
+  releaseDomainAnchor, recheckDomainListing, markDomainProofFailed, markDomainProofRechecked,
+  listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
-import { verifyDomainProof } from '@/lib/verifyProof';
+import { verifyDomainProof, verifyRosterDocument } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
 import { recordCronSuccess } from '@/lib/cronHeartbeat';
 
@@ -54,29 +62,13 @@ export const GET: APIRoute = async ({ request }) => {
   const startedAt = Date.now();
   await ensureUserLangColumn();
 
-  // Resolve a tenant's alert email + language once per run (entities/domains can share one).
+  // Resolve a tenant's alert email + language once per run (entities/domains can share
+  // one). SD1 fallback logic lives in verifyAlertRecipient.ts; this just caches it per run.
   const ownerCache = new Map<string, { email: string | null; lang: Lang }>();
   async function getOwner(tenantId: string): Promise<{ email: string | null; lang: Lang }> {
     const hit = ownerCache.get(tenantId);
     if (hit) return hit;
-    let email: string | null = null;
-    let lang: Lang = 'en';
-    try {
-      const res = await db.execute({
-        sql: `SELECT au.alert_email, au.lang
-              FROM tenant_memberships tm
-              JOIN auth_users au ON au.id = tm.user_id
-              WHERE tm.tenant_id = ? AND au.alert_email IS NOT NULL
-              LIMIT 1`,
-        args: [tenantId],
-      });
-      const row = res.rows[0] as Record<string, unknown> | undefined;
-      if (row) {
-        email = typeof row.alert_email === 'string' ? row.alert_email : null;
-        lang = typeof row.lang === 'string' && isLang(row.lang) ? row.lang : 'en';
-      }
-    } catch { /* non-fatal — no email just means no alert */ }
-    const out = { email, lang };
+    const out = await resolveAlertRecipient(tenantId);
     ownerCache.set(tenantId, out);
     return out;
   }
@@ -104,7 +96,10 @@ export const GET: APIRoute = async ({ request }) => {
         const r = await monitorEntity(t.tenantId, t.id);
         if (!r.pull.ok) {
           // Alert only on the ok->fail transition — a persistent failure won't re-spam.
-          if (t.lastPullStatus === 'ok' && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
+          // A tenant that is not approved to publish is skipped, not reported as unreachable
+          // (listEntitiesForMonitor already leaves them out; this is the backstop).
+          if (r.pull.code !== ENTITY_NOT_APPROVED && t.lastPullStatus === 'ok'
+              && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
             entity.unreachableAlerts++;
           }
         } else if (r.removed.length) {
@@ -129,33 +124,49 @@ export const GET: APIRoute = async ({ request }) => {
       try {
         const proven = await getProvenAddressDestinations(d.tenantId, d.domain);
         const res = await verifyDomainProof(d.domain, d.challenge);
-        if (!res.ok) {
-          if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
-            // Definitive: the published proof changed. Lapse its addresses + alert once.
-            await markDestinationsLapsed(d.tenantId, proven.map((p) => p.id));
-            await markDomainProofFailed(d.tenantId, d.domain);
-            if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
-              merchant.proofChangedAlerts++;
-            }
-          } else {
-            // Transient (unreachable / invalid_domain) — don't treat as a swap.
-            await markDomainProofRechecked(d.tenantId, d.domain);
-          }
+
+        // Three-way outcome: still valid (a listed-addresses array), definitively changed
+        // (release), or transient (leave alone). A plain-file domain settles this from `res`
+        // alone. A roster domain has no file at all, so `res` always comes back 'unreachable'
+        // for them — not an error, just the normal shape of not using this method — and the
+        // roster document (if a DNS pointer exists) decides it instead.
+        let listedAddresses: string[] | null = null;
+        let definitiveFail = false;
+        if (res.ok) {
+          listedAddresses = res.addresses;
+        } else if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
+          definitiveFail = true;
         } else {
-          // Proof still holds — check each proven address is still vouched.
-          const vouched = new Set(res.addresses.map(normalizeDestinationValue));
-          const missing = proven.filter((p) => !vouched.has(normalizeDestinationValue(p.value)));
-          if (missing.length) {
-            await markDestinationsLapsed(d.tenantId, missing.map((m) => m.id));
-            if (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value))) {
-              merchant.addressDroppedAlerts++;
-            }
+          const roster = await verifyRosterDocument(d.domain, d.challenge);
+          if (roster.ok) {
+            listedAddresses = roster.addresses.map((e) => e.address);
+          } else if (roster.code === 'challenge_mismatch' || roster.code === 'malformed' || roster.code === 'decrypt_failed') {
+            definitiveFail = true;
           }
-          // Positively re-confirm the addresses the (re-validated) proof still vouches — advances
-          // last_confirmed_at so their public badge stays 'verified'. Addresses NOT confirmed this
-          // run keep their old timestamp and lapse 'verified'→'claimed' via the max-stale TTL.
-          const stillVouched = proven.filter((p) => vouched.has(normalizeDestinationValue(p.value)));
-          if (stillVouched.length) await markDestinationsConfirmed(d.tenantId, stillVouched.map((p) => p.id));
+          // else: neither method answered anything definitive — stays transient below.
+        }
+
+        if (definitiveFail) {
+          // Definitive: the published proof changed. Release its addresses + alert once.
+          await releaseDomainAnchor(d.tenantId, d.domain, proven);
+          await markDomainProofFailed(d.tenantId, d.domain);
+          if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
+            merchant.proofChangedAlerts++;
+          }
+        } else if (listedAddresses) {
+          // Proof still holds — settle each anchored address against the list (matched on
+          // addressKey, as the owner's proof matched them). Dropped ones are released and alerted
+          // on. Listed ones are positively re-confirmed (advancing last_confirmed_at keeps their
+          // badge 'verified'), except a listing that leans only on a legacy self-send claim,
+          // which is released instead. Addresses NOT confirmed this run keep their old timestamp
+          // and lapse 'verified'→'claimed' via the max-stale TTL.
+          const { missing } = await recheckDomainListing(d.tenantId, d.domain, proven, listedAddresses);
+          if (missing.length && (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value)))) {
+            merchant.addressDroppedAlerts++;
+          }
+          await markDomainProofRechecked(d.tenantId, d.domain);
+        } else {
+          // Transient (unreachable / invalid_domain on both methods) — don't treat as a swap.
           await markDomainProofRechecked(d.tenantId, d.domain);
         }
       } catch (err) {
@@ -172,7 +183,9 @@ export const GET: APIRoute = async ({ request }) => {
   // For each destination the owner attached a public page to, re-fetch that page and
   // check the registered value is still the one shown. A definitive 'swapped' (the
   // value is gone and a conflicting same-kind value is present) alerts the owner. An
-  // ambiguous 'missing' / transient 'unreachable' is recorded but never alerted.
+  // ambiguous 'missing' / transient 'unreachable' is recorded but never alerted. A
+  // 'present' keeps a payment link's badge fresh, never an address's: an address stays
+  // 'verified' only while Pass B finds it in its domain's file (recordMonitorResult).
   const watch = { checked: 0, swapAlerts: 0, errors: 0 };
   try {
     const targets = await listMonitoredDestinations();

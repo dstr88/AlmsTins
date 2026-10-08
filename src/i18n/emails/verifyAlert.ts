@@ -7,7 +7,8 @@
 //   - unreachable    : an entity's verified endpoint can't be reached — the public
 //                      badge will lapse within the max-stale TTL (fail-safe, not stale).
 //   - proof_changed  : a merchant's .well-known proof no longer validates — its
-//                      addresses have lapsed and need a re-prove.
+//                      addresses no longer show as verified (file-proven ones lapse;
+//                      self-send-proven ones drop back to claimed) until re-verified.
 //   - destination_swap: the public page a merchant asked us to watch is no longer
 //                      showing the destination they registered — a different value
 //                      has replaced it (a likely QR/address swap on their own page).
@@ -96,7 +97,7 @@ export const en: VerifyAlertEmailLocale = {
       subject: `⚠️ Your address verification needs attention — ${domain}`,
       text: [
         `We could no longer validate the verification file published at ${domain},`,
-        `so the addresses it vouched for have lapsed and no longer show as verified.`,
+        `so the addresses it vouched for no longer show as verified.`,
         ...bullets(items),
         `If you changed your published addresses, just re-verify in your dashboard.`,
         `If you didn't, your published proof may have been altered — worth a look.`,
@@ -170,7 +171,7 @@ export const es: VerifyAlertEmailLocale = {
       subject: `⚠️ Tu verificación de direcciones necesita atención — ${domain}`,
       text: [
         `Ya no pudimos validar el archivo de verificación publicado en ${domain},`,
-        `por lo que las direcciones que respaldaba han caducado y ya no se muestran como verificadas.`,
+        `por lo que las direcciones que respaldaba ya no se muestran como verificadas.`,
         ...bullets(items),
         `Si cambiaste tus direcciones publicadas, simplemente vuelve a verificar en tu panel.`,
         `Si no fuiste tú, tu prueba publicada podría haber sido alterada — conviene revisarlo.`,
@@ -244,7 +245,7 @@ export const fr: VerifyAlertEmailLocale = {
       subject: `⚠️ Votre vérification d'adresses nécessite votre attention — ${domain}`,
       text: [
         `Nous n'avons plus pu valider le fichier de vérification publié sur ${domain},`,
-        `les adresses qu'il attestait ont donc expiré et n'apparaissent plus comme vérifiées.`,
+        `les adresses qu'il attestait n'apparaissent donc plus comme vérifiées.`,
         ...bullets(items),
         `Si vous avez modifié vos adresses publiées, il vous suffit de revérifier dans votre tableau de bord.`,
         `Sinon, votre preuve publiée a peut-être été altérée — cela mérite un coup d'œil.`,

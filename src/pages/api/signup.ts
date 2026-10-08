@@ -1,48 +1,44 @@
 import type { APIRoute } from 'astro';
 import crypto from 'node:crypto';
-import nodemailer from 'nodemailer';
 import { db } from '@/lib/db';
-import { ensureTenantForUser } from '@/lib/tenants';
 import { hashPassword } from '@/lib/passwords';
 import { isEmailDomainBlocked } from '@/lib/blockedEmailDomains';
 import { isLang, type Lang } from '@/lib/i18n/locale';
 import { setUserLang } from '@/lib/i18n/userLang';
-import { getVerifyEmail } from '@/i18n/emails/verifyEmail';
 import { ensureAuthUsersCreatedAt } from '@/lib/authAdapter';
+import { normalizeSignupEmail } from '@/lib/emailAddress';
+import { getClientIp } from '@/lib/analytics/ip';
+import { createFixedWindowLimiter, ipBucket } from '@/lib/rateLimit';
+import { issueSignupVerification } from '@/lib/signupVerification';
 
 export const prerender = false;
 
 const MIN_PASSWORD_LENGTH = 10;
 
-function normalizeEmail(input: FormDataEntryValue | null) {
-	if (typeof input !== 'string') return null;
-	const value = input.trim().toLowerCase();
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : null;
+// /api/signup is a public path (no middleware in front of it), so this handler is the only
+// place sign-up volume can be limited. Every POST counts, valid or not: a scanner probing
+// the form with junk is exactly what this is for. Keyed on the Cloudflare-set client IP
+// (an IPv6 client by its /64, see ipBucket).
+const signupLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+
+function clientKey(request: Request, clientAddress: () => string): string {
+	let fallback = 'unknown';
+	try { fallback = clientAddress() || fallback; } catch { /* adapter without a client address */ }
+	return `ip:${ipBucket(getClientIp(request) ?? fallback)}`;
 }
 
-async function sendVerificationEmail(email: string, verifyUrl: string, lang: Lang) {
-	const server = import.meta.env.EMAIL_SERVER;
-	const from = import.meta.env.EMAIL_FROM;
-	if (!server || !from) return;
-
-	const t = getVerifyEmail(lang);
-	const transport = nodemailer.createTransport(server);
-	await transport.sendMail({
-		to: email,
-		from,
-		subject: t.subject,
-		text: t.text(verifyUrl),
-		html: t.html(verifyUrl),
-	});
-}
-
-export const POST: APIRoute = async ({ request, redirect }) => {
+export const POST: APIRoute = async (context) => {
+	const { request, redirect } = context;
 	const form = await request.formData();
-	const email = normalizeEmail(form.get('email'));
+	const email = normalizeSignupEmail(form.get('email'));
 	const password = form.get('password');
 	const langRaw = String(form.get('lang') ?? '');
 	const lang: Lang = isLang(langRaw) ? langRaw : 'en';
 	const signupPath = lang === 'es' ? '/signup/es' : lang === 'fr' ? '/signup/fr' : '/signup';
+
+	if (signupLimiter.hit(clientKey(request, () => context.clientAddress))) {
+		return redirect(`${signupPath}?error=rate_limited`, 303);
+	}
 
 	if (!email) {
 		return redirect(`${signupPath}?error=email`, 303);
@@ -77,23 +73,12 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 		args: [userId, passwordHash],
 	});
 
-	await ensureTenantForUser(userId);
+	// No tenant yet. It is created at the first successful sign-in (the Auth.js jwt
+	// callback), which a password user reaches only after verifying the address. An
+	// unverified sign-up therefore owns nothing and triggers no new-tenant notice.
 	await setUserLang(userId, lang);
 
-	const token = crypto.randomBytes(32).toString('hex');
-	const expires = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
-	await db.execute({
-		sql: 'INSERT INTO signup_verification_tokens (identifier, token, expires) VALUES (?, ?, ?)',
-		args: [`signup:${email}`, token, expires],
-	});
-
-	const baseUrl = import.meta.env.AUTH_URL || new URL(request.url).origin;
-	const verifyUrl = `${baseUrl}/api/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
-	try {
-		await sendVerificationEmail(email, verifyUrl, lang);
-	} catch (error) {
-		console.warn('Failed to send verification email', error);
-	}
+	await issueSignupVerification({ email, lang });
 
 	const loginSuccess =
 		lang === 'es' ? '/es?signup=success' : lang === 'fr' ? '/fr?signup=success' : '/login?signup=success';

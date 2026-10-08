@@ -1,5 +1,6 @@
 ---
 import type { SignupLocale } from '@/i18n/signup';
+import Analytics from './Analytics.astro';
 
 interface Props {
 	t: SignupLocale;
@@ -12,7 +13,8 @@ const message =
 	error === 'email'        ? t.errors.email :
 	error === 'email_domain' ? t.errors.email_domain :
 	error === 'password'     ? t.errors.password :
-	error === 'exists'       ? t.errors.exists : '';
+	error === 'exists'       ? t.errors.exists :
+	error === 'rate_limited' ? t.errors.rate_limited : '';
 
 // Sign-in link points at the matching-language login/marketing surface
 // (/, /es, /fr are one trilingual page after the homepage merge).
@@ -177,6 +179,7 @@ const loginHref = t.lang === 'es' ? '/es' : t.lang === 'fr' ? '/fr' : '/login';
 				color: #fff;
 			}
 		</style>
+		<Analytics />
 	</head>
 	<body>
 		<nav class="lang-switch" aria-label="Language">

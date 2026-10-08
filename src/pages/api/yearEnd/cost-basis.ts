@@ -34,6 +34,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	try {
+		// HAVING repeats the total_acquired expression: Postgres does not allow
+		// a select-list alias there.
 		const result = await db.execute({
 			sql: `SELECT
 				asset_symbol,
@@ -50,7 +52,7 @@ export const GET: APIRoute = async ({ request }) => {
 				AND direction IN ('in', 'out')
 				AND native_usd IS NOT NULL AND native_usd > 0
 			GROUP BY asset_symbol
-			HAVING total_acquired > 0
+			HAVING SUM(CASE WHEN direction = 'in' THEN COALESCE(to_amount, ABS(amount), 0) ELSE 0 END) > 0
 			ORDER BY total_cost_usd DESC`,
 			args: [tenantId],
 		});

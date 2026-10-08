@@ -1,0 +1,30 @@
+/* GoPlus credit line (see PoweredByGoPlus.tsx). All colors via design tokens. */
+.powered-by-goplus {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.powered-by-goplus a {
+  /* Logo and text side by side, centered on each other; they stack only if the line is too narrow. */
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  vertical-align: middle;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+/* The kit's logo is 446 x 90: fix the height and let the width follow, so it is never stretched. */
+.powered-by-goplus__logo {
+  display: block;
+  flex: none;
+  height: 1.25rem;
+  width: auto;
+}
+.powered-by-goplus a:hover,
+.powered-by-goplus a:focus-visible {
+  color: var(--accent);
+}

@@ -17,6 +17,9 @@ export default function PetroTinsGrid() {
   const [tins, setTins] = useState<PetroTin[]>([]);
   const [splitsTins, setSplitsTins] = useState<SplitsTin[]>([]);
   const [loading, setLoading] = useState(true);
+  // The session ended while the page was open: the API answers 401, or 404 while PetroTins is
+  // owner-only (the middleware hides it from anyone signed out).
+  const [signedOut, setSignedOut] = useState(false);
 
   const scrolledToHash = useRef(false);
 
@@ -26,6 +29,10 @@ export default function PetroTinsGrid() {
         fetch('/api/petro-tins'),
         fetch('/api/petro-tins/splits'),
       ]);
+      if (res.status === 401 || res.status === 404) {
+        setSignedOut(true);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setTins(data.tins ?? []);
@@ -64,8 +71,18 @@ export default function PetroTinsGrid() {
     const tin = tins.find(t => t.id === id);
     if (tin) (window as any).openAddEntry?.(id, tin.type);
   };
+  // Opens the same Add Budget dialog as the page's "＋ Budget" button, so a new register
+  // (budget tin) can be added from under the last one.
+  const handleAddRegister = () => { (window as any).openAddTin?.('budget'); };
 
   if (loading) return <p className="pt-grid__loading">Loading…</p>;
+  if (signedOut) {
+    return (
+      <p className="pt-grid__loading">
+        Your session has ended. <a href="/login?next=%2Fdashboard%2Fpetro-tins">Sign in again</a> to see your tins.
+      </p>
+    );
+  }
 
   const debtTins     = tins.filter(t => t.type === 'debt');
   const budgetTins   = tins.filter(t => t.type === 'budget' && !t.isSlush);
@@ -105,6 +122,11 @@ export default function PetroTinsGrid() {
               />
             ))
           }
+          {budgetTins.length > 0 && (
+            <button type="button" className="pt-grid__add-register" onClick={handleAddRegister}>
+              ＋ Add another register
+            </button>
+          )}
         </div>
         <div className="pt-grid__summary">
           <div className="pt-summary__title">Cash Flow Summary</div>

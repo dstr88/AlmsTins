@@ -801,7 +801,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
       <div class="card" style="margin-top:1.15rem" id="card-claim">
         <h2>Register your claim</h2>
-        <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
+        <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused. Financing without a debtor confirmation on file requires you to accept responsibility for having verified the debtor yourself.</p>
         <div class="row">
           <input id="c-fin" class="grow" placeholder="Your firm" autocomplete="off" />
           <input id="c-amt" type="number" step="0.01" min="0" placeholder="Amount advanced" style="flex:0 1 12rem" />
@@ -1023,8 +1023,10 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         const j = await r.json();
         if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a> to register the claim.', 'note-loss'); return; }
         if (!j.ok) {
-          if (j.error === 'exceeds_available') {
+          if (j.error === 'exceeds_headroom') {
             show(out, `<b>Refused. This would be a duplicate.</b><br>Only ${esc(money(Number(j.available || 0), current.currency || 'NGN'))} is unencumbered, and you tried to claim ${esc(money(amount, current.currency || 'NGN'))}. The write was rejected before any money moved.`, 'note-loss');
+          } else if (j.error === 'diligence_required') {
+            acceptDiligencePrompt(financier);
           } else {
             show(out, 'Could not register that claim: ' + esc(j.error || 'unknown error'), 'note-loss');
           }
@@ -1048,17 +1050,69 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       }
     }
 
+    // The financier's own accountability record, shown when registerClaim() comes back
+    // diligence_required. Not a debtor confirmation and never mistaken for one -- Almstins
+    // does not verify a debtor's identity on the financier's behalf, so before financing an
+    // unconfirmed receivable he accepts that responsibility himself, signed and Bitcoin-
+    // anchored under his own name. See acceptDiligence() in receivablesRegistry.ts.
+    function acceptDiligencePrompt(financier: string) {
+      const out = $('c-out') as unknown as HTMLElement;
+      show(out, `
+        <b>No debtor confirmation is on record.</b> Financing this receivable would rest entirely
+        on the supplier's word. Almstins does not verify the debtor's identity for you — that is
+        your own job, and your own risk. A real debtor confirmation can be requested above; to
+        finance now instead, accept responsibility for having verified this debtor yourself.
+        <div class="row" style="margin-top:.6rem">
+          <select id="dil-method" style="flex:0 1 14rem">
+            <option value="phone">Phone call</option>
+            <option value="relationship">Existing relationship</option>
+            <option value="correspondence">Written correspondence</option>
+            <option value="other">Other</option>
+          </select>
+          <input id="dil-note" class="grow" placeholder="Note (optional) — e.g. called their AP line" maxlength="300" autocomplete="off" />
+        </div>
+        <p class="hint" style="margin-top:.5rem">
+          By clicking below you are personally attesting that you verified this debtor as described
+          above. This acceptance is signed under your account and permanently timestamped to
+          Bitcoin — it cannot be edited or removed afterward.
+        </p>
+        <div class="row" style="margin-top:.4rem"><button id="dil-accept">I accept responsibility — continue</button></div>
+      `, 'note-warn');
+      document.getElementById('dil-accept')?.addEventListener('click', async () => {
+        const btn = document.getElementById('dil-accept') as HTMLButtonElement;
+        btn.disabled = true;
+        try {
+          const r = await fetch('/api/verify/receivables/diligence-accept', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              receivableId: current.id, financier,
+              method: (document.getElementById('dil-method') as HTMLSelectElement).value,
+              note: val('dil-note') || undefined,
+            }),
+          });
+          const d = await r.json();
+          if (!d.ok) { show(out, 'Could not record your acceptance: ' + esc(d.message || d.error || 'unknown error'), 'note-loss'); return; }
+          await registerClaim();
+        } catch {
+          show(out, 'Could not reach the registry. Try again.', 'note-loss');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
     // Releasing a claim once the debtor has paid frees the headroom again, so no phantom
     // lien outlives the payment. Only the financier who registered it can discharge it —
     // the API enforces that, since the public record never says whose claim is whose.
     async function discharge(claimId: string) {
       const out = $('c-out') as unknown as HTMLElement;
       if (!confirm('Mark this claim repaid? That releases it and frees the headroom.')) return;
+      const reason = (prompt('Optional: add a note for your own record (e.g. "wire received Sept 28"). Leave blank to skip.') || '').trim();
       show(out, 'Releasing…');
       try {
         const r = await fetch('/api/verify/receivables/discharge', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ claimId }),
+          body: JSON.stringify(reason ? { claimId, reason } : { claimId }),
         });
         const j = await r.json();
         if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
@@ -1262,8 +1316,15 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         : askedAnyone ? 'A request has gone out. Nothing has come back yet.'
         : 'Ask them below. This is the evidence that does not come from your client.';
 
+      const diligence = atts.filter((a: any) => String(a.statement || '').startsWith('DILIGENCE'));
       const proven = [
         row(ackState, ackLabel, ackDetail),
+        row(acked ? 'na' : diligence.length ? 'no' : 'na',
+            acked ? 'Diligence acceptance not required'
+              : diligence.length ? `${diligence.length} financier diligence acceptance${diligence.length > 1 ? 's' : ''} on file` : 'No diligence acceptance on file',
+            acked ? 'The debtor already confirmed directly, so this step was not needed.'
+              : diligence.length ? 'A financier self-attested having verified this debtor. This is not a debtor confirmation — read it before relying on it.'
+              : 'Required before financing this receivable without a debtor confirmation.'),
         row(disputes.length === 0 ? (askedAnyone ? 'yes' : 'na') : 'no',
             disputes.length === 0 ? 'No disputes recorded' : `${disputes.length} dispute${disputes.length > 1 ? 's' : ''} recorded`,
             disputes.length
@@ -1304,12 +1365,25 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       // Open by default only when there is something to weigh. On a record created ten
       // seconds ago every line says "not yet", which is a wall of text answering a question
       // nobody asked.
-      const worthReading = acked || disputes.length > 0 || active.length > 0;
+      const worthReading = acked || disputes.length > 0 || active.length > 0 || diligence.length > 0;
       const fold = document.getElementById('credit-fold') as HTMLDetailsElement;
       if (!fold.dataset.touched) fold.open = worthReading;
       document.getElementById('credit-sum')!.textContent = worthReading
         ? 'The evidence so far, and what none of it proves.'
         : 'Nothing to weigh yet. Opens as evidence arrives.';
+
+      const reverifs = r.reverifications || [];
+      const historyRows = reverifs.map((rv: any) => {
+        const when = String(rv.date || '').replace('T', ' ').slice(0, 16);
+        const confirmed = rv.verdict === 'confirmed';
+        const bad = (rv.checks || []).filter((c: any) => c.state !== 'pass').map((c: any) => c.label);
+        return row(confirmed ? 'yes' : 'no',
+          `${confirmed ? 'Verified' : 'Needed attention'} · ${when} UTC`,
+          confirmed ? 'Every control re-confirmed at this moment.' : `Flagged: ${bad.join(', ')}.`);
+      }).join('');
+      const historyBlock = historyRows
+        ? `<div class="col-h" style="margin-top:1.2rem">Verification history</div>${historyRows}`
+        : '';
 
       document.getElementById('credit-body')!.innerHTML = `
         <p class="lead">${esc(headline)}</p>
@@ -1333,7 +1407,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
             <div class="col-h col-h--warn">What it does not prove</div>
             ${notProven}
           </div>
-        </div>`;
+        </div>
+        ${historyBlock}`;
     }
 
     // ── Intake: record a new deal ───────────────────────────────────────────
@@ -1738,6 +1813,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           const why = j.error === 'rate_limited' ? 'Too many requests in the last hour. Try again shortly.'
             : j.error === 'not_found' ? 'That request is not yours to send, or is no longer open. Requests can only be emailed from the account that created them.'
             : j.error === 'email_not_configured' ? 'Email is not configured on this server. Use Create link only and send it yourself.'
+            : (j.error === 'email_unverified' || j.error === 'daily_limit' || j.error === 'quota_unavailable') && j.detail ? esc(j.detail)
             : j.error === 'send_failed' ? `The mail server refused it. Copy the link and send it yourself.${j.detail ? `<br><span class="muted">${esc(j.code ? j.code + ': ' : '')}${esc(j.detail)}</span>` : ''}`
             : 'Could not send that.';
           show(out, why, 'note-loss'); return false;
@@ -1966,7 +2042,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
           return `<tr class="book-row${v.updated ? ' book-row--new' : ''}">
             <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
-            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}</td>
+            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}${v.mine === false ? ' <span class="tpill" title="You hold a claim against this receivable, but did not create it -- settle, invite and document actions belong to whoever did">claimed only</span>' : ''}</td>
             <td>${esc(v.buyer)}</td>
             <td>${esc(v.invoiceNo)}</td>
             <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>

@@ -17,13 +17,16 @@ export const GET: APIRoute = async ({ request }) => {
 	const walletId = url.searchParams.get('walletId') ?? null;
 
 	try {
+		// IS NOT DISTINCT FROM matches NULL to NULL (the user-level row) with a
+		// single, typed parameter; Postgres cannot infer a type for a bare
+		// parameter that is only tested for NULL.
 		const result = await db.execute({
 			sql: `SELECT id, threshold, direction, enabled, last_alerted_at
 			      FROM alert_preferences
 			      WHERE user_id = ?
-			        AND (wallet_id = ? OR (? IS NULL AND wallet_id IS NULL))
+			        AND wallet_id IS NOT DISTINCT FROM ?
 			      LIMIT 1`,
-			args: [session.user.id, walletId, walletId],
+			args: [session.user.id, walletId],
 		});
 
 		const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -70,13 +73,27 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	try {
+		// A wallet-level preference must name a wallet in a tenant this user
+		// belongs to: the health-alert cron emails that wallet's address, label
+		// and health factor to this user.
+		if (walletId !== null) {
+			const owned = await db.execute({
+				sql: `SELECT 1 FROM wallets w
+				      JOIN tenant_memberships tm ON tm.tenant_id = w.tenant_id
+				      WHERE w.id = ? AND tm.user_id = ?
+				      LIMIT 1`,
+				args: [walletId, session.user.id],
+			});
+			if (owned.rows.length === 0) return json({ ok: false, error: 'Wallet not found' }, 404);
+		}
+
 		// Check if a row already exists
 		const existing = await db.execute({
 			sql: `SELECT id FROM alert_preferences
 			      WHERE user_id = ?
-			        AND (wallet_id = ? OR (? IS NULL AND wallet_id IS NULL))
+			        AND wallet_id IS NOT DISTINCT FROM ?
 			      LIMIT 1`,
-			args: [session.user.id, walletId, walletId],
+			args: [session.user.id, walletId],
 		});
 
 		const existingRow = existing.rows[0] as Record<string, unknown> | undefined;

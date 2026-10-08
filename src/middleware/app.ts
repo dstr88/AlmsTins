@@ -10,7 +10,7 @@
 
 import 'dotenv/config';
 import { defineMiddleware } from 'astro/middleware';
-import { getAuthSession } from '../lib/authSession';
+import { getAuthSessionState } from '../lib/authSession';
 import { logEnvStatus } from '../lib/envStatus';
 import { getTenantStateDetails } from '../lib/tenants';
 import { db } from '../lib/db';
@@ -20,6 +20,10 @@ import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
 import { isDemoRequest, DEMO_TENANT_ID, demoCookieClear } from '../lib/demo';
 import { runWithDbContext } from '../lib/dbContext';
+import { applySecurityHeaders } from './securityHeaders';
+import { cutSignInQuery, loginPathForLang } from '../lib/authErrorRedirect';
+import { getUserLang } from '../lib/i18n/userLang';
+import { PETRO_TINS_PUBLIC } from '../lib/petroTinsAccess';
 
 /**
  * Mutation endpoints that demo users are allowed to call.
@@ -152,7 +156,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
 				return finish(new Response(null, { status: 301, headers: { Location: `https://tradifitins.com${url.pathname}${url.search}` } }));
 			}
-			if (pathname === '/' || pathname === '') {
+			// Only while PetroTins is public; while it is owner-only its landing is not advertised.
+			if (PETRO_TINS_PUBLIC && (pathname === '/' || pathname === '')) {
 				return finish(Response.redirect('https://tradifitins.com/petro-tins', 303));
 			}
 			// Fall through to normal auth middleware — login redirects will use almstins.com
@@ -170,8 +175,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// ── Auth session check (must happen before demo mode) ───────────────────
 		// A signed-in user must never be routed into demo mode — their real
 		// session takes priority over any lingering demo cookie.
-		const session = await getAuthSession(request);
+		// A cut session (see src/lib/sessionGate.ts) is treated as signed out. When the cut is
+		// about an unverified password, the login page says why instead of a bare sign-in form.
+		const { session, cutReason, cutUserId } = await getAuthSessionState(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
+		const cutQuery = cutSignInQuery(cutReason);
 		// A signed-in user must never carry the demo cookie. Clear any lingering one
 		// (e.g. from an earlier "Try the demo") so a later expired session drops to
 		// /login, never silently back into demo mode.
@@ -231,15 +239,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					),
 				);
 			}
-			// PetroTins dashboard → PetroTins login page
-			if (pathname.startsWith('/dashboard/petro-tins')) {
-				return finish(Response.redirect(`https://${canonicalHost}/petro-tins`, 303));
+			// PetroTins dashboard → PetroTins login page (only while PetroTins is public; while it
+			// is owner-only, src/middleware.ts has already answered 404 for a signed-out visitor)
+			if (PETRO_TINS_PUBLIC && pathname.startsWith('/dashboard/petro-tins')) {
+				return finish(Response.redirect(`https://${canonicalHost}/petro-tins${cutQuery ? `?${cutQuery}` : ''}`, 303));
 			}
 			// Verify dashboard → the Verify login (titled for Verify), not the general
 			// /login. Alert emails and old links point at /dashboard/verify directly.
 			if (pathname === '/dashboard/verify' || pathname.startsWith('/dashboard/verify/')) {
 				const next = encodeURIComponent(pathname);
-				return finish(Response.redirect(`https://${canonicalHost}/verify/login?next=${next}`, 303));
+				return finish(Response.redirect(`https://${canonicalHost}/verify/login?next=${next}${cutQuery ? `&${cutQuery}` : ''}`, 303));
 			}
 			// Preserve the intended destination so sign-in returns there (login.astro
 			// sanitizes `next` to an internal path). Otherwise everyone lands on the
@@ -247,7 +256,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			// No `error=` param: a signed-out visitor isn't an error, just needs to sign in
 			// (an "error=missing" in the URL reads as "broken" to a new customer).
 			const next = encodeURIComponent(pathname);
-			return finish(Response.redirect(`https://${canonicalHost}/login?next=${next}`, 303));
+			// A cut session gets the explanation in the account's own language (/es, /fr).
+			const loginPath = cutQuery && cutUserId ? loginPathForLang(await getUserLang(cutUserId)) : '/login';
+			return finish(Response.redirect(`https://${canonicalHost}${loginPath}?next=${next}${cutQuery ? `&${cutQuery}` : ''}`, 303));
 		}
 
 		const tenantState = await getTenantStateDetails(userId);
@@ -309,43 +320,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		}
 	}
 });
-
-const CSP_REPORT_ONLY = [
-	"default-src 'self'",
-	"base-uri 'self'",
-	"object-src 'none'",
-	"frame-ancestors 'none'",
-	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-	"img-src 'self' data: blob: https://images.unsplash.com",
-	"connect-src 'self'",
-	"font-src 'self' data: https://fonts.gstatic.com",
-	"script-src 'self'",
-	'upgrade-insecure-requests',
-].join('; ');
-
-function applySecurityHeaders(response: Response): Response {
-	// Clone into a mutable response — Auth.js uses Response.redirect() which
-	// produces immutable headers; calling .set() on those throws TypeError.
-	const headers = new Headers(response.headers);
-	headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
-	headers.set('X-Frame-Options', 'DENY');
-	headers.set('X-Content-Type-Options', 'nosniff');
-	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-	headers.set(
-		'Permissions-Policy',
-		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
-	);
-	headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	headers.set('Cross-Origin-Resource-Policy', 'same-origin');
-	if (process.env.NODE_ENV === 'production') {
-		headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
-	}
-	return new Response(response.body, {
-		status: response.status,
-		statusText: response.statusText,
-		headers,
-	});
-}
 
 async function writeRequestAnalyticsBestEffort(request: Request, response: Response, startedAt: number) {
 	try {

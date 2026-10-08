@@ -34,7 +34,7 @@ export const GET: APIRoute = async ({ request }) => {
       ) AS last_from_admin
     FROM support_messages sm
     LEFT JOIN auth_users au ON au.id = sm.user_id
-    GROUP BY sm.user_id
+    GROUP BY sm.user_id, au.email
     ORDER BY last_message_at DESC
   `);
 

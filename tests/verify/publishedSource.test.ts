@@ -55,8 +55,8 @@ describe('verify published-source swap analysis', () => {
     const link = 'https://buy.stripe.com/abc123';
     const page = `<a href="${link}">Pay now</a>`;
     expect(analyzePublishedHtml('qr', 'url', link, page).outcome).toBe('present');
-    // trailing slash / utm on the page still match the canonical registered link
-    expect(analyzePublishedHtml('qr', 'url', link, `<a href="${link}/?utm=x">Pay</a>`).outcome).toBe('present');
+    // trailing slash / a tracking param on the page still match the canonical registered link
+    expect(analyzePublishedHtml('qr', 'url', link, `<a href="${link}/?utm_source=x">Pay</a>`).outcome).toBe('present');
   });
 
   it('Payment link: different link on the SAME host → swapped', () => {

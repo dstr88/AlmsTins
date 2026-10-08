@@ -127,6 +127,19 @@ export interface PublicAttestation {
   anchoredAt: string | null;
 }
 
+/** A past "Verify now" run. tenant_id (who ran it) is never surfaced -- same no-attribution
+ *  boundary as claims/attestations -- but the verdict and per-check detail are, since that's
+ *  the whole point of a re-verification: contemporaneous evidence of what the control found. */
+export interface PublicReverification {
+  id: string;
+  verdict: 'confirmed' | 'attention';
+  checks: ReverifyCheck[];
+  date: string;
+  signed: boolean;
+  anchored: boolean;
+  anchoredAt: string | null;
+}
+
 export interface ReceivableStatus {
   id: string;
   supplier: string;
@@ -159,6 +172,7 @@ export interface ReceivableStatus {
   settledAt: string | null;
   attestations: PublicAttestation[];
   claims: PublicClaim[];
+  reverifications: PublicReverification[];
   claimed: number;
   available: number;
   status: 'unfinanced' | 'partially_financed' | 'fully_financed' | 'over_financed';
@@ -283,6 +297,12 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharged_at TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_json TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_digest TEXT`,
+  // Optional free text the discharging financier can attach ("wire received Sept 28").
+  // Part of the signed discharge_json manifest, not just this column. Tenant-only: never
+  // selected by getReceivableStatus (the public second-financier check) — see its own
+  // no-attribution comment. Omitted from the manifest entirely when blank, same convention
+  // as roster docs, so discharges signed before this existed stay byte-identical.
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_reason TEXT`,
   // Counter-signature: the supplier's confirmation that the money actually arrived.
   // A claim is an assertion by the lender until this is set. See affirmClaimByToken.
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS affirmed_at TEXT`,
@@ -501,7 +521,8 @@ const isYmd = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2
 
 export type CreateReceivableResult =
   | { ok: true; id: string; digest: string; signed: boolean; keyId: string | null }
-  | { ok: false; error: 'invalid'; message: string };
+  | { ok: false; error: 'invalid'; message: string }
+  | { ok: false; error: 'id_collision'; message: string };
 
 /**
  * Create + sign a receivable. Its ID is the SHA-256 of the signed creation manifest,
@@ -579,9 +600,21 @@ export async function createReceivable(
   const { signature, digest } = sign(manifest);
   const id = sha256hex(canonicalManifestBytes(manifest));
 
-  // Deterministic ID → a re-create of the identical receivable is idempotent.
-  const existing = await db.execute({ sql: `SELECT id FROM receivables WHERE id = ? LIMIT 1`, args: [id] });
-  if (!existing.rows.length) {
+  // Deterministic ID -> a re-create of the identical receivable, by the SAME tenant, is
+  // idempotent. Without this check, a DIFFERENT tenant submitting byte-identical fields
+  // would silently succeed against the first tenant's row instead: the INSERT is skipped
+  // (the id already exists), but the caller was told ok:true as if they had created it,
+  // while every later owner-gated action against "their" receivable would then fail.
+  const existing = await db.execute({ sql: `SELECT id, tenant_id FROM receivables WHERE id = ? LIMIT 1`, args: [id] });
+  if (existing.rows.length) {
+    const existingTenant = String((existing.rows[0] as any).tenant_id);
+    if (existingTenant !== tenantId) {
+      return {
+        ok: false, error: 'id_collision',
+        message: 'A receivable with these exact details already exists under a different account. If this is genuinely a different deal, change at least one field (e.g. add a note) to record it separately.',
+      };
+    }
+  } else {
     await db.execute({
       sql: `INSERT INTO receivables
               (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, is_test, manifest_json, signature_json, digest)
@@ -649,7 +682,27 @@ export type AddClaimResult =
   | { ok: true; claimId: string; digest: string; signed: boolean; claimed: number; available: number; face: number }
   | { ok: false; error: 'not_found'; message: string }
   | { ok: false; error: 'invalid'; message: string }
-  | { ok: false; error: 'exceeds_headroom'; message: string; available: number; claimed: number; face: number };
+  | { ok: false; error: 'exceeds_headroom'; message: string; available: number; claimed: number; face: number }
+  | { ok: false; error: 'diligence_required'; message: string };
+
+async function hasBuyerAttestation(receivableId: string): Promise<boolean> {
+  const r = await db.execute({
+    sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND role = 'buyer' LIMIT 1`,
+    args: [receivableId],
+  });
+  return r.rows.length > 0;
+}
+
+/** A diligence acceptance is filed under role 'other' with a DILIGENCE prefix (see
+ * acceptDiligence) -- scoped to the claiming tenant, since each financier accepts this
+ * responsibility for himself, not on another financier's behalf. */
+async function hasDiligenceAcceptance(receivableId: string, tenantId: string): Promise<boolean> {
+  const r = await db.execute({
+    sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ? AND statement LIKE 'DILIGENCE —%' LIMIT 1`,
+    args: [receivableId, tenantId],
+  });
+  return r.rows.length > 0;
+}
 
 /**
  * Register a financing claim against a receivable. The write is the duplicate-financing
@@ -674,6 +727,21 @@ export async function addClaim(
   if (!financier) return { ok: false, error: 'invalid', message: 'A financier name is required.' };
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, error: 'invalid', message: 'Claim amount must be a positive number.' };
+  }
+
+  // No genuine debtor confirmation on record -- financing this receivable would rest
+  // entirely on the supplier's word. Almstins does not verify a debtor's identity itself
+  // (that's what the token-gated /verify/authenticate flow is for); it also refuses to let
+  // that gap pass silently. Before a claim is allowed through, the claiming financier must
+  // accept responsibility for having verified this relationship himself -- see
+  // acceptDiligence(). Skipped for test records, matching the pledge-boundary warning's
+  // existing test-mode exemption. One acceptance per (tenant, receivable) covers every
+  // later claim by that same financier on the same receivable.
+  if (rcv.is_test !== true && !(await hasBuyerAttestation(rcv.id)) && !(await hasDiligenceAcceptance(rcv.id, tenantId))) {
+    return {
+      ok: false, error: 'diligence_required',
+      message: 'No debtor confirmation is on record for this receivable. Accept responsibility for having verified it yourself before financing.',
+    };
   }
 
   const claimed = await sumActiveClaims(receivableId);
@@ -753,6 +821,21 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     anchoredAt: anchoredAtOf(r.anchor_json),
   }));
 
+  const rr = await db.execute({
+    sql: `SELECT id, verdict, checks_json, created_at, signature_json, anchor_json
+          FROM receivable_reverifications WHERE receivable_id = ? ORDER BY created_at ASC`,
+    args: [rcv.id],
+  });
+  const reverifications: PublicReverification[] = (rr.rows as any[]).map((r) => ({
+    id: String(r.id),
+    verdict: (String(r.verdict) === 'confirmed' ? 'confirmed' : 'attention') as 'confirmed' | 'attention',
+    checks: JSON.parse(String(r.checks_json)) as ReverifyCheck[],
+    date: String(r.created_at),
+    signed: !!r.signature_json,
+    anchored: !!r.anchor_json,
+    anchoredAt: anchoredAtOf(r.anchor_json),
+  }));
+
   const dr = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM receivable_documents WHERE receivable_id = ? AND data IS NOT NULL`,
     args: [rcv.id],
@@ -795,6 +878,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
     attestations,
+    reverifications,
     claims, claimed, available, status, lifecycle,
   };
 }
@@ -969,7 +1053,7 @@ export type DischargeClaimResult =
  * dated discharge event; the digest is Bitcoin-anchorable. Idempotent-safe: a claim
  * already discharged returns 'already_discharged' rather than double-signing.
  */
-export async function dischargeClaim(tenantId: string, claimId: string): Promise<DischargeClaimResult> {
+export async function dischargeClaim(tenantId: string, claimId: string, reason?: string): Promise<DischargeClaimResult> {
   await ensureReceivablesTables();
   const cr = await db.execute({
     sql: `SELECT id, receivable_id, financier, amount, currency, status FROM receivable_claims
@@ -983,18 +1067,20 @@ export async function dischargeClaim(tenantId: string, claimId: string): Promise
   }
 
   const dischargedAt = nowUtc().slice(0, 10);
-  const manifest = {
+  const cleanReason = clampStr(reason, 300);
+  const manifest: Record<string, unknown> = {
     v: 1, kind: 'claim_discharge',
     receivableId: String(claim.receivable_id), claimId: String(claim.id),
     financier: String(claim.financier), amount: Number(claim.amount),
     currency: String(claim.currency), dischargedAt,
   };
+  if (cleanReason) manifest.reason = cleanReason;
   const { signature, digest } = sign(manifest);
   await db.execute({
     sql: `UPDATE receivable_claims
-          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?
+          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?, discharge_reason = ?
           WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
-    args: [dischargedAt, JSON.stringify(manifest), digest, claim.id, tenantId],
+    args: [dischargedAt, JSON.stringify(manifest), digest, cleanReason || null, claim.id, tenantId],
   });
 
   await touchReceivable(String(claim.receivable_id));
@@ -1052,23 +1138,33 @@ export interface ReceivableSummary {
   /** True when that activity is newer than the last time this tenant looked — an unseen
    *  update for the desk's badge/bold/dot. */
   updated: boolean;
+  /** False when this tenant only holds an active claim against a receivable someone else
+   *  created -- a second lender's row, not theirs. Owner-only actions (settle, invite,
+   *  upload documents) should not be offered on a row where this is false. */
+  mine: boolean;
 }
 
-/** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped.
- *  Newest activity first, with an unseen-update flag from the tenant's read-state. */
+/** The receivables this tenant created, PLUS any receivable someone else created that this
+ *  tenant holds an active claim against -- a second lender used to have no way to find a
+ *  deal back in their own book once they'd claimed against it, short of keeping the ID
+ *  themselves. Each row is flagged `mine` so the desk knows which owner-only actions to
+ *  offer. Newest activity first, with an unseen-update flag from the tenant's own
+ *  read-state (never the receivable owner's, now that the owner and viewer can differ). */
 export async function listReceivables(tenantId: string): Promise<ReceivableSummary[]> {
   await ensureReceivablesTables();
   const r = await db.execute({
     sql: `SELECT r.id, r.supplier, r.buyer, r.invoice_no, r.face, r.currency, r.settled_at,
                  r.created_at, r.is_test,
                  COALESCE(r.updated_at, r.created_at) AS last_activity,
-                 s.seen_at AS seen_at
+                 s.seen_at AS seen_at,
+                 (r.tenant_id = ?) AS mine
           FROM receivables r
-          LEFT JOIN receivable_seen s ON s.receivable_id = r.id AND s.tenant_id = r.tenant_id
+          LEFT JOIN receivable_seen s ON s.receivable_id = r.id AND s.tenant_id = ?
           WHERE r.tenant_id = ?
+             OR EXISTS (SELECT 1 FROM receivable_claims c WHERE c.receivable_id = r.id AND c.tenant_id = ? AND c.status = 'active')
           ORDER BY COALESCE(r.updated_at, r.created_at) DESC
           LIMIT 200`,
-    args: [tenantId],
+    args: [tenantId, tenantId, tenantId, tenantId],
   });
   return (r.rows as any[]).map((row) => {
     const lastActivity = String(row.last_activity ?? row.created_at);
@@ -1082,14 +1178,18 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
       // A row with no seen record (created before this feature) is treated as seen, so an
       // existing book does not light up as one giant pile of updates on first load.
       updated: seenAt != null && lastActivity > seenAt,
+      mine: row.mine === true || row.mine === 1 || String(row.mine) === 'true',
     };
   });
 }
 
 /**
- * Delete a receivable this tenant created, cascading its claims and attestations.
- * Tenant-scoped: only the creator can delete, and only their own rows are touched.
- * Returns false when no such receivable belongs to the tenant.
+ * Delete a receivable this tenant created, cascading everything tied to it: owner-only
+ * rows (offers, documents, invites, access grants) outright, and this tenant's own claims,
+ * attestations and reverifications specifically -- another tenant's rows in those three
+ * tables are left alone even though they reference this receivable, since deleting it must
+ * never erase another party's own evidence of their stake in it. Returns false when no such
+ * receivable belongs to the tenant.
  */
 export async function deleteReceivable(tenantId: string, receivableId: string): Promise<boolean> {
   await ensureReceivablesTables();
@@ -1099,10 +1199,20 @@ export async function deleteReceivable(tenantId: string, receivableId: string): 
     args: [id, tenantId],
   });
   if (!owned.rows.length) return false;
-  // Claims/attestations are keyed by receivable_id; scope the deletes by tenant too so a
-  // tenant can never remove another tenant's claim against a shared receivable.
+  // Claims, attestations and reverifications can each be written by a DIFFERENT tenant
+  // than the owner (a second lender's claim, a debtor's token-based attestation, another
+  // financier's own "Verify now" run) -- scope those deletes by tenant too, so deleting
+  // the receivable can never erase another tenant's evidence of their own stake in it.
+  // Offers, documents, invites and access grants are owner-only writes with no other
+  // party's stake to protect, so those are cleared for the whole receivable outright.
   await db.execute({ sql: `DELETE FROM receivable_claims WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
   await db.execute({ sql: `DELETE FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivable_reverifications WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivable_offers WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_documents WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_invites WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_access WHERE receivable_id = ?`, args: [id] });
+  await db.execute({ sql: `DELETE FROM receivable_seen WHERE receivable_id = ?`, args: [id] });
   await db.execute({ sql: `DELETE FROM receivables WHERE id = ? AND tenant_id = ?`, args: [id, tenantId] });
   return true;
 }
@@ -1164,6 +1274,40 @@ export async function addAttestation(
   // confirmation. Each floats the record up as an unseen update in the creator's book.
   await touchReceivable(rcv.id);
   return { ok: true, attestationId, digest, signed: !!signature };
+}
+
+export type DiligenceMethod = 'phone' | 'relationship' | 'correspondence' | 'other';
+
+const DILIGENCE_METHOD_TEXT: Record<DiligenceMethod, string> = {
+  phone: 'a phone call',
+  relationship: 'an existing relationship with the debtor',
+  correspondence: 'written correspondence (email or letter)',
+  other: 'another method',
+};
+
+/**
+ * The financier's own accountability record -- not a debtor confirmation, and never
+ * mistaken for one. Required by addClaim()'s diligence_required gate when a financier
+ * wants to finance a receivable with no genuine buyer attestation on file. Filed under
+ * role 'other' with a DILIGENCE prefix (same pattern as the existing DISPUTED prefix),
+ * never role 'buyer': this is the financier vouching for his own process, not evidence
+ * the debtor confirmed anything. Almstins organizes and proves; it does not verify a
+ * debtor's identity on the financier's behalf -- that stays the financier's own job, and
+ * his own risk, on the record in his own name.
+ */
+export async function acceptDiligence(
+  tenantId: string,
+  receivableId: string,
+  input: { financier: string; method: DiligenceMethod; note?: string },
+): Promise<AddAttestationResult> {
+  const methodText = DILIGENCE_METHOD_TEXT[input.method] ?? DILIGENCE_METHOD_TEXT.other;
+  const note = clampStr(input.note || '', 300);
+  const statement = `DILIGENCE — accepts responsibility for having personally verified this debtor via ${methodText}. Almstins has not independently confirmed this.${note ? ` Note: ${note}` : ''}`;
+  return addAttestation(tenantId, receivableId, {
+    role: 'other',
+    label: clampStr(input.financier, 120),
+    statement,
+  });
 }
 
 // ── #1: Bitcoin anchoring — attach a receipt to a registry record ─────────────
@@ -1316,16 +1460,22 @@ export async function createInvite(
   }
 
   const token = inviteToken();
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
+  let expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
     .toISOString().replace('T', ' ').slice(0, 19);
 
   const offerId = input.offerId ? String(input.offerId).trim() : null;
   if (offerId) {
     const owns = await db.execute({
-      sql: `SELECT 1 FROM receivable_offers WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      sql: `SELECT expires_at FROM receivable_offers WHERE id = ? AND tenant_id = ? LIMIT 1`,
       args: [offerId, fromTenant],
     });
     if (!owns.rows.length) return { ok: false, error: 'offer_not_found' };
+    // The invite link is the only way to reach the offer, so it must not expire before
+    // the offer itself does -- an offer valid up to OFFER_TTL_DAYS/90 days must not sit
+    // behind a link that dies at the flat INVITE_TTL_DAYS/7-day default. Both are the
+    // same 'YYYY-MM-DD HH:MM:SS' format, so string comparison sorts chronologically.
+    const offerExpiresAt = String((owns.rows[0] as any).expires_at);
+    if (offerExpiresAt > expiresAt) expiresAt = offerExpiresAt;
   }
 
   await db.execute({
@@ -2226,7 +2376,7 @@ export async function readRecordRequest(token: string): Promise<
 > {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT receivable_id, role, claim_id, email, expires_at, accepted_at, revoked_at
+    sql: `SELECT receivable_id, role, claim_id, offer_id, email, expires_at, accepted_at, revoked_at
             FROM receivable_invites WHERE token = ? LIMIT 1`,
     args: [String(token || '').trim()],
   });
@@ -2235,7 +2385,7 @@ export async function readRecordRequest(token: string): Promise<
   if (row.revoked_at) return { ok: false, error: 'revoked' };
   if (row.accepted_at) return { ok: false, error: 'used' };
   if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
-  if (row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
+  if (row.offer_id || row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
     return { ok: false, error: 'wrong_kind' };
   }
 

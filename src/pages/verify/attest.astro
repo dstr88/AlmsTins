@@ -9,12 +9,18 @@ import Analytics from '@/components/Analytics.astro';
 // Asked at intake, before money moves. No account: he is standing at the desk, not
 // signing up for software.
 import '@/styles/tokens.css';
-import { readRecordRequest } from '@/lib/receivablesRegistry';
+import { readRecordRequest, pathForToken } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
 const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readRecordRequest(token) : { ok: false as const, error: 'not_found' };
+
+// A live token that belongs on another page. The reader did not choose this URL, so send
+// them on instead of stopping them.
+const elsewhere = (!req.ok && req.error === 'wrong_kind' && token)
+  ? await pathForToken(token)
+  : null;
 
 const money = (n: number, ccy: string) =>
   `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -117,7 +123,14 @@ const ERRORS: Record<string, string> = {
     </div>
 
     {!req.ok && (
-      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+      <div class="note note-loss show">
+        {elsewhere ? 'This link is for a different step.' : (ERRORS[req.error] ?? ERRORS.not_found)}
+        {elsewhere && (
+          <div style="margin-top:.7rem">
+            <a href={elsewhere} style="color:var(--accent);font-weight:700">Continue to the right page</a>
+          </div>
+        )}
+      </div>
     )}
 
     {req.ok && (

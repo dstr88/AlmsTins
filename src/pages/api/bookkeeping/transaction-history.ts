@@ -74,7 +74,7 @@ export const GET: APIRoute = async ({ request, url }) => {
                t.from_address      AS from_address,
                t.to_address        AS to_address,
                t.chain             AS chain,
-               -- Wallet label: match the user's wallet address to either side
+               -- Wallet label: match a wallet address of the user to either side
                w.label             AS wallet_label,
                w.address           AS wallet_address,
                -- Resolved labels: personal first, fall back to global

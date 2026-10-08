@@ -85,6 +85,16 @@ export interface LoginPageLocale {
   errors: {
     configuration: string;
     generic: string;
+    /** Password was right, the address was never verified; a new link was sent, rate-limited (?error=CredentialsSignin&code=email_unverified). */
+    emailUnverified: string;
+    /** Password was right, the address was never verified, and the account signs in with Google/GitHub (?code=use_provider). */
+    useProvider: string;
+    /** A password-only session was ended because the address was never verified (?code=verify_required). */
+    verifyRequired: string;
+    /** Google/GitHub did not verify the address of a first sign-in (?error=provider_unverified). */
+    providerUnverified: string;
+    /** Too many sign-in attempts from this network (?code=rate_limited or ?error=rate_limited). */
+    rateLimited: string;
   };
   notices: {
     signupSuccess: string;
@@ -196,6 +206,11 @@ export const en: LoginPageLocale = {
   errors: {
     configuration: 'Sign-in is temporarily unavailable. Please try again in a moment.',
     generic: 'Sign-in failed. Please try again.',
+    emailUnverified: "Your email address isn't verified yet. We've sent a verification link to your inbox (check spam too; we send at most one every 15 minutes). Open it, then sign in with your password.",
+    useProvider: 'This account signs in with Google or GitHub. Use that button to sign in.',
+    verifyRequired: "Please verify your email address to keep using your account. Sign in with your password and we'll email you a new verification link.",
+    providerUnverified: "Your Google or GitHub account hasn't verified this email address. Verify it there and try again, or sign in with an email link.",
+    rateLimited: 'Too many sign-in attempts from your network. Please wait a few minutes and try again.',
   },
   notices: {
     signupSuccess: 'Account created. Check your inbox to verify your email.',
@@ -307,6 +322,11 @@ export const es: LoginPageLocale = {
   errors: {
     configuration: 'El inicio de sesión no está disponible temporalmente. Por favor intenta de nuevo.',
     generic: 'Error al iniciar sesión. Por favor intenta de nuevo.',
+    emailUnverified: 'Tu correo electrónico aún no está verificado. Te enviamos un enlace de verificación (revisa también el spam; enviamos como máximo uno cada 15 minutos). Ábrelo y luego inicia sesión con tu contraseña.',
+    useProvider: 'Esta cuenta inicia sesión con Google o GitHub. Usa ese botón para iniciar sesión.',
+    verifyRequired: 'Verifica tu correo electrónico para seguir usando tu cuenta. Inicia sesión con tu contraseña y te enviaremos un nuevo enlace de verificación.',
+    providerUnverified: 'Tu cuenta de Google o GitHub no ha verificado este correo electrónico. Verifícalo allí e inténtalo de nuevo, o inicia sesión con un enlace por correo.',
+    rateLimited: 'Demasiados intentos de inicio de sesión desde tu red. Espera unos minutos e inténtalo de nuevo.',
   },
   notices: {
     signupSuccess: 'Cuenta creada. Revisa tu bandeja de entrada para verificar tu email.',
@@ -418,6 +438,11 @@ export const fr: LoginPageLocale = {
   errors: {
     configuration: 'La connexion n\'est temporairement pas disponible. Veuillez réessayer dans un moment.',
     generic: 'La connexion a échoué. Veuillez réessayer.',
+    emailUnverified: "Votre adresse e-mail n'est pas encore vérifiée. Nous vous avons envoyé un lien de vérification (consultez aussi les spams ; nous en envoyons au plus un toutes les 15 minutes). Ouvrez-le, puis connectez-vous avec votre mot de passe.",
+    useProvider: 'Ce compte se connecte avec Google ou GitHub. Utilisez ce bouton pour vous connecter.',
+    verifyRequired: 'Veuillez vérifier votre adresse e-mail pour continuer à utiliser votre compte. Connectez-vous avec votre mot de passe et nous vous enverrons un nouveau lien de vérification.',
+    providerUnverified: "Votre compte Google ou GitHub n'a pas vérifié cette adresse e-mail. Vérifiez-la là-bas puis réessayez, ou connectez-vous avec un lien par e-mail.",
+    rateLimited: 'Trop de tentatives de connexion depuis votre réseau. Veuillez patienter quelques minutes et réessayer.',
   },
   notices: {
     signupSuccess: 'Compte créé. Vérifiez votre boîte de réception pour vérifier votre email.',

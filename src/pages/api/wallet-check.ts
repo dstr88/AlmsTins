@@ -21,8 +21,16 @@ import {
   getCached,
   setCache,
   checkWallet,
+  detectChain,
+  type Chain,
 } from '@/lib/walletChecker';
 import { recordCheck } from '@/lib/checkLog';
+
+// Short chain labels for the check counter (check_log.chain). evm/btc/sol/unknown are the
+// labels already stored; the rest are new.
+const ANALYTICS_CHAIN: Record<Chain, string> = {
+  evm: 'evm', sui: 'sui', solana: 'sol', bitcoin: 'btc', litecoin: 'ltc', tron: 'trx', unknown: 'unknown',
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -64,12 +72,10 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     );
   }
 
-  // ── Detect chain ─────────────────────────────────────────────────────────────
-  const chain = /^0x[0-9a-fA-F]{40}$/.test(address) ? 'evm'
-    : /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) ? 'btc'
-    : /^bc1[a-z0-9]{6,87}$/.test(address) ? 'btc'
-    : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? 'sol'
-    : 'unknown';
+  // ── Detect chain (analytics label only) ──────────────────────────────────────
+  // Same detection as the scan itself, so legacy Litecoin and Tron are no longer logged
+  // as Solana. The short labels match the ones already stored.
+  const chain = ANALYTICS_CHAIN[detectChain(address)];
 
   // ── Helper: log the check (fire-and-forget, never blocks the response) ───────
   // Delegates to the shared safety-check counter (src/lib/checkLog.ts).

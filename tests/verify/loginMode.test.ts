@@ -18,12 +18,24 @@ describe('verify login — mode from next', () => {
     expect(verifyLoginMode('/verify/desk')).toBe('financier');
     expect(verifyLoginMode('/verify/desk?id=INV-4471')).toBe('financier');
     expect(verifyLoginMode('/verify/cairn')).toBe('project');
+    expect(verifyLoginMode('/receivables/desk')).toBe('financier');
+    expect(verifyLoginMode('/receivables/desk?id=INV-1')).toBe('financier');
+    expect(verifyLoginMode('/receivables/milestones')).toBe('project');
   });
 
-  it('keeps the client heading for everything else, including no next', () => {
-    expect(verifyLoginMode(null)).toBe('client');
-    expect(verifyLoginMode(undefined)).toBe('client');
-    expect(verifyLoginMode('')).toBe('client');
+  it('serves the role-neutral Receivables sign-in for the /receivables landing', () => {
+    expect(verifyLoginMode('/receivables')).toBe('receivables');
+    expect(verifyLoginMode('/receivables/')).toBe('receivables');
+    expect(verifyLoginMode('/receivables/client')).toBe('client');
+  });
+
+  it('serves Verify for a bare /verify/login (no next)', () => {
+    expect(verifyLoginMode(null)).toBe('verify');
+    expect(verifyLoginMode(undefined)).toBe('verify');
+    expect(verifyLoginMode('')).toBe('verify');
+  });
+
+  it('keeps the client heading for the other financing destinations', () => {
     expect(verifyLoginMode('/verify/client')).toBe('client');
     expect(verifyLoginMode('/verify/confirm')).toBe('client');
     expect(verifyLoginMode('/verify/invite?token=abc')).toBe('client');

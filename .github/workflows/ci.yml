@@ -1,6 +1,7 @@
 name: CI
 
-# Runs on every pull request into production: the hermetic unit tests and a full build.
+# Runs on every pull request into production: the hermetic unit tests, the tax pipeline
+# integration test against a throwaway Postgres service container, and a full build.
 # Nothing here deploys or touches production; it needs no secrets.
 on:
   pull_request:
@@ -20,6 +21,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Throwaway Postgres for the tax pipeline integration step only. It lives and dies with
+    # this job. DATABASE_URL is set on that one step, never at job level, so the unit step
+    # stays database-free.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +51,15 @@ jobs:
 
       - name: Unit tests (no database, no network)
         run: npx vitest run --config vitest.ci.config.ts
+
+      # Runs the real classify + dedup pipeline against the throwaway Postgres above. The
+      # test refuses any DATABASE_URL whose host is not localhost or 127.0.0.1.
+      - name: Tax pipeline integration (Postgres)
+        run: npx vitest run tests/tax/pipeline.integration.test.ts
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          # Opt-in for the suite; with it set, a skipped or unsafe setup fails the step instead.
+          RUN_TAX_PIPELINE_IT: '1'
 
       - name: Build
         run: npm run build

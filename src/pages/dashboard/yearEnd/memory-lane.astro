@@ -31,8 +31,9 @@ let availableYears: number[]            = [defaultYear];
 
 try {
 	// ── Available years ──────────────────────────────────────────────────────
+	// timestamp_utc is ISO-8601 UTC text, so its first 4 chars are the year.
 	const yearsRes = await db.execute({
-		sql: `SELECT DISTINCT strftime('%Y', timestamp_utc) AS y
+		sql: `SELECT DISTINCT substr(timestamp_utc, 1, 4) AS y
 		      FROM asset_lifecycle_events
 		      WHERE tenant_id = ?
 		      ORDER BY y DESC`,

@@ -574,6 +574,19 @@ export async function sealProject(
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
+/**
+ * Does this tenant have at least one project on the milestone desk? Tenant-scoped. Used to
+ * decide whether the account menu links to the desk: only accounts already using it see it.
+ */
+export async function hasProjects(tenantId: string): Promise<boolean> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT 1 FROM cairn_projects WHERE tenant_id = ? LIMIT 1`,
+    args: [tenantId],
+  });
+  return r.rows.length > 0;
+}
+
 export async function listProjects(tenantId: string): Promise<ProjectSummary[]> {
   await ensureCairnTables();
   const r = await db.execute({

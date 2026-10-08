@@ -2,19 +2,22 @@
 import './Layout.css';
 import '../styles/dashboard.css';
 import Footer from "@/components/Footer.astro";
-import AnalyticsPageContext from "@/components/AnalyticsPageContext.astro";
+import Analytics from "@/components/Analytics.astro";
 import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
+import { isOwner } from '@/lib/owner';
+import { newAccountKey } from '@/lib/analytics/newAccount';
 import { db } from '@/lib/db';
+import LogoutButton from '@/components/LogoutButton.astro';
 import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
 import { tenantHasTaxAccess } from '@/lib/taxAuth';
+import { isPetroTinsOwnerSession, petroTinsVisibility } from '@/lib/petroTinsAccess';
 import kingSolomon from '@/assets/KingSolomon.png';
 
 import minerva from '@/assets/Minerva.png';
 import { getLang, isLang } from '@/lib/i18n/locale';
 import { getDashboardCommon } from '@/i18n/dashboard/common';
-const GA_ID = import.meta.env.PUBLIC_GA_ID;
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -57,6 +60,11 @@ if (user?.id) {
 
 // Prefer session email, fall back to DB email
 const displayEmail = user?.email || dbEmail;
+
+// What Google Analytics may learn about this session, and nothing about who: the owner's own
+// visits are internal, and a membership only minutes old is a new account to count once.
+const gaOwner = isOwner(tenantId);
+const gaNewAccount = gaOwner || isDemo ? null : newAccountKey(memberSinceIso);
 
 // Admin check — tenant ID is checked first (always in JWT, no email dependency).
 // Fall back to email match as a secondary check.
@@ -129,6 +137,15 @@ const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
   Astro.request.headers.get('x-forwarded-host') ?? Astro.url.hostname
 );
 
+// PetroTins is owner-only while PETRO_TINS_PUBLIC is false (src/lib/petroTinsFlag.mjs):
+// its links render for the owner alone, so nobody else sees that it exists. The owner check
+// agrees with the middleware gate (an older token without a tenant is resolved the same way).
+const petroNav = petroTinsVisibility({
+  isOwner: await isPetroTinsOwnerSession(Astro.request, session),
+  isAdmin,
+  isTradfiDomain,
+});
+
 // ── Promo expiry banner ───────────────────────────────────────────────────────
 const PROMO_EXPIRY_SENTINEL = '9999-12-31T23:59:59Z';
 let promoDaysLeft: number | null = null;
@@ -199,22 +216,8 @@ const memberSinceDisplay = memberSinceIso
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-		<!-- Google Analytics (AnalyticsPageContext strips query strings first) -->
-	<AnalyticsPageContext />
-	<script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
-<script is:inline define:vars={{ GA_ID, isDemo }}>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, isDemo ? { page_path: '/demo' + window.location.pathname } : {}));
-  if (isDemo) {
-    gtag('set', 'user_properties', { demo_user: 'true' });
-    gtag('event', 'demo_page_view', {
-      event_category: 'demo',
-      event_label: window.location.pathname,
-    });
-  }
-</script>
+		<!-- Google Analytics: the one tag component -->
+		<Analytics demo={isDemo} owner={gaOwner} newAccount={gaNewAccount} />
 	</head>
 	<body>
 		{isDemo && (
@@ -258,7 +261,7 @@ const memberSinceDisplay = memberSinceIso
 				</div>
 				<button id="nav-toggle" class="nav-toggle" aria-label={tNav.chrome.ariaOpenMenu} aria-expanded="false" aria-controls="nav-drawer">☰</button>
 				<nav id="nav-drawer">
-				{isTradfiDomain ? (
+				{petroNav.tradfiNav ? (
 					<!-- TradfiTins-only nav -->
 					<>
 						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>Dashboard</a>
@@ -288,8 +291,10 @@ const memberSinceDisplay = memberSinceIso
 							Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
 						</a>
 						<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
-						<a href="/dashboard/petro-tins" class={`nav-link nav-link--admin ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>⛽ PetroTins</a>
 					</>
+				)}
+				{petroNav.navLink && (
+					<a href="/dashboard/petro-tins" class={`nav-link nav-link--admin ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>⛽ PetroTins</a>
 				)}
 
 					<!-- Language switcher -->
@@ -401,12 +406,8 @@ const memberSinceDisplay = memberSinceIso
 
 							<hr class="account-divider" />
 
-							<!-- Logout -->
-							<form id="logout" method={logoutRedirect ? 'get' : 'post'} action="/api/logout">
-								{/* A GET form replaces the action's query string, so `next` must be a field. */}
-								{logoutRedirect && <input type="hidden" name="next" value={logoutRedirect} />}
-								<button class="account-logout" type="submit">{tNav.chrome.logOut}</button>
-							</form>
+							<!-- Logout: the one logout component -->
+							<LogoutButton class="account-logout" next={logoutRedirect}>{tNav.chrome.logOut}</LogoutButton>
 						</div>
 					</details>
 					{isDemo && (
@@ -469,6 +470,9 @@ const memberSinceDisplay = memberSinceIso
   helpSending:       tNav.chrome.helpSending,
   helpSend:          tNav.chrome.helpSend,
   helpSendError:     tNav.chrome.helpSendError,
+  deleteConfirm1:    tNav.chrome.deleteConfirm1,
+  deleteConfirm2:    tNav.chrome.deleteConfirm2,
+  deleteFailed:      tNav.chrome.deleteFailed,
   dateLocale:        navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US',
 } }}>
 window.__chromeI18n = chromeI18n;
@@ -767,9 +771,11 @@ window.__chromeI18n = chromeI18n;
 <script>
 	// Delete account
 	document.getElementById('delete-account-btn')?.addEventListener('click', async () => {
-		const confirmed = confirm('Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
+		const i18n = (window as any).__chromeI18n || {};
+		const failed = i18n.deleteFailed || 'Could not delete account. Please try again.';
+		const confirmed = confirm(i18n.deleteConfirm1 || 'Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
 		if (!confirmed) return;
-		const confirmed2 = confirm('Last chance — all your tins, entries, and subscription data will be permanently and irreversibly deleted. Continue?');
+		const confirmed2 = confirm(i18n.deleteConfirm2 || 'Last chance: all your tins, entries, and subscription data will be permanently and irreversibly deleted. If you use Verify, your public Claimed and Verified results, your business name, and your agent API keys are removed too. Continue?');
 		if (!confirmed2) return;
 		try {
 			const res = await fetch('/api/account/delete', { method: 'POST' });
@@ -777,10 +783,10 @@ window.__chromeI18n = chromeI18n;
 				window.location.href = '/login';
 			} else {
 				const d = await res.json().catch(() => ({}));
-				alert(d.error ?? 'Could not delete account. Please try again.');
+				alert(d.error ?? failed);
 			}
 		} catch {
-			alert('Could not delete account. Please try again.');
+			alert(failed);
 		}
 	});
 </script>

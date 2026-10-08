@@ -16,6 +16,9 @@
  * DB calls, or env-var reads to this file.
  */
 
+// Import-free constant (no env, no db): whether the PetroTins pages are public.
+import { PETRO_TINS_PUBLIC } from '../lib/petroTinsFlag.mjs';
+
 export function isPublicPath(pathname: string): boolean {
 	return (
 		// Homepage — public marketing surface (merged with the login page 2026-06-15).
@@ -43,6 +46,12 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/signup/') ||
 		// Credentials signup endpoint — must be reachable without a session
 		pathname === '/api/signup' ||
+		// Sign-up email confirmation: the page the emailed link opens, and the endpoint its
+		// Confirm button posts to. The token is the capability, and the person confirming is
+		// never signed in (password sign-in refuses an unverified address), so the session
+		// gate in app.ts would 401 it.
+		pathname === '/verify-email' ||
+		pathname === '/api/verify-email' ||
 		pathname === '/wallet' ||
 		pathname.startsWith('/wallet/') ||
 		pathname === '/wallet-checker' ||
@@ -56,6 +65,9 @@ export function isPublicPath(pathname: string): boolean {
 		// tools. Must be reachable without a session (the gated desks handle their own login).
 		pathname === '/receivables' ||
 		pathname === '/receivables/' ||
+		// The financing pages under /receivables (aliases of /verify/<name> today). Every page
+		// gates itself, the same model as /verify/ above.
+		pathname.startsWith('/receivables/') ||
 		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
 		pathname === '/artifacts' ||
 		pathname.startsWith('/artifacts/') ||
@@ -69,15 +81,21 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/demo/end' ||
 		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
 		pathname === '/aave-alisis' ||
-		// PetroTins standalone login page — must be reachable without a session
-		pathname === '/petro-tins' ||
-		// PetroTins demo — clears session cookie then starts demo, no auth needed
-		pathname === '/api/petro-tins/demo' ||
-		// PetroTins docs — public documentation page
-		pathname === '/petro-tins/docs' ||
-		// PetroTins legal pages — public Terms & Privacy
-		pathname === '/petro-tins/terms' ||
-		pathname === '/petro-tins/privacy' ||
+		// PetroTins public pages — only while PetroTins is public (src/lib/petroTinsFlag.mjs).
+		// While it is owner-only, src/middleware.ts 404s these for everyone but the owner
+		// before this list is consulted, and the owner goes through app.ts like any
+		// signed-in page.
+		(PETRO_TINS_PUBLIC && (
+			// PetroTins standalone login page — must be reachable without a session
+			pathname === '/petro-tins' ||
+			// PetroTins demo — clears session cookie then starts demo, no auth needed
+			pathname === '/api/petro-tins/demo' ||
+			// PetroTins docs — public documentation page
+			pathname === '/petro-tins/docs' ||
+			// PetroTins legal pages — public Terms & Privacy
+			pathname === '/petro-tins/terms' ||
+			pathname === '/petro-tins/privacy'
+		)) ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||
@@ -126,6 +144,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
 		pathname === '/.well-known/almstins-signing-key.json' ||
+		// Roster-document encryption public key — published so a merchant's browser can
+		// encrypt a roster document to it; it's a public key, safe for anyone to fetch.
+		pathname === '/.well-known/almstins-verify-encryption-key.json' ||
 		// Public record verification — verify a proof bundle without an account
 		pathname === '/verify-record' ||
 		pathname === '/api/verify-record' ||

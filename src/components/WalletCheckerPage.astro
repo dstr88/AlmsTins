@@ -2,6 +2,7 @@
 import type { WalletCheckerLocale } from '../i18n/walletChecker';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import WalletChecker from './WalletChecker';
+import PoweredByGoPlus from './PoweredByGoPlus';
 
 interface Props {
   t: WalletCheckerLocale;
@@ -181,6 +182,11 @@ const { t, prefilledAddress } = Astro.props;
       </div>
     </div>
 
+    <!-- GoPlus API License Agreement s.3: a visible credit and backlink for the GoPlus results the
+         checker shows. Server-rendered, so it is in the HTML without JS and covers both tabs; the
+         wallet results and the site results add their own when GoPlus answered for that check. -->
+    <div class="goplus-credit"><PoweredByGoPlus label={t.checker.poweredByGoPlus} /></div>
+
     <!-- Tab switcher -->
     <div class="checker-tabs" role="tablist" aria-label={t.tabs.ariaLabel}>
       <button class="checker-tab active" id="tab-btn-wallet" role="tab" aria-selected="true" aria-controls="panel-wallet" data-tab="wallet">
@@ -213,6 +219,8 @@ const { t, prefilledAddress } = Astro.props;
         </div>
         <ul class="source-list" id="source-list"></ul>
         <div class="safety-tip" id="safety-tip"></div>
+        <!-- Shown by the script only when GoPlus Security returned a verdict for this site. -->
+        <div id="dapp-goplus-credit" hidden><PoweredByGoPlus label={t.checker.poweredByGoPlus} /></div>
       </div>
 
       <div id="dapp-loading" class="dapp-loading" hidden>
@@ -583,6 +591,9 @@ const { t, prefilledAddress } = Astro.props;
 
   .checker-wrap { margin-bottom: 2.5rem; }
 
+  /* GoPlus credit above the checker tabs (the line itself is styled in PoweredByGoPlus.css). */
+  .goplus-credit { text-align: center; margin-bottom: 0.75rem; }
+
   /* ── CTA banner ── */
   .cta-banner { display: flex; align-items: center; gap: 1.25rem; background: linear-gradient(135deg, rgba(87,103,255,0.12), rgba(147,77,255,0.1)); border: 1px solid rgba(87,103,255,0.28); border-radius: 16px; padding: 1.4rem 1.6rem; margin-bottom: 4rem; flex-wrap: wrap; }
   .cta-banner__icon { font-size: 2rem; flex-shrink: 0; line-height: 1; }
@@ -684,6 +695,8 @@ const { t, prefilledAddress } = Astro.props;
 </style>
 
 <script>
+  import { goplusRanForSite } from '@/lib/goplusCredit';
+
   // Read i18n runtime strings embedded in the page
   const _i18nEl = document.getElementById('wc-i18n');
   const _i18n = _i18nEl ? JSON.parse(_i18nEl.textContent ?? '{}') : {};
@@ -856,6 +869,9 @@ const { t, prefilledAddress } = Astro.props;
         data.verdict === 'yellow' ? (_i18n.tipYellow ?? '') :
                                     (_i18n.tipGreen  ?? '');
 
+      // Credit GoPlus next to the results only when it answered for this site.
+      document.getElementById('dapp-goplus-credit')!.hidden = !goplusRanForSite(data);
+
       result.hidden = false;
       if (typeof (window as any).gtag === 'function') {
         (window as any).gtag('event', 'dapp_check_submitted', { event_category: 'interactive_tool', event_label: data.verdict ?? 'unknown' });
@@ -893,5 +909,18 @@ const { t, prefilledAddress } = Astro.props;
   window.addEventListener('almstins:scanned-url', (e) => {
     const url = (e as CustomEvent).detail?.url as string | undefined;
     if (url) activateDappCheck(url);
+  });
+
+  // Count the step from a free check to an account: a click on the banner's "Get started free"
+  // or the nav's sign-up button. Which one, never who. The beacon transport lets the hit leave
+  // as the page navigates to /login.
+  document.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement | null)?.closest?.('.cta-banner__btn, .topnav__signup');
+    if (!link || typeof (window as any).gtag !== 'function') return;
+    (window as any).gtag('event', 'checker_signup_click', {
+      event_category: 'interactive_tool',
+      event_label: link.classList.contains('cta-banner__btn') ? 'banner' : 'nav',
+      transport_type: 'beacon',
+    });
   });
 </script>

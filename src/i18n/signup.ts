@@ -14,6 +14,7 @@ export interface SignupLocale {
     email_domain: string;
     password: string;
     exists: string;
+    rate_limited: string;
   };
   labels: {
     email: string;
@@ -38,6 +39,7 @@ export const en: SignupLocale = {
     email_domain: "We're unable to create accounts with that email domain.",
     password: 'Password must be at least 10 characters.',
     exists: 'An account already exists for that email.',
+    rate_limited: 'Too many sign-up attempts from your network. Please try again in an hour.',
   },
   labels: {
     email: 'Email address',
@@ -62,6 +64,7 @@ export const es: SignupLocale = {
     email_domain: 'No podemos crear cuentas con ese dominio de correo electrónico.',
     password: 'La contraseña debe tener al menos 10 caracteres.',
     exists: 'Ya existe una cuenta con ese correo electrónico.',
+    rate_limited: 'Demasiados intentos de registro desde tu red. Por favor intenta de nuevo en una hora.',
   },
   labels: {
     email: 'Dirección de correo electrónico',
@@ -86,6 +89,7 @@ export const fr: SignupLocale = {
     email_domain: 'Nous ne pouvons pas créer de comptes avec ce domaine d\'e-mail.',
     password: 'Le mot de passe doit comporter au moins 10 caractères.',
     exists: 'Un compte existe déjà pour cette adresse e-mail.',
+    rate_limited: 'Trop de tentatives d\'inscription depuis votre réseau. Veuillez réessayer dans une heure.',
   },
   labels: {
     email: 'Adresse e-mail',

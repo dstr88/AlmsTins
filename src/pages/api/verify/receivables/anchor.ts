@@ -15,8 +15,16 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getRecordForAnchor, setRecordAnchor, type AnchorRecordKind } from '@/lib/receivablesRegistry';
 import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
 import type { AnchorReceipt } from '@/lib/rwaProof/types';
+import { createFixedWindowLimiter } from '@/lib/rateLimit';
 
 export const prerender = false;
+
+// Every stamp and upgrade is a request to the public OpenTimestamps calendars, a shared
+// resource one tenant must not be able to hammer. A desk stamps a few records a day. An
+// open registry page polls an upgrade for each pending record every 4 minutes (up to 3h),
+// so upgrades get a larger budget of their own.
+const stampLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 30 });
+const upgradeLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 240 });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -30,6 +38,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   let body: any = {};
   try { body = await request.json(); } catch { return json({ ok: false, error: 'invalid_json' }, 400); }
+
+  const limiter = body.upgrade ? upgradeLimiter : stampLimiter;
+  if (limiter.hit(`tenant:${session.tenantId}`)) return json({ ok: false, error: 'rate_limited' }, 429);
 
   const kind = body.kind as AnchorRecordKind;
   if (!KINDS.includes(kind)) return json({ ok: false, error: 'invalid_kind' }, 400);

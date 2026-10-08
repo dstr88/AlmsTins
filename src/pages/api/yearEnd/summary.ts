@@ -25,6 +25,7 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { getCache, setCache } from '../../../lib/tursoCache';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import { sqlTimestamptz } from '../../../lib/utcTimestamp';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
@@ -91,15 +92,17 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 	try {
 		// ── 1. Ordinary income — by asset (lifecycle events fallback) ────────
+		// Events carry no symbol of their own; it lives on the lifecycle group.
 		const incomeRes = await db.execute({
-			sql: `SELECT ale.asset_symbol, SUM(ale.native_usd) AS total_usd, COUNT(*) AS event_count
+			sql: `SELECT g.asset_symbol, SUM(ale.native_usd) AS total_usd, COUNT(*) AS event_count
 			      FROM asset_lifecycle_events ale
+			      JOIN asset_lifecycle_groups g ON g.id = ale.group_id AND g.tenant_id = ale.tenant_id
 			      WHERE ale.tenant_id = ?
 			        AND ale.transaction_class = 'interest_income'
 			        AND ale.direction = 'in'
 			        AND ale.timestamp_utc BETWEEN ? AND ?
 			        AND ale.native_usd IS NOT NULL AND ale.native_usd > 0
-			      GROUP BY ale.asset_symbol
+			      GROUP BY g.asset_symbol
 			      ORDER BY total_usd DESC`,
 			args: [tenantId, from, to],
 		});
@@ -821,6 +824,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 			items: [],
 		};
 		try {
+			// Window = whole days between repurchase and sale, truncated toward
+			// zero (a repurchase 30d 23h after the sale is still inside it).
+			// Both columns are ISO-8601 UTC text; a row whose text is not ISO-8601
+			// casts to NULL and drops out rather than failing the whole query.
+			// The sold lot itself, and any lot bought by the same transaction
+			// that made the sale, is not a replacement purchase.
 			const washRes = await db.execute({
 				sql: `SELECT
 				        td.asset_symbol,
@@ -833,11 +842,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 				        ON  tl.tenant_id    = td.tenant_id
 				        AND UPPER(tl.asset_symbol) = UPPER(td.asset_symbol)
 				        AND tl.lot_type     = 'purchase'
-				        AND ABS(CAST(julianday(tl.acquired_at) - julianday(td.disposed_at) AS INTEGER)) <= 30
+				        AND tl.id          <> td.lot_id
+				        AND NOT (tl.source_type = td.source_type AND tl.source_id = td.source_id)
+				        AND ABS(TRUNC(EXTRACT(EPOCH FROM (
+				              ${sqlTimestamptz('tl.acquired_at')} - ${sqlTimestamptz('td.disposed_at')}
+				            )) / 86400)) <= 30
 				      WHERE td.tenant_id     = ?
 				        AND td.gain_loss_usd < -0.01
 				        AND substr(td.disposed_at, 1, 4) = ?
-				      GROUP BY td.id
+				      GROUP BY td.id, td.asset_symbol, td.disposed_at, td.gain_loss_usd
 				      ORDER BY td.gain_loss_usd ASC
 				      LIMIT 100`,
 				args: [tenantId, String(year)],

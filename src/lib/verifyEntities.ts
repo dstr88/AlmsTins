@@ -9,6 +9,10 @@
  *  - the API key is read-only (reads a public list) and stored ENCRYPTED, never hashed
  *    (we replay it on every pull).
  * Tenant isolation is app-enforced (WHERE tenant_id), like the rest of Verify.
+ *
+ * Publishing is by approval (verifyEntityAccess.ts): create, prove, set-endpoint and pull
+ * refuse a tenant that is not approved, the monitor only refreshes approved tenants, and the
+ * public lookup ignores mirror rows whose tenant is not approved. Delete is never gated.
  */
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
@@ -17,21 +21,12 @@ import {
   validateEntityEndpoint, pullEntityList, type EntityPullCode,
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
-import { normalizeDestinationValue, ensureVerifyTables } from './verifyRegistry';
+import { normalizeDestinationValue, addressKey, ensureVerifyTables } from './verifyRegistry';
+import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
+import { merchantAddressAssurance, staleCutoffUtc } from './verifyAnchor';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-/**
- * Hard max-stale TTL for a mirrored "verified" row. A row whose `refreshed_at` is
- * older than this is NOT trusted by the public lookup — fail-safe to *unverified*.
- * The Phase-5 monitor cron keeps `refreshed_at` advancing on every successful re-pull;
- * if it stops (entity endpoint down, cron broken), the badge lapses instead of
- * over-claiming a stale "verified." Under-claim, never over-claim. Same column format
- * as `nowUtc()` so a lexical `>=` compare is also chronological.
- */
-const MAX_STALE_MS = 24 * 60 * 60 * 1000;
-const staleCutoffUtc = (): string =>
-  new Date(Date.now() - MAX_STALE_MS).toISOString().replace('T', ' ').slice(0, 19);
 
 export type EntityProofStatus = 'unproven' | 'proven';
 
@@ -87,6 +82,9 @@ const ENSURE_MIRROR_ADDR_IDX = `CREATE INDEX IF NOT EXISTS verified_address_mirr
   ON verified_address_mirror (address)`;
 const ENSURE_MIRROR_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS verified_address_mirror_entity_addr
   ON verified_address_mirror (entity_id, address, chain)`;
+// Account deletion clears a tenant's mirror rows by tenant_id (verifyAccountDelete.ts).
+const ENSURE_MIRROR_TENANT_IDX = `CREATE INDEX IF NOT EXISTS verified_address_mirror_tenant
+  ON verified_address_mirror (tenant_id)`;
 
 let ensured = false;
 export async function ensureEntityTables(): Promise<void> {
@@ -96,6 +94,7 @@ export async function ensureEntityTables(): Promise<void> {
   await db.execute({ sql: ENSURE_MIRROR, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_ADDR_IDX, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_UNIQUE, args: [] });
+  await db.execute({ sql: ENSURE_MIRROR_TENANT_IDX, args: [] });
   ensured = true;
 }
 
@@ -147,10 +146,11 @@ async function getEntityRaw(tenantId: string, id: string): Promise<any | null> {
 
 export type CreateEntityResult =
   | { ok: true; entity: VerifiedEntity }
-  | { ok: false; code: 'invalid_domain' };
+  | { ok: false; code: 'invalid_domain' | typeof ENTITY_NOT_APPROVED };
 
 /** Register an entity for a domain (idempotent per tenant+domain), issuing a challenge. */
 export async function createEntity(tenantId: string, rawDomain: string): Promise<CreateEntityResult> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   await ensureEntityTables();
   const domain = normalizeProofDomain(rawDomain);
   if (!domain) return { ok: false, code: 'invalid_domain' };
@@ -175,6 +175,7 @@ export type EntityOutcome = { ok: true } | { ok: false; code: string };
 
 /** Prove the entity's domain via the published .well-known challenge (reuses Phase 3). */
 export async function proveEntity(tenantId: string, id: string): Promise<EntityOutcome> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const entity = await getEntity(tenantId, id);
   if (!entity) return { ok: false, code: 'not_found' };
   const result = await verifyDomainProof(entity.domain, entity.challenge);
@@ -192,6 +193,7 @@ export async function proveEntity(tenantId: string, id: string): Promise<EntityO
 export async function setEntityEndpoint(
   tenantId: string, id: string, endpoint: string, apiKey: string,
 ): Promise<EntityOutcome> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const entity = await getEntity(tenantId, id);
   if (!entity) return { ok: false, code: 'not_found' };
   if (entity.proofStatus !== 'proven') return { ok: false, code: 'not_proven' };
@@ -210,8 +212,13 @@ export async function setEntityEndpoint(
 
 export type PullResult = { ok: true; count: number } | { ok: false; code: EntityPullCode | string };
 
-/** Pull the entity's live list and replace its mirrored addresses. */
+/**
+ * Pull the entity's live list and replace its mirrored addresses. Refuses (before any read
+ * or write) a tenant that is not approved, so neither connect nor the monitor can add
+ * addresses for one.
+ */
 export async function pullEntity(tenantId: string, id: string): Promise<PullResult> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const raw = await getEntityRaw(tenantId, id);
   if (!raw) return { ok: false, code: 'not_found' };
   if (String(raw.proof_status) !== 'proven') return { ok: false, code: 'not_proven' };
@@ -231,23 +238,30 @@ export async function pullEntity(tenantId: string, id: string): Promise<PullResu
     return { ok: false, code: result.code };
   }
 
-  // Replace the entity's mirrored set with the current published list.
-  await db.execute({
-    sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  for (const a of result.addresses) {
-    await db.execute({
+  // Replace the entity's mirrored set with the current published list, in one transaction.
+  // The entity row may have gone while the fetch ran (its account was deleted, or the
+  // owner removed it), so the transaction starts by updating (and so locking) that row,
+  // and every insert is conditional on the entity still existing. A pull that lost that
+  // race changes nothing; account deletion takes the same entity lock before it clears the
+  // mirror (see verifyAccountDelete.ts), so it also removes anything a pull committed first.
+  const replaced = await db.batch([
+    {
+      sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [result.addresses.length, now, now, id, tenantId],
+    },
+    {
+      sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+      args: [id, tenantId],
+    },
+    ...result.addresses.map((a) => ({
       sql: `INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?)`,
-      args: [randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), now],
-    });
-  }
-  await db.execute({
-    sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ?
-          WHERE id = ? AND tenant_id = ?`,
-    args: [result.addresses.length, now, now, id, tenantId],
-  });
+            SELECT ?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?
+            WHERE EXISTS (SELECT 1 FROM verified_entities WHERE id = ? AND tenant_id = ? AND proof_status = 'proven')`,
+      args: [randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), now, id, tenantId],
+    })),
+  ], 'write');
+  if (!Number(replaced[0]?.rowsAffected ?? 0)) return { ok: false, code: 'not_found' };
   return { ok: true, count: result.addresses.length };
 }
 
@@ -260,17 +274,18 @@ export async function connectEntity(
   return pullEntity(tenantId, id);
 }
 
-/** Remove an entity and its mirrored addresses. */
+/**
+ * Remove an entity and its mirrored addresses, in one transaction. The entity row goes
+ * first, the same lock order as pullEntity, so a pull in flight either finishes before
+ * this (and its rows are removed by the mirror DELETE that follows) or finds the entity
+ * gone and writes nothing.
+ */
 export async function deleteEntity(tenantId: string, id: string): Promise<void> {
   await ensureEntityTables();
-  await db.execute({
-    sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  await db.execute({
-    sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
+  await db.batch([
+    { sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`, args: [id, tenantId] },
+    { sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`, args: [id, tenantId] },
+  ], 'write');
 }
 
 // ── Phase 4: public address lookup ───────────────────────────────────────────
@@ -288,10 +303,20 @@ export interface VerifiedAddressHit {
    *    prove control of their own address — so this is shown as caution, not endorsement.
    */
   level: 'claimed' | 'verified';
-  /** ISO datetime (UTC) the destination/entity was proven — the "verified/claimed since" date. Null if unknown. */
+  /** ISO datetime (UTC) behind the level — the "verified/claimed since" date. For 'verified' it is
+   *  when the domain anchor was attached; for 'claimed', when control was proven. Null if unknown. */
   since: string | null;
-  /** Publishing domain (entity path), or null for a merchant self-listing. */
+  /** DISPLAY domain: an entity's publishing domain, or (merchant path) the account's
+   *  domain-verified business name's domain if it has one, else the domain that actually
+   *  anchors THIS destination. Prefers the business name for a nicer badge, so it can
+   *  differ from provingDomain below — see that field before matching against it. */
   domain: string | null;
+  /** MACHINE domain: the domain that actually vouches for this exact destination right
+   *  now — an entity's own list, or (merchant path) the destination's own proof_domain,
+   *  never the account's business-name domain. Null whenever level isn't 'verified', so
+   *  it is always safe to compare directly against an agent's `expect` (check.ts) or to
+   *  decide "Listed on" vs "verified via" (verifyPublicCard.ts) — domain above is not. */
+  provingDomain: string | null;
   /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
   label: string | null;
   /** Rail the address is on, or null. */
@@ -318,58 +343,105 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   if (!normalized) return null;
   await ensureEntityTables();
 
-  // 1) Entity mirror (exchanges / platforms) — domain-published, fresh.
+  // 1) Entity mirror (exchanges / platforms) — domain-published, fresh, and published by an
+  //    approved tenant. A row whose tenant is not (or no longer) approved never answers, so
+  //    withdrawing approval takes effect at once instead of waiting out the stale TTL. The
+  //    approval filter runs in SQL (so unapproved rows can never crowd an approved one out
+  //    of the page), and the order is fixed: when several approved lists carry the address,
+  //    the earliest-proven domain answers. The tenant_id is read only to re-check approval
+  //    below and is never returned.
+  const publishers = publishingTenantIds();
   const ent = await db.execute({
-    sql: `SELECT m.chain AS chain, m.entity_domain AS entity_domain, e.proven_at AS proven_at
+    sql: `SELECT m.chain AS chain, m.entity_domain AS entity_domain, e.proven_at AS proven_at,
+                 e.tenant_id AS tenant_id
           FROM verified_address_mirror m
           JOIN verified_entities e ON e.id = m.entity_id
           WHERE m.status = 'verified' AND m.address = ?
             AND m.refreshed_at IS NOT NULL AND m.refreshed_at >= ?
+            AND lower(e.tenant_id) IN (${publishers.map(() => '?').join(', ')})
+          ORDER BY e.proven_at ASC, m.entity_id ASC
           LIMIT 1`,
-    args: [normalized, staleCutoffUtc()],
+    args: [normalized, staleCutoffUtc(), ...publishers],
   });
-  if (ent.rows.length) {
-    const r = ent.rows[0] as any;
+  const approvedRow = (ent.rows as any[])[0];
+  if (approvedRow && canPublishEntities(String(approvedRow.tenant_id ?? ''))) {
+    const r = approvedRow;
     // Entity mirror = domain-published by definition → Verified. "Since" = when the
     // entity proved its domain (verified_entities.proven_at).
     return {
       source: 'entity', level: 'verified', since: r.proven_at ? String(r.proven_at) : null,
-      domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null,
+      domain: String(r.entity_domain), provingDomain: String(r.entity_domain),
+      label: null, chain: r.chain ? String(r.chain) : null,
     };
   }
 
-  // 2) Proven merchant destinations (self-send / domain proof). Claim-once guarantees at
-  //    most one account can prove a given (rail, value), so the match is unambiguous. We
-  //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
+  // 2) Proven merchant destinations (self-send / domain proof). Claim-once (the index, and the
+  //    canonical claim guard on every flip and anchor) lets only one account prove a wallet, so
+  //    the match is normally one account. We expose only the merchant's OWN self-chosen label —
+  //    never tenant_id or any identity.
+  //    Matched on addressKey, the key the claim guard uses: an EVM or segwit address in any
+  //    letter case is one wallet ('BC1Q…', the QR form, is 'bc1q…'); base58 stays exact. The SQL
+  //    finds every case spelling (lower(value) = key) and the key compare in code decides.
+  const key = addressKey(rawValue);
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at, last_confirmed_at FROM verify_destinations
-          WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
-    args: [normalized, normalized],
+    sql: `SELECT tenant_id, rail, value, label, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)
+          ORDER BY proven_at ASC, id ASC`,
+    args: [key, key],
   });
-  const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
-  if (hit) {
+  const matches = (dest.rows as any[]).filter((r) => addressKey(String(r.value)) === key);
+  if (matches.length) {
+    // Fail-closed freshness: 'verified' also requires the anchor to have been POSITIVELY
+    // re-confirmed by a domain proof within the max-stale window (Pass B still finds it in the
+    // domain's file, or the owner proved the domain again; a published-page check never counts
+    // for an address, see recordMonitorResult). If it has gone stale (file unreachable or
+    // gone, or the monitor cron stalled), degrade verified→claimed: keep the proven-control
+    // fact, drop the current-confirmation claim.
+    // Under-claim, never over-claim — the same rule the entity mirror already enforces.
+    // "Since" follows the level: a 'verified' address is as old as its domain anchor, never
+    // its (possibly older) self-send proof — see merchantAddressAssurance.
+    const str = (v: unknown): string | null => (v ? String(v) : null);
+    const cutoff = staleCutoffUtc();
+    const rate = (r: any) => merchantAddressAssurance({
+      proofMethod: String(r.proof_method ?? ''),
+      proofDomain: str(r.proof_domain),
+      provenAt: str(r.proven_at),
+      domainAnchoredAt: str(r.domain_anchored_at),
+      lastConfirmedAt: str(r.last_confirmed_at),
+    }, cutoff);
+    // The answer is the earliest-proven account's (the claim-once holder), in a fixed order so
+    // identical calls give identical answers. Within that account, its own rows for the same
+    // wallet (another rail, case or URI wrapping) are all its claim: a Verified one answers.
+    // Rows from two accounts are a claim the guard would not allow today (proven before it
+    // existed): nothing can say whose domain stands behind the wallet, so no row lifts it to
+    // Verified and no listing domain is shown.
+    const holder = String(matches[0].tenant_id);
+    const ambiguous = matches.some((r) => String(r.tenant_id) !== holder);
+    const own = matches.filter((r) => String(r.tenant_id) === holder);
+    const hit = ambiguous ? own[0] : (own.find((r) => rate(r).level === 'verified') ?? own[0]);
+    const { level, since } = ambiguous
+      ? { level: 'claimed' as const, since: str(hit.proven_at) }
+      : rate(hit);
     // Prefer the tenant's domain-verified business name (+ its anchor domain) over the
     // freeform label. We expose only the public name + domain — never tenant_id or any key.
-    const vn = await verifiedNameForTenant(String(hit.tenant_id));
+    const vn = await verifiedNameForTenant(holder);
     // Verified iff THIS address is anchored to a proven domain (proof_domain set) — a
     // swapped address on a spoofed page would then fail the comparison. Control-only
     // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
     // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
-    const publishedDomain = hit.proof_domain ? String(hit.proof_domain) : null;
-    // Fail-closed freshness: 'verified' also requires the watchman to have POSITIVELY
-    // re-confirmed the anchor within the max-stale window (Pass B still vouches it, or Pass C
-    // still finds it published — both advance last_confirmed_at). If it has gone stale (source
-    // unreachable, the value now rendered by JS, or the monitor cron stalled), degrade
-    // verified→claimed: keep the proven-control fact, drop the current-confirmation claim.
-    // Under-claim, never over-claim — the same rule the entity mirror already enforces.
-    const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
-    const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
+    const publishedDomain = !ambiguous && hit.proof_domain ? String(hit.proof_domain) : null;
+    // C5: the domain that actually vouches for THIS wallet, never the account's business
+    // name. Set only when the answer is truly 'verified' (fresh + anchored to
+    // publishedDomain) — an agent (check.ts) or a public card (verifyPublicCard.ts) can
+    // then compare against it directly without knowing any of the levels above.
+    const provingDomain = level === 'verified' ? publishedDomain : null;
     return {
       source: 'merchant',
-      level: publishedDomain && fresh ? 'verified' : 'claimed',
-      since: hit.proven_at ? String(hit.proven_at) : null,
+      level,
+      since,
       domain: vn?.domain ?? publishedDomain,
+      provingDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),
     };
@@ -382,10 +454,18 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
  * proven this URL is theirs by registering it in their own account (account_claim)?
  *
  * Same no-attribution rules as the address lookup: returns only the merchant's
- * self-chosen label plus the URL's host for display — never tenant_id or any legal
- * identity. Claim-once guarantees at most one account owns a proven URL, so the
- * customer-scan match is unambiguous. The stored value is already normalized on save;
- * we normalize the query the same way and compare canonical forms.
+ * self-chosen label and (only once its own account is domain-verified) that domain —
+ * never the link's own host, which names the payment processor, not the merchant, and
+ * never tenant_id or any legal identity. Claim-once guarantees at most one account owns a
+ * proven URL, so the customer-scan match is unambiguous. The stored value is already
+ * normalized on save; we normalize the query the same way and compare canonical forms.
+ *
+ * D6, still open: nothing here separately anchors a link to a domain the way an address's
+ * .well-known file does (recordProofResult), so `level` rests entirely on the account
+ * holding SOME verified business name — not on that name's domain vouching for THIS link.
+ * A future anchor step (listing the link's canonical value in the file, the same as an
+ * address) would let `provingDomain` diverge from `domain` here the way it already can
+ * for an address.
  */
 export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddressHit | null> {
   const normalized = normalizeDestinationValue(rawUrl);
@@ -399,20 +479,25 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
   if (!hit) return null;
   const vn = await verifiedNameForTenant(String(hit.tenant_id));
-  let host: string | null = null;
-  try { host = new URL(normalized).host || null; } catch { host = null; }
-  // A claimed link is control-proven (account_claim). Verified only when the operating
-  // merchant is itself domain-verified (an accountable anchor); otherwise Claimed. Fail-closed:
-  // if the link is monitored (Pass C watches its published page) and that check has gone stale,
-  // downgrade verified→claimed rather than keep vouching a link we can no longer confirm is live.
+  // A claimed link is control-proven (account_claim — and D6 already requires the account
+  // to have had a proven domain before that could happen; see createDestination). Verified
+  // only when the operating merchant is ITSELF domain-verified (an accountable anchor);
+  // otherwise Claimed. Fail-closed: if the link is monitored (Pass C watches its published
+  // page) and that check has gone stale, downgrade verified→claimed rather than keep
+  // vouching a link we can no longer confirm is live.
   const monitored = hit.monitor_url != null;
   const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
   const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
   const level: 'verified' | 'claimed' = (vn?.domain && (!monitored || fresh)) ? 'verified' : 'claimed';
+  // D6: never the link's own host (buy.stripe.com vouches for nobody in particular — it's
+  // Stripe's domain, not the merchant's). domain/provingDomain are the SAME thing for a
+  // link, because nothing yet separately anchors a link to a domain the way an address's
+  // .well-known file does (see the deferred note where this function is documented).
   return {
     source: 'merchant', level,
     since: hit.proven_at ? String(hit.proven_at) : null,
-    domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
+    domain: vn?.domain ?? null, provingDomain: level === 'verified' ? (vn?.domain ?? null) : null,
+    label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
   };
 }
 
@@ -446,9 +531,10 @@ export interface EntityMonitorTarget {
 
 /**
  * Cross-tenant enumeration for the monitor cron — every proven entity that has a
- * stored endpoint + key. NOT tenant-scoped: this is a privileged maintenance job
- * (like monthly-digest), so it deliberately spans all tenants. It returns only
- * management fields, never the key.
+ * stored endpoint + key, and whose tenant is approved to publish (a tenant that is not
+ * approved is never refreshed, so its mirror lapses at the stale TTL). NOT tenant-scoped:
+ * this is a privileged maintenance job (like monthly-digest), so it deliberately spans all
+ * tenants. It returns only management fields, never the key.
  */
 export async function listEntitiesForMonitor(): Promise<EntityMonitorTarget[]> {
   await ensureEntityTables();
@@ -459,12 +545,14 @@ export async function listEntitiesForMonitor(): Promise<EntityMonitorTarget[]> {
             AND api_endpoint IS NOT NULL AND api_key_encrypted IS NOT NULL`,
     args: [],
   });
-  return (res.rows as any[]).map(r => ({
-    id: String(r.id),
-    tenantId: String(r.tenant_id),
-    domain: String(r.domain),
-    lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
-  }));
+  return (res.rows as any[])
+    .filter(r => canPublishEntities(String(r.tenant_id ?? '')))
+    .map(r => ({
+      id: String(r.id),
+      tenantId: String(r.tenant_id),
+      domain: String(r.domain),
+      lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
+    }));
 }
 
 export interface EntityMonitorResult {
@@ -481,6 +569,7 @@ export interface EntityMonitorResult {
  * the public lookup's max-stale TTL is what fails it safe, not a destructive delete.
  */
 export async function monitorEntity(tenantId: string, id: string): Promise<EntityMonitorResult> {
+  if (!canPublishEntities(tenantId)) return { pull: { ok: false, code: ENTITY_NOT_APPROVED }, removed: [], added: [] };
   const before = await db.execute({
     sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
     args: [id, tenantId],

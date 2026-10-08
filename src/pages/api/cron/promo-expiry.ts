@@ -62,6 +62,9 @@ export const GET: APIRoute = async ({ request }) => {
   // ── Find redemptions needing a warning email ───────────────────────────────
   // Join through tenant_memberships → auth_users to get email and lang.
   // Only promos that actually expire (not the sentinel) and are still active.
+  // access_expires_at is ISO-8601 UTC text, so the 30/7-day windows compare it
+  // as text against now() + N days rendered in the same format. A sent 7-day
+  // warning supersedes the 30-day one, so it also closes the 30-day branch.
   const rows = await db.execute(`
     SELECT
       pr.id                  AS redemption_id,
@@ -78,8 +81,8 @@ export const GET: APIRoute = async ({ request }) => {
     WHERE pr.access_expires_at != '${SENTINEL}'
       AND pr.access_expires_at > to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
       AND (
-           (julianday(pr.access_expires_at) - julianday('now') <= 30 AND pr.warning_30d_sent_at IS NULL)
-        OR (julianday(pr.access_expires_at) - julianday('now') <= 7  AND pr.warning_7d_sent_at  IS NULL)
+           (pr.access_expires_at <= to_char((now() + interval '30 days') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AND pr.warning_30d_sent_at IS NULL AND pr.warning_7d_sent_at IS NULL)
+        OR (pr.access_expires_at <= to_char((now() + interval '7 days')  AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') AND pr.warning_7d_sent_at  IS NULL)
       )
   `).then(r => r.rows as Array<Record<string, unknown>>).catch(() => []);
 
@@ -91,9 +94,10 @@ export const GET: APIRoute = async ({ request }) => {
 
     if (!email || days <= 0) continue;
 
-    // Determine which warning to send (7d takes priority if both are due)
+    // Determine which warning to send (7d takes priority if both are due; once
+    // the 7d warning has gone out, a 30d one would only repeat it)
     const need7d  = days <= 7  && !row.warning_7d_sent_at;
-    const need30d = days <= 30 && !row.warning_30d_sent_at;
+    const need30d = days <= 30 && !row.warning_30d_sent_at && !row.warning_7d_sent_at;
     const type: '30d' | '7d' = need7d ? '7d' : '30d';
 
     if (!need7d && !need30d) continue;
@@ -116,10 +120,15 @@ export const GET: APIRoute = async ({ request }) => {
       await sendMail({ to: email, subject, text, html });
       sent = true;
 
-      // Mark as sent
-      const col = type === '7d' ? 'warning_7d_sent_at' : 'warning_30d_sent_at';
+      // Mark as sent. The 7d warning also stamps the 30d column when it is still
+      // empty (a promo that entered the 7-day window without a 30d warning), so the
+      // next run does not send a 30d warning after it.
+      const now = `to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
+      const set = type === '7d'
+        ? `warning_7d_sent_at = ${now}, warning_30d_sent_at = COALESCE(warning_30d_sent_at, ${now})`
+        : `warning_30d_sent_at = ${now}`;
       await db.execute({
-        sql: `UPDATE promo_redemptions SET ${col} = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE id = ?`,
+        sql: `UPDATE promo_redemptions SET ${set} WHERE id = ?`,
         args: [redemptionId],
       });
 

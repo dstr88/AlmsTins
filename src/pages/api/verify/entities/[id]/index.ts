@@ -1,5 +1,6 @@
 /**
  * DELETE /api/verify/entities/:id — remove an entity and its mirrored addresses.
+ * Not approval-gated on purpose: an account can always remove its own rows.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';

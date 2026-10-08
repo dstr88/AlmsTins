@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Pin PetroTins to owner-only, so these cases hold whatever the committed switch says.
+vi.mock('../../src/lib/petroTinsFlag.mjs', () => ({ PETRO_TINS_PUBLIC: false }));
+
 import { sitemapFilter } from '../../src/lib/seo/sitemapFilter.mjs';
 
 /**
@@ -27,6 +31,17 @@ describe('sitemap filter', () => {
     ]) {
       expect(sitemapFilter(url(p)), p).toBe(false);
     }
+  });
+
+  it('leaves every PetroTins page out while PetroTins is owner-only', () => {
+    for (const p of [
+      '/petro-tins/', '/petro-tins', '/petro-tins/docs/', '/petro-tins/privacy/', '/petro-tins/terms/',
+      '/dashboard/petro-tins/', '/dashboard/petro-tins/upgrade/',
+    ]) {
+      expect(sitemapFilter(url(p)), p).toBe(false);
+    }
+    expect(sitemapFilter(url('/privacy/'))).toBe(true);
+    expect(sitemapFilter(url('/'))).toBe(true);
   });
 
   it('leaves other pages to the existing denylist', () => {

@@ -46,11 +46,13 @@ type ReviewRow = {
 type DbRow = Record<string, unknown>;
 const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 
-// Fetch available years so the selector only shows years that have items
+// Fetch available years so the selector only shows years that have items.
+// Item year = the snapshot's own timestamp, else created_at. Both are ISO-8601
+// UTC text, so the first 4 chars are the year.
 const yearsRes = await db.execute({
-	sql: `SELECT DISTINCT strftime('%Y', COALESCE(
-	        json_extract(snapshot_json, '$.timestamp'), created_at
-	      )) AS yr
+	sql: `SELECT DISTINCT substr(COALESCE(
+	        snapshot_json::jsonb ->> 'timestamp', created_at
+	      ), 1, 4) AS yr
 	      FROM tax_review_items
 	      WHERE tenant_id = ? AND resolved = 0
 	      ORDER BY yr DESC`,
@@ -69,9 +71,9 @@ const result = await db.execute({
 	sql: `SELECT id, source_type, source_id, reason, reason_detail, snapshot_json, notes, created_at
 	      FROM tax_review_items
 	      WHERE tenant_id = ? AND resolved = 0
-	        AND strftime('%Y', COALESCE(
-	              json_extract(snapshot_json, '$.timestamp'), created_at
-	            )) = ?
+	        AND substr(COALESCE(
+	              snapshot_json::jsonb ->> 'timestamp', created_at
+	            ), 1, 4) = ?
 	      ORDER BY
 	        CASE reason
 	          WHEN 'unmatched_transfer' THEN 1

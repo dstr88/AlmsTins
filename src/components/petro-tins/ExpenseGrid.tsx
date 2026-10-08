@@ -1,13 +1,40 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PetroTinEntry } from './types';
 import './ExpenseGrid.css';
 
+/** The parts of a budget entry that a bracketed name needs. */
+type BudgetRef = { description: string; amount: number; entryDate?: string };
+
+/**
+ * Which budget entry "[Name]" means. The register keeps every month, so the first entry
+ * with that description is the oldest one (an "Electric" from June), which is not the bill
+ * being split. This takes this month's entry; if the name has none yet this month, the most
+ * recent earlier month; and only if every match is in a later month, the nearest of those.
+ * Entries with no date fall back to the first match.
+ */
+export function budgetEntryFor(
+  name: string,
+  entries: BudgetRef[] | undefined,
+  month: string = new Date().toISOString().slice(0, 7),
+): BudgetRef | undefined {
+  const key = name.trim().toLowerCase();
+  const matches = (entries ?? []).filter(e => (e.description ?? '').toLowerCase() === key);
+  const dated = matches.filter(e => e.entryDate);
+  if (dated.length === 0) return matches[0];
+  const thisMonth = dated.find(e => e.entryDate!.startsWith(month));
+  if (thisMonth) return thisMonth;
+  const newestFirst = [...dated].sort((a, b) => b.entryDate!.localeCompare(a.entryDate!));
+  return newestFirst.find(e => e.entryDate!.slice(0, 7) < month) ?? newestFirst[newestFirst.length - 1];
+}
+
 /** Evaluate "300", "=1200*0.25", or "=[Rent]*0.25".
- *  [Name] resolves against another row on the same grid, then a budget entry. */
+ *  [Name] resolves against another row on the same grid, then a budget entry (this month's,
+ *  see budgetEntryFor). `month` is YYYY-MM and only needs passing in tests. */
 export function evalFormula(
   input: string,
   rows?: Array<{ name: string; amount: number }>,
-  budgetEntries?: Array<{ description: string; amount: number }>,
+  budgetEntries?: BudgetRef[],
+  month?: string,
 ): number {
   let s = input.trim().startsWith('=') ? input.trim().slice(1) : input.trim();
   if (!s) return NaN;
@@ -16,7 +43,7 @@ export function evalFormula(
     const key = String(name).trim().toLowerCase();
     const row = rows?.find(r => r.name.toLowerCase() === key);
     if (row) return String(row.amount);
-    const entry = budgetEntries?.find(e => (e.description ?? '').toLowerCase() === key);
+    const entry = budgetEntryFor(name, budgetEntries, month);
     if (entry) return String(entry.amount);
     ok = false;
     return '0';
@@ -34,6 +61,28 @@ export const money = (n: number) =>
 export type GridRow = { id: string; name: string; amount: number; raw: string; deposit: number };
 
 const isFormula = (raw: string) => raw.trim().startsWith('=') || /\[[^\]]+\]/.test(raw);
+
+/**
+ * What leaving the formula cell should save, or null for "nothing". `typed` is the draft:
+ * undefined means the cell was never typed in. Clicking in just to read a formula (it is cut
+ * off in the narrow column) and clicking away is not an edit. It used to save an empty
+ * formula, which erased the one that was there and left the old figure standing.
+ */
+export function formulaCommit(typed: string | undefined, raw: string): string | null {
+  if (typed === undefined) return null;
+  const v = typed.trim();
+  return v !== (isFormula(raw) ? raw : '') ? v : null;
+}
+
+/**
+ * What leaving the amount cell should save, or null for "nothing". `seed` is what focusing
+ * put in the cell: a formula row's computed figure, or a plain row's number. Only a change
+ * from that is an edit. Leaving it alone used to overwrite the formula with its own result.
+ */
+export function amountCommit(typed: string | undefined, seed: string | undefined): string | null {
+  const v = (typed ?? '').trim();
+  return v && v !== seed ? v : null;
+}
 
 export interface ExpenseGridProps {
   title: string;
@@ -121,6 +170,8 @@ export default function ExpenseGrid({
 }: ExpenseGridProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [extraBlanks, setExtraBlanks] = useState(0);
+  /** What focusing an amount cell put in it, so leaving it unchanged is not saved as an edit. */
+  const seeds = useRef<Record<string, string>>({});
 
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }));
   const drop = (k: string) => setDraft(d => { const n = { ...d }; delete n[k]; return n; });
@@ -153,7 +204,10 @@ export default function ExpenseGrid({
             />
           </td>
           <td className="xg__right">
-            {onRemove && <button className="xg__x" title="Remove" onClick={onRemove}>✕</button>}
+            {onRemove && (
+              <button type="button" className="xg__del" title="Delete this person and their sheet"
+                onClick={onRemove}>Delete</button>
+            )}
           </td>
         </tr>
 
@@ -199,11 +253,11 @@ export default function ExpenseGrid({
                   value={shownFormula}
                   onChange={e => set(fKey, e.target.value)}
                   onBlur={() => {
-                    const v = (draft[fKey] ?? '').trim();
+                    const next = formulaCommit(draft[fKey], row.raw);
                     drop(fKey);
                     // Save it even when it does not resolve yet. Discarding what someone
                     // typed is worse than holding a formula that is waiting on a name.
-                    if (v !== (isFormula(row.raw) ? row.raw : '')) onAmount?.(row.id, v);
+                    if (next !== null) onAmount?.(row.id, next);
                   }}
                   title={badFormula ? "This name does not match a row on this grid or an entry in the budget register, so the amount is unchanged." : undefined}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -213,13 +267,19 @@ export default function ExpenseGrid({
               <td className="xg__amount">
                 <input
                   value={draft[aKey] ?? money(row.amount)}
-                  onFocus={() => set(aKey, isFormula(row.raw) ? String(row.amount) : row.raw)}
+                  onFocus={() => {
+                    const seed = isFormula(row.raw) ? String(row.amount) : row.raw;
+                    seeds.current[aKey] = seed;
+                    set(aKey, seed);
+                  }}
                   onChange={e => set(aKey, e.target.value)}
                   onBlur={() => {
-                    const v = (draft[aKey] ?? '').trim();
+                    const next = amountCommit(draft[aKey], seeds.current[aKey]);
                     drop(aKey);
-                    // Typing a number here replaces the row's working with that number.
-                    if (v && v !== row.raw) onAmount?.(row.id, v);
+                    delete seeds.current[aKey];
+                    // Typing a number here replaces the row's working with that number;
+                    // leaving the cell as focusing left it does not.
+                    if (next !== null) onAmount?.(row.id, next);
                   }}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />

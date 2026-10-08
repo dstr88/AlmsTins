@@ -21,6 +21,8 @@ export interface AccountErrorsLocale {
   // alert-email — POST validation
   /** "Invalid email address" */
   invalidEmail: string;
+  /** "Verify your email address before setting an alert email" */
+  unverified: string;
 
   // alert-preferences — POST validation
   /** "Threshold must be between 0 and 100" */
@@ -36,6 +38,7 @@ const en: AccountErrorsLocale = {
   assetSymbolRequired: 'Asset symbol is required',
   thresholdPositive:   'Price threshold must be a positive number',
   invalidEmail:        'Invalid email address',
+  unverified:          'Verify your email address before setting an alert email',
   thresholdRange:      'Threshold must be between 0 and 100',
   valueSyncFailed:     'Wallet value sync failed',
 };
@@ -45,6 +48,7 @@ const es: AccountErrorsLocale = {
   assetSymbolRequired: "Se requiere el símbolo del asset",
   thresholdPositive:   "El umbral de precio debe ser un número positivo",
   invalidEmail:        "Dirección de correo inválida",
+  unverified:          "Verifica tu correo electrónico antes de configurar un correo de alertas",
   thresholdRange:      "El umbral debe estar entre 0 y 100",
   valueSyncFailed:     "Error al sincronizar el valor de la cartera",
 };
@@ -54,6 +58,7 @@ const fr: AccountErrorsLocale = {
   assetSymbolRequired: "Le symbole de l'asset est requis",
   thresholdPositive:   "Le seuil de prix doit être un nombre positif",
   invalidEmail:        "Adresse e-mail invalide",
+  unverified:          "Vérifiez votre adresse e-mail avant de définir un e-mail d'alerte",
   thresholdRange:      "Le seuil doit être compris entre 0 et 100",
   valueSyncFailed:     "Échec de la synchronisation de la valeur du portefeuille",
 };

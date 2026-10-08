@@ -275,7 +275,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <!-- 3. CLAIM (authed) -->
     <section class="card">
       <h2><span class="badge-num">3</span> Register a financing claim</h2>
-      <p class="sub">Records "I financed X against this receivable." Two guards run at this boundary: a claim over the unencumbered headroom is <b>blocked</b> (the registry will not record the same value pledged twice), and a claim against a receivable the debtor has not acknowledged is <b>flagged</b> so you decide with your eyes open. Almstins records the claim; the financing decision stays yours. Requires sign-in.</p>
+      <p class="sub">Records "I financed X against this receivable." Two guards run at this boundary: a claim over the unencumbered headroom is <b>blocked</b> (the registry will not record the same value pledged twice), and a claim against a receivable the debtor has not acknowledged <b>requires you to accept responsibility</b> for having verified the debtor yourself first — Almstins does not do that verification for you. Almstins records the claim; the financing decision stays yours. Requires sign-in.</p>
       <div class="field"><label for="k-id">Receivable ID</label><input id="k-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
       <div class="grid3">
         <div class="field"><label for="k-financier">Financier</label><input id="k-financier" type="text" placeholder="Sahel Capital" /></div>
@@ -289,12 +289,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <!-- 4. ATTEST (authed) — Stage 2 -->
     <section class="card">
       <h2><span class="badge-num">4</span> Attest to a receivable</h2>
-      <p class="sub">The buyer acknowledging the debt is the load-bearing attestation — the obligor signing against their own interest. An inspector or surveyor attests to the goods the same way (quantity, grade, delivery). Each statement is signed, bound to this receivable's hash, and Bitcoin-anchorable. Requires sign-in.</p>
+      <p class="sub">A supplier's own statement about a receivable, or an inspector/surveyor's attestation about the goods (quantity, grade, delivery). The debtor's acknowledgment can't be self-attested here — it only counts when it comes through the secure link sent to the debtor directly. Each statement is signed, bound to this receivable's hash, and Bitcoin-anchorable. Requires sign-in.</p>
       <div class="field"><label for="a-id">Receivable ID</label><input id="a-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
       <div class="grid3">
         <div class="field"><label for="a-role">Role</label>
           <select id="a-role">
-            <option value="buyer">buyer (obligor)</option>
             <option value="supplier">supplier</option>
             <option value="inspector">inspector / surveyor</option>
             <option value="other">other</option>
@@ -572,6 +571,19 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </div>
         </li>`).join('');
       const attBlock = atts ? `<div class="att-head">Attestations</div><ul class="claims">${atts}</ul>` : '';
+      const reverifs = (rcv.reverifications || []).map((rv: any) => {
+        const when = String(rv.date || '').replace('T', ' ').slice(0, 16);
+        const confirmed = rv.verdict === 'confirmed';
+        const rows = (rv.checks || []).map((c: any) => {
+          const ic = c.state === 'pass' ? '✓' : c.state === 'warn' ? '!' : '✕';
+          return `<li class="rv-check rv-${esc(c.state)}"><span class="rv-ic">${ic}</span><span class="rv-body"><b>${esc(c.label)}</b><span>${esc(c.detail)}</span></span></li>`;
+        }).join('');
+        const head = confirmed
+          ? `<div class="rv-verdict rv-confirmed"><b>✔ Verified · ${esc(when)} UTC</b></div>`
+          : `<div class="rv-verdict rv-attention"><b>▲ Needed attention · ${esc(when)} UTC</b></div>`;
+        return `<li class="claim">${head}<ul class="rv-checks">${rows}</ul></li>`;
+      }).join('');
+      const reverifyBlock = reverifs ? `<div class="att-head">Verification history</div><ul class="claims">${reverifs}</ul>` : '';
       const settleBtn = rcv.settled
         ? `<div class="note note-gain"><b>Settled${rcv.settledAt ? ` ${esc(rcv.settledAt)}` : ''}.</b> The buyer paid — the receivable's lifecycle is closed.</div>`
         : `<div class="row"><button class="btn btn-sm" data-settle="${esc(rcv.id)}" type="button">Mark settled (buyer paid)</button></div>`;
@@ -595,6 +607,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="row" style="margin-top:.55rem; align-items:center">${rcv.signed ? stateChip('signed') : stateChip('recorded')}${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
         <ul class="claims">${claims}</ul>
         ${attBlock}
+        ${reverifyBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
         ${(!rcv.isTest && !(rcv.attestations || []).some((a: any) => a.role === 'buyer')) ? `<div class="note note-warn"><b>Not acknowledged by the debtor.</b> No buyer attestation is on record — this receivable is <b>Recorded</b>, not <b>Attested</b>. Any claim here rests on the supplier's word until the obligor confirms.</div>` : ''}
         ${settleBtn}
@@ -743,33 +756,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // by the API, below). This one SCREAMS — a loud, skippable warning — when the debtor has
     // never acknowledged the obligation, because financing an unconfirmed receivable is a risk
     // decision that belongs to the financier, not a fact the registry should silently pass.
-    async function registerClaim(force: boolean, trustAck = false) {
+    async function registerClaim(force: boolean) {
       const out = $('k-out'); const btn = $('k-btn') as HTMLButtonElement;
       const receivableId = val('k-id'), financier = val('k-financier'), amount = Number(val('k-amount'));
       if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !financier || !(amount > 0)) {
         show(out, `<div class="note note-loss">A valid receivable ID, a financier name, and a positive amount are required.</div>`);
         return;
-      }
-      // Pre-pledge trust check (skippable, advisory). If the lookup can't be reached the pledge
-      // still proceeds — the warning is advisory; the headroom block below is not.
-      if (!trustAck) {
-        try {
-          const st = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(receivableId))).json();
-          if (st.ok && st.found && !st.receivable.isTest) {
-            const acknowledged = (st.receivable.attestations || []).some((a: any) => a.role === 'buyer');
-            if (!acknowledged) {
-              show(out, `
-                <div class="note note-warn"><b>The debtor has not acknowledged this receivable.</b> No buyer attestation is on record, so it sits at <b>Recorded</b>, not <b>Attested</b> — you would be financing on the supplier's word alone. This is a risk decision, not a block: Almstins flags it and leaves the call to you.</div>
-                <div class="row">
-                  <button class="btn" id="k-req-att" type="button">Ask the debtor to acknowledge first</button>
-                  <button class="btn" id="k-trustack" type="button">Finance anyway (I've assessed the risk)</button>
-                </div>`);
-              $('k-trustack').addEventListener('click', () => registerClaim(force, true));
-              $('k-req-att').addEventListener('click', () => { ($('a-id') as HTMLInputElement).value = receivableId; $('a-id').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
-              return;
-            }
-          }
-        } catch (e) { /* advisory only — fall through and let the pledge proceed */ }
       }
       btn.disabled = true;
       const j = await authedPost('/api/verify/receivables/claim', {
@@ -804,8 +796,41 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             <button class="btn" id="k-avail" type="button">Register only the available ${esc(String(j.available))}</button>
             <button class="btn" id="k-force" type="button">Record it anyway (acknowledged over-claim)</button>
           </div>`);
-        $('k-avail').addEventListener('click', () => { ($('k-amount') as HTMLInputElement).value = String(j.available); registerClaim(false, true); });
-        $('k-force').addEventListener('click', () => registerClaim(true, true));
+        $('k-avail').addEventListener('click', () => { ($('k-amount') as HTMLInputElement).value = String(j.available); registerClaim(false); });
+        $('k-force').addEventListener('click', () => registerClaim(true));
+        return;
+      }
+      if (j.error === 'diligence_required') {
+        // Not a debtor confirmation and never mistaken for one: this is the financier
+        // vouching for his own verification process, filed and Bitcoin-anchored under his
+        // own name. See acceptDiligence() in receivablesRegistry.ts.
+        show(out, `
+          <div class="note note-warn"><b>No debtor confirmation is on record.</b> Financing this receivable would rest entirely on the supplier's word. Almstins does not verify the debtor's identity for you — that is your own job, and your own risk. A real debtor confirmation can be requested from the financing desk; to finance now instead, accept responsibility for having verified this debtor yourself.</div>
+          <div class="field"><label for="k-dil-method">How did you verify this debtor?</label>
+            <select id="k-dil-method">
+              <option value="phone">Phone call</option>
+              <option value="relationship">Existing relationship</option>
+              <option value="correspondence">Written correspondence</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label for="k-dil-note">Note (optional)</label><input id="k-dil-note" type="text" placeholder="e.g. called their AP line, spoke with Jane" maxlength="300" /></div>
+          <p class="sub">By clicking below you are personally attesting that you verified this debtor as described above. This acceptance is signed under your account and permanently timestamped to Bitcoin — it cannot be edited or removed afterward.</p>
+          <button class="btn btn-primary btn-full" id="k-dil-accept" type="button">I accept responsibility — continue</button>
+        `);
+        $('k-dil-accept').addEventListener('click', async () => {
+          const dbtn = $('k-dil-accept') as HTMLButtonElement;
+          dbtn.disabled = true;
+          const method = ($('k-dil-method') as HTMLSelectElement).value;
+          const note = val('k-dil-note');
+          const d = await authedPost('/api/verify/receivables/diligence-accept', {
+            receivableId, financier, method, note: note || undefined,
+          }, out);
+          dbtn.disabled = false;
+          if (!d) return;
+          if (!d.ok) { show(out, `<div class="note note-loss">${esc(d.message || 'Could not record your acceptance.')}</div>`); return; }
+          registerClaim(force);
+        });
         return;
       }
       show(out, `<div class="note note-loss">${esc(j.message || 'Could not register the claim.')}</div>`);
@@ -816,7 +841,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     $('a-btn').addEventListener('click', async () => {
       const out = $('a-out'); const btn = $('a-btn') as HTMLButtonElement;
       const receivableId = val('a-id'), label = val('a-label'), statement = val('a-statement');
-      const role = ($('a-role') as HTMLSelectElement).value || 'buyer';
+      const role = ($('a-role') as HTMLSelectElement).value || 'supplier';
       if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !label || !statement) {
         show(out, `<div class="note note-loss">A valid receivable ID, an attester name, and a statement are required.</div>`);
         return;
@@ -831,12 +856,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     });
 
     // Role-aware example prompts, so the statement field shows the shape each role signs —
-    // the debtor's acknowledgment, the surveyor's inspection, etc.
+    // the supplier's own statement, the surveyor's inspection, etc. Deliberately no 'buyer'
+    // example: that role can't be self-attested here, see ROLES in attest.ts.
     (function wireAttestPlaceholder() {
       const roleSel = $('a-role') as HTMLSelectElement;
       const stmt = $('a-statement') as HTMLInputElement;
       const examples: Record<string, string> = {
-        buyer: 'I owe ₦100,000,000 for invoice INV-4471, due 2026-09-30.',
         supplier: 'I supplied the goods on invoice INV-4471; this receivable is unassigned as of today.',
         inspector: 'Inspected 18,000 MT Grade-1 cocoa at Lagos load port on 2026-09-18; matches invoice INV-4471.',
         other: 'A signed statement about this receivable.',
@@ -854,8 +879,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
         const rows = j.receivables.map((rc: any) => `
           <div class="mine-row" data-mid="${esc(rc.id)}">
-            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
-            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span><button class="mine-del" data-del="${esc(rc.id)}" type="button" title="Delete receivable" aria-label="Delete receivable">✕</button></div>
+            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.mine === false ? ' <span class="role" title="You hold a claim against this receivable, but did not create it">claimed only</span>' : ''}</div>
+            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.mine === false ? '' : `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="Delete receivable" aria-label="Delete receivable">✕</button>`}</div>
           </div>`).join('');
         $('mine-list').innerHTML = rows;
         $('mine-card').style.display = '';
