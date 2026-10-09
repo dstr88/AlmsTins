@@ -38,7 +38,11 @@ export function extractSpamDomains(symbol: string, name?: string | null): string
 /**
  * Persist phishing domains to the DB. Fire-and-forget — caller does not await.
  * Uses ON CONFLICT DO NOTHING so duplicates are silently skipped.
- * Newly added domains are reported to VirusTotal and URLScan in the background.
+ *
+ * The list stays inside Almstins. Nothing here reports or submits a domain to any
+ * outside service (VirusTotal, URLScan, Chainabuse or anyone else): Almstins never
+ * files reports in its own name (decided 2026-10-08). The site check reads the list
+ * as a caution, never as a scam verdict (see /api/dapp-check).
  */
 export async function savePhishingDomains(
   domains: string[],
@@ -47,17 +51,6 @@ export async function savePhishingDomains(
   if (!domains.length) return;
   try {
     await ensureTable();
-
-    // Identify which domains are truly new (not already in DB)
-    const existing = await db.execute({
-      sql: `SELECT domain FROM known_phishing_domains WHERE domain IN (${domains.map(() => '?').join(',')})`,
-      args: domains,
-    });
-    const existingSet = new Set(
-      (existing.rows as unknown as { domain: string }[]).map((r) => r.domain),
-    );
-    const newDomains = domains.filter((d) => !existingSet.has(d));
-
     await db.batch(
       domains.map((domain) => ({
         sql: `INSERT INTO known_phishing_domains (domain, source) VALUES (?, ?)
@@ -65,57 +58,8 @@ ON CONFLICT DO NOTHING`,
         args: [domain, source],
       })),
     );
-
-    // Report only genuinely new domains upstream — no point re-submitting known ones
-    if (newDomains.length) void reportToExternalDbs(newDomains);
   } catch {
     // Non-fatal — phishing DB enrichment should never break the main flow
-  }
-}
-
-/**
- * Submit newly discovered phishing domains to external security databases.
- * VirusTotal (VIRUSTOTAL_API_KEY) and URLScan.io (URLSCAN_API_KEY) are supported.
- * Both are opt-in via env vars and entirely non-fatal.
- */
-async function reportToExternalDbs(domains: string[]): Promise<void> {
-  const vtKey      = ((process.env as Record<string, string>).VIRUSTOTAL_API_KEY  ?? '') as string;
-  const urlscanKey = ((process.env as Record<string, string>).URLSCAN_API_KEY     ?? '') as string;
-  if (!vtKey && !urlscanKey) return;
-
-  for (const domain of domains) {
-    const fullUrl = `https://${domain}`;
-
-    // VirusTotal — check first, submit only if not yet analyzed (saves quota)
-    if (vtKey) {
-      try {
-        const urlId = Buffer.from(fullUrl).toString('base64url').replace(/=/g, '');
-        const check = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
-          headers: { 'x-apikey': vtKey },
-          signal: AbortSignal.timeout(8_000),
-        });
-        if (check.status === 404) {
-          await fetch('https://www.virustotal.com/api/v3/urls', {
-            method: 'POST',
-            headers: { 'x-apikey': vtKey, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `url=${encodeURIComponent(fullUrl)}`,
-            signal: AbortSignal.timeout(8_000),
-          });
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    // URLScan.io — submit for public scan (requires URLSCAN_API_KEY)
-    if (urlscanKey) {
-      try {
-        await fetch('https://urlscan.io/api/v1/scan/', {
-          method: 'POST',
-          headers: { 'API-Key': urlscanKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: fullUrl, visibility: 'public' }),
-          signal: AbortSignal.timeout(8_000),
-        });
-      } catch { /* non-fatal */ }
-    }
   }
 }
 

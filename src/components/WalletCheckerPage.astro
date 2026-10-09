@@ -801,12 +801,12 @@ const { t, prefilledAddress } = Astro.props;
   function verdictDot(v: string): string {
     if (v === 'flagged') return 'dot-red';
     if (v === 'clean' || v === 'whitelisted') return 'dot-green';
-    if (v === 'unscanned') return 'dot-yellow';
+    if (v === 'unscanned' || v === 'caution') return 'dot-yellow';
     return 'dot-gray';
   }
   function sourceClass(v: string): string {
     if (v === 'flagged') return 'flagged';
-    if (v === 'unscanned') return 'yellow';
+    if (v === 'unscanned' || v === 'caution') return 'yellow';
     return 'clean';
   }
 
@@ -850,7 +850,7 @@ const { t, prefilledAddress } = Astro.props;
                                     (_i18n.verdictSafe    ?? 'SAFE');
       document.getElementById('verdict-url')!.textContent = data.domain;
 
-      const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
+      const VERDICT_RANK: Record<string, number> = { flagged: 0, caution: 1, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
       const sortedSources = ([...data.sources] as any[]).sort(
         (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
       );
