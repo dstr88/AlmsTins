@@ -14,6 +14,8 @@
 //   const wei = await scan.getNativeBalanceWei({ chainId: 1, address, requestId });
 //   const isContract = await scan.isContract({ chainId: 1, address: someAddr, requestId });
 
+import { BACKGROUND_MAX_WAIT_MS, GATE_PRIORITY, gateForUrl } from './explorerGates';
+
 export const CHAIN_IDS = {
   ethereum: 1,
   polygon: 137,
@@ -24,7 +26,7 @@ const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 // Snowtrace was rebranded to Routescan in 2023; api.snowtrace.io is dead (404).
 // The replacement endpoint is Etherscan-compatible — same query params, new URL.
 // API key: get a free key at https://routescan.io/apis (SNOWTRACE_API_KEY env var)
-const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
+export const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 
 // Defaults (override per call if needed)
 const DEFAULT_MIN_INTERVAL_MS = 1200;
@@ -178,7 +180,13 @@ async function fetchTextWithCache(
     const started = Date.now();
     await throttled(provider, minIntervalMs);
 
-    const res = await fetch(url);
+    // The per-provider spacing above is ours alone; the key's rate limit is shared with the
+    // wallet checker's live lookups. One gate per key for the whole process keeps us under
+    // it, with these calls last in line (explorerGates.ts).
+    const res = await gateForUrl(url).schedule(() => fetch(url), {
+      priority: GATE_PRIORITY.background,
+      maxWaitMs: BACKGROUND_MAX_WAIT_MS,
+    });
     const text = await res.text();
 
     logDebug('fetch', {

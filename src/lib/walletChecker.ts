@@ -1,7 +1,8 @@
 /**
  * walletChecker.ts
  *
- * Public wallet scam checker — used by /api/wallet-check
+ * Public wallet scam checker — used by /api/wallet-check (the verdict) and
+ * /api/wallet-activity (activity facts, never part of the verdict)
  *
  * Security measures baked in:
  *   - Strict address validation before ANY external fetch (SSRF prevention)
@@ -14,6 +15,9 @@
 
 import { createHash } from 'node:crypto';
 import { lookupSanctionedAddress } from './threatLists';
+import { fetchEvmActivity } from './evmActivity';
+import { etherscanGate, GATE_PRIORITY } from './explorerGates';
+import { emptyActivity, isUnread, summarizeChains, type ActivityChain, type WalletActivity } from './walletActivity';
 
 // ─── Address detection ────────────────────────────────────────────────────────
 
@@ -138,27 +142,40 @@ export function isValidAddress(address: string): boolean {
 
 interface RateEntry { count: number; resetAt: number }
 const _rateLimiter = new Map<string, RateEntry>();
+// /api/wallet-activity counts apart: the checker loads activity once per check, so the
+// same 10 per minute, and loading it never uses up a check.
+const _activityRateLimiter = new Map<string, RateEntry>();
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 
 // Prune stale entries every 5 min to avoid memory growth
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, entry] of _rateLimiter) {
-    if (now > entry.resetAt) _rateLimiter.delete(ip);
+  for (const limiter of [_rateLimiter, _activityRateLimiter]) {
+    for (const [ip, entry] of limiter) {
+      if (now > entry.resetAt) limiter.delete(ip);
+    }
   }
 }, 5 * 60_000);
 
-export function checkRateLimit(ip: string): boolean {
+function takeRateSlot(limiter: Map<string, RateEntry>, ip: string): boolean {
   const now = Date.now();
-  const entry = _rateLimiter.get(ip);
+  const entry = limiter.get(ip);
   if (!entry || now > entry.resetAt) {
-    _rateLimiter.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    limiter.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;
   }
   if (entry.count >= RATE_LIMIT) return false;
   entry.count++;
   return true;
+}
+
+export function checkRateLimit(ip: string): boolean {
+  return takeRateSlot(_rateLimiter, ip);
+}
+
+export function checkActivityRateLimit(ip: string): boolean {
+  return takeRateSlot(_activityRateLimiter, ip);
 }
 
 // ─── Result types ─────────────────────────────────────────────────────────────
@@ -191,14 +208,12 @@ export interface WalletCheckResult {
     balance: string;
     usdValue: number | null;
   }>;
-  activity: {
-    firstSeen: string | null;
-    lastActivity: string | null;
-    txCount: number | null;
-    totalReceivedEth: string | null;
-    totalSentEth: string | null;
-    ethBalance: string | null;
-  };
+  /**
+   * Facts shown to the person (src/lib/walletActivity.ts), never an input to the score or
+   * flags. checkWallet() leaves it empty: activity is read by fetchWalletActivity() and
+   * served by /api/wallet-activity, so the verdict never waits for the explorers.
+   */
+  activity: WalletActivity;
   honeypot: {
     checked: boolean;
     isHoneypot: boolean | null;
@@ -248,6 +263,30 @@ export function setCache(address: string, data: WalletCheckResult): void {
     if (oldest) _cache.delete(oldest);
   }
   _cache.set(address.toLowerCase(), { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// Activity (/api/wallet-activity) has its own cache. A read with a chain that could not be
+// read right now, or only in part, is kept for a minute only, so a later look can fill it.
+interface ActivityCacheEntry { data: WalletActivityResult; expiresAt: number }
+const _activityCache = new Map<string, ActivityCacheEntry>();
+const ACTIVITY_PARTIAL_TTL_MS = 60_000;
+
+export function getCachedActivity(address: string): WalletActivityResult | null {
+  const key = address.toLowerCase();
+  const entry = _activityCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _activityCache.delete(key); return null; }
+  return entry.data;
+}
+
+export function setCachedActivity(address: string, data: WalletActivityResult): void {
+  if (_activityCache.size >= CACHE_MAX) {
+    const oldest = _activityCache.keys().next().value;
+    if (oldest) _activityCache.delete(oldest);
+  }
+  const partial = (data.activity.chains ?? []).some((c) => isUnread(c) || c.lastActivityComplete === false);
+  const ttl = partial ? ACTIVITY_PARTIAL_TTL_MS : CACHE_TTL_MS;
+  _activityCache.set(address.toLowerCase(), { data, expiresAt: Date.now() + ttl });
 }
 
 // ─── Scam score ───────────────────────────────────────────────────────────────
@@ -454,70 +493,8 @@ async function chainalysisSanctioned(address: string): Promise<boolean> {
   }
 }
 
-// Etherscan — wallet age, tx count, ETH balance
-async function fetchEtherscanActivity(
-  address: string,
-): Promise<{ activity: WalletCheckResult['activity']; errors: string[] }> {
-  const errors: string[] = [];
-  const activity: WalletCheckResult['activity'] = {
-    firstSeen: null, lastActivity: null, txCount: null,
-    totalReceivedEth: null, totalSentEth: null, ethBalance: null,
-  };
-
-  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
-  if (!apiKey) { errors.push('Etherscan not configured'); return { activity, errors }; }
-
-  const base = `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}`;
-
-  try {
-    // First tx (age)
-    const firstRes = await fetchWithTimeout(
-      `${base}&module=account&action=txlist&address=${address}&sort=asc&page=1&offset=1`,
-    );
-    if (firstRes.ok) {
-      const j = await firstRes.json() as any;
-      const first = j?.result?.[0];
-      if (first?.timeStamp) {
-        activity.firstSeen = new Date(Number(first.timeStamp) * 1000).toISOString();
-      }
-    }
-  } catch { errors.push('Etherscan first-tx unavailable'); }
-
-  try {
-    // Last tx
-    const lastRes = await fetchWithTimeout(
-      `${base}&module=account&action=txlist&address=${address}&sort=desc&page=1&offset=1`,
-    );
-    if (lastRes.ok) {
-      const j = await lastRes.json() as any;
-      const last = j?.result?.[0];
-      if (last?.timeStamp) {
-        activity.lastActivity = new Date(Number(last.timeStamp) * 1000).toISOString();
-      }
-      // Rough tx count via offset trick (Etherscan caps at 10k)
-      if (Array.isArray(j?.result)) {
-        activity.txCount = j.result.length > 0 ? null : 0;
-      }
-    }
-  } catch { errors.push('Etherscan last-tx unavailable'); }
-
-  try {
-    // ETH balance
-    const balRes = await fetchWithTimeout(
-      `${base}&module=account&action=balance&address=${address}&tag=latest`,
-    );
-    if (balRes.ok) {
-      const j = await balRes.json() as any;
-      if (j?.result) {
-        const wei = BigInt(j.result);
-        const eth = Number(wei) / 1e18;
-        activity.ethBalance = eth.toFixed(6);
-      }
-    }
-  } catch { errors.push('Etherscan balance unavailable'); }
-
-  return { activity, errors };
-}
+// EVM wallet age, transactions sent and ETH balance: fetchEvmActivity (src/lib/evmActivity.ts)
+// reads Ethereum, Polygon, Arbitrum and Avalanche and lists the chains it could not read.
 
 // Alchemy — ERC-20 token balances
 async function fetchTokenBalances(
@@ -611,6 +588,9 @@ async function fetchHoneypotCheck(
   return { honeypot, errors };
 }
 
+/** Error recorded when the Etherscan contract-name lookup did not answer (see fetchEntityLabel). */
+export const CONTRACT_NAME_UNAVAILABLE = 'Contract name lookup unavailable';
+
 // Check if address is a multi-sig contract (basic: check if it has code + is Gnosis Safe)
 async function fetchMultiSigCheck(
   address: string,
@@ -619,9 +599,10 @@ async function fetchMultiSigCheck(
   const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
   if (!apiKey) return { multiSig: null, errors: [] };
   try {
-    const res = await fetchWithTimeout(
+    // Through the shared Etherscan gate (explorerGates.ts), ahead of activity reads and sync.
+    const res = await etherscanGate.schedule(() => fetchWithTimeout(
       `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}&module=contract&action=getabi&address=${address}`,
-    );
+    ), { priority: GATE_PRIORITY.safety });
     if (!res.ok) return { multiSig: null, errors };
     const json = await res.json() as any;
     // If ABI exists and mentions "execTransaction" or "confirmTransaction" → Gnosis Safe / multi-sig
@@ -702,10 +683,12 @@ async function fetchSuiActivity(
   address: string,
 ): Promise<{ activity: WalletCheckResult['activity']; errors: string[] }> {
   const errors: string[] = [];
-  const activity: WalletCheckResult['activity'] = {
+  const activity: WalletCheckResult['activity'] = emptyActivity();
+  const sui: ActivityChain = {
+    id: 'sui', name: 'Sui', checked: false, reason: 'unavailable',
     firstSeen: null, lastActivity: null, txCount: null,
-    totalReceivedEth: null, totalSentEth: null, ethBalance: null,
   };
+  Object.assign(activity, summarizeChains([sui], 'all'));
   try {
     // Get last 50 transactions (most recent first) to find last activity
     const [toTxs, fromTxs] = await Promise.all([
@@ -732,13 +715,22 @@ async function fetchSuiActivity(
       const first = allDigests[0];
       const last  = allDigests[allDigests.length - 1];
       if (first?.timestampMs) {
-        activity.firstSeen = new Date(Number(first.timestampMs)).toISOString();
+        sui.firstSeen = new Date(Number(first.timestampMs)).toISOString();
       }
       if (last?.timestampMs) {
-        activity.lastActivity = new Date(Number(last.timestampMs)).toISOString();
+        sui.lastActivity = new Date(Number(last.timestampMs)).toISOString();
       }
-      activity.txCount = (toTxs?.data?.length ?? 0) + (fromTxs?.data?.length ?? 0);
     }
+    // Count each transaction once (one the address sends to itself is in both lists). Each
+    // query reads at most the latest 50, so with more pages the count is a minimum ("N+")
+    // and the earliest one found may not be the first activity.
+    const capped = Boolean(toTxs?.hasNextPage || fromTxs?.hasNextPage);
+    sui.txCount = new Set(allDigests.map((d) => d.digest)).size;
+    sui.txCountIsMinimum = capped;
+    sui.firstSeenComplete = !capped;
+    sui.checked = true;
+    delete sui.reason;
+    Object.assign(activity, summarizeChains([sui], 'all'));
 
     // SUI balance
     const balance = await suiRpc('suix_getBalance', [address, '0x2::sui::SUI']) as {
@@ -892,39 +884,55 @@ const KNOWN_ADDRESSES = new Map<string, EntityLabel>([
   ['0x4f3aff3a747fcade12598081e80c6605a8be192f', { name: 'Multichain (Compromised)', type: 'bridge', subLabel: 'Do not use — exploited 2023', url: null, confidence: 'definite' }],
 ]);
 
-async function fetchEntityLabel(address: string): Promise<WalletCheckResult['entityLabel']> {
+/**
+ * The entity behind an address: our curated list first, then (EVM only) the contract name
+ * published on Etherscan. That name can identify a mixer (isMixerName), so a lookup that
+ * did not answer is reported as an error (the "checks unavailable" banner), never skipped
+ * silently.
+ */
+async function fetchEntityLabel(
+  address: string,
+): Promise<{ label: WalletCheckResult['entityLabel']; errors: string[] }> {
   // 1. Check hardcoded lookup first (instant, no API)
   const known = KNOWN_ADDRESSES.get(address.toLowerCase());
-  if (known) return known;
+  if (known) return { label: known, errors: [] };
 
   // 2. For EVM only: check Etherscan for verified contract name
-  if (detectChain(address) === 'evm') {
-    try {
-      const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
-      if (apiKey) {
-        const res = await fetchWithTimeout(
-          `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}&module=contract&action=getsourcecode&address=${address}`,
-        );
-        if (res.ok) {
-          const json = await res.json() as any;
-          const contractName = json?.result?.[0]?.ContractName;
-          if (contractName && contractName !== '') {
-            return {
-              name: contractName,
-              type: 'contract',
-              // "Verified" here means the SOURCE CODE is published on Etherscan — it is
-              // not a safety signal. Worded so it can't read as reassurance.
-              subLabel: 'Source-verified on Etherscan (not a safety check)',
-              url: `https://etherscan.io/address/${address}`,
-              confidence: 'definite',
-            };
-          }
-        }
-      }
-    } catch { /* ignore */ }
+  if (detectChain(address) !== 'evm') return { label: null, errors: [] };
+  // Without a key the name is not checked either, and the banner must say so (the activity
+  // read's "Etherscan not configured" used to, but activity no longer runs with the verdict).
+  const unavailable = { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
+  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  if (!apiKey) return unavailable;
+  try {
+    // Shared Etherscan gate, safety priority: the activity reads and background sync must
+    // never use up the rate limit ahead of this lookup.
+    const res = await etherscanGate.schedule(() => fetchWithTimeout(
+      `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}&module=contract&action=getsourcecode&address=${address}`,
+    ), { priority: GATE_PRIORITY.safety });
+    if (!res.ok) return unavailable;
+    const json = await res.json() as any;
+    // Status '1' with a list is an answer, also for an address with no contract (an empty
+    // name). Anything else, such as a rate-limit message, means the name was not checked.
+    if (String(json?.status) !== '1' || !Array.isArray(json?.result)) return unavailable;
+    const contractName = json.result[0]?.ContractName;
+    if (!contractName) return { label: null, errors: [] };
+    return {
+      label: {
+        name: contractName,
+        type: 'contract',
+        // "Verified" here means the SOURCE CODE is published on Etherscan — it is
+        // not a safety signal. Worded so it can't read as reassurance.
+        subLabel: 'Source-verified on Etherscan (not a safety check)',
+        url: `https://etherscan.io/address/${address}`,
+        confidence: 'definite',
+      },
+      errors: [],
+    };
+  } catch {
+    // Includes RateGateTimeout: the gate had no free slot in time.
+    return unavailable;
   }
-
-  return null;
 }
 
 /**
@@ -1026,6 +1034,31 @@ async function fetchChainavuseReports(address: string): Promise<{ count: number 
 
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 
+/** fetchWalletActivity()'s answer: the facts for /api/wallet-activity. */
+export interface WalletActivityResult {
+  chain: Chain;
+  activity: WalletActivity;
+  errors: string[];
+}
+
+/**
+ * Activity facts for one address: first and last activity, transactions sent, native
+ * balance and which chains were read. Separate from checkWallet() on purpose: the facts
+ * never feed the score or the flags, and reading them (rate-limited explorers, several
+ * chains) must never delay the verdict. Never throws.
+ */
+export async function fetchWalletActivity(input: string): Promise<WalletActivityResult> {
+  const address = canonicalAddress(input);
+  const chain = detectChain(address);
+  try {
+    if (chain === 'evm') return { chain, ...(await fetchEvmActivity(address)) };
+    if (chain === 'sui') return { chain, ...(await fetchSuiActivity(address)) };
+  } catch {
+    return { chain, activity: emptyActivity(), errors: ['Activity check failed'] };
+  }
+  return { chain, activity: emptyActivity(), errors: [`Activity tracking not available for ${chain}`] };
+}
+
 export async function checkWallet(input: string): Promise<WalletCheckResult> {
   // Outside lookups get the canonical form (an uppercase, QR-style segwit address is
   // lowercased, the form sanctions lists and report databases hold); the result echoes
@@ -1041,15 +1074,11 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
     mixer: false, sanctioned: false,
   };
 
-  const noActivity = { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null };
-
-  // Run all fetchers in parallel — each is independently fault-tolerant
-  const [goplusResult, activityResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult] =
+  // Run all fetchers in parallel — each is independently fault-tolerant. Activity is not
+  // one of them: it is a fact, never a verdict input (fetchWalletActivity, its own endpoint).
+  const [goplusResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult] =
     await Promise.allSettled([
       fetchGoPlusFlags(address),
-      chain === 'evm'                          ? fetchEtherscanActivity(address)
-        : chain === 'sui'                      ? fetchSuiActivity(address)
-        : Promise.resolve({ activity: noActivity, errors: [`Activity tracking not available for ${chain}`] }),
       chain === 'evm'                          ? fetchTokenBalances(address)
         : chain === 'sui'                      ? fetchSuiHoldings(address)
         : Promise.resolve({ holdings: [], errors: [`Token balances not available for ${chain}`] }),
@@ -1061,21 +1090,21 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
     ]);
 
   const goplus       = goplusResult.status       === 'fulfilled' ? goplusResult.value       : { flags: {}, errors: ['GoPlus check failed'] };
-  const activity     = activityResult.status     === 'fulfilled' ? activityResult.value     : { activity: noActivity, errors: ['Activity check failed'] };
   const holdings     = holdingsResult.status     === 'fulfilled' ? holdingsResult.value     : { holdings: [], errors: ['Holdings check failed'] };
   const honeypot     = honeypotResult.status     === 'fulfilled' ? honeypotResult.value     : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
   const multiSig     = multiSigResult.status     === 'fulfilled' ? multiSigResult.value     : { multiSig: null, errors: [] };
-  const entityLabel  = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : null;
+  const entityLookup = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
+  const entityLabel  = entityLookup.label;
   const ensName      = ensResult.status          === 'fulfilled' ? ensResult.value          : null;
   const chainabuse: { count: number | null; errors: string[]; skipped?: boolean } =
     chainabuseResult.status === 'fulfilled' ? chainabuseResult.value : { count: null, errors: [] };
 
   allErrors.push(
     ...(goplus.errors    ?? []),
-    ...(activity.errors  ?? []),
     ...(holdings.errors  ?? []),
     ...(honeypot.errors  ?? []),
     ...(multiSig.errors  ?? []),
+    ...(entityLookup.errors ?? []),
     ...(chainabuse.errors ?? []),
   );
 
@@ -1109,6 +1138,8 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
   // a confirmed high-risk destination — route it into the verdict, never leave it green.
   if (isCompromisedAddress(address)) flags.blacklisted = true;
 
+  // Wallet age and activity are deliberately NOT inputs: they are facts shown to the person,
+  // never a verdict (new is not bad: exchange deposit addresses are fresh; old is not safe).
   const { score, level } = calculateScamScore(flags);
 
   // Present a mixer as a caution in the entity card, not a reassuring "verified contract".
@@ -1160,7 +1191,7 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
     chainabuseReports: chainabuse.count,
     multiSig:      multiSig.multiSig,
     holdings:      holdings.holdings,
-    activity:      activity.activity,
+    activity:      emptyActivity(),
     honeypot:      honeypot.honeypot,
     fundingSource,
     entityLabel: finalEntityLabel,
