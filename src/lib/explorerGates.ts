@@ -9,12 +9,16 @@
  * second keyless. A paid Etherscan plan or a Routescan key allows more: set
  * ETHERSCAN_CALLS_PER_SEC / ROUTESCAN_CALLS_PER_SEC (whole numbers, 1 to 50).
  *
- * Priorities, lower first. Under load every check gets its safety lookups, then each check's
- * Ethereum history, before any check's later chains or follow-up pages:
+ * Priorities, lower first. The verdict's safety lookups go first, then the app's existing
+ * work (Verify self-send proofs, wallet sync, holdings), then the public Activity tab. Under
+ * load every check still gets its Ethereum history before any check's later chains:
  *   safety         0     contract-name and multi-sig lookups (part of the verdict)
- *   activityFirst  1+n   oldest-first history pages of the n-th activity chain
- *   activityLater  10+n  newest-first pages, nonce and balance fallbacks
- *   background     100   etherscan.ts helpers (sync jobs can wait)
+ *   background     1     etherscan.ts helpers: Verify proofs and signed-in features must not
+ *                        wait behind anonymous activity reads. etherscan.ts already spaces its
+ *                        own calls 1.2 s apart, so it takes about one slot per window at most.
+ *   activityFirst  10+n  oldest-first history pages of the n-th activity chain
+ *   activityLater  20+n  newest-first pages, nonce and balance fallbacks
+ * An activity read that waits too long fails closed ("could not be read right now").
  */
 
 import { createRateGate } from './rateGate';
@@ -28,7 +32,7 @@ function callsPerWindow(raw: unknown, fallback: number): number {
   return Number.isInteger(n) && n >= 1 && n <= 50 ? n : fallback;
 }
 
-export const GATE_PRIORITY = { safety: 0, activityFirst: 1, activityLater: 10, background: 100 } as const;
+export const GATE_PRIORITY = { safety: 0, background: 1, activityFirst: 10, activityLater: 20 } as const;
 
 /** Safety lookups wait at most this long for a slot (the gates' default). */
 export const SAFETY_MAX_WAIT_MS = 5_000;

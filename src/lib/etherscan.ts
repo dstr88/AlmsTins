@@ -15,6 +15,7 @@
 //   const isContract = await scan.isContract({ chainId: 1, address: someAddr, requestId });
 
 import { BACKGROUND_MAX_WAIT_MS, GATE_PRIORITY, gateForUrl } from './explorerGates';
+import { RateGateTimeout } from './rateGate';
 
 export const CHAIN_IDS = {
   ethereum: 1,
@@ -182,7 +183,7 @@ async function fetchTextWithCache(
 
     // The per-provider spacing above is ours alone; the key's rate limit is shared with the
     // wallet checker's live lookups. One gate per key for the whole process keeps us under
-    // it, with these calls last in line (explorerGates.ts).
+    // it; these calls go right after the verdict's safety lookups (explorerGates.ts).
     const res = await gateForUrl(url).schedule(() => fetch(url), {
       priority: GATE_PRIORITY.background,
       maxWaitMs: BACKGROUND_MAX_WAIT_MS,
@@ -256,6 +257,8 @@ async function fetchJsonWithRetries(
 
       return payload;
     } catch (err: any) {
+      // Our own queue was full: retrying only waits again, so give up now.
+      if (err instanceof RateGateTimeout) throw err;
       lastErr = err;
       logDebug('retry.error', { requestId, provider, attempt, error: String(err?.message ?? err) });
       // brief delay before next attempt

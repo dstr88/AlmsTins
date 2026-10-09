@@ -791,12 +791,17 @@ describe('<WalletActivityPanel>', () => {
     expect(failed).not.toContain(en.checker.activityNoneFound);
   });
 
-  it('the note copy, EN exactly and translated in ES and FR', () => {
+  // Base, Optimism and BNB Chain are never read, so the note and "None found" speak only
+  // for the chains checked: a wallet with years on Base must not read as brand new.
+  it('the note copy, EN exactly and translated in ES and FR, limited to the chains checked', () => {
     expect(en.checker.newWalletNote).toBe(
-      'First activity less than 30 days ago. New wallets are common in scams, and also for exchange deposit addresses.',
+      'First activity found on the chains checked is less than 30 days old. New wallets are common in scams, and also for exchange deposit addresses.',
     );
-    expect(es.checker.newWalletNote).toMatch(/^Primera actividad hace menos de 30 días\. .*exchanges\.$/);
-    expect(fr.checker.newWalletNote).toMatch(/^Première activité il y a moins de 30 jours\. .*plateformes d’échange\.$/);
+    expect(es.checker.newWalletNote).toMatch(/^La primera actividad encontrada en las cadenas verificadas tiene menos de 30 días\. .*exchanges\.$/);
+    expect(fr.checker.newWalletNote).toMatch(/^La première activité trouvée sur les chaînes vérifiées date de moins de 30 jours\. .*plateformes d’échange\.$/);
+    expect(en.checker.activityNoneFound).toBe('None found on the chains checked');
+    expect(es.checker.activityNoneFound).toBe('Ninguna en las cadenas verificadas');
+    expect(fr.checker.activityNoneFound).toBe('Aucune sur les chaînes vérifiées');
   });
 
   it('the wallet-age card and FAQ state both sides, never "red flag", in every language', () => {

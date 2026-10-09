@@ -152,7 +152,9 @@ describe('activity read with the real rate gates', () => {
     expect(order.slice(3, 5).map((a) => a.split(':')[0]).sort()).toEqual(['getabi', 'getsourcecode']);
   });
 
-  it('etherscan.ts background calls share the gate, last in line', async () => {
+  // Verify proofs, wallet sync and holdings go through etherscan.ts: they must not wait
+  // behind anonymous Activity-tab reads, so they rank right after the safety lookups.
+  it('etherscan.ts calls share the gate and go ahead of queued activity pages', async () => {
     const { buildEtherscanV2Url, requestEtherscan } = await import('../../src/lib/etherscan');
     const { fetchEvmActivity, ACTIVITY_BUDGET_MS } = await import('../../src/lib/evmActivity');
 
@@ -162,7 +164,8 @@ describe('activity read with the real rate gates', () => {
     await Promise.all([background, activity]);
 
     const order = etherscanActions();
-    expect(order[order.length - 1]).toBe('txlistinternal:1');
+    expect(order.indexOf('txlistinternal:1')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('txlistinternal:1')).toBeLessThan(3); // in the first window, not after the activity pages
     expect(order).toHaveLength(8); // 6 history pages + the balance + the background call
   });
 });
