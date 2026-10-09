@@ -359,7 +359,7 @@ export const en: WalletCheckerLocale = {
     verdictCaution: 'CAUTION — Cannot confirm this site is safe',
     verdictSafe: 'LOOKS SAFE — No threats detected',
     tipRed: '🛑 One or more security databases have reported this site. We are not making that determination ourselves — always verify independently. Do NOT connect your wallet or sign any transactions until you are certain.',
-    tipYellow: '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.',
+    tipYellow: '⚠️ Not enough to call this site safe: it has limited scan history, or a source below raised a caution. Only connect your wallet to sites you found yourself — never through a link in a DM or email.',
     tipGreen: '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.',
   },
   checker: {
@@ -644,7 +644,7 @@ export const es: WalletCheckerLocale = {
     verdictCaution: 'PRECAUCIÓN — No se puede confirmar que este sitio sea seguro',
     verdictSafe: 'PARECE SEGURO — No se detectaron amenazas',
     tipRed: '🛑 Una o más bases de datos de seguridad han reportado este sitio. No somos nosotros quienes hacemos esa determinación — verifica siempre de forma independiente. NO conectes tu billetera ni firmes transacciones hasta estar seguro.',
-    tipYellow: '⚠️ Este sitio tiene historial de análisis limitado. Conecta tu billetera solo a sitios que encontraste tú mismo — nunca a través de un enlace en un mensaje directo o correo electrónico.',
+    tipYellow: '⚠️ No alcanza para decir que este sitio es seguro: tiene historial de análisis limitado o una fuente de abajo señaló una precaución. Conecta tu billetera solo a sitios que encontraste tú mismo — nunca a través de un enlace en un mensaje directo o correo electrónico.',
     tipGreen: '✅ No se detectaron amenazas en todas las fuentes. Siempre verifica la URL en la barra de tu navegador antes de firmar cualquier transacción — incluso los sitios que parecen seguros pueden ser typosquatted.',
   },
   checker: {
@@ -929,7 +929,7 @@ export const fr: WalletCheckerLocale = {
     verdictCaution: 'PRUDENCE — Impossible de confirmer que ce site est sûr',
     verdictSafe: 'SEMBLE SÛR — Aucune menace détectée',
     tipRed: '🛑 Une ou plusieurs bases de données de sécurité ont signalé ce site. Ce n’est pas nous qui portons ce jugement — vérifiez toujours de façon indépendante. NE connectez PAS votre portefeuille et ne signez aucune transaction tant que vous n’êtes pas certain.',
-    tipYellow: '⚠️ Ce site a un historique d’analyse limité. Ne connectez votre portefeuille qu’à des sites que vous avez trouvés vous-même — jamais via un lien en DM ou par e-mail.',
+    tipYellow: '⚠️ Pas assez pour dire que ce site est sûr : son historique d’analyse est limité, ou une source ci-dessous a émis une mise en garde. Ne connectez votre portefeuille qu’à des sites que vous avez trouvés vous-même — jamais via un lien en DM ou par e-mail.',
     tipGreen: '✅ Aucune menace détectée sur l’ensemble des sources. Vérifiez toujours l’URL dans la barre de votre navigateur avant de signer une transaction — même les sites d’apparence sûre peuvent être victimes de typosquatting.',
   },
   checker: {
