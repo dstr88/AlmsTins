@@ -125,9 +125,7 @@ describe('clientIpKey', () => {
 describe('no API route keys a limit on clientAddress', () => {
   // wallet-check still passes clientAddress to its anonymous visit counter (as a fallback
   // when no proxy header exists); its limit uses clientIpKey. Nothing else may use it.
-  // receivables/lookup.ts is moved onto clientIpKey by the receivables S0a slice (PR #180);
-  // remove its entry once #180 is merged.
-  const ALLOWED = new Set(['src/pages/api/wallet-check.ts', 'src/pages/api/verify/receivables/lookup.ts']);
+  const ALLOWED = new Set(['src/pages/api/wallet-check.ts']);
 
   function files(dir: string): string[] {
     return readdirSync(dir).flatMap((name) => {

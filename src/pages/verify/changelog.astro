@@ -23,6 +23,10 @@ const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
     date: '2026-10-10',
     label: 'Saturday',
     entries: [
+      { kind: 'new', what: 'Marking a claim repaid and settling a receivable now keep their signatures and get a Bitcoin time-stamp.',
+        why: 'Both were signed when they happened, but the signature was not kept, so nothing outside our records could later show when a claim was released or a receivable was paid. The signature and the exact time now stay with the record, and each one is stamped in Bitcoin the way the receivable itself is. If a stamp cannot be made right away, it is retried automatically, and each Verify now receipt is stamped the same way. Discharges and settlements recorded before today keep their recorded dates without a stamp.' },
+      { kind: 'fix', what: 'Verify now keeps passing after Almstins changes its signing key.',
+        why: 'The integrity check accepted only the key in use today, so changing the key would have marked every older record as signed by an unknown key. It now accepts any key Almstins has published, current or retired, and still fails a record signed by any other key.' },
       { kind: 'fix', what: 'The public check now says "Disputed" when a debtor or client has disputed the record.',
         why: 'The registry always had a Disputed status, but nothing ever switched it on, so a receivable the debtor said was not theirs, or one whose client said the money never arrived, still headed the check as "Available to finance" or "Partially encumbered". The dispute itself was listed further down; now the status at the top says it too, ahead of everything except the TEST marker.' },
       { kind: 'fix', what: 'A typed statement can no longer pass for a dispute on the public check.',

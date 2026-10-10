@@ -45,7 +45,11 @@ const OTHER = '0x2222222222222222222222222222222222222222';
 const KEY = 'test-etherscan-key';
 const ALCHEMY_KEY = 'test-alchemy-key';
 const DAY_S = 86_400;
-const nowS = () => Math.floor(Date.now() / 1000);
+// One time base per test, so fixtures and expectations agree even when the clock crosses
+// a second boundary mid-test (it did on CI on 2026-10-10: '…:41.000Z' vs '…:42.000Z').
+let NOW_S = Math.floor(Date.now() / 1000);
+beforeEach(() => { NOW_S = Math.floor(Date.now() / 1000); });
+const nowS = () => NOW_S;
 const daysAgoS = (d: number) => nowS() - d * DAY_S;
 const isoDaysAgo = (d: number) => new Date(daysAgoS(d) * 1000).toISOString();
 

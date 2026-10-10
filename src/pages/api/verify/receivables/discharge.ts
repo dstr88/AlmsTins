@@ -7,11 +7,14 @@
  * Stage 4 (settlement): the financing was repaid/released, so the claim stops
  * encumbering the receivable and its amount returns to the unencumbered headroom.
  * Tenant-scoped to the claim's owner (a financier releases their OWN claim). Signs a
- * dated discharge event; the returned digest is Bitcoin-anchorable.
+ * dated discharge event, keeps the signature, and stamps its digest into Bitcoin in the
+ * same request (anchorNow, kind 'claim_discharge'). A success adds { anchored: true, anchor }
+ * or { anchored: false, anchorError? }: the discharge stands either way.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { dischargeClaim } from '@/lib/receivablesRegistry';
+import { anchorNow, evidenceStampLimiter } from '@/lib/receivables/server/anchorNow';
 
 export const prerender = false;
 
@@ -26,12 +29,16 @@ export const POST: APIRoute = async ({ request }) => {
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }
 
+  const claimId = String(body.claimId ?? '');
   const result = await dischargeClaim(
     session.tenantId,
-    String(body.claimId ?? ''),
+    claimId,
     typeof body.reason === 'string' ? body.reason : undefined,
   );
-  if (result.ok) return json(result);
+  if (result.ok) {
+    const anchor = await anchorNow(session.tenantId, 'claim_discharge', claimId, evidenceStampLimiter);
+    return json({ ...result, ...anchor });
+  }
   const status = result.error === 'not_found' ? 404 : 409;
   return json(result, status);
 };
