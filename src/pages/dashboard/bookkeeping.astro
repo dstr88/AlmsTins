@@ -1,4 +1,5 @@
 ---
+import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
@@ -22,7 +23,7 @@ const canTax = tenantHasTaxAccess(tenantId);
 
 // Plan check for Year Summary PDF
 const activePlan = await getActivePlan(tenantId);
-const canDownloadPdf = activePlan.id === 'unlimited';
+const canDownloadPdf = canDownloadYearSummaryPdf(activePlan.id, tenantId);
 
 // Year selector — default to last year
 const currentYear = new Date().getFullYear();

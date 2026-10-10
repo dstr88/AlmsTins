@@ -13,12 +13,12 @@
  *   6. Still Holding (open lots)
  */
 
+import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getActivePlan } from '@/lib/subscriptions';
-import { isOwner } from '@/lib/owner';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
 
@@ -443,11 +443,11 @@ export const GET: APIRoute = async ({ request }) => {
 
     // ── Paywall check (owner bypass — the owner's own tax tool) ───────────────
     const plan = await getActivePlan(tenantId);
-    if (plan.id === 'free' && !isOwner(tenantId)) {
+    if (!canDownloadYearSummaryPdf(plan.id, tenantId)) {
       return new Response(
         JSON.stringify({
-          error: 'The Year Summary PDF is available on any paid plan. Upgrade at almstins.com/dashboard/billing.',
-          planRequired: 'paid',
+          error: 'The Year Summary PDF is available on the Unlimited plan. Upgrade at almstins.com/dashboard/billing.',
+          planRequired: 'unlimited',
           currentPlan: plan.id,
         }),
         { status: 403, headers: { 'Content-Type': 'application/json' } },

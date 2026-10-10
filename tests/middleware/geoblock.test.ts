@@ -55,4 +55,11 @@ describe('sanctions geo-block', () => {
 		const res = await getGeoblockResponse(req({ 'cf-ipcountry': 'IR' }));
 		expect(await res!.text()).not.toMatch(/googletagmanager|gtag/);
 	});
+
+	it('points blocked visitors to a live address', async () => {
+		const res = await getGeoblockResponse(req({ 'cf-ipcountry': 'IR' }));
+		const html = await res!.text();
+		expect(html).toMatch(/donnie@almstins\.com/);
+		expect(html).not.toMatch(/titaniumhut/);
+	});
 });
