@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { cancelTenantStripeSubscriptions } from '@/lib/accountDeleteBilling';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { invalidateUserAuthFacts } from '@/lib/sessionGate';
@@ -58,6 +59,21 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   const tenantId = await resolveTenantToDelete(userId, session.tenantId).catch(() => null);
   if (!tenantId) {
     return json({ ok: false, error: 'No account found.' }, 404);
+  }
+
+  // Billing before anything is deleted: the subscriptions row below is the only place the
+  // app keeps its Stripe ids, and deleting the account doesn't stop Stripe charging. If the
+  // cancel can't be confirmed, keep the whole account so the owner can retry or contact
+  // support, instead of leaving a live subscription with no account behind it.
+  try {
+    await cancelTenantStripeSubscriptions(tenantId);
+  } catch (err) {
+    console.error('[delete-account] Stripe cancel failed, account kept', err);
+    return json({
+      ok: false,
+      code: 'billing_cancel_failed',
+      error: 'Your account was not deleted because we could not cancel your paid plan. Please try again in a few minutes, or contact support.',
+    }, 502);
   }
 
   try {

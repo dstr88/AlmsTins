@@ -79,6 +79,11 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
         || String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
     return { rows: rows.slice(0, 1).map((r) => ({ tenant_id: r.tenant_id })), rowsAffected: 0 };
   }
+  // The Stripe ids account deletion cancels first (accountDeleteBilling.ts). None are seeded
+  // here; tests/account/deleteAccountBilling.test.ts covers billing.
+  if (sql === 'SELECT stripe_customer_id, stripe_subscription_id FROM subscriptions WHERE tenant_id = ?') {
+    return { rows: (mem.tables.subscriptions ?? []).filter((r) => r.tenant_id === args[0]), rowsAffected: 0 };
+  }
 
   // DELETE FROM <table> WHERE tenant_id = ? [RETURNING id]
   let m = sql.match(/^DELETE FROM (\w+) WHERE tenant_id = \?( RETURNING id)?$/);
@@ -301,6 +306,8 @@ beforeEach(() => {
   // Platform lists publish only for approved tenants (verifyEntityAccess); these fixtures
   // model approved platforms, so approve their tenants.
   vi.stubEnv('VERIFY_ENTITY_TENANTS', `${A},${B}`);
+  // No Stripe here, even on a machine whose shell has a key.
+  vi.stubEnv('STRIPE_SECRET_KEY', '');
   mem.tables = {};
   mem.calls = [];
   mem.unexpected = [];
@@ -356,6 +363,10 @@ describe('POST /api/account/delete: Verify data', () => {
 
     for (const c of mem.calls) {
       const sql = c.sql;
+      if (sql === 'SELECT stripe_customer_id, stripe_subscription_id FROM subscriptions WHERE tenant_id = ?') {
+        expect(c.args, sql).toEqual([A]);
+        continue;
+      }
       if (sql.startsWith('SELECT to_regclass(')) {
         // Catalog check: table names only, never a tenant or a user.
         expect([...(c.args as string[])].sort(), sql).toEqual([...ALL_STEP_TABLES].sort());

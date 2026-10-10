@@ -76,6 +76,8 @@ export interface DashboardCommon {
     deleteConfirm1: string;
     deleteConfirm2: string;
     deleteFailed: string;
+    /** shown when the paid plan could not be canceled at Stripe, so nothing was deleted */
+    deleteBillingFailed: string;
     /** char-count format — receives (len, limit) */
     helpCharCount: (len: number, limit: number) => string;
     /** promo banner */
@@ -150,8 +152,9 @@ const en: DashboardCommon = {
     helpSending: 'Sending…',
     helpSendError: 'Could not send message. Please try again.',
     deleteConfirm1: 'Are you sure? This will permanently delete everything you have stored. This cannot be undone.',
-    deleteConfirm2: 'Last chance: all your tins, entries, and subscription data will be permanently and irreversibly deleted. If you use Verify, your public Claimed and Verified results, your business name, and your agent API keys are removed too. People checking your addresses or payment links will no longer see your results, your keys will stop working, and your business name will be released for anyone to claim. Continue?',
+    deleteConfirm2: 'Last chance: all your tins, entries, and subscription data will be permanently and irreversibly deleted. Any paid plan is canceled right away, and you will not be charged again. If you use Verify, your public Claimed and Verified results, your business name, and your agent API keys are removed too. People checking your addresses or payment links will no longer see your results, your keys will stop working, and your business name will be released for anyone to claim. Continue?',
     deleteFailed: 'Could not delete account. Please try again.',
+    deleteBillingFailed: 'Your account was not deleted because we could not cancel your paid plan. Please try again in a few minutes, or contact support.',
     helpCharCount: (len, limit) => `${len} / ${limit}`,
     promoDays: (days) => `Your free year ends in ${days} day${days === 1 ? '' : 's'}`,
     promoKeep: 'Keep your access — upgrade before it expires.',
@@ -222,8 +225,9 @@ const es: DashboardCommon = {
     helpSending: "Enviando…",
     helpSendError: "No se pudo enviar el mensaje. Por favor, inténtalo de nuevo.",
     deleteConfirm1: "¿Estás seguro? Esto eliminará de forma permanente todo lo que tienes guardado. No se puede deshacer.",
-    deleteConfirm2: "Última oportunidad: todos tus tins, entradas y datos de suscripción se eliminarán de forma permanente e irreversible. Si usas Verify, también se eliminan tus resultados públicos Reclamado y Verificado, tu nombre de negocio y tus claves API de agente. Quienes comprueben tus direcciones o enlaces de pago ya no verán tus resultados, tus claves dejarán de funcionar y tu nombre de negocio quedará libre para que cualquiera lo reclame. ¿Continuar?",
+    deleteConfirm2: "Última oportunidad: todos tus tins, entradas y datos de suscripción se eliminarán de forma permanente e irreversible. Cualquier plan de pago se cancela de inmediato y no se te volverá a cobrar. Si usas Verify, también se eliminan tus resultados públicos Reclamado y Verificado, tu nombre de negocio y tus claves API de agente. Quienes comprueben tus direcciones o enlaces de pago ya no verán tus resultados, tus claves dejarán de funcionar y tu nombre de negocio quedará libre para que cualquiera lo reclame. ¿Continuar?",
     deleteFailed: "No se pudo eliminar la cuenta. Por favor, inténtalo de nuevo.",
+    deleteBillingFailed: "Tu cuenta no se eliminó porque no pudimos cancelar tu plan de pago. Inténtalo de nuevo en unos minutos o contacta con soporte.",
     helpCharCount: (len, limit) => `${len} / ${limit}`,
     promoDays: (days) => `Tu año gratuito termina en ${days} día${days === 1 ? "" : "s"}`,
     promoKeep: "Mantén tu acceso — actualiza antes de que expire.",
@@ -294,8 +298,9 @@ const fr: DashboardCommon = {
     helpSending: "Envoi en cours…",
     helpSendError: "Impossible d'envoyer le message. Veuillez réessayer.",
     deleteConfirm1: "Êtes-vous sûr ? Cela supprimera définitivement tout ce que vous avez enregistré. Cette action est irréversible.",
-    deleteConfirm2: "Dernière chance : tous vos tins, entrées et données d'abonnement seront supprimés de façon définitive et irréversible. Si vous utilisez Verify, vos résultats publics Revendiqué et Vérifié, votre nom d'entreprise et vos clés API d'agent sont aussi supprimés. Les personnes qui vérifient vos adresses ou vos liens de paiement ne verront plus vos résultats, vos clés ne fonctionneront plus et votre nom d'entreprise pourra être revendiqué par n'importe qui. Continuer ?",
+    deleteConfirm2: "Dernière chance : tous vos tins, entrées et données d'abonnement seront supprimés de façon définitive et irréversible. Tout abonnement payant est annulé immédiatement et vous ne serez plus débité. Si vous utilisez Verify, vos résultats publics Revendiqué et Vérifié, votre nom d'entreprise et vos clés API d'agent sont aussi supprimés. Les personnes qui vérifient vos adresses ou vos liens de paiement ne verront plus vos résultats, vos clés ne fonctionneront plus et votre nom d'entreprise pourra être revendiqué par n'importe qui. Continuer ?",
     deleteFailed: "Impossible de supprimer le compte. Veuillez réessayer.",
+    deleteBillingFailed: "Votre compte n'a pas été supprimé, car nous n'avons pas pu annuler votre abonnement payant. Réessayez dans quelques minutes ou contactez le support.",
     helpCharCount: (len, limit) => `${len} / ${limit}`,
     promoDays: (days) => `Votre année gratuite se termine dans ${days} jour${days === 1 ? "" : "s"}`,
     promoKeep: "Conservez votre accès — passez à la version payante avant expiration.",
