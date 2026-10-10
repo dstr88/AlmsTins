@@ -19,5 +19,9 @@ jobs:
             exit 1
           fi
           curl -sS --fail --max-time 300 \
+            -o "$RUNNER_TEMP/cron-response.json" -w 'HTTP %{http_code}\n' \
             "$SYNC_URL/api/cron/onboarding-drip?secret=$CRON_SECRET" \
             -H "x-cron-secret: $CRON_SECRET"
+          # Print only numbers and true/false fields (counts, ok). The full response names wallets and
+          # accounts, and this repo's Actions logs are public.
+          jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"
