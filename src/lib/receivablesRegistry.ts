@@ -39,6 +39,19 @@ import {
   getPublicKeyHex,
   getSigningKeyId,
 } from '@/lib/recordProof/signing';
+import {
+  classifyAttestation,
+  type AttestationClass,
+  type AttestationSource,
+} from '@/lib/receivables/attestationClass';
+import {
+  claimedOf,
+  financingStatusOf,
+  lifecycleOf,
+  type FinancingStatus,
+  type Lifecycle,
+} from '@/lib/receivables/status';
+import { RECEIVABLE_COLUMN_ADDS } from '@/lib/receivables/schema';
 
 /** Timestamp matching the columns' to_char(now() … 'YYYY-MM-DD HH24:MI:SS') default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -122,6 +135,10 @@ export interface PublicAttestation {
   label: string;
   statement: string;
   date: string;
+  /** What the row is (consent, party_dispute, diligence, system_note, party_statement), from
+   *  its recorded source, or from its prefix on rows older than the source column. Additive:
+   *  read this rather than the statement's opening word. The source itself stays internal. */
+  class: AttestationClass;
   signed: boolean;
   anchored: boolean;
   anchoredAt: string | null;
@@ -175,9 +192,9 @@ export interface ReceivableStatus {
   reverifications: PublicReverification[];
   claimed: number;
   available: number;
-  status: 'unfinanced' | 'partially_financed' | 'fully_financed' | 'over_financed';
+  status: FinancingStatus;
   /** Lifecycle stage: created → financed → settled (released = all claims discharged). */
-  lifecycle: 'created' | 'financed' | 'released' | 'settled';
+  lifecycle: Lifecycle;
 }
 
 /** Bitcoin block time from a stored anchor receipt (rwaProof AnchorReceipt), or null
@@ -451,9 +468,38 @@ const ENSURE_DOCS_SQL = `
 const ENSURE_DOCS_RCV_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_documents_rcv ON receivable_documents (receivable_id)`;
 
-let ensured = false;
-export async function ensureReceivablesTables(): Promise<void> {
-  if (ensured) return;
+// Single-flight. Concurrent first requests share one run instead of racing the same DDL. A run
+// that throws (a CREATE failed: the database was unreachable, a lock timed out) is forgotten,
+// so the next call tries again; a cached rejected promise would fail every later call until
+// the process restarted.
+let ensurePromise: Promise<void> | null = null;
+// True only once every column add (the list below plus schema.ts's) has succeeded. Readers and
+// writers of a column added in src/lib/receivables/schema.ts check it and fall back to what
+// they did before that column existed, so a failed ALTER never breaks a read.
+let columnsEnsured = false;
+// After a failed column add: the earliest time the whole (idempotent) ensure runs again.
+let columnsRetryAt = 0;
+const COLUMN_RETRY_MS = 60_000;
+
+/** Whether every runtime column add has been applied in this process. */
+export function receivableColumnsEnsured(): boolean {
+  return columnsEnsured;
+}
+
+export function ensureReceivablesTables(): Promise<void> {
+  if (ensurePromise && columnsRetryAt && Date.now() >= columnsRetryAt) {
+    ensurePromise = null;
+    columnsRetryAt = 0;
+  }
+  if (!ensurePromise) {
+    const run = runEnsureReceivablesTables();
+    ensurePromise = run;
+    run.catch(() => { if (ensurePromise === run) ensurePromise = null; });
+  }
+  return ensurePromise;
+}
+
+async function runEnsureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_RECEIVABLES_SQL, args: [] });
   await db.execute({ sql: ENSURE_RECEIVABLES_TENANT_IDX, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_SQL, args: [] });
@@ -472,11 +518,16 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_OFFERS_SQL, args: [] });
   await db.execute({ sql: ENSURE_OFFERS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_SEEN_SQL, args: [] });
-  for (const sql of ENSURE_SETTLEMENT_COLS) {
+  let allColumns = true;
+  for (const sql of [...ENSURE_SETTLEMENT_COLS, ...RECEIVABLE_COLUMN_ADDS]) {
     try { await db.execute({ sql, args: [] }); }
-    catch (e) { console.error('[receivables] settlement column not applied:', e); }
+    catch (e) {
+      allColumns = false;
+      console.error('[receivables] column not applied:', e);
+    }
   }
-  ensured = true;
+  columnsEnsured = allColumns;
+  columnsRetryAt = allColumns ? 0 : Date.now() + COLUMN_RETRY_MS;
 }
 
 /** Bump a receivable's last-activity clock. Any change to it or a child (claim,
@@ -695,12 +746,25 @@ async function hasBuyerAttestation(receivableId: string): Promise<boolean> {
 
 /** A diligence acceptance is filed under role 'other' with a DILIGENCE prefix (see
  * acceptDiligence) -- scoped to the claiming tenant, since each financier accepts this
- * responsibility for himself, not on another financier's behalf. */
+ * responsibility for himself, not on another financier's behalf.
+ *
+ * Source first: a row whose recorded source is 'diligence' counts, and any other recorded
+ * source does not, whatever its text says. Only a legacy row (source NULL, written before the
+ * column existed) falls back to the prefix. Until the source column is confirmed in this
+ * process, the prefix alone decides, as it did before. */
 async function hasDiligenceAcceptance(receivableId: string, tenantId: string): Promise<boolean> {
-  const r = await db.execute({
-    sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ? AND statement LIKE 'DILIGENCE —%' LIMIT 1`,
-    args: [receivableId, tenantId],
-  });
+  const r = columnsEnsured
+    ? await db.execute({
+        sql: `SELECT 1 FROM receivable_attestations
+               WHERE receivable_id = ? AND tenant_id = ?
+                 AND (source = ? OR (source IS NULL AND statement LIKE ?))
+               LIMIT 1`,
+        args: [receivableId, tenantId, 'diligence' satisfies AttestationSource, 'DILIGENCE —%'],
+      })
+    : await db.execute({
+        sql: `SELECT 1 FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ? AND statement LIKE 'DILIGENCE —%' LIMIT 1`,
+        args: [receivableId, tenantId],
+      });
   return r.rows.length > 0;
 }
 
@@ -744,7 +808,10 @@ export async function addClaim(
     };
   }
 
-  const claimed = await sumActiveClaims(receivableId);
+  // The stored ID, never the caller's string: an ID sent with stray spaces still finds the
+  // record above (it is trimmed there), so summing claims by the untrimmed string found none
+  // and the headroom check passed against the full face value.
+  const claimed = await sumActiveClaims(rcv.id);
   const available = rcv.face - claimed;
   if (amount > available && !input.force) {
     return {
@@ -805,21 +872,29 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     registeredAt: String(r.created_at),
   }));
 
+  // source is read only once its column is confirmed; without it every row classifies the
+  // legacy way (by prefix, never as consent), which can only under-state a row, never forge one.
+  const withSource = columnsEnsured;
   const ar = await db.execute({
-    sql: `SELECT id, role, label, statement, attested_at, signature_json, anchor_json
+    sql: `SELECT id, role, label, statement, attested_at, ${withSource ? 'source, ' : ''}signature_json, anchor_json
           FROM receivable_attestations WHERE receivable_id = ? ORDER BY created_at ASC`,
     args: [rcv.id],
   });
-  const attestations: PublicAttestation[] = (ar.rows as any[]).map((r) => ({
-    id: String(r.id),
-    role: (['buyer', 'supplier', 'inspector'].includes(String(r.role)) ? String(r.role) : 'other') as AttesterRole,
-    label: String(r.label),
-    statement: String(r.statement),
-    date: String(r.attested_at),
-    signed: !!r.signature_json,
-    anchored: !!r.anchor_json,
-    anchoredAt: anchoredAtOf(r.anchor_json),
-  }));
+  const attestations: PublicAttestation[] = (ar.rows as any[]).map((r) => {
+    const role = (['buyer', 'supplier', 'inspector'].includes(String(r.role)) ? String(r.role) : 'other') as AttesterRole;
+    const statement = String(r.statement);
+    return {
+      id: String(r.id),
+      role,
+      label: String(r.label),
+      statement,
+      date: String(r.attested_at),
+      class: classifyAttestation(role, statement, withSource ? r.source : null),
+      signed: !!r.signature_json,
+      anchored: !!r.anchor_json,
+      anchoredAt: anchoredAtOf(r.anchor_json),
+    };
+  });
 
   const rr = await db.execute({
     sql: `SELECT id, verdict, checks_json, created_at, signature_json, anchor_json
@@ -848,21 +923,11 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
   });
   const reqCount = Number((qr.rows[0] as any)?.n ?? 0);
 
-  const claimed = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
+  const claimed = claimedOf(claims);
   const available = rcv.face - claimed;
-  const status: ReceivableStatus['status'] =
-    claimed <= 0 ? 'unfinanced'
-    : claimed < rcv.face ? 'partially_financed'
-    : claimed === rcv.face ? 'fully_financed'
-    : 'over_financed';
-
+  const status = financingStatusOf(claimed, rcv.face);
   const settled = !!rcv.settled_at;
-  const hadClaims = claims.length > 0;
-  const lifecycle: ReceivableStatus['lifecycle'] =
-    settled ? 'settled'
-    : claimed > 0 ? 'financed'
-    : hadClaims ? 'released' // all claims discharged, not yet marked settled
-    : 'created';
+  const lifecycle = lifecycleOf({ settled, claimed, hadClaims: claims.length > 0 });
 
   return {
     id: rcv.id,
@@ -1233,12 +1298,17 @@ export type AddAttestationResult =
  *
  * v1: signed with the Almstins key on the attester's authenticated self-disclosure. v2:
  * the attester proves control of their own address and signs with their own key.
+ *
+ * `source` records which flow wrote the row (see attestationClass.ts). It is required, so
+ * every writer states its provenance, and it is what readers classify by: a typed statement
+ * that merely opens with "DISPUTED —" is not a dispute. It is stored beside the row, not in
+ * the signed manifest, so manifests and digests keep their existing shape.
  */
 export async function addAttestation(
   tenantId: string,
   receivableId: string,
   input: { role: AttesterRole; label: string; statement: string; date?: string;
-           docs?: Array<{ sha256: string; filename: string }> },
+           docs?: Array<{ sha256: string; filename: string }>; source: AttestationSource },
 ): Promise<AddAttestationResult> {
   await ensureReceivablesTables();
   const rcv = await getReceivableRow(String(receivableId || '').trim());
@@ -1263,12 +1333,22 @@ export async function addAttestation(
   }
   const { signature, digest } = sign(manifest);
   const attestationId = randomUUID();
-  await db.execute({
-    sql: `INSERT INTO receivable_attestations
-            (id, receivable_id, tenant_id, role, label, statement, attested_at, manifest_json, signature_json, digest)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [attestationId, rcv.id, tenantId, role, label, statement, date, JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest],
-  });
+  const sigJson = signature ? JSON.stringify(signature) : null;
+  // Without a confirmed source column the row is written the old way (source NULL), which
+  // readers classify by prefix and never as consent: a degraded write, not a failed one.
+  await db.execute(columnsEnsured
+    ? {
+        sql: `INSERT INTO receivable_attestations
+                (id, receivable_id, tenant_id, role, label, statement, attested_at, manifest_json, signature_json, digest, source)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [attestationId, rcv.id, tenantId, role, label, statement, date, JSON.stringify(manifest), sigJson, digest, input.source],
+      }
+    : {
+        sql: `INSERT INTO receivable_attestations
+                (id, receivable_id, tenant_id, role, label, statement, attested_at, manifest_json, signature_json, digest)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [attestationId, rcv.id, tenantId, role, label, statement, date, JSON.stringify(manifest), sigJson, digest],
+      });
   // Covers every "someone else answered" event — a debtor acknowledgment, a dispute, and
   // (via affirmClaimByToken, which records its result through here) a client's receipt
   // confirmation. Each floats the record up as an unseen update in the creator's book.
@@ -1307,6 +1387,7 @@ export async function acceptDiligence(
     role: 'other',
     label: clampStr(input.financier, 120),
     statement,
+    source: 'diligence',
   });
 }
 
@@ -1703,6 +1784,7 @@ export async function confirmByToken(
 
   let statement: string;
   let role: AttesterRole;
+  let source: AttestationSource;
   if (outcome === 'confirmed') {
     const affirm = [
       answers.goodsReceived ? 'goods/services received' : 'receipt NOT affirmed',
@@ -1712,10 +1794,12 @@ export async function confirmByToken(
     ].join('; ');
     statement = `Confirms invoice ${rcv.invoice_no} for ${rcv.currency} ${Number(rcv.face).toLocaleString('en-US', { minimumFractionDigits: 2 })}. Their reference: ${ref}. Affirms: ${affirm}. Answered by ${who}${title}${via}.`;
     role = 'buyer';
+    source = 'debtor_confirmation';
   } else {
     const why = outcome === 'not_ours' ? 'states this invoice is not theirs' : 'states the amount is wrong';
     statement = `DISPUTED — ${why}. Invoice ${rcv.invoice_no}${ref ? `, their reference: ${ref}` : ''}. Answered by ${who}${title}${via}.`;
     role = 'other';
+    source = 'debtor_dispute';
   }
 
   // Claim the token first: a forwarded link must not be answerable twice.
@@ -1735,7 +1819,7 @@ export async function confirmByToken(
     .map((d) => ({ sha256: d.sha256, filename: d.filename }));
 
   const result = await addAttestation(fromTenant, invite.receivableId, {
-    role, label: rcv.buyer, statement, docs,
+    role, label: rcv.buyer, statement, docs, source,
   });
   if (!result.ok) return { ok: false, error: result.error };
 
@@ -2128,12 +2212,15 @@ export async function affirmClaimByToken(
 
   let statement: string;
   let role: AttesterRole;
+  let source: AttestationSource;
   if (outcome === 'received') {
     statement = `Confirms receipt of ${registered} advanced by ${req.financier} against invoice ${req.invoiceNo}, registered ${req.claimDate}. Answered by ${who}${title}${via}.`;
     role = 'supplier';
+    source = 'receipt_confirmation';
   } else if (outcome === 'not_received') {
     statement = `DISPUTED — states no money was received from ${req.financier} against invoice ${req.invoiceNo}. Claim registered ${req.claimDate} for ${registered}. Answered by ${who}${title}${via}.`;
     role = 'other';
+    source = 'receipt_dispute';
   } else {
     const got = Number(answers.amountReceived);
     const gotStr = Number.isFinite(got) && got > 0
@@ -2141,6 +2228,7 @@ export async function affirmClaimByToken(
       : 'a different amount';
     statement = `DISPUTED — states the amount received was ${gotStr}, not the ${registered} registered by ${req.financier} against invoice ${req.invoiceNo}. Answered by ${who}${title}${via}.`;
     role = 'other';
+    source = 'receipt_dispute';
   }
 
   // Claim the token before writing anything, so a forwarded link cannot answer twice.
@@ -2152,7 +2240,7 @@ export async function affirmClaimByToken(
   if (!claimed.rowsAffected) return { ok: false, error: 'used' };
 
   const result = await addAttestation(fromTenant, req.receivableId, {
-    role, label: `${req.financier} advance`, statement,
+    role, label: `${req.financier} advance`, statement, source,
   });
   if (!result.ok) return { ok: false, error: result.error };
 
@@ -2430,13 +2518,16 @@ export async function confirmRecordByToken(
 
   let statement: string;
   let role: AttesterRole;
+  let source: AttestationSource;
   if (outcome === 'accurate') {
     statement = `Confirms this is their receivable: invoice ${req.invoiceNo} to ${req.buyer} for ${amount}, and that the attached paperwork is what they provided. Answered by ${who}${title} via a single-use link.`;
     role = 'supplier';
+    source = 'record_confirmation';
   } else {
     const what = clampStr(answers.correction ?? '', 300);
     statement = `DISPUTED — states the record is wrong. Invoice ${req.invoiceNo} to ${req.buyer} for ${amount}.${what ? ` They say: ${what}` : ''} Answered by ${who}${title} via a single-use link.`;
     role = 'other';
+    source = 'record_dispute';
   }
 
   const claimed = await db.execute({
@@ -2448,7 +2539,7 @@ export async function confirmRecordByToken(
 
   const docs = req.documents.map((d) => ({ sha256: d.sha256, filename: d.filename }));
   const result = await addAttestation(fromTenant, req.receivableId, {
-    role, label: req.supplier, statement, docs,
+    role, label: req.supplier, statement, docs, source,
   });
   if (!result.ok) return { ok: false, error: result.error };
 
@@ -2558,6 +2649,7 @@ export async function recordLapse(req: OpenRequest): Promise<boolean> {
     label: req.role === 'buyer' ? label : (rcv ? String(rcv.supplier) : label),
     statement: `UNANSWERED — a confirmation was requested from ${asked} on ${req.createdAt.slice(0, 10)} and expired without a reply on ${req.expiresAt.slice(0, 10)}.${chased} This records the request, not an answer.`,
     date: req.expiresAt.slice(0, 10),
+    source: 'unanswered',
   });
   return result.ok;
 }
@@ -2780,12 +2872,14 @@ export async function respondToOffer(
 
   let statement: string;
   let role: AttesterRole;
+  let source: AttestationSource;
   if (outcome === 'accept') {
     // Initials are taken against the recourse clause specifically, because that is the term
     // people sign without reading and the one they later say they never saw. Checked above,
     // before the token is spent.
     statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}, initialled "${initials}".${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
     role = 'supplier';
+    source = 'offer_acceptance';
     await db.execute({
       sql: `UPDATE receivable_offers SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL`,
       args: [nowUtc(), who, o.id],
@@ -2794,6 +2888,7 @@ export async function respondToOffer(
     const why = clampStr(answers.reason ?? '', 300);
     statement = `DECLINED — did not accept financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}.${why ? ` They say: ${why}` : ''} Answered by ${who}${title} via a single-use link.`;
     role = 'other';
+    source = 'offer_decline';
     await db.execute({
       sql: `UPDATE receivable_offers SET declined_at = ?, declined_reason = ? WHERE id = ? AND declined_at IS NULL`,
       args: [nowUtc(), why || null, o.id],
@@ -2801,7 +2896,7 @@ export async function respondToOffer(
   }
 
   const result = await addAttestation(fromTenant, receivableId, {
-    role, label: req.supplier, statement,
+    role, label: req.supplier, statement, source,
   });
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, attestationId: result.attestationId, receivableId, offerId: o.id };

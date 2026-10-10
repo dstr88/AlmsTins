@@ -20,6 +20,20 @@ interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
   {
+    date: '2026-10-10',
+    label: 'Saturday',
+    entries: [
+      { kind: 'fix', what: 'The public check now says "Disputed" when a debtor or client has disputed the record.',
+        why: 'The registry always had a Disputed status, but nothing ever switched it on, so a receivable the debtor said was not theirs, or one whose client said the money never arrived, still headed the check as "Available to finance" or "Partially encumbered". The dispute itself was listed further down; now the status at the top says it too, ahead of everything except the TEST marker.' },
+      { kind: 'fix', what: 'A typed statement can no longer pass for a dispute on the public check.',
+        why: 'Answers that come back through a request link open with a marker word: DISPUTED, DILIGENCE, UNANSWERED or DECLINED. Anyone holding the receivable ID could type a statement that opened the same way. Every new statement now records where it came from, and the public check decides whether a record is disputed from that, not from the opening word, so a typed statement stays a typed statement however it opens. A typed statement that opens with one of those four words in capitals, or with one of them followed by a dash, comes back with a note to start it another way. Statements already on file are read by their opening word, as before.' },
+      { kind: 'fix', what: 'A claim sent with a stray space around the receivable ID skipped the headroom check.',
+        why: 'The record was still found, but the claims already standing against it were looked up with the untrimmed ID, none were found, and the whole face value read as available. Existing claims are now always counted against the record itself.' },
+      { kind: 'change', what: 'The public check’s limit of 30 checks a minute now counts each visitor by the address our network edge vouches for.',
+        why: 'It used to count by an address the caller could supply, so the limit was easy to sidestep, and the list it kept never shrank. It now uses the visitor’s real address (an IPv6 network counts as one visitor per /64), the way sign-in counts attempts, and the answers are marked never to be cached, so every check reads the record as it stands now.' },
+    ],
+  },
+  {
     date: '2026-09-28',
     label: 'Monday',
     entries: [
