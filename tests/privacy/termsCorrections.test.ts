@@ -11,10 +11,11 @@ import { en, es, fr } from '../../src/i18n/termsOfService';
 const bodies = { en: en.body, es: es.body, fr: fr.body } as Record<string, string>;
 
 describe('User Agreement v1.2 corrections', () => {
-	it.each(Object.keys(bodies))('%s: B.3.2 says FIFO, not weighted average', (lang) => {
+	it.each(Object.keys(bodies))('%s: B.3.2 says FIFO for realized gains; weighted average only for the Portfolio page', (lang) => {
 		const b = bodies[lang];
 		expect(b).toMatch(/FIFO/);
-		expect(b).not.toMatch(/weighted-average|promedio ponderado|moyen pondéré/);
+		expect(b).not.toMatch(/weighted-average cost|costo promedio ponderado salvo|coût moyen pondéré sauf/);
+		expect(b).toMatch(/Portfolio page's average cost|página Portfolio|page Portfolio/);
 	});
 
 	it('A.2.2 names Sevastopol in all three languages', () => {
