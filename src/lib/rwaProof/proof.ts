@@ -4,55 +4,29 @@
 // tree (merkle.ts) and Ed25519 signing over RFC-8785 canonical JSON (signing.ts).
 // Almstins signs with its OWN key and never touches a user key.
 
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
-import canonicalize from 'canonicalize';
-import {
-  hashLeaf,
-  buildMerkleRoot,
-  buildInclusionProof,
-  verifyInclusionProof,
-  toHex,
-  type Hex,
-  type InclusionProof,
-} from '@/lib/recordProof/merkle';
+import type { Hex } from '@/lib/recordProof/merkle';
+import { digestOf } from '@/lib/recordProof/isoSign';
 import {
   canonicalManifestBytes,
   signManifest,
   verifyManifestSignature,
   getPublicKeyHex,
+  getSigningKey,
   getSigningKeyId,
 } from '@/lib/recordProof/signing';
+import { recordSetRoot } from './recordSet';
 import type { Anchor } from './anchor';
 import type { ProofClaim, SignedManifest, ScopedProof, VerifyResult, AnchorReceipt } from './types';
 
+// The record-set Merkle helpers live in the isomorphic recordSet.ts; re-exported here so every
+// existing import from proof.ts (and the rwaProof index) keeps working.
+export { recordSetRoot, proveRecordInclusion, verifyRecordInclusion } from './recordSet';
+
 const ISSUER_DEFAULT = 'Almstins';
-
-/** Canonical bytes of a record → domain-separated Merkle leaf hash. */
-function leafHashOf(record: unknown): Uint8Array {
-  const json = canonicalize(record as object);
-  if (json === undefined) throw new Error('rwaProof: record did not canonicalize');
-  return hashLeaf(utf8ToBytes(json));
-}
-
-/** Merkle root (hex) over an ordered record set. The order is part of the commitment. */
-export function recordSetRoot(records: unknown[]): Hex {
-  return toHex(buildMerkleRoot(records.map(leafHashOf)));
-}
-
-/** Inclusion proof that `records[index]` is committed under the set's root. */
-export function proveRecordInclusion(records: unknown[], index: number): InclusionProof {
-  return buildInclusionProof(records.map(leafHashOf), index);
-}
-
-/** Verify one record is in the set committed by `merkleRoot`. Any changed field breaks this. */
-export function verifyRecordInclusion(record: unknown, proof: InclusionProof, merkleRoot: Hex): boolean {
-  return verifyInclusionProof(leafHashOf(record), proof, merkleRoot);
-}
 
 /** sha256 hex of the canonical signed manifest — the value an Anchor pins. */
 export function manifestDigest(manifest: SignedManifest): Hex {
-  return bytesToHex(sha256(canonicalManifestBytes(manifest)));
+  return digestOf(manifest);
 }
 
 export interface BuildOpts {
@@ -72,10 +46,18 @@ export interface BuildOpts {
  * Returns an unsigned proof (signatureHex: null) when no signing key is configured — fail-open on availability, never on trust.
  */
 export async function buildScopedProof(opts: BuildOpts): Promise<ScopedProof> {
+  // The issuer names the key that signs: the seed's. The published key (getPublicKeyHex) can be
+  // an ALMSTINS_SIGNING_PUBKEY override that, during a rotation, is not the signing key; a proof
+  // naming it would never verify. With no seed the proof is unsigned and keeps the published key.
+  const seed = getSigningKey();
   const manifest: SignedManifest = {
     v: 1,
     claim: opts.claim,
-    issuer: { name: opts.issuerName ?? ISSUER_DEFAULT, keyId: getSigningKeyId(), publicKeyHex: getPublicKeyHex() },
+    issuer: {
+      name: opts.issuerName ?? ISSUER_DEFAULT,
+      keyId: seed ? seed.keyId : getSigningKeyId(),
+      publicKeyHex: seed ? seed.publicKeyHex : getPublicKeyHex(),
+    },
     provenAt: opts.provenAt ?? new Date().toISOString(),
     merkleRoot: recordSetRoot(opts.records),
     alg: 'Ed25519',

@@ -1,22 +1,17 @@
 // The pure verification core — shared by the browser verify page, the server API,
-// and the standalone offline script. FULLY ISOMORPHIC: imports only @noble +
-// canonicalize + the (isomorphic) merkle/leaf modules; NO node:crypto, Buffer, or
-// process.env, and only TYPE imports from buildProof.ts (so the server-only
-// signing/randomUUID code never reaches the browser bundle).
+// and the standalone offline script. FULLY ISOMORPHIC: imports only the (isomorphic)
+// isoSign, merkle and leaf modules; NO node:crypto, Buffer, or process.env, and only
+// TYPE imports from buildProof.ts (so the server-only signing/randomUUID code never
+// reaches the browser bundle).
 //
 // verifyBundle answers, from the bundle ALONE: is the Merkle root genuinely the
 // commitment over these leaves, and is the signed manifest authentic against a
 // published Almstins key? Structured verdicts/codes, never prose.
 
-import * as ed from '@noble/ed25519';
-import { sha512 } from '@noble/hashes/sha2.js';
-import { hexToBytes, utf8ToBytes } from '@noble/hashes/utils.js';
-import canonicalize from 'canonicalize';
+import { canonicalBytes, verifyEd25519 } from './isoSign';
 import { hashLeaf, buildMerkleRoot, buildInclusionProof, verifyInclusionProof, toHex } from './merkle';
 import { orderLeaves, serializeLeaf } from './leaf';
 import type { ProofBundle, ProofManifest } from './buildProof';
-
-ed.hashes.sha512 = sha512;
 
 export type Verdict = 'verified' | 'unverifiable' | 'tampered';
 export type VerifyCode =
@@ -42,20 +37,6 @@ export interface VerifyOutcome {
 function signedManifestView(m: ProofManifest): Omit<ProofManifest, 'verify_url' | 'disclaimer'> {
   const { verify_url: _v, disclaimer: _d, ...signed } = m;
   return signed;
-}
-
-function canonicalBytes(obj: unknown): Uint8Array {
-  const json = canonicalize(obj);
-  if (json === undefined) throw new Error('verify: canonicalize returned undefined');
-  return utf8ToBytes(json);
-}
-
-function verifySig(bytes: Uint8Array, signatureHex: string, publicKeyHex: string): boolean {
-  try {
-    return ed.verify(hexToBytes(signatureHex), bytes, hexToBytes(publicKeyHex));
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -100,7 +81,7 @@ export function verifyBundle(bundle: ProofBundle, publishedKeys: PublishedKey[] 
   if (!key) {
     return base('unverifiable', 'unknown_key', { root_recomputed: true, leaf_count_match: true, key_published: false }, recomputed, gen);
   }
-  const sigOk = verifySig(canonicalBytes(signedManifestView(m)), bundle.signature.signature_hex, key.public_key_hex);
+  const sigOk = verifyEd25519(canonicalBytes(signedManifestView(m)), bundle.signature.signature_hex, key.public_key_hex);
   if (!sigOk) {
     return base('tampered', 'bad_signature', { root_recomputed: true, leaf_count_match: true, signature_valid: false, key_published: true }, recomputed, gen);
   }

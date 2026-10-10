@@ -34,9 +34,9 @@ import { db } from '@/lib/db';
 import { randomUUID, randomBytes, createHash } from 'crypto';
 import {
   canonicalManifestBytes,
-  signManifest,
+  signManifestWithKey,
   verifyManifestSignature,
-  getPublicKeyHex,
+  getPublishedKeys,
   getSigningKeyId,
 } from '@/lib/recordProof/signing';
 import {
@@ -51,7 +51,14 @@ import {
   type FinancingStatus,
   type Lifecycle,
 } from '@/lib/receivables/status';
-import { RECEIVABLE_COLUMN_ADDS } from '@/lib/receivables/schema';
+import { RECEIVABLE_COLUMN_ADDS, RECEIVABLE_TABLE_CREATES } from '@/lib/receivables/schema';
+import {
+  ANCHOR_SPEC,
+  ANCHOR_KINDS,
+  CONFIRMED_RECEIPT_LIKE,
+  isAnchorKind,
+  type AnchorRecordKind,
+} from '@/lib/receivables/anchorSpec';
 
 /** Timestamp matching the columns' to_char(now() … 'YYYY-MM-DD HH24:MI:SS') default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -518,6 +525,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_OFFERS_SQL, args: [] });
   await db.execute({ sql: ENSURE_OFFERS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_SEEN_SQL, args: [] });
+  for (const sql of RECEIVABLE_TABLE_CREATES) await db.execute({ sql, args: [] });
   let allColumns = true;
   for (const sql of [...ENSURE_SETTLEMENT_COLS, ...RECEIVABLE_COLUMN_ADDS]) {
     try { await db.execute({ sql, args: [] }); }
@@ -553,16 +561,17 @@ export async function markReceivableSeen(tenantId: string, receivableId: string)
   } catch { /* non-fatal */ }
 }
 
-/** Sign a manifest with the Almstins published key. Returns null when no key is
- *  configured (fail-closed: the record is stored UNSIGNED rather than crashing). */
+/** Sign a manifest with the Almstins key. Returns null when no key is configured
+ *  (fail-closed: the record is stored UNSIGNED rather than crashing). The stored key ID and
+ *  public key are the seed's, the key that made the signature, never the published-key
+ *  override, so a record signed during a key rotation still verifies. */
 function sign(manifest: object): { signature: Signature | null; digest: string } {
   const bytes = canonicalManifestBytes(manifest);
   const digest = sha256hex(bytes);
-  const sig = signManifest(bytes);
-  const pub = getPublicKeyHex();
-  if (!sig || !pub) return { signature: null, digest };
+  const sig = signManifestWithKey(bytes);
+  if (!sig) return { signature: null, digest };
   return {
-    signature: { keyId: sig.keyId, alg: sig.alg, signatureHex: sig.signatureHex, publicKeyHex: pub },
+    signature: { keyId: sig.keyId, alg: sig.alg, signatureHex: sig.signatureHex, publicKeyHex: sig.publicKeyHex },
     digest,
   };
 }
@@ -682,7 +691,7 @@ export async function createReceivable(
   // as an unseen update to them; only later events (a debtor confirming, a competing
   // claim) will.
   await markReceivableSeen(tenantId, id);
-  return { ok: true, id, digest, signed: !!signature, keyId: getSigningKeyId() };
+  return { ok: true, id, digest, signed: !!signature, keyId: signature ? signature.keyId : getSigningKeyId() };
 }
 
 interface ReceivableRow {
@@ -994,8 +1003,11 @@ export async function reverifyReceivable(
 
   // 1. Integrity — the record has not been altered since it was signed. Load-bearing:
   //    recompute the canonical bytes from the stored manifest, verify the Ed25519 signature,
-  //    confirm the digest matches AND the signer is the current Almstins published key. Any
-  //    failure here is a hard fail: an unverifiable record is treated as suspect, not trusted.
+  //    confirm the digest matches AND the signer is a key Almstins publishes: the current key or
+  //    a retired one (ALMSTINS_SIGNING_RETIRED_PUBKEYS), so a key rotation does not fail every
+  //    record signed before it. Any failure here is a hard fail: an unverifiable record is
+  //    treated as suspect, not trusted. When no key is published at all, an intact record is a
+  //    caution (warn), never a pass, since the signer cannot be checked.
   try {
     const r = await db.execute({
       sql: `SELECT manifest_json, signature_json, digest FROM receivables WHERE id = ? LIMIT 1`,
@@ -1010,14 +1022,21 @@ export async function reverifyReceivable(
       const bytes = canonicalManifestBytes(JSON.parse(String(row.manifest_json)));
       const digestOk = sha256hex(bytes) === String(row.digest);
       const sigOk = verifyManifestSignature(bytes, String(sig.signatureHex), String(sig.publicKeyHex));
-      const currentKey = getPublicKeyHex();
-      const keyOk = !currentKey || String(sig.publicKeyHex) === currentKey;
+      const published = getPublishedKeys();
+      const signer = String(sig.publicKeyHex).toLowerCase();
+      const keyOk = published.some((k) => k.public_key_hex === signer);
       if (sigOk && digestOk && keyOk) {
         checks.push({ key: 'integrity', label: 'Record integrity', state: 'pass',
           detail: 'Signature verifies and the record is unchanged since it was signed.' });
+      } else if (sigOk && digestOk && published.length === 0) {
+        // No Almstins key is published at all (a misconfigured server), so the signer cannot be
+        // checked against one. Not evidence of tampering, but not a pass either: any key can
+        // produce a self-consistent signature, so the verdict drops to attention.
+        checks.push({ key: 'integrity', label: 'Record integrity', state: 'warn',
+          detail: 'The signature verifies and the record is unchanged, but no Almstins signing key is published right now, so the signer cannot be confirmed.' });
       } else {
         checks.push({ key: 'integrity', label: 'Record integrity', state: 'fail',
-          detail: !keyOk ? 'Signed by a key that is not the current Almstins key.'
+          detail: !keyOk && published.length > 0 ? 'Signed by a key that is not a published Almstins key.'
             : !digestOk ? 'The stored record no longer matches its signed fingerprint.'
             : 'The signature does not verify.' });
       }
@@ -1115,8 +1134,9 @@ export type DischargeClaimResult =
  * Discharge a financing claim — the financing was repaid/released, so the claim no
  * longer encumbers the receivable and its amount returns to the unencumbered headroom.
  * Tenant-scoped to the claim's OWNER (the financier releases their OWN claim). Signs a
- * dated discharge event; the digest is Bitcoin-anchorable. Idempotent-safe: a claim
- * already discharged returns 'already_discharged' rather than double-signing.
+ * dated discharge event and keeps the signature and the full recorded-at time beside the
+ * manifest; the digest is Bitcoin-anchorable (kind 'claim_discharge'). Idempotent-safe: a
+ * claim already discharged returns 'already_discharged' rather than double-signing.
  */
 export async function dischargeClaim(tenantId: string, claimId: string, reason?: string): Promise<DischargeClaimResult> {
   await ensureReceivablesTables();
@@ -1131,7 +1151,8 @@ export async function dischargeClaim(tenantId: string, claimId: string, reason?:
     return { ok: false, error: 'already_discharged', message: 'That claim is already discharged.' };
   }
 
-  const dischargedAt = nowUtc().slice(0, 10);
+  const recordedAt = nowUtc();
+  const dischargedAt = recordedAt.slice(0, 10);
   const cleanReason = clampStr(reason, 300);
   const manifest: Record<string, unknown> = {
     v: 1, kind: 'claim_discharge',
@@ -1141,12 +1162,31 @@ export async function dischargeClaim(tenantId: string, claimId: string, reason?:
   };
   if (cleanReason) manifest.reason = cleanReason;
   const { signature, digest } = sign(manifest);
-  await db.execute({
-    sql: `UPDATE receivable_claims
-          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?, discharge_reason = ?
-          WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
-    args: [dischargedAt, JSON.stringify(manifest), digest, cleanReason || null, claim.id, tenantId],
-  });
+  // The signature and recorded-at columns come from schema.ts. Until they are confirmed in this
+  // process the discharge is written the old way: still signed in memory, just not kept.
+  const written = await db.execute(columnsEnsured
+    ? {
+        sql: `UPDATE receivable_claims
+              SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?, discharge_reason = ?,
+                  discharge_signature_json = ?, discharge_recorded_at = ?
+              WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
+        args: [
+          dischargedAt, JSON.stringify(manifest), digest, cleanReason || null,
+          signature ? JSON.stringify(signature) : null, recordedAt, claim.id, tenantId,
+        ],
+      }
+    : {
+        sql: `UPDATE receivable_claims
+              SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?, discharge_reason = ?
+              WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
+        args: [dischargedAt, JSON.stringify(manifest), digest, cleanReason || null, claim.id, tenantId],
+      });
+  // Another discharge of this claim landed between the read above and this write. Its manifest
+  // is the one stored (and stamped), so this call reports the claim as already discharged rather
+  // than returning a digest that was never kept.
+  if (!written.rowsAffected) {
+    return { ok: false, error: 'already_discharged', message: 'That claim is already discharged.' };
+  }
 
   await touchReceivable(String(claim.receivable_id));
   const rcv = await getReceivableRow(String(claim.receivable_id));
@@ -1163,8 +1203,10 @@ export type SettleReceivableResult =
 /**
  * Mark a receivable settled — the buyer paid, closing the lifecycle. Tenant-scoped to
  * the receivable's CREATOR (the supplier/originator confirms payment arrived). Signs a
- * dated settlement event. Does not itself discharge outstanding claims — a financier
- * releases their own claim via dischargeClaim — but records that the obligation is paid.
+ * dated settlement event and keeps the signature and the full recorded-at time beside the
+ * manifest; the digest is Bitcoin-anchorable (kind 'settlement'). Does not itself discharge
+ * outstanding claims — a financier releases their own claim via dischargeClaim — but records
+ * that the obligation is paid.
  */
 export async function settleReceivable(tenantId: string, receivableId: string): Promise<SettleReceivableResult> {
   await ensureReceivablesTables();
@@ -1177,18 +1219,31 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
   const row = r.rows[0] as any;
   if (row.settled_at != null) return { ok: false, error: 'already_settled', message: 'That receivable is already settled.' };
 
-  const settledAt = nowUtc().slice(0, 10);
+  const recordedAt = nowUtc();
+  const settledAt = recordedAt.slice(0, 10);
   const manifest = {
     v: 1, kind: 'receivable_settlement',
     receivableId: String(row.id), invoiceNo: String(row.invoice_no),
     face: Number(row.face), currency: String(row.currency), settledAt,
   };
   const { signature, digest } = sign(manifest);
-  await db.execute({
-    sql: `UPDATE receivables SET settled_at = ?, settlement_json = ?, settlement_digest = ?
-          WHERE id = ? AND tenant_id = ? AND settled_at IS NULL`,
-    args: [settledAt, JSON.stringify(manifest), digest, row.id, tenantId],
-  });
+  // Same degrade rule as dischargeClaim: without the schema.ts columns the signature is not kept.
+  const written = await db.execute(columnsEnsured
+    ? {
+        sql: `UPDATE receivables
+              SET settled_at = ?, settlement_json = ?, settlement_digest = ?, settlement_signature_json = ?, settlement_recorded_at = ?
+              WHERE id = ? AND tenant_id = ? AND settled_at IS NULL`,
+        args: [settledAt, JSON.stringify(manifest), digest, signature ? JSON.stringify(signature) : null, recordedAt, row.id, tenantId],
+      }
+    : {
+        sql: `UPDATE receivables SET settled_at = ?, settlement_json = ?, settlement_digest = ?
+              WHERE id = ? AND tenant_id = ? AND settled_at IS NULL`,
+        args: [settledAt, JSON.stringify(manifest), digest, row.id, tenantId],
+      });
+  // A concurrent settle won the write: its settlement is the one on record.
+  if (!written.rowsAffected) {
+    return { ok: false, error: 'already_settled', message: 'That receivable is already settled.' };
+  }
   await touchReceivable(row.id);
   return { ok: true, digest, signed: !!signature, settledAt };
 }
@@ -1392,78 +1447,185 @@ export async function acceptDiligence(
 }
 
 // ── #1: Bitcoin anchoring — attach a receipt to a registry record ─────────────
+//
+// Which records can carry a timestamp, and which columns hold each kind's digest and receipt,
+// is ANCHOR_SPEC (src/lib/receivables/anchorSpec.ts). Every read and write here is scoped by
+// tenant_id; only listPendingAnchors and listUnanchoredRecords scan across tenants, for the
+// anchor cron, and they return each row's tenant so the cron writes back through the
+// tenant-scoped setRecordAnchor.
 
-export type AnchorRecordKind = 'receivable' | 'claim' | 'attestation';
+export type { AnchorRecordKind } from '@/lib/receivables/anchorSpec';
 
-const ANCHOR_TABLE: Record<AnchorRecordKind, string> = {
-  receivable: 'receivables',
-  claim: 'receivable_claims',
-  attestation: 'receivable_attestations',
-};
+/** A kind whose columns schema.ts adds is usable only once every column add has applied. */
+function anchorKindReady(kind: AnchorRecordKind): boolean {
+  return !ANCHOR_SPEC[kind].addedColumns || columnsEnsured;
+}
 
 /**
  * A record's digest + current anchor receipt, scoped to the tenant that owns it. The
  * digest is what gets stamped into Bitcoin; the anchor endpoint orchestrates the
  * stamp/upgrade and calls setRecordAnchor to persist the receipt. Returns null when the
- * record isn't found or isn't this tenant's.
+ * record isn't found, isn't this tenant's, or has nothing to stamp yet (a claim that was
+ * never discharged, a receivable that was never settled).
  */
 export async function getRecordForAnchor(
   tenantId: string, kind: AnchorRecordKind, id: string,
 ): Promise<{ digest: string; anchorJson: string | null } | null> {
   await ensureReceivablesTables();
-  const table = ANCHOR_TABLE[kind];
-  if (!table) return null;
+  if (!isAnchorKind(kind) || !anchorKindReady(kind)) return null;
+  const { table, digestColumn, anchorColumn } = ANCHOR_SPEC[kind];
   const r = await db.execute({
-    sql: `SELECT digest, anchor_json FROM ${table} WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    sql: `SELECT ${digestColumn} AS digest, ${anchorColumn} AS anchor_json FROM ${table} WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [String(id || '').trim(), tenantId],
   });
   if (!r.rows.length) return null;
   const row = r.rows[0] as any;
+  if (row.digest == null) return null;
   return { digest: String(row.digest), anchorJson: row.anchor_json != null ? String(row.anchor_json) : null };
 }
 
-/** Persist an anchor receipt (JSON) onto a record. Tenant-scoped. */
+/** Persist an anchor receipt (JSON) onto a record. Tenant-scoped; a record with no digest to
+ *  stamp yet is left alone. */
 export async function setRecordAnchor(
   tenantId: string, kind: AnchorRecordKind, id: string, anchorJson: string,
 ): Promise<void> {
   await ensureReceivablesTables();
-  const table = ANCHOR_TABLE[kind];
-  if (!table) return;
+  if (!isAnchorKind(kind) || !anchorKindReady(kind)) return;
+  const { table, digestColumn, anchorColumn } = ANCHOR_SPEC[kind];
   await db.execute({
-    sql: `UPDATE ${table} SET anchor_json = ? WHERE id = ? AND tenant_id = ?`,
+    sql: `UPDATE ${table} SET ${anchorColumn} = ? WHERE id = ? AND tenant_id = ? AND ${digestColumn} IS NOT NULL`,
     args: [anchorJson, String(id || '').trim(), tenantId],
   });
 }
 
+export interface PendingAnchor { kind: AnchorRecordKind; id: string; tenantId: string; anchorJson: string }
+
+/** Rows one kind's scan may return: enough to fill a whole run if no other kind has work. */
+const scanLimit = (limit: number) => Math.max(1, Math.min(500, Math.floor(limit) || 1));
+
 /**
- * Every still-pending anchor across all three registry tables (cross-tenant maintenance).
+ * Every still-pending anchor across the registry tables (cross-tenant maintenance).
  * "Pending" = a receipt is stored but Bitcoin has not confirmed it yet (no anchoredAt).
  * OpenTimestamps sends no push, so the upgrade-anchors cron uses this to find receipts
  * that are ready to be pulled down and persisted, without anyone opening the page.
  * Returns tenant_id per row so the caller persists via the tenant-scoped setRecordAnchor.
+ *
+ * Per-kind quotas: the kinds take turns filling the run, so a backlog of one kind (fifty pending
+ * claims) cannot starve another (one pending settlement); a kind with less work hands its share
+ * to the rest. Within a kind, records the cron has asked about least recently come first
+ * (receivable_anchor_attempts), so a receipt that never confirms rotates to the back instead of
+ * taking a slot on every run; records never asked about come first of all, newest first.
  */
-export async function listPendingAnchors(
-  limit = 100,
-): Promise<Array<{ kind: AnchorRecordKind; id: string; tenantId: string; anchorJson: string }>> {
+export async function listPendingAnchors(limit = 100): Promise<PendingAnchor[]> {
   await ensureReceivablesTables();
-  const out: Array<{ kind: AnchorRecordKind; id: string; tenantId: string; anchorJson: string }> = [];
-  const scan = async (kind: AnchorRecordKind) => {
-    const table = ANCHOR_TABLE[kind];
+  const perKind: PendingAnchor[][] = [];
+  for (const kind of ANCHOR_KINDS) {
+    if (!anchorKindReady(kind)) continue;
+    const { table, anchorColumn } = ANCHOR_SPEC[kind];
     const r = await db.execute({
-      sql: `SELECT id, tenant_id, anchor_json FROM ${table}
-            WHERE anchor_json IS NOT NULL ORDER BY created_at DESC LIMIT 500`,
-      args: [],
+      sql: `SELECT t.id, t.tenant_id, t.${anchorColumn} AS anchor_json
+            FROM ${table} t
+            LEFT JOIN receivable_anchor_attempts a ON a.record_id = t.id AND a.kind = ?
+            WHERE t.${anchorColumn} IS NOT NULL AND t.${anchorColumn} NOT LIKE ?
+            ORDER BY a.last_attempt_at ASC NULLS FIRST, t.created_at DESC
+            LIMIT ${scanLimit(limit)}`,
+      args: [kind, CONFIRMED_RECEIPT_LIKE],
     });
+    const rows: PendingAnchor[] = [];
     for (const row of r.rows as any[]) {
       const aj = String(row.anchor_json);
       if (anchoredAtOf(aj)) continue; // already confirmed — nothing to pull
-      out.push({ kind, id: String(row.id), tenantId: String(row.tenant_id), anchorJson: aj });
+      rows.push({ kind, id: String(row.id), tenantId: String(row.tenant_id), anchorJson: aj });
     }
-  };
-  await scan('receivable');
-  await scan('claim');
-  await scan('attestation');
-  return out.slice(0, limit);
+    perKind.push(rows);
+  }
+  return takeTurns(perKind, limit);
+}
+
+/** Interleave lists one item at a time (a, b, c, a, b, ...) up to `limit` items. */
+function takeTurns<T>(lists: T[][], limit: number): T[] {
+  const out: T[] = [];
+  for (let i = 0; out.length < limit && lists.some((l) => i < l.length); i++) {
+    for (const l of lists) {
+      if (i < l.length && out.length < limit) out.push(l[i]);
+    }
+  }
+  return out;
+}
+
+export interface UnanchoredRecord { kind: AnchorRecordKind; id: string; tenantId: string }
+
+/** How many unstamped rows of one kind the cron batch looks at, so that tenants beyond the first
+ *  few rows still get their turn. */
+const UNANCHORED_SCAN = 500;
+
+/**
+ * Records of the cron-stamped kinds (ANCHOR_SPEC cronStamps: re-verifications, and discharges and
+ * settlements whose stamp failed when they were recorded) that have a digest but no timestamp
+ * yet, across tenants, for the anchor cron to stamp in a batch.
+ *
+ * Fair by tenant: every tenant with work gets one record before any tenant gets a second, and no
+ * tenant gets more than `perTenant` in one batch, so one account adding re-verifications faster
+ * than the cron stamps them cannot crowd out the others. Within a tenant the kinds take turns.
+ * Records come oldest first (by ANCHOR_SPEC writtenAtColumn), so a backlog drains in arrival
+ * order and newer records never jump ahead of it forever; a record the cron has already asked
+ * about rotates behind every record it has not (receivable_anchor_attempts), least recently
+ * asked first.
+ */
+export async function listUnanchoredRecords(limit = 20, perTenant = 10): Promise<UnanchoredRecord[]> {
+  await ensureReceivablesTables();
+  const perKind: UnanchoredRecord[][] = [];
+  for (const kind of ANCHOR_KINDS) {
+    const spec = ANCHOR_SPEC[kind];
+    if (!spec.cronStamps || !anchorKindReady(kind)) continue;
+    const r = await db.execute({
+      sql: `SELECT t.id, t.tenant_id
+            FROM ${spec.table} t
+            LEFT JOIN receivable_anchor_attempts a ON a.record_id = t.id AND a.kind = ?
+            WHERE t.${spec.anchorColumn} IS NULL AND t.${spec.digestColumn} IS NOT NULL
+              AND t.${spec.writtenAtColumn} IS NOT NULL
+            ORDER BY a.last_attempt_at ASC NULLS FIRST, t.${spec.writtenAtColumn} ASC
+            LIMIT ${UNANCHORED_SCAN}`,
+      args: [kind],
+    });
+    perKind.push((r.rows as any[]).map((row) => ({ kind, id: String(row.id), tenantId: String(row.tenant_id) })));
+  }
+  // Kinds take turns, then each tenant's share is capped and the tenants take turns, in the order
+  // their first record came up.
+  const cap = Math.max(1, Math.floor(perTenant) || 1);
+  const byTenant = new Map<string, UnanchoredRecord[]>();
+  for (const rec of takeTurns(perKind, Number.MAX_SAFE_INTEGER)) {
+    const mine = byTenant.get(rec.tenantId) ?? [];
+    if (!byTenant.has(rec.tenantId)) byTenant.set(rec.tenantId, mine);
+    if (mine.length < cap) mine.push(rec);
+  }
+  return takeTurns([...byTenant.values()], limit);
+}
+
+/** Note that the cron just asked about this record's timestamp, so it rotates to the back of the
+ *  next scan. Bookkeeping only, keyed by kind and record ID (no tenant data); never throws. */
+export async function recordAnchorAttempt(kind: AnchorRecordKind, id: string): Promise<void> {
+  try {
+    await ensureReceivablesTables();
+    await db.execute({
+      sql: `INSERT INTO receivable_anchor_attempts (kind, record_id, last_attempt_at, attempts)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT (kind, record_id) DO UPDATE
+            SET last_attempt_at = excluded.last_attempt_at, attempts = receivable_anchor_attempts.attempts + 1`,
+      args: [kind, String(id), nowUtc()],
+    });
+  } catch { /* bookkeeping only */ }
+}
+
+/** Forget a record's attempts once its timestamp is stamped or confirmed. Never throws. */
+export async function clearAnchorAttempts(kind: AnchorRecordKind, id: string): Promise<void> {
+  try {
+    await ensureReceivablesTables();
+    await db.execute({
+      sql: `DELETE FROM receivable_anchor_attempts WHERE kind = ? AND record_id = ?`,
+      args: [kind, String(id)],
+    });
+  } catch { /* bookkeeping only */ }
 }
 
 // ── Invitations ───────────────────────────────────────────────────────────────

@@ -2,9 +2,10 @@
  * An in-memory stand-in for '@/lib/db' that runs the receivables registry's own SQL.
  *
  * Hermetic: no Postgres, no network. It parses the small SQL subset the registry uses
- * (CREATE TABLE / CREATE INDEX / ALTER TABLE ADD COLUMN, INSERT, UPDATE, and single-table or
- * one-JOIN SELECTs with AND / OR / IS NULL / LIKE in WHERE) and evaluates it against plain
- * row objects. Because the registry's real WHERE clauses run here, a dropped
+ * (CREATE TABLE / CREATE INDEX / ALTER TABLE ADD COLUMN, INSERT [ON CONFLICT], UPDATE, DELETE,
+ * and single-table or one-[LEFT] JOIN SELECTs with AND / OR / IS NULL / LIKE in WHERE and ON,
+ * ordered by one or more columns with ASC / DESC and NULLS FIRST / LAST) and evaluates it
+ * against plain row objects. Because the registry's real WHERE clauses run here, a dropped
  * `AND tenant_id = ?` shows up as a wrong answer in a test, not only in review.
  *
  * Postgres behaviors it keeps on purpose:
@@ -343,6 +344,9 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 				if (updateSet) {
 					for (const part of splitTopLevel(updateSet)) {
 						const [lhs, rhs] = part.split('=').map((x) => x.trim());
+						// "col = <table>.col + 1": a counter bumped from the existing row.
+						const inc = rhs.match(/^(?:\w+\.)?(\w+) \+ (\d+)$/);
+						if (inc) { existing[lhs] = Number(existing[inc[1]] ?? 0) + Number(inc[2]); continue; }
 						const src = rhs.replace(/^excluded\./i, '');
 						existing[lhs] = row[src];
 					}
@@ -384,6 +388,20 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 		return { rows: [], rowsAffected: n };
 	}
 
+	function del(sql: string, args: unknown[]) {
+		const m = sql.match(/^DELETE FROM (\w+)(?: WHERE (.*))?$/i);
+		if (!m) throw new Error(`fake db: unsupported DELETE: ${sql}`);
+		const [, table, where] = m;
+		requireTable(table);
+		const expr = where ? new ExprParser(tokenize(where), { next: 0 }).parse() : null;
+		if (expr) exprColumns(expr).forEach((c) => requireColumn(table, c));
+		const rows = rowsOf(table);
+		const keep = rows.filter((row) => expr && !evalExpr(expr, (c) => row[c], args));
+		const n = rows.length - keep.length;
+		rows.splice(0, rows.length, ...keep);
+		return { rows: [], rowsAffected: n };
+	}
+
 	function select(sql: string, args: unknown[]) {
 		const fromAt = sql.toUpperCase().indexOf(' FROM ');
 		if (!sql.toUpperCase().startsWith('SELECT ') || fromAt < 0) throw new Error(`fake db: unsupported SELECT: ${sql}`);
@@ -394,27 +412,36 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 		let limitParam = false;
 		const lm = rest.match(/ LIMIT (\?|\d+)$/i);
 		if (lm) { limitParam = lm[1] === '?'; if (!limitParam) limit = Number(lm[1]); rest = rest.slice(0, lm.index); }
-		let order: { col: string; desc: boolean } | null = null;
-		const om = rest.match(/ ORDER BY ([\w.]+)(?: (ASC|DESC))?$/i);
-		if (om) { order = { col: om[1], desc: (om[2] || '').toUpperCase() === 'DESC' }; rest = rest.slice(0, om.index); }
+		type OrderTerm = { col: string; desc: boolean; nullsFirst: boolean };
+		let order: OrderTerm[] = [];
+		const oAt = rest.toUpperCase().lastIndexOf(' ORDER BY ');
+		if (oAt >= 0) {
+			order = splitTopLevel(rest.slice(oAt + 10)).map((term) => {
+				const tm = term.match(/^([\w.]+)(?: (ASC|DESC))?(?: NULLS (FIRST|LAST))?$/i);
+				if (!tm) throw new Error(`fake db: unsupported ORDER BY term: ${term}`);
+				const desc = (tm[2] || '').toUpperCase() === 'DESC';
+				// Postgres sorts NULL above every value: last when ascending, first when descending.
+				return { col: tm[1], desc, nullsFirst: tm[3] ? tm[3].toUpperCase() === 'FIRST' : desc };
+			});
+			rest = rest.slice(0, oAt);
+		}
 		let where: string | null = null;
 		const wAt = rest.toUpperCase().indexOf(' WHERE ');
 		if (wAt >= 0) { where = rest.slice(wAt + 7); rest = rest.slice(0, wAt); }
 
-		// FROM: "t" | "t a" | "t a JOIN u b ON b.x = a.y"
-		const jm = rest.match(/^(\w+) (\w+) JOIN (\w+) (\w+) ON ([\w.]+) = ([\w.]+)$/i);
+		// FROM: "t" | "t a" | "t a [LEFT] JOIN u b ON <condition>"
+		const jm = rest.match(/^(\w+) (\w+) (LEFT )?JOIN (\w+) (\w+) ON (.+)$/i);
 		const sm = rest.match(/^(\w+)(?: (\w+))?$/);
 		type Source = { table: string; alias: string };
 		let sources: Source[];
 		let candidates: Array<Record<string, Row>>;
+		let joinOn: { on: string; left: boolean; a1: string; a2: string; t1: string; t2: string } | null = null;
 		if (jm) {
-			const [, t1, a1, t2, a2, lhs, rhs] = jm;
+			const [, t1, a1, left, t2, a2, on] = jm;
 			requireTable(t1); requireTable(t2);
 			sources = [{ table: t1, alias: a1 }, { table: t2, alias: a2 }];
 			candidates = [];
-			for (const r1 of rowsOf(t1)) for (const r2 of rowsOf(t2)) candidates.push({ [a1]: r1, [a2]: r2 });
-			const resolveIn = (pair: Record<string, Row>, ref: string) => { const [a, c] = ref.split('.'); return pair[a]?.[c]; };
-			candidates = candidates.filter((pair) => looseEq(resolveIn(pair, lhs), resolveIn(pair, rhs)) && resolveIn(pair, lhs) != null);
+			joinOn = { on, left: !!left, a1, a2, t1, t2 };
 		} else if (sm) {
 			requireTable(sm[1]);
 			sources = [{ table: sm[1], alias: sm[2] || sm[1] }];
@@ -443,20 +470,41 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 			return pair[alias]?.[col];
 		};
 
+		// ON parameters come before WHERE parameters in the argument list.
 		const paramBase = { next: 0 };
+		if (joinOn) {
+			const on = new ExprParser(tokenize(joinOn.on), paramBase).parse();
+			exprColumns(on).forEach(resolve);
+			for (const r1 of rowsOf(joinOn.t1)) {
+				let hit = false;
+				for (const r2 of rowsOf(joinOn.t2)) {
+					const pair = { [joinOn.a1]: r1, [joinOn.a2]: r2 };
+					if (evalExpr(on, getter(pair), args)) { candidates.push(pair); hit = true; }
+				}
+				if (!hit && joinOn.left) candidates.push({ [joinOn.a1]: r1 });
+			}
+		}
 		let matched = candidates;
 		if (where) {
 			const expr = new ExprParser(tokenize(where), paramBase).parse();
 			exprColumns(expr).forEach(resolve);
 			matched = matched.filter((pair) => evalExpr(expr, getter(pair), args));
 		}
-		if (order) resolve(order.col);
+		order.forEach((o) => resolve(o.col));
 		if (limitParam) limit = Number(args[paramBase.next++]);
-		if (order) {
-			const o = order;
+		if (order.length) {
 			matched = [...matched].sort((x, y) => {
-				const c = compare(getter(x)(o.col), getter(y)(o.col));
-				return o.desc ? -c : c;
+				for (const o of order) {
+					const a = getter(x)(o.col), b = getter(y)(o.col);
+					const an = a == null, bn = b == null;
+					if (an || bn) {
+						if (an && bn) continue;
+						return an === o.nullsFirst ? -1 : 1;
+					}
+					const c = compare(a, b);
+					if (c) return o.desc ? -c : c;
+				}
+				return 0;
 			});
 		}
 
@@ -517,6 +565,7 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 			if (head.startsWith('INSERT ')) return insert(sql, args);
 			if (head.startsWith('UPDATE ')) return update(sql, args);
 			if (head.startsWith('SELECT ')) return select(sql, args);
+			if (head.startsWith('DELETE ')) return del(sql, args);
 			throw new Error(`fake db: unsupported statement: ${sql}`);
 		},
 		async batch() {

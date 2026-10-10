@@ -5,22 +5,24 @@
  *
  * Body: { receivableId, financier, method: 'phone'|'relationship'|'correspondence'|'other', note? }
  *
- * Unlike every other write in this file, this one anchors to Bitcoin synchronously, in the
- * same request, instead of leaving the stamp as a best-effort follow-up call from the
- * frontend. The point of this endpoint is that THIS click -- the financier accepting
- * responsibility for his own verification, in his own name -- is the moment worth
- * permanently recording, not an incidental side effect of writing data. See
- * acceptDiligence() for why this is filed under role 'other' rather than 'buyer'.
+ * Like discharge and settle, this one anchors to Bitcoin synchronously, in the same request,
+ * instead of leaving the stamp as a best-effort follow-up call from the frontend. The point
+ * of this endpoint is that THIS click -- the financier accepting responsibility for his own
+ * verification, in his own name -- is the moment worth permanently recording, not an
+ * incidental side effect of writing data. See acceptDiligence() for why this is filed under
+ * role 'other' rather than 'buyer'.
+ *
+ * Response: the signed acceptance plus { anchored: true, anchor } or
+ * { anchored: false, anchorError? } (see anchorNow). The stamp shares the per-tenant
+ * evidenceStampLimiter with discharge and settle.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { acceptDiligence, getRecordForAnchor, setRecordAnchor, type DiligenceMethod } from '@/lib/receivablesRegistry';
-import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
-import { createFixedWindowLimiter } from '@/lib/rateLimit';
+import { acceptDiligence, type DiligenceMethod } from '@/lib/receivablesRegistry';
+import { anchorNow, evidenceStampLimiter } from '@/lib/receivables/server/anchorNow';
 
 export const prerender = false;
 
-const stampLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 30 });
 const METHODS: DiligenceMethod[] = ['phone', 'relationship', 'correspondence', 'other'];
 
 const json = (body: unknown, status = 200) =>
@@ -42,22 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
   });
   if (!result.ok) return json(result, result.error === 'not_found' ? 404 : 400);
 
-  if (stampLimiter.hit(`tenant:${session.tenantId}`)) {
-    // The acceptance is already signed and saved -- only the Bitcoin stamp is delayed.
-    // Report this plainly rather than pretending the anchor happened.
-    return json({ ...result, anchored: false, anchorError: 'rate_limited' });
-  }
-  try {
-    const record = await getRecordForAnchor(session.tenantId, 'attestation', result.attestationId);
-    if (record) {
-      const receipt = await new OpenTimestampsAnchor().stamp(record.digest.toLowerCase());
-      await setRecordAnchor(session.tenantId, 'attestation', result.attestationId, JSON.stringify(receipt));
-      return json({ ...result, anchored: true, anchor: receipt });
-    }
-  } catch (err) {
-    // Same non-fatal posture as /anchor: the signed acceptance stands regardless of
-    // whether the Bitcoin stamp succeeded this instant.
-    return json({ ...result, anchored: false, anchorError: String((err as Error)?.message || err) });
-  }
-  return json({ ...result, anchored: false });
+  // The acceptance is already signed and saved; only the Bitcoin stamp can be delayed (rate
+  // limited, or the calendars unreachable), and the response says so rather than pretending.
+  const anchor = await anchorNow(session.tenantId, 'attestation', result.attestationId, evidenceStampLimiter);
+  return json({ ...result, ...anchor });
 };
