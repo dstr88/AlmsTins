@@ -20,7 +20,7 @@
  */
 
 import type { APIRoute } from 'astro';
-import { getClientIp } from '@/lib/analytics/ip';
+import { clientIpKey } from '@/lib/rateLimit';
 import {
   isValidAddress,
   checkActivityRateLimit,
@@ -37,7 +37,7 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-export const POST: APIRoute = async ({ request, clientAddress }) => {
+export const POST: APIRoute = async ({ request }) => {
   let body: unknown;
   try {
     body = await request.json();
@@ -61,8 +61,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   // ── Rate limit ───────────────────────────────────────────────────────────────
-  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
-  if (!checkActivityRateLimit(ip)) {
+  // Keyed on the Cloudflare-set client IP (an IPv6 client by its /64).
+  if (!checkActivityRateLimit(clientIpKey(request))) {
     return json(
       { ok: false, error: 'Too many requests. Please wait a minute and try again.' },
       429,
