@@ -29,7 +29,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: 'pro',
     label: 'Pro',
     walletLimit: 20,
-    monthlyPrice: 19,
+    monthlyPrice: 20,
   },
   unlimited: {
     id: 'unlimited',

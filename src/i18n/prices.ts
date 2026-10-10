@@ -44,7 +44,7 @@ export const en: PricesCopy = {
     heading: 'Track more — wallet plans',
     sub: 'Every plan includes the full bookkeeping & tax breakdown, all exchange imports, and auto-classify. Paid plans add the done-for-you automation.',
     starter: { name: 'Starter', price: '$7', unit: '/mo', yearly: 'or $70/year', items: ['Up to 8 wallets', 'AI Triage, receipt validation & price backfill', 'Email support'], cta: 'Choose Starter →' },
-    pro: { name: 'Pro', badge: 'Recommended', price: '$19', unit: '/mo', yearly: 'or $200/year', items: ['Up to 20 wallets', 'Everything in Starter', 'Priority support & early access'], cta: 'Choose Pro →' },
+    pro: { name: 'Pro', badge: 'Recommended', price: '$20', unit: '/mo', yearly: 'or $200/year', items: ['Up to 20 wallets', 'Everything in Starter', 'Priority support & early access'], cta: 'Choose Pro →' },
     unlimited: { name: 'Unlimited', price: '$39', unit: '/mo', yearly: 'or $400/year', items: ['Unlimited wallets', 'Everything in Pro', 'Year-Summary tax PDF + white-glove onboarding'], cta: 'Choose Unlimited →' },
   },
   verify: {
@@ -79,7 +79,7 @@ export const es: PricesCopy = {
     heading: 'Sigue más — planes de billeteras',
     sub: 'Todos los planes incluyen el desglose contable y fiscal completo, todas las importaciones de exchanges y la auto-clasificación. Los planes de pago añaden la automatización lista para ti.',
     starter: { name: 'Starter', price: '$7', unit: '/mes', yearly: 'o $70/año', items: ['Hasta 8 billeteras', 'AI Triage, validación de recibos y relleno de precios', 'Soporte por correo'], cta: 'Elegir Starter →' },
-    pro: { name: 'Pro', badge: 'Recomendado', price: '$19', unit: '/mes', yearly: 'o $200/año', items: ['Hasta 20 billeteras', 'Todo lo de Starter', 'Soporte prioritario y acceso anticipado'], cta: 'Elegir Pro →' },
+    pro: { name: 'Pro', badge: 'Recomendado', price: '$20', unit: '/mes', yearly: 'o $200/año', items: ['Hasta 20 billeteras', 'Todo lo de Starter', 'Soporte prioritario y acceso anticipado'], cta: 'Elegir Pro →' },
     unlimited: { name: 'Unlimited', price: '$39', unit: '/mes', yearly: 'o $400/año', items: ['Billeteras ilimitadas', 'Todo lo de Pro', 'PDF de resumen anual + incorporación personalizada'], cta: 'Elegir Unlimited →' },
   },
   verify: {
@@ -114,7 +114,7 @@ export const fr: PricesCopy = {
     heading: 'Suivez plus — forfaits portefeuilles',
     sub: "Chaque forfait inclut le récapitulatif comptable et fiscal complet, tous les imports d'exchanges et l'auto-classification. Les forfaits payants ajoutent l'automatisation clé en main.",
     starter: { name: 'Starter', price: '7 $', unit: '/mois', yearly: 'ou 70 $/an', items: ["Jusqu'à 8 portefeuilles", 'AI Triage, validation de reçus et remplissage des prix', 'Support par e-mail'], cta: 'Choisir Starter →' },
-    pro: { name: 'Pro', badge: 'Recommandé', price: '19 $', unit: '/mois', yearly: 'ou 200 $/an', items: ["Jusqu'à 20 portefeuilles", 'Tout ce qui est dans Starter', 'Support prioritaire et accès anticipé'], cta: 'Choisir Pro →' },
+    pro: { name: 'Pro', badge: 'Recommandé', price: '20 $', unit: '/mois', yearly: 'ou 200 $/an', items: ["Jusqu'à 20 portefeuilles", 'Tout ce qui est dans Starter', 'Support prioritaire et accès anticipé'], cta: 'Choisir Pro →' },
     unlimited: { name: 'Unlimited', price: '39 $', unit: '/mois', yearly: 'ou 400 $/an', items: ['Portefeuilles illimités', 'Tout ce qui est dans Pro', 'PDF de récapitulatif annuel + accompagnement personnalisé'], cta: 'Choisir Unlimited →' },
   },
   verify: {
