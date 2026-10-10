@@ -249,8 +249,22 @@ const _cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60_000;
 const CACHE_MAX = 500;
 
+/**
+ * The cache key for an address: one entry per real address. Hex addresses (EVM, Sui) and
+ * segwit addresses are case-insensitive, so they are lowercased. Base58 addresses (Solana,
+ * Tron, legacy Bitcoin and Litecoin) are case-sensitive and keep their case: lowercasing
+ * them let anyone check a case-flipped copy of a sanctioned Solana or Tron address (not on
+ * the list, so clean) and have that clean result served for the real address, here and in
+ * mail scanning, until the entry expired.
+ */
+export function cacheKeyFor(address: string): string {
+  const a = address.trim();
+  if (EVM_REGEX.test(a) || SUI_REGEX.test(a)) return a.toLowerCase();
+  return canonicalAddress(a);
+}
+
 export function getCached(address: string): WalletCheckResult | null {
-  const key = address.toLowerCase();
+  const key = cacheKeyFor(address);
   const entry = _cache.get(key);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
@@ -262,7 +276,7 @@ export function setCache(address: string, data: WalletCheckResult): void {
     const oldest = _cache.keys().next().value;
     if (oldest) _cache.delete(oldest);
   }
-  _cache.set(address.toLowerCase(), { data, expiresAt: Date.now() + CACHE_TTL_MS });
+  _cache.set(cacheKeyFor(address), { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 // Activity (/api/wallet-activity) has its own cache. A read with a chain that could not be
