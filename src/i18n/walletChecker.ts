@@ -166,6 +166,8 @@ export interface WalletCheckerLocale {
     activitySourceSui: string;
     honeypotEvmOnly: string;
     honeypotUnavailable: string;
+    honeypotNotAToken: string;
+    honeypotNoMarket: string;
     honeypotDetected: string;
     honeypotSellable: string;
     honeypotExplain: string;
@@ -475,6 +477,8 @@ export const en: WalletCheckerLocale = {
     activitySourceSui: 'Activity via Sui RPC · From the latest 50 sent and 50 received transactions',
     honeypotEvmOnly: 'Honeypot detection is only available for EVM addresses.',
     honeypotUnavailable: 'Honeypot check unavailable.',
+    honeypotNotAToken: 'Nothing to test: honeypot.is found no trading pair for this address. Ordinary wallets have none. The honeypot test applies to tokens that trade on an exchange.',
+    honeypotNoMarket: 'honeypot.is found no trading pair for this contract, so it could not test whether its tokens can be sold. A token with no market on any exchange deserves extra caution.',
     honeypotDetected: '🚨 Honeypot detected — tokens CANNOT be sold',
     honeypotSellable: '✅ Tokens appear sellable',
     honeypotExplain: 'A honeypot is a token that can be bought but never sold. Scammers use them to steal funds — you send ETH in, your tokens are locked, they keep the ETH.',
@@ -773,6 +777,8 @@ export const es: WalletCheckerLocale = {
     activitySourceSui: 'Actividad vía Sui RPC · A partir de las últimas 50 transacciones enviadas y 50 recibidas',
     honeypotEvmOnly: 'La detección de honeypot solo está disponible para direcciones EVM.',
     honeypotUnavailable: 'Verificación de honeypot no disponible.',
+    honeypotNotAToken: 'Nada que probar: honeypot.is no encontró ningún par de trading para esta dirección. Las billeteras comunes no tienen ninguno. La prueba de honeypot se aplica a tokens que se negocian en un exchange.',
+    honeypotNoMarket: 'honeypot.is no encontró ningún par de trading para este contrato, así que no pudo comprobar si sus tokens se pueden vender. Un token sin mercado en ningún exchange merece precaución adicional.',
     honeypotDetected: '🚨 Honeypot detectado — los tokens NO se pueden vender',
     honeypotSellable: '✅ Los tokens parecen vendibles',
     honeypotExplain: 'Un honeypot es un token que se puede comprar pero nunca vender. Los estafadores los usan para robar fondos — envías ETH, tus tokens quedan bloqueados y ellos se quedan con el ETH.',
@@ -1071,6 +1077,8 @@ export const fr: WalletCheckerLocale = {
     activitySourceSui: 'Activité via Sui RPC · D’après les 50 dernières transactions envoyées et les 50 dernières reçues',
     honeypotEvmOnly: 'La détection de honeypot n’est disponible que pour les adresses EVM.',
     honeypotUnavailable: 'Vérification de honeypot indisponible.',
+    honeypotNotAToken: 'Rien à tester : honeypot.is n’a trouvé aucune paire de trading pour cette adresse. Les portefeuilles ordinaires n’en ont pas. Le test de honeypot s’applique aux tokens échangés sur une plateforme.',
+    honeypotNoMarket: 'honeypot.is n’a trouvé aucune paire de trading pour ce contrat : impossible de vérifier si ses tokens peuvent être revendus. Un token sans marché sur aucune plateforme mérite une prudence accrue.',
     honeypotDetected: '🚨 Honeypot détecté — les tokens NE PEUVENT PAS être vendus',
     honeypotSellable: '✅ Les tokens semblent vendables',
     honeypotExplain: 'Un honeypot est un token que l’on peut acheter mais jamais vendre. Les arnaqueurs s’en servent pour voler des fonds — vous envoyez de l’ETH, vos tokens sont bloqués, ils gardent l’ETH.',
