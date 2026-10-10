@@ -1300,7 +1300,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
 
   // Screen the scanned value for scam signals — reusing the public safety
   // checkers. A URL goes to dapp-check (phishing lists); an address goes to
-  // wallet-check (GoPlus / OFAC / honeypot / age). This is independent of the
+  // wallet-check (GoPlus / OFAC / honeypot; never wallet age). This is independent of the
   // match: a "still yours" address is reassuringly clean; a swapped one is most
   // useful to screen because it's brand-new and a registry match alone can't flag it.
   async function runSafety(q: string) {

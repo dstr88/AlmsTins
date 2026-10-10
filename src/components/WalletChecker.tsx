@@ -1,26 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import jsQR from 'jsqr';
 import type { WalletCheckResult } from '@/lib/walletChecker';
+import type { WalletActivity } from '@/lib/walletActivity';
 import type { WalletCheckerLocale } from '@/i18n/walletChecker';
 import { publicVerifyCard, publisherText, fillTemplate, addressSafetyVerdict, type PublicVerifyCard, type PublicVerifyLookup } from '@/lib/verifyPublicCard';
 import { goplusRanForAddress } from '@/lib/goplusCredit';
 import PoweredByGoPlus from './PoweredByGoPlus';
+import WalletActivityPanel from './WalletActivityPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'safety' | 'holdings' | 'activity' | 'honeypot' | 'funding' | 'multisig';
+// The Activity tab's facts load from their own endpoint after the verdict (never part of it).
+type ActivityLoad = { status: 'loading' } | { status: 'done'; activity: WalletActivity } | { status: 'failed' };
 type CheckerStrings = WalletCheckerLocale['checker'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(iso: string | null, locale: string): string {
-  if (!iso) return '—';
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      month: 'short', day: 'numeric', year: 'numeric',
-    }).format(new Date(iso));
-  } catch { return '—'; }
-}
 
 function chainLabel(chain: string, c: CheckerStrings): string {
   return {
@@ -31,12 +26,6 @@ function chainLabel(chain: string, c: CheckerStrings): string {
     litecoin: c.chains.litecoin,
     tron:     c.chains.tron,
   }[chain] ?? c.chains.unknown;
-}
-
-function isNewWallet(firstSeen: string | null): boolean {
-  if (!firstSeen) return false;
-  const days = (Date.now() - new Date(firstSeen).getTime()) / 86_400_000;
-  return days < 30;
 }
 
 // Renders a string that marks a term with [[double brackets]], turning that term into a
@@ -154,7 +143,14 @@ function FlagRow({ label, active, c }: { label: string; active: boolean; c: Chec
   );
 }
 
-function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c: CheckerStrings }) {
+function TabContent({ tab, result, activityLoad, c }: {
+  tab: Tab;
+  result: WalletCheckResult;
+  activityLoad: ActivityLoad | null;
+  c: CheckerStrings;
+}) {
+  const activity = activityLoad?.status === 'done' ? activityLoad.activity : null;
+
   if (tab === 'safety') {
     const f = result.flags;
     return (
@@ -251,10 +247,10 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
     );
     return (
       <div>
-        {result.activity?.ethBalance && result.chain !== 'sui' && (
+        {activity?.ethBalance && result.chain !== 'sui' && (
           <div style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>{c.ethBalanceRow}</span>
-            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{result.activity.ethBalance} ETH</span>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{activity.ethBalance} ETH</span>
           </div>
         )}
         {h.map((token, i) => (
@@ -274,32 +270,13 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
   }
 
   if (tab === 'activity') {
-    const a = result.activity;
-    const newWallet = isNewWallet(a.firstSeen);
     return (
-      <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-          {[
-            { label: c.firstSeen,    value: fmt(a.firstSeen, c.dateLocale)    },
-            { label: c.lastActivity, value: fmt(a.lastActivity, c.dateLocale) },
-            { label: result.chain === 'sui' ? c.suiBalance : c.ethBalance, value: a.ethBalance ?? '—' },
-            { label: c.txCount,      value: a.txCount !== null ? String(a.txCount) : '—' },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-              <p style={{ margin: '0.25rem 0 0', fontWeight: 600, fontSize: '0.95rem' }}>{value}</p>
-            </div>
-          ))}
-        </div>
-        {newWallet && (
-          <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#fca5a5' }}>
-            🚩 <strong>{c.newWallet}</strong>{c.newWalletRest}
-          </div>
-        )}
-        <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
-          {c.activitySource}
-        </p>
-      </div>
+      <WalletActivityPanel
+        activity={activity}
+        status={!activityLoad || activityLoad.status === 'loading' ? 'loading' : activityLoad.status === 'failed' ? 'failed' : undefined}
+        chain={result.chain}
+        c={c}
+      />
     );
   }
 
@@ -508,6 +485,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
+  const [activityLoad, setActivityLoad] = useState<ActivityLoad | null>(null);
   // Holds a Verify hit — either 'verified' (domain-anchored) or 'claimed' (control only).
   // The label is kept only for publicVerifyCard(), which never shows it as freeform text.
   const [verifiedPublisher, setVerifiedPublisher] = useState<PublicVerifyLookup | null>(null);
@@ -540,10 +518,12 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
     // Cancel any in-flight request
     abortRef.current?.abort();
     abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
 
     setLoading(true);
     setError(null);
     setResult(null);
+    setActivityLoad(null);
     setVerifiedPublisher(null);
 
     try {
@@ -584,6 +564,21 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
         setResult(data.result);
         setCached(Boolean(data.cached));
         setActiveTab('safety');
+        // Activity facts load from their own endpoint once the verdict is shown, so the
+        // verdict never waits on the explorers' rate limits. They are never part of it.
+        setActivityLoad({ status: 'loading' });
+        void fetch('/api/wallet-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: addr }),
+          signal,
+        })
+          .then(r => r.json())
+          .then((d: any) => {
+            if (signal.aborted) return;
+            setActivityLoad(d?.ok && d.activity ? { status: 'done', activity: d.activity } : { status: 'failed' });
+          })
+          .catch(() => { if (!signal.aborted) setActivityLoad({ status: 'failed' }); });
         if (typeof (window as any).gtag === 'function') {
           (window as any).gtag('event', 'wallet_check_submitted', {
             event_category: 'interactive_tool',
@@ -962,7 +957,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
 
           {/* Tab content */}
           <div style={{ minHeight: '120px' }}>
-            <TabContent tab={activeTab} result={result} c={c} />
+            <TabContent tab={activeTab} result={result} activityLoad={activityLoad} c={c} />
           </div>
 
           {/* GoPlus API License Agreement s.3: credit the source when GoPlus answered for this

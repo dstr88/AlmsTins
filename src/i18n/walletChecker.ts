@@ -134,10 +134,36 @@ export interface WalletCheckerLocale {
     lastActivity: string;
     suiBalance: string;
     ethBalance: string;
+    // Transactions sent from the address (EVM: the account nonce, summed over chains).
     txCount: string;
-    newWallet: string;
-    newWalletRest: string;
+    // Every transaction found (Sui).
+    txCountAll: string;
+    // A caution, never a verdict: states both sides (scams AND exchange deposit addresses).
+    newWalletNote: string;
+    // Shown for first/last activity when every chain with a source was read and nothing was found.
+    activityNoneFound: string;
+    // A first activity that may not be the first (a chain unread, or a capped read). {date}.
+    activityOnOrBefore: string;
+    // A last activity that may not be the last (a chain unread, or its newest page failed). {date}.
+    activityOnOrAfter: string;
+    // Under a date: the chain it was found on. {chain} is a proper noun (Ethereum, Polygon…).
+    activityOnChain: string;
+    activityByChain: string;
+    activityChainNone: string;
+    // Per-chain count of transactions sent. {n}. Worded so it reads right for any n.
+    activityChainSent: string;
+    // Chains we have no source for: checking again will not change them. {chains}.
+    activityNotCovered: string;
+    // Chains with a source that could not be read this time: checking again may fill them. {chains}.
+    activityNotRead: string;
+    // Shown when no chain could be read, so a dash is not mistaken for "new" or "empty".
+    activityUnknownNote: string;
+    // While the Activity tab's own request is loading (it loads after the verdict).
+    activityLoading: string;
+    // Bitcoin, Litecoin, Tron, Solana and unknown chains: no activity source yet.
+    activityNotAvailable: string;
     activitySource: string;
+    activitySourceSui: string;
     honeypotEvmOnly: string;
     honeypotUnavailable: string;
     honeypotDetected: string;
@@ -292,7 +318,7 @@ export const en: WalletCheckerLocale = {
       { icon: '🍯', label: 'Honeypot detection',    body: 'Checks whether tokens associated with this address can actually be sold — or if they\'re designed to trap your funds.' },
       { icon: '🌑', label: 'Dark web activity',     body: 'Flags addresses with known connections to dark web marketplaces and illicit transaction patterns.' },
       { icon: '🔀', label: 'Mixer / Tornado Cash',  body: 'Detects use of crypto mixers like Tornado Cash — a common way scammers launder funds before a rug pull.' },
-      { icon: '📅', label: 'Wallet age',            body: 'New wallets (< 30 days old) are a major red flag. Scammers create fresh addresses for each operation.' },
+      { icon: '📅', label: 'Wallet age',            body: 'When the address was first and last active, shown as a fact and never scored. New wallets are common in scams, and also for exchange deposit addresses; old ones can be bought.' },
       { icon: '💰', label: 'Token holdings',        body: 'Shows what\'s actually in the wallet. Scam wallets often hold worthless tokens designed to look valuable.' },
       { icon: '⚖️', label: 'Sanctions check',       body: 'Checks against OFAC and international sanctions lists for addresses involved in financial crime.' },
       { icon: '🔑', label: 'Multi-sig detection',   body: 'Identifies if the address is a multi-sig contract. Legitimate investments never ask you to deposit into theirs.' },
@@ -341,7 +367,7 @@ export const en: WalletCheckerLocale = {
       { q: 'What does "too good to be true" actually look like in crypto?', a: 'Guaranteed daily returns of 1–10%, "just stake your tokens in our wallet," airdrop claims that require sending tokens first, or someone in DMs offering to double your crypto. If the return sounds impossible in traditional finance, it\'s a scam in crypto.' },
       { q: 'Why would a wallet use Tornado Cash?', a: 'Tornado Cash is a mixer that breaks the on-chain link between wallet addresses. While some users value privacy, it\'s heavily used by scammers and hackers to hide the origin of stolen funds before cashing out.' },
       { q: 'Should I trust a wallet just because it has a large balance?', a: 'No. Scammers often seed wallets with worthless tokens or inflated "paper" balances to create the appearance of legitimacy. Always check if those tokens can actually be sold and what they\'re truly worth.' },
-      { q: 'Is a new wallet always suspicious?', a: 'Not always — but in the context of someone pitching an investment, a wallet created in the last 30 days is a major red flag. Legitimate protocols and businesses have established on-chain history.' },
+      { q: 'Is a new wallet always suspicious?', a: 'No. New wallets are common in scams, and also for exchange deposit addresses, which are often brand new. An old wallet proves nothing either: aged addresses can be bought, and some scams build a history first. That is why we show wallet age as a fact and never use it in the score. If someone asks you to pay a new address, confirm it through a channel you already trust.' },
       { q: 'What should I do if this tool flags a wallet address?', a: 'Do not send funds. Screenshot the results. If someone is pressuring you to send crypto to a flagged address, that pressure itself is part of the scam. Report the address on chainabuse.com and walk away.' },
       { q: 'What should I do if the dApp checker flags a website?', a: 'Do not connect your wallet. Close the tab. Find the official project through a trusted source — their verified Twitter/X account or a well-known aggregator like DeFiLlama or CoinGecko. Report the site to MetaMask\'s phishing database at github.com/MetaMask/eth-phishing-detect.' },
     ],
@@ -426,14 +452,27 @@ export const en: WalletCheckerLocale = {
     ethBalanceRow: 'ETH Balance',
     holdingsSourceSui: 'Data via Sui RPC · All coin balances shown · SUI price via CoinGecko',
     holdingsSourceEvm: 'Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown',
-    firstSeen: 'First seen',
+    firstSeen: 'First activity',
     lastActivity: 'Last activity',
     suiBalance: 'SUI balance',
     ethBalance: 'ETH balance',
-    txCount: 'Tx count',
-    newWallet: 'New wallet',
-    newWalletRest: ' — created less than 30 days ago. Scam wallets are often brand new.',
-    activitySource: 'Activity data via Etherscan · Ethereum Mainnet only',
+    txCount: 'Transactions sent',
+    txCountAll: 'Transactions',
+    newWalletNote: 'First activity found on the chains checked is less than 30 days old. New wallets are common in scams, and also for exchange deposit addresses.',
+    activityNoneFound: 'None found on the chains checked',
+    activityOnOrBefore: 'On or before {date}',
+    activityOnOrAfter: 'On or after {date}',
+    activityOnChain: 'on {chain}',
+    activityByChain: 'By chain',
+    activityChainNone: 'No activity found',
+    activityChainSent: '{n} sent',
+    activityNotCovered: 'Not covered yet: {chains}',
+    activityNotRead: 'Could not be read right now: {chains}',
+    activityUnknownNote: 'Activity could not be read on any chain right now. A dash (—) means unknown, not new and not empty.',
+    activityLoading: 'Reading activity…',
+    activityNotAvailable: 'Activity is not available for this chain yet.',
+    activitySource: 'Activity via Etherscan, Routescan and Alchemy · Normal transactions and ERC-20 token transfers on the chains checked · Transactions sent = the account nonce · ETH balance on Ethereum',
+    activitySourceSui: 'Activity via Sui RPC · From the latest 50 sent and 50 received transactions',
     honeypotEvmOnly: 'Honeypot detection is only available for EVM addresses.',
     honeypotUnavailable: 'Honeypot check unavailable.',
     honeypotDetected: '🚨 Honeypot detected — tokens CANNOT be sold',
@@ -577,7 +616,7 @@ export const es: WalletCheckerLocale = {
       { icon: '🍯', label: 'Detección de honeypot',              body: 'Verifica si los tokens asociados con esta dirección realmente pueden venderse — o si están diseñados para atrapar tus fondos.' },
       { icon: '🌑', label: 'Actividad en la dark web',           body: 'Señala direcciones con conexiones conocidas a mercados de la dark web y patrones de transacciones ilícitas.' },
       { icon: '🔀', label: 'Mixer / Tornado Cash',               body: 'Detecta el uso de mixers cripto como Tornado Cash — una forma común que usan los estafadores para lavar fondos antes de un rug pull.' },
-      { icon: '📅', label: 'Antigüedad de la billetera',         body: 'Las billeteras nuevas (< 30 días) son una gran señal de alerta. Los estafadores crean direcciones nuevas para cada operación.' },
+      { icon: '📅', label: 'Antigüedad de la billetera',         body: 'Cuándo estuvo activa la dirección por primera y por última vez, como un dato y nunca como puntuación. Las billeteras nuevas son comunes en las estafas, y también en las direcciones de depósito de exchanges; las antiguas se pueden comprar.' },
       { icon: '💰', label: 'Tenencias de tokens',                body: 'Muestra lo que realmente hay en la billetera. Las billeteras de estafa suelen contener tokens sin valor diseñados para parecer valiosos.' },
       { icon: '⚖️', label: 'Verificación de sanciones',          body: 'Verifica contra las listas de sanciones de la OFAC e internacionales para direcciones involucradas en crímenes financieros.' },
       { icon: '🔑', label: 'Detección multi-sig',                body: 'Identifica si la dirección es un contrato multi-sig. Las inversiones legítimas nunca te piden depositar en los suyos.' },
@@ -626,7 +665,7 @@ export const es: WalletCheckerLocale = {
       { q: '¿Cómo se ve "demasiado bueno para ser verdad" en cripto?', a: 'Rendimientos diarios garantizados del 1–10%, "solo pon tus tokens en nuestra billetera", reclamaciones de airdrop que requieren enviar tokens primero, o alguien en mensajes directos ofreciendo duplicar tu cripto. Si el retorno suena imposible en las finanzas tradicionales, es una estafa en cripto.' },
       { q: '¿Por qué usaría una billetera Tornado Cash?', a: 'Tornado Cash es un mixer que rompe el enlace on-chain entre direcciones de billetera. Aunque algunos usuarios valoran la privacidad, es ampliamente utilizado por estafadores y hackers para ocultar el origen de fondos robados antes de cobrarlos.' },
       { q: '¿Debo confiar en una billetera solo porque tiene un saldo grande?', a: 'No. Los estafadores a menudo cargan billeteras con tokens sin valor o saldos "de papel" inflados para crear apariencia de legitimidad. Verifica siempre si esos tokens pueden realmente venderse y cuánto valen realmente.' },
-      { q: '¿Es una billetera nueva siempre sospechosa?', a: 'No siempre — pero en el contexto de alguien que ofrece una inversión, una billetera creada en los últimos 30 días es una gran señal de alerta. Los protocolos y negocios legítimos tienen historial on-chain establecido.' },
+      { q: '¿Es una billetera nueva siempre sospechosa?', a: 'No. Las billeteras nuevas son comunes en las estafas, y también en las direcciones de depósito de exchanges, que suelen ser recientes. Una billetera antigua tampoco prueba nada: las direcciones con historial se pueden comprar, y algunas estafas construyen un historial primero. Por eso mostramos la antigüedad de la billetera como un dato y nunca la usamos en la puntuación. Si alguien te pide pagar a una dirección nueva, confírmala por un canal en el que ya confíes.' },
       { q: '¿Qué debo hacer si esta herramienta señala una dirección de billetera?', a: 'No envíes fondos. Toma una captura de pantalla de los resultados. Si alguien te presiona para enviar cripto a una dirección señalada, esa presión misma es parte de la estafa. Reporta la dirección en chainabuse.com y retírate.' },
       { q: '¿Qué debo hacer si el verificador de dApp señala un sitio web?', a: 'No conectes tu billetera. Cierra la pestaña. Encuentra el proyecto oficial a través de una fuente de confianza — su cuenta verificada de Twitter/X o un agregador reconocido como DeFiLlama o CoinGecko. Reporta el sitio a la base de datos de phishing de MetaMask en github.com/MetaMask/eth-phishing-detect.' },
     ],
@@ -711,14 +750,27 @@ export const es: WalletCheckerLocale = {
     ethBalanceRow: 'Saldo de ETH',
     holdingsSourceSui: 'Datos vía Sui RPC · Se muestran todos los saldos de monedas · Precio de SUI vía CoinGecko',
     holdingsSourceEvm: 'Datos vía Alchemy · Solo Ethereum Mainnet · Se muestran los 10 tokens principales',
-    firstSeen: 'Visto por primera vez',
+    firstSeen: 'Primera actividad',
     lastActivity: 'Última actividad',
     suiBalance: 'Saldo de SUI',
     ethBalance: 'Saldo de ETH',
-    txCount: 'Nº de transacciones',
-    newWallet: 'Billetera nueva',
-    newWalletRest: ' — creada hace menos de 30 días. Las billeteras de estafa suelen ser totalmente nuevas.',
-    activitySource: 'Datos de actividad vía Etherscan · Solo Ethereum Mainnet',
+    txCount: 'Transacciones enviadas',
+    txCountAll: 'Transacciones',
+    newWalletNote: 'La primera actividad encontrada en las cadenas verificadas tiene menos de 30 días. Las billeteras nuevas son comunes en las estafas, y también en las direcciones de depósito de exchanges.',
+    activityNoneFound: 'Ninguna en las cadenas verificadas',
+    activityOnOrBefore: 'El {date} o antes',
+    activityOnOrAfter: 'El {date} o después',
+    activityOnChain: 'en {chain}',
+    activityByChain: 'Por cadena',
+    activityChainNone: 'No se encontró actividad',
+    activityChainSent: 'enviadas: {n}',
+    activityNotCovered: 'Aún sin cobertura: {chains}',
+    activityNotRead: 'Lectura no disponible en este momento: {chains}',
+    activityUnknownNote: 'No se pudo leer la actividad en ninguna cadena en este momento. Una raya (—) significa desconocido: ni nuevo ni vacío.',
+    activityLoading: 'Leyendo la actividad…',
+    activityNotAvailable: 'La actividad aún no está disponible para esta cadena.',
+    activitySource: 'Actividad vía Etherscan, Routescan y Alchemy · Transacciones normales y transferencias de tokens ERC-20 en las cadenas verificadas · Transacciones enviadas = el nonce de la cuenta · Saldo de ETH en Ethereum',
+    activitySourceSui: 'Actividad vía Sui RPC · A partir de las últimas 50 transacciones enviadas y 50 recibidas',
     honeypotEvmOnly: 'La detección de honeypot solo está disponible para direcciones EVM.',
     honeypotUnavailable: 'Verificación de honeypot no disponible.',
     honeypotDetected: '🚨 Honeypot detectado — los tokens NO se pueden vender',
@@ -862,7 +914,7 @@ export const fr: WalletCheckerLocale = {
       { icon: '🍯', label: 'Détection de honeypot', body: 'Vérifie si les tokens associés à cette adresse peuvent réellement être vendus — ou s’ils sont conçus pour piéger vos fonds.' },
       { icon: '🌑', label: 'Activité du dark web', body: 'Signale les adresses ayant des liens connus avec des marchés du dark web et des schémas de transactions illicites.' },
       { icon: '🔀', label: 'Mixer / Tornado Cash', body: 'Détecte l’usage de mixers crypto comme Tornado Cash — un moyen courant pour les arnaqueurs de blanchir des fonds avant un rug pull.' },
-      { icon: '📅', label: 'Âge du portefeuille', body: 'Les nouveaux portefeuilles (< 30 jours) sont un signal d’alerte majeur. Les arnaqueurs créent de nouvelles adresses pour chaque opération.' },
+      { icon: '📅', label: 'Âge du portefeuille', body: 'Quand l’adresse a été active pour la première et la dernière fois, affiché comme un fait et jamais noté. Les nouveaux portefeuilles sont courants dans les arnaques, et aussi pour les adresses de dépôt des plateformes d’échange ; les anciens peuvent s’acheter.' },
       { icon: '💰', label: 'Avoirs en tokens', body: 'Montre ce qui se trouve réellement dans le portefeuille. Les portefeuilles d’arnaque contiennent souvent des tokens sans valeur conçus pour paraître précieux.' },
       { icon: '⚖️', label: 'Vérification des sanctions', body: 'Vérifie les listes de sanctions de l’OFAC et internationales pour les adresses impliquées dans la criminalité financière.' },
       { icon: '🔑', label: 'Détection multi-signature', body: 'Identifie si l’adresse est un contrat multi-signature. Les investissements légitimes ne vous demandent jamais de déposer dans le leur.' },
@@ -911,7 +963,7 @@ export const fr: WalletCheckerLocale = {
       { q: 'À quoi ressemble vraiment le « trop beau pour être vrai » en crypto ?', a: 'Des rendements quotidiens garantis de 1 à 10 %, « stakez simplement vos tokens dans notre portefeuille », des réclamations d’airdrop qui exigent d’envoyer des tokens d’abord, ou quelqu’un en DM proposant de doubler votre crypto. Si le rendement semble impossible dans la finance traditionnelle, c’est une arnaque en crypto.' },
       { q: 'Pourquoi un portefeuille utiliserait-il Tornado Cash ?', a: 'Tornado Cash est un mixer qui rompt le lien on-chain entre les adresses de portefeuille. Si certains utilisateurs tiennent à leur vie privée, il est largement utilisé par les arnaqueurs et les hackers pour cacher l’origine de fonds volés avant de les retirer.' },
       { q: 'Dois-je faire confiance à un portefeuille juste parce qu’il a un gros solde ?', a: 'Non. Les arnaqueurs garnissent souvent les portefeuilles de tokens sans valeur ou de soldes « sur le papier » gonflés pour donner une apparence de légitimité. Vérifiez toujours si ces tokens peuvent réellement être vendus et ce qu’ils valent vraiment.' },
-      { q: 'Un nouveau portefeuille est-il toujours suspect ?', a: 'Pas toujours — mais dans le contexte de quelqu’un qui propose un investissement, un portefeuille créé au cours des 30 derniers jours est un signal d’alerte majeur. Les protocoles et entreprises légitimes ont un historique on-chain établi.' },
+      { q: 'Un nouveau portefeuille est-il toujours suspect ?', a: 'Non. Les nouveaux portefeuilles sont courants dans les arnaques, et aussi pour les adresses de dépôt des plateformes d’échange, qui sont souvent récentes. Un portefeuille ancien ne prouve rien non plus : des adresses avec un historique s’achètent, et certaines arnaques se construisent d’abord un historique. C’est pourquoi nous affichons l’âge du portefeuille comme un fait et ne l’utilisons jamais dans le score. Si quelqu’un vous demande de payer une nouvelle adresse, confirmez-la par un canal auquel vous faites déjà confiance.' },
       { q: 'Que dois-je faire si cet outil signale une adresse de portefeuille ?', a: 'N’envoyez pas de fonds. Faites une capture d’écran des résultats. Si quelqu’un vous presse d’envoyer de la crypto à une adresse signalée, cette pression fait elle-même partie de l’arnaque. Signalez l’adresse sur chainabuse.com et partez.' },
       { q: 'Que dois-je faire si le vérificateur de dApp signale un site web ?', a: 'Ne connectez pas votre portefeuille. Fermez l’onglet. Trouvez le projet officiel via une source fiable — son compte Twitter/X vérifié ou un agrégateur reconnu comme DeFiLlama ou CoinGecko. Signalez le site à la base de phishing de MetaMask sur github.com/MetaMask/eth-phishing-detect.' },
     ],
@@ -996,14 +1048,27 @@ export const fr: WalletCheckerLocale = {
     ethBalanceRow: 'Solde ETH',
     holdingsSourceSui: 'Données via Sui RPC · Tous les soldes de pièces affichés · Prix du SUI via CoinGecko',
     holdingsSourceEvm: 'Données via Alchemy · Ethereum Mainnet uniquement · 10 principaux tokens affichés',
-    firstSeen: 'Première apparition',
+    firstSeen: 'Première activité',
     lastActivity: 'Dernière activité',
     suiBalance: 'Solde SUI',
     ethBalance: 'Solde ETH',
-    txCount: 'Nb de transactions',
-    newWallet: 'Nouveau portefeuille',
-    newWalletRest: ' — créé il y a moins de 30 jours. Les portefeuilles d’arnaque sont souvent tout neufs.',
-    activitySource: 'Données d’activité via Etherscan · Ethereum Mainnet uniquement',
+    txCount: 'Transactions envoyées',
+    txCountAll: 'Transactions',
+    newWalletNote: 'La première activité trouvée sur les chaînes vérifiées date de moins de 30 jours. Les nouveaux portefeuilles sont courants dans les arnaques, et aussi pour les adresses de dépôt des plateformes d’échange.',
+    activityNoneFound: 'Aucune sur les chaînes vérifiées',
+    activityOnOrBefore: 'Le {date} ou avant',
+    activityOnOrAfter: 'Le {date} ou après',
+    activityOnChain: 'sur {chain}',
+    activityByChain: 'Par chaîne',
+    activityChainNone: 'Aucune activité trouvée',
+    activityChainSent: 'envoyées : {n}',
+    activityNotCovered: 'Pas encore de couverture : {chains}',
+    activityNotRead: 'Lecture impossible pour le moment : {chains}',
+    activityUnknownNote: 'L’activité n’a pu être lue sur aucune chaîne pour le moment. Un tiret (—) signifie inconnu : ni nouveau, ni vide.',
+    activityLoading: 'Lecture de l’activité…',
+    activityNotAvailable: 'L’activité n’est pas encore disponible pour cette chaîne.',
+    activitySource: 'Activité via Etherscan, Routescan et Alchemy · Transactions normales et transferts de tokens ERC-20 sur les chaînes vérifiées · Transactions envoyées = le nonce du compte · Solde ETH sur Ethereum',
+    activitySourceSui: 'Activité via Sui RPC · D’après les 50 dernières transactions envoyées et les 50 dernières reçues',
     honeypotEvmOnly: 'La détection de honeypot n’est disponible que pour les adresses EVM.',
     honeypotUnavailable: 'Vérification de honeypot indisponible.',
     honeypotDetected: '🚨 Honeypot détecté — les tokens NE PEUVENT PAS être vendus',

@@ -98,6 +98,9 @@ export function isPublicPath(pathname: string): boolean {
 		)) ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
+		// The wallet checker's Activity tab (first/last activity, count, balance), split out
+		// of /api/wallet-check so the verdict never waits on it. Same validation and limits.
+		pathname === '/api/wallet-activity' ||
 		pathname === '/api/dapp-check' ||
 		// Verified-publisher lookup — public, login-free; address → publishing domain
 		// (reads the global mirror, never exposes tenant_id/identity)
