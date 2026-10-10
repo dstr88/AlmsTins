@@ -286,7 +286,7 @@ const _activityCache = new Map<string, ActivityCacheEntry>();
 const ACTIVITY_PARTIAL_TTL_MS = 60_000;
 
 export function getCachedActivity(address: string): WalletActivityResult | null {
-  const key = address.toLowerCase();
+  const key = cacheKeyFor(address);
   const entry = _activityCache.get(key);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) { _activityCache.delete(key); return null; }
@@ -300,7 +300,7 @@ export function setCachedActivity(address: string, data: WalletActivityResult): 
   }
   const partial = (data.activity.chains ?? []).some((c) => isUnread(c) || c.lastActivityComplete === false);
   const ttl = partial ? ACTIVITY_PARTIAL_TTL_MS : CACHE_TTL_MS;
-  _activityCache.set(address.toLowerCase(), { data, expiresAt: Date.now() + ttl });
+  _activityCache.set(cacheKeyFor(address), { data, expiresAt: Date.now() + ttl });
 }
 
 // ─── Scam score ───────────────────────────────────────────────────────────────
