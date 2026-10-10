@@ -94,12 +94,28 @@ async function getAccessToken(): Promise<string> {
 
 interface ReportRow { [key: string]: string | number }
 
+/** Google answered with an error for one report (not a sign-in or network failure). */
+class ReportApiError extends Error {}
+
 async function runReport(body: object): Promise<ReportRow[]> {
+  try {
+    return await callReport('runReport', body);
+  } catch (err) {
+    // As before: one report's API error leaves that report empty; a token or network
+    // failure still throws, so getGA4Summary reports "not connected" instead of zeros.
+    if (!(err instanceof ReportApiError)) throw err;
+    console.warn('[ga4] report error:', err.message);
+    return [];
+  }
+}
+
+/** One Data API report call. Throws ReportApiError on an API error. */
+async function callReport(method: 'runReport' | 'runRealtimeReport', body: object): Promise<ReportRow[]> {
   if (!PROPERTY_ID) return [];
   const token = await getAccessToken();
 
   const res = await fetch(
-    `https://analyticsdata.googleapis.com/v1beta/properties/${PROPERTY_ID}:runReport`,
+    `https://analyticsdata.googleapis.com/v1beta/properties/${PROPERTY_ID}:${method}`,
     {
       method:  'POST',
       headers: {
@@ -117,10 +133,7 @@ async function runReport(body: object): Promise<ReportRow[]> {
     error?: { message: string };
   };
 
-  if (data.error) {
-    console.warn('[ga4] report error:', data.error.message);
-    return [];
-  }
+  if (data.error) throw new ReportApiError(data.error.message);
 
   const dimNames = (data.dimensionHeaders ?? []).map((h) => h.name);
   const metNames = (data.metricHeaders   ?? []).map((h) => h.name);
@@ -266,6 +279,38 @@ export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
     };
   } catch (err) {
     console.warn('[ga4] getGA4Summary failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+export interface GA4Realtime {
+  /** People with the site open in the last 30 minutes. */
+  activeUsers: number;
+  countries: { country: string; activeUsers: number }[];
+  /** By page title (the Realtime API has no page path). */
+  pages: { title: string; activeUsers: number }[];
+}
+
+/**
+ * Who is on the site right now (GA4 Realtime API, last 30 minutes). Null when GA4 is not
+ * configured or Google does not answer, so a failure never reads as "nobody is here".
+ */
+export async function getGA4Realtime(): Promise<GA4Realtime | null> {
+  if (!PROPERTY_ID || !PRIVATE_KEY) return null;
+  try {
+    const metric = [{ name: 'activeUsers' }];
+    const [total, countries, pages] = await Promise.all([
+      callReport('runRealtimeReport', { metrics: metric }),
+      callReport('runRealtimeReport', { dimensions: [{ name: 'country' }], metrics: metric, limit: 10 }),
+      callReport('runRealtimeReport', { dimensions: [{ name: 'unifiedScreenName' }], metrics: metric, limit: 10 }),
+    ]);
+    return {
+      activeUsers: Number(total[0]?.activeUsers ?? 0),
+      countries: countries.map((r) => ({ country: String(r.country), activeUsers: Number(r.activeUsers) })),
+      pages: pages.map((r) => ({ title: String(r.unifiedScreenName), activeUsers: Number(r.activeUsers) })),
+    };
+  } catch (err) {
+    console.warn('[ga4] getGA4Realtime failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }

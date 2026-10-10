@@ -434,6 +434,15 @@ const fmtDate = (iso: string | null) => {
 			border: 1px solid rgba(99,102,241,0.25);
 			background: rgba(99,102,241,0.07);
 		}
+		.ga4-live {
+			display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem;
+			padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 12px;
+			border: 1px solid rgba(16,185,129,0.3); background: rgba(16,185,129,0.07);
+			font-size: 0.85rem;
+		}
+		.ga4-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; align-self: center; }
+		.ga4-live-count { font-size: 1.25rem; font-weight: 700; }
+		.ga4-live-detail { color: var(--text-muted); }
 		.ga4-card .stat-label { font-size: 0.7rem; }
 		.ga4-card .stat-value { font-size: 1.6rem; }
 		.ga4-tables { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.25rem; }
@@ -668,6 +677,14 @@ const fmtDate = (iso: string | null) => {
 
 		{ga4 ? (
 			<>
+				<!-- Live: who is on the site now (GA4 Realtime, last 30 min), via /api/analytics.json -->
+				<div class="ga4-live" id="ga4-live" hidden>
+					<span class="ga4-live-dot" aria-hidden="true"></span>
+					<span><span class="ga4-live-count" id="ga4-live-count">—</span> on the site now (last 30 min)</span>
+					<span class="ga4-live-detail" id="ga4-live-countries"></span>
+					<span class="ga4-live-detail" id="ga4-live-pages"></span>
+				</div>
+
 				<!-- KPI row -->
 				<div class="ga4-grid">
 					{[
@@ -979,6 +996,34 @@ const fmtDate = (iso: string | null) => {
 			alert('Failed to update message.');
 		}
 	});
+
+	// ── Live visitors (GA4 Realtime), refreshed every minute while the page is open ──
+	// textContent only: country names and page titles come from Google and are never HTML.
+	(function liveVisitors() {
+		const box = document.getElementById('ga4-live');
+		const count = document.getElementById('ga4-live-count');
+		const countries = document.getElementById('ga4-live-countries');
+		const pages = document.getElementById('ga4-live-pages');
+		if (!box || !count || !countries || !pages) return;
+		type Row = { activeUsers: number };
+		const list = (rows: Array<Row & Record<string, unknown>>, key: string) =>
+			rows.slice(0, 5).map((r) => `${String(r[key])} ${r.activeUsers}`).join(' · ');
+		async function refresh() {
+			try {
+				const res = await fetch('/api/analytics.json', { cache: 'no-store' });
+				const data = await res.json();
+				if (!data?.ok) { box!.hidden = true; return; }
+				count!.textContent = String(data.activeUsers ?? 0);
+				countries!.textContent = data.countries?.length ? `Countries: ${list(data.countries, 'country')}` : '';
+				pages!.textContent = data.pages?.length ? `Pages: ${list(data.pages, 'title')}` : '';
+				box!.hidden = false;
+			} catch {
+				box!.hidden = true;
+			}
+		}
+		refresh();
+		setInterval(() => { if (!document.hidden) refresh(); }, 60_000);
+	})();
 </script>
 
 </body>
