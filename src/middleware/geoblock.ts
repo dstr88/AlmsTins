@@ -1,12 +1,18 @@
-// Sanctions geo-blocking — local lookup via geoip-lite (bundled MaxMind data).
+// Sanctions geo-blocking — two independent country signals, either one blocks.
 //
 // Returns a 451 (Unavailable For Legal Reasons) response when a request comes
 // from a comprehensively-sanctioned jurisdiction, otherwise null.
 //
-// Detection is a fully LOCAL lookup — no external API, no token, no DB — so the
-// block can't be silently disabled by a missing key. geoip-lite returns both
-// country AND region, which lets us block the sanctioned *regions* of Ukraine
-// (Crimea / Sevastopol / Donetsk / Luhansk) without blocking the whole country.
+//  1. Cloudflare's `cf-ipcountry`, set on every request by the Cloudflare network that
+//     fronts Render (same trust basis as cf-connecting-ip; see getClientCountry). It uses
+//     Cloudflare's current geolocation data.
+//  2. geoip-lite, a fully LOCAL lookup (bundled MaxMind data, no API, no token, no DB),
+//     which also returns the region, so the sanctioned *regions* of Ukraine (Crimea /
+//     Sevastopol / Donetsk / Luhansk) can be blocked without blocking the whole country.
+// The bundled data ages between package releases, so on its own it let visitors through
+// whose address it no longer placed in a sanctioned country, while Google Analytics,
+// with current data, did (seen 2026-10-10: a visitor from Iran). Either signal now blocks.
+// A forged cf-ipcountry can only get its sender blocked, never unblocked.
 //
 // FAIL-OPEN BY DESIGN: any error (lookup throws, unknown/empty country) lets the
 // request through — a geo failure must never take the site or login offline.
@@ -18,7 +24,7 @@
 // a supplement on top of it.
 
 import geoip from 'geoip-lite';
-import { getClientIp } from '../lib/analytics/ip';
+import { getClientCountry, getClientIp } from '../lib/analytics/ip';
 
 // OFAC comprehensively-sanctioned countries — ISO-3166-1 alpha-2.
 //   CU Cuba · IR Iran · KP North Korea · SY Syria
@@ -57,14 +63,22 @@ const BLOCKED_PAGE = `<!doctype html>
  * May throw; callers MUST wrap in try/catch and fail open.
  */
 export async function getGeoblockResponse(request: Request): Promise<Response | null> {
+	return isBlockedRequest(request) ? blockedResponse() : null;
+}
+
+/** True when either country signal places the request in a sanctioned location. */
+export function isBlockedRequest(request: Request): boolean {
+	const cfCountry = getClientCountry(request);
+	if (cfCountry && BLOCKED_COUNTRIES.has(cfCountry)) return true;
+
 	const ip = getClientIp(request);
-	if (!ip) return null;
-
+	if (!ip) return false;
 	const geo = geoip.lookup(ip);
-	if (!geo || !geo.country) return null;
+	if (!geo || !geo.country) return false;
+	return isBlockedLocation(geo.country, geo.region);
+}
 
-	if (!isBlockedLocation(geo.country, geo.region)) return null;
-
+function blockedResponse(): Response {
 	return new Response(BLOCKED_PAGE, {
 		status: 451,
 		headers: {
