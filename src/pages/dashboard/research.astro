@@ -465,7 +465,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
   addrLoading:               t.lang === 'es' ? "Buscando __A__…" : t.lang === 'fr' ? "Recherche de __A__…" : "Looking up __A__…",
   addrLookupFailed:          t.lang === 'es' ? "Búsqueda fallida: __MSG__" : t.lang === 'fr' ? "Échec de la recherche : __MSG__" : "Lookup failed: __MSG__",
   addrInfoTitle:             t.lang === 'es' ? "Información de la dirección" : t.lang === 'fr' ? "Infos sur l'adresse" : "Address info",
-  addrCommunityLabel:        t.lang === 'es' ? "etiqueta comunitaria" : t.lang === 'fr' ? "étiquette communautaire" : "community label",
+  addrCommunityLabel:        t.lang === 'es' ? "lista de Almstins" : t.lang === 'fr' ? "liste Almstins" : "Almstins list",
   addrYourWallet:            t.lang === 'es' ? "Tu wallet: __L__" : t.lang === 'fr' ? "Votre wallet : __L__" : "Your wallet: __L__",
   addrUnknown:               t.lang === 'es' ? "Dirección desconocida" : t.lang === 'fr' ? "Adresse inconnue" : "Unknown address",
   addrAddAsWallet:           t.lang === 'es' ? "＋ Añadir como mi wallet" : t.lang === 'fr' ? "＋ Ajouter comme mon wallet" : "＋ Add as my wallet",
@@ -2513,7 +2513,7 @@ function renderAddressPanel(data) {
       ⧉ <span class="addr-copy-text">${escapeHtml(resolvedLabel)}</span>
     </button>`;
     if (labelSource === 'community') {
-      html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','community label') + '</span>';
+      html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','Almstins list') + '</span>';
     }
   }
   html += `</div>`;

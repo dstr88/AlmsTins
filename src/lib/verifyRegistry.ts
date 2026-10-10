@@ -23,6 +23,7 @@ import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
 import { normalizeName, registrableLabel, nameMatchesDomain } from './verifyNameMatch';
 import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
 import { detectChain } from './walletChecker';
+import { encryptRosterPayload, decryptRosterDocument, getDecryptablePublicJwk } from './verifyEncryption';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -313,10 +314,10 @@ export async function ensureVerifyTables(): Promise<void> {
   }
   try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
   catch (e) { console.error('[verify] display_hint column not applied:', e); }
-  // Caches the last successfully decrypted + challenge-matched roster document verbatim
-  // (addresses + labels, as JSON) — the durable record of what the domain currently
-  // publishes, independent of which entries became registered destinations. Backs the
-  // roster editor's pre-fill.
+  // Caches the last successfully decrypted + challenge-matched roster (addresses + labels),
+  // encrypted to the roster key exactly like the published file (sealRosterCache), never as
+  // plain JSON. The durable record of what the domain currently publishes, independent of
+  // which entries became registered destinations. Backs the roster editor's pre-fill only.
   try { await db.execute({ sql: `ALTER TABLE verify_domain_proofs ADD COLUMN IF NOT EXISTS roster_cache_json TEXT`, args: [] }); }
   catch (e) { console.error('[verify] roster_cache_json column not applied:', e); }
   try { await db.execute({ sql: `ALTER TABLE verify_domain_proofs ADD COLUMN IF NOT EXISTS roster_cached_at TEXT`, args: [] }); }
@@ -1123,11 +1124,67 @@ export async function recordProofResult(
   return out;
 }
 
+export type RosterCacheEntry = { address: string; label: string | null };
+
+/**
+ * The roster cache, sealed the way the roster itself is published: RSA-OAEP wraps a fresh
+ * AES-256 key, AES-GCM encrypts the list (verifyEncryption.ts), so the decrypted addresses and
+ * labels never sit in the database as plain text. Null when no roster key is configured or
+ * encryption fails: then nothing is cached (never a plain-text fallback).
+ */
+export async function sealRosterCache(entries: RosterCacheEntry[]): Promise<string | null> {
+  try {
+    // The key this server decrypts with, not a published override (mid-rotation that one
+    // may not be decryptable here, and the cache would silently read as absent).
+    const publicJwk = await getDecryptablePublicJwk();
+    if (!publicJwk) return null;
+    // The public half derived from an exported private JWK still says key_ops ['decrypt'],
+    // which Web Crypto refuses to import for encrypting. The key itself is the same.
+    const { key_ops: _ops, ...encryptJwk } = publicJwk;
+    return JSON.stringify(await encryptRosterPayload(JSON.stringify(entries), encryptJwk));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A stored cache back to its entries, or null. Anything not in the sealed format reads as
+ * absent: a plain-JSON cache written before caches were encrypted, a cache sealed to a
+ * rotated-out key, or a tampered one. The next successful check replaces it, sealed.
+ */
+export async function openRosterCache(stored: string): Promise<RosterCacheEntry[] | null> {
+  const opened = await decryptRosterDocument(stored);
+  if (!opened.ok) return null;
+  try {
+    const parsed = JSON.parse(opened.plaintext);
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .filter((e: any) => e && typeof e.address === 'string')
+      .map((e: any) => ({ address: e.address, label: typeof e.label === 'string' ? e.label : null }));
+  } catch {
+    return null;
+  }
+}
+
+/** A plain-JSON roster cache from before caches were sealed (a JSON array), or null. */
+function parseLegacyRosterCache(stored: string): RosterCacheEntry[] | null {
+  if (!stored.trimStart().startsWith('[')) return null;
+  try {
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+    return parsed
+      .filter((e: any) => e && typeof e.address === 'string')
+      .map((e: any) => ({ address: e.address, label: typeof e.label === 'string' ? e.label : null }));
+  } catch {
+    return null;
+  }
+}
+
 /** The last successfully decrypted + challenge-matched roster for (tenant, domain), or null. */
 export async function getCachedRoster(
   tenantId: string,
   domain: string,
-): Promise<{ addresses: Array<{ address: string; label: string | null }>; cachedAt: string } | null> {
+): Promise<{ addresses: RosterCacheEntry[]; cachedAt: string } | null> {
   await ensureVerifyTables();
   const res = await db.execute({
     sql: `SELECT roster_cache_json, roster_cached_at FROM verify_domain_proofs WHERE tenant_id = ? AND domain = ? LIMIT 1`,
@@ -1135,11 +1192,22 @@ export async function getCachedRoster(
   });
   const row = res.rows[0] as any;
   if (!row?.roster_cache_json) return null;
-  try {
-    return { addresses: JSON.parse(row.roster_cache_json), cachedAt: row.roster_cached_at };
-  } catch {
-    return null;
+  const stored = String(row.roster_cache_json);
+  const legacy = parseLegacyRosterCache(stored);
+  if (legacy) {
+    // A cache written before caches were sealed: seal it now, in place (only if nobody
+    // replaced it meanwhile), so the owner's editor keeps its list and the plain copy goes.
+    const sealed = await sealRosterCache(legacy);
+    if (sealed) {
+      await db.execute({
+        sql: `UPDATE verify_domain_proofs SET roster_cache_json = ? WHERE tenant_id = ? AND domain = ? AND roster_cache_json = ?`,
+        args: [sealed, tenantId, domain, stored],
+      }).catch(() => { /* the next check rewrites it sealed anyway */ });
+    }
+    return { addresses: legacy, cachedAt: row.roster_cached_at };
   }
+  const addresses = await openRosterCache(stored);
+  return addresses ? { addresses, cachedAt: row.roster_cached_at } : null;
 }
 
 /**
@@ -1155,8 +1223,9 @@ export async function getCachedRoster(
  *    previously anchored that the current list no longer includes — not at the watchman's
  *    next scheduled pass. A destination proven some other way, or anchored to a different
  *    domain, is untouched.
- * The full decrypted roster is also cached verbatim (roster_cache_json), independent of
- * which entries became registered destinations — backs the roster editor's pre-fill.
+ * The full roster is also cached (roster_cache_json), sealed to the roster key like the
+ * published file, independent of which entries became registered destinations — backs the
+ * roster editor's pre-fill. A cache that can't be sealed is cleared, never stored in plain text.
  */
 export async function recordRosterProofResult(
   tenantId: string,
@@ -1165,12 +1234,14 @@ export async function recordRosterProofResult(
 ): Promise<ProofRecordResult> {
   await ensureVerifyTables();
   const now = nowUtc();
+  // Sealed or nothing: this write also replaces any older plain-JSON cache.
+  const sealed = await sealRosterCache(entries);
   await db.execute({
     sql: `UPDATE verify_domain_proofs
           SET status = 'proven', proven_at = ?, last_checked_at = ?, updated_at = ?,
               roster_cache_json = ?, roster_cached_at = ?
           WHERE tenant_id = ? AND domain = ?`,
-    args: [now, now, now, JSON.stringify(entries), now, tenantId, domain],
+    args: [now, now, now, sealed, sealed ? now : null, tenantId, domain],
   });
 
   // Read before writing anything: if the legacy claims can't be read, nothing is recorded

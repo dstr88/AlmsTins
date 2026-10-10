@@ -82,12 +82,18 @@ export const items: FaqItem[] = [
     id: "faq-privacy",
     q: "Is it private",
     a: `<p>
-          Short answer, no. Everything pulled from the API keys is out there for
-          the public to see. But, the website is private, your login is private
-          and your data is secure. The database encrypts everything. I will
-          eventually track unique Ids, number of wallets, what features people
-          are using, and how much traffic. My purpose is to measure my
-          effectiveness, and make a better product.
+          Mostly, yes. What you store in Almstins stays in your account and is
+          not shown to other users, except what you choose to share, such as a
+          wallet address you prove with Verify or a receivable whose ID you
+          give out. Blockchain data itself is public: anyone can look up an
+          address's history.
+        </p>
+
+        <p>
+          We measure how the site is used with Google Analytics, and we count
+          safety checks using one-way hashes instead of the addresses and IP
+          addresses themselves. The Privacy Policy, linked in the footer, lists
+          exactly what we collect, who receives it, and how to delete it.
         </p>`,
   },
   {
@@ -142,7 +148,7 @@ export const items: FaqItem[] = [
 
         <ol style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
           <li>
-            <strong>More exchange importers.</strong> The eight currently supported exchanges cover the majority of US users, but there are more to add. Bybit, OKX, and Kraken Pro are on the list. If your exchange is not supported, use the Flag for Support option and it will be prioritised.
+            <strong>More exchange importers.</strong> The eight currently supported exchanges cover the majority of US users, but there are more to add. Bybit, OKX, and Kraken Pro are on the list. If your exchange is not supported, use the Flag for Support option and it will be prioritized.
           </li>
           <li>
             <strong>Historical price backfill for older transactions.</strong> The free CoinGecko API only reaches back 365 days. A paid API key unlocks full history for transactions from 2021 and earlier. This will be added as an optional upgrade for users with deep historical data.
@@ -314,7 +320,7 @@ export const items: FaqItem[] = [
 
         <p>
           For each coin, it shows the difference in both quantity and estimated dollar value,
-          and flags the severity with a colour:
+          and flags the severity with a color:
         </p>
 
         <ul>
@@ -529,7 +535,7 @@ export const items: FaqItem[] = [
             <strong>First sign-in creates your account.</strong> The moment you sign in for the first time, the system creates a permanent ID tied to your email address and provisions a private data vault (your "tenant") just for you.
           </li>
           <li>
-            <strong>Layer 1 — email matching.</strong> Every subsequent sign-in checks whether that email already exists. If you signed up with Google and later try GitHub, and both providers confirm the same email, the system recognises you and drops you straight into your existing vault. No duplicate account is created.
+            <strong>Layer 1 — email matching.</strong> Every subsequent sign-in checks whether that email already exists. If you signed up with Google and later try GitHub, and both providers confirm the same email, the system recognizes you and drops you straight into your existing vault. No duplicate account is created.
           </li>
           <li>
             <strong>Layer 2 — provider ID fallback.</strong> In rare cases a provider returns no email at all (for example, a GitHub user with a private email before proper scopes are configured). When that happens the system falls back to matching your provider's numeric account ID against our records. If we've seen that GitHub ID before, you're reunited with your account automatically. This is the backstop — it's safe because your numeric GitHub ID is unique and only you can sign in with it.
@@ -544,7 +550,7 @@ export const items: FaqItem[] = [
     id: "faq-research-page",
     q: "What is the Research page?",
     a: `<p>
-          The Research page is a dedicated investigation tool for understanding your full transaction history across every exchange and wallet you have connected. Think of it as a command centre — you can search, identify, and resolve questions about where your coins came from and where they went.
+          The Research page is a dedicated investigation tool for understanding your full transaction history across every exchange and wallet you have connected. Think of it as a command center — you can search, identify, and resolve questions about where your coins came from and where they went.
         </p>
 
         <p>
@@ -569,7 +575,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          <strong>Address lookup.</strong> Paste any blockchain address into the search field and the page will identify it — showing whether it belongs to one of your tracked wallets, a known exchange, or an address you have labelled yourself. If it is not yet in your account, you can add it as a tracked wallet and give it a label right there. You can also mark an address as belonging to a specific exchange, so that whenever it appears in future transactions it is immediately recognised rather than showing as unknown.
+          <strong>Address lookup.</strong> Paste any blockchain address into the search field and the page will identify it — showing whether it belongs to one of your tracked wallets, a known exchange, or an address you have labeled yourself. If it is not yet in your account, you can add it as a tracked wallet and give it a label right there. You can also mark an address as belonging to a specific exchange, so that whenever it appears in future transactions it is immediately recognized rather than showing as unknown.
         </p>
 
         <p>
@@ -670,12 +676,12 @@ export const items: FaqItem[] = [
           <li><strong>Gift out</strong> — crypto sent to another person as a gift. Not a taxable event for the sender at the time of the gift, but the recipient inherits your cost basis. Gifts above the annual exclusion limit ($18,000 in 2024) may require a gift tax return.</li>
           <li><strong>Gift in</strong> — crypto received as a gift. Not taxable income. Your cost basis is the donor's original cost basis.</li>
           <li><strong>Lost / stolen</strong> — coins that are permanently inaccessible. Whether this is deductible as a loss depends on your jurisdiction and when it occurred. Consult a tax professional.</li>
-          <li><strong>Donation</strong> — crypto sent to a registered charity. If held for more than one year, you may deduct the fair market value at the time of donation without recognising a capital gain. If held for less than one year, the deduction is limited to your cost basis.</li>
+          <li><strong>Donation</strong> — crypto sent to a registered charity. If held for more than one year, you may deduct the fair market value at the time of donation without recognizing a capital gain. If held for less than one year, the deduction is limited to your cost basis.</li>
           <li><strong>Other / explained</strong> — for anything that doesn't fit the above categories. Use the free-text note to describe it.</li>
         </ul>
 
         <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
-          <strong>⚠️ This is not tax advice.</strong> Almstins helps you organise and label your transaction history — it does not file returns or provide legal or tax guidance. Tax treatment of crypto varies by jurisdiction and individual circumstances. Always consult a qualified tax professional before making decisions based on this data.
+          <strong>⚠️ This is not tax advice.</strong> Almstins helps you organize and label your transaction history — it does not file returns or provide legal or tax guidance. Tax treatment of crypto varies by jurisdiction and individual circumstances. Always consult a qualified tax professional before making decisions based on this data.
         </p>`,
   },
   {
@@ -737,13 +743,11 @@ export const items: FaqItem[] = [
           <strong>Tip:</strong> The more addresses you label, the fewer mystery transactions you will have. Start with your exchange deposit addresses — those are the most common source of unresolved transfers.
         </p>
 
-        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Community labels</h2>
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Your labels stay private</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li>Every time you save a label, a silent community vote is recorded in the background.</li>
-          <li>When 3 users independently label the same address the same way, it becomes a <strong>global label</strong> visible to everyone on the platform.</li>
-          <li>If 5 users later agree on a different name, the global label is corrected automatically.</li>
-          <li>Your personal label always takes priority over a community label if they disagree.</li>
+          <li>A label you save stays in your account only. Other users never see it, and it is never combined with anyone else's labels.</li>
+          <li>The names Almstins shows for well-known contracts and exchanges come from its own list, not from other users' labels.</li>
         </ul>`,
   },
   {

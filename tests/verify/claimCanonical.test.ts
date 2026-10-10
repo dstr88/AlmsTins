@@ -118,7 +118,7 @@ vi.mock('@/lib/db', () => {
     // The public lookup (lookupVerifiedAddress): no platform lists here, then the merchant half.
     // It honors what the SQL asks for, so dropping the case arm or the fixed order shows up.
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
-    if (sql.startsWith('SELECT tenant_id, rail, value, label,')
+    if (sql.startsWith('SELECT tenant_id, rail, value,')
       && sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
       const [exact, folded] = args as string[];
       const rows = store.rows.filter((r) => r.kind === 'address' && r.proof_status === 'proven'

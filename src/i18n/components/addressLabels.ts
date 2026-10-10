@@ -124,7 +124,7 @@ export const en: AddressLabelsLocale = {
 
   copyTitle: 'Copy address',
 
-  sourceCommunity: 'community',
+  sourceCommunity: 'automatic',
 
   removeBtn: 'Remove',
 
@@ -181,7 +181,7 @@ export const es: AddressLabelsLocale = {
 
   copyTitle: "Copiar dirección",
 
-  sourceCommunity: "comunidad",
+  sourceCommunity: "automática",
 
   removeBtn: "Eliminar",
 
@@ -238,7 +238,7 @@ export const fr: AddressLabelsLocale = {
 
   copyTitle: "Copier l'adresse",
 
-  sourceCommunity: "communauté",
+  sourceCommunity: "automatique",
 
   removeBtn: "Supprimer",
 

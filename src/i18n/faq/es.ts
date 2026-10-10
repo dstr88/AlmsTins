@@ -80,12 +80,19 @@ export const items: FaqItem[] = [
     id: "faq-privacy",
     q: "¿Es privado?",
     a: `<p>
-          Respuesta corta: no. Todo lo que se obtiene de las API keys está ahí afuera para
-          que el público lo vea. Pero el sitio web es privado, tu login es privado
-          y tus datos están seguros. La base de datos lo encripta todo. Eventualmente voy a
-          rastrear IDs únicos, número de wallets, qué funciones está usando la gente
-          y cuánto tráfico hay. Mi propósito es medir mi
-          efectividad y hacer un mejor producto.
+          En general, sí. Lo que guardas en Almstins se queda en tu cuenta y no
+          se muestra a otros usuarios, salvo lo que decidas compartir, como una
+          dirección de wallet que demuestras con Verify o una cuenta por cobrar
+          cuyo ID entregas. Los datos de la blockchain en sí son públicos:
+          cualquiera puede consultar el historial de una dirección.
+        </p>
+
+        <p>
+          Medimos el uso del sitio con Google Analytics, y contamos las
+          comprobaciones de seguridad con hashes unidireccionales en lugar de
+          las direcciones y las direcciones IP. La Política de Privacidad,
+          enlazada en el pie de página, detalla exactamente qué recopilamos,
+          quién lo recibe y cómo borrarlo.
         </p>`,
   },
   {
@@ -735,13 +742,11 @@ export const items: FaqItem[] = [
           <strong>Tip:</strong> Cuantas más direcciones etiquetes, menos transacciones misteriosas tendrás. Empieza con las direcciones de depósito de tus exchanges — esas son la fuente más común de transferencias sin resolver.
         </p>
 
-        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Etiquetas comunitarias</h2>
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Tus etiquetas son privadas</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li>Cada vez que guardas una etiqueta, se registra un voto comunitario silencioso en segundo plano.</li>
-          <li>Cuando 3 usuarios etiquetan de forma independiente la misma dirección de la misma manera, se convierte en una <strong>etiqueta global</strong> visible para todos en la plataforma.</li>
-          <li>Si 5 usuarios luego coinciden en un nombre diferente, la etiqueta global se corrige automáticamente.</li>
-          <li>Tu etiqueta personal siempre tiene prioridad sobre una etiqueta comunitaria si no coinciden.</li>
+          <li>Una etiqueta que guardas se queda solo en tu cuenta. Otros usuarios nunca la ven, y nunca se combina con las etiquetas de nadie más.</li>
+          <li>Los nombres que Almstins muestra para contratos y exchanges conocidos vienen de su propia lista, no de las etiquetas de otros usuarios.</li>
         </ul>`,
   },
   {

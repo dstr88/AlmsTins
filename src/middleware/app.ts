@@ -17,7 +17,7 @@ import { db } from '../lib/db';
 import { getCountryForIpHash } from '../lib/analytics/geoip';
 import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
-import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
+import { isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
 import { isDemoRequest, DEMO_TENANT_ID, demoCookieClear } from '../lib/demo';
 import { runWithDbContext } from '../lib/dbContext';
 import { applySecurityHeaders } from './securityHeaders';
@@ -378,7 +378,7 @@ async function writeRequestAnalytics(request: Request, response: Response, start
 			ipHash,
 			uaHash,
 			countryCode,
-			extractWalletAddress(pathname),
+			null, // wallet_address: no longer logged (see isDetailedAnalyticsRoute)
 			geo.cacheHit ? 1 : 0,
 		],
 	});

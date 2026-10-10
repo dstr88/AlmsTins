@@ -10,8 +10,10 @@ export function normalizeRouteKey(pathname: string): string {
 	return pathname;
 }
 
+// '/wallet/:address' is not logged: its path is a wallet address, and the request log
+// keeps only hashes of who asked (privacy policy v1.2, section 3.2).
 export function isDetailedAnalyticsRoute(routeKey: string): boolean {
-	return routeKey === '/wallet/:address' || routeKey === '/dashboard/*' || routeKey === '/login';
+	return routeKey === '/dashboard/*' || routeKey === '/login';
 }
 
 export function extractWalletAddress(pathname: string): string | null {

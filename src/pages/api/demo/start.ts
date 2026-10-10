@@ -14,6 +14,7 @@ import { safeNextPath } from '@/lib/safeNext';
 import type { APIRoute } from 'astro';
 import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
+import { hashWithSalt } from '../../../lib/analytics/hash';
 import { setCache } from '../../../lib/tursoCache';
 import { getAuthSession } from '../../../lib/authSession';
 import { PETRO_TINS_PUBLIC, isPetroTinsOwnerSession, isPetroTinsPath } from '../../../lib/petroTinsAccess';
@@ -510,8 +511,13 @@ ON CONFLICT DO NOTHING`, args: [
 	]);
 
 	// ── Phase 4: Analytics (fire and forget) ──────────────────────────────────
-	const ua       = request.headers.get('user-agent') ?? null;
-	const referrer = request.headers.get('referer')    ?? null;
+	// A salted hash of the browser string, and the referring page without its query or
+	// fragment (they can carry tokens, IDs or scanned addresses): the same rule as the
+	// request log and Google Analytics (privacy policy v1.2, section 3.2).
+	const uaRaw    = request.headers.get('user-agent');
+	const refRaw   = request.headers.get('referer');
+	const ua       = uaRaw ? hashWithSalt(uaRaw) : null;
+	const referrer = refRaw ? refRaw.split(/[?#]/)[0] : null;
 	db.execute({ sql: `INSERT INTO demo_sessions (user_agent, referrer) VALUES (?, ?)`, args: [ua, referrer] })
 		.catch((e) => console.error('[demo-seed] analytics insert failed:', String(e)));
 

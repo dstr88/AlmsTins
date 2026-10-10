@@ -6,9 +6,12 @@
  *   - a crypto ADDRESS → an entity's domain-published address, or a merchant's proven
  *     self-listing (the `address` param name is kept for back-compat)
  *   - an http(s) URL / payment LINK → a merchant's proven QR (account_claim)
- * Returns ONLY the publishing domain / the merchant's self-chosen label — never
- * tenant_id, the managing account, or any legal identity (the no-attribution boundary).
- * Read-only; the queried value is never written anywhere.
+ * Returns ONLY the grade, date and rail, plus, for a Verified hit, the vouching domain
+ * and a business name derived from it. Never the freeform label an account typed (it can
+ * be a person's name), never tenant_id, the managing account, or any legal identity (the
+ * no-attribution boundary). A Claimed hit carries no name and no domain, the same rule
+ * the public cards follow (verifyPublicCard.ts). Read-only; the queried value is never
+ * written anywhere.
  *
  * Backs the "Verified publisher" badge on the public wallet-checker. Bounded input
  * (format-validated, length-capped) + a per-IP rate limit independent of the
@@ -19,6 +22,7 @@ import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { isEmvPayload } from '@/lib/paymentQr';
+import { displayableName } from '@/lib/verifyPublicCard';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -47,6 +51,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   try {
     const hit = isQrValue ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
+    // Name and domain go out only for a Verified hit, and the name only when it derives
+    // from that domain: exactly what a public card can show, so the raw JSON says no more.
+    const verified = hit?.level === 'verified';
+    const domain = verified ? (hit?.domain ?? null) : null;
     return json({
       ok: true,
       verified: !!hit,
@@ -56,13 +64,14 @@ export const GET: APIRoute = async ({ request, url }) => {
       // Date the destination/entity was proven ("verified/claimed since"), as YYYY-MM-DD.
       since: hit?.since ? String(hit.since).slice(0, 10) : null,
       source: hit?.source ?? null,
-      domain: hit?.domain ?? null,
+      domain,
       // C5/S7b: the domain that actually vouches for this destination (never the
       // account's business-name domain) — verifyPublicCard.ts uses it to decide "Listed
       // on {domain}" vs "verified via {domain}". Additive field; an older client that
-      // hasn't read it yet still gets the same `domain` it always did.
-      provingDomain: hit?.provingDomain ?? null,
-      label: hit?.label ?? null,
+      // hasn't read it yet still gets `domain` for a Verified hit.
+      // Verified only, like `domain`: a Claimed answer names no domain at all.
+      provingDomain: verified ? (hit?.provingDomain ?? null) : null,
+      label: domain ? displayableName(hit?.label ?? null, domain) : null,
       chain: hit?.chain ?? null,
     });
   } catch (err) {
