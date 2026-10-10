@@ -39,7 +39,9 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => 
 	if (url.includes('urlscan.io/api/v1/search')) {
 		return json({ results: [{ task: { time: '2026-10-01T00:00:00Z' }, verdicts: { overall: { malicious: false, score: 0 } } }] });
 	}
-	if (url === 'https://www.virustotal.com/api/v3/urls' && init?.method === 'POST') return json({ data: { id: 'queued' } });
+	if (url === 'https://www.virustotal.com/api/v3/urls' && init?.method === 'POST') {
+		throw new Error('VirusTotal must never be asked to scan a link (lookup only)');
+	}
 	const vt = url.match(/^https:\/\/www\.virustotal\.com\/api\/v3\/urls\/([A-Za-z0-9_-]+)$/);
 	if (vt) {
 		const domain = Buffer.from(vt[1], 'base64url').toString().replace(/^https:\/\//, '');
@@ -113,10 +115,15 @@ describe('/api/dapp-check with VirusTotal as the only source that flags', () => 
 		expect(r.verdict).toBe('red');
 	});
 
-	it('a site VirusTotal has never seen is submitted for scanning and not penalized', async () => {
+	it('a site VirusTotal has never seen is looked up only: no scan request, not penalized', async () => {
+		fetchMock.mockClear();
 		const r = await checkSite('brand-new.io');
 		expect(vtSource(r).verdict).toBe('unscanned');
-		expect(r.vtPending).toBe(true);
+		expect(vtSource(r).detail).toBe('VirusTotal has no record of this link yet');
+		expect(r.vtPending).toBe(false);
 		expect(r.verdict).toBe('green');
+		const posts = fetchMock.mock.calls.filter(([u, init]) =>
+			String(u).startsWith('https://www.virustotal.com') && (init as RequestInit | undefined)?.method === 'POST');
+		expect(posts).toEqual([]);
 	});
 });

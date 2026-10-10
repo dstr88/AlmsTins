@@ -158,6 +158,11 @@ export const authAdapter = (): Adapter => ({
 	},
 	async linkAccount(account) {
 		console.log('[authAdapter] linkAccount', { provider: account.provider, userId: account.userId });
+		// Store which provider account signs in as this user, and nothing the provider
+		// sends besides. Google's id_token carries the person's name, photo and email, and
+		// the access and refresh tokens open their provider profile. Nothing reads them back
+		// from the database (authLinkGuard uses the live sign-in's token), so they are not
+		// kept (privacy policy v1.2, 2026-10-10).
 		// Use DELETE + INSERT instead of an UPSERT so this works regardless of
 		// whether the auth_accounts table has a UNIQUE(provider, provider_account_id)
 		// constraint. Deleting first is idempotent and avoids all constraint issues.
@@ -176,12 +181,12 @@ export const authAdapter = (): Adapter => ({
 				toDbValue(normalizeAccountType(account.type)),
 				toDbValue(account.provider),
 				toDbValue(account.providerAccountId),
-				toDbValue(account.access_token),
+				null, // access_token: not stored
 				toDbValue(account.token_type),
 				toDbValue(account.scope),
 				toDbValue(account.expires_at),
-				toDbValue(account.refresh_token),
-				toDbValue(account.id_token),
+				null, // refresh_token: not stored
+				null, // id_token: not stored (carries the person's name)
 				toDbValue(account.session_state),
 			],
 		});
