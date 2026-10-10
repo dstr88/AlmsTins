@@ -61,9 +61,8 @@ export const POST: APIRoute = async ({ request }) => {
 			await snapshotCexAccount(tenantId, account.id, account.source, displayName);
 			results.push({ accountId: account.id, source: account.source, ok: true });
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
 			console.error('[snapshot-all] account failed', { accountId: account.id, source: account.source, err });
-			results.push({ accountId: account.id, source: account.source, ok: false, error: message });
+			results.push({ accountId: account.id, source: account.source, ok: false, error: 'Snapshot failed.' });
 		}
 	}
 

@@ -1,9 +1,14 @@
 import type { APIRoute } from 'astro';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+  // Site-wide traffic data: the owner's only (any signed-in or demo session used to pass).
+  const session = await requireTenantSession(request);
+  if (!session || !isOwner(session.tenantId)) return new Response('Not found', { status: 404 });
   try {
     const propertyId = import.meta.env.GA_PROPERTY_ID;
     const clientEmail = import.meta.env.GA_CLIENT_EMAIL;
@@ -50,11 +55,12 @@ export const GET: APIRoute = async () => {
       }
     );
   } catch (error) {
+    console.error('[analytics.json]', error);
     return new Response(
       JSON.stringify(
         {
           ok: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: 'Unknown error',
         },
         null,
         2

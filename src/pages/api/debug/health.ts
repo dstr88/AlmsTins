@@ -1,12 +1,19 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { fetchAccountData } from '@/lib/scanSync';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
 type Status = 'ok' | 'fail' | 'warn';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	// Lists which services and settings exist and echoes their errors: the owner's only
+	// (any signed-in or demo session used to pass).
+	const session = await requireTenantSession(request);
+	if (!session || !isOwner(session.tenantId)) return new Response('Not found', { status: 404 });
+
 	const startedAt = Date.now();
 
 	const envVars = {

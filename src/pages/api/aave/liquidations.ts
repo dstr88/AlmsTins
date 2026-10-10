@@ -15,9 +15,8 @@ export const GET: APIRoute = async ({ request }) => {
 		const liquidations = await fetchAllLiquidationsForWallet(address);
 		return json({ ok: true, liquidations });
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		console.error('[aave/liquidations] Error:', message);
-		return json({ ok: false, error: message }, 500);
+		console.error('[aave/liquidations] Error:', err instanceof Error ? err.message : String(err));
+		return json({ ok: false, error: 'Unable to load liquidations.' }, 500);
 	}
 };
 

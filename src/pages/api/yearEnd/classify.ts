@@ -21,7 +21,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (error instanceof Response) return error;
 		console.error('[tax/classify] pipeline failed', error);
 		return new Response(
-			JSON.stringify({ ok: false, error: error instanceof Error ? error.message : 'Pipeline failed.' }),
+			JSON.stringify({ ok: false, error: 'Pipeline failed.' }),
 			{ status: 500, headers: { 'Content-Type': 'application/json' } },
 		);
 	}

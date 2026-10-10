@@ -37,8 +37,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		});
 	} catch (err: unknown) {
 		console.error('loan-payments GET error', err);
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(JSON.stringify({ ok: false, error: message }), {
+		return new Response(JSON.stringify({ ok: false, error: 'Internal error' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },
 		});
@@ -84,8 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
 		});
 	} catch (err: unknown) {
 		console.error('loan-payments error', err);
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(JSON.stringify({ ok: false, error: message }), {
+		return new Response(JSON.stringify({ ok: false, error: 'Internal error' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },
 		});
@@ -120,8 +118,7 @@ export const DELETE: APIRoute = async ({ request }) => {
 		});
 	} catch (err: unknown) {
 		console.error('loan-payments DELETE error', err);
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(JSON.stringify({ ok: false, error: message }), {
+		return new Response(JSON.stringify({ ok: false, error: 'Internal error' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },
 		});

@@ -19,7 +19,7 @@ export const POST: APIRoute = async ({ request }) => {
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('[tax/deduplicate] sweep failed', error);
-		return respond({ ok: false, error: error instanceof Error ? error.message : 'Sweep failed.' }, 500);
+		return respond({ ok: false, error: 'Sweep failed.' }, 500);
 	}
 };
 

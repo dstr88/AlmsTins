@@ -85,11 +85,10 @@ ON CONFLICT DO NOTHING`,
 		);
 	} catch (err: unknown) {
 		console.error('add-test-snapshot error', err);
-		const message = err instanceof Error ? err.message : String(err);
 		return new Response(
 			JSON.stringify({
 				ok: false,
-				error: message,
+				error: 'Internal error',
 			}),
 			{
 				status: 500,
