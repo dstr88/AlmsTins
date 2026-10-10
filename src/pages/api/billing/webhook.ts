@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import nodemailer from 'nodemailer';
 import { stripe, PRICE_TO_PLAN } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
+import { cancelSubscriptionNow } from '@/lib/accountDeleteBilling';
 import { getTenantLang } from '@/lib/i18n/userLang';
 import { getSubscriptionWelcome } from '@/i18n/emails/subscriptionWelcome';
 
@@ -59,6 +60,30 @@ async function sendOwnerNotification(opts: {
 				<a href="https://dashboard.stripe.com/customers" style="display:inline-block;margin-top:20px;background:#FA8072;color:#1a1a1a;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">View in Stripe →</a>
 			</div>
 		`,
+	});
+}
+
+async function sendOwnerDeletedAccountNotice(opts: {
+	tenantId: string;
+	subscriptionId: string;
+	amountPaid: number;
+}) {
+	const mailer = getMailTransport();
+	if (!mailer) return;
+
+	await mailer.transport.sendMail({
+		to: 'titaniumhut@gmail.com',
+		from: mailer.from,
+		subject: 'almsTins: checkout paid after its account was deleted',
+		text: [
+			'A Stripe checkout completed for an account that had already been deleted.',
+			'The new subscription was canceled at once and nothing was stored.',
+			'The first payment was taken: refund it in Stripe if it is due.',
+			'',
+			`Subscription:  ${opts.subscriptionId}`,
+			`Amount:        $${(opts.amountPaid / 100).toFixed(2)}`,
+			`Tenant ID:     ${opts.tenantId}`,
+		].join('\n'),
 	});
 }
 
@@ -139,12 +164,45 @@ export const POST: APIRoute = async ({ request }) => {
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
+/**
+ * The period end as ISO, or null. From API version 2025-03-31 on, which includes the one
+ * src/lib/stripe.ts pins, a subscription no longer carries current_period_end; its items do.
+ */
+function periodEndIso(subscription: Stripe.Subscription): string | null {
+	const legacy = (subscription as { current_period_end?: unknown }).current_period_end;
+	const secs = typeof legacy === 'number' ? legacy : subscription.items?.data?.[0]?.current_period_end;
+	return typeof secs === 'number' && Number.isFinite(secs) ? new Date(secs * 1000).toISOString() : null;
+}
+
+/** Whether the tenant still has members. Account deletion removes them (src/pages/api/account/delete.ts). */
+async function tenantExists(tenantId: string): Promise<boolean> {
+	const res = await db.execute({
+		sql: `SELECT 1 AS ok FROM tenant_memberships WHERE tenant_id = ? LIMIT 1`,
+		args: [tenantId],
+	});
+	return res.rows.length > 0;
+}
+
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	const tenantId = session.metadata?.tenant_id;
 	if (!tenantId || session.mode !== 'subscription') return;
 
-	// Retrieve full subscription to get price info
 	const subscriptionId = session.subscription as string;
+
+	// The account can be gone by the time its checkout completes (the Stripe page was still
+	// open while the owner deleted the account). Writing the row would recreate billing for a
+	// deleted tenant, and nothing would ever cancel the subscription: cancel it now, store
+	// nothing, and tell the owner, since the first payment was already taken. A cancel that
+	// fails throws, so Stripe redelivers the event and this runs again.
+	if (!(await tenantExists(tenantId))) {
+		await cancelSubscriptionNow(stripe, subscriptionId, 'Checkout completed after the account was deleted.');
+		console.warn(`[webhook] checkout.session.completed for deleted tenant ${tenantId}: subscription canceled, nothing stored`);
+		sendOwnerDeletedAccountNotice({ tenantId, subscriptionId, amountPaid: session.amount_total ?? 0 })
+			.catch((err) => console.error('[webhook] deleted-account notice failed:', err));
+		return;
+	}
+
+	// Retrieve full subscription to get price info
 	const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
 		expand: ['items.data.price'],
 	});
@@ -152,7 +210,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	const priceId = subscription.items.data[0]?.price?.id;
 	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
 	const customerId = subscription.customer as string;
-	const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+	const periodEnd = periodEndIso(subscription);
 
 	await db.execute({
 		sql: `INSERT INTO subscriptions (tenant_id, plan_id, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_end, cancel_at_period_end, created_at)
@@ -201,6 +259,10 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	}
 }
 
+// The update and cancel handlers below only UPDATE existing rows, never insert. Account
+// deletion cancels at Stripe before it deletes the row, so the cancel events for a deleted
+// account must find nothing and write nothing (tests/billing/webhookDeletedTenant.test.ts).
+
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 	const tenantId = subscription.metadata?.tenant_id;
 	if (!tenantId) {
@@ -211,7 +273,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 
 	const priceId = subscription.items.data[0]?.price?.id;
 	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
-	const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+	const periodEnd = periodEndIso(subscription);
 
 	await db.execute({
 		sql: `UPDATE subscriptions SET
@@ -250,7 +312,7 @@ async function updateByCustomerId(subscription: Stripe.Subscription) {
 	const customerId = subscription.customer as string;
 	const priceId = subscription.items.data[0]?.price?.id;
 	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
-	const periodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+	const periodEnd = periodEndIso(subscription);
 
 	await db.execute({
 		sql: `UPDATE subscriptions SET
