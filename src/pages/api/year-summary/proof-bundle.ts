@@ -3,10 +3,10 @@
 // signature + the frozen ordered leaves + leaf hashes) for a generated record.
 // Same paywall as the PDF. The bundle is rebuilt from the FROZEN snapshot, so it
 // re-verifies forever regardless of later live-data changes. Tenant-scoped.
+import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
-import { isOwner } from '@/lib/owner';
 import { getStoredRecord, getLatestRecordId, getLatestRoot, persistRecordProof } from '@/lib/recordProof/store';
 import { buildRecordProof, PROOF_FORMAT, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
@@ -22,8 +22,8 @@ export const GET: APIRoute = async ({ request }) => {
   const { tenantId } = session;
 
   const plan = await getActivePlan(tenantId);
-  if (plan.id === 'free' && !isOwner(tenantId)) {
-    return json({ error: 'The verification bundle is available on any paid plan.', planRequired: 'paid' }, 403);
+  if (!canDownloadYearSummaryPdf(plan.id, tenantId)) {
+    return json({ error: 'The verification bundle comes with the Year Summary PDF, on the Unlimited plan.', planRequired: 'unlimited' }, 403);
   }
 
   const url = new URL(request.url);

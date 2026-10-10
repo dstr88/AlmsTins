@@ -55,7 +55,7 @@ const BLOCKED_PAGE = `<!doctype html>
 <body><main>
   <h1>Almstins isn't available in your region</h1>
   <p>For legal and compliance reasons, Almstins cannot be offered in your location. We're sorry for the inconvenience.</p>
-  <p class="muted">If you believe this is an error, contact support@titaniumhut.com.</p>
+  <p class="muted">If you believe this is an error, contact donnie@almstins.com.</p>
 </main></body></html>`;
 
 /**

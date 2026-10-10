@@ -12,6 +12,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 import { isOwner } from '@/lib/owner';
+import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 
 export const prerender = false;
 
@@ -34,7 +35,8 @@ const isAdmin = Boolean(tenantId && ADMIN_TENANT_IDS.has(String(tenantId).toLowe
 
 // ── Plan check (owner always allowed — this page is the owner's own tax tool) ──
 const activePlan = await getActivePlan(tenantId);
-const canDownload = activePlan.id !== 'free' || isOwner(tenantId);
+const canDownload = activePlan.id !== 'free' || isOwner(tenantId);   // gain/loss CSV: any paid plan
+const canDownloadPdf = canDownloadYearSummaryPdf(activePlan.id, tenantId); // PDF + bundle: Unlimited
 
 const currentYear = new Date().getFullYear();
 const priorYear   = currentYear - 1;
@@ -705,16 +707,16 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span>Year Summary PDF</span>
             <span class="dl-btn__plan-badge">Sign up</span>
           </a>
-        ) : canDownload ? (
+        ) : canDownloadPdf ? (
           <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
             <span class="dl-btn__icon">📄</span>
             <span>Year Summary PDF</span>
           </a>
         ) : (
-          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on the Unlimited plan">
             <span class="dl-btn__icon">📄</span>
             <span>Year Summary PDF</span>
-            <span class="dl-btn__plan-badge">Paid</span>
+            <span class="dl-btn__plan-badge">Unlimited</span>
           </a>
         )}
         {isDemo ? (
@@ -723,16 +725,16 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span>Verification bundle</span>
             <span class="dl-btn__plan-badge">Sign up</span>
           </a>
-        ) : canDownload ? (
+        ) : canDownloadPdf ? (
           <a href={`/api/year-summary/proof-bundle?year=${selectedYear}`} class="dl-btn" download title="Independently-verifiable proof of this report">
             <span class="dl-btn__icon">🔐</span>
             <span>Verification bundle</span>
           </a>
         ) : (
-          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on the Unlimited plan">
             <span class="dl-btn__icon">🔐</span>
             <span>Verification bundle</span>
-            <span class="dl-btn__plan-badge">Paid</span>
+            <span class="dl-btn__plan-badge">Unlimited</span>
           </a>
         )}
         <a href="/verify-record" target="_blank" rel="noopener" class="dl-btn" title="Verify any record proof — public, no account needed">
