@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { fetchAccountData } from '@/lib/scanSync';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { isOwner } from '@/lib/owner';
+import { runWithDbContext } from '@/lib/dbContext';
 
 export const prerender = false;
 
@@ -19,12 +20,9 @@ export const GET: APIRoute = async ({ request }) => {
 	const envVars = {
 		ETHERSCAN_API_KEY: Boolean(import.meta.env.ETHERSCAN_API_KEY),
 		SNOWTRACE_API_KEY: Boolean(import.meta.env.SNOWTRACE_API_KEY),
-		TURSO_DATABASE_URL: Boolean(import.meta.env.TURSO_DATABASE_URL),
-		TURSO_AUTH_TOKEN: Boolean(import.meta.env.TURSO_AUTH_TOKEN),
 		AAVE_V3_SUBGRAPH_API_KEY: Boolean(import.meta.env.AAVE_V3_SUBGRAPH_API_KEY ?? import.meta.env.AAVE_API_KEY),
-		AAVE_V3_SUBGRAPH_ETHEREUM: Boolean(import.meta.env.AAVE_V3_SUBGRAPH_ETHEREUM),
-		AAVE_V3_SUBGRAPH_POLYGON: Boolean(import.meta.env.AAVE_V3_SUBGRAPH_POLYGON),
-		AAVE_V3_SUBGRAPH_AVALANCHE: Boolean(import.meta.env.AAVE_V3_SUBGRAPH_AVALANCHE),
+		// The database is checked by connecting (below), not by a variable being present.
+		// Turso (deleted 2026-06-21) and the per-chain Aave subgraph URLs are read nowhere.
 	};
 
 	const details: string[] = [];
@@ -37,6 +35,18 @@ export const GET: APIRoute = async ({ request }) => {
 	} catch (err) {
 		dbStatus = 'fail';
 		details.push(`db error: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// The second database login, WEB_DATABASE_URL, used by every signed-in page (requests
+	// with a tenant context; see dbContext.ts). On 2026-10-10 it still held a deleted
+	// credential: public pages kept working while every signed-in dashboard page failed.
+	let webDbStatus: Status = 'ok';
+	try {
+		await runWithDbContext({ tenantId: session.tenantId, userId: null }, () => db.execute('SELECT 1'));
+		details.push('signed-in db ok');
+	} catch (err) {
+		webDbStatus = 'fail';
+		details.push(`signed-in db error: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
 	// Scanner check (Etherscan V2)
@@ -60,12 +70,13 @@ export const GET: APIRoute = async ({ request }) => {
 	// Env check rollup
 	const envStatus: Status = Object.values(envVars).every(Boolean) ? 'ok' : 'warn';
 	if (envStatus !== 'ok') {
-		details.push('missing env vars for scanner/Aave/DB');
+		details.push('missing env vars for scanner/Aave');
 	}
 
 	const summary = {
-		ok: dbStatus === 'ok' && scannerStatus === 'ok' && envStatus === 'ok',
+		ok: dbStatus === 'ok' && webDbStatus === 'ok' && scannerStatus === 'ok' && envStatus === 'ok',
 		db: dbStatus,
+		webDb: webDbStatus,
 		scanners: scannerStatus,
 		env: envStatus,
 		envVars,

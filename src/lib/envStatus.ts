@@ -14,8 +14,9 @@ export function logEnvStatus() {
 		GITHUB_SECRET: Boolean(process.env.GITHUB_SECRET),
 		EMAIL_SERVER: Boolean(process.env.EMAIL_SERVER),
 		EMAIL_FROM: Boolean(process.env.EMAIL_FROM),
-		TURSO_DATABASE_URL: Boolean(process.env.TURSO_DATABASE_URL),
-		TURSO_AUTH_TOKEN: Boolean(process.env.TURSO_AUTH_TOKEN),
+		// Both database logins: owner (public pages, crons) and web (signed-in pages).
+		DATABASE_URL: Boolean(process.env.DATABASE_URL),
+		WEB_DATABASE_URL: Boolean(process.env.WEB_DATABASE_URL),
 	};
 
 	console.log('[env] presence', status);
