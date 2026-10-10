@@ -254,6 +254,6 @@ export const GET: APIRoute = async ({ request }) => {
     });
   } catch (err) {
     console.error('[api/reconciliation]', err);
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 });
   }
 };

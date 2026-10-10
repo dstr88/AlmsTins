@@ -25,8 +25,8 @@ export const GET: APIRoute = async ({ request }) => {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return new Response(JSON.stringify({ ok: false, error: message }), {
+		console.error('[tradfi/loan-payments/all]', err);
+		return new Response(JSON.stringify({ ok: false, error: 'Internal error' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },
 		});
