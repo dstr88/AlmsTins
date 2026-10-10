@@ -3,6 +3,12 @@
 // ALMSTINS_SIGNING_KEY; the public key auto-publishes at
 // /.well-known/almstins-signing-key.json. Never commit the seed.
 //
+// Rotating: BEFORE replacing the seed, copy the current key's key_id and public_key_hex from
+// the live /.well-known/almstins-signing-key.json and add `<key_id>:<public_key_hex>` to the
+// Render env ALMSTINS_SIGNING_RETIRED_PUBKEYS (comma-separated if there are several), so
+// records signed by the old key keep verifying. Never paste the old seed there: that variable
+// is published. Restart the service after changing env vars.
+//
 //   node scripts/generate-signing-key.mjs
 import * as ed from '@noble/ed25519';
 import { sha256, sha512 } from '@noble/hashes/sha2.js';
