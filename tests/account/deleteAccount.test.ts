@@ -37,6 +37,8 @@ const mem = vi.hoisted(() => ({
   missing: new Set<string>(),
   /** Runs after a statement is applied (to simulate a concurrent writer). */
   after: null as null | ((sql: string, args: any[]) => void),
+  /** A statement matching this throws (to simulate one table failing mid-delete). */
+  failOn: null as RegExp | null,
 }));
 
 const oneLine = (sql: string) => sql.replace(/\s+/g, ' ').trim();
@@ -66,6 +68,44 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
   }
   const touched = sql.match(/^(?:DELETE FROM|UPDATE) (\w+)/)?.[1];
   if (touched && mem.missing.has(touched)) throw new Error(`relation "${touched}" does not exist`);
+  if (mem.failOn?.test(sql)) throw new Error(`simulated failure: ${sql}`);
+
+  // Catalog: which tables and key columns exist (delete.ts accountDeleteStatements). A
+  // table the test marks missing has no columns; every other one has the key columns.
+  if (/^SELECT table_name, column_name FROM information_schema\.columns WHERE table_schema = current_schema\(\) AND table_name IN \(\?(, \?)*\)$/.test(sql)) {
+    const keyCols = ['id', 'tenant_id', 'user_id', 'tin_id', 'group_id', 'wallet_id', 'active_tenant_id'];
+    const rows = args.filter((t) => !mem.missing.has(String(t)))
+      .flatMap((t) => keyCols.map((c) => ({ table_name: String(t), column_name: c })));
+    return { rows, rowsAffected: 0 };
+  }
+  // The same person's other sign-in identities in the tenant (same email).
+  if (sql === "SELECT DISTINCT tm.user_id FROM tenant_memberships tm JOIN auth_users u ON u.id = tm.user_id JOIN auth_users me ON me.id = ? WHERE tm.tenant_id = ? AND tm.user_id <> ? AND u.email <> '' AND lower(u.email) = lower(me.email)") {
+    const me = t('auth_users').find((u) => u.id === args[0]);
+    const ids = t('tenant_memberships')
+      .filter((m) => m.tenant_id === args[1] && m.user_id !== args[2])
+      .map((m) => t('auth_users').find((u) => u.id === m.user_id))
+      .filter((u) => u && u.email && me?.email && String(u.email).toLowerCase() === String(me.email).toLowerCase())
+      .map((u) => ({ user_id: u!.id }));
+    return { rows: ids, rowsAffected: 0 };
+  }
+  // The legacy users row, guarded so its wallet cascade never reaches another tenant.
+  if (sql === 'DELETE FROM users WHERE tenant_id = ? AND NOT EXISTS (SELECT 1 FROM wallets w WHERE w.user_id = users.id AND w.tenant_id <> ?)') {
+    const before = t('users').length;
+    mem.tables.users = t('users').filter((u) => !(u.tenant_id === args[0]
+      && !t('wallets').some((w) => w.user_id === u.id && w.tenant_id !== args[1])));
+    return { rows: [], rowsAffected: before - mem.tables.users.length };
+  }
+  // Promo redemptions stay for max_uses, unlinked from the account.
+  if (sql === "UPDATE promo_redemptions SET tenant_id = 'deleted:' || id WHERE tenant_id = ?") {
+    const hit = t('promo_redemptions').filter((r) => r.tenant_id === args[0]);
+    for (const r of hit) r.tenant_id = `deleted:${r.id}`;
+    return { rows: [], rowsAffected: hit.length };
+  }
+  if (sql === 'UPDATE auth_users SET active_tenant_id = NULL WHERE active_tenant_id = ?') {
+    const hit = t('auth_users').filter((u) => u.active_tenant_id === args[0]);
+    for (const u of hit) u.active_tenant_id = null;
+    return { rows: [], rowsAffected: hit.length };
+  }
 
   // Tenant resolution (delete.ts resolveTenantToDelete).
   if (sql === 'SELECT 1 AS ok FROM tenant_memberships WHERE user_id = ? AND tenant_id = ? LIMIT 1') {
@@ -97,8 +137,9 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
     mem.tables[child] = t(child).filter((r) => !ids.has(r[col]));
     return { rows: [], rowsAffected: before - mem.tables[child].length };
   }
-  // DELETE FROM <table> WHERE user_id = ? / WHERE id = ? (the user's own rows)
-  m = sql.match(/^DELETE FROM (campaign_drip WHERE user_id|auth_users WHERE id) = \?$/);
+  // DELETE FROM <table> WHERE user_id = ? (the user's own rows), and the account itself:
+  // tenants WHERE id = ? (the tenant) and auth_users WHERE id = ? (the user).
+  m = sql.match(/^DELETE FROM (\w+ WHERE user_id|tenants WHERE id|auth_users WHERE id) = \?$/);
   if (m) {
     const [table, col] = m[1].split(' WHERE ');
     const before = t(table).length;
@@ -221,7 +262,7 @@ const ALL_STEP_TABLES = [...VERIFY_TABLES, ...RECEIVABLE_TABLES];
 function seedTenant(tenant: string, user: string, tag: string, wallet: string, mirror: string, key: string): void {
   const add = (table: string, row: Row) => (mem.tables[table] ??= []).push(row);
   add('tenant_memberships', { id: `tm-${tag}`, user_id: user, tenant_id: tenant, role: 'owner', created_at: '2026-01-01 00:00:00' });
-  add('auth_users', { id: user });
+  add('auth_users', { id: user, email: `${tag}@example.test`, active_tenant_id: tenant });
   add('campaign_drip', { campaign: 'business', user_id: user, email: `${tag}@example.test` });
   add('campaign_drip', { campaign: 'onboarding', user_id: user, email: `${tag}@example.test` });
   add('wallets', { id: `w-${tag}`, tenant_id: tenant });
@@ -267,7 +308,10 @@ function seedTenant(tenant: string, user: string, tag: string, wallet: string, m
 
 const rowsOf = (table: string, tenant: string) => (mem.tables[table] ?? []).filter((r) => r.tenant_id === tenant);
 const invite = (token: string) => (mem.tables.receivable_invites ?? []).find((r) => r.token === token);
-const verifyBatches = () => mem.calls.filter((c) => c.via === 'batch');
+const tableOf = (sql: string) => sql.match(/^(?:DELETE FROM|UPDATE) (\w+)/)?.[1] ?? '';
+/** Batched statements of the Verify sweep (the account's own deletes are batched too). */
+const isVerifyStep = (c: Call) => c.via === 'batch' && ALL_STEP_TABLES.includes(tableOf(c.sql));
+const verifyBatches = () => mem.calls.filter(isVerifyStep);
 
 type Ctx = Parameters<typeof POST>[0];
 const deleted: string[] = [];
@@ -307,6 +351,7 @@ beforeEach(() => {
   mem.failBatch = null;
   mem.missing = new Set();
   mem.after = null;
+  mem.failOn = null;
   deleted.length = 0;
   seedTenant(A, USER_A, 'a', WALLET_A, MIRROR_A, KEY_A);
   seedTenant(B, 'user-b', 'b', WALLET_B, MIRROR_B, KEY_B);
@@ -338,8 +383,8 @@ describe('POST /api/account/delete: Verify data', () => {
     expect(tables.indexOf('verified_entities')).toBeLessThan(tables.indexOf('verified_address_mirror'));
     expect(tables.indexOf('verify_deposit_challenges')).toBeLessThan(tables.indexOf('verify_destinations'));
     // The whole first pass before any other delete in the request.
-    const firstBatch = mem.calls.findIndex((c) => c.via === 'batch');
-    const firstOtherDelete = mem.calls.findIndex((c) => c.via === 'execute' && c.sql.startsWith('DELETE'));
+    const firstBatch = mem.calls.findIndex(isVerifyStep);
+    const firstOtherDelete = mem.calls.findIndex((c) => c.sql.startsWith('DELETE') && !isVerifyStep(c));
     expect(firstBatch).toBeGreaterThanOrEqual(0);
     expect(firstBatch).toBeLessThan(firstOtherDelete);
 
@@ -362,12 +407,30 @@ describe('POST /api/account/delete: Verify data', () => {
         continue;
       }
       if (sql.startsWith('SELECT tenant_id FROM tenant_memberships WHERE user_id = ?')
-        || sql === 'DELETE FROM campaign_drip WHERE user_id = ?'
+        || /^DELETE FROM \w+ WHERE user_id = \?$/.test(sql)
         || sql === 'DELETE FROM auth_users WHERE id = ?') {
         expect(c.args, sql).toEqual([USER_A]);
         continue;
       }
+      if (sql.startsWith('SELECT table_name, column_name FROM information_schema.columns')) {
+        // Catalog check: table names only, never a tenant or a user.
+        for (const a of c.args as string[]) expect(a).toMatch(/^[a-z_0-9]+$/);
+        expect(c.args).not.toContain(A);
+        expect(c.args).not.toContain(USER_A);
+        continue;
+      }
+      if (sql.startsWith('SELECT DISTINCT tm.user_id FROM tenant_memberships tm')) {
+        expect(c.args, sql).toEqual([USER_A, A, USER_A]);
+        continue;
+      }
+      if (sql.startsWith('DELETE FROM users WHERE tenant_id = ? AND NOT EXISTS')) {
+        expect(c.args, sql).toEqual([A, A]);
+        continue;
+      }
       const scoped = /^DELETE FROM \w+ WHERE tenant_id = \?( RETURNING id)?$/.test(sql)
+        || sql === 'DELETE FROM tenants WHERE id = ?'
+        || sql === "UPDATE promo_redemptions SET tenant_id = 'deleted:' || id WHERE tenant_id = ?"
+        || sql === 'UPDATE auth_users SET active_tenant_id = NULL WHERE active_tenant_id = ?'
         || /^DELETE FROM \w+ WHERE \w+ IN \(SELECT id FROM \w+ WHERE tenant_id = \?\)$/.test(sql)
         || /^UPDATE (receivable_invites|cairn_invites) SET revoked_at = .* WHERE from_tenant = \? AND accepted_at IS NULL AND revoked_at IS NULL$/.test(sql);
       expect(scoped, sql).toBe(true);
@@ -408,7 +471,8 @@ describe('POST /api/account/delete: Verify data', () => {
   it('deletes the user\'s drip-campaign enrollments and nobody else\'s', async () => {
     expect((await callPost()).status).toBe(200);
     const drip = mem.calls.filter((c) => c.sql.startsWith('DELETE FROM campaign_drip'));
-    expect(drip).toEqual([{ via: 'execute', sql: 'DELETE FROM campaign_drip WHERE user_id = ?', args: [USER_A] }]);
+    expect(drip.length).toBeGreaterThan(0);
+    for (const c of drip) expect(c).toMatchObject({ sql: 'DELETE FROM campaign_drip WHERE user_id = ?', args: [USER_A] });
     expect(mem.tables.campaign_drip.map((r) => r.user_id)).toEqual(['user-b', 'user-b']);
   });
 
@@ -458,6 +522,51 @@ describe('POST /api/account/delete: Verify data', () => {
     expect(keySelects()).toBe(warm + 1); // evicted, so it went back to the (now empty) table
     expect(await authenticateAgentKey(KEY_B)).toEqual({ id: 'k-b', domain: 'shop-b.example' });
     expect(keySelects()).toBe(warm + 1); // another tenant's cached key is untouched
+  });
+
+  it('is all or nothing: one failing table leaves the whole account in place to retry', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mem.failOn = /^DELETE FROM vault_notes /;
+    const res = await callPost();
+    expect(res.status).toBe(500);
+    expect(rowsOf('wallets', A)).toHaveLength(1);
+    expect(rowsOf('petro_tins', A)).toHaveLength(1);
+    expect(mem.tables.auth_users.map((r) => r.id).sort()).toEqual([USER_A, 'user-b']);
+    expect(mem.tables.tenant_memberships.filter((m) => m.tenant_id === A)).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it('removes the same person\'s other sign-in identity, never a different member', async () => {
+    const add = (table: string, row: Row) => (mem.tables[table] ??= []).push(row);
+    add('auth_users', { id: 'user-a2', email: 'A@example.test', active_tenant_id: A });
+    add('tenant_memberships', { id: 'tm-a2', user_id: 'user-a2', tenant_id: A, role: 'member', created_at: '2026-02-01 00:00:00' });
+    add('auth_users', { id: 'user-c', email: 'c@example.test', active_tenant_id: A });
+    add('tenant_memberships', { id: 'tm-c', user_id: 'user-c', tenant_id: A, role: 'member', created_at: '2026-02-01 00:00:00' });
+    add('campaign_drip', { campaign: 'onboarding', user_id: 'user-a2', email: 'a@example.test' });
+
+    expect((await callPost()).status).toBe(200);
+    const ids = mem.tables.auth_users.map((r) => r.id).sort();
+    expect(ids).toEqual(['user-b', 'user-c']);
+    expect(mem.tables.campaign_drip.some((r) => r.user_id === 'user-a2')).toBe(false);
+    expect(mem.tables.auth_users.find((r) => r.id === 'user-c')!.active_tenant_id).toBeNull();
+    expect(gate.invalidateUserAuthFacts).toHaveBeenCalledWith('user-a2');
+  });
+
+  it('keeps promo redemptions for their use count, unlinked from the account', async () => {
+    (mem.tables.promo_redemptions ??= []).push({ id: 'pr-1', tenant_id: A, code: 'ONCE' }, { id: 'pr-2', tenant_id: B, code: 'ONCE' });
+    expect((await callPost()).status).toBe(200);
+    expect(mem.tables.promo_redemptions).toEqual([
+      { id: 'pr-1', tenant_id: 'deleted:pr-1', code: 'ONCE' },
+      { id: 'pr-2', tenant_id: B, code: 'ONCE' },
+    ]);
+  });
+
+  it('never lets the legacy users row take another tenant\'s wallet with it', async () => {
+    (mem.tables.users ??= []).push({ id: 'u-a', tenant_id: A }, { id: 'u-a-free', tenant_id: A });
+    mem.tables.wallets.push({ id: 'w-shared', tenant_id: B, user_id: 'u-a' });
+    expect((await callPost()).status).toBe(200);
+    expect(mem.tables.users.map((r) => r.id)).toEqual(['u-a']);
+    expect(rowsOf('wallets', B).map((r) => r.id)).toContain('w-shared');
   });
 
   it('cuts the user\'s other sessions and sweeps a claim written while the account was going away', async () => {

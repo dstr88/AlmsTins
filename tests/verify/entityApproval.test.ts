@@ -161,7 +161,7 @@ vi.mock('@/lib/db', () => {
     }
     // No merchant proofs. Matched on the table and filter, not the column list, which the
     // domain-anchor fields (proof_method, domain_anchored_at) extend.
-    if (sql.startsWith('SELECT tenant_id, rail, value, label,')
+    if (sql.startsWith('SELECT tenant_id, rail, value,')
         && sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven'")) return { rows: [] };
     if (sql.startsWith('SELECT au.alert_email, au.lang')) return { rows: [{ alert_email: 'ops@platform.test', lang: 'en' }] };
     throw new Error(`unexpected SQL in test: ${sql}`);

@@ -703,7 +703,7 @@ const { t, prefilledAddress } = Astro.props;
 
   // Switch to the dApp / website tab, fill the URL, and run the check. Shared by the
   // hero "site" card and by a scanned QR that decoded to a website URL.
-  function activateDappCheck(value: string) {
+  function activateDappCheck(value: string, run = true) {
     const dappTab   = document.getElementById('tab-btn-dapp')   as HTMLButtonElement | null;
     const walletTab = document.getElementById('tab-btn-wallet') as HTMLButtonElement | null;
     const dappPanel   = document.getElementById('panel-dapp')   as HTMLElement | null;
@@ -717,7 +717,10 @@ const { t, prefilledAddress } = Astro.props;
     dappPanel.hidden   = false;
     urlInput.value = value;
     dappPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => checkBtn.click(), 350);
+    // A scanned link waits for the person to press Check: the check sends the full link to
+    // outside services, and a link from a QR code can carry a private code.
+    if (run) setTimeout(() => checkBtn.click(), 350);
+    else checkBtn.focus({ preventScroll: true });
   }
 
   // ── Threat modals ─────────────────────────────────────────────────────────
@@ -904,11 +907,12 @@ const { t, prefilledAddress } = Astro.props;
     window.dispatchEvent(new CustomEvent('almstins:open-qr'));
   });
 
-  // A scanned QR that decoded to a website / dApp URL → run the dApp checker.
-  // (Addresses are handled inside the wallet island; URLs are handed off here.)
+  // A scanned QR that decoded to a website / dApp URL → fill the dApp checker and wait for
+  // the person to press Check (privacy policy v1.2, section 7). Addresses are handled inside
+  // the wallet island and are checked right away; they are public.
   window.addEventListener('almstins:scanned-url', (e) => {
     const url = (e as CustomEvent).detail?.url as string | undefined;
-    if (url) activateDappCheck(url);
+    if (url) activateDappCheck(url, false);
   });
 
   // Count the step from a free check to an account: a click on the banner's "Get started free"

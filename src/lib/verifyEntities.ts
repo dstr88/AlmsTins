@@ -317,7 +317,9 @@ export interface VerifiedAddressHit {
    *  it is always safe to compare directly against an agent's `expect` (check.ts) or to
    *  decide "Listed on" vs "verified via" (verifyPublicCard.ts) — domain above is not. */
   provingDomain: string | null;
-  /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
+  /** The account's domain-verified business name (merchant path, verify_claimed_names), or
+   *  null. Never the freeform label the account typed: that can be a person's name, and this
+   *  answers the public. */
   label: string | null;
   /** Rail the address is on, or null. */
   chain: string | null;
@@ -377,15 +379,15 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
 
   // 2) Proven merchant destinations (self-send / domain proof). Claim-once (the index, and the
   //    canonical claim guard on every flip and anchor) lets only one account prove a wallet, so
-  //    the match is normally one account. We expose only the merchant's OWN self-chosen label —
-  //    never tenant_id or any identity.
+  //    the match is normally one account. The freeform label is not even read: only the
+  //    account's domain-verified business name can leave here, never tenant_id or any identity.
   //    Matched on addressKey, the key the claim guard uses: an EVM or segwit address in any
   //    letter case is one wallet ('BC1Q…', the QR form, is 'bc1q…'); base58 stays exact. The SQL
   //    finds every case spelling (lower(value) = key) and the key compare in code decides.
   const key = addressKey(rawValue);
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)
           ORDER BY proven_at ASC, id ASC`,
     args: [key, key],
@@ -423,8 +425,9 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     const { level, since } = ambiguous
       ? { level: 'claimed' as const, since: str(hit.proven_at) }
       : rate(hit);
-    // Prefer the tenant's domain-verified business name (+ its anchor domain) over the
-    // freeform label. We expose only the public name + domain — never tenant_id or any key.
+    // The tenant's domain-verified business name (+ its anchor domain), if any. It is the
+    // only name this answer carries: a freeform label can be a person's name. We expose only
+    // the public name + domain — never tenant_id or any key.
     const vn = await verifiedNameForTenant(holder);
     // Verified iff THIS address is anchored to a proven domain (proof_domain set) — a
     // swapped address on a spoofed page would then fail the comparison. Control-only
@@ -442,7 +445,7 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
       since,
       domain: vn?.domain ?? publishedDomain,
       provingDomain,
-      label: vn?.name ?? (hit.label ? String(hit.label) : null),
+      label: vn?.name ?? null,
       chain: String(hit.rail),
     };
   }
@@ -453,8 +456,8 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
  * PUBLIC, login-free lookup for a payment LINK / QR (kind='qr'): has a merchant
  * proven this URL is theirs by registering it in their own account (account_claim)?
  *
- * Same no-attribution rules as the address lookup: returns only the merchant's
- * self-chosen label and (only once its own account is domain-verified) that domain —
+ * Same no-attribution rules as the address lookup: returns only the account's
+ * domain-verified business name and its domain (never the freeform label) —
  * never the link's own host, which names the payment processor, not the merchant, and
  * never tenant_id or any legal identity. Claim-once guarantees at most one account owns a
  * proven URL, so the customer-scan match is unambiguous. The stored value is already
@@ -472,7 +475,7 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   if (!normalized) return null;
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proven_at, monitor_url, last_confirmed_at FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, proven_at, monitor_url, last_confirmed_at FROM verify_destinations
           WHERE kind = 'qr' AND proof_status = 'proven'`,
     args: [],
   });
@@ -497,7 +500,7 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
     source: 'merchant', level,
     since: hit.proven_at ? String(hit.proven_at) : null,
     domain: vn?.domain ?? null, provingDomain: level === 'verified' ? (vn?.domain ?? null) : null,
-    label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
+    label: vn?.name ?? null, chain: 'url',
   };
 }
 

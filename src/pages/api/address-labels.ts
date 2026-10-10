@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ request }) => {
 	return json(result.rows);
 };
 
-// POST /api/address-labels  — create a user label
+// POST /api/address-labels  — create a user label (private to this account)
 export const POST: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
 	if (!session) return new Response('Unauthorized', { status: 401 });
@@ -76,63 +76,10 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		// Cast a community vote (one per user per address)
-		await db.execute({
-			sql: `INSERT INTO global_address_label_votes (id, tenant_id, address, label)
-			      VALUES (?, ?, ?, ?)
-			      ON CONFLICT (tenant_id, address)
-			      DO UPDATE SET label = excluded.label`,
-			args: [crypto.randomUUID(), tenantId, address, label],
-		});
-
-		// Count votes per label for this address
-		const votes = await db.execute({
-			sql: `SELECT label, COUNT(*) as cnt
-			      FROM global_address_label_votes
-			      WHERE address = ?
-			      GROUP BY label
-			      ORDER BY cnt DESC
-			      LIMIT 1`,
-			args: [address],
-		});
-
-		if (votes.rows.length) {
-			const topLabel = String(votes.rows[0].label);
-			const topCount = Number(votes.rows[0].cnt);
-
-			// Check if a global label already exists for this address
-			const existing = await db.execute({
-				sql: `SELECT label, vote_count FROM global_address_labels WHERE address = ? LIMIT 1`,
-				args: [address],
-			});
-
-			if (existing.rows.length === 0 && topCount >= 3) {
-				// First promotion: 3 independent users agree
-				await db.execute({
-					sql: `INSERT INTO global_address_labels (address, label, vote_count)
-					      VALUES (?, ?, ?)`,
-					args: [address, topLabel, topCount],
-				});
-			} else if (existing.rows.length > 0) {
-				const currentLabel = String(existing.rows[0].label);
-				// Correction: 5 users agree on a different label
-				if (topLabel.toLowerCase() !== currentLabel.toLowerCase() && topCount >= 5) {
-					await db.execute({
-						sql: `UPDATE global_address_labels
-						      SET label = ?, vote_count = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
-						      WHERE address = ?`,
-						args: [topLabel, topCount, address],
-					});
-				} else {
-					// Just update the vote count for the current label
-					await db.execute({
-						sql: `UPDATE global_address_labels SET vote_count = ?
-						      WHERE address = ? AND lower(label) = lower(?)`,
-						args: [topCount, address, currentLabel],
-					});
-				}
-			}
-		}
+		// A label stays in this account. It used to count as a cross-account vote that
+		// promoted matching labels to every user; that built an address-to-name list out of
+		// private labels, so it was removed (privacy policy v1.2, 2026-10-10).
+		// src/scripts/removeSharedLabelVotes.mjs deletes the old votes and shared labels.
 
 		const row = await db.execute({
 			sql: `SELECT id, address, label, source, category, chain, notes, phone_number, created_at FROM address_labels

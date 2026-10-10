@@ -7,7 +7,8 @@
 // single-use capability token (?token=, ?t=), a receivable or project ID (?id=), a return
 // path (?next=), or an address someone scanned (?address=). None of that may leave for a
 // third party. So both values are rebuilt from an allowlist: origin + path, plus only the
-// campaign parameters (utm_*, gclid). Anything added later is dropped by default.
+// campaign parameters (utm_*). Anything added later is dropped by default. (gclid, a
+// Google Ads click ID, was dropped too: the site runs no ads.)
 //
 // Three more things GA is told, all anonymous:
 //  - traffic_type "internal" on the owner's own traffic, so GA4's built-in "Internal Traffic"
@@ -25,7 +26,7 @@
     try {
       var keep = new URLSearchParams();
       new URL(location.href).searchParams.forEach(function (v, k) {
-        if (k.indexOf('utm_') === 0 || k === 'gclid') keep.append(k, v);
+        if (k.indexOf('utm_') === 0) keep.append(k, v);
       });
       var q = keep.toString();
       if (q) page.page_location += '?' + q;

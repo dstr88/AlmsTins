@@ -104,20 +104,29 @@ describe('the tag script itself', () => {
     return Object.assign((sandbox.dataLayer as any[]).map(a => Array.from(a)), { sandbox });
   }
 
-  it('configures the property with the page context and nothing else', () => {
+  // Google's advertising features stay off on every config (privacy policy v1.2, section 9).
+  const NO_ADS = { allow_google_signals: false, allow_ad_personalization_signals: false };
+
+  it('configures the property with the page context, advertising features off, and nothing else', () => {
     const calls = run({ GA_ID: 'G-TEST', demo: false }, { page_location: 'https://almstins.com/verify', traffic_type: 'internal' });
     expect(calls).toHaveLength(2);
     expect(calls[0][0]).toBe('js');
-    expect(calls[1]).toEqual(['config', 'G-TEST', { page_location: 'https://almstins.com/verify', traffic_type: 'internal' }]);
+    expect(calls[1]).toEqual(['config', 'G-TEST', { page_location: 'https://almstins.com/verify', traffic_type: 'internal', ...NO_ADS }]);
+  });
+
+  it('keeps advertising features off even if the page context tried to turn them on', () => {
+    const hostile = { allow_google_signals: true, allow_ad_personalization_signals: true } as unknown as Record<string, string>;
+    const calls = run({ GA_ID: 'G-TEST', demo: false }, hostile);
+    expect(calls[1]).toEqual(['config', 'G-TEST', NO_ADS]);
   });
 
   it('still configures when the page context is missing', () => {
-    expect(run({ GA_ID: 'G-TEST', demo: false }, undefined)[1]).toEqual(['config', 'G-TEST', {}]);
+    expect(run({ GA_ID: 'G-TEST', demo: false }, undefined)[1]).toEqual(['config', 'G-TEST', NO_ADS]);
   });
 
   it('reports a demo visitor under /demo, flags them, and sends the demo pageview', () => {
     const calls = run({ GA_ID: 'G-TEST', demo: true }, { page_location: 'https://almstins.com/dashboard/vault' }, '/dashboard/vault');
-    expect(calls[1]).toEqual(['config', 'G-TEST', { page_location: 'https://almstins.com/dashboard/vault', page_path: '/demo/dashboard/vault' }]);
+    expect(calls[1]).toEqual(['config', 'G-TEST', { page_location: 'https://almstins.com/dashboard/vault', page_path: '/demo/dashboard/vault', ...NO_ADS }]);
     expect(calls[2]).toEqual(['set', 'user_properties', { demo_user: 'true' }]);
     expect(calls[3]).toEqual(['event', 'demo_page_view', { event_category: 'demo', event_label: '/dashboard/vault' }]);
   });
@@ -135,7 +144,7 @@ describe('the tag script itself', () => {
 
   it('sends a bare sign_up right after config when the page context decided it is a new account', () => {
     const calls = run({ GA_ID: 'G-TEST', demo: false }, {}, '/dashboard/vault', { __gaSignUp: true });
-    expect(calls.slice(1, 3)).toEqual([['config', 'G-TEST', {}], ['event', 'sign_up']]);
+    expect(calls.slice(1, 3)).toEqual([['config', 'G-TEST', NO_ADS], ['event', 'sign_up']]);
   });
 
   it('passes the session to the page context only as a plain, escaped assignment before it', () => {

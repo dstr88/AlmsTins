@@ -118,7 +118,7 @@ export const en: LoginPageLocale = {
     trust2: 'No wallet connection, ever',
     checker: { title: 'Wallet Checker', desc: 'Paste or scan any wallet address or website — instant scam, phishing, honeypot, and sanctions check.', free: 'Free · No account · No sign-in', cta: 'Open the checker' },
     verify:  { title: 'Verify', desc: 'Register the receiving addresses you publish and catch a swapped QR before a customer pays the wrong one.', free: 'Free: 1 reusable QR connection. Need more? Upgrade.', cta: 'Go to Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Track wallets, exchanges, and DeFi by address — cost basis, realized gains, and a tax-ready breakdown.', free: 'Free tier · Sign in with email, Google, or GitHub · We only store your email', cta: 'Try the demo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Track wallets, exchanges, and DeFi by address — cost basis, realized gains, and a tax-ready breakdown.', free: 'Free tier · Sign in with email, Google, or GitHub · Sign-in never stores your name or photo', cta: 'Try the demo' },
     plansLink: 'See all plans & pricing',
     plansHref: '/prices',
   },
@@ -178,7 +178,7 @@ export const en: LoginPageLocale = {
     {
       icon: '🔐',
       title: 'Your keys never touch our server. Ever.',
-      desc: "Almstins reads balances by address — no wallet connection, no signing permissions, no private keys. A breach of our servers can't move a single coin. <a href=\"/login#faq-private-account\" class=\"fc-anon-link\" onclick=\"event.preventDefault();document.getElementById('faq-private-account')?.click()\">Learn how to stay anonymous on our platform →</a>",
+      desc: "Almstins reads balances by address — no wallet connection, no signing permissions, no private keys. A breach of our servers can't move a single coin.",
     },
     {
       icon: '🔍',
@@ -188,7 +188,7 @@ export const en: LoginPageLocale = {
     {
       icon: '🏫',
       title: 'Built by a teacher',
-      desc: 'Privacy-first from day one. Never sold. Never shared.',
+      desc: 'Privacy-first from day one. Your data is never sold.',
     },
   ],
   hesitationModal: {
@@ -234,7 +234,7 @@ export const es: LoginPageLocale = {
     trust2: 'Sin conectar la billetera, nunca',
     checker: { title: 'Wallet Checker', desc: 'Pega o escanea cualquier dirección de billetera o sitio web — comprobación instantánea de estafas, phishing, honeypots y sanciones.', free: 'Gratis · Sin cuenta · Sin iniciar sesión', cta: 'Abrir el verificador' },
     verify:  { title: 'Verify', desc: 'Registra las direcciones de cobro que publicas y detecta un QR cambiado antes de que un cliente pague al equivocado.', free: 'Gratis: 1 conexión QR reutilizable. ¿Necesitas más? Mejora tu plan.', cta: 'Ir a Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Rastrea billeteras, exchanges y DeFi por dirección — base de costo, ganancias realizadas y un desglose listo para impuestos.', free: 'Plan gratis · Inicia sesión con correo, Google o GitHub · Solo guardamos tu correo', cta: 'Probar la demo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Rastrea billeteras, exchanges y DeFi por dirección — base de costo, ganancias realizadas y un desglose listo para impuestos.', free: 'Plan gratis · Inicia sesión con correo, Google o GitHub · Al iniciar sesión nunca guardamos tu nombre ni tu foto', cta: 'Probar la demo' },
     plansLink: 'Ver todos los planes y precios',
     plansHref: '/prices/es',
   },
@@ -304,7 +304,7 @@ export const es: LoginPageLocale = {
     {
       icon: '🏫',
       title: 'Hecho por un educador',
-      desc: 'Privacidad desde el primer día. Nunca vendido. Nunca compartido.',
+      desc: 'Privacidad desde el primer día. Tus datos nunca se venden.',
     },
   ],
   hesitationModal: {
@@ -350,7 +350,7 @@ export const fr: LoginPageLocale = {
     trust2: 'Aucune connexion de portefeuille, jamais',
     checker: { title: 'Wallet Checker', desc: 'Collez ou scannez n\'importe quelle adresse de portefeuille ou site web — vérification instantanée des arnaques, du phishing, des honeypots et des sanctions.', free: 'Gratuit · Sans compte · Sans connexion', cta: 'Ouvrir le vérificateur' },
     verify:  { title: 'Verify', desc: 'Enregistrez les adresses de réception que vous publiez et détectez un QR substitué avant qu\'un client ne paie la mauvaise.', free: 'Gratuit : 1 connexion QR réutilisable. Besoin de plus ? Améliorez votre offre.', cta: 'Aller à Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Suivez portefeuilles, plateformes d\'échange et DeFi par adresse — prix de revient, gains réalisés et un récapitulatif prêt pour les impôts.', free: 'Offre gratuite · Connectez-vous par e-mail, Google ou GitHub · Nous ne stockons que votre e-mail', cta: 'Essayer la démo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Suivez portefeuilles, plateformes d\'échange et DeFi par adresse — prix de revient, gains réalisés et un récapitulatif prêt pour les impôts.', free: 'Offre gratuite · Connectez-vous par e-mail, Google ou GitHub · La connexion n\'enregistre jamais votre nom ni votre photo', cta: 'Essayer la démo' },
     plansLink: 'Voir tous les forfaits et tarifs',
     plansHref: '/prices/fr',
   },
@@ -410,7 +410,7 @@ export const fr: LoginPageLocale = {
     {
       icon: '🔐',
       title: 'Vos clés ne touchent jamais notre serveur. Jamais.',
-      desc: 'Almstins lit les soldes par adresse — pas de connexion de portefeuille, pas de permissions de signature, pas de clés privées. Une violation de nos serveurs ne peut pas déplacer une seule pièce. <a href="/login#faq-private-account" class="fc-anon-link" onclick="event.preventDefault();document.getElementById(\'faq-private-account\')?.click()">Découvrez comment rester anonyme sur notre plateforme →</a>',
+      desc: 'Almstins lit les soldes par adresse — pas de connexion de portefeuille, pas de permissions de signature, pas de clés privées. Une violation de nos serveurs ne peut pas déplacer une seule pièce.',
     },
     {
       icon: '🔍',
@@ -420,7 +420,7 @@ export const fr: LoginPageLocale = {
     {
       icon: '🏫',
       title: 'Construit par un éducateur',
-      desc: 'Confidentialité en priorité depuis le premier jour. Jamais vendu. Jamais partagé.',
+      desc: 'Confidentialité en priorité depuis le premier jour. Vos données ne sont jamais vendues.',
     },
   ],
   hesitationModal: {

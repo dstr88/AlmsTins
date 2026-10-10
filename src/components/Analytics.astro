@@ -41,7 +41,10 @@ const gaSession = owner || newAccount
   // a wallet) checks for the global, and silently sends nothing without it.
   window.gtag = gtag;
   gtag('js', new Date());
-  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, demo ? { page_path: '/demo' + window.location.pathname } : {}));
+  // Google signals and ad personalization stay off whatever the GA property says: the
+  // privacy policy promises no cookies for advertising. Last, so nothing overrides them.
+  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, demo ? { page_path: '/demo' + window.location.pathname } : {},
+    { allow_google_signals: false, allow_ad_personalization_signals: false }));
   // A new account's first visit (decided in AnalyticsPageContext): a bare count, never who.
   if (window.__gaSignUp) gtag('event', 'sign_up');
   if (demo) {

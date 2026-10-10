@@ -80,12 +80,21 @@ export const items: FaqItem[] = [
     id: "faq-privacy",
     q: "Est-ce privé",
     a: `<p>
-          Réponse courte : non. Tout ce qui est récupéré depuis les clés API est visible par
-          le public. Mais le site web est privé, votre connexion est privée
-          et vos données sont sécurisées. La base de données chiffre tout. Je vais
-          éventuellement suivre les IDs uniques, le nombre de wallets, les fonctionnalités que les gens
-          utilisent, et le volume de trafic. Mon but est de mesurer mon
-          efficacité et de créer un meilleur produit.
+          En grande partie, oui. Ce que vous enregistrez dans Almstins reste
+          dans votre compte et n'est pas montré aux autres utilisateurs, sauf ce
+          que vous choisissez de partager, comme une adresse de wallet que vous
+          prouvez avec Verify ou une créance dont vous donnez l'identifiant. Les
+          données de la blockchain elles-mêmes sont publiques : n'importe qui
+          peut consulter l'historique d'une adresse.
+        </p>
+
+        <p>
+          Nous mesurons l'utilisation du site avec Google Analytics, et nous
+          comptons les vérifications de sécurité à l'aide de hachages à sens
+          unique plutôt que des adresses et des adresses IP elles-mêmes. La
+          Politique de Confidentialité, accessible en bas de page, indique
+          exactement ce que nous collectons, qui le reçoit et comment le
+          supprimer.
         </p>`,
   },
   {
@@ -734,13 +743,11 @@ export const items: FaqItem[] = [
           <strong>Conseil :</strong> Plus vous étiquetez d'adresses, moins vous aurez de transactions mystérieuses. Commencez par vos adresses de dépôt d'exchange — ce sont la source la plus fréquente de transferts non résolus.
         </p>
 
-        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Étiquettes communautaires</h2>
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Vos étiquettes restent privées</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li>Chaque fois que vous sauvegardez une étiquette, un vote communautaire silencieux est enregistré en arrière-plan.</li>
-          <li>Lorsque 3 utilisateurs étiquettent indépendamment la même adresse de la même façon, elle devient une <strong>étiquette globale</strong> visible par tous sur la plateforme.</li>
-          <li>Si 5 utilisateurs s'accordent ensuite sur un nom différent, l'étiquette globale est corrigée automatiquement.</li>
-          <li>Votre étiquette personnelle a toujours la priorité sur une étiquette communautaire si elles sont en désaccord.</li>
+          <li>Une étiquette que vous sauvegardez reste uniquement dans votre compte. Les autres utilisateurs ne la voient jamais, et elle n'est jamais combinée avec les étiquettes d'autres personnes.</li>
+          <li>Les noms qu'Almstins affiche pour les contrats et exchanges connus proviennent de sa propre liste, pas des étiquettes d'autres utilisateurs.</li>
         </ul>`,
   },
   {

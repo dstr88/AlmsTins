@@ -9,7 +9,7 @@ import vm from 'node:vm';
  * Layout.astro, LoginLayout.astro). These tests run the real script text in a sandbox standing
  * in for the browser, so what is tested is exactly what ships.
  *
- * Four jobs: (1) keep the privacy allowlist (origin + path, utm_* and gclid only); (2) mark
+ * Four jobs: (1) keep the privacy allowlist (origin + path and utm_* only); (2) mark
  * the owner's own traffic traffic_type "internal" so GA4's built-in Internal Traffic filter can
  * drop it: automated browsers (the scheduled Playwright runs), a local dev server, a browser
  * flagged once with ?internal=1, and any device the owner is signed in on; (3) count sign-outs
@@ -74,9 +74,9 @@ function load(options: Options = {}) {
 }
 
 describe('what GA may learn about a page (the privacy allowlist stays)', () => {
-  it('keeps origin and path, and only utm_* and gclid from the query', () => {
+  it('keeps origin and path, and only utm_* from the query (gclid is dropped)', () => {
     const { page } = load({ url: 'https://almstins.com/verify/desk?token=SECRET&id=abc&utm_source=linkedin&gclid=g1&next=%2Fx' });
-    expect(page.page_location).toBe('https://almstins.com/verify/desk?utm_source=linkedin&gclid=g1');
+    expect(page.page_location).toBe('https://almstins.com/verify/desk?utm_source=linkedin');
   });
 
   it('strips the query and fragment from the referrer', () => {

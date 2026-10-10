@@ -4,7 +4,9 @@
  * The last successfully decrypted + challenge-matched roster for this (tenant,
  * domain), from the durable cache written by recordRosterProofResult — never a
  * fresh fetch. Backs the editor's pre-fill so returning to edit a list doesn't force
- * a live decrypt just to show what's already published.
+ * a live fetch just to show what's already published. The cache is stored encrypted and
+ * opened here for the signed-in owner only; one that won't open (an older plain-text
+ * cache, a rotated key) answers `cached: null` and the editor simply starts empty.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';

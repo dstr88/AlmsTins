@@ -65,11 +65,22 @@ async function getPrivateKey(): Promise<{ keyId: string; key: CryptoKey; publicJ
     const key = await subtle().importKey('jwk', jwk, RSA_PARAMS, false, ['decrypt']);
     // Public half lives alongside the private fields in an RSA JWK (n, e) — strip
     // the private-only fields (d, p, q, dp, dq, qi) rather than requiring a second env var.
-    const { d, p, q, dp, dq, qi, ...publicJwk } = jwk as any;
+    // key_ops goes too: an exported private key says ['decrypt'], and browsers refuse to
+    // import a public key carrying it for 'encrypt', which the roster editor needs.
+    const { d, p, q, dp, dq, qi, key_ops: _keyOps, ...publicJwk } = jwk as any;
     return { keyId: await deriveKeyId(publicJwk), key, publicJwk };
   } catch {
     return null;
   }
+}
+
+/**
+ * The public half of the key this server can decrypt with (no override), or null. For
+ * data the server itself must read back later, such as the sealed roster cache: sealing
+ * to the published override during a rotation would make it unreadable here.
+ */
+export async function getDecryptablePublicJwk(): Promise<JsonWebKey | null> {
+  return (await getPrivateKey())?.publicJwk ?? null;
 }
 
 /**
