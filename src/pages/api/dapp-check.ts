@@ -232,6 +232,12 @@ async function checkGoogleSafeBrowsing(rawUrl: string, key: string): Promise<Sou
   }
 }
 
+// VirusTotal runs ~90 engines, and one or two of them flag plenty of real sites (on
+// 2026-10-08 uniswap.org read 1/93 and google.com 2/93). So VirusTotal alone makes a site
+// red only when at least this many engines call it malicious. Fewer, or "suspicious"
+// ratings alone, are a caution (yellow) with the count shown.
+const VT_MALICIOUS_FOR_RED = 3;
+
 async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResult> {
   const src = 'VirusTotal';
   try {
@@ -257,10 +263,18 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const stats = json?.data?.attributes?.last_analysis_stats ?? {};
-    const malicious  = (stats.malicious ?? 0) + (stats.suspicious ?? 0);
+    const malicious  = Number(stats.malicious ?? 0);
+    const suspicious = Number(stats.suspicious ?? 0);
     const total      = Object.values(stats).reduce((s: number, v) => s + Number(v), 0);
-    if (malicious > 0)
-      return { name: src, verdict: 'flagged', detail: `${malicious}/${total} security engines flagged this URL`, icon: '🦠' };
+    if (malicious >= VT_MALICIOUS_FOR_RED)
+      return { name: src, verdict: 'flagged', detail: `${malicious}/${total} security engines flagged this URL as malicious`, icon: '🦠' };
+    if (malicious + suspicious > 0)
+      return {
+        name: src,
+        verdict: 'caution',
+        detail: `${malicious + suspicious} of ${total} security engines flagged this URL. One or two flags are often a false alarm.`,
+        icon: '🦠',
+      };
     return { name: src, verdict: 'clean', detail: `${total} engines scanned — no threats found`, icon: '🦠' };
   } catch (e) {
     return { name: src, verdict: 'error', detail: `VirusTotal unavailable`, icon: '🦠' };
