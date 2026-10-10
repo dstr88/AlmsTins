@@ -241,7 +241,9 @@ const VT_MALICIOUS_FOR_RED = 3;
 async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResult> {
   const src = 'VirusTotal';
   try {
-    // Try to get existing analysis by URL ID first (no submission quota used)
+    // Lookup only. A link VirusTotal has never seen is NOT submitted for scanning:
+    // VirusTotal keeps submitted links and shares them with its security community, and
+    // the link someone checks can carry private codes (privacy policy v1.2, 2026-10-10).
     const urlId = Buffer.from(rawUrl).toString('base64url').replace(/=/g, '');
     const res = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
       headers: { 'x-apikey': key },
@@ -249,15 +251,7 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
     });
 
     if (res.status === 404) {
-      // Submit for scanning
-      const submitRes = await fetch('https://www.virustotal.com/api/v3/urls', {
-        method: 'POST',
-        headers: { 'x-apikey': key, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `url=${encodeURIComponent(rawUrl)}`,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      if (!submitRes.ok) throw new Error('VT submit failed');
-      return { name: src, verdict: 'unscanned', detail: 'Submitted to VirusTotal — check back shortly for results', icon: '🦠' };
+      return { name: src, verdict: 'unscanned', detail: 'VirusTotal has no record of this link yet', icon: '🦠' };
     }
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -370,8 +364,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
   const anyCaution  = sources.some((s) => s.verdict === 'caution');
 
-  // VT "unscanned" means it was just submitted — not a security signal, don't penalise the verdict
-  const vtPending = vtResult.verdict === 'unscanned';
+  // VirusTotal "unscanned" means it has no record of the link. Most new links have none,
+  // so that alone is not a security signal and does not turn the verdict yellow.
   const unscanned = !anyFlagged && sources.some((s) => s.verdict === 'unscanned' && s.name !== 'VirusTotal');
 
   const verdict: 'red' | 'yellow' | 'green' =
@@ -381,7 +375,8 @@ export const GET: APIRoute = async ({ url, request }) => {
     'green';
 
   return new Response(
-    JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending }),
+    // vtPending stays in the response for older clients; nothing is submitted, so nothing is pending.
+    JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending: false }),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },

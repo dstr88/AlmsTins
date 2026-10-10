@@ -150,12 +150,12 @@ ON CONFLICT DO NOTHING`,
 											account.type,
 											account.provider,
 											account.providerAccountId,
-											account.access_token ?? null,
+											null, // access_token: not stored (see authAdapter.linkAccount)
 											account.token_type ?? null,
 											account.scope ?? null,
 											account.expires_at ?? null,
-											account.refresh_token ?? null,
-											account.id_token ?? null,
+											null, // refresh_token: not stored
+											null, // id_token: not stored (carries the person's name)
 											account.session_state ?? null,
 										],
 									});
@@ -246,24 +246,25 @@ ON CONFLICT DO NOTHING`,
 					});
 					throw error;
 				}
-				// Stamp last_login and backfill email/name if the DB record has none.
+				// Stamp last_login and backfill email if the DB record has none.
 				// Uses the raw provider profile email which is available even when the
 				// adapter user object has a stale/empty email. The address is written only
 				// when this sign-in proved it (guard.addressProven): an account must never
 				// be keyed on an address nobody proved (see authLinkGuard).
+				// The provider's name is never written: we do not store names (privacy
+				// policy v1.2, 2026-10-10; src/scripts/clearStoredSignInNames.mjs clears
+				// the ones saved before).
 				try {
 					if (providerEmail) {
 						const provenEmail = guard.addressProven ? providerEmail.trim().toLowerCase() : null;
 						await db.execute({
 							sql: `UPDATE auth_users
 								SET last_login = ?,
-								    email = CASE WHEN (email IS NULL OR email = '') THEN COALESCE(?, email) ELSE email END,
-								    name  = CASE WHEN (name  IS NULL OR name  = '') THEN ? ELSE name  END
+								    email = CASE WHEN (email IS NULL OR email = '') THEN COALESCE(?, email) ELSE email END
 								WHERE id = ?`,
 							args: [
 								new Date().toISOString(),
 								provenEmail,
-								(profile?.name ?? user?.name ?? null),
 								userId,
 							],
 						});

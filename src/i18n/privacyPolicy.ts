@@ -1,7 +1,8 @@
 // Privacy Policy — footer-modal content, all user-visible copy (EN · ES · FR).
 //
-// Operative Privacy Policy v1.0 (effective 2026-06-16).
-// ES and FR are first-pass legal translations pending review by a fluent legal translator.
+// Operative Privacy Policy v1.2 (effective 2026-10-12; set this and the three body dates to the deploy day).
+// ES and FR are first-pass legal translations pending review by a fluent legal translator
+// (including the v1.2 changes to Sections 2, 3.3, 4, 8, 10 and 13).
 //
 // Rendered by src/components/privacy-policy.astro (inline <details> on some pages,
 // and as the footer "privacy-policy" modal via Footer.astro). The component takes a
@@ -9,7 +10,7 @@
 // page's language from the Footer, so there are no per-locale routes for this surface.
 //
 // `body` is developer-controlled HTML rendered with set:html. Proper nouns (GitHub,
-// Stripe, Alchemy, Turso…) and crypto jargon stay in English per design.claude.md.
+// Stripe, Alchemy, Render…) and crypto jargon stay in English per design.claude.md.
 
 import type { Lang } from '@/lib/i18n/locale';
 
@@ -29,7 +30,7 @@ export const en: PrivacyLocale = {
   ariaLabel: 'Privacy Policy',
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
-<p><strong>Effective Date:</strong> June 20, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.1<br/>
+<p><strong>Effective Date:</strong> October 12, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.2<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
@@ -72,10 +73,10 @@ export const en: PrivacyLocale = {
 <h3>3.3 Information we do NOT collect</h3>
 <ul>
   <li>Private keys or seed phrases (we never request these).</li>
-  <li>Exchange API keys or passwords (data is imported only via CSV or read by public address).</li>
+  <li>Exchange API keys or passwords (data is imported via CSV, via screenshots you upload, or read by public address).</li>
   <li>Biometric identifiers or government IDs.</li>
   <li>Identity-linking data — we do not perform KYC.</li>
-  <li>Bank account numbers or credit/debit card numbers (card data is handled solely by Stripe).</li>
+  <li>Bank account numbers or credit/debit card numbers. We never ask for them, and card data for billing is handled solely by Stripe. If a screenshot or receipt you upload shows one, it is part of that image: we store images you save to your account (Section 3.1) and send screenshots you ask us to read to Anthropic (Section 8).</li>
 </ul>
 
 <h2>4. How We Use Information</h2>
@@ -83,6 +84,7 @@ export const en: PrivacyLocale = {
 <ul>
   <li>Provide the Service to you (e.g., compute cost basis, render your dashboard, generate reports, run safety checks you request).</li>
   <li>Authenticate your account and prevent unauthorized access, fraud, and abuse.</li>
+  <li>Check links and wallet addresses that appear in email sent to or from our own inboxes against phishing, sanctions, and mixer lists we hold ourselves. Nothing from those messages is sent to an outside service for this.</li>
   <li>Operate community safety features in anonymized, aggregated form (Section 6).</li>
   <li>Respond to your support requests.</li>
   <li>Improve the Service through aggregated, non-identifying analytics.</li>
@@ -120,13 +122,38 @@ export const en: PrivacyLocale = {
 </ul>
 
 <h2>8. AI Features</h2>
-<p>Optional AI features (transaction triage and receipt validation) send the relevant transaction data or uploaded receipt to our AI provider, <strong>Anthropic (Claude)</strong>, to generate suggestions you review and confirm. Outputs are not authoritative.</p>
+<p>Optional AI features send data to our AI provider, <strong>Anthropic (Claude)</strong>, only when you use them:</p>
+<ul>
+  <li><strong>Screenshot reading:</strong> when you use "Scan Screenshot" (address labels), "Import Screenshot", or "Parse &amp; import" (screenshots you saved on the Transactions page), the whole image is sent so Claude can read the wallet address or transaction in it. Anything visible in it, such as names, amounts, and account details, is sent too, so crop out anything you would rather not share. Unlike camera QR scans (Sections 5 and 7), which are decoded on your device, these images leave your device.</li>
+  <li><strong>Transaction triage</strong> (paid plans): for each unresolved transaction, its direction, asset, amount, USD value, type, description, source, date, and your own notes and category.</li>
+  <li><strong>Receipt validation</strong> (paid plans): the receipt image you attach. PDFs are not sent.</li>
+</ul>
+<p>Outputs are not authoritative. Addresses read from a screenshot are placed in the form for you to check before you save them. A transaction read from a screenshot is saved to your records right away; check it, and delete that import if it is wrong. Triage fills in a category and a note on transactions it rates as an obvious purchase, income, or own-wallet transfer when they have no category yet, and leaves the rest for you; you can change any of them. Receipt results are suggestions you review.</p>
 
 <h2>9. Cookies &amp; Analytics</h2>
-<p>We use cookies and similar technologies for essential functionality and for aggregated analytics via <strong>Google Analytics</strong>. Where required, we present a consent mechanism and honor your choices.</p>
+<p>We use a small number of cookies and similar browser storage:</p>
+<ul>
+  <li><strong>Essential:</strong> your sign-in session and its security checks, and the demo session if you try the demo. The Service does not work without them.</li>
+  <li><strong>Preferences:</strong> your language choice, and small settings such as text size or whether you have already seen a page's introduction, kept in your browser.</li>
+  <li><strong>Analytics:</strong> <strong>Google Analytics</strong> sets its own cookies to count visits and see which pages are used. Section 10 says what it receives.</li>
+</ul>
+<p>We do not use cookies for advertising. We do not currently show a cookie consent banner. To opt out of Google Analytics, block cookies for almstins.com in your browser, use a content blocker, or install Google's opt-out browser add-on. The Service works without analytics cookies.</p>
 
 <h2>10. Third-Party Services</h2>
-<p>We share the minimum necessary data with service providers that help us operate, including: <strong>GitHub &amp; Google</strong> (OAuth sign-in — we receive your email; the provider name/avatar is discarded), <strong>Stripe</strong> (billing — a PCI-DSS Level 1 provider; card data handled entirely by Stripe), <strong>Alchemy, Etherscan, Blockstream</strong> (public blockchain data), <strong>CoinGecko &amp; Coinpaprika</strong> (prices), <strong>GoPlus Security, VirusTotal, Chainabuse</strong> (address/site risk data), <strong>Anthropic</strong> (optional AI), <strong>Turso</strong> (database hosting, encrypted at rest), <strong>Render</strong> (hosting), <strong>Google Analytics</strong>, and an <strong>email/SMTP</strong> provider (verification, alerts, monthly digest). These providers have their own privacy practices; we are not responsible for their handling of data.</p>
+<p>We share the minimum data needed with the service providers below, grouped by purpose. Where it matters, we say what each one receives.</p>
+<ul>
+  <li><strong>Sign-in:</strong> <strong>Google</strong> and <strong>GitHub</strong>, only if you choose to sign in with them. They share your email address and basic profile (such as your name and photo) with us; we keep only the email and discard the rest. They learn that you signed in to Almstins.</li>
+  <li><strong>Billing:</strong> <strong>Stripe</strong> receives your email, your plan, and an internal account ID. You enter card details directly with Stripe, a PCI-DSS Level 1 provider; we never see them.</li>
+  <li><strong>Hosting and database:</strong> <strong>Render</strong> hosts the Service, our Postgres database, and our server logs. Render serves the site through <strong>Cloudflare</strong>'s network, which sees each request and your IP address.</li>
+  <li><strong>Email:</strong> an <strong>email/SMTP</strong> provider (sign-in links, verification, welcome, alert, and account emails, and messages you ask us to send to a counterparty), <strong>Resend</strong> (getting-started emails after you sign up or first register a Verify destination), and the providers that host our own inboxes, including <strong>Google (Gmail)</strong> (support, contact, and reconciliation-help messages, error reports, and notices of new sign-ups and subscriptions). Each receives the recipient's email address and the message.</li>
+  <li><strong>Analytics:</strong> <strong>Google Analytics</strong> (pages you visit, a cookie ID, browser details, and your IP address) and <strong>IPinfo</strong> (your IP address, to look up its country; from that lookup we keep only the country, filed under a one-way hash of the IP). Some pages also load fonts, icons, or images directly from <strong>Google Fonts</strong>, Google's icon service, <strong>jsDelivr</strong>, and image hosts, which see your IP address and browser as any website does. From the icons a page requests, those services can tell which exchanges or tokens appear in your account.</li>
+  <li><strong>Blockchain data:</strong> <strong>Alchemy, Etherscan, Routescan/Snowtrace</strong> (Avalanche), <strong>Blockstream</strong> (Bitcoin), <strong>litecoinspace.org</strong> (Litecoin), a <strong>Solana</strong> RPC provider, <strong>Mysten Labs</strong> (Sui), the <strong>Rootstock</strong> public node, <strong>Sovryn</strong> and <strong>The Graph</strong> (subgraphs), and the <strong>Aave</strong> API. They receive the public wallet addresses and transaction IDs we need to read, never your account details.</li>
+  <li><strong>Prices:</strong> <strong>CoinGecko, DefiLlama</strong>, and <strong>Yahoo Finance</strong> receive the tokens or stock symbols to price and the dates, never your wallet address or account details.</li>
+  <li><strong>Safety checks:</strong> <strong>GoPlus Security, honeypot.is, Chainalysis</strong> (its sanctions-screening service), <strong>Chainabuse</strong> (run by TRM Labs), <strong>Google Safe Browsing, VirusTotal</strong>, and <strong>URLScan.io</strong> receive the address or link being checked; we add nothing about you to a check. For a link, GoPlus, Google Safe Browsing, and VirusTotal receive the full link, including anything after the domain, while URLScan.io receives only the domain. We only ask VirusTotal whether it already has results for a link; we never submit a link for it to scan. Avoid checking links that contain private access codes or personal details, including private links someone sent you. Section 13 says more about the services run by chain-analysis firms.</li>
+  <li><strong>AI:</strong> <strong>Anthropic</strong> receives what the AI features in Section 8 send, only when you use them.</li>
+  <li><strong>Time-stamping:</strong> <strong>OpenTimestamps</strong> calendar servers (run by OpenTimestamps, Eternity Wall, and Catallaxy) receive only a one-way SHA-256 fingerprint, never the record itself. Blockstream supplies the public Bitcoin block data used to check a stamp.</li>
+</ul>
+<p>We also download public phishing, sanctions, and price lists (for example, from GitHub and CoinPaprika); those requests carry nothing about you. These providers have their own privacy practices; we are not responsible for their handling of data.</p>
 
 <h2>11. Data Retention</h2>
 <p>We retain data for as long as needed to provide the Service, to comply with legal obligations (including tax-record retention, typically 7+ years), and to resolve disputes and enforce our agreements. You may request deletion of your account and data at any time, subject to those legal retention requirements. Deletion is permanent and unrecoverable.</p>
@@ -135,7 +162,8 @@ export const en: PrivacyLocale = {
 <p>We use industry-standard measures including HTTPS/TLS 1.3 in transit, AES-256 encryption at rest for sensitive data, role-based access control, and breach-response protocols. However, no system is fully secure, and we cannot guarantee absolute protection against all attacks or breaches.</p>
 
 <h2>13. Legal Requests and Law Enforcement</h2>
-<p>We may disclose data only when required by valid legal process (such as a subpoena or court order) or to investigate fraud or abuse with proper legal authority. <strong>We do not share data with chain-analysis firms or law enforcement absent valid legal process</strong>, and where legally permitted we will notify you of such requests. We do not honor informal requests.</p>
+<p>We may disclose data only when required by valid legal process (such as a subpoena or court order) or to investigate fraud or abuse with proper legal authority. <strong>We do not share data with law enforcement absent valid legal process, and chain-analysis firms receive nothing from us beyond the address checks described below.</strong> Where legally permitted, we will notify you of legal requests for your data. We do not honor informal requests.</p>
+<p><strong>Address and link checks.</strong> When you, or anyone using our checkers, asks us to check an address or link, our servers send that address or link to the screening services in Section 10. They include services run by the chain-analysis firms Chainalysis and TRM Labs (which runs Chainabuse). A check carries the address or link (and, for some services, which blockchain it is on) and nothing else about you: not your name, email, account ID, or IP address. These are lookups only: we never submit a link or address for scanning. Addresses and links in email sent to or from our own inboxes are checked only against lists we hold ourselves and are never sent to these services. We do not file scam or fraud reports about anyone, with these services or with anyone else.</p>
 
 <h2>14. International Data Transfers</h2>
 <p>Your data may be processed and stored in the United States or other countries. By using the Service, you consent to such transfer and processing, subject to applicable data-protection law.</p>
@@ -168,7 +196,7 @@ export const es: PrivacyLocale = {
   ariaLabel: 'Política de Privacidad',
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
-<p><strong>Fecha de Vigencia:</strong> 20 de junio de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.1<br/>
+<p><strong>Fecha de Vigencia:</strong> 12 de octubre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.2<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
@@ -211,10 +239,10 @@ export const es: PrivacyLocale = {
 <h3>3.3 Información que NO recopilamos</h3>
 <ul>
   <li>Claves privadas ni seed phrases (nunca las solicitamos).</li>
-  <li>Claves API de exchanges ni contraseñas (los datos se importan únicamente mediante CSV o se leen por dirección pública).</li>
+  <li>Claves API de exchanges ni contraseñas (los datos se importan mediante CSV o mediante capturas de pantalla que usted sube, o se leen por dirección pública).</li>
   <li>Identificadores biométricos ni documentos de identidad gubernamentales.</li>
   <li>Datos de vinculación de identidad — no realizamos KYC.</li>
-  <li>Números de cuentas bancarias ni números de tarjetas de crédito/débito (los datos de tarjetas son gestionados exclusivamente por Stripe).</li>
+  <li>Números de cuentas bancarias ni números de tarjetas de crédito/débito. Nunca los solicitamos, y los datos de tarjetas para la facturación son gestionados exclusivamente por Stripe. Si una captura de pantalla o un recibo que usted sube muestra alguno, forma parte de esa imagen: conservamos las imágenes que usted guarda en su cuenta (Sección 3.1) y enviamos a Anthropic las capturas que usted nos pide leer (Sección 8).</li>
 </ul>
 
 <h2>4. Cómo Utilizamos la Información</h2>
@@ -222,6 +250,7 @@ export const es: PrivacyLocale = {
 <ul>
   <li>Prestarle el Servicio (p. ej., calcular la base de costo, mostrar su panel de control, generar informes, ejecutar verificaciones de seguridad que usted solicite).</li>
   <li>Autenticar su cuenta y prevenir el acceso no autorizado, el fraude y el abuso.</li>
+  <li>Comprobar los enlaces y las direcciones de wallet que aparecen en los correos enviados a nuestros propios buzones o desde ellos, contrastándolos con listas de phishing, de sanciones y de mezcladores (mixers) que conservamos nosotros mismos. Para ello, nada de esos mensajes se envía a un servicio externo.</li>
   <li>Operar las funciones de seguridad comunitaria de forma anónima y agregada (Sección 6).</li>
   <li>Responder a sus solicitudes de soporte.</li>
   <li>Mejorar el Servicio mediante analíticas agregadas y no identificativas.</li>
@@ -259,13 +288,38 @@ export const es: PrivacyLocale = {
 </ul>
 
 <h2>8. Funciones de IA</h2>
-<p>Las funciones opcionales de IA (clasificación de transacciones y validación de recibos) envían los datos de transacción relevantes o el recibo cargado a nuestro proveedor de IA, <strong>Anthropic (Claude)</strong>, para generar sugerencias que usted revisa y confirma. Los resultados no son vinculantes.</p>
+<p>Las funciones opcionales de IA envían datos a nuestro proveedor de IA, <strong>Anthropic (Claude)</strong>, únicamente cuando usted las utiliza:</p>
+<ul>
+  <li><strong>Lectura de capturas de pantalla:</strong> cuando usted usa "Escanear captura" (etiquetas de direcciones), "Importar captura" o "Analizar e importar" (capturas guardadas en la página de Transacciones), se envía la imagen completa para que Claude lea la dirección de wallet o la transacción que contiene. Todo lo que aparezca en ella, como nombres, montos y datos de cuentas, también se envía, por lo que le recomendamos recortar la imagen para excluir lo que prefiera no compartir. A diferencia de los escaneos de QR con la cámara (Secciones 5 y 7), que se decodifican en su dispositivo, estas imágenes salen de su dispositivo.</li>
+  <li><strong>Clasificación de transacciones</strong> (planes de pago): para cada transacción sin resolver, su sentido (entrada o salida), activo, monto, valor en USD, tipo, descripción, origen, fecha, y sus propias notas y categoría.</li>
+  <li><strong>Validación de recibos</strong> (planes de pago): la imagen del recibo que usted adjunta. Los PDFs no se envían.</li>
+</ul>
+<p>Los resultados no son vinculantes. Las direcciones leídas en una captura se colocan en el formulario para que usted las revise antes de guardarlas. Una transacción leída en una captura se guarda de inmediato en sus registros; revísela y elimine esa importación si es incorrecta. La clasificación asigna una categoría y una nota a las transacciones que considera claramente una compra, un ingreso o una transferencia entre sus propias wallets, cuando aún no tienen categoría, y deja el resto para usted; usted puede cambiar cualquiera de ellas. Los resultados de la validación de recibos son sugerencias que usted revisa.</p>
 
 <h2>9. Cookies y Analytics</h2>
-<p>Utilizamos cookies y tecnologías similares para la funcionalidad esencial y para las analíticas agregadas a través de <strong>Google Analytics</strong>. Cuando sea requerido, presentamos un mecanismo de consentimiento y respetamos sus elecciones.</p>
+<p>Utilizamos un pequeño número de cookies y de elementos similares de almacenamiento en el navegador:</p>
+<ul>
+  <li><strong>Esenciales:</strong> su sesión iniciada y sus comprobaciones de seguridad, y la sesión de demostración si prueba la demo. El Servicio no funciona sin ellas.</li>
+  <li><strong>Preferencias:</strong> el idioma que elige y pequeños ajustes, como el tamaño del texto o si ya vio la introducción de una página, guardados en su navegador.</li>
+  <li><strong>Analíticas:</strong> <strong>Google Analytics</strong> instala sus propias cookies para contar las visitas y ver qué páginas se usan. La Sección 10 indica qué recibe.</li>
+</ul>
+<p>No utilizamos cookies con fines publicitarios. Actualmente no mostramos un aviso de consentimiento de cookies. Para excluirse de Google Analytics, bloquee las cookies de almstins.com en su navegador, use un bloqueador de contenido o instale el complemento de inhabilitación para navegadores de Google. El Servicio funciona sin las cookies de analíticas.</p>
 
 <h2>10. Servicios de Terceros</h2>
-<p>Compartimos el mínimo de datos necesario con los proveedores de servicios que nos ayudan a operar, incluyendo: <strong>GitHub &amp; Google</strong> (inicio de sesión OAuth — recibimos su correo electrónico; el nombre/avatar del proveedor es descartado), <strong>Stripe</strong> (facturación — un proveedor PCI-DSS Level 1; los datos de tarjetas son gestionados íntegramente por Stripe), <strong>Alchemy, Etherscan, Blockstream</strong> (datos públicos de blockchain), <strong>CoinGecko &amp; Coinpaprika</strong> (precios), <strong>GoPlus Security, VirusTotal, Chainabuse</strong> (datos de riesgo de direcciones/sitios), <strong>Anthropic</strong> (IA opcional), <strong>Turso</strong> (alojamiento de base de datos, cifrado en reposo), <strong>Render</strong> (alojamiento), <strong>Google Analytics</strong>, y un proveedor de <strong>correo electrónico/SMTP</strong> (verificación, alertas, resumen mensual). Estos proveedores tienen sus propias prácticas de privacidad; no somos responsables de su manejo de los datos.</p>
+<p>Compartimos el mínimo de datos necesario con los proveedores de servicios que se indican a continuación, agrupados por finalidad. Cuando resulta pertinente, indicamos qué recibe cada uno.</p>
+<ul>
+  <li><strong>Inicio de sesión:</strong> <strong>Google</strong> y <strong>GitHub</strong>, solo si usted elige iniciar sesión con ellos. Nos facilitan su correo electrónico y su perfil básico (como su nombre y su foto); conservamos solo el correo electrónico y descartamos el resto. Saben que usted inició sesión en Almstins.</li>
+  <li><strong>Facturación:</strong> <strong>Stripe</strong> recibe su correo electrónico, su plan y un identificador interno de cuenta. Usted introduce los datos de su tarjeta directamente en Stripe, un proveedor PCI-DSS Level 1; nosotros nunca los vemos.</li>
+  <li><strong>Alojamiento y base de datos:</strong> <strong>Render</strong> aloja el Servicio, nuestra base de datos Postgres y nuestros registros (logs) del servidor. Render distribuye el sitio a través de la red de <strong>Cloudflare</strong>, que ve cada solicitud y su dirección IP.</li>
+  <li><strong>Correo electrónico:</strong> un proveedor de <strong>correo electrónico/SMTP</strong> (enlaces de inicio de sesión, verificación, correos de bienvenida, de alerta y de cuenta, y los mensajes que usted nos solicita enviar a una contraparte), <strong>Resend</strong> (correos de introducción tras registrarse o registrar su primer destino en Verify) y los proveedores que alojan nuestros propios buzones, incluido <strong>Google (Gmail)</strong> (mensajes de soporte, de contacto y de ayuda con la conciliación, informes de errores y avisos de nuevas altas de usuarios y de suscripciones). Cada uno recibe la dirección de correo electrónico del destinatario y el mensaje.</li>
+  <li><strong>Analíticas:</strong> <strong>Google Analytics</strong> (las páginas que visita, un identificador de cookie, datos de su navegador y su dirección IP) e <strong>IPinfo</strong> (su dirección IP, para determinar su país; de esa consulta solo conservamos el país, archivado bajo un hash unidireccional de la IP). Algunas páginas también cargan fuentes, íconos o imágenes directamente desde <strong>Google Fonts</strong>, el servicio de íconos de Google, <strong>jsDelivr</strong> y servidores de imágenes, que ven su dirección IP y su navegador como cualquier sitio web. Por los íconos que solicita una página, esos servicios pueden saber qué exchanges o tokens aparecen en su cuenta.</li>
+  <li><strong>Datos de blockchain:</strong> <strong>Alchemy, Etherscan, Routescan/Snowtrace</strong> (Avalanche), <strong>Blockstream</strong> (Bitcoin), <strong>litecoinspace.org</strong> (Litecoin), un proveedor RPC de <strong>Solana</strong>, <strong>Mysten Labs</strong> (Sui), el nodo público de <strong>Rootstock</strong>, <strong>Sovryn</strong> y <strong>The Graph</strong> (subgraphs), y la API de <strong>Aave</strong>. Reciben las direcciones de wallet públicas y los identificadores de transacción que necesitamos leer, nunca los datos de su cuenta.</li>
+  <li><strong>Precios:</strong> <strong>CoinGecko, DefiLlama</strong> y <strong>Yahoo Finance</strong> reciben los tokens o símbolos de acciones que se deben valorar y las fechas, nunca su dirección de wallet ni los datos de su cuenta.</li>
+  <li><strong>Verificaciones de seguridad:</strong> <strong>GoPlus Security, honeypot.is, Chainalysis</strong> (el servicio de control de sanciones de esa empresa), <strong>Chainabuse</strong> (operado por TRM Labs), <strong>Google Safe Browsing, VirusTotal</strong> y <strong>URLScan.io</strong> reciben la dirección o el enlace que se verifica; no añadimos nada sobre usted a una verificación. En el caso de un enlace, GoPlus, Google Safe Browsing y VirusTotal reciben el enlace completo, incluido todo lo que sigue al dominio, mientras que URLScan.io recibe solo el dominio. A VirusTotal solo le preguntamos si ya tiene resultados para un enlace; nunca le enviamos un enlace para que lo analice. Evite verificar enlaces que contengan códigos de acceso privados o datos personales, incluidos los enlaces privados que alguien le haya enviado. La Sección 13 amplía la información sobre los servicios operados por empresas de análisis de blockchain.</li>
+  <li><strong>IA:</strong> <strong>Anthropic</strong> recibe lo que envían las funciones de IA descritas en la Sección 8, solo cuando usted las utiliza.</li>
+  <li><strong>Sellado de tiempo:</strong> los servidores de calendario de <strong>OpenTimestamps</strong> (operados por OpenTimestamps, Eternity Wall y Catallaxy) reciben solo una huella SHA-256 unidireccional, nunca el registro en sí. Blockstream proporciona los datos públicos de bloques de Bitcoin que se usan para comprobar un sello.</li>
+</ul>
+<p>También descargamos listas públicas de phishing, de sanciones y de precios (por ejemplo, de GitHub y CoinPaprika); esas solicitudes no contienen nada sobre usted. Estos proveedores tienen sus propias prácticas de privacidad; no somos responsables de su manejo de los datos.</p>
 
 <h2>11. Retención de Datos</h2>
 <p>Conservamos los datos durante el tiempo necesario para prestar el Servicio, cumplir con las obligaciones legales (incluida la retención de registros fiscales, típicamente 7 años o más) y resolver disputas y hacer cumplir nuestros acuerdos. Usted puede solicitar la eliminación de su cuenta y sus datos en cualquier momento, sujeto a esos requisitos legales de retención. La eliminación es permanente e irrecuperable.</p>
@@ -274,7 +328,8 @@ export const es: PrivacyLocale = {
 <p>Empleamos medidas estándar del sector, incluyendo HTTPS/TLS 1.3 en tránsito, cifrado AES-256 en reposo de datos sensibles, control de acceso basado en roles y protocolos de respuesta ante brechas. Sin embargo, ningún sistema es completamente seguro, y no podemos garantizar protección absoluta contra todos los ataques o brechas.</p>
 
 <h2>13. Solicitudes Legales y Fuerzas del Orden</h2>
-<p>Podemos divulgar datos únicamente cuando lo exija un proceso legal válido (como una citación judicial u orden de un tribunal) o para investigar fraude o abuso con la debida autoridad legal. <strong>No compartimos datos con empresas de análisis de cadena ni con fuerzas del orden sin un proceso legal válido</strong>, y, en la medida en que lo permita la ley, le notificaremos de dichas solicitudes. No atendemos solicitudes informales.</p>
+<p>Podemos divulgar datos únicamente cuando lo exija un proceso legal válido (como una citación judicial u orden de un tribunal) o para investigar fraude o abuso con la debida autoridad legal. <strong>No compartimos datos con las fuerzas del orden sin un proceso legal válido, y las empresas de análisis de blockchain no reciben de nosotros nada más que las verificaciones de direcciones descritas a continuación.</strong> En la medida en que lo permita la ley, le notificaremos las solicitudes legales relativas a sus datos. No atendemos solicitudes informales.</p>
+<p><strong>Verificaciones de direcciones y enlaces.</strong> Cuando usted, o cualquier persona que utilice nuestros verificadores, nos pide verificar una dirección o un enlace, nuestros servidores envían esa dirección o ese enlace a los servicios de verificación indicados en la Sección 10. Entre ellos hay servicios operados por las empresas de análisis de blockchain Chainalysis y TRM Labs (que opera Chainabuse). Una verificación incluye la dirección o el enlace (y, para algunos servicios, la blockchain a la que pertenece) y nada más sobre usted: ni su nombre, ni su correo electrónico, ni el identificador de su cuenta, ni su dirección IP. Se trata solo de consultas: nunca enviamos un enlace ni una dirección para que se analice. Las direcciones y los enlaces de los correos enviados a nuestros propios buzones o desde ellos se comprueban solo con listas que conservamos nosotros mismos y nunca se envían a estos servicios. No enviamos informes de estafa o fraude sobre nadie, ni a estos servicios ni a ningún otro destinatario, y no presentamos denuncias ante las fuerzas del orden.</p>
 
 <h2>14. Transferencias Internacionales de Datos</h2>
 <p>Sus datos pueden ser procesados y almacenados en los Estados Unidos u otros países. Al utilizar el Servicio, usted consiente dicha transferencia y procesamiento, sujeto a la legislación aplicable en materia de protección de datos.</p>
@@ -307,7 +362,7 @@ export const fr: PrivacyLocale = {
   ariaLabel: 'Politique de Confidentialité',
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
-<p><strong>Date d'entrée en vigueur :</strong> 20 juin 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.1<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 12 octobre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.2<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>
@@ -350,10 +405,10 @@ export const fr: PrivacyLocale = {
 <h3>3.3 Informations que nous ne collectons PAS</h3>
 <ul>
   <li>Clés privées ou seed phrases (nous ne les demandons jamais).</li>
-  <li>Clés API d'exchanges ni mots de passe (les données sont importées uniquement via CSV ou lues par adresse publique).</li>
+  <li>Clés API d'exchanges ni mots de passe (les données sont importées via CSV ou via des captures d'écran que vous téléversez, ou lues par adresse publique).</li>
   <li>Identifiants biométriques ou pièces d'identité gouvernementales.</li>
   <li>Données de liaison d'identité — nous n'effectuons pas de KYC.</li>
-  <li>Numéros de comptes bancaires ou de cartes de crédit/débit (les données de carte sont traitées exclusivement par Stripe).</li>
+  <li>Numéros de comptes bancaires ou de cartes de crédit/débit. Nous ne les demandons jamais, et les données de carte servant à la facturation sont traitées exclusivement par Stripe. Si une capture d'écran ou un reçu que vous téléversez en affiche un, il fait partie de cette image : nous conservons les images que vous enregistrez dans votre compte (Section 3.1) et transmettons à Anthropic les captures que vous nous demandez de lire (Section 8).</li>
 </ul>
 
 <h2>4. Comment Nous Utilisons les Informations</h2>
@@ -361,6 +416,7 @@ export const fr: PrivacyLocale = {
 <ul>
   <li>Vous fournir le Service (p. ex., calculer la base de coût, afficher votre tableau de bord, générer des rapports, effectuer les vérifications de sécurité que vous demandez).</li>
   <li>Authentifier votre compte et prévenir les accès non autorisés, la fraude et les abus.</li>
+  <li>Comparer les liens et les adresses de wallet qui figurent dans les e-mails envoyés à nos propres boîtes de réception ou depuis celles-ci avec des listes d'hameçonnage, de sanctions et de mixeurs que nous conservons nous-mêmes. Pour cela, rien de ces messages n'est transmis à un service extérieur.</li>
   <li>Faire fonctionner les fonctionnalités de sécurité communautaire de manière anonymisée et agrégée (Section 6).</li>
   <li>Répondre à vos demandes de support.</li>
   <li>Améliorer le Service grâce à des analyses agrégées et non identifiantes.</li>
@@ -398,13 +454,38 @@ export const fr: PrivacyLocale = {
 </ul>
 
 <h2>8. Fonctionnalités d'IA</h2>
-<p>Les fonctionnalités d'IA optionnelles (classification des transactions et validation des reçus) transmettent les données de transaction pertinentes ou le reçu téléversé à notre fournisseur d'IA, <strong>Anthropic (Claude)</strong>, afin de générer des suggestions que vous examinez et confirmez. Les résultats ne sont pas définitifs.</p>
+<p>Les fonctionnalités d'IA optionnelles transmettent des données à notre fournisseur d'IA, <strong>Anthropic (Claude)</strong>, uniquement lorsque vous les utilisez :</p>
+<ul>
+  <li><strong>Lecture de captures d'écran :</strong> lorsque vous utilisez « Scanner la capture » (libellés d'adresses), « Importer une capture » ou « Analyser et importer » (captures enregistrées sur la page Transactions), l'image entière est transmise afin que Claude lise l'adresse de wallet ou la transaction qu'elle contient. Tout ce qui y est visible, comme des noms, des montants et des informations de compte, est également transmis ; recadrez donc l'image pour en exclure ce que vous préférez ne pas partager. Contrairement aux scans de QR par caméra (Sections 5 et 7), qui sont décodés sur votre appareil, ces images quittent votre appareil.</li>
+  <li><strong>Classification des transactions</strong> (abonnements payants) : pour chaque transaction non résolue, son sens (entrée ou sortie), l'actif, le montant, la valeur en USD, le type, la description, la source, la date, ainsi que vos propres notes et votre catégorie.</li>
+  <li><strong>Validation des reçus</strong> (abonnements payants) : l'image du reçu que vous joignez. Les PDFs ne sont pas transmis.</li>
+</ul>
+<p>Les résultats ne sont pas définitifs. Les adresses lues dans une capture sont placées dans le formulaire pour que vous les vérifiiez avant de les enregistrer. Une transaction lue dans une capture est enregistrée immédiatement dans vos données ; vérifiez-la et supprimez cette importation si elle est erronée. La classification attribue une catégorie et une note aux transactions qu'elle juge clairement être un achat, un revenu ou un transfert entre vos propres wallets, lorsqu'elles n'ont pas encore de catégorie, et vous laisse les autres ; vous pouvez modifier chacune d'elles. Les résultats de la validation des reçus sont des suggestions que vous examinez.</p>
 
 <h2>9. Cookies et Analytics</h2>
-<p>Nous utilisons des cookies et des technologies similaires pour les fonctionnalités essentielles et pour les analyses agrégées via <strong>Google Analytics</strong>. Lorsque cela est requis, nous présentons un mécanisme de consentement et respectons vos choix.</p>
+<p>Nous utilisons un petit nombre de cookies et d'éléments de stockage similaires dans le navigateur :</p>
+<ul>
+  <li><strong>Essentiels :</strong> votre session de connexion et ses contrôles de sécurité, ainsi que la session de démonstration si vous essayez la démo. Le Service ne fonctionne pas sans eux.</li>
+  <li><strong>Préférences :</strong> la langue que vous choisissez et de petits réglages, comme la taille du texte ou le fait d'avoir déjà vu l'introduction d'une page, conservés dans votre navigateur.</li>
+  <li><strong>Analytique :</strong> <strong>Google Analytics</strong> dépose ses propres cookies pour compter les visites et voir quelles pages sont utilisées. La Section 10 indique ce qu'il reçoit.</li>
+</ul>
+<p>Nous n'utilisons pas de cookies à des fins publicitaires. Nous n'affichons pas actuellement de bandeau de consentement aux cookies. Pour refuser Google Analytics, bloquez les cookies d'almstins.com dans votre navigateur, utilisez un bloqueur de contenu ou installez le module complémentaire de désactivation de Google pour navigateurs. Le Service fonctionne sans les cookies d'analytique.</p>
 
 <h2>10. Services Tiers</h2>
-<p>Nous partageons le minimum de données nécessaire avec les prestataires de services qui nous aident à opérer, notamment : <strong>GitHub &amp; Google</strong> (connexion OAuth — nous recevons votre e-mail ; le nom/avatar du fournisseur est ignoré), <strong>Stripe</strong> (facturation — un prestataire PCI-DSS Level 1 ; les données de carte sont traitées entièrement par Stripe), <strong>Alchemy, Etherscan, Blockstream</strong> (données publiques blockchain), <strong>CoinGecko &amp; Coinpaprika</strong> (cours), <strong>GoPlus Security, VirusTotal, Chainabuse</strong> (données de risque d'adresses/sites), <strong>Anthropic</strong> (IA optionnelle), <strong>Turso</strong> (hébergement de base de données, chiffrement au repos), <strong>Render</strong> (hébergement), <strong>Google Analytics</strong>, et un fournisseur <strong>e-mail/SMTP</strong> (vérification, alertes, récapitulatif mensuel). Ces prestataires ont leurs propres pratiques en matière de confidentialité ; nous ne sommes pas responsables de leur traitement des données.</p>
+<p>Nous partageons le minimum de données nécessaire avec les prestataires de services ci-dessous, regroupés par finalité. Le cas échéant, nous indiquons ce que chacun reçoit.</p>
+<ul>
+  <li><strong>Connexion :</strong> <strong>Google</strong> et <strong>GitHub</strong>, uniquement si vous choisissez de vous connecter avec eux. Ils nous communiquent votre adresse e-mail et votre profil de base (comme votre nom et votre photo) ; nous ne conservons que l'e-mail et écartons le reste. Ils apprennent que vous vous êtes connecté à Almstins.</li>
+  <li><strong>Facturation :</strong> <strong>Stripe</strong> reçoit votre e-mail, votre abonnement et un identifiant de compte interne. Vous saisissez vos données de carte directement auprès de Stripe, un prestataire PCI-DSS Level 1 ; nous ne les voyons jamais.</li>
+  <li><strong>Hébergement et base de données :</strong> <strong>Render</strong> héberge le Service, notre base de données Postgres et nos journaux serveur. Render diffuse le site via le réseau de <strong>Cloudflare</strong>, qui voit chaque requête et votre adresse IP.</li>
+  <li><strong>E-mail :</strong> un fournisseur <strong>e-mail/SMTP</strong> (liens de connexion, vérification, e-mails de bienvenue, d'alerte et de compte, et messages que vous nous demandez d'envoyer à une contrepartie), <strong>Resend</strong> (e-mails de prise en main après votre inscription ou l'enregistrement de votre première destination Verify) et les prestataires qui hébergent nos propres boîtes de réception, dont <strong>Google (Gmail)</strong> (messages de support, de contact et de demande d'aide au rapprochement, rapports d'erreurs et avis de nouvelles inscriptions et de nouveaux abonnements). Chacun reçoit l'adresse e-mail du destinataire et le message.</li>
+  <li><strong>Analytique :</strong> <strong>Google Analytics</strong> (les pages que vous visitez, un identifiant de cookie, des informations sur votre navigateur et votre adresse IP) et <strong>IPinfo</strong> (votre adresse IP, pour en déterminer le pays ; de cette consultation, nous ne conservons que le pays, classé sous une empreinte à sens unique de l'adresse IP). Certaines pages chargent aussi des polices, des icônes ou des images directement depuis <strong>Google Fonts</strong>, le service d'icônes de Google, <strong>jsDelivr</strong> et des hébergeurs d'images, qui voient votre adresse IP et votre navigateur comme tout site web. À partir des icônes qu'une page demande, ces services peuvent savoir quels exchanges ou tokens figurent dans votre compte.</li>
+  <li><strong>Données blockchain :</strong> <strong>Alchemy, Etherscan, Routescan/Snowtrace</strong> (Avalanche), <strong>Blockstream</strong> (Bitcoin), <strong>litecoinspace.org</strong> (Litecoin), un fournisseur RPC <strong>Solana</strong>, <strong>Mysten Labs</strong> (Sui), le nœud public <strong>Rootstock</strong>, <strong>Sovryn</strong> et <strong>The Graph</strong> (subgraphs), ainsi que l'API <strong>Aave</strong>. Ils reçoivent les adresses de wallet publiques et les identifiants de transaction que nous devons lire, jamais les informations de votre compte.</li>
+  <li><strong>Cours :</strong> <strong>CoinGecko, DefiLlama</strong> et <strong>Yahoo Finance</strong> reçoivent les tokens ou les symboles boursiers à valoriser et les dates, jamais votre adresse de wallet ni les informations de votre compte.</li>
+  <li><strong>Vérifications de sécurité :</strong> <strong>GoPlus Security, honeypot.is, Chainalysis</strong> (son service de criblage des sanctions), <strong>Chainabuse</strong> (exploité par TRM Labs), <strong>Google Safe Browsing, VirusTotal</strong> et <strong>URLScan.io</strong> reçoivent l'adresse ou le lien vérifié ; nous n'ajoutons rien vous concernant à une vérification. Pour un lien, GoPlus, Google Safe Browsing et VirusTotal reçoivent le lien complet, y compris tout ce qui suit le domaine, tandis qu'URLScan.io ne reçoit que le domaine. Nous demandons seulement à VirusTotal s'il dispose déjà de résultats pour un lien ; nous ne lui soumettons jamais un lien à analyser. Évitez de vérifier des liens contenant des codes d'accès privés ou des données personnelles, y compris des liens privés que quelqu'un vous a envoyés. La Section 13 en dit plus sur les services exploités par des sociétés d'analyse de blockchain.</li>
+  <li><strong>IA :</strong> <strong>Anthropic</strong> reçoit ce que transmettent les fonctionnalités d'IA décrites à la Section 8, uniquement lorsque vous les utilisez.</li>
+  <li><strong>Horodatage :</strong> les serveurs de calendrier <strong>OpenTimestamps</strong> (exploités par OpenTimestamps, Eternity Wall et Catallaxy) ne reçoivent qu'une empreinte SHA-256 à sens unique, jamais l'enregistrement lui-même. Blockstream fournit les données publiques de blocs Bitcoin utilisées pour vérifier un horodatage.</li>
+</ul>
+<p>Nous téléchargeons aussi des listes publiques d'hameçonnage, de sanctions et de cours (par exemple depuis GitHub et CoinPaprika) ; ces requêtes ne contiennent rien vous concernant. Ces prestataires ont leurs propres pratiques en matière de confidentialité ; nous ne sommes pas responsables de leur traitement des données.</p>
 
 <h2>11. Conservation des Données</h2>
 <p>Nous conservons les données aussi longtemps que nécessaire pour fournir le Service, respecter les obligations légales (y compris la conservation des dossiers fiscaux, généralement 7 ans ou plus) et résoudre les litiges et faire respecter nos accords. Vous pouvez demander la suppression de votre compte et de vos données à tout moment, sous réserve de ces exigences légales de conservation. La suppression est permanente et irrécupérable.</p>
@@ -413,7 +494,8 @@ export const fr: PrivacyLocale = {
 <p>Nous appliquons des mesures conformes aux normes du secteur, notamment HTTPS/TLS 1.3 en transit, le chiffrement AES-256 au repos des données sensibles, le contrôle d'accès basé sur les rôles et des protocoles de réponse aux violations. Cependant, aucun système n'est entièrement sécurisé et nous ne pouvons garantir une protection absolue contre toutes les attaques ou violations.</p>
 
 <h2>13. Demandes Légales et Forces de l'Ordre</h2>
-<p>Nous ne pouvons divulguer des données que si cela est exigé par une procédure judiciaire valide (telle qu'une citation à comparaître ou une ordonnance du tribunal) ou pour enquêter sur une fraude ou un abus avec l'autorité légale appropriée. <strong>Nous ne partageons pas de données avec des sociétés d'analyse de chaîne ni avec les forces de l'ordre sans procédure judiciaire valide</strong>, et, dans la mesure où la loi le permet, nous vous informerons de telles demandes. Nous ne donnons pas suite aux demandes informelles.</p>
+<p>Nous ne pouvons divulguer des données que si cela est exigé par une procédure judiciaire valide (telle qu'une citation à comparaître ou une ordonnance du tribunal) ou pour enquêter sur une fraude ou un abus avec l'autorité légale appropriée. <strong>Nous ne partageons pas de données avec les forces de l'ordre sans procédure judiciaire valide, et les sociétés d'analyse de blockchain ne reçoivent de notre part rien d'autre que les vérifications d'adresses décrites ci-dessous.</strong> Dans la mesure où la loi le permet, nous vous informerons des demandes légales visant vos données. Nous ne donnons pas suite aux demandes informelles.</p>
+<p><strong>Vérifications d'adresses et de liens.</strong> Lorsqu'une vérification d'adresse ou de lien nous est demandée, par vous ou par toute personne utilisant nos outils de vérification, nos serveurs transmettent cette adresse ou ce lien aux services de vérification indiqués à la Section 10. Parmi eux figurent des services exploités par les sociétés d'analyse de blockchain Chainalysis et TRM Labs (qui exploite Chainabuse). Une vérification ne transmet que l'adresse ou le lien (et, pour certains services, la blockchain concernée), et rien d'autre vous concernant : ni votre nom, ni votre e-mail, ni l'identifiant de votre compte, ni votre adresse IP. Il ne s'agit que de consultations : nous ne soumettons jamais un lien ou une adresse à analyser. Les adresses et les liens des e-mails envoyés à nos propres boîtes de réception ou depuis celles-ci ne sont comparés qu'à des listes que nous conservons nous-mêmes et ne sont jamais transmis à ces services. Nous ne déposons aucun signalement d'arnaque ou de fraude concernant qui que ce soit, ni auprès de ces services ni auprès de quiconque.</p>
 
 <h2>14. Transferts Internationaux de Données</h2>
 <p>Vos données peuvent être traitées et stockées aux États-Unis ou dans d'autres pays. En utilisant le Service, vous consentez à ce transfert et à ce traitement, sous réserve du droit applicable en matière de protection des données.</p>

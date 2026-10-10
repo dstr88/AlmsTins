@@ -1,105 +1,69 @@
 /**
  * mailThreats.ts — run an incoming message through the wallet checker.
  *
- * Extracts every wallet address and link from a message, checks each against the same
- * sources the public checker uses, and records what it finds.
+ * Extracts every wallet address and link from a message, checks each against lists
+ * Almstins holds locally, and records what it finds.
  *
- * ── Why the two checks are budgeted differently ─────────────────────────────
- * lookupDomainThreats() reads lists already held locally and refreshed on a schedule,
- * so it costs nothing per message and every URL gets checked.
- *
- * checkWallet() calls external APIs. Left unbounded, one mailing list with forty
- * addresses in the footer would burn the quota and stall the cron behind forty
- * round trips. So addresses are capped per message and per run, and the checker's own
- * cache is consulted first. A capped scan is honest as long as the cap is visible,
- * which is why scanned_at is recorded separately from the findings: no findings means
- * "checked, nothing found", a null scanned_at means "not checked".
+ * ── Nothing from a message leaves Almstins ──────────────────────────────────
+ * Mail is other people's data (support requests, partners, strangers), so screening it
+ * never calls an outside service (decided 2026-10-10, privacy policy v1.2):
+ *   - links: lookupDomainThreats() reads the locally mirrored MetaMask and ScamSniffer
+ *     lists, refreshed on a schedule;
+ *   - wallet addresses: localAddressVerdict() reads the local OFAC mirror and the curated
+ *     mixer and compromised-contract lists. It never calls checkWallet(), which would send
+ *     the address to GoPlus, Chainalysis, Chainabuse and others.
+ * Local lists are not a full scan, so a clean address stays silent rather than reading
+ * as safe. scanned_at is recorded separately from the findings: no findings means
+ * "checked, nothing found on our lists", a null scanned_at means "not checked".
  */
 
 import { randomUUID } from 'node:crypto';
 import { db } from './db';
-import { lookupDomainThreats } from './threatLists';
-import { checkWallet, getCached, isValidAddress } from './walletChecker';
+import { lookupDomainThreats, lookupSanctionedAddress } from './threatLists';
+import { canonicalAddress, isCompromisedAddress, isMixerAddress, isValidAddress } from './walletChecker';
 
-/** Addresses put through the full API check, per message. */
+/** Addresses checked per message, so a footer full of addresses stays cheap. */
 const MAX_ADDRESSES_PER_MESSAGE = 5;
-/** And across one poll run, so a burst of mail cannot exhaust the quota. */
+/** Kept for the poll's budget object; address checks are local now and do not spend it. */
 const MAX_ADDRESS_CHECKS_PER_RUN = 25;
 
 /** URLs are cheap, but a message with a thousand links is not worth unbounded work. */
 const MAX_URLS_PER_MESSAGE = 25;
 
-/**
- * How long a verdict is trusted, by how bad it is.
- *
- * A danger verdict is durable — a sanctioned or blacklisted address does not become
- * clean — so re-checking it only burns quota. A clean verdict is perishable: today's
- * unknown address is tomorrow's reported drainer, and a stale clean is the dangerous
- * direction to be wrong in.
- */
-const TTL_DAYS = { danger: 30, caution: 7, clean: 3 } as const;
-
-interface CachedVerdict {
+interface LocalVerdict {
 	scamLevel: 'clean' | 'caution' | 'danger';
 	scamScore: number;
 	flags: Record<string, boolean>;
 	partialCoverage: boolean;
 }
 
-/** A verdict from Postgres, or null if absent or expired. */
-async function readCachedVerdict(address: string): Promise<CachedVerdict | null> {
-	try {
-		const r = await db.execute({
-			sql: `SELECT scam_level, scam_score, flags_json, partial
-			      FROM wallet_verdict_cache
-			      WHERE address = ? AND expires_at > now()
-			      LIMIT 1`,
-			args: [address.toLowerCase()],
-		});
-		const row = r.rows[0] as Record<string, unknown> | undefined;
-		if (!row) return null;
-		return {
-			scamLevel: String(row.scam_level) as CachedVerdict['scamLevel'],
-			scamScore: Number(row.scam_score ?? 0),
-			flags: JSON.parse(String(row.flags_json ?? '{}')),
-			partialCoverage: Boolean(row.partial),
-		};
-	} catch {
-		// A cache miss and a cache failure are the same thing to the caller: check live.
-		return null;
-	}
+/**
+ * The verdict for an address found in mail, from local data only: the OFAC mirror and
+ * the curated mixer and compromised-contract lists. Local lists are not a full scan, so
+ * partialCoverage is always true and a clean result means "not on our lists".
+ */
+async function localAddressVerdict(address: string): Promise<LocalVerdict> {
+	const canonical = canonicalAddress(address);
+	const sanctioned = await lookupSanctionedAddress(canonical).catch(() => false);
+	const blacklisted = isCompromisedAddress(canonical);
+	const mixer = isMixerAddress(canonical);
+	return {
+		scamLevel: sanctioned || blacklisted ? 'danger' : mixer ? 'caution' : 'clean',
+		scamScore: sanctioned ? 100 : blacklisted ? 90 : mixer ? 40 : 0,
+		flags: { sanctioned, blacklisted, mixer },
+		partialCoverage: true,
+	};
 }
 
-async function writeCachedVerdict(address: string, chain: string | null, v: CachedVerdict): Promise<void> {
-	try {
-		const days = TTL_DAYS[v.scamLevel] ?? TTL_DAYS.clean;
-		await db.execute({
-			sql: `INSERT INTO wallet_verdict_cache
-			        (address, chain, scam_level, scam_score, flags_json, partial, checked_at, expires_at)
-			      VALUES (?, ?, ?, ?, ?, ?, now(), now() + (? || ' days')::interval)
-			      ON CONFLICT (address) DO UPDATE
-			        SET chain = EXCLUDED.chain,
-			            scam_level = EXCLUDED.scam_level,
-			            scam_score = EXCLUDED.scam_score,
-			            flags_json = EXCLUDED.flags_json,
-			            partial = EXCLUDED.partial,
-			            checked_at = now(),
-			            expires_at = EXCLUDED.expires_at`,
-			args: [
-				address.toLowerCase(), chain, v.scamLevel, Math.round(v.scamScore),
-				JSON.stringify(v.flags ?? {}), v.partialCoverage, String(days),
-			],
-		});
-	} catch (err) {
-		console.warn('[mailThreats] verdict cache write failed:', err instanceof Error ? err.message : err);
-	}
-}
-
-/** Housekeeping — called by the poll so the table cannot grow without bound. */
+/**
+ * Housekeeping — called by the poll. wallet_verdict_cache held verdicts from the old
+ * outside-service checks of mail addresses. Nothing reads or writes it now, so the sweep
+ * empties it rather than keeping addresses taken from mail.
+ */
 export async function sweepVerdictCache(): Promise<void> {
 	try {
-		await db.execute({ sql: `DELETE FROM wallet_verdict_cache WHERE expires_at < now()` });
-	} catch { /* non-fatal */ }
+		await db.execute({ sql: `DELETE FROM wallet_verdict_cache` });
+	} catch { /* non-fatal; the table may not exist */ }
 }
 
 export interface Finding {
@@ -186,12 +150,12 @@ export function extractDomains(text: string): string[] {
  * Scan one message. Returns findings; never throws — a scanner failure must not lose
  * the mail it was scanning.
  *
- * `budget` is shared across a poll run: pass the same object for every message so the
- * per-run address cap actually holds.
+ * `_budget` is kept so callers need not change: address checks are local now and do not
+ * spend it.
  */
 export async function scanMessage(
 	text: string,
-	budget: { addressChecksLeft: number },
+	_budget: { addressChecksLeft: number },
 	opts: { dangerOnly?: boolean; tenantId?: string | null } = {},
 ): Promise<Finding[]> {
 	const findings: Finding[] = [];
@@ -242,28 +206,9 @@ export async function scanMessage(
 				findings.push(known);
 			}
 
-			// Three tiers, cheapest first. Postgres outlives the process and is shared
-			// across mailboxes, so a scam address circulating in twenty messages over a
-			// week costs one API call rather than twenty.
-			let verdict: CachedVerdict | null = await readCachedVerdict(address);
-
-			if (!verdict) {
-				const live = getCached(address) ?? (
-					budget.addressChecksLeft > 0
-						? (budget.addressChecksLeft--, await checkWallet(address))
-						: null
-				);
-				if (!live) continue;
-				verdict = {
-					scamLevel: live.scamLevel,
-					scamScore: live.scamScore,
-					flags: live.flags as unknown as Record<string, boolean>,
-					partialCoverage: live.partialCoverage,
-				};
-				await writeCachedVerdict(address, live.chain ?? null, verdict);
-			}
-
-			const result = verdict;
+			// Local lists only (see localAddressVerdict): nothing from the message leaves
+			// Almstins.
+			const result = await localAddressVerdict(address);
 
 			// partialCoverage means no primary scam source ran for this chain, so a
 			// "clean" result is not a confident one. The checker itself flags this; the
@@ -272,15 +217,9 @@ export async function scanMessage(
 
 			const f = result.flags;
 			const reasons: string[] = [];
-			if (f.blacklisted) reasons.push('on a global blacklist');
 			if (f.sanctioned) reasons.push('OFAC sanctioned');
-			if (f.phishing) reasons.push('linked to phishing');
-			if (f.honeypotRelated) reasons.push('honeypot related');
-			if (f.stealingAttack) reasons.push('linked to a stealing attack');
-			if (f.darkwebTransactions) reasons.push('dark web activity');
-			if (f.mixer) reasons.push('mixer activity');
-			if (f.moneyLaundering || f.financialCrime || f.cybercrime) reasons.push('financial crime');
-			if (f.blackmail) reasons.push('blackmail reports');
+			if (f.blacklisted) reasons.push('on the known-compromised list');
+			if (f.mixer) reasons.push('a known mixer');
 
 			if (result.scamLevel === 'danger' || reasons.length) {
 				findings.push({
@@ -288,8 +227,8 @@ export async function scanMessage(
 					value: address,
 					severity: 'danger',
 					reason: reasons.length
-						? `Wallet ${reasons.join(', ')}`
-						: `Wallet scored ${result.scamScore}/100 by the checker`,
+						? `Wallet ${reasons.join(', ')} (local lists)`
+						: `Wallet scored ${result.scamScore}/100 on local lists`,
 				});
 			} else if (result.scamLevel === 'caution' && !opts.dangerOnly) {
 				findings.push({
@@ -300,7 +239,7 @@ export async function scanMessage(
 				});
 			}
 		} catch {
-			// Same reasoning as above: an unreachable checker is not a verdict.
+			// Same reasoning as above: a failed list lookup is not a verdict.
 		}
 	}
 
