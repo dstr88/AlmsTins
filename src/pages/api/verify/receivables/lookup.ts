@@ -9,44 +9,43 @@
  * managing account, or any legal identity (the no-attribution boundary, same as
  * /api/verify/lookup). Read-only; the queried ID is never written anywhere. Per-IP
  * rate-limited, independent of other Verify budgets.
+ *
+ * Headers and limits come from src/lib/http/publicApi.ts: JSON, no-store, no CORS. The limit
+ * is 30 lookups a minute per client, bucketed by clientIpKey (the trusted client address, an
+ * IPv6 address by its /64) in a bounded limiter. The error bodies are pinned by
+ * tests/receivables/lookupRoute.test.ts and must not change.
  */
 import type { APIRoute } from 'astro';
 import { getReceivableStatus } from '@/lib/receivablesRegistry';
+import { createFixedWindowLimiter } from '@/lib/rateLimit';
+import { admitByIp, methodNotAllowed, publicJson } from '@/lib/http/publicApi';
 
 export const prerender = false;
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-
-const HITS = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 30;
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const e = HITS.get(ip);
-  if (!e || now >= e.resetAt) { HITS.set(ip, { count: 1, resetAt: now + WINDOW_MS }); return false; }
-  e.count += 1;
-  return e.count > MAX_PER_WINDOW;
-}
+const limiter = createFixedWindowLimiter({ windowMs: WINDOW_MS, max: 30 });
 
 const isHex64 = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-fA-F]{64}$/.test(s);
 
-export const GET: APIRoute = async ({ url, clientAddress }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   const raw = url.searchParams.get('id');
-  if (!isHex64(raw)) return json({ ok: false, error: 'A valid receivable ID (64 hex chars) is required.' }, 400);
+  if (!isHex64(raw)) return publicJson({ ok: false, error: 'A valid receivable ID (64 hex chars) is required.' }, 400);
 
-  const ip = clientAddress || 'unknown';
-  if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
+  const limited = admitByIp(limiter, request, {
+    body: { ok: false, error: 'Too many requests.' },
+    retryAfterSeconds: WINDOW_MS / 1000,
+  });
+  if (limited) return limited;
 
   try {
     const status = await getReceivableStatus(raw.toLowerCase());
-    if (!status) return json({ ok: true, found: false, receivable: null });
-    return json({ ok: true, found: true, receivable: status });
+    if (!status) return publicJson({ ok: true, found: false, receivable: null });
+    return publicJson({ ok: true, found: true, receivable: status });
   } catch (err) {
     console.error('[receivables-lookup] error:', err instanceof Error ? err.message : err);
-    return json({ ok: false, error: 'lookup_failed' }, 500);
+    return publicJson({ ok: false, error: 'lookup_failed' }, 500);
   }
 };
 
 // Read-only endpoint.
-export const POST: APIRoute = () => json({ ok: false, error: 'Method not allowed' }, 405);
+export const POST: APIRoute = () => methodNotAllowed({ ok: false, error: 'Method not allowed' }, 'GET');

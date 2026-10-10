@@ -8,10 +8,17 @@
  * due Y") — the obligor attesting against their own interest, which is what makes a
  * financing claim trustworthy. Signed with the Almstins key; digest Bitcoin-anchorable.
  * Only the self-chosen label is ever public — never tenant_id/identity.
+ *
+ * The row is recorded with source 'party_statement'. A statement that opens like a system
+ * answer (DISPUTED, DILIGENCE, UNANSWERED or DECLINED in capitals, or one of those words
+ * followed by a dash) answers 400 reserved_prefix: those openings mark answers recorded
+ * through a request link, and typed free text must not read as one.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { addAttestation, type AttesterRole } from '@/lib/receivablesRegistry';
+import { hasReservedPrefix } from '@/lib/receivables/attestationClass';
+import { RESERVED_PREFIX_MESSAGE } from '@/lib/receivables/copy/attest';
 
 export const prerender = false;
 
@@ -39,12 +46,18 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ ok: false, error: 'role_requires_token' }, 403);
   }
 
+  const statement = String(body.statement ?? '');
+  if (hasReservedPrefix(statement)) {
+    return json({ ok: false, error: 'reserved_prefix', message: RESERVED_PREFIX_MESSAGE }, 400);
+  }
+
   const role = ROLES.includes(body.role) ? (body.role as AttesterRole) : 'other';
   const result = await addAttestation(session.tenantId, String(body.receivableId ?? ''), {
     role,
     label: String(body.label ?? ''),
-    statement: String(body.statement ?? ''),
+    statement,
     date: body.date ? String(body.date) : undefined,
+    source: 'party_statement',
   });
 
   if (result.ok) return json(result);

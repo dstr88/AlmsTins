@@ -359,6 +359,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
   </main>
 
   <script>
+    import { isPartyDispute } from '@/lib/receivables/attestationClass';
     const $ = (id: string) => document.getElementById(id) as HTMLElement;
     const val = (id: string) => ($(id) as HTMLInputElement).value.trim();
     const esc = (s: unknown) => String(s == null ? '' : s)
@@ -519,7 +520,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       // Ahead of everything else. A second financier must never weigh a rehearsal as an
       // encumbrance, and must never dismiss a real claim because he expected a test.
       if (rcv.isTest) return { cls: 'rag-test', label: 'TEST RECORD — not a real receivable' };
-      if (rcv.disputed) return { cls: 'rag-disputed', label: '⚠ Disputed' };
+      if ((rcv.attestations || []).some((a: any) => isPartyDispute(a))) return { cls: 'rag-disputed', label: '⚠ Disputed' };
       if (rcv.settled) return { cls: 'rag-settled', label: 'Settled / paid' };
       if (rcv.status === 'partially_financed') return { cls: 'rag-partial', label: 'Partially encumbered' };
       if (rcv.status === 'fully_financed' || rcv.status === 'over_financed') return { cls: 'rag-full', label: 'Fully encumbered' };
