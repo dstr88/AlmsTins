@@ -59,7 +59,23 @@ beforeEach(() => {
   contractByChain = {}; // no code anywhere: an ordinary wallet
 });
 
-describe('an ordinary wallet: honeypot.is "No pairs found"', () => {
+describe('an ordinary wallet: honeypot.is "No pairs found" or "Token not found"', () => {
+  it('"Token not found" (the other 404 seen live for a plain wallet) is nothing to test too', async () => {
+    honeypotAnswer = { status: 404, body: JSON.stringify({ code: 404, error: 'Token not found' }) };
+    const r = await checkWallet(ADDR);
+    expect(r.coverage.honeypot).toBe('ran');
+    expect(r.partialCoverage).toBe(false);
+    expect(r.honeypot.notAToken).toBe(true);
+  });
+
+  it('"Token not found" for a contract stays cautious', async () => {
+    honeypotAnswer = { status: 404, body: JSON.stringify({ code: 404, error: 'Token not found' }) };
+    contractByChain = { '56': '1' };
+    const r = await checkWallet(ADDR);
+    expect(r.partialCoverage).toBe(true);
+    expect(r.honeypot.noMarket).toBe(true);
+  });
+
   it('is a full scan with nothing to test, not "Limited check"', async () => {
     const r = await checkWallet(ADDR);
     expect(r.coverage.honeypot).toBe('ran');
@@ -145,8 +161,9 @@ describe('copy', () => {
     expect(en.checker.honeypotNotAToken).toMatch(/^Nothing to test: honeypot\.is found no trading pair/);
     expect(es.checker.honeypotNotAToken).toMatch(/^Nada que probar: honeypot\.is no encontró/);
     expect(fr.checker.honeypotNotAToken).toMatch(/^Rien à tester : honeypot\.is n’a trouvé/);
-    expect(en.checker.honeypotNoMarket).toMatch(/no trading pair for this contract.*extra caution\.$/);
-    expect(es.checker.honeypotNoMarket).toMatch(/este contrato.*precaución adicional\.$/);
-    expect(fr.checker.honeypotNoMarket).toMatch(/ce contrat.*prudence accrue\.$/);
+    // Smart-account (EIP-7702) wallets carry code, so the no-market note must not call them a token.
+    expect(en.checker.honeypotNoMarket).toMatch(/^honeypot\.is found no trading market for this address.*Smart-account wallets have code too\..*extra caution\.$/);
+    expect(es.checker.honeypotNoMarket).toMatch(/esta dirección.*cuenta inteligente.*precaución adicional\.$/);
+    expect(fr.checker.honeypotNoMarket).toMatch(/cette adresse.*compte intelligent.*prudence accrue\.$/);
   });
 });

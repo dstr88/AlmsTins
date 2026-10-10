@@ -646,11 +646,12 @@ async function fetchHoneypotCheck(
       `https://api.honeypot.is/v2/IsHoneypot?address=${encodeURIComponent(address)}`,
     );
     if (res.status === 404) {
-      // honeypot.is tests tokens that trade. It answers 404 "No pairs found" both for an
-      // ordinary wallet and for a token with no market; checkWallet tells the two apart with
-      // GoPlus's contract flag (see resolveNoPairs). Any other 404 is still an error.
+      // honeypot.is tests tokens that trade. For an address it has no market for it answers
+      // 404 "No pairs found" or "Token not found" (both seen live for ordinary wallets on
+      // 2026-10-10), and the same for a token with no market. checkWallet tells a wallet from
+      // a contract with GoPlus's contract flag (see resolveNoPairs). Any other 404 is an error.
       const body = await res.text().catch(() => '');
-      if (/no pairs found/i.test(body)) return { honeypot, errors, noPairs: true };
+      if (/no pairs found|token not found/i.test(body)) return { honeypot, errors, noPairs: true };
     }
     if (!res.ok) { errors.push(`Honeypot.is returned ${res.status}`); return { honeypot, errors }; }
     const json = await res.json() as any;
