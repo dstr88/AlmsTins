@@ -41,7 +41,7 @@
  * hold, per /verify/agents).
  */
 import type { APIRoute } from 'astro';
-import { getClientIp } from '@/lib/analytics/ip';
+import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { displayableName } from '@/lib/verifyPublicCard';
@@ -60,17 +60,12 @@ const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =
 // Own budget, separate from /lookup's — an agent hammering the check must not starve
 // the badge lookups (or vice versa). Anonymous callers get a per-IP budget; a
 // domain-proven key (see /api/verify/agent-keys) gets a fleet-scale per-key budget.
-const HITS = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 60_000;
+// Anonymous budgets are keyed on the Cloudflare-set client IP (an IPv6 client by its /64);
+// both limiters are bounded so unique keys can't grow memory without limit.
 const ANON_PER_WINDOW = 30;
 const KEYED_PER_WINDOW = 300;
-function rateLimited(bucket: string, max: number): boolean {
-  const now = Date.now();
-  const e = HITS.get(bucket);
-  if (!e || now >= e.resetAt) { HITS.set(bucket, { count: 1, resetAt: now + WINDOW_MS }); return false; }
-  e.count += 1;
-  return e.count > max;
-}
+const anonLimiter = createFixedWindowLimiter({ windowMs: 60_000, max: ANON_PER_WINDOW });
+const keyedLimiter = createFixedWindowLimiter({ windowMs: 60_000, max: KEYED_PER_WINDOW });
 
 /**
  * Normalize a caller's `expect` (or a hit's publishing domain) to a bare lowercase
@@ -93,7 +88,7 @@ function domainMatches(proving: string, expect: string): boolean {
   return proving === expect || proving.endsWith('.' + expect);
 }
 
-export const GET: APIRoute = async ({ request, url, clientAddress }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   const raw = (url.searchParams.get('value') ?? url.searchParams.get('address') ?? '').trim();
   if (!raw) return json({ ok: false, error: 'value is required' }, 400);
 
@@ -124,8 +119,8 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
     keyId = key.id;
   }
 
-  const bucket = keyId ? `k:${keyId}` : `ip:${getClientIp(request) ?? clientAddress ?? 'unknown'}`;
-  if (rateLimited(bucket, keyId ? KEYED_PER_WINDOW : ANON_PER_WINDOW)) {
+  const limited = keyId ? keyedLimiter.hit(`k:${keyId}`) : anonLimiter.hit(clientIpKey(request));
+  if (limited) {
     return json({ ok: false, error: 'rate limited' }, 429, { 'Retry-After': '60' });
   }
 

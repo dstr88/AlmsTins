@@ -15,7 +15,7 @@
  * wallet-check budget. Makes no upstream fetch (no SSRF surface).
  */
 import type { APIRoute } from 'astro';
-import { getClientIp } from '@/lib/analytics/ip';
+import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { isEmvPayload } from '@/lib/paymentQr';
@@ -23,19 +23,11 @@ import { isEmvPayload } from '@/lib/paymentQr';
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-// Lightweight per-IP limiter, separate from /api/wallet-check's budget. 30 req/min.
-const HITS = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 30;
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const e = HITS.get(ip);
-  if (!e || now >= e.resetAt) { HITS.set(ip, { count: 1, resetAt: now + WINDOW_MS }); return false; }
-  e.count += 1;
-  return e.count > MAX_PER_WINDOW;
-}
+// Lightweight per-client limiter, separate from /api/wallet-check's budget. 30 req/min,
+// keyed on the Cloudflare-set client IP (an IPv6 client by its /64), bounded.
+const lookupLimiter = createFixedWindowLimiter({ windowMs: 60_000, max: 30 });
 
-export const GET: APIRoute = async ({ request, url, clientAddress }) => {
+export const GET: APIRoute = async ({ request, url }) => {
   const raw = url.searchParams.get('address');
   if (typeof raw !== 'string' || !raw.trim()) {
     return json({ ok: false, error: 'address is required' }, 400);
@@ -51,8 +43,7 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
     if (!isValidAddress(query)) return json({ ok: false, error: 'Invalid address format' }, 400);
   }
 
-  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
-  if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
+  if (lookupLimiter.hit(clientIpKey(request))) return json({ ok: false, error: 'Too many requests.' }, 429);
 
   try {
     const hit = isQrValue ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);

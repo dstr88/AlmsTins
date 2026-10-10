@@ -18,29 +18,23 @@
  * never a 500, so the sandbox still shows the signed proof.
  */
 import type { APIRoute } from 'astro';
+import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
 import type { AnchorReceipt } from '@/lib/rwaProof/types';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-// Per-IP limiter — calendar submissions are cheap but external, so keep it modest.
-const HITS = new Map<string, { count: number; resetAt: number }>();
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 12;
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const e = HITS.get(ip);
-  if (!e || now >= e.resetAt) { HITS.set(ip, { count: 1, resetAt: now + WINDOW_MS }); return false; }
-  e.count += 1;
-  return e.count > MAX_PER_WINDOW;
-}
+// Per-client limiter — calendar submissions are cheap but external, so keep it modest.
+// Keyed on the Cloudflare-set client IP (an IPv6 client by its /64), never on Astro's
+// client address, which is the caller-set leftmost X-Forwarded-For; bounded so unique keys
+// can't grow memory without limit.
+const anchorLimiter = createFixedWindowLimiter({ windowMs: 60_000, max: 12 });
 
 const isHex64 = (s: unknown): s is string => typeof s === 'string' && /^[0-9a-fA-F]{64}$/.test(s);
 
-export const POST: APIRoute = async ({ request, clientAddress }) => {
-  const ip = clientAddress || 'unknown';
-  if (rateLimited(ip)) return json({ ok: false, error: 'rate_limited' }, 429);
+export const POST: APIRoute = async ({ request }) => {
+  if (anchorLimiter.hit(clientIpKey(request))) return json({ ok: false, error: 'rate_limited' }, 429);
 
   let body: any;
   try {

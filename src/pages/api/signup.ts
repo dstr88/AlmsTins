@@ -7,8 +7,7 @@ import { isLang, type Lang } from '@/lib/i18n/locale';
 import { setUserLang } from '@/lib/i18n/userLang';
 import { ensureAuthUsersCreatedAt } from '@/lib/authAdapter';
 import { normalizeSignupEmail } from '@/lib/emailAddress';
-import { getClientIp } from '@/lib/analytics/ip';
-import { createFixedWindowLimiter, ipBucket } from '@/lib/rateLimit';
+import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { issueSignupVerification } from '@/lib/signupVerification';
 
 export const prerender = false;
@@ -21,11 +20,6 @@ const MIN_PASSWORD_LENGTH = 10;
 // (an IPv6 client by its /64, see ipBucket).
 const signupLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
 
-function clientKey(request: Request, clientAddress: () => string): string {
-	let fallback = 'unknown';
-	try { fallback = clientAddress() || fallback; } catch { /* adapter without a client address */ }
-	return `ip:${ipBucket(getClientIp(request) ?? fallback)}`;
-}
 
 export const POST: APIRoute = async (context) => {
 	const { request, redirect } = context;
@@ -36,7 +30,7 @@ export const POST: APIRoute = async (context) => {
 	const lang: Lang = isLang(langRaw) ? langRaw : 'en';
 	const signupPath = lang === 'es' ? '/signup/es' : lang === 'fr' ? '/signup/fr' : '/signup';
 
-	if (signupLimiter.hit(clientKey(request, () => context.clientAddress))) {
+	if (signupLimiter.hit(clientIpKey(request))) {
 		return redirect(`${signupPath}?error=rate_limited`, 303);
 	}
 
