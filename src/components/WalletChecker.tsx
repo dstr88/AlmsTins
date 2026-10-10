@@ -288,7 +288,13 @@ function TabContent({ tab, result, activityLoad, c }: {
       </p>
     );
     if (!h.checked) return (
-      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>{c.honeypotUnavailable}</p>
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>{h.noMarket ? c.honeypotNoMarket : c.honeypotUnavailable}</p>
+    );
+    if (h.notAToken) return (
+      <div>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', lineHeight: 1.6 }}>{c.honeypotNotAToken}</p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>{c.honeypotSource}</p>
+      </div>
     );
     return (
       <div>

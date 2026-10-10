@@ -196,6 +196,9 @@ describe('checkWallet coverage: a chain no scam source covers is never a clean a
   });
 
   const goplusCalls = () => fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('gopluslabs'));
+  // The flag lookups (Ethereum, BNB Chain, Polygon), apart from the contract-only probe of
+  // Base and Arbitrum that the honeypot "No pairs found" rule uses.
+  const goplusFlagCalls = () => goplusCalls().filter((u) => !/chain_id=(8453|42161)\b/.test(u));
 
   it.each([
     ['legacy BTC 1…', BTC_P2PKH, 'bitcoin'],
@@ -261,7 +264,7 @@ describe('checkWallet coverage: a chain no scam source covers is never a clean a
   it('EVM: GoPlus answering an error inside HTTP 200 counts as did-not-run', async () => {
     goplus = () => ({ code: 2004, message: 'address format error', result: null });
     const r = await checkWallet(EVM);
-    expect(goplusCalls()).toHaveLength(3);
+    expect(goplusFlagCalls()).toHaveLength(3);
     expect(r.coverage.goplus).toBe('error');
     expect(r.partialCoverage).toBe(true);
     expect(r.errors.some((e) => e.includes('GoPlus(Ethereum) error code 2004'))).toBe(true);
@@ -286,7 +289,7 @@ describe('checkWallet coverage: a chain no scam source covers is never a clean a
 
   it('EVM: every chain complete and honeypot.is up is a full scan', async () => {
     const r = await checkWallet(EVM);
-    expect(goplusCalls()).toHaveLength(3);
+    expect(goplusFlagCalls()).toHaveLength(3);
     expect(r.coverage).toMatchObject({ goplus: 'ran', honeypot: 'ran' });
     expect(r.partialCoverage).toBe(false);
   });

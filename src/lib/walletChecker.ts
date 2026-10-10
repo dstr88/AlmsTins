@@ -218,6 +218,10 @@ export interface WalletCheckResult {
     checked: boolean;
     isHoneypot: boolean | null;
     reason: string | null;
+    /** honeypot.is found no trading pair and GoPlus saw no contract code: an ordinary wallet, nothing to test. */
+    notAToken?: boolean;
+    /** honeypot.is found no trading pair for a contract: its tokens have no market to test (the check stays unavailable). */
+    noMarket?: boolean;
   };
   fundingSource: {
     fromMixer: boolean | null;
@@ -439,7 +443,7 @@ const GOPLUS_CHAINS = new Set<Chain>(Object.keys(GOPLUS_CHAIN_IDS) as Chain[]);
 // https://gopluslabs.io/
 async function fetchGoPlusFlags(
   address: string,
-): Promise<{ flags: Partial<WalletCheckResult['flags']>; errors: string[] }> {
+): Promise<{ flags: Partial<WalletCheckResult['flags']>; errors: string[]; isContract?: boolean | null }> {
   const errors: string[] = [];
   const flags: Partial<WalletCheckResult['flags']> = {};
   const chain = detectChain(address);
@@ -448,6 +452,8 @@ async function fetchGoPlusFlags(
   if (!chainIds) {
     return { flags, errors }; // chain not covered: skipped, which makes the scan partial
   }
+  // GoPlus's contract_address on each chain it answered: true if any chain has code.
+  const contractFlags: boolean[] = [];
 
   const flag = (v: unknown) => String(v) === '1';
 
@@ -468,6 +474,9 @@ async function fetchGoPlusFlags(
         errors.push(`GoPlus(${label}) error code ${String(json?.code ?? 'missing').slice(0, 12)}`);
       }
       const d = json?.result && typeof json.result === 'object' ? json.result : {};
+      if (Number(json?.code) === 1 && (d.contract_address === '0' || d.contract_address === '1')) {
+        contractFlags.push(d.contract_address === '1');
+      }
       // OR-merge: once a flag is true on any chain it stays true
       if (flag(d.blacklist_doubt))          flags.blacklisted         = true;
       if (flag(d.phishing_activities))      flags.phishing            = true;
@@ -485,7 +494,54 @@ async function fetchGoPlusFlags(
     }
   }));
 
-  return { flags, errors };
+  return { flags, errors, isContract: contractVerdict(contractFlags, chainIds.length) };
+}
+
+/** True if any chain reported contract code, false only if every chain answered "no code", else unknown. */
+function contractVerdict(flags: boolean[], expected: number): boolean | null {
+  if (flags.some(Boolean)) return true;
+  return flags.length === expected ? false : null;
+}
+
+// Chains honeypot.is can find token pairs on that the GoPlus flag lookup above does not ask
+// about. Asked only whether the address has contract code there, so a token that lives only
+// on Base or Arbitrum is never mistaken for an ordinary wallet. A failure here counts as
+// "unknown", which keeps the scan partial; it never adds an error of its own.
+const GOPLUS_CONTRACT_PROBE_CHAINS = [
+  { id: '8453',  label: 'Base' },
+  { id: '42161', label: 'Arbitrum' },
+];
+
+async function fetchGoPlusContractProbe(address: string): Promise<boolean | null> {
+  const results = await Promise.allSettled(GOPLUS_CONTRACT_PROBE_CHAINS.map(async ({ id }) => {
+    const res = await fetchWithTimeout(
+      `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${id}`,
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as Record<string, any>;
+    const v = json?.result?.contract_address;
+    return Number(json?.code) === 1 && (v === '0' || v === '1') ? v === '1' : null;
+  }));
+  const flags = results.map((r) => (r.status === 'fulfilled' ? r.value : null)).filter((v): v is boolean => v !== null);
+  return contractVerdict(flags, GOPLUS_CONTRACT_PROBE_CHAINS.length);
+}
+
+/**
+ * honeypot.is answered "No pairs found". For an ordinary wallet (GoPlus saw no contract code
+ * on any chain asked) that is nothing to test: the source ran. For a contract it means the
+ * token has no market, so the check stays unavailable and the scan stays partial, the
+ * cautious result for a token being sold outside any exchange. Unknown stays unavailable.
+ */
+export function resolveNoPairs(isContract: boolean | null | undefined, probe: boolean | null | undefined): {
+  honeypot: WalletCheckResult['honeypot'];
+  errors: string[];
+} {
+  if (isContract === false && probe === false) {
+    return { honeypot: { checked: true, isHoneypot: null, reason: null, notAToken: true }, errors: [] };
+  }
+  const honeypot: WalletCheckResult['honeypot'] = { checked: false, isHoneypot: null, reason: null };
+  if (isContract === true || probe === true) honeypot.noMarket = true;
+  return { honeypot, errors: ['Honeypot.is found no trading pair'] };
 }
 
 // Chainalysis free sanctions-screening API — an OPTIONAL live fallback for the `sanctioned`
@@ -582,13 +638,20 @@ async function fetchTokenBalances(
 // Honeypot.is — free, EVM only
 async function fetchHoneypotCheck(
   address: string,
-): Promise<{ honeypot: WalletCheckResult['honeypot']; errors: string[] }> {
+): Promise<{ honeypot: WalletCheckResult['honeypot']; errors: string[]; noPairs?: boolean }> {
   const errors: string[] = [];
   const honeypot: WalletCheckResult['honeypot'] = { checked: false, isHoneypot: null, reason: null };
   try {
     const res = await fetchWithTimeout(
       `https://api.honeypot.is/v2/IsHoneypot?address=${encodeURIComponent(address)}`,
     );
+    if (res.status === 404) {
+      // honeypot.is tests tokens that trade. It answers 404 "No pairs found" both for an
+      // ordinary wallet and for a token with no market; checkWallet tells the two apart with
+      // GoPlus's contract flag (see resolveNoPairs). Any other 404 is still an error.
+      const body = await res.text().catch(() => '');
+      if (/no pairs found/i.test(body)) return { honeypot, errors, noPairs: true };
+    }
     if (!res.ok) { errors.push(`Honeypot.is returned ${res.status}`); return { honeypot, errors }; }
     const json = await res.json() as any;
     honeypot.checked    = true;
@@ -1090,7 +1153,7 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
 
   // Run all fetchers in parallel — each is independently fault-tolerant. Activity is not
   // one of them: it is a fact, never a verdict input (fetchWalletActivity, its own endpoint).
-  const [goplusResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult] =
+  const [goplusResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult, contractProbeResult] =
     await Promise.allSettled([
       fetchGoPlusFlags(address),
       chain === 'evm'                          ? fetchTokenBalances(address)
@@ -1101,11 +1164,19 @@ export async function checkWallet(input: string): Promise<WalletCheckResult> {
       fetchEntityLabel(address),
       fetchENSName(address),
       fetchChainavuseReports(address),
+      chain === 'evm' ? fetchGoPlusContractProbe(address) : Promise.resolve(null),
     ]);
 
   const goplus       = goplusResult.status       === 'fulfilled' ? goplusResult.value       : { flags: {}, errors: ['GoPlus check failed'] };
   const holdings     = holdingsResult.status     === 'fulfilled' ? holdingsResult.value     : { holdings: [], errors: ['Holdings check failed'] };
-  const honeypot     = honeypotResult.status     === 'fulfilled' ? honeypotResult.value     : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
+  const honeypotRaw  = honeypotResult.status     === 'fulfilled' ? honeypotResult.value     : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
+  // "No pairs found": nothing to test for an ordinary wallet, no market for a contract.
+  const honeypot = 'noPairs' in honeypotRaw && honeypotRaw.noPairs
+    ? resolveNoPairs(
+        (goplus as { isContract?: boolean | null }).isContract,
+        contractProbeResult.status === 'fulfilled' ? contractProbeResult.value : null,
+      )
+    : honeypotRaw;
   const multiSig     = multiSigResult.status     === 'fulfilled' ? multiSigResult.value     : { multiSig: null, errors: [] };
   const entityLookup = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
   const entityLabel  = entityLookup.label;
