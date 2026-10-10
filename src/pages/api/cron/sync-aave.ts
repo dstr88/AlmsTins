@@ -11,6 +11,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncLiquidationsToImportTransactions } from '@/lib/aave/syncAaveLiquidations';
+import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
 
 export const prerender = false;
 
@@ -49,6 +50,25 @@ const USER_POSITIONS_QUERY = `
     }
   }
 `;
+
+const AAVE_CHAINS: readonly unknown[] = Object.values(CHAIN_KEYS);
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * Whether a wallet row can hold Aave positions: an EVM address on at least one chain we query.
+ * `chains` arrives as JSON text or as an array, depending on the driver. Empty, missing or
+ * unreadable chains mean the default EVM chains, as safeParseChains reads them for the app;
+ * the address check keeps that default from sending a Bitcoin or Solana address to Aave.
+ */
+function hasAaveChain(chainsRaw: unknown, address: string): boolean {
+	if (!EVM_ADDRESS.test(address)) return false;
+	let chains = chainsRaw;
+	if (typeof chains === 'string') {
+		try { chains = JSON.parse(chains); } catch { chains = []; }
+	}
+	const list: readonly unknown[] = Array.isArray(chains) && chains.length ? chains : DEFAULT_ERC20_CHAINS;
+	return list.some((c) => AAVE_CHAINS.includes(c));
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -150,7 +170,7 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log('[cron/sync-aave] Starting weekly Aave sync');
 
 	const walletsResult = await db.execute(
-		`SELECT id, tenant_id, address, label
+		`SELECT id, tenant_id, address, label, chains
 		 FROM wallets
 		 WHERE wallet_type = 'onchain' OR wallet_type IS NULL
 		 ORDER BY tenant_id, created_at ASC`,
@@ -169,10 +189,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const label = String(row.label ?? address.slice(-5));
 
 		// Skip non-EVM wallets (Bitcoin, Solana, Litecoin don't have Aave positions)
-		const chainsRaw = row.chains;
-		const chains: string[] = Array.isArray(chainsRaw) ? chainsRaw : typeof chainsRaw === 'string' ? JSON.parse(chainsRaw as string) : [];
-		const hasEvm = chains.some((c) => ['ethereum', 'polygon', 'avalanche'].includes(c));
-		if (!hasEvm) {
+		if (!hasAaveChain(row.chains, address)) {
 			console.log(`[cron/sync-aave] Skipping ${label} — no EVM chains`);
 			results.push({ walletId, label, status: 'skipped' });
 			continue;
