@@ -16,9 +16,12 @@
 //     "Accepts financing of"), and the statement says "via a single-use link";
 //   - exactly one answered request link (receivable_invites) for the same receivable, sent by
 //     the same tenant, of the matching kind, whose recorded answerer appears in the statement
-//     ("Answered by <name>" / "Accepted by <name>"), answered within 10 minutes before the
-//     attestation was written;
-//   - and that link matches no other candidate row.
+//     ("Answered by <name>" / "Accepted by <name>"), with the database's insert stamp on the
+//     row (created_at) no more than 2 minutes after the link was answered and no more than
+//     60s before it (clock slack between the app and the database). attested_at holds only a
+//     date, so it must be the day of the answer or of the insert;
+//   - and that link matches no other candidate row, and could not have written any other
+//     link-worded row either (a dispute, a decline, or a row that already has a source).
 // Disputes and system notes are not touched: their opening words already classify them.
 //
 // `source` is not part of the signed manifest, so Verify now and every signature still check.
@@ -41,13 +44,22 @@ if (!attCols.has('source')) {
 	await c.end();
 	process.exit(0);
 }
+if (!attCols.has('created_at')) {
+	console.log('receivable_attestations has no created_at column, so no answer can be timed: nothing to do');
+	await c.end();
+	process.exit(0);
+}
 
 // Only the rows that could qualify, then the matching itself in plain code
 // (src/scripts/attestationSourceMatch.mjs, unit-tested).
 const attestations = (await c.query(
-	`SELECT id, receivable_id, tenant_id, role, statement, attested_at, source
+	`SELECT id, receivable_id, tenant_id, role, statement, attested_at, created_at, source
 	   FROM receivable_attestations
-	  WHERE source IS NULL AND statement LIKE '% via a single-use link%'`)).rows;
+	  WHERE statement LIKE '% via a single-use link%'`)).rows;
+// Rows cut at the 600-character limit before the link wording are invisible to the match.
+const clipped = Number((await c.query(
+	`SELECT count(*) AS n FROM receivable_attestations
+	  WHERE source IS NULL AND length(statement) >= 600 AND statement NOT LIKE '% via a single-use link%'`)).rows[0].n);
 const invites = (await c.query(
 	`SELECT token, receivable_id, from_tenant, role, accepted_at, accepted_by,
 	        ${invCols.has('claim_id') ? 'claim_id' : 'NULL AS claim_id'},
@@ -55,17 +67,26 @@ const invites = (await c.query(
 	   FROM receivable_invites
 	  WHERE accepted_at IS NOT NULL AND accepted_by IS NOT NULL`)).rows;
 const { tags, counts } = matchAttestationSources(attestations, invites);
+// For unmatched rows, the first rule that left no link (counts only, nothing identifying).
+const whyText = (why) => {
+	const hit = Object.entries(why).filter(([, n]) => n > 0).map(([rule, n]) => `${rule}=${n}`);
+	return hit.length ? ` (first failed: ${hit.join(' ')})` : '';
+};
 const lines = Object.entries(counts).map(([src, n]) =>
-	`${src}: candidates=${n.candidates} provable=${n.provable} ambiguous=${n.ambiguous} unmatched=${n.unmatched}`);
-if (!invCols.has('claim_id') || !invCols.has('offer_id')) {
-	lines.push('note: receivable_invites lacks claim_id or offer_id, so receipt, record and offer rows cannot be told apart and stay untagged');
+	`${src}: candidates=${n.candidates} provable=${n.provable} ambiguous=${n.ambiguous} unmatched=${n.unmatched}${whyText(n.why)}`);
+const kindsKnown = invCols.has('claim_id') && invCols.has('offer_id');
+if (!kindsKnown) {
+	lines.push('note: receivable_invites lacks claim_id or offer_id, so link kinds cannot be told apart: nothing will be tagged');
+}
+if (clipped > 0) {
+	lines.push(`note: ${clipped} row(s) were cut at 600 characters before any link wording; they are left alone`);
 }
 
 console.log(APPLY ? 'APPLY' : 'DRY RUN (read-only)');
 for (const l of lines) console.log('  ' + l);
 
 let failed = false;
-if (APPLY && tags.length > 0) {
+if (APPLY && kindsKnown && tags.length > 0) {
 	await c.query('BEGIN');
 	try {
 		for (const t of tags) {
