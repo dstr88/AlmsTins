@@ -1696,10 +1696,15 @@ export async function createInvite(
   const claimId = input.claimId ? String(input.claimId).trim() : null;
   if (claimId) {
     const owns = await db.execute({
-      sql: `SELECT 1 FROM receivable_claims WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      sql: `SELECT receivable_id FROM receivable_claims WHERE id = ? AND tenant_id = ? LIMIT 1`,
       args: [claimId, fromTenant],
     });
     if (!owns.rows.length) return { ok: false, error: 'claim_not_found' };
+    // The answer page reads the advance's own receivable, so a link filed under another one
+    // would list on the wrong record.
+    if (receivableId && String((owns.rows[0] as any).receivable_id) !== receivableId) {
+      return { ok: false, error: 'claim_not_found' };
+    }
   }
 
   const token = inviteToken();
