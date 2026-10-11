@@ -1967,7 +1967,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
         const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(j.token)}`;
         ($('cs-email') as HTMLInputElement).value = '';
-        show(out, `<b>Request created.</b> Send it to ${esc(email)} from your own email. The claim shows as confirmed once he answers.<br>${copyButton(link)}`, 'note-gain');
+        show(out, `<b>Request created.</b> Send it to ${esc(email)} from your own email. The claim shows as confirmed once they answer.<br>${copyButton(link)}`, 'note-gain');
         loadCountersigns();
         return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }

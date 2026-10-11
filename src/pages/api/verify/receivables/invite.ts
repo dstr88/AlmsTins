@@ -1,7 +1,8 @@
 /**
  * Invitations onto a receivable.
  *
- * POST   { role, receivableId?, label?, email? }  -> mint a single-use token
+ * POST   { role, receivableId?, label?, email?, claimId?, offerId? }  -> mint a single-use token
+ *        (claimId: a "did this advance arrive?" link; offerId: an offer to accept)
  * POST   { action: 'accept', token }              -> spend it, writing the access grant
  * POST   { action: 'revoke', token }              -> withdraw one you sent
  * GET    ?token=…                                 -> what an invitee sees before signing in
@@ -85,6 +86,7 @@ export const POST: APIRoute = async ({ request }) => {
   const result = await createInvite(session.tenantId, {
     role,
     receivableId: body.receivableId ?? null,
+    claimId: body.claimId ?? null,
     offerId: body.offerId ?? null,
     label: body.label ?? null,
     email: body.email ?? null,
