@@ -48,8 +48,8 @@ describe('matchAttestationSources', () => {
 			inv({ token: 'k-rec', role: 'supplier', accepted_by: 'Bo' }),
 			inv({ token: 'k-off', role: 'supplier', accepted_by: 'Bo', offer_id: 'o1' }),
 		];
-		// Three supplier links answered by "Bo" at the same moment would make each row match
-		// several links, so space them out like real answers.
+		// A link must not be able to explain two link-worded rows, so three links answered by
+		// "Bo" in the same minute would all be ambiguous. Space them out like real answers.
 		links[0].accepted_at = '2026-09-05 10:00:00'; rows[0].created_at = '2026-09-05 10:00:01';
 		links[1].accepted_at = '2026-09-05 11:00:00'; rows[1].created_at = '2026-09-05 11:00:01';
 		links[2].accepted_at = '2026-09-05 12:00:00'; rows[2].created_at = '2026-09-05 12:00:01';
@@ -76,7 +76,10 @@ describe('matchAttestationSources', () => {
 		['someone else answered the link', {}, { accepted_by: 'Mallory' }, 'answerer'],
 		['a supplier link for a debtor statement', {}, { role: 'supplier' }, 'kind'],
 		['the row was written 3 minutes after the link was claimed', { created_at: '2026-09-05 14:06:12' }, {}, 'window'],
+		['the row was stamped 121s after the link was claimed', { created_at: '2026-09-05 14:05:12' }, {}, 'window'],
+		['the row was stamped 61s before the link was claimed', { created_at: '2026-09-05 14:02:10' }, {}, 'window'],
 		['the row was written before the link was claimed', { created_at: '2026-09-05 13:50:00' }, {}, 'window'],
+		['the answerer is a longer name that starts the same', {}, { accepted_by: 'Ada' }, 'answerer'],
 		['the row has no insert stamp', { created_at: null }, {}, 'window'],
 		['the insert stamp is unreadable', { created_at: 'yesterday' }, {}, 'window'],
 		['the signed date is another day', { attested_at: '2026-09-04' }, {}, 'day'],
@@ -85,6 +88,36 @@ describe('matchAttestationSources', () => {
 		expect(r.tags).toEqual([]);
 		expect(r.counts.debtor_confirmation.unmatched).toBe(1);
 		expect(r.counts.debtor_confirmation.why[rule as string]).toBe(1);
+	});
+
+	it.each([
+		['120s after', '2026-09-05 14:05:11'],
+		['60s before', '2026-09-05 14:02:11'],
+	])('still tags a row stamped exactly %s the link was claimed', (_when, createdAt) => {
+		const r = matchAttestationSources([att({ created_at: createdAt })], [inv()]);
+		expect(r.tags).toEqual([{ id: 'a1', source: 'debtor_confirmation' }]);
+	});
+
+	// A link is answered once and writes one row. If its real answer was a dispute, a copy of
+	// the confirmation wording typed by the sender in the same minute must not borrow it.
+	it('tags nothing when the link could also have written a dispute or a row that has a source', () => {
+		const dispute = att({ id: 'disp', role: 'other', created_at: '2026-09-05 14:03:11',
+			statement: 'DISPUTED — states this invoice is not theirs. Invoice INV-1. Answered by Ada Obi (AP lead) via a single-use link.' });
+		const copied = att({ id: 'typed', created_at: '2026-09-05 14:04:31' });
+		const r = matchAttestationSources([dispute, copied], [inv()]);
+		expect(r.tags).toEqual([]);
+		expect(r.counts.debtor_confirmation).toMatchObject({ candidates: 1, provable: 0, ambiguous: 1 });
+
+		const sourced = att({ id: 'post-s0a', source: 'debtor_dispute', created_at: '2026-09-05 14:03:11',
+			statement: 'DISPUTED — states the amount is wrong. Invoice INV-1. Answered by Ada Obi via a single-use link.' });
+		expect(matchAttestationSources([sourced, copied], [inv()]).tags).toEqual([]);
+	});
+
+	it('still tags when the other link-worded rows on the receivable belong to other answers', () => {
+		const elsewhere = att({ id: 'other', role: 'other', created_at: '2026-09-05 16:00:00',
+			statement: 'DISPUTED — states the amount is wrong. Invoice INV-1. Answered by Ada Obi via a single-use link.' });
+		const r = matchAttestationSources([att(), elsewhere], [inv()]);
+		expect(r.tags).toEqual([{ id: 'a1', source: 'debtor_confirmation' }]);
 	});
 
 	it('never touches a row that already has a source, a typed statement or a dispute', () => {
