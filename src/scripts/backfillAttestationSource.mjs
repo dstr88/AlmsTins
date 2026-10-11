@@ -16,8 +16,9 @@
 //     "Accepts financing of"), and the statement says "via a single-use link";
 //   - exactly one answered request link (receivable_invites) for the same receivable, sent by
 //     the same tenant, of the matching kind, whose recorded answerer appears in the statement
-//     ("Answered by <name>" / "Accepted by <name>"), answered within 10 minutes before the
-//     attestation was written;
+//     ("Answered by <name>" / "Accepted by <name>"), answered no more than 2 minutes before
+//     the database stamped the attestation (created_at; attested_at holds only the date, so it
+//     must fall on the same day);
 //   - and that link matches no other candidate row.
 // Disputes and system notes are not touched: their opening words already classify them.
 //
@@ -41,11 +42,16 @@ if (!attCols.has('source')) {
 	await c.end();
 	process.exit(0);
 }
+if (!attCols.has('created_at')) {
+	console.log('receivable_attestations has no created_at column, so no answer can be timed: nothing to do');
+	await c.end();
+	process.exit(0);
+}
 
 // Only the rows that could qualify, then the matching itself in plain code
 // (src/scripts/attestationSourceMatch.mjs, unit-tested).
 const attestations = (await c.query(
-	`SELECT id, receivable_id, tenant_id, role, statement, attested_at, source
+	`SELECT id, receivable_id, tenant_id, role, statement, attested_at, created_at, source
 	   FROM receivable_attestations
 	  WHERE source IS NULL AND statement LIKE '% via a single-use link%'`)).rows;
 const invites = (await c.query(
@@ -55,8 +61,13 @@ const invites = (await c.query(
 	   FROM receivable_invites
 	  WHERE accepted_at IS NOT NULL AND accepted_by IS NOT NULL`)).rows;
 const { tags, counts } = matchAttestationSources(attestations, invites);
+// For unmatched rows, the first rule that left no link (counts only, nothing identifying).
+const whyText = (why) => {
+	const hit = Object.entries(why).filter(([, n]) => n > 0).map(([rule, n]) => `${rule}=${n}`);
+	return hit.length ? ` (first failed: ${hit.join(' ')})` : '';
+};
 const lines = Object.entries(counts).map(([src, n]) =>
-	`${src}: candidates=${n.candidates} provable=${n.provable} ambiguous=${n.ambiguous} unmatched=${n.unmatched}`);
+	`${src}: candidates=${n.candidates} provable=${n.provable} ambiguous=${n.ambiguous} unmatched=${n.unmatched}${whyText(n.why)}`);
 if (!invCols.has('claim_id') || !invCols.has('offer_id')) {
 	lines.push('note: receivable_invites lacks claim_id or offer_id, so receipt, record and offer rows cannot be told apart and stay untagged');
 }
