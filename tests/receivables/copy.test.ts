@@ -9,6 +9,7 @@ import * as clipboardCopy from '../../src/lib/receivables/copy/clipboard';
 import * as claimCopy from '../../src/lib/receivables/copy/claim';
 import * as withdrawnCopy from '../../src/lib/receivables/copy/withdrawn';
 import * as duplicateCopy from '../../src/lib/receivables/copy/duplicate';
+import * as seenBeforeCopy from '../../src/lib/receivables/copy/seenBefore';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
 import { TERMS } from '../../src/lib/verifyTerms';
 
@@ -26,6 +27,7 @@ const COPY_MODULES: Record<string, Record<string, unknown>> = {
 	claim: claimCopy,
 	withdrawn: withdrawnCopy,
 	duplicate: duplicateCopy,
+	seenBefore: seenBeforeCopy,
 };
 
 /** Every string in a copy value, with its path. null (a "show nothing" slot) is skipped. */
@@ -91,12 +93,12 @@ describe('receivables copy keeps to the bright lines', () => {
 	});
 });
 
-describe('claim, status pill, withdrawn and duplicate copy never refuses, rejects, blocks or denies', () => {
+describe('claim, status pill, withdrawn, duplicate and seen-before copy never refuses, rejects, blocks or denies', () => {
 	// Stricter than the shared lending rule: no form of these words at all in the claim flow or
 	// the pill. The anchor module is left out on purpose ("pending a block" is a Bitcoin block).
 	const CLAIM_BAN = /\b(refus|reject|block|den(y|ied))\w*/i;
 
-	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate'])) {
+	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate', 'seenBefore'])) {
 		it(path, () => {
 			expect(value.match(CLAIM_BAN)?.[0] ?? null).toBeNull();
 		});
@@ -126,7 +128,7 @@ describe('S3 duplicate copy', () => {
 	// The registry is a voluntary record: "on record at Almstins" and "recorded as financed", never a
 	// claim that an invoice is free of other financing.
 	const FREE_OF = /\b(unencumbered|clear of|free of|not financed elsewhere|no other financ)/i;
-	for (const [path, value] of stringsOf(['duplicate'])) {
+	for (const [path, value] of stringsOf(['duplicate', 'seenBefore'])) {
 		it(`${path}: no em dash, never says free of financing`, () => {
 			expect(value).not.toContain('—');
 			expect(value.match(FREE_OF)?.[0] ?? null).toBeNull();
@@ -228,7 +230,7 @@ describe('no page still says an over-headroom claim is refused', () => {
 describe('S4 duplicate UI copy', () => {
 	// Almstins warns, never blocks, and never accuses anyone: "possible duplicate", not a verdict.
 	const S4_BAN = /\b(fraud\w*|block\w*|accus\w*|scam\w*|fake|forg(ed|ery))\b/i;
-	for (const [path, value] of stringsOf(['duplicate'])) {
+	for (const [path, value] of stringsOf(['duplicate', 'seenBefore'])) {
 		it(`${path}: no accusation, no "blocked"`, () => {
 			expect(value.match(S4_BAN)?.[0] ?? null).toBeNull();
 		});
@@ -249,6 +251,24 @@ describe('S4 duplicate UI copy', () => {
 		for (const line of [duplicateCopy.TAG_POSSIBLE_DUPLICATE_TITLE, duplicateCopy.CLAIM_NOTICE_POSSIBLE_DUPLICATE]) {
 			expect(line).toBe('Another record at Almstins matches this invoice.');
 		}
+	});
+});
+
+describe('S5 seen-before copy', () => {
+	it('the sign-in, unavailable and not-found lines read as the spec committed', () => {
+		expect(seenBeforeCopy.SEEN_BEFORE_SIGN_IN).toBe('Sign in to check whether an invoice is on record at Almstins.');
+		expect(seenBeforeCopy.SEEN_BEFORE_UNAVAILABLE).toBe('The check could not run just now. Try again in a minute. This is not an answer about the invoice.');
+		expect(seenBeforeCopy.SEEN_BEFORE_NOT_FOUND_MEANING).toBe('No exact record of this invoice is on record at Almstins. That is not a clean bill: it covers only records kept at Almstins with the same supplier, debtor, invoice number, amount and currency.');
+	});
+
+	it('"not found" is never a clean bill, and "unavailable" never reads as an answer', () => {
+		expect(seenBeforeCopy.SEEN_BEFORE_NOT_FOUND_MEANING).toContain('That is not a clean bill');
+		expect(seenBeforeCopy.SEEN_BEFORE_UNAVAILABLE).not.toMatch(/not found|no record|no match|nothing (is )?on record/i);
+	});
+
+	it('the demo line offers the free sign-up', () => {
+		expect(seenBeforeCopy.SEEN_BEFORE_DEMO).toMatch(/demo account/i);
+		expect(seenBeforeCopy.SEEN_BEFORE_DEMO).toMatch(/sign up free/i);
 	});
 });
 

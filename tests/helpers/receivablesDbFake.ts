@@ -6,7 +6,8 @@
  * and single-table or one-[LEFT] JOIN SELECTs with AND / OR / IS NULL / LIKE / IN (?, ...) and a
  * correlated EXISTS (SELECT 1 FROM t c WHERE ...) in WHERE and ON, select items that are columns,
  * COALESCE(a, b, ...) AS x or a parenthesized comparison or EXISTS ((a = ?) AS x,
- * (EXISTS (...)) AS x), ordered by one or more columns, COALESCE terms or parenthesized
+ * (EXISTS (...)) AS x) or a correlated sum ((SELECT COALESCE(SUM(c.col), 0) FROM t c WHERE ...)
+ * AS x), ordered by one or more columns, COALESCE terms or parenthesized
  * expressions with ASC / DESC and NULLS FIRST / LAST) and evaluates it against
  * plain row objects. db.batch runs its statements in order as one transaction: when one throws,
  * every table is put back the way it was before the batch. SET LOCAL lock_timeout is accepted and
@@ -254,6 +255,23 @@ function existsNodes(e: Expr, out: Array<Extract<Expr, { kind: 'exists' }>> = []
 	return out;
 }
 
+/**
+ * The rows of a correlated subquery's table that its WHERE keeps, for one outer row: an EXISTS, or
+ * a scalar SUM in a select list. Inner names first (alias.col, or a bare column of the inner
+ * table), then the outer row.
+ */
+function subqueryRows(q: { table: string; alias: string; where: Expr }, get: (col: string) => unknown, args: unknown[], env: Env): Row[] {
+	const cols = env.columns.get(q.table);
+	if (!cols) throw new Error(`relation "${q.table}" does not exist`);
+	return env.rowsOf(q.table).filter((row) => evalExpr(q.where, (ref) => {
+		if (ref.includes('.')) {
+			const [a, c] = ref.split('.');
+			return a === q.alias ? row[c] : get(ref);
+		}
+		return cols.has(ref) ? row[ref] : get(ref);
+	}, args, env));
+}
+
 const norm = (v: unknown): unknown => (v === true ? 'true' : v === false ? 'false' : v);
 
 function looseEq(a: unknown, b: unknown): boolean {
@@ -278,16 +296,7 @@ function evalExpr(e: Expr, get: (col: string) => unknown, args: unknown[], env?:
 		case 'or': return evalExpr(e.left, get, args, env) || evalExpr(e.right, get, args, env);
 		case 'exists': {
 			if (!env) throw new Error('fake db: EXISTS is supported only in SELECT');
-			const cols = env.columns.get(e.table);
-			if (!cols) throw new Error(`relation "${e.table}" does not exist`);
-			// Inner names first (alias.col, or a bare column of the inner table), then the outer row.
-			return env.rowsOf(e.table).some((row) => evalExpr(e.where, (ref) => {
-				if (ref.includes('.')) {
-					const [a, c] = ref.split('.');
-					return a === e.alias ? row[c] : get(ref);
-				}
-				return cols.has(ref) ? row[ref] : get(ref);
-			}, args, env));
+			return subqueryRows(e, get, args, env).length > 0;
 		}
 		case 'isnull': {
 			const v = val(e.operand);
@@ -489,7 +498,8 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 
 	const env: Env = { rowsOf, columns };
 
-	/** A value in a select list or ORDER BY: a column, a literal, ?, COALESCE(...), or (<comparison>). */
+	/** A value in a select list or ORDER BY: a column, a literal, ?, COALESCE(...), (<comparison>),
+	 *  or a correlated (SELECT COALESCE(SUM(...), 0) ...). */
 	type Value = { cols: string[]; exists: Array<Extract<Expr, { kind: 'exists' }>>; eval: (get: (c: string) => unknown, args: unknown[]) => unknown };
 	function compileValue(src: string, paramBase: { next: number }): Value {
 		const s = src.trim();
@@ -506,6 +516,29 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 					}
 					return null;
 				},
+			};
+		}
+		// A correlated scalar sum, (SELECT COALESCE(SUM(x.col), 0) FROM t x WHERE ...), evaluated per
+		// outer row like an EXISTS: its WHERE may name the outer query's columns. No other scalar
+		// subquery is understood, so (SELECT MAX(...) ...) or IN (SELECT ...) still throws.
+		const sum = s.match(/^\(SELECT COALESCE\(SUM\(([\w.]+)\), 0\) FROM (\w+)(?: (\w+))? WHERE (.*)\)$/is);
+		if (sum) {
+			const [, sumRef, table, alias = table, whereSrc] = sum;
+			let col = sumRef;
+			if (sumRef.includes('.')) {
+				const [a, c] = sumRef.split('.');
+				if (a !== alias) throw new Error(`fake db: SUM must name the subquery's own table: ${s}`);
+				col = c;
+			}
+			requireColumn(table, col);
+			const where = new ExprParser(tokenize(whereSrc), paramBase).parse();
+			// Its WHERE is scoped exactly like an EXISTS's, so select() checks it as one.
+			const scope: Extract<Expr, { kind: 'exists' }> = { kind: 'exists', table, alias, where };
+			return {
+				cols: [],
+				exists: [scope],
+				eval: (get, args) => subqueryRows(scope, get, args, env)
+					.reduce((total, row) => (row[col] == null ? total : total + Number(row[col])), 0),
 			};
 		}
 		const paren = s.match(/^\((.*)\)$/s);
