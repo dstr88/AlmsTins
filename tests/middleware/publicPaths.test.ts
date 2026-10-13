@@ -123,3 +123,28 @@ describe('the receivables duplicate precheck is not public', () => {
 		expect(appCalls.n).toBe(1);
 	});
 });
+
+/**
+ * "Seen before?" (receivables S5) answers only signed-in accounts: no anonymous tier and no
+ * agent-key tier, so it is never in isPublicPath and a signed-out request stops at app.ts, an
+ * Authorization header included.
+ */
+describe('the receivables "Seen before?" check is not public', () => {
+	it('isPublicPath leaves it out', () => {
+		expect(isPublicPath('/api/verify/receivables/check')).toBe(false);
+		expect(isPublicPath('/api/verify/receivables/check/')).toBe(false);
+	});
+
+	it('a signed-out POST goes through app.ts and never reaches the handler, with or without a key', async () => {
+		for (const headers of [
+			{ 'content-type': 'application/json' } as Record<string, string>,
+			{ 'content-type': 'application/json', authorization: `Bearer avk_${'0'.repeat(48)}` },
+		]) {
+			appCalls.n = 0;
+			const { res, next } = await run('/api/verify/receivables/check', { method: 'POST', headers, body: '{}' });
+			expect(next).not.toHaveBeenCalled();
+			expect(res.status).toBe(401);
+			expect(appCalls.n).toBe(1);
+		}
+	});
+});
