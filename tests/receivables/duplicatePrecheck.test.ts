@@ -308,6 +308,39 @@ describe('wirePrecheck: around a save', () => {
 		expect(f.calls).toHaveLength(2);
 	});
 
+	it('paused (the desk intake is recorded and locked): changes start nothing and the answer on screen stays', async () => {
+		let locked = false;
+		const h = wirePrecheck({
+			root: form as unknown as HTMLElement, read: () => ({ ...fields }), onResult: (a) => { results.push(a); },
+			fetchImpl: f.impl, now: () => clock, paused: () => locked,
+		});
+		h.suspend(); // the create answered
+		locked = true;
+		form.fire('change'); // the desk's mode radios sit outside the locked intake
+		await settle(2000);
+		expect(f.calls).toHaveLength(0);
+		expect(results).toEqual([]);
+		locked = false; // "Start another deal"
+		h.reset();
+		form.fire('input');
+		await settle(600);
+		expect(f.calls).toHaveLength(1);
+	});
+
+	it('paused also drops a check that was already waiting for the delay', async () => {
+		let locked = false;
+		wirePrecheck({
+			root: form as unknown as HTMLElement, read: () => ({ ...fields }), onResult: (a) => { results.push(a); },
+			fetchImpl: f.impl, now: () => clock, paused: () => locked,
+		});
+		form.fire('input');
+		await settle(300);
+		locked = true;
+		await settle(1000);
+		expect(f.calls).toHaveLength(0);
+		expect(results).toEqual([]);
+	});
+
 	it('flush checks at once', async () => {
 		const h = wire();
 		void h.flush();

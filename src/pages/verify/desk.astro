@@ -17,6 +17,8 @@ import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -527,7 +529,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       <div id="book-list" class="inbox" data-rcv-root="book"></div>
     </div>
 
-    <div class="card tin">
+    <div class="card tin" data-rcv-root="create-form">
       <h2>New client</h2>
       <p class="hint">
         He is across the desk with his paperwork. Three steps, all on this card. Only the four
@@ -535,12 +537,12 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       </p>
 
       <div class="modes" id="modes">
-        <label class="mode"><input type="radio" name="dealmode" value="real" checked /><span>Real world</span></label>
-        <label class="mode mode--test"><input type="radio" name="dealmode" value="test" /><span>Test</span></label>
+        <label class="mode"><input type="radio" name="dealmode" value="real" checked data-rcv-field="real-mode" /><span>Real world</span></label>
+        <label class="mode mode--test"><input type="radio" name="dealmode" value="test" data-rcv-field="test-mode" /><span>Test</span></label>
         <span class="modes__d" id="mode-note">A real deal. Everything recorded counts.</span>
       </div>
 
-      <div id="n-intake">
+      <div id="n-intake" data-rcv-lock>
       <div class="step__h" style="margin-bottom:1rem">
         <span class="step__n">1</span>
         <div>
@@ -551,19 +553,19 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
       <div class="grid2">
         <label class="fld">Client <span class="req">required</span>
-          <input id="n-sup" placeholder="Who you are financing" autocomplete="off" />
+          <input id="n-sup" data-rcv-field="supplier" placeholder="Who you are financing" autocomplete="off" />
         </label>
         <label class="fld">Debtor <span class="req">required</span>
-          <input id="n-buy" placeholder="Who owes him the money" autocomplete="off" />
+          <input id="n-buy" data-rcv-field="buyer" placeholder="Who owes him the money" autocomplete="off" />
         </label>
         <label class="fld">Invoice number <span class="req">required</span>
-          <input id="n-inv" placeholder="INV-2093" autocomplete="off" />
+          <input id="n-inv" data-rcv-field="invoiceNo" placeholder="INV-2093" autocomplete="off" />
         </label>
         <label class="fld">Face value <span class="req">required</span>
-          <input id="n-face" type="number" step="0.01" min="0" placeholder="50000000" />
+          <input id="n-face" data-rcv-field="face" type="number" step="0.01" min="0" placeholder="50000000" />
         </label>
         <label class="fld">Currency
-          <select id="n-ccy">
+          <select id="n-ccy" data-rcv-field="currency">
             <option value="NGN" selected={defaultCcy === 'NGN'}>NGN</option>
             <option value="USDC" selected={defaultCcy === 'USDC'}>USDC</option>
             <option value="USD">USD</option>
@@ -572,14 +574,12 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
             <option value="ZAR">ZAR</option>
           </select>
         </label>
+        <BuyerRefField variant="desk" id="n-ref" />
       </div>
 
       <details class="more">
         <summary><span class="more__i">+</span> Add more contract details (optional)</summary>
         <div class="grid2" style="margin-top:.8rem">
-        <label class="fld">Debtor's own reference
-          <input id="n-ref" placeholder="Their PO or contract no." autocomplete="off" />
-        </label>
         <label class="fld">Invoice date<input id="n-idate" type="date" /></label>
         <label class="fld">Delivery date<input id="n-ddate" type="date" /></label>
         <label class="fld">Due date<input id="n-due" type="date" /></label>
@@ -605,6 +605,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         </div>
       </details>
       </div>
+      <DuplicateFlag variant="desk" name="create" />
 
       <div class="sep"></div>
 
@@ -687,6 +688,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       <div class="panel__box">
       <WithdrawnNote variant="desk" />
       <div id="verdict"></div>
+      <DuplicateFlag variant="desk" name="record" />
 
       <div id="rail"></div>
       <div id="next"></div>
@@ -1411,6 +1413,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           }),
         });
         const j = await r.json();
+        hostBridge.emitCreateResult(j);
         if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
 
         show(out, 'Recording…', 'note-gain');

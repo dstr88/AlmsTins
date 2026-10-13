@@ -75,7 +75,9 @@ type FieldEl = HTMLInputElement | HTMLSelectElement;
 /**
  * The fields of a create form: the [data-rcv-field] elements inside root. "currency-other" is the
  * free-text currency the registry form shows when its select reads "__other"; "test-mode" is a
- * checkbox or the Test radio, read by .checked.
+ * checkbox or the Test radio, read by .checked. Any other marked control (the desk's "Real world"
+ * radio, "real-mode") is read by nothing here: it only starts a check when it changes, because a
+ * radio that is unchecked by its neighbor fires no event of its own.
  */
 export function readPrecheckFields(root: ParentNode): PrecheckFields {
 	const el = (name: string) => root.querySelector<FieldEl>(`[data-rcv-field="${name}"]`);
@@ -94,6 +96,9 @@ export interface PrecheckOptions {
 	read(): PrecheckFields;
 	/** The answer to show, or null to show nothing. */
 	onResult(answer: PrecheckAnswer | null): void;
+	/** True while the form is not taking a new invoice (the desk's recorded, locked intake): field
+	 *  changes then start nothing, and the answer on screen stays. Default: never. */
+	paused?: () => boolean;
 	fetchImpl?: typeof fetch;
 	delayMs?: number;
 	now?: () => number;
@@ -129,7 +134,7 @@ export function wirePrecheck(o: PrecheckOptions): PrecheckHandle {
 
 	async function check(): Promise<void> {
 		timer = null;
-		if (stopped || suspended) return;
+		if (stopped || suspended || o.paused?.()) return;
 		const fields = o.read();
 		if (!precheckReady(fields)) { shownKey = null; o.onResult(null); return; }
 		if (now() < pausedUntil) return;
@@ -168,6 +173,7 @@ export function wirePrecheck(o: PrecheckOptions): PrecheckHandle {
 	const onChange = (e: Event) => {
 		const t = e.target as Element | null;
 		if (!t || typeof t.closest !== 'function' || !t.closest('[data-rcv-field]')) return;
+		if (o.paused?.()) return;
 		suspended = false;
 		cancel();
 		if (stopped) return;
