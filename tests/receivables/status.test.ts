@@ -23,6 +23,12 @@ describe('financingStatusOf', () => {
 		[999.99, 1000, 'partially_financed'],
 		[1000, 1000, 'fully_financed'],
 		[1000.01, 1000, 'over_financed'],
+		// Float dust from summing claims in some order still reads as exactly the face.
+		[699.7 + 200.2 + 100.1, 1000, 'fully_financed'],
+		[0.1 + 0.2, 0.3, 'fully_financed'],
+		[999.9999999999, 1000, 'fully_financed'],
+		[999.99999, 1000, 'partially_financed'],
+		[1000.00001, 1000, 'over_financed'],
 	] as const)('%s against %s is %s', (claimed, face, status) => {
 		expect(financingStatusOf(claimed, face)).toBe(status);
 	});

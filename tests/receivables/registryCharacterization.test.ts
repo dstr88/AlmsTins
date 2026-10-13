@@ -85,10 +85,11 @@ describe('getReceivableStatus: financing status and lifecycle (pinned before sta
 		{ name: 'discharged claims do not count', claims: [[400, 'discharged'], [300, 'active']], status: 'partially_financed', lifecycle: 'financed', claimed: 300, available: 700 },
 		{ name: 'settled with an active claim', settled: true, claims: [[400, 'active']], status: 'partially_financed', lifecycle: 'settled', claimed: 400, available: 600 },
 		{ name: 'settled with no claims', settled: true, claims: [], status: 'unfinanced', lifecycle: 'settled', claimed: 0, available: 1000 },
-		// Pinned as found, not endorsed: the active amounts are summed in created_at order with
-		// plain floating point, so 0.1 + 0.2 against a face of 0.3 reads over-financed. The
-		// extraction must reproduce this exactly; changing it is its own decision.
-		{ name: 'float sums are compared as computed', face: 0.3, claims: [[0.1, 'active'], [0.2, 'active']], status: 'over_financed', lifecycle: 'financed', claimed: 0.1 + 0.2, available: 0.3 - (0.1 + 0.2) },
+		// The active amounts are summed in created_at order with plain floating point, so 0.1 + 0.2
+		// against a face of 0.3 is 0.30000000000000004. Until S5 that read over-financed; since S5,
+		// financingStatusOf treats a sum within one part in a billion of the face as equal, so it
+		// reads fully financed. claimed and available still report the sum as computed.
+		{ name: 'float sums within a hair of the face read fully financed', face: 0.3, claims: [[0.1, 'active'], [0.2, 'active']], status: 'fully_financed', lifecycle: 'financed', claimed: 0.1 + 0.2, available: 0.3 - (0.1 + 0.2) },
 	];
 
 	for (const c of cases) {
