@@ -10,6 +10,7 @@ import * as claimCopy from '../../src/lib/receivables/copy/claim';
 import * as withdrawnCopy from '../../src/lib/receivables/copy/withdrawn';
 import * as duplicateCopy from '../../src/lib/receivables/copy/duplicate';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
+import { TERMS } from '../../src/lib/verifyTerms';
 
 /**
  * Receivables copy (src/lib/receivables/copy/*) against the shared bright-line helper, plus a
@@ -248,5 +249,53 @@ describe('S4 duplicate UI copy', () => {
 		for (const line of [duplicateCopy.TAG_POSSIBLE_DUPLICATE_TITLE, duplicateCopy.CLAIM_NOTICE_POSSIBLE_DUPLICATE]) {
 			expect(line).toBe('Another record at Almstins matches this invoice.');
 		}
+	});
+});
+
+describe('glossary (verifyTerms) keeps to the bright lines', () => {
+	for (const t of TERMS) {
+		it(t.term, () => {
+			expect(brightLineViolations(`${t.term} ${t.def}`)).toEqual([]);
+		});
+	}
+
+	it('S4 adds "Debtor reference" after Debtor and "Possible duplicate" after Headroom, with no em dash', () => {
+		const terms = TERMS.map((t) => t.term);
+		expect(terms.indexOf('Debtor reference')).toBe(terms.indexOf('Debtor') + 1);
+		expect(terms.indexOf('Possible duplicate')).toBe(terms.indexOf('Headroom, or available') + 1);
+		for (const key of ['debtor-reference', 'possible-duplicate']) {
+			const t = TERMS.find((x) => x.key === key)!;
+			expect(t.def).not.toContain('—');
+			// "Fingerprint" already means a SHA-256 of a document or record in this glossary.
+			expect(t.def).not.toMatch(/fingerprint/i);
+		}
+		expect(TERMS.find((x) => x.key === 'possible-duplicate')!.def).toMatch(/^A warning, not a finding/);
+	});
+});
+
+// S3 made the duplicate check real, so no page may still say nothing matches two records.
+describe('no page still says duplicates go undetected', () => {
+	const PAGES = ['src/pages/verify/desk.astro', 'src/pages/verify/guide.astro', 'src/pages/verify/runsheet.astro', 'src/pages/verify/faq.astro', 'src/lib/verifyTerms.ts'];
+	const OLD = /Nothing (yet )?(detects|matches) two records|nothing keys off it|near-duplicate|Change any field and you get|only thing we could ever key duplicate detection/i;
+	it.each(PAGES)('%s', (p) => {
+		const src = readFileSync(fileURLToPath(new URL(`../../${p}`, import.meta.url)), 'utf8');
+		expect(src).not.toMatch(OLD);
+	});
+});
+
+describe('the S4 changelog day', () => {
+	const src = readFileSync(fileURLToPath(new URL('../../src/pages/verify/changelog.astro', import.meta.url)), 'utf8');
+	const start = src.indexOf("date: '2026-10-13'");
+	const day = src.slice(start, src.indexOf("date: '2026-10-12'"));
+
+	it('is the top day', () => {
+		expect(start).toBeGreaterThan(0);
+		expect(src.indexOf("date: '")).toBe(start);
+	});
+
+	it('keeps to the bright lines, with no em dash and no accusation', () => {
+		expect(day).not.toContain('—');
+		expect(brightLineViolations(day)).toEqual([]);
+		expect(day).not.toMatch(/\b(fraud\w*|blocked|accus\w*)\b/i);
 	});
 });

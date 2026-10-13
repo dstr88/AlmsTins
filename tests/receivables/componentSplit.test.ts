@@ -72,8 +72,14 @@ const budgetOf = (src: string) => inlineScriptLines(src).filter((l) => !isImport
  *  here (section 5.2 of the S1 spec). Later slices may only lower them. */
 const INLINE_BUDGET: Record<ReceivablesHost, number> = { desk: 1280, registry: 461, client: 163 };
 const STYLE_BUDGET: Record<ReceivablesHost, number> = { desk: 382, registry: 146, client: 96 };
-const EMITS: Record<ReceivablesHost, { record: number; book: number }> = {
-	desk: { record: 2, book: 1 }, registry: { record: 2, book: 1 }, client: { record: 1, book: 1 },
+const EMITS: Record<ReceivablesHost, { record: number; book: number; created: number }> = {
+	desk: { record: 2, book: 1, created: 1 }, registry: { record: 2, book: 1, created: 1 }, client: { record: 1, book: 1, created: 1 },
+};
+/** S4: each host places one create-form flag and one record flag, and the debtor reference field once. */
+const S4_TAGS: Record<ReceivablesHost, readonly string[]> = {
+	desk: ['<DuplicateFlag variant="desk" name="create" />', '<DuplicateFlag variant="desk" name="record" />', '<BuyerRefField variant="desk" id="n-ref" />'],
+	registry: ['<DuplicateFlag variant="registry" name="create" />', '<DuplicateFlag variant="registry" name="record" />', '<BuyerRefField variant="registry" id="c-buyerref" />'],
+	client: ['<DuplicateFlag variant="client" name="create" />', '<DuplicateFlag variant="client" name="record" />', '<BuyerRefField variant="client" id="f-ref" />'],
 };
 /** Components with no behavior of their own: markup and CSS only, no .client.ts. */
 const MARKUP_ONLY = new Set(['BuyerRefField']);
@@ -196,6 +202,20 @@ describe('host pages', () => {
 			expect(lines.filter((l) => l.trim() === "import * as hostBridge from '@/lib/receivables/client/hostBridge';")).toHaveLength(1);
 			expect(lines.filter((l) => /hostBridge\.emitRecordLoaded\(/.test(l))).toHaveLength(EMITS[h].record);
 			expect(lines.filter((l) => /hostBridge\.emitBookLoaded\(/.test(l))).toHaveLength(EMITS[h].book);
+			expect(lines.filter((l) => /hostBridge\.emitCreateResult\(/.test(l))).toHaveLength(EMITS[h].created);
+		});
+		it(`${h}: one create-form flag, one record flag and one debtor reference field (S4)`, () => {
+			const s = src();
+			for (const tag of S4_TAGS[h]) expect(s.split(tag).length - 1, tag).toBe(1);
+			expect((s.match(/<DuplicateFlag\b/g) ?? []).length).toBe(2);
+			expect((s.match(/<BuyerRefField\b/g) ?? []).length).toBe(1);
+		});
+		it(`${h}: the create form is one root, and its fields are marked for the live check (S4)`, () => {
+			const s = src();
+			expect(s.split('data-rcv-root="create-form"').length - 1).toBe(1);
+			for (const f of ['supplier', 'buyer', 'invoiceNo', 'face', 'currency']) expect(s.split(`data-rcv-field="${f}"`).length - 1, f).toBe(1);
+			// The debtor reference is marked inside BuyerRefField, never on the host.
+			expect(s).not.toContain('data-rcv-field="buyerRef"');
 		});
 		it(`${h}: imports fragments.css once in frontmatter`, () => {
 			expect(frontmatter(src()).match(/^import '@\/components\/receivables\/fragments\.css';$/gm)).toHaveLength(1);
@@ -214,7 +234,9 @@ describe('host pages', () => {
 			const s = src();
 			for (const gone of ['Timestamp submitted to Bitcoin', 'navigator.clipboard', 'function rag(', 'function anchorPill(',
 				'acceptDiligencePrompt', 'Refused. This would be a duplicate.', 'The write was rejected', 'rcv.disputed',
-				'tpill', 'class="rag', 'No debtor confirmation is on record', 'Record it anyway']) {
+				'tpill', 'class="rag', 'No debtor confirmation is on record', 'Record it anyway',
+				// S4: the claimed-only mark reads relation and comes from the StatusPill helper.
+				'mine === false', 'claimed only</span>', 'near-duplicate']) {
 				expect(s, `${h}: ${gone}`).not.toContain(gone);
 			}
 		});
