@@ -564,6 +564,14 @@ export function receivableColumnsEnsured(): boolean {
   return columnsEnsured;
 }
 
+/** Whether receivables.deleted_at is known to exist in this process: soft delete's own sticky flag,
+ *  for readers outside this module (the "Seen before?" store, S5). Valid only after
+ *  ensureReceivablesTables() was awaited. Never substitute receivableColumnsEnsured() for it: an
+ *  unrelated failed ALTER must not make withdrawn records read as live. */
+export function receivableDeletedAtReady(): boolean {
+  return deletedAtReady;
+}
+
 export function ensureReceivablesTables(): Promise<void> {
   const now = Date.now();
   if (ensurePromise && columnsRetryAt && now >= columnsRetryAt) {
