@@ -4,11 +4,11 @@
  * Returns structured Form 8949 data grouped by box.
  *
  * IRS Form 8949 boxes:
- *   Part I  — Short-term (held ≤ 365 days)
+ *   Part I  — Short-term (held one year or less)
  *     Box A: Covered   — basis reported to IRS on 1099-B (post-2025 exchange reports)
  *     Box B: Uncovered — NOT reported to IRS (pre-2025 exchange reports)
  *     Box C: All other — no 1099-B issued (all pre-2025 crypto defaults here)
- *   Part II — Long-term (held > 365 days)
+ *   Part II — Long-term (held more than one year)
  *     Box D: Covered
  *     Box E: Uncovered
  *     Box F: All other  ← all pre-2025 crypto goes here

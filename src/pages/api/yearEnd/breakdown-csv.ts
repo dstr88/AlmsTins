@@ -157,7 +157,7 @@ export const GET: APIRoute = async ({ request, url }) => {
           formatDate(i.acquiredDate),
           i.daysHeld,
           formatUsd(i.costUsd),
-          i.daysHeld >= 365 ? 'Long-term' : 'Short-term',
+          i.longTerm ? 'Long-term' : 'Short-term',
         ]);
         csvContent = buildCsv('Still Holding — Unrealized Positions', year, headers, rows);
         break;

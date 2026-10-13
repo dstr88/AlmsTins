@@ -5,6 +5,7 @@
  * Lot Manager — lets users pin a specific lot to each disposal.
  * When the Spec ID method is active, the engine uses these pins instead of FIFO.
  */
+import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
 import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
@@ -177,7 +178,7 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 												<option value={ol.acquiredDate + '|' + ol.amount}>
 													{fmtQty(ol.amount)} {t.acquiredOn(fmtDate(ol.acquiredDate))}
 													{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
-													· {ol.daysHeld >= 365 ? t.longTerm : t.shortTerm}
+													· {isLongTermHold(ol.acquiredDate, d.sellDate) ? t.longTerm : t.shortTerm}
 												</option>
 											))}
 										</select>
@@ -212,7 +213,7 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 											</p>
 											<p class="lm-disposal__meta">
 												{fmtDate(d.sellDate)} · {t.lotAcquiredOn(fmtDate(d.buyDate))} · {d.daysHeld} days ·
-												{d.daysHeld >= 365
+												{isLongTermHold(d.buyDate, d.sellDate)
 													? <span class="lm-term lm-term--long">{t.longTerm}</span>
 													: <span class="lm-term lm-term--short">{t.shortTerm}</span>}
 											</p>

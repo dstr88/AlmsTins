@@ -7,7 +7,7 @@
  * Sections:
  *   1. Cover — year, generated date, ownership note
  *   2. Summary — gains/losses by holding period, income, held cost basis
- *   3. Disposals — Less than 1 year
+ *   3. Disposals — One year or less
  *   4. Disposals — More than 1 year
  *   5. Income & Inflows
  *   6. Open Positions
@@ -210,7 +210,7 @@ function buildPdf(
 
     doc
       .fontSize(10).fillColor(MID_GRAY).font('Helvetica')
-      .text('Disposals — Less than 1 year', MARGIN + 20, boxY + 20, { width: 240, lineBreak: false })
+      .text('Disposals — One year or less', MARGIN + 20, boxY + 20, { width: 240, lineBreak: false })
       .fillColor(stGain >= 0 ? POS : NEG).font('Helvetica-Bold')
       .text(fUsd(stGain, true), MARGIN + 260, boxY + 20, { width: CONTENT_W - 280, align: 'right' });
 
@@ -251,12 +251,12 @@ function buildPdf(
     newPage();
     sectionTitle(`${year} Summary`);
 
-    summaryRow('Disposals — Less than 1 year', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
+    summaryRow('Disposals — One year or less', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
     summaryRow('Disposals — More than 1 year', fUsd(ltGain, true), ltGain >= 0 ? POS : NEG);
     summaryRow('Total received / earned', fUsd(income));
     summaryRow('Net realized gain / loss', fUsd(netGain, true), netGain >= 0 ? POS : NEG);
     summaryRow('Open lots — cost basis', fUsd(bd.totals.heldCostBasis));
-    summaryRow('Disposals — Less than 1 year (count)', String(bd.shortTerm.length));
+    summaryRow('Disposals — One year or less (count)', String(bd.shortTerm.length));
     summaryRow('Disposals — More than 1 year (count)', String(bd.longTerm.length));
     summaryRow('Income / reward events', String(bd.income.length));
     summaryRow('Still holding — open lots', String(bd.stillHolding.length));
@@ -264,7 +264,7 @@ function buildPdf(
     // ── PAGE 3+: Short-term disposals ─────────────────────────────────────────
     if (bd.shortTerm.length > 0) {
       newPage();
-      sectionTitle('Disposals — Less than 1 year  (held < 365 days)');
+      sectionTitle('Disposals — One year or less');
 
       const cols = [
         { label: 'Asset',      width: 65  },
@@ -296,13 +296,13 @@ function buildPdf(
       doc.moveDown(0.3);
       doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
       doc.moveDown(0.3);
-      summaryRow('Subtotal — Less than 1 year', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
+      summaryRow('Subtotal — One year or less', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
     }
 
     // ── Long-term disposals ───────────────────────────────────────────────────
     if (bd.longTerm.length > 0) {
       newPage();
-      sectionTitle('Disposals — More than 1 year  (held ≥ 365 days)');
+      sectionTitle('Disposals — More than 1 year');
 
       const cols = [
         { label: 'Asset',      width: 65  },
@@ -388,7 +388,7 @@ function buildPdf(
       tableHeaders(cols);
 
       bd.stillHolding.forEach((lot, i) => {
-        const term = lot.daysHeld >= 365 ? 'Long' : 'Short';
+        const term = lot.longTerm ? 'Long' : 'Short';
         tableRow([
           { label: lot.asset,            width: cols[0].width },
           { label: fDate(lot.acquiredDate), width: cols[1].width },
