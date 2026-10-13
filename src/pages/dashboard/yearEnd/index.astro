@@ -1,0 +1,397 @@
+---
+/**
+ * /dashboard/yearEnd — Tax Center hub
+ *
+ * Private landing page linking to every tax tool in almsTins.
+ * Not indexed (noindex) — authenticated users only.
+ */
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEnd } from '@/i18n/dashboard/yearEnd/index';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+
+const lang = getLang(Astro.request);
+const t = getYearEnd(lang);
+
+// /dashboard/yearEnd: the owner goes to the Year Summary hub, everyone else to Bookkeeping.
+// Tax documents are the owner's alone (src/lib/taxAuth.ts).
+return Astro.redirect((await hasTaxAccess(Astro.request)) ? '/year-summary' : TAX_DENIED_REDIRECT, 302);
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<div class="tax-hub">
+
+		<!-- Header -->
+		<div class="hub-header">
+			<h1 class="hub-title">{t.hubTitle}</h1>
+			<p class="hub-sub">{t.hubSub}</p>
+		</div>
+
+		<!-- TurboTax Quick Access -->
+		<div class="doc-section">
+			<p class="doc-tile__label">{t.docSectionLabel}</p>
+			<div class="doc-grid">
+				<a href="/dashboard/yearEnd/gains" class="doc-tile">
+					<span class="doc-pill">{t.docGainsSummary}</span>
+				</a>
+				<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="doc-tile">
+					<span class="doc-pill">{t.docYearSummary}</span>
+				</a>
+				<a href="/dashboard/yearEnd/form8949" class="doc-tile">
+					<span class="doc-pill">Form 8949</span>
+				</a>
+				<a href="/dashboard/yearEnd/schedule-d" class="doc-tile">
+					<span class="doc-pill">Schedule D</span>
+				</a>
+			</div>
+		</div>
+
+		<!-- Data Completeness Score -->
+		<div id="completeness" class="hub-section">
+			<h2 class="section-label">{t.completenessLabel}</h2>
+			<CompletenessScore year={priorYear} />
+		</div>
+
+		<!-- Analysis & Planning -->
+		<section class="hub-section">
+			<h2 class="section-label">{t.analysisSectionLabel}</h2>
+
+			<a href="/dashboard/yearEnd/gains" class="tax-card">
+				<div class="tax-card__icon">G/L</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.gainsSummaryTitle}</p>
+					<p class="tax-card__desc">{t.gainsSummaryDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+
+			<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="tax-card">
+				<div class="tax-card__icon">Rpt</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.yearReportTitle} <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">{t.yearReportDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+
+			<a href="/dashboard/yearEnd/review" class="tax-card">
+				<div class="tax-card__icon">!</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.reviewQueueTitle}</p>
+					<p class="tax-card__desc">{t.reviewQueueDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+		</section>
+
+		<!-- US-style summaries (informational) -->
+		<section class="hub-section">
+			<h2 class="section-label">{t.usSummariesLabel} <span class="section-note">{t.usSummariesNote}</span></h2>
+
+			<a href="/dashboard/yearEnd/form8949" class="tax-card">
+				<div class="tax-card__icon">8949</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.capitalGainsSummaryTitle}</p>
+					<p class="tax-card__desc">{t.capitalGainsSummaryDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+
+			<a href="/dashboard/yearEnd/schedule-d" class="tax-card">
+				<div class="tax-card__icon">Sch D</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.capitalGainsLossesTitle}</p>
+					<p class="tax-card__desc">{t.capitalGainsLossesDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+
+			<a href="/dashboard/yearEnd/lots" class="tax-card">
+				<div class="tax-card__icon">Lots</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.lotManagerTitle}</p>
+					<p class="tax-card__desc">{t.lotManagerDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+		</section>
+
+		<!-- 1099 Reconciliation -->
+		<section class="hub-section">
+			<h2 class="section-label">{t.reconciliationLabel}</h2>
+
+			<a href="/dashboard/yearEnd/1099" class="tax-card">
+				<div class="tax-card__icon">1099</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.recon1099Title}</p>
+					<p class="tax-card__desc">{t.recon1099Desc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+		</section>
+
+		<!-- Export -->
+		<section class="hub-section">
+			<h2 class="section-label">{t.exportLabel}</h2>
+
+			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card">
+				<div class="tax-card__icon">PDF</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.yearSummaryPdfTitle} <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">{t.yearSummaryPdfDesc}</p>
+				</div>
+				<span class="tax-card__arrow">↗</span>
+			</a>
+
+			<a href="/dashboard/transactions" class="tax-card">
+				<div class="tax-card__icon">CSV</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">{t.fifoCsvTitle}</p>
+					<p class="tax-card__desc">{t.fifoCsvDesc}</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+		</section>
+
+		<!-- Prior Tax Years -->
+		<section class="hub-section">
+			<h2 class="section-label">{t.priorYearsLabel}</h2>
+			<div class="year-pills">
+				{Array.from({ length: 5 }, (_, i) => currentYear - 1 - i).map((y) => (
+					<a href={`/dashboard/yearEnd/report?year=${y}`} class="year-pill">{t.yearPillLabel(y)}</a>
+				))}
+			</div>
+			<p class="year-note">{t.yearPillNote}</p>
+		</section>
+
+		<!-- Disclaimer -->
+		<div class="disclaimer">
+			<p><strong>{t.disclaimerStrong}</strong> {t.disclaimerText}</p>
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+	.tax-hub {
+		max-width: 860px;
+		margin: 0 auto;
+		padding: 2.5rem 1.5rem 4rem;
+		display: flex;
+		flex-direction: column;
+		gap: 2.5rem;
+	}
+
+	/* Header */
+	.hub-header {}
+	.hub-title {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		margin: 0 0 0.4rem;
+	}
+	.hub-sub {
+		font-size: 0.9rem;
+		color: var(--text-secondary);
+		margin: 0;
+		line-height: 1.6;
+	}
+
+	/* Section */
+	.hub-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.section-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-muted);
+		margin: 0 0 0.25rem;
+	}
+	.section-note {
+		font-weight: 500;
+		text-transform: none;
+		letter-spacing: 0;
+		opacity: 0.75;
+	}
+
+	/* Cards */
+	.tax-card {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		border-radius: 12px;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
+		text-decoration: none;
+		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+	}
+	.tax-card:hover {
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		box-shadow: 0 2px 12px var(--accent-soft);
+	}
+	.tax-card__icon {
+		flex-shrink: 0;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.68rem;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+	.tax-card__body {
+		flex: 1;
+		min-width: 0;
+	}
+	.tax-card__title {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		margin: 0 0 0.25rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.tax-card__desc {
+		font-size: 0.82rem;
+		color: var(--text-muted);
+		line-height: 1.55;
+		margin: 0;
+	}
+	.tax-card__arrow {
+		font-size: 1rem;
+		color: var(--text-muted);
+		flex-shrink: 0;
+		margin-top: 0.1rem;
+		transition: color 0.15s, transform 0.15s;
+	}
+	.tax-card:hover .tax-card__arrow {
+		color: var(--accent);
+		transform: translateX(3px);
+	}
+
+	/* Badge */
+	.tax-badge {
+		font-size: 0.68rem;
+		font-weight: 600;
+		background: var(--accent-soft);
+		color: var(--accent-dim);
+		border-radius: 999px;
+		padding: 0.1rem 0.5rem;
+		vertical-align: middle;
+	}
+
+	/* Year pills */
+	.year-pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.year-pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.4rem 1rem;
+		border-radius: 8px;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
+		color: var(--text-secondary);
+		font-size: 0.85rem;
+		font-weight: 500;
+		text-decoration: none;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
+	}
+	.year-pill:hover {
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		color: var(--accent-dim);
+	}
+	.year-note {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		margin: 0;
+	}
+
+	/* Quick-access doc tiles */
+	.doc-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.doc-tile__label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--text-muted);
+		margin: 0;
+	}
+	.doc-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+		gap: 0.65rem;
+	}
+	.doc-tile {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
+		border-radius: 12px;
+		padding: 0.85rem 1rem;
+		text-decoration: none;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.doc-tile:hover {
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+	}
+	.doc-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card-2);
+		color: var(--text-secondary);
+		font-size: 0.82rem;
+		font-weight: 500;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
+	}
+	.doc-tile:hover .doc-pill {
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		color: var(--accent-dim);
+	}
+
+	/* Disclaimer */
+	.disclaimer {
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
+		border-radius: 12px;
+		padding: 1rem 1.25rem;
+	}
+	.disclaimer p {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		line-height: 1.65;
+		margin: 0;
+	}
+	.disclaimer strong {
+		color: var(--text-secondary);
+	}
+
+	@media (max-width: 600px) {
+		.tax-hub { padding: 1.5rem 1rem 3rem; }
+		.hub-title { font-size: 1.4rem; }
+	}
+</style>

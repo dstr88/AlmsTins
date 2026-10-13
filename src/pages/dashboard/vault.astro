@@ -1,0 +1,493 @@
+---
+import './vault.css';
+import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import SalmonTin from '@/components/dashboard/SalmonTin.astro';
+import AddAssetTin from '@/components/dashboard/AddAssetTin.astro';
+import VaultNotepad from '@/components/dashboard/VaultNotepad';
+import WalletSummary from '../../components/dashboard/WalletSummary';
+import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
+import SovrynDefiSummary from '@/components/dashboard/SovrynDefiSummary';
+import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
+import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
+import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
+import PortfolioTile from '../../components/dashboard/PortfolioTile';
+import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
+import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
+import AddTransactionModal from '@/components/dashboard/AddTransactionModal.astro';
+import SmartImport from '@/components/dashboard/SmartImport.astro';
+import { getAllActiveWallets } from '@/lib/wallets';
+import { getWalletWithLatestData } from '@/lib/db/puller';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { tenantHasTaxAccess } from '@/lib/taxAuth';
+import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
+import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getVault } from '@/i18n/dashboard/vault';
+
+const ENABLE_ALL_TX = false;
+const lang = getLang(Astro.request);
+const t = getVault(lang);
+
+const pageStart = Date.now();
+const tenant = await requireTenantSession(Astro.request);
+console.log('[vault] tenant session:', tenant);
+if (!tenant) {
+	return Astro.redirect('/onboarding/tenant-setup', 303);
+}
+const { tenantId } = tenant;
+// The review page is a tax document (owner only, src/lib/taxAuth.ts). Everyone else's
+// digest pill opens Bookkeeping instead of bouncing off the owner gate.
+const digestHref = !tenant.isDemo && tenantHasTaxAccess(tenantId) ? '/dashboard/yearEnd/review' : '/dashboard/bookkeeping';
+console.log('[vault] auth ms', Date.now() - pageStart);
+const walletsStart = Date.now();
+const wallets = await getAllActiveWallets(tenantId);
+console.log('[vault] wallets ms', Date.now() - walletsStart, 'count', wallets.length);
+
+// Demo session with no wallets means the seed hasn't run yet (or data was cleared).
+// Redirect to start to reseed automatically so visitors never see an empty vault.
+if (tenant.isDemo && wallets.length === 0) {
+	return Astro.redirect('/api/demo/start', 302);
+}
+const walletsSorted = [...wallets].sort((a, b) => {
+	const aTime = Date.parse(a.createdAt || '') || 0;
+	const bTime = Date.parse(b.createdAt || '') || 0;
+	return bTime - aTime;
+});
+console.log('[vault] total ms', Date.now() - pageStart);
+
+const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
+const customWallets  = walletsSorted.filter((w) => w.walletType === 'custom');
+
+// ── Monthly digest pill ────────────────────────────────────────────────────────
+let digestCount = 0;
+let digestMonth = '';
+try {
+	const digestRes = await db.execute({
+		sql: `SELECT year_month, item_count FROM monthly_digests
+		      WHERE tenant_id = ? AND item_count > 0 AND dismissed_at IS NULL
+		      ORDER BY year_month DESC LIMIT 1`,
+		args: [tenantId],
+	});
+	if (digestRes.rows.length > 0) {
+		const row = digestRes.rows[0] as Record<string, unknown>;
+		digestCount = Number(row.item_count ?? 0);
+		const ym    = String(row.year_month ?? '');
+		if (ym) {
+			const [y, m] = ym.split('-');
+			digestMonth  = new Date(Number(y), Number(m) - 1).toLocaleDateString(lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
+		}
+	}
+} catch {
+	// monthly_digests table may not exist yet — migration pending
+}
+
+// Demo chrome (banner, tutorial, signup prompt) + the demo data path. Derived
+// from the SESSION, not the raw cookie: a logged-in user with a leftover demo
+// cookie must see their real vault, never the demo overlay (requireTenantSession
+// returns isDemo only when there's no authenticated user). In demo mode we also
+// skip the SSR snapshot fetch to avoid a race with the sendBeacon cleanup on
+// reload — the client-side fetch handles it.
+const isDemo = tenant.isDemo === true;
+const demoLang = (() => {
+	if (!isDemo) return 'en';
+	const cookie = Astro.request.headers.get('cookie') ?? '';
+	const m = cookie.split(';').map(c => c.trim()).find(c => c.startsWith('almstins-demo-lang='));
+	return m?.split('=')[1] === 'es' ? 'es' : 'en';
+})() as 'en' | 'es';
+const walletsWithData = isDemo
+	? onchainWallets.map((wallet) => ({ wallet, fullData: null }))
+	: await Promise.all(
+			onchainWallets.map(async (wallet) => ({
+				wallet,
+				fullData: await getWalletWithLatestData(tenantId, wallet.id),
+			})),
+	  );
+
+const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
+	const label = wallet.label?.trim();
+	if (label) return label;
+	return wallet.address.slice(-5);
+};
+
+const getChainBadge = (chains: string[]): string => {
+	if (chains.includes('solana'))    return 'SOL';
+	if (chains.includes('sui'))       return 'SUI';
+	if (chains.includes('bitcoin') && chains.includes('litecoin')) return 'BTC/LTC';
+	if (chains.includes('bitcoin'))   return 'BTC';
+	if (chains.includes('litecoin'))  return 'LTC';
+	if (chains.includes('rootstock')) return 'RBTC';
+	// EVM: label by most-specific single chain, or 'ETH' for multi-chain
+	const evmOnly = chains.filter(c => ['ethereum','polygon','avalanche','arbitrum'].includes(c));
+	if (evmOnly.length === 1) {
+		if (evmOnly[0] === 'avalanche') return 'AVAX';
+		if (evmOnly[0] === 'polygon')   return 'POL';
+		if (evmOnly[0] === 'arbitrum')  return 'ARB';
+		return 'ETH';
+	}
+	return 'ETH';
+};
+---
+
+<Layout title={isDemo ? t.demoPageTitle : t.pageTitle} noindex={true}>
+	<section class="vault-page">
+		<div class="hero-bleed">
+			<NetWorthHero title={t.heroTitle} subtitle={t.heroSubtitle} heightMobile="28vh" heightDesktop="32vh" />
+		</div>
+
+		{isDemo && (
+			<div class="demo-banner">
+				<span class="demo-banner__text">{t.demoBanner(onchainWallets.length)}</span>
+				<a href="/" class="demo-banner__cta">{t.saveCta}</a>
+			</div>
+		)}
+
+		{isDemo && <DemoTutorial />}
+
+		<section class="bk-grid">
+			<SalmonTin label={t.notepad} class="tile tile--r1c1">
+				<VaultNotepad client:only="react" />
+			</SalmonTin>
+			<div class="tile tile--r1c2 portfolio-digest-wrapper">
+				<SalmonTin label={t.portfolio}>
+					<PortfolioTile client:only="react" />
+				</SalmonTin>
+				{digestCount > 0 && (
+					<a href={digestHref} class="digest-pill">
+						{t.digestFlagged(digestCount, digestMonth)}
+					</a>
+				)}
+			</div>
+			<div class="tile tile--r1c3">
+				{ENABLE_ALL_TX
+					? <Tin0AllTransactions client:visible />
+					: (!isDemo || onchainWallets.length < 5) ? <AddAssetTin /> : (
+						<div class="demo-wallet-limit">
+							<span>{t.walletLimitReached}</span>
+							<a href="/">{t.signupUnlimited}</a>
+						</div>
+					)
+				}
+			</div>
+			<div class="vault-section-divider vault-section-divider--exchange">
+				<span class="vault-section-divider__label">{t.dividerExchanges}</span>
+				<span class="vault-section-divider__line"></span>
+			</div>
+
+			<div class="smart-import-bar">
+				<SmartImport />
+			</div>
+
+			<div class="vault-lane vault-lane--row2 exchange-lane">
+				<CryptoComAccounts />
+				<ExchangeAccounts source="coinbase" title="Coinbase" />
+			</div>
+
+			<details class="other-exchanges">
+				<summary class="other-exchanges__toggle">{t.moreExchanges}</summary>
+				<div class="vault-lane vault-lane--row2 exchange-lane other-exchanges__lane">
+					<ExchangeAccounts source="kraken" title="Kraken" />
+					<ExchangeAccounts source="gemini" title="Gemini" />
+					<ExchangeAccounts source="robinhood" title="Robinhood" />
+					<ExchangeAccounts source="venmo" title="Venmo" />
+					<ExchangeAccounts source="cashapp" title="Cash App" />
+					<ExchangeAccounts source="exodus" title="Exodus" />
+				</div>
+			</details>
+
+			<div class="vault-section-divider vault-section-divider--onchain">
+				<span class="vault-section-divider__label">{t.dividerOnchain}</span>
+				<span class="vault-section-divider__line"></span>
+			</div>
+
+			{onchainWallets.length > 0 && (
+				<div class="vault-wallet-pills">
+					{onchainWallets.map((wallet) => {
+						const lbl = (wallet.label?.trim() || wallet.address.slice(-5)).toUpperCase();
+						return <span class="vault-wallet-pill">{lbl}</span>;
+					})}
+				</div>
+			)}
+
+			<div class="vault-lane vault-lane--row3">
+				{walletsWithData.map(({ wallet, fullData }) => {
+					const labelSource = fullData?.metadata
+						? { label: fullData.metadata.label, address: fullData.metadata.address }
+						: wallet;
+					const displayLabel = formatWalletLabel(labelSource);
+					const chainBadge = getChainBadge(wallet.chains);
+					// The user's own label is the wallet's identity and sticks regardless of
+					// how many chains attach. Fall back to the auto chain badge only when unlabeled.
+					const customLabel = (labelSource.label ?? '').toString().trim();
+					const tinLabel = customLabel || chainBadge;
+					return (
+						<div class="vault-stack-tin tile">
+							<div class="wallet-label-box" data-address={wallet.address} data-wallet-id={wallet.id}>
+								<span class="wallet-label-text" data-wallet-label-text>{displayLabel}</span>
+								<button class="wallet-label-edit" aria-label={t.renameWallet} title={t.rename}>✎</button>
+								<button class="wallet-copy-btn" aria-label={t.copyAddress} title={wallet.address}>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
+							</div>
+							<div class="wallet-stack" data-accordion="wallet-stack">
+								<SalmonTin label={tinLabel} flagKey={chainBadge} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
+									<div slot="summary" class="tin-summary">
+										<span class="tin-summary__label">{t.walletValue}</span>
+										<span class="tin-summary__value" data-wallet-summary-value>—</span>
+									</div>
+									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
+								</SalmonTin>
+								{/* Solana DeFi visibility intentionally disabled — positions in
+								    forked/non-standard programs (e.g. dumpy.fun) can't be decoded to
+								    an exact balance, and an approximate/partial figure is worse than
+								    none for a documentation product. Re-enable once a proper
+								    discovery+decode layer matches the Aave standard. */}
+								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin' || c === 'solana') && (
+								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
+									<div slot="summary" class="tin-summary">
+										<span class="tin-summary__label" data-defi-summary-label>
+											{wallet.chains.includes('rootstock') ? 'Sovryn' : t.health}
+										</span>
+										<span class="tin-summary__value" data-defi-summary-value>—</span>
+									</div>
+									{wallet.chains.includes('rootstock')
+										? <SovrynDefiSummary  client:only="react" walletId={wallet.id} />
+										: <AaveHealthSummary  client:only="react" walletId={wallet.id} showHealthRow={false} />
+									}
+								</SalmonTin>
+								)}
+								{/* NFT tin removed — HTML/webpage NFTs can't render as images; spam airdrops dominate */}
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</section>
+
+		{customWallets.length > 0 && (
+			<section class="vault-custom-section">
+				<div class="vault-section-divider vault-section-divider--custom">
+					<span class="vault-section-divider__label">{t.dividerCustom}</span>
+					<span class="vault-section-divider__line"></span>
+				</div>
+				<div class="vault-lane vault-lane--custom">
+					{customWallets.map((wallet) => (
+						<div class="tile custom-tile">
+							<CustomWalletCard wallet={wallet} />
+						</div>
+					))}
+				</div>
+			</section>
+		)}
+
+		{isDemo && (
+			<div class="demo-signup-prompt">
+				<p class="demo-signup-prompt__text">{t.keepRecords}</p>
+				<p class="demo-signup-prompt__sub">{t.keepRecordsSub}</p>
+				<a href="/" class="demo-banner__cta">{t.saveCta}</a>
+			</div>
+		)}
+
+	</section>
+
+	<AddTransactionModal />
+
+	<script>
+		const initWalletAccordion = (stack: HTMLElement): void => {
+			if (stack.dataset.accordionInit === 'true') return;
+			stack.dataset.accordionInit = 'true';
+			const tins = Array.from(stack.querySelectorAll('.salmon-tin')).filter(
+				(tin): tin is HTMLElement => tin instanceof HTMLElement,
+			);
+
+			const setExpanded = (tin: HTMLElement, expanded: boolean): void => {
+				const label = tin.querySelector('.salmon-tin__label');
+				if (label instanceof HTMLElement) {
+					label.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+				}
+			};
+
+			const collapseAll = (): void => {
+				tins.forEach((other) => {
+					other.classList.add('is-collapsed');
+					setExpanded(other, false);
+				});
+			};
+
+			tins.forEach((tin) => {
+				tin.classList.add('is-collapsed');
+				setExpanded(tin, false);
+				const label = tin.querySelector('.salmon-tin__label');
+				if (label instanceof HTMLElement) {
+					label.setAttribute('role', 'button');
+					label.setAttribute('tabindex', '0');
+					const toggle = (): void => {
+						const isCollapsed = tin.classList.contains('is-collapsed');
+						if (isCollapsed) {
+							collapseAll();
+							tin.classList.remove('is-collapsed');
+							setExpanded(tin, true);
+						} else {
+							tin.classList.add('is-collapsed');
+							setExpanded(tin, false);
+						}
+					};
+					label.addEventListener('click', toggle);
+					label.addEventListener('keydown', (event) => {
+						if (event.key === 'Enter' || event.key === ' ') {
+							event.preventDefault();
+							toggle();
+						}
+					});
+				}
+			});
+		};
+
+		document.querySelectorAll('.wallet-stack').forEach((stack) => {
+			if (stack instanceof HTMLElement) {
+				initWalletAccordion(stack);
+			}
+		});
+
+		// ── Inline wallet rename ───────────────────────────────────────────────
+		// The user's label is the wallet's identity and sticks regardless of how
+		// many chains attach. Editing it here also updates the tin chip in place.
+		const initLabelEdit = (box: HTMLElement): void => {
+			if (box.dataset.labelEditInit === 'true') return;
+			box.dataset.labelEditInit = 'true';
+			const walletId = box.dataset.walletId ?? '';
+			const textEl = box.querySelector<HTMLElement>('[data-wallet-label-text]');
+			const editBtn = box.querySelector<HTMLButtonElement>('.wallet-label-edit');
+			if (!walletId || !(textEl instanceof HTMLElement)) return;
+			// The chip whose text mirrors this wallet's identity (same stack tin).
+			const chipEl = box.parentElement?.querySelector<HTMLElement>('.wallet-tin--wallet .salmon-tin__label') ?? null;
+
+			const beginEdit = (): void => {
+				if (box.querySelector('input')) return; // already editing
+				const current = textEl.textContent?.trim() ?? '';
+				const input = document.createElement('input');
+				input.type = 'text';
+				input.className = 'wallet-label-input';
+				input.value = current;
+				input.maxLength = 60;
+				input.setAttribute('aria-label', 'Wallet name');
+				textEl.replaceWith(input);
+				input.focus();
+				input.select();
+
+				let done = false;
+				const finish = async (save: boolean): Promise<void> => {
+					if (done) return;
+					done = true;
+					const next = input.value.trim();
+					const restore = (label: string): void => {
+						const span = document.createElement('span');
+						span.className = 'wallet-label-text';
+						span.setAttribute('data-wallet-label-text', '');
+						span.textContent = label;
+						input.replaceWith(span);
+						span.addEventListener('click', beginEdit);
+					};
+					if (!save || !next || next === current) { restore(current); return; }
+					try {
+						const res = await fetch(`/api/wallets/${walletId}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ label: next }),
+						});
+						const data = await res.json().catch(() => ({}));
+						if (res.ok && data?.ok) {
+							restore(next);
+							if (chipEl) chipEl.textContent = next; // keep the chip in sync
+						} else {
+							restore(current); // rejected (e.g. EMPTY_LABEL) — revert
+						}
+					} catch {
+						restore(current);
+					}
+				};
+
+				input.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') { e.preventDefault(); void finish(true); }
+					else if (e.key === 'Escape') { e.preventDefault(); void finish(false); }
+				});
+				input.addEventListener('blur', () => { void finish(true); });
+			};
+
+			textEl.addEventListener('click', beginEdit);
+			editBtn?.addEventListener('click', (e) => { e.preventDefault(); beginEdit(); });
+		};
+
+		document.querySelectorAll('.wallet-label-box').forEach((box) => {
+			if (box instanceof HTMLElement) initLabelEdit(box);
+		});
+
+		// updated wallet total
+		const updateWalletSummary = (tin:any) => {
+			const valueEl = tin.querySelector('[data-wallet-summary-value]');
+			if (!(valueEl instanceof HTMLElement)) return;
+			let total = 0;
+			let hasValue = false;
+			tin.querySelectorAll('.wallet-summary__cell--value').forEach((cell:any) => {
+				if (!(cell instanceof HTMLElement)) return;
+				const raw = cell.textContent ?? '';
+				const cleaned = raw.replace(/[$,]/g, '').trim();
+				const num = Number.parseFloat(cleaned);
+				if (!Number.isFinite(num) || num <= 0) return;
+				hasValue = true;
+				total += num;
+			});
+			valueEl.textContent = hasValue
+				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				: '—';
+		};
+
+		const updateDefiSummary = (tin:any) => {
+			const labelEl = tin.querySelector('[data-defi-summary-label]');
+			const valueEl = tin.querySelector('[data-defi-summary-value]');
+			const sourceRow   = tin.querySelector('.stat-row.health');
+			const sourceLabel = sourceRow?.querySelector('.label');
+			const sourceValue = sourceRow?.querySelector('.value');
+			if (labelEl instanceof HTMLElement && sourceLabel instanceof HTMLElement) {
+				labelEl.textContent = sourceLabel.textContent?.trim() || 'Health';
+			}
+			if (valueEl instanceof HTMLElement && sourceValue instanceof HTMLElement) {
+				valueEl.textContent = sourceValue.textContent?.trim() || '—';
+				const color = (sourceRow instanceof HTMLElement ? sourceRow.dataset.healthColor : '') || '';
+				valueEl.style.color = color;
+			}
+		};
+
+		const attachSummaryObserver = (tin:any, updater:any) => {
+			const body = tin.querySelector('.salmon-tin__body');
+			if (!(body instanceof HTMLElement)) return;
+			updater(tin);
+			const observer = new MutationObserver(() => updater(tin));
+			observer.observe(body, { childList: true, subtree: true, characterData: true });
+		};
+
+		document.querySelectorAll('.wallet-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateWalletSummary));
+		document.querySelectorAll('.defi-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateDefiSummary));
+
+		// Copy wallet address on button click
+		document.querySelectorAll('.wallet-copy-btn').forEach((btn) => {
+			btn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				const box = (btn as HTMLElement).closest('.wallet-label-box') as HTMLElement | null;
+				const address = box?.dataset?.address ?? '';
+				if (!address) return;
+				navigator.clipboard.writeText(address).then(() => {
+					btn.classList.add('copied');
+					setTimeout(() => btn.classList.remove('copied'), 1500);
+				}).catch(() => {});
+			});
+		});
+
+		// Wallet import is handled by AddAssetTin component's own script.
+</script>
+
+
+</Layout>

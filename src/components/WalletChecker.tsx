@@ -1,0 +1,1046 @@
+import { useState, useRef, useCallback, useEffect } from 'react';
+import jsQR from 'jsqr';
+import type { WalletCheckResult } from '@/lib/walletChecker';
+import type { WalletActivity } from '@/lib/walletActivity';
+import type { WalletCheckerLocale } from '@/i18n/walletChecker';
+import { publicVerifyCard, publisherText, fillTemplate, addressSafetyVerdict, type PublicVerifyCard, type PublicVerifyLookup } from '@/lib/verifyPublicCard';
+import { goplusRanForAddress } from '@/lib/goplusCredit';
+import PoweredByGoPlus from './PoweredByGoPlus';
+import WalletActivityPanel from './WalletActivityPanel';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Tab = 'safety' | 'holdings' | 'activity' | 'honeypot' | 'funding' | 'multisig';
+// The Activity tab's facts load from their own endpoint after the verdict (never part of it).
+type ActivityLoad = { status: 'loading' } | { status: 'done'; activity: WalletActivity } | { status: 'failed' };
+type CheckerStrings = WalletCheckerLocale['checker'];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function chainLabel(chain: string, c: CheckerStrings): string {
+  return {
+    evm:      c.chains.evm,
+    sui:      c.chains.sui,
+    solana:   c.chains.solana,
+    bitcoin:  c.chains.bitcoin,
+    litecoin: c.chains.litecoin,
+    tron:     c.chains.tron,
+  }[chain] ?? c.chains.unknown;
+}
+
+// Renders a string that marks a term with [[double brackets]], turning that term into a
+// hover-explained span (dotted underline + native tooltip). No marker → the plain string.
+function withTip(text: string, tip: string) {
+  const m = text.match(/^([\s\S]*?)\[\[([\s\S]+?)\]\]([\s\S]*)$/);
+  if (!m) return text;
+  return (
+    <>
+      {m[1]}
+      <span title={tip} style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}>{m[2]}</span>
+      {m[3]}
+    </>
+  );
+}
+
+// Extracts a blockchain address from a scanned QR payload.
+// Handles raw addresses and URI forms like "ethereum:0x..@1?value=..", "bitcoin:bc1..?amount=..".
+function parseAddressFromQR(raw: string): string {
+  const s = raw.trim();
+  // EVM addresses are unambiguous — grab the first one if present (covers EIP-681 URIs too)
+  const evm = s.match(/0x[a-fA-F0-9]{40}/);
+  if (evm) return evm[0];
+  // Otherwise strip any URI scheme ("bitcoin:", "litecoin:", "solana:", …) and trailing params
+  const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
+  return noScheme.split(/[?@\s]/)[0].trim();
+}
+
+// Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they go to the
+// wallet check, NOT the website/dApp check, even though they contain a dot.
+const NAME_SERVICE_TLD = /\.(eth|sol|crypto|nft|wallet|bnb|x|dao|zil|blockchain|888)$/i;
+
+// Decide whether a scanned QR payload is a website / dApp URL (→ dapp-check) or a
+// blockchain address / payment URI (→ wallet-check).
+function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
+  const s = raw.trim();
+  // Explicit web URL → website / dApp check
+  if (/^https?:\/\//i.test(s)) return { kind: 'url', value: s };
+  // An EVM address anywhere wins (covers EIP-681 "ethereum:0x..@1?value=" URIs)
+  if (/0x[a-fA-F0-9]{40}/.test(s)) return { kind: 'address', value: parseAddressFromQR(s) };
+  // A bare domain ("app.uniswap.org", "example.com/path") → website check, but never a
+  // name-service handle like "vitalik.eth" (those resolve to an address).
+  const host = s.split(/[/?#\s]/)[0];
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host) && !NAME_SERVICE_TLD.test(host)) {
+    return { kind: 'url', value: s };
+  }
+  // Everything else — bitcoin:/solana:/litecoin: URIs, raw addresses, ENS names → wallet check
+  return { kind: 'address', value: parseAddressFromQR(s) };
+}
+
+// Which scam sources actually ran for this result's chain (P0/P1 honesty).
+// goplus 'skipped' (chain unsupported) counts as unavailable — it's the gap that matters;
+// honeypot 'skipped' is EVM-only N/A, so it's omitted rather than shown as a failure.
+// Chainabuse and Chainalysis are named only when they were asked: 'skipped' means switched off
+// (no API key) or not needed, so listing them would claim a source that is not in use.
+function coverageSummary(result: WalletCheckResult): { ran: string[]; unavailable: string[] } {
+  const ran: string[] = [];
+  const unavailable: string[] = [];
+  const cov = result.coverage;
+  if (!cov) return { ran, unavailable };
+  if (cov.sanctions === 'ran') ran.push('OFAC SDN'); else if (cov.sanctions === 'error') unavailable.push('OFAC SDN');
+  if (cov.goplus === 'ran') ran.push('GoPlus'); else unavailable.push('GoPlus');
+  if (cov.honeypot === 'ran') ran.push('honeypot.is'); else if (cov.honeypot === 'error') unavailable.push('honeypot.is');
+  if (cov.chainalysis === 'ran') ran.push('Chainalysis'); else if (cov.chainalysis === 'error') unavailable.push('Chainalysis');
+  if (cov.chainabuse === 'ran') ran.push('Chainabuse'); else if (cov.chainabuse === 'error') unavailable.push('Chainabuse');
+  return { ran, unavailable };
+}
+
+/** True when GoPlus, or honeypot.is on EVM, did not run: the main scam databases were not all asked. */
+function primaryUnavailable(result: WalletCheckResult): boolean {
+  const cov = result.coverage;
+  if (!cov) return true;
+  return cov.goplus !== 'ran' || (result.chain === 'evm' && cov.honeypot !== 'ran');
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ScamMeter({ score, level, partialCoverage, c }: { score: number; level: string; partialCoverage?: boolean; c: CheckerStrings }) {
+  // A "clean" verdict on a chain we couldn't fully check must NOT read as a confident green.
+  const limited = level === 'clean' && Boolean(partialCoverage);
+  const color =
+    limited             ? 'var(--warning)' :
+    level === 'clean'   ? '#22c55e' :
+    level === 'caution' ? '#f59e0b' :
+                          '#ef4444';
+  const label =
+    limited             ? c.scamLimited :
+    level === 'clean'   ? c.scamClean :
+    level === 'caution' ? c.scamCaution :
+                          c.scamHigh;
+
+  return (
+    <div style={{ marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
+        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{c.scamRiskScore}</span>
+        <span style={{ fontSize: '2rem', fontWeight: 700, color, lineHeight: 1 }}>{score}</span>
+      </div>
+      {/* Track */}
+      <div style={{ height: '10px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${score}%`,
+          background: color,
+          borderRadius: '999px',
+          transition: 'width 0.8s ease',
+          boxShadow: `0 0 12px ${color}66`,
+        }} />
+      </div>
+      <p style={{ marginTop: '0.75rem', fontSize: '1.05rem', fontWeight: 600, color }}>{label}</p>
+    </div>
+  );
+}
+
+// The "Limited check" / "Some checks were unavailable" box under the score. A clean result
+// where a main database or the sanctions list did not answer is not a clean bill of health.
+export function CoverageNotice({ result, c }: { result: WalletCheckResult; c: CheckerStrings }) {
+  if (!result.partialCoverage && (result.errors?.length ?? 0) === 0) return null;
+  const { ran, unavailable } = coverageSummary(result);
+  const sanctionsDown = result.coverage?.sanctions === 'error';
+  return (
+    <div style={{
+      marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+      background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)',
+      color: 'var(--warning)',
+    }}>
+      <strong>
+        {result.partialCoverage
+          ? c.limitedCoverageTitle.replace('{chain}', chainLabel(result.chain, c))
+          : c.checksUnavailableTitle}
+      </strong>
+      {result.partialCoverage && (primaryUnavailable(result) || !sanctionsDown) && (
+        <p style={{ margin: '0.4rem 0 0', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+          {c.limitedCoverageBody.replace('{chain}', chainLabel(result.chain, c))}
+        </p>
+      )}
+      {result.partialCoverage && sanctionsDown && (
+        <p style={{ margin: '0.4rem 0 0', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+          {c.limitedSanctionsBody}
+        </p>
+      )}
+      <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>
+        {ran.length > 0 && <>{c.checksRan}: {ran.join(', ')}. </>}
+        {unavailable.length > 0 && <>{c.checksUnavailable}: {unavailable.join(', ')}.</>}
+      </p>
+    </div>
+  );
+}
+
+// `unavailable`: the lookup behind this row failed, so "Clear" would claim a check that did not run.
+function FlagRow({ label, active, unavailable, c }: { label: string; active: boolean; unavailable?: boolean; c: CheckerStrings }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
+      fontSize: '0.9rem',
+    }}>
+      <span style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</span>
+      <span style={{ color: active ? '#ef4444' : unavailable ? 'var(--warning)' : '#22c55e', fontWeight: 600 }}>
+        {active ? c.reported : unavailable ? c.checksUnavailable : c.clear}
+      </span>
+    </div>
+  );
+}
+
+export function TabContent({ tab, result, activityLoad, c }: {
+  tab: Tab;
+  result: WalletCheckResult;
+  activityLoad: ActivityLoad | null;
+  c: CheckerStrings;
+}) {
+  const activity = activityLoad?.status === 'done' ? activityLoad.activity : null;
+
+  if (tab === 'safety') {
+    const f = result.flags;
+    return (
+      <div>
+        {result.entityLabel && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.75rem 1rem', borderRadius: '10px', marginBottom: '1rem',
+            background: result.entityLabel.type === 'mixer' ? 'var(--loss-bg)' : 'rgba(59,130,246,0.12)',
+            border: `1px solid ${result.entityLabel.type === 'mixer' ? 'var(--loss-border)' : 'rgba(59,130,246,0.3)'}`,
+          }}>
+            <span style={{ fontSize: '1.4rem' }}>
+              {result.entityLabel.type === 'exchange' ? '🏦'
+                : result.entityLabel.type === 'defi' ? '🔷'
+                : result.entityLabel.type === 'bridge' ? '🌉'
+                : result.entityLabel.type === 'mixer' ? '⚠️'
+                : '📄'}
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1rem' }}>
+                {result.entityLabel.name}
+                {result.entityLabel.subLabel && (
+                  <span style={{ fontWeight: 400, fontSize: '0.82rem', opacity: 0.6, marginLeft: '0.5rem' }}>
+                    {result.entityLabel.subLabel}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.55, textTransform: 'capitalize' }}>
+                {result.entityLabel.type} · {result.entityLabel.confidence} {c.identification}
+                {result.entityLabel.url && (
+                  <> · <a href={result.entityLabel.url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: 'rgba(147,196,255,0.8)', textDecoration: 'none' }}>
+                    {c.visit}
+                  </a></>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {[
+          { label: c.flags.blacklisted,     active: f.blacklisted },
+          { label: c.flags.phishing,        active: f.phishing },
+          { label: c.flags.sanctioned,      active: f.sanctioned, unavailable: result.coverage?.sanctions === 'error' },
+          { label: c.flags.stealing,        active: f.stealingAttack },
+          { label: c.flags.honeypotRelated, active: f.honeypotRelated },
+          { label: c.flags.cybercrime,      active: f.cybercrime },
+          { label: c.flags.darkweb,         active: f.darkwebTransactions },
+          { label: c.flags.moneyLaundering, active: f.moneyLaundering },
+          { label: c.flags.financialCrime,  active: f.financialCrime },
+          { label: c.flags.blackmail,       active: f.blackmail },
+          { label: c.flags.mixer,           active: f.mixer },
+        ].sort((a, b) => Number(b.active) - Number(a.active))
+          .map(({ label, active, unavailable }) => (
+            <FlagRow key={label} label={label} active={active} unavailable={unavailable} c={c} />
+          ))}
+
+        {/* Chainabuse community reports */}
+        {result.chainabuseReports !== null && (
+          <div style={{
+            marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: '10px',
+            background: result.chainabuseReports > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${result.chainabuseReports > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)'}`,
+          }}>
+            <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: result.chainabuseReports > 0 ? '#fca5a5' : 'rgba(255,255,255,0.55)' }}>
+              {result.chainabuseReports > 0
+                ? (result.chainabuseReports === 1 ? c.chainabuseOne : c.chainabuseMany).replace('{n}', String(result.chainabuseReports))
+                : c.chainabuseNone}
+            </p>
+          </div>
+        )}
+
+        <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
+          {(() => {
+            const { ran, unavailable } = coverageSummary(result);
+            if (ran.length === 0 && unavailable.length === 0) return c.safetySource;
+            return `${c.checksRan}: ${ran.join(', ') || '—'}${unavailable.length ? ` · ${c.checksUnavailable}: ${unavailable.join(', ')}` : ''}`;
+          })()}
+        </p>
+      </div>
+    );
+  }
+
+  if (tab === 'holdings') {
+    const h = result.holdings;
+    if (result.chain !== 'evm' && result.chain !== 'sui') return (
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
+        {c.holdingsEvmSuiOnly}
+      </p>
+    );
+    if (h.length === 0) return (
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
+        {result.chain === 'sui' ? c.noCoinBalances : c.noErc20}
+      </p>
+    );
+    return (
+      <div>
+        {activity?.ethBalance && result.chain !== 'sui' && (
+          <div style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>{c.ethBalanceRow}</span>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{activity.ethBalance} ETH</span>
+          </div>
+        )}
+        {h.map((token, i) => (
+          <div key={i} style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{token.symbol}</span>
+              <span style={{ marginLeft: '0.5rem', color: 'rgba(255,255,255,0.45)', fontSize: '0.8rem' }}>{token.name}</span>
+            </div>
+            <span style={{ fontSize: '0.9rem' }}>{token.balance}</span>
+          </div>
+        ))}
+        <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
+          {result.chain === 'sui' ? c.holdingsSourceSui : c.holdingsSourceEvm}
+        </p>
+      </div>
+    );
+  }
+
+  if (tab === 'activity') {
+    return (
+      <WalletActivityPanel
+        activity={activity}
+        status={!activityLoad || activityLoad.status === 'loading' ? 'loading' : activityLoad.status === 'failed' ? 'failed' : undefined}
+        chain={result.chain}
+        c={c}
+      />
+    );
+  }
+
+  if (tab === 'honeypot') {
+    const h = result.honeypot;
+    if (result.chain !== 'evm') return (
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
+        {c.honeypotEvmOnly}
+      </p>
+    );
+    if (!h.checked) return (
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>{h.noMarket ? c.honeypotNoMarket : c.honeypotUnavailable}</p>
+    );
+    if (h.notAToken) return (
+      <div>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', lineHeight: 1.6 }}>{c.honeypotNotAToken}</p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>{c.honeypotSource}</p>
+      </div>
+    );
+    return (
+      <div>
+        <div style={{
+          padding: '1.25rem',
+          borderRadius: '12px',
+          background: h.isHoneypot ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+          border: `1px solid ${h.isHoneypot ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`,
+          marginBottom: '1rem',
+        }}>
+          <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: h.isHoneypot ? '#ef4444' : '#22c55e' }}>
+            {h.isHoneypot ? c.honeypotDetected : c.honeypotSellable}
+          </p>
+          {h.reason && (
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)' }}>{h.reason}</p>
+          )}
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+          {c.honeypotExplain}
+        </p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>{c.honeypotSource}</p>
+      </div>
+    );
+  }
+
+  if (tab === 'funding') {
+    // One signal only: the mixer flag (GoPlus, or our list of known mixer contracts). No tracing.
+    const fs = result.fundingSource;
+    const noFlagText =
+      result.chain !== 'evm'               ? c.fundingEvmOnly :
+      result.coverage?.goplus !== 'ran'    ? c.fundingUnavailable :
+                                             c.fundingNone;
+    return (
+      <div>
+        <div style={{ marginBottom: '1rem' }}>
+          {fs.label ? (
+            <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              <p style={{ margin: 0, fontWeight: 600, color: '#fca5a5', fontSize: '0.95rem' }}>🚨 {fs.label}</p>
+            </div>
+          ) : (
+            <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.55)', fontSize: '0.9rem' }}>{noFlagText}</p>
+            </div>
+          )}
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+          {c.fundingExplain}
+        </p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
+          {c.fundingScope}
+        </p>
+      </div>
+    );
+  }
+
+  if (tab === 'multisig') {
+    const ms = result.multiSig;
+    return (
+      <div>
+        <div style={{
+          padding: '1.25rem', borderRadius: '12px', marginBottom: '1rem',
+          background: ms === true ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${ms === true ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        }}>
+          <p style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: ms === true ? '#f59e0b' : 'rgba(255,255,255,0.8)' }}>
+            {ms === null ? c.multisigUnknown : ms ? c.multisigYes : c.multisigNo}
+          </p>
+        </div>
+        <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
+          <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{c.multisigWhatLabel}</strong>{c.multisigWhat}
+        </p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.875rem', color: '#fbbf24', lineHeight: 1.6 }}>
+          {c.multisigWarning}
+        </p>
+        {result.chain !== 'evm' && (
+          <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)' }}>
+            {c.multisigEvmOnly}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// Verify result for the checked address (src/lib/verifyPublicCard.ts decides what it may
+// say). Never a freeform label; Claimed shows no name or domain; Verified names the domain
+// and a business name only when it derives from that domain. "Listed on" only when that
+// domain publishes the address, else "verified via". When the safety screen flagged the
+// address, the card is neutral and renders after the warning (never green).
+export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStrings }) {
+  const isVerified = card.level === 'verified';
+  const publisher = isVerified ? card.publisher : null;
+  const publisherLine = publisherText(publisher, {
+    listedBy: c.verifiedListedBy, listedOn: c.verifiedListedOn, viaBy: c.verifiedViaBy, viaOn: c.verifiedViaOn,
+  });
+  const detail = isVerified
+    ? (publisher ? fillTemplate(publisher.listed ? c.verifiedBody : c.verifiedViaBody, { domain: publisher.domain }) : null)
+    : withTip(c.claimedBody, c.accountableDomainTip);
+  const sinceText = card.since
+    ? fillTemplate(isVerified ? c.verifiedSince : c.claimedSince, { date: card.since })
+    : null;
+
+  const body = (
+    <div>
+      <div style={{
+        fontWeight: 700, fontSize: '0.95rem',
+        color: card.tone === 'positive' ? 'var(--gain)' : card.tone === 'caution' ? 'var(--warning)' : 'var(--text-primary)',
+      }}>
+        {isVerified ? c.verifiedTitle : c.claimedTitle}
+      </div>
+      {publisherLine && (
+        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.45 }}>
+          {publisherLine}
+        </p>
+      )}
+      {detail && (
+        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+          {detail}
+        </p>
+      )}
+      {card.afterSafety && (
+        <p style={{ margin: '0.4rem 0 0', color: 'var(--text-primary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+          {c.verifyFlaggedNote}
+        </p>
+      )}
+      <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
+        {isVerified ? c.verifiedSub : c.claimedSub}
+      </p>
+      {sinceText && (
+        <p style={{
+          margin: '0.35rem 0 0', fontSize: '0.8rem', fontWeight: 600,
+          color: card.tone === 'positive' ? 'var(--gain)' : 'var(--text-secondary)',
+        }}>
+          {sinceText}
+        </p>
+      )}
+    </div>
+  );
+
+  // Verified, not flagged: the green card.
+  if (card.tone === 'positive') {
+    return (
+      <div style={{
+        marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+        background: 'var(--gain-bg)', border: '1px solid var(--gain-border)',
+        display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+      }}>
+        <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>✓</span>
+        {body}
+      </div>
+    );
+  }
+
+  // Claimed, not flagged: caution-tape frame. A green/amber crosswalk stripe reads as
+  // "proceed with awareness", not the solid-amber "danger" the old fill looked like.
+  if (card.tone === 'caution') {
+    return (
+      <div style={{
+        marginBottom: '1.25rem', borderRadius: '12px', padding: '3px',
+        background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)',
+      }}>
+        <div style={{
+          padding: '0.85rem 1rem', borderRadius: '9px', background: 'var(--surface-card)',
+          display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+        }}>
+          <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
+          {body}
+        </div>
+      </div>
+    );
+  }
+
+  // Flagged by the safety screen: neutral, no green, after the warning.
+  return (
+    <div style={{
+      marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+      background: 'var(--surface-card)', border: '1px solid var(--border-bright)',
+      display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+    }}>
+      <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3, color: 'var(--text-muted)' }}>ⓘ</span>
+      {body}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+interface Props {
+  prefilledAddress?: string;
+  c: CheckerStrings;
+}
+
+export default function WalletChecker({ prefilledAddress = '', c }: Props) {
+  const [address, setAddress]     = useState(prefilledAddress);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [result, setResult]       = useState<WalletCheckResult | null>(null);
+  const [activityLoad, setActivityLoad] = useState<ActivityLoad | null>(null);
+  // Holds a Verify hit — either 'verified' (domain-anchored) or 'claimed' (control only).
+  // The label is kept only for publicVerifyCard(), which never shows it as freeform text.
+  const [verifiedPublisher, setVerifiedPublisher] = useState<PublicVerifyLookup | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('safety');
+  const [cached, setCached]       = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const didAutoCheck = useRef(false);
+
+  // QR camera scanning state
+  const [scanning, setScanning]   = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const videoRef       = useRef<HTMLVideoElement | null>(null);
+  const streamRef      = useRef<MediaStream | null>(null);
+  const rafRef         = useRef<number | null>(null);
+  const handleCheckRef = useRef<(addr: string) => void>(() => {});
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'safety',   label: c.tabs.safety   },
+    { id: 'holdings', label: c.tabs.holdings },
+    { id: 'activity', label: c.tabs.activity },
+    { id: 'honeypot', label: c.tabs.honeypot },
+    { id: 'funding',  label: c.tabs.funding  },
+    { id: 'multisig', label: c.tabs.multisig },
+  ];
+
+  const handleCheck = useCallback(async (overrideAddr?: string) => {
+    const addr = (overrideAddr ?? address).trim();
+    if (!addr) return;
+
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setActivityLoad(null);
+    setVerifiedPublisher(null);
+
+    try {
+      // Independent, non-fatal: is this a domain-verified published address? Runs
+      // concurrently with the safety scan, sets its own state, and never throws into
+      // the main flow — the safety verdict stands on its own if this lookup fails.
+      void fetch(`/api/verify/lookup?address=${encodeURIComponent(addr)}`, {
+        signal: abortRef.current.signal,
+      })
+        .then(r => r.json())
+        .then((d: any) => {
+          // Surface the assurance level: 'verified' (domain-anchored) or 'claimed'
+          // (control only). Registered/unproven returns no hit and shows nothing.
+          if (d?.ok && (d.level === 'verified' || d.level === 'claimed')) {
+            setVerifiedPublisher({
+              level: d.level,
+              since: typeof d.since === 'string' ? d.since : null,
+              domain: typeof d.domain === 'string' ? d.domain : null,
+              provingDomain: typeof d.provingDomain === 'string' ? d.provingDomain : null,
+              label: typeof d.label === 'string' ? d.label : null,
+              source: d.source === 'entity' || d.source === 'merchant' ? d.source : null,
+            });
+          }
+        })
+        .catch(() => { /* non-fatal — includes AbortError when a check is superseded */ });
+
+      const res = await fetch('/api/wallet-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addr }),
+        signal: abortRef.current.signal,
+      });
+      const data = await res.json() as { ok: boolean; result?: WalletCheckResult; error?: string; cached?: boolean };
+
+      if (!data.ok || !data.result) {
+        setError(data.error ?? c.checkFailed);
+      } else {
+        setResult(data.result);
+        setCached(Boolean(data.cached));
+        setActiveTab('safety');
+        // Activity facts load from their own endpoint once the verdict is shown, so the
+        // verdict never waits on the explorers' rate limits. They are never part of it.
+        setActivityLoad({ status: 'loading' });
+        void fetch('/api/wallet-activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: addr }),
+          signal,
+        })
+          .then(r => r.json())
+          .then((d: any) => {
+            if (signal.aborted) return;
+            setActivityLoad(d?.ok && d.activity ? { status: 'done', activity: d.activity } : { status: 'failed' });
+          })
+          .catch(() => { if (!signal.aborted) setActivityLoad({ status: 'failed' }); });
+        if (typeof (window as any).gtag === 'function') {
+          (window as any).gtag('event', 'wallet_check_submitted', {
+            event_category: 'interactive_tool',
+            event_label: 'wallet_checker',
+          });
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setError(c.networkError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [address, c]);
+
+  // Auto-check on first mount when a prefilled address is provided
+  useEffect(() => {
+    if (prefilledAddress && !didAutoCheck.current) {
+      didAutoCheck.current = true;
+      handleCheck(prefilledAddress);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep a live ref to handleCheck so the scanner loop always calls the latest version
+  useEffect(() => { handleCheckRef.current = handleCheck; }, [handleCheck]);
+
+  // Allow an external trigger (e.g. the prominent button at the top of the page) to open the scanner
+  useEffect(() => {
+    const open = () => { setScanError(null); setScanning(true); };
+    window.addEventListener('almstins:open-qr', open);
+    return () => window.removeEventListener('almstins:open-qr', open);
+  }, []);
+
+  // Camera QR scanning — runs while `scanning` is true; tears down the stream on close/unmount
+  useEffect(() => {
+    if (!scanning) return;
+    let cancelled = false;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const tick = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      if (video && ctx && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+          if (code?.data) {
+            const { kind, value } = classifyScan(code.data);
+            // A scanned website / dApp URL is checked by the dApp checker (lives in the
+            // page script) — hand it off via an event and close the camera.
+            if (kind === 'url') {
+              cancelled = true;
+              setScanning(false);
+              window.dispatchEvent(new CustomEvent('almstins:scanned-url', { detail: { url: value } }));
+              return;
+            }
+            if (value) {
+              cancelled = true;
+              setAddress(value);
+              setScanning(false);
+              handleCheckRef.current(value);
+              return;
+            }
+          }
+        } catch { /* getImageData can throw mid-teardown; ignore and keep looping */ }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScanning(false); };
+    window.addEventListener('keydown', onKey);
+
+    (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanError(c.scanUnsupported);
+        setScanning(false);
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play().catch(() => {});
+          rafRef.current = requestAnimationFrame(tick);
+        }
+      } catch (err: any) {
+        const name = err?.name;
+        setScanError(
+          name === 'NotAllowedError' || name === 'SecurityError'
+            ? c.scanDenied
+            : name === 'NotFoundError'
+            ? c.scanNoCamera
+            : c.scanGeneric,
+        );
+        setScanning(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('keydown', onKey);
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      const video = videoRef.current;
+      if (video) video.srcObject = null;
+    };
+  }, [scanning, c]);
+
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCheck(); }
+  };
+
+  const flagKeyToLabel: Record<string, string> = {
+    blacklisted: c.flags.blacklisted,
+    phishing: c.flags.phishing,
+    sanctioned: c.flags.sanctioned,
+    stealingAttack: c.flags.stealing,
+    honeypotRelated: c.flags.honeypotRelated,
+    cybercrime: c.flags.cybercrime,
+    darkwebTransactions: c.flags.darkweb,
+    moneyLaundering: c.flags.moneyLaundering,
+    financialCrime: c.flags.financialCrime,
+    blackmail: c.flags.blackmail,
+    mixer: c.flags.mixer,
+  };
+  const activeFlags = result
+    ? Object.entries(result.flags).filter(([, v]) => v).map(([k]) => k)
+    : [];
+  // Community reports count as a flag here: a green Verified never sits above a red report badge.
+  const verifyCard = result
+    ? publicVerifyCard(verifiedPublisher, addressSafetyVerdict(result.scamLevel, result.chainabuseReports))
+    : null;
+
+  return (
+    <div style={{ width: '100%', maxWidth: '680px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
+
+      {/* Input area */}
+      <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <label htmlFor="wallet-input" style={{ display: 'block', fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
+          {c.inputLabel}
+        </label>
+        <textarea
+          id="wallet-input"
+          value={address}
+          onChange={e => setAddress(e.target.value)}
+          onKeyDown={handleKey}
+          maxLength={128}
+          rows={2}
+          placeholder={c.placeholder}
+          spellCheck={false}
+          autoComplete="off"
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '10px',
+            color: '#f5f8ff',
+            fontSize: '0.9rem',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            padding: '0.75rem 1rem',
+            resize: 'none',
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.25)' }}>
+            {address.length}/128
+          </span>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={() => { setScanError(null); setScanning(true); }}
+              disabled={loading}
+              aria-label={c.scanAria}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(165,180,252,0.45)',
+                borderRadius: '999px',
+                color: loading ? 'rgba(255,255,255,0.35)' : '#a5b4fc',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                padding: '0.65rem 1.1rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {c.scanQr}
+            </button>
+            <button
+              onClick={() => handleCheck()}
+              disabled={loading || !address.trim()}
+              style={{
+                background: loading || !address.trim()
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'linear-gradient(135deg, #5767ff, #934dff)',
+                border: 'none',
+                borderRadius: '999px',
+                color: loading || !address.trim() ? 'rgba(255,255,255,0.35)' : '#fff',
+                cursor: loading || !address.trim() ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                padding: '0.65rem 1.5rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              {loading ? (
+                <>
+                  <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  {c.checking}
+                </>
+              ) : c.checkWallet}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p style={{ marginTop: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', margin: '0.75rem 0 0' }}>
+            {error}
+          </p>
+        )}
+
+        {scanError && (
+          <p style={{ marginTop: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', margin: '0.75rem 0 0' }}>
+            {scanError}
+          </p>
+        )}
+      </div>
+
+      {/* Results */}
+      {result && (
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
+
+          {/* Verify result leads only when the safety screen did not flag the address. */}
+          {verifyCard && !verifyCard.afterSafety && <VerifyCard card={verifyCard} c={c} />}
+
+          {/* Chain + ENS + cache badges */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
+              {chainLabel(result.chain, c)}
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {result.chainabuseReports !== null && result.chainabuseReports > 0 && (
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fca5a5', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
+                  {(result.chainabuseReports === 1 ? c.reportBadgeOne : c.reportBadgeMany).replace('{n}', String(result.chainabuseReports))}
+                </span>
+              )}
+              {cached && (
+                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>{c.cached}</span>
+              )}
+            </div>
+          </div>
+
+          {/* ENS name */}
+          {result.ensName && (
+            <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.ens}</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa', fontFamily: 'ui-monospace, monospace' }}>
+                {result.ensName}
+              </span>
+              <a
+                href={`https://app.ens.domains/${result.ensName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.75rem', color: 'rgba(167,139,250,0.6)', textDecoration: 'none' }}
+              >
+                ↗
+              </a>
+            </div>
+          )}
+
+          {/* Scam meter */}
+          <ScamMeter score={result.scamScore} level={result.scamLevel} partialCoverage={result.partialCoverage} c={c} />
+
+          {/* Coverage honesty: a "clean" on a chain we couldn't fully check is NOT a green bill of health */}
+          <CoverageNotice result={result} c={c} />
+
+          {/* Clean-result honesty: a green verdict means "nothing found in the lists we checked", NOT "safe".
+              Shows on any clean, non-partial result. We deliberately do NOT gate on errors: benign
+              secondary failures (activity/holdings unavailable) are near-universal and must not suppress
+              the you-decide reminder. The partialCoverage path has its own "not a clean bill" body, so
+              this only fires when that one doesn't — no double message. */}
+          {result.scamLevel === 'clean' && !result.partialCoverage && activeFlags.length === 0 && (
+            <div style={{
+              marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.72)', lineHeight: 1.5,
+            }}>
+              {c.cleanNotSafe}
+            </div>
+          )}
+
+          {/* Active flags summary */}
+          {activeFlags.length > 0 && (
+            <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', fontSize: '0.85rem', color: '#fca5a5' }}>
+              <strong>{c.flaggedFor}</strong>{' '}
+              {activeFlags.map(f => (flagKeyToLabel[f] ?? f).toLowerCase()).join(', ')}
+            </div>
+          )}
+
+          {/* Flagged: the warning above leads; the Verify fact follows in a neutral style. */}
+          {verifyCard && verifyCard.afterSafety && <VerifyCard card={verifyCard} c={c} />}
+
+          {/* Disclaimer */}
+          <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+            {c.resultsDisclaimer}
+          </p>
+
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                style={{
+                  background: activeTab === t.id ? 'rgba(87,103,255,0.25)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${activeTab === t.id ? 'rgba(87,103,255,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: '999px',
+                  color: activeTab === t.id ? '#a5b4fc' : 'rgba(255,255,255,0.55)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '0.8rem',
+                  fontWeight: activeTab === t.id ? 600 : 400,
+                  padding: '0.35rem 0.85rem',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div style={{ minHeight: '120px' }}>
+            <TabContent tab={activeTab} result={result} activityLoad={activityLoad} c={c} />
+          </div>
+
+          {/* GoPlus API License Agreement s.3: credit the source when GoPlus answered for this
+              address. Shown for every tab, since GoPlus flags feed the Safety and Funding tabs. */}
+          {goplusRanForAddress(result) && <PoweredByGoPlus label={c.poweredByGoPlus} />}
+        </div>
+      )}
+
+      {/* QR scanner camera overlay */}
+      {scanning && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={c.scanTitle}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(5,7,15,0.92)', backdropFilter: 'blur(6px)', padding: '1.5rem',
+          }}
+        >
+          <p style={{ color: '#f5f8ff', fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem', textAlign: 'center' }}>
+            {c.scanTitle}
+          </p>
+          <div style={{ position: 'relative', width: 'min(78vw, 320px)', aspectRatio: '1 / 1', borderRadius: '18px', overflow: 'hidden', background: '#000', boxShadow: '0 0 0 1px rgba(165,180,252,0.25)' }}>
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{ position: 'absolute', inset: '12%', border: '2px solid rgba(165,180,252,0.9)', borderRadius: '12px' }} />
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', margin: '1rem 0 1.25rem', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+            {c.scanPrivacy}
+          </p>
+          <button
+            onClick={() => setScanning(false)}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '999px', color: '#f5f8ff', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, padding: '0.6rem 1.6rem',
+            }}
+          >
+            {c.cancel}
+          </button>
+        </div>
+      )}
+
+      {/* Spinner keyframe */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}

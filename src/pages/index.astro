@@ -1,0 +1,24 @@
+---
+// Homepage (/) — English marketing/login surface.
+// Localized siblings: /es (es.astro), /fr (fr.astro). /login renders the same
+// component (its canonical points here). Merged 2026-06-15: the old standalone
+// scam-checker landing was retired — it was unreachable behind the / → /login
+// redirect. The wallet scam checker lives at /wallet-checker (trilingual).
+import { en } from '../i18n/loginPage';
+import LoginPageComponent from '../components/LoginPageComponent.astro';
+import { getLoginPageData, resolveLoginAlert } from '../lib/loginPageData';
+
+const data = await getLoginPageData(Astro.request, Astro.url);
+const t = en;
+
+const { message, notice, hasAlert } = resolveLoginAlert(t, data);
+---
+<LoginPageComponent
+  t={t}
+  safeCallbackUrl={data.safeCallbackUrl}
+  csrfToken={data.csrfToken}
+  message={message}
+  notice={notice}
+  hasAlert={hasAlert}
+  isLoggedIn={data.isLoggedIn}
+/>

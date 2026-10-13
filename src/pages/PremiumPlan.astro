@@ -1,0 +1,295 @@
+---
+import Layout from '../layouts/Layout.astro';  // Adjust path if your layout is elsewhere
+
+const title = "Almstins Premium — Full Crypto Portfolio & DeFi Tracking";
+const description = "Almstins Premium gives you unlimited wallet tracking, real-time DeFi positions, realized gains calculations, Year Summary PDF, and priority support — all in one place.";
+---
+
+<Layout title={title} description={description}>
+  <style is:global>
+    :root {
+      --primary: #4a8a8c;       /* soft teal-blue */
+      --primary-dark: #3a6d6f;
+      --secondary: #8cc084;      /* soft mint green */
+      --accent: #e07a5f;         /* warm coral for CTAs */
+      --bg-light: #f8fafc;
+      --bg-gradient-start: #e6f2f2;
+      --bg-gradient-end: #f0f9f4;
+      --text: #333;
+      --text-light: #555;
+      --shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Hero */
+    .hero {
+      position: relative;
+      background: linear-gradient(to bottom, var(--bg-gradient-start), var(--bg-gradient-end));
+      padding: 8rem 1.5rem 6rem;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .hero-bg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hero h1 {
+      font-size: 2.8rem;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+
+    .hero p {
+      font-size: 1.3rem;
+      max-width: 700px;
+      margin: 0 auto 2.5rem;
+      color: var(--text-light);
+    }
+
+    .btn {
+      display: inline-block;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      font-weight: 600;
+      padding: 1rem 2.5rem;
+      border-radius: 9999px;
+      text-decoration: none;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+      font-size: 1.2rem;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(74,138,140,0.3);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary);
+      color: var(--primary);
+    }
+
+    .btn-outline:hover {
+      background: rgba(74,138,140,0.05);
+    }
+
+    .pricing-highlight {
+      font-size: 1.4rem;
+      margin-top: 1.5rem;
+      font-weight: 500;
+    }
+
+    /* Perks Section */
+    .perks {
+      padding: 6rem 1.5rem;
+      background: white;
+    }
+
+    .perks h2 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    @media (min-width: 768px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 1024px) {
+      .grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .card {
+      background: #f0f9ff;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: var(--shadow);
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+    }
+
+    .card:nth-child(even) {
+      background: #f0fdf4;
+    }
+
+    .card h3 {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+      color: var(--primary);
+    }
+
+    .full-width-card {
+      grid-column: 1 / -1;
+      text-align: center;
+      background: linear-gradient(to right, #e6fffa, #f0fff4);
+    }
+
+    /* Pricing Section */
+    .pricing {
+      padding: 6rem 1.5rem;
+      background: linear-gradient(to bottom, var(--bg-gradient-end), var(--bg-gradient-start));
+      text-align: center;
+    }
+
+    .pricing-box {
+      background: white;
+      padding: 3rem 2rem;
+      border-radius: 1.5rem;
+      box-shadow: var(--shadow);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .price {
+      font-size: 4rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    .price small {
+      font-size: 1.5rem;
+      font-weight: normal;
+    }
+
+    /* Trust Note */
+    .trust {
+      padding: 4rem 1.5rem;
+      text-align: center;
+      font-style: italic;
+      font-size: 1.4rem;
+      color: var(--text-light);
+    }
+
+    @media (min-width: 640px) {
+      .hero h1 { font-size: 3.8rem; }
+    }
+  </style>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-bg">
+      <img 
+        src="https://thumbs.dreamstime.com/b/calming-gradient-background-fluid-waves-blending-soft-mint-green-to-pastel-aqua-offering-serene-soothing-visual-336112551.jpg" 
+        alt="Soft calming abstract waves in mint green and aqua – serene background for healing website"
+      />
+    </div>
+    <div class="container">
+      <h1>Premium Healing Website Package</h1>
+      <p>You help others find hope, peace, and healing every day. Let us build your digital sanctuary – fast-loading, ultra-secure Astro site with blog, ongoing care, and everything needed to attract clients without the tech stress. Limited to first 5 therapists.</p>
+      
+      <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; margin: 2rem 0;">
+        <a href="#pricing" class="btn">Claim Your Spot – $250/mo</a>
+        <a href="#perks" class="btn btn-outline">See What's Included</a>
+      </div>
+      
+      <p class="pricing-highlight">Or pay annually: <strong>$2,500/year</strong> (save ~$500 – like getting 2 months free)</p>
+    </div>
+  </section>
+
+  <!-- Perks -->
+  <section id="perks" class="perks">
+    <div class="container">
+      <h2>Premium Features Built for Beginner Therapists</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Full Custom Astro Site + Blog</h3>
+          <p>Blazing-fast, privacy-first static site with blog for sharing insights. Calming design inspired by healing spaces – responsive, SEO-ready.</p>
+        </div>
+        <div class="card">
+          <h3>Weekly Text & Photo Updates</h3>
+          <p>Hands-on help: change fees, add specialties, refresh photos – up to 1-2 hours/week equivalent. No tech headaches for you.</p>
+        </div>
+        <div class="card">
+          <h3>Basic Monthly On-Page SEO Tweaks</h3>
+          <p>Keyword checks, meta title/description updates, alt text on new images, Google Business profile link integration – better visibility, more consults.</p>
+        </div>
+        <div class="card">
+          <h3>Free Initial & Quarterly Photos</h3>
+          <p>Sourcing + light editing of 2–4 calming stock/professional images per quarter (Unsplash-style serene backgrounds, nature, abstract peace).</p>
+        </div>
+        <div class="card">
+          <h3>Simple Quarterly Analytics Report</h3>
+          <p>Page views, consult clicks, top sources – via free Google Analytics or Plausible. See your site working for you.</p>
+        </div>
+        <div class="card">
+          <h3>4 Branded Emails + Setup</h3>
+          <p>Professional @yourdomain.com emails (Google Workspace), signature setup, basic forwarding – look established from day one.</p>
+        </div>
+        <div class="card">
+          <h3>One Free Major Content Refresh/Year</h3>
+          <p>Rewrite About/Services page or similar – keep your story fresh without extra cost.</p>
+        </div>
+        <div class="card">
+          <h3>HIPAA-Friendly & Secure by Design</h3>
+          <p>Static Astro = no client data stored, ultra-low risk. Secure contact form + privacy emphasis for mental health peace of mind.</p>
+        </div>
+        <div class="card full-width-card">
+          <h3>Extra Reassurance Perks</h3>
+          <ul style="list-style: none; text-align: left; max-width: 600px; margin: 1.5rem auto; font-size: 1.1rem;">
+            <li>• <strong>Referral Bonus</strong>: One free month for each successful referral</li>
+            <li>• <strong>Easy Exit/Transition</strong>: Full site export + handover guide if you ever leave</li>
+            <li>• <strong>Light Social Integration</strong>: Embed Instagram feed or add booking buttons (if you have profiles)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="pricing">
+    <div class="container">
+      <h2>Launch Special – First 5 Spots Only</h2>
+      <div class="pricing-box">
+        <div class="price">$250<span style="font-size: 2rem;">/month</span></div>
+        <p style="font-size: 1.4rem; margin: 1rem 0;">or <strong>$2,500/year</strong> prepaid (save ~$500)</p>
+        
+        <a href="mailto:your@email.com?subject=Premium%20Package%20Interest" class="btn" style="margin-top: 2rem; font-size: 1.4rem; padding: 1.2rem 3rem;">
+          Reserve My Spot Today
+        </a>
+        
+        <p style="margin-top: 2rem; color: var(--text-light);">
+          Includes everything above + priority support. After build phase, transitions to low $50/mo ongoing care.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust Note -->
+  <section class="trust">
+    <div class="container">
+      <p>“You deserve a beautiful, secure online home that reflects the hope you bring to others – without monthly tech worries. Let's build it together.”</p>
+    </div>
+  </section>
+</Layout>

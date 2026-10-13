@@ -1,0 +1,316 @@
+/**
+ * GA4 Data API client
+ *
+ * Uses a Google Service Account (RS256 JWT) to fetch analytics data
+ * without any third-party dependencies — only Node's built-in crypto.
+ *
+ * Required env vars:
+ *   GA4_PROPERTY_ID  — numeric property ID (e.g. "123456789")
+ *   GA4_PRIVATE_KEY  — service account private key (PEM, \n-escaped)
+ *   GA4_CLIENT_EMAIL — service account email (optional, falls back to constant)
+ */
+
+import { createSign, createPrivateKey } from 'crypto';
+
+const PROPERTY_ID = process.env.GA4_PROPERTY_ID ?? '';
+
+// Defensive normalization — a key pasted into a dashboard env var UI can pick up stray
+// wrapping quotes, \r\n line endings, or literal \n pairs that never got unescaped. Node's
+// OpenSSL-3 PEM decoder rejects all of these with the opaque "DECODER routines::unsupported"
+// error instead of saying what's wrong, so clean up every known variant here rather than
+// making someone diff raw bytes in a dashboard text box.
+function normalizePemEnvVar(raw: string): string {
+  let v = raw.trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1);
+  }
+  return v.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+}
+
+const PRIVATE_KEY  = normalizePemEnvVar(process.env.GA4_PRIVATE_KEY ?? '');
+const CLIENT_EMAIL = process.env.GA4_CLIENT_EMAIL  ?? 'almstins-analytics@almstins.iam.gserviceaccount.com';
+
+// ── Token cache (valid 55 min, re-fetch before the 60-min expiry) ─────────────
+let _token: string | null = null;
+let _tokenExp = 0;
+
+function b64url(data: string | Buffer): string {
+  const b64 = Buffer.isBuffer(data)
+    ? data.toString('base64')
+    : Buffer.from(data).toString('base64');
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function getAccessToken(): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  if (_token && now < _tokenExp) return _token;
+
+  if (!PRIVATE_KEY || !CLIENT_EMAIL) {
+    throw new Error('GA4_PRIVATE_KEY or GA4_CLIENT_EMAIL not set');
+  }
+
+  const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = b64url(JSON.stringify({
+    iss:   CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/analytics.readonly',
+    aud:   'https://oauth2.googleapis.com/token',
+    iat:   now,
+    exp:   now + 3600,
+  }));
+
+  // Parse into a KeyObject first rather than handing sign.sign() the raw PEM string — this
+  // surfaces a specific, actionable error (e.g. "Invalid PEM formatted message") instead of
+  // the opaque OpenSSL DECODER code when the env var's formatting is still off.
+  let keyObject;
+  try {
+    keyObject = createPrivateKey(PRIVATE_KEY);
+  } catch (e) {
+    throw new Error(`GA4_PRIVATE_KEY could not be parsed as a PEM private key: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const sign = createSign('RSA-SHA256');
+  sign.update(`${header}.${payload}`);
+  const sig = b64url(sign.sign(keyObject));
+  const jwt = `${header}.${payload}.${sig}`;
+
+  const res  = await fetch('https://oauth2.googleapis.com/token', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion:  jwt,
+    }),
+  });
+
+  const data = await res.json() as { access_token?: string; error?: string };
+  if (!data.access_token) throw new Error(`GA4 token error: ${data.error ?? JSON.stringify(data)}`);
+
+  _token    = data.access_token;
+  _tokenExp = now + 3300; // refresh 5 min early
+  return _token;
+}
+
+// ── Core report runner ────────────────────────────────────────────────────────
+
+interface ReportRow { [key: string]: string | number }
+
+/** Google answered with an error for one report (not a sign-in or network failure). */
+class ReportApiError extends Error {}
+
+async function runReport(body: object): Promise<ReportRow[]> {
+  try {
+    return await callReport('runReport', body);
+  } catch (err) {
+    // As before: one report's API error leaves that report empty; a token or network
+    // failure still throws, so getGA4Summary reports "not connected" instead of zeros.
+    if (!(err instanceof ReportApiError)) throw err;
+    console.warn('[ga4] report error:', err.message);
+    return [];
+  }
+}
+
+/** One Data API report call. Throws ReportApiError on an API error. */
+async function callReport(method: 'runReport' | 'runRealtimeReport', body: object): Promise<ReportRow[]> {
+  if (!PROPERTY_ID) return [];
+  const token = await getAccessToken();
+
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${PROPERTY_ID}:${method}`,
+    {
+      method:  'POST',
+      headers: {
+        Authorization:  `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  const data = await res.json() as {
+    rows?: { dimensionValues: { value: string }[]; metricValues: { value: string }[] }[];
+    dimensionHeaders?: { name: string }[];
+    metricHeaders?:    { name: string }[];
+    error?: { message: string };
+  };
+
+  if (data.error) throw new ReportApiError(data.error.message);
+
+  const dimNames = (data.dimensionHeaders ?? []).map((h) => h.name);
+  const metNames = (data.metricHeaders   ?? []).map((h) => h.name);
+
+  return (data.rows ?? []).map((row) => {
+    const out: ReportRow = {};
+    dimNames.forEach((n, i) => { out[n] = row.dimensionValues[i]?.value ?? ''; });
+    metNames.forEach((n, i) => { out[n] = Number(row.metricValues[i]?.value ?? 0); });
+    return out;
+  });
+}
+
+// ── Public helpers ─────────────────────────────────────────────────────────────
+
+export interface GA4Summary {
+  totalUsers:        number;
+  newUsers:          number;
+  sessions:          number;
+  checkerViews:      number;
+  loginViews:        number;
+  conversionRate:    string;   // e.g. "12.4%"
+  topPages:          { page: string; views: number; users: number }[];
+  topSources:        { source: string; sessions: number; newUsers: number }[];
+  topCountries:      { country: string; sessions: number }[];
+  dailySessions:     { date: string; sessions: number }[];
+  /** Views of specific, auth-gated tool pages — a view here means a real session. */
+  toolTraffic:       { path: string; label: string; views: number; users: number }[];
+}
+
+/** Auth-gated tool pages to monitor on the admin dashboard. A pageview here is a real,
+ *  signed-in session (unauthenticated hits are redirected to login before the page renders). */
+const MONITORED_TOOLS = [
+  { path: '/verify/desk',  label: 'Financing Desk' },
+  { path: '/verify/cairn', label: 'Cairn' },
+];
+
+export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
+  if (!PROPERTY_ID || !PRIVATE_KEY) return null;
+
+  const dateRange = { startDate: `${days}daysAgo`, endDate: 'today' };
+
+  try {
+    const [overview, pages, sources, countries, daily, toolPages] = await Promise.all([
+      // 1 — Overall totals
+      runReport({
+        dateRanges: [dateRange],
+        metrics: [
+          { name: 'totalUsers' },
+          { name: 'newUsers' },
+          { name: 'sessions' },
+        ],
+      }),
+
+      // 2 — Top pages
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'pagePath' }],
+        metrics:    [{ name: 'screenPageViews' }, { name: 'totalUsers' }],
+        orderBys:   [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        limit: 10,
+      }),
+
+      // 3 — Traffic sources
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'sessionSource' }],
+        metrics:    [{ name: 'sessions' }, { name: 'newUsers' }],
+        orderBys:   [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 8,
+      }),
+
+      // 4 — Countries
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'country' }],
+        metrics:    [{ name: 'sessions' }],
+        orderBys:   [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 8,
+      }),
+
+      // 5 — Daily sessions (trend)
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'date' }],
+        metrics:    [{ name: 'sessions' }],
+        orderBys:   [{ dimension: { dimensionName: 'date' }, desc: false }],
+      }),
+
+      // 6 — Monitored tool pages (auth-gated, so a view is a real signed-in session)
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'pagePath' }],
+        metrics:    [{ name: 'screenPageViews' }, { name: 'totalUsers' }],
+        dimensionFilter: {
+          filter: { fieldName: 'pagePath', inListFilter: { values: MONITORED_TOOLS.map((t) => t.path) } },
+        },
+      }),
+    ]);
+
+    const tot      = overview[0] ?? {};
+    const totalUsers  = Number(tot.totalUsers  ?? 0);
+    const newUsers    = Number(tot.newUsers    ?? 0);
+    const sessions    = Number(tot.sessions    ?? 0);
+
+    // Pull wallet-checker and login view counts from pages
+    const checkerRow = pages.find((r) => String(r.pagePath).includes('/wallet-checker'));
+    const loginRow   = pages.find((r) => String(r.pagePath).includes('/login'));
+    const checkerViews = Number(checkerRow?.screenPageViews ?? 0);
+    const loginViews   = Number(loginRow?.screenPageViews   ?? 0);
+    const convRate     = checkerViews > 0
+      ? ((loginViews / checkerViews) * 100).toFixed(1) + '%'
+      : '—';
+
+    return {
+      totalUsers,
+      newUsers,
+      sessions,
+      checkerViews,
+      loginViews,
+      conversionRate: convRate,
+      topPages: pages.map((r) => ({
+        page:  String(r.pagePath),
+        views: Number(r.screenPageViews),
+        users: Number(r.totalUsers),
+      })),
+      topSources: sources.map((r) => ({
+        source:   String(r.sessionSource),
+        sessions: Number(r.sessions),
+        newUsers: Number(r.newUsers),
+      })),
+      topCountries: countries.map((r) => ({
+        country:  String(r.country),
+        sessions: Number(r.sessions),
+      })),
+      dailySessions: daily.map((r) => ({
+        date:     String(r.date),
+        sessions: Number(r.sessions),
+      })),
+      toolTraffic: MONITORED_TOOLS.map((t) => {
+        const row = toolPages.find((x) => String(x.pagePath) === t.path);
+        return { path: t.path, label: t.label, views: Number(row?.screenPageViews ?? 0), users: Number(row?.totalUsers ?? 0) };
+      }),
+    };
+  } catch (err) {
+    console.warn('[ga4] getGA4Summary failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+export interface GA4Realtime {
+  /** People with the site open in the last 30 minutes. */
+  activeUsers: number;
+  countries: { country: string; activeUsers: number }[];
+  /** By page title (the Realtime API has no page path). */
+  pages: { title: string; activeUsers: number }[];
+}
+
+/**
+ * Who is on the site right now (GA4 Realtime API, last 30 minutes). Null when GA4 is not
+ * configured or Google does not answer, so a failure never reads as "nobody is here".
+ */
+export async function getGA4Realtime(): Promise<GA4Realtime | null> {
+  if (!PROPERTY_ID || !PRIVATE_KEY) return null;
+  try {
+    const metric = [{ name: 'activeUsers' }];
+    const [total, countries, pages] = await Promise.all([
+      callReport('runRealtimeReport', { metrics: metric }),
+      callReport('runRealtimeReport', { dimensions: [{ name: 'country' }], metrics: metric, limit: 10 }),
+      callReport('runRealtimeReport', { dimensions: [{ name: 'unifiedScreenName' }], metrics: metric, limit: 10 }),
+    ]);
+    return {
+      activeUsers: Number(total[0]?.activeUsers ?? 0),
+      countries: countries.map((r) => ({ country: String(r.country), activeUsers: Number(r.activeUsers) })),
+      pages: pages.map((r) => ({ title: String(r.unifiedScreenName), activeUsers: Number(r.activeUsers) })),
+    };
+  } catch (err) {
+    console.warn('[ga4] getGA4Realtime failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}

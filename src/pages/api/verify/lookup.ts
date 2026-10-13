@@ -1,0 +1,86 @@
+/**
+ * GET /api/verify/lookup?address=<addr-or-url>
+ *
+ * PUBLIC, login-free. Answers one question: has someone proven this destination is
+ * theirs with Almstins? Two inputs share the endpoint:
+ *   - a crypto ADDRESS → an entity's domain-published address, or a merchant's proven
+ *     self-listing (the `address` param name is kept for back-compat)
+ *   - an http(s) URL / payment LINK → a merchant's proven QR (account_claim)
+ * Returns ONLY the grade, date and rail, plus, for a Verified hit, the vouching domain
+ * and a business name derived from it. Never the freeform label an account typed (it can
+ * be a person's name), never tenant_id, the managing account, or any legal identity (the
+ * no-attribution boundary). A Claimed hit carries no name and no domain, the same rule
+ * the public cards follow (verifyPublicCard.ts). Read-only; the queried value is never
+ * written anywhere.
+ *
+ * Backs the "Verified publisher" badge on the public wallet-checker. Bounded input
+ * (format-validated, length-capped) + a per-IP rate limit independent of the
+ * wallet-check budget. Makes no upstream fetch (no SSRF surface).
+ */
+import type { APIRoute } from 'astro';
+import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
+import { isValidAddress } from '@/lib/walletChecker';
+import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
+import { isEmvPayload } from '@/lib/paymentQr';
+import { displayableName } from '@/lib/verifyPublicCard';
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+// Lightweight per-client limiter, separate from /api/wallet-check's budget. 30 req/min,
+// keyed on the Cloudflare-set client IP (an IPv6 client by its /64), bounded.
+const lookupLimiter = createFixedWindowLimiter({ windowMs: 60_000, max: 30 });
+
+export const GET: APIRoute = async ({ request, url }) => {
+  const raw = url.searchParams.get('address');
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return json({ ok: false, error: 'address is required' }, 400);
+  }
+  const query = raw.trim();
+  // A "QR" value is a URL (Stripe/PayPal), an EMV/PIX TLV string, or a UPI intent URI —
+  // all matched against kind='qr' destinations. Anything else must be a crypto address.
+  const isQrValue = /^https?:\/\//i.test(query) || /^upi:\/\//i.test(query) || isEmvPayload(query);
+  if (isQrValue) {
+    if (query.length > 1024) return json({ ok: false, error: 'Value too long' }, 400);
+  } else {
+    if (query.length > 128) return json({ ok: false, error: 'Address too long' }, 400);
+    if (!isValidAddress(query)) return json({ ok: false, error: 'Invalid address format' }, 400);
+  }
+
+  if (lookupLimiter.hit(clientIpKey(request))) return json({ ok: false, error: 'Too many requests.' }, 429);
+
+  try {
+    const hit = isQrValue ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
+    // Name and domain go out only for a Verified hit, and the name only when it derives
+    // from that domain: exactly what a public card can show, so the raw JSON says no more.
+    const verified = hit?.level === 'verified';
+    const domain = verified ? (hit?.domain ?? null) : null;
+    return json({
+      ok: true,
+      verified: !!hit,
+      // Three-tier grade: 'verified' (domain-anchored) or 'claimed' (control only).
+      // null when there's no hit (registered/unproven is never surfaced as positive).
+      level: hit?.level ?? null,
+      // Date the destination/entity was proven ("verified/claimed since"), as YYYY-MM-DD.
+      since: hit?.since ? String(hit.since).slice(0, 10) : null,
+      source: hit?.source ?? null,
+      domain,
+      // C5/S7b: the domain that actually vouches for this destination (never the
+      // account's business-name domain) — verifyPublicCard.ts uses it to decide "Listed
+      // on {domain}" vs "verified via {domain}". Additive field; an older client that
+      // hasn't read it yet still gets `domain` for a Verified hit.
+      // Verified only, like `domain`: a Claimed answer names no domain at all.
+      provingDomain: verified ? (hit?.provingDomain ?? null) : null,
+      label: domain ? displayableName(hit?.label ?? null, domain) : null,
+      chain: hit?.chain ?? null,
+    });
+  } catch (err) {
+    console.error('[verify-lookup] error:', err instanceof Error ? err.message : err);
+    // Fail closed: never block the page — just report "not verified" (no badge).
+    return json({ ok: true, verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null, chain: null });
+  }
+};
+
+// Reject other methods.
+export const POST: APIRoute = () => json({ ok: false, error: 'Method not allowed' }, 405);
+export const PUT: APIRoute = () => json({ ok: false, error: 'Method not allowed' }, 405);

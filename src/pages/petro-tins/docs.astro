@@ -1,0 +1,211 @@
+---
+// Public docs page — no auth required. Chrome + tokens come from PetroTinsLayout;
+// FAQ copy lives in lib/petro-tins/faq.ts; the CTA + header are components.
+import PetroTinsLayout from '@/layouts/PetroTinsLayout.astro';
+import SiteHeader from '@/components/petro-tins/SiteHeader.astro';
+import SiteFooter from '@/components/petro-tins/SiteFooter.astro';
+import FaqList from '@/components/petro-tins/FaqList.astro';
+import CtaCard from '@/components/petro-tins/CtaCard.astro';
+import { PETRO_FAQ } from '@/lib/petro-tins/faq';
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
+
+// No demo while PetroTins is owner-only (src/lib/petroTinsFlag.mjs): only the owner sees this page.
+const nav = [
+  { label: 'Home', href: '/petro-tins' },
+  ...(PETRO_TINS_PUBLIC ? [{ label: 'Try demo', href: '/api/petro-tins/demo' }] : []),
+  { label: 'Sign in', href: '/dashboard/petro-tins' },
+];
+---
+<PetroTinsLayout
+  title="PetroTins Docs — How it works"
+  description="How to use PetroTins — debt tins, budget register, splits, and more."
+>
+  <div class="pt-content-wrap">
+    <SiteHeader sub="Docs" nav={nav} />
+
+    <h1 class="pt-doc-title">How PetroTins works</h1>
+    <p class="pt-doc-intro">
+      PetroTins is a manual-entry personal finance tool. No bank connection. No Plaid. No OAuth to your accounts.
+      You type the numbers in — PetroTins does the math. Here's everything you need to know.
+    </p>
+
+    <div class="pt-toc">
+      <div class="pt-toc__title">Contents</div>
+      <ul class="pt-toc__list">
+        <li><a href="#debt-tins">Debt Tins — tracking what you owe</a></li>
+        <li><a href="#budget-tin">Budget Register — your checkbook</a></li>
+        <li><a href="#splits-tin">Splits Tin — shared expenses</a></li>
+        <li><a href="#slush-tin">Slush Fund — pooled money</a></li>
+        <li><a href="#summary">Cash Flow Summary</a></li>
+        <li><a href="#pricing">Free plan vs. paid</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <section class="pt-section" id="debt-tins">
+      <div class="pt-section__label">Feature</div>
+      <h2 class="pt-section__title">💳 Debt Tins</h2>
+      <div class="pt-section__body">
+        <p>A Debt Tin represents one credit card, loan, or line of credit. Add one for each debt you're tracking.</p>
+        <p>Most people know roughly what they owe. Few know what that debt actually <em>costs</em> them while they sit on it. That's the number that changes behavior.</p>
+        <p>Each tin shows your <strong>current balance</strong>, <strong>credit limit</strong>, <strong>APR</strong>, and a <strong>utilization bar</strong> that fills as you use more of your limit. More importantly, it shows the exact dollar amount of interest you're paying <strong>per day, per month, and per year</strong> at your current balance — not buried in a statement, right on your dashboard.</p>
+        <p>A $6,000 balance at 24% APR doesn't feel that bad until you see it's costing you $3.95 <em>today</em>. And tomorrow. And every day after that whether you think about it or not.</p>
+      </div>
+
+      <div class="pt-steps">
+        <div class="pt-step">
+          <div class="pt-step__num">1</div>
+          <div class="pt-step__text">Click <strong>+ Add Tin</strong> → choose <strong>Debt</strong>. Enter the card name, current balance, credit limit, and APR (as a percentage, e.g. <code>21.99</code>).</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">2</div>
+          <div class="pt-step__text">Each month, open the tin and log a <strong>Payment</strong> entry — your balance drops automatically. Log a <strong>Charge</strong> if you add to the balance.</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">3</div>
+          <div class="pt-step__text">Watch the utilization bar shrink and the daily interest number fall. That's the whole point.</div>
+        </div>
+      </div>
+
+      <div class="pt-callout">
+        <strong>APR math:</strong> Monthly interest = balance × (APR ÷ 12). Daily interest = monthly ÷ 30. If your balance is $6,000 at 24% APR, you're paying $120/month or $3.95/day just in interest — before any principal comes down.
+      </div>
+
+      <div class="pt-section__body" style="margin-top: 1.5rem;">
+        <p><strong>The forever loan problem</strong></p>
+        <p>Credit cards get the attention, but the most dangerous version of this plays out quietly with student loans.</p>
+        <p>Imagine you have $40,000 in student loans at 7% interest. That's $233 in interest every single month. If your payment is $200 — which feels responsible, you're paying every month — you are not paying down your loan. <strong>You are going backwards.</strong> The balance at the end of the month is higher than it was at the start. Next month you owe interest on a slightly larger number. And the month after that.</p>
+        <p>A forever loan. You can pay faithfully for years and owe more than you started with.</p>
+        <p>TradfiTins shows you that number. The moment you see that your monthly interest exceeds your monthly payment, you know you have a different problem than you thought you did.</p>
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="budget-tin">
+      <div class="pt-section__label">Feature</div>
+      <h2 class="pt-section__title">📒 Budget Register</h2>
+      <div class="pt-section__body">
+        <p>The Budget Register works like a physical checkbook. Every income deposit and every expense gets a row. The running balance updates as you go.</p>
+        <p>Ten blank rows are always ready for new entries. Type a date, description, and amount — tab to the next field. Hit <strong>Enter</strong> or click away and the row saves automatically. Saved rows show a ✕ to delete them.</p>
+        <p>Income rows are green. Expense rows are red. The running balance at the bottom tells you exactly where you stand.</p>
+      </div>
+      <div class="pt-steps">
+        <div class="pt-step">
+          <div class="pt-step__num">1</div>
+          <div class="pt-step__text">Click <strong>+ Add Tin</strong> → choose <strong>Budget</strong>. Give it a name like "Home Budget" or "October."</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">2</div>
+          <div class="pt-step__text">Use the blank rows to log income (paycheck, freelance, refunds) and expenses (rent, groceries, bills). The kind (Income / Expense) is set by a toggle on each row.</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">3</div>
+          <div class="pt-step__text">The <strong>Cash Flow Summary</strong> panel (top right of your dashboard) aggregates this month's income and expenses across all your tins automatically.</div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="splits-tin">
+      <div class="pt-section__label">Feature</div>
+      <h2 class="pt-section__title">🤝 Splits Tin</h2>
+      <div class="pt-section__body">
+        <p>A Splits Tin tracks shared expenses between two or more people — roommates splitting bills, a couple tracking who paid what, a household managing shared costs.</p>
+        <p>Each tin has a list of <strong>people</strong> (columns) and a list of <strong>bills</strong> (rows). For each cell, you assign who owes what — either a percentage of the bill or a flat dollar amount. PetroTins calculates each person's total owed, tracks partial payments, and shows a running balance.</p>
+        <p>When someone pays in full, their column turns green. When all columns are green, the tin collapses to a single "All paid ✓" line to keep the dashboard clean.</p>
+      </div>
+      <div class="pt-steps">
+        <div class="pt-step">
+          <div class="pt-step__num">1</div>
+          <div class="pt-step__text">Click <strong>+ Splits</strong> and give it a name (e.g. "May Bills" or "Apartment 3B").</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">2</div>
+          <div class="pt-step__text">Add each person. Mark <strong>That's me</strong> on your own name so payments flow the right direction in your budget register.</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">3</div>
+          <div class="pt-step__text">Add bills with their total amount. Then click each cell to assign the split — enter a percent (e.g. <code>50%</code>) or a flat dollar amount.</div>
+        </div>
+        <div class="pt-step">
+          <div class="pt-step__num">4</div>
+          <div class="pt-step__text">When someone pays, click <strong>Pay</strong> in their column, enter the amount and date. Partial payments are tracked with a full history. If they overpay, the excess carries forward.</div>
+        </div>
+      </div>
+      <div class="pt-callout pt-callout--gain">
+        <strong>Auto-post to budget:</strong> If a person has "That's me" marked and they pay a bill, it can automatically post an expense entry to your linked Budget Register — so your cash flow summary stays accurate without double entry.
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="slush-tin">
+      <div class="pt-section__label">Feature</div>
+      <h2 class="pt-section__title">💰 Slush Fund</h2>
+      <div class="pt-section__body">
+        <p>A Slush Fund is a simple balance card for tracking a shared pool of money — an emergency fund, a vacation fund, a household kitty, anything that multiple people contribute to.</p>
+        <p>It shows a current balance and lets you log contributions and withdrawals. No APR math, no register — just a running total of what's in the pot.</p>
+      </div>
+      <div class="pt-callout">
+        <strong>When to use it:</strong> If you and a partner both contribute $200/month to a shared account for irregular expenses, a Slush Fund tin lets you track the balance without a bank connection.
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="summary">
+      <div class="pt-section__label">Feature</div>
+      <h2 class="pt-section__title">📊 Cash Flow Summary</h2>
+      <div class="pt-section__body">
+        <p>The summary panel in the top-right of your dashboard aggregates numbers from <strong>all your tins for the current month</strong>:</p>
+        <p>
+          <strong>Total Income</strong> — all income entries logged this month across every budget tin.<br/>
+          <strong>Total Expenses</strong> — all expense entries logged this month.<br/>
+          <strong>Net Cash Flow</strong> — income minus expenses. Green if positive, red if not.<br/>
+          <strong>Total Debt</strong> — the sum of all balances across your debt tins right now.<br/>
+          <strong>Monthly Interest</strong> — what you're paying in interest across all cards this month at current balances.<br/>
+          <strong>Est. Annual Interest</strong> — monthly interest × 12, so you can see the year-over-year cost of carrying your current debt load.
+        </p>
+        <p>Nothing to configure — it updates automatically as you log entries.</p>
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="pricing">
+      <div class="pt-section__label">Plans</div>
+      <h2 class="pt-section__title">Free plan vs. paid</h2>
+      <div class="pt-section__body">
+        <p>The <strong>free plan</strong> gives you one Debt Tin and one Budget Register — enough to track your biggest card and your main budget.</p>
+        <p>The <strong>paid plan ($100/year)</strong> unlocks unlimited tins of every type, Splits Tins, and Slush Funds. One price, everything included.</p>
+        <p>To upgrade, go to your dashboard and click the <strong>⛽ Free Plan — Upgrade</strong> link in the toolbar. Promo codes are accepted on the upgrade page.</p>
+      </div>
+      <div class="pt-callout">
+        <strong>Promo codes:</strong> If you have a code, enter it on the upgrade page. Some codes activate immediately with no payment required. Others will show a contact email for payment instructions.
+      </div>
+    </section>
+
+    <hr class="pt-rule" />
+
+    <section class="pt-section" id="faq">
+      <div class="pt-section__label">FAQ</div>
+      <h2 class="pt-section__title">Common questions</h2>
+      <FaqList items={PETRO_FAQ} />
+    </section>
+
+    {PETRO_TINS_PUBLIC && (
+      <CtaCard
+        title="Ready to see it?"
+        sub="The demo has sample credit cards, a budget register, and a splits tin — all pre-loaded."
+        btnLabel="⛽ Try the demo"
+        btnHref="/api/petro-tins/demo"
+        linkLabel="Or sign in to your account →"
+        linkHref="/petro-tins"
+      />
+    )}
+
+    <SiteFooter />
+  </div>
+</PetroTinsLayout>

@@ -1,0 +1,73 @@
+.welcome {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface-card);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.hero-info {
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.hero-info h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.hero-role {
+  font-size: 0.9rem;
+  opacity: 0.75;
+  margin: 0.25rem 0 1rem;
+}
+
+.hero-links {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hero-links a {
+  flex: 1;
+  text-decoration: none;
+  font-size: 0.8rem;
+  padding: 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.hero-links a:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.welcome.compact .hero-card {
+  max-width: 320px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.welcome.compact .hero-info h2,
+.welcome.compact .hero-role,
+.welcome.compact .hero-links a {
+  color: var(--text-primary);
+}

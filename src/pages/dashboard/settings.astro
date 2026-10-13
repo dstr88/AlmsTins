@@ -1,0 +1,167 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getJurisdictionProfile, PROFILES } from '../../lib/jurisdictionProfile';
+import { getLang } from '@/lib/i18n/locale';
+import { getSettings } from '@/i18n/dashboard/settings';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+const profile = await getJurisdictionProfile(tenantId);
+const lang = getLang(Astro.request);
+const t = getSettings(lang);
+---
+<Layout title={t.pageTitle} noindex={true}>
+  <div class="settings-page">
+
+    <div class="settings-header">
+      <h1 class="settings-title">{t.title}</h1>
+      <p class="settings-sub">{t.sub}</p>
+    </div>
+
+    <section class="settings-section">
+      <h2 class="settings-section__label">{t.jurisdictionLabel}</h2>
+      <p class="settings-section__desc">{t.jurisdictionDesc}</p>
+      <div class="jur-options" id="jur-options">
+        {Object.values(PROFILES).map((p) => (
+          <button
+            class={`jur-option${profile.jurisdiction === p.jurisdiction ? ' jur-option--active' : ''}`}
+            data-jur={p.jurisdiction}
+            type="button"
+          >
+            <span class="jur-option__label">{p.label}</span>
+            <span class="jur-option__desc">
+              {p.jurisdiction === 'us' ? t.usProfileDesc : t.otherProfileDesc}
+            </span>
+          </button>
+        ))}
+      </div>
+      <p class="settings-feedback" id="jur-feedback" aria-live="polite"></p>
+    </section>
+
+  </div>
+</Layout>
+
+<script define:vars={{ i18n: { saving: t.saving, saved: t.saved, couldNotSave: t.couldNotSave, networkError: t.networkError } }}>
+  const buttons  = document.querySelectorAll('[data-jur]');
+  const feedback = document.getElementById('jur-feedback');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const jur = btn.dataset.jur;
+      buttons.forEach(b => b.classList.remove('jur-option--active'));
+      btn.classList.add('jur-option--active');
+      feedback.textContent = i18n.saving;
+      try {
+        const res = await fetch('/api/settings/jurisdiction', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ jurisdiction: jur }),
+        });
+        if (res.ok) {
+          feedback.textContent = i18n.saved;
+          setTimeout(() => { feedback.textContent = ''; }, 2000);
+        } else {
+          feedback.textContent = i18n.couldNotSave;
+        }
+      } catch {
+        feedback.textContent = i18n.networkError;
+      }
+    });
+  });
+</script>
+
+<style>
+  .settings-page {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  .settings-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.35rem;
+  }
+  .settings-sub {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  .settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .settings-section__label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin: 0;
+  }
+  .settings-section__desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  .jur-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .jur-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-card);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .jur-option:hover {
+    border-color: var(--border-bright);
+    background: var(--surface-card-2);
+  }
+  .jur-option--active {
+    border-color: var(--accent-dim);
+    background: var(--accent-soft);
+  }
+  .jur-option__label {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .jur-option--active .jur-option__label {
+    color: var(--accent);
+  }
+  .jur-option__desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .settings-feedback {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    min-height: 1.2em;
+    margin: 0;
+  }
+
+  @media (max-width: 600px) {
+    .settings-page { padding: 1.5rem 1rem 3rem; }
+    .settings-title { font-size: 1.3rem; }
+  }
+</style>

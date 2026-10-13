@@ -1,0 +1,383 @@
+---
+import './importedFilesFormat.css';
+// Renders import_transactions for a given source; amounts/symbols are best-effort based on import rules.
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import {
+	getImportTransactionColumns,
+	selectImportColumn,
+	selectImportNotes,
+} from '@/lib/importTransactionsSchema';
+import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
+import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
+import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
+import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+
+type IconSet = {
+	in: string;
+	out: string;
+	lost: string;
+};
+
+type Props = {
+	source: string;
+	title: string;
+	icons: IconSet;
+	limit?: number;
+	showList?: boolean;
+};
+
+type ImportRow = {
+	id: string;
+	import_batch_id: string | null;
+	timestamp_utc: string;
+	description: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_currency: string | null;
+	native_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	tx_hash: string | null;
+	direction: string;
+	asset_symbol: string | null;
+	notes: string | null;
+	category: string | null;
+	group_id: string | null;
+	fee_usd: number | null;
+	fee_native: number | null;
+	fee_currency: string | null;
+	gas_used: string | null;
+	parent_tx_id: string | null;
+};
+
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toImportRow = (row: unknown): ImportRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		import_batch_id: toStringOrNull(r.import_batch_id),
+		timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+		description: toStringOrNull(r.description),
+		currency: toStringOrNull(r.currency),
+		amount: toNumberOrNull(r.amount),
+		to_currency: toStringOrNull(r.to_currency),
+		to_amount: toNumberOrNull(r.to_amount),
+		native_currency: toStringOrNull(r.native_currency),
+		native_amount: toNumberOrNull(r.native_amount),
+		native_usd: toNumberOrNull(r.native_usd),
+		kind: toStringOrNull(r.kind),
+		tx_hash: toStringOrNull(r.tx_hash),
+		direction: toStringOrEmpty(r.direction),
+		asset_symbol: toStringOrNull(r.asset_symbol),
+		notes: toStringOrNull(r.notes),
+		category: toStringOrNull(r.category),
+		group_id: toStringOrNull(r.group_id),
+		fee_usd: toNumberOrNull(r.fee_usd),
+		fee_native: toNumberOrNull(r.fee_native),
+		fee_currency: toStringOrNull(r.fee_currency),
+		gas_used: toStringOrNull(r.gas_used),
+		parent_tx_id: toStringOrNull(r.parent_tx_id),
+	};
+};
+
+const toImportRows = (rows: unknown): ImportRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: ImportRow[] = [];
+	for (const row of rows) {
+		const mapped = toImportRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const { source, title, icons, limit, showList = true } = Astro.props as Props;
+const { tenantId } = await requireTenantSession(Astro.request);
+
+let importColumns = new Set<string>();
+try {
+	importColumns = await getImportTransactionColumns();
+} catch (error) {
+	console.error('[importedFilesFormat] Failed to load import_transactions schema', error);
+}
+
+const importNotes = selectImportNotes(importColumns);
+const importCategory = selectImportColumn(importColumns, 'category');
+const importGroupId = selectImportColumn(importColumns, 'group_id');
+const importFeeUsd = selectImportColumn(importColumns, 'fee_usd');
+const importFeeNative = selectImportColumn(importColumns, 'fee_native');
+const importFeeCurrency = selectImportColumn(importColumns, 'fee_currency');
+const importGasUsed = selectImportColumn(importColumns, 'gas_used');
+const importParentTxId = selectImportColumn(importColumns, 'parent_tx_id');
+
+const result = await db.execute({
+	sql: `SELECT id, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
+		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, ${importNotes}, ${importCategory}, ${importGroupId},
+		${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, ${importGasUsed}, ${importParentTxId}
+		FROM import_transactions WHERE source = ? AND tenant_id = ?
+		ORDER BY timestamp_utc DESC
+		${limit ? `LIMIT ${Number(limit)}` : ''}`,
+	args: [source, tenantId],
+});
+
+const rows = toImportRows(result.rows);
+
+const yearDividerAssets: Record<number, string> = {
+	2023: yearDivide2023.src,
+	2024: yearDivide2024.src,
+	2025: yearDivide2025.src,
+};
+
+const dividerForYear = (year: number) => yearDividerAssets[year] ?? yearDivideEarlier.src;
+
+const parseNumber = (value: number | string | null | undefined) => {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	const cleaned = value.replace(/,/g, '');
+	const num = Number(cleaned);
+	return Number.isFinite(num) ? num : null;
+};
+
+const formatAmount = (
+	value: number | string | null | undefined,
+	options?: Intl.NumberFormatOptions
+) => {
+	const num = parseNumber(value);
+	if (num === null) return '—';
+	return new Intl.NumberFormat('en-US', options).format(num);
+};
+
+const formatDate = (value: string) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
+
+const pickTokenAmount = (row: ImportRow) => {
+	const symbol = pickSymbol(row);
+	if (symbol && row.to_currency && symbol === row.to_currency) return row.to_amount;
+	if (symbol && row.currency && symbol === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const pickUsdAmount = (row: ImportRow) => row.native_usd ?? row.native_amount;
+
+const isInlineSvg = (value: string) => value.trim().startsWith('<svg');
+
+const formatDetailValue = (value: string | number | null | undefined) => {
+	if (value === null || value === undefined || value === '') return '—';
+	if (typeof value === 'number') return formatAmount(value, { maximumFractionDigits: 8 });
+	return value;
+};
+
+const rowsWithDividers: Array<
+	| { type: 'divider'; year: number; asset: string }
+	| { type: 'row'; row: ImportRow }
+> = [];
+let lastYear: number | null = null;
+
+for (const row of rows) {
+	const year = new Date(row.timestamp_utc).getUTCFullYear();
+	if (!lastYear || lastYear !== year) {
+		rowsWithDividers.push({ type: 'divider', year, asset: dividerForYear(year) });
+		lastYear = year;
+	}
+	rowsWithDividers.push({ type: 'row', row });
+}
+
+const balanceMap = new Map<string, number>();
+for (const row of rows) {
+	const symbol = pickSymbol(row);
+	const amount = parseNumber(pickTokenAmount(row));
+	if (!symbol || amount === null) continue;
+	const direction = row.direction === 'out' || row.direction === 'lost' ? -1 : 1;
+	balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) + direction * amount);
+}
+
+const balances = Array.from(balanceMap.entries())
+	.map(([symbol, amount]) => ({ symbol, amount }))
+	.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+---
+
+<article class="imported-files">
+	<header class="imported-files__header">
+		<h3 class="imported-files__title">{title}</h3>
+		{balances.length ? (
+			<div class="imported-files__balances" aria-label="Balances">
+				<span class="imported-files__balances-label">Balance</span>
+				{balances.map((item) => (
+					<span class="balance-pill">
+						<span class="balance-pill__symbol">{item.symbol}</span>
+						<span class="balance-pill__amount">{formatAmount(item.amount, { maximumFractionDigits: 8 })}</span>
+					</span>
+				))}
+			</div>
+		) : null}
+	</header>
+
+	<div class="imported-files__body">
+		{showList ? (
+			<div class="imported-files__list">
+				{rowsWithDividers.map((item) =>
+					item.type === 'divider' ? (
+						<div class="tx-year-divider" aria-hidden="true">
+							<img class="tx-year-divider__img" src={item.asset} alt={`${item.year} divider`} />
+							<span class="tx-year-divider__label">{item.year}</span>
+						</div>
+					) : (
+						<div class="tx-card">
+							<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+							<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
+							<span class="tx-amount">
+								{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}
+							</span>
+							<span class="tx-usd">
+								{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+							</span>
+							<span class="tx-icon">
+								<span class="tx-icon-stack">
+									{item.row.direction === 'lost' ? (
+										isInlineSvg(icons.lost) ? (
+											<span class="tx-icon-svg" set:html={icons.lost} />
+										) : (
+											<img class="tx-icon-img" src={icons.lost} alt="Lost" />
+										)
+									) : item.row.direction === 'out' ? (
+										<img class="tx-icon-img" src={icons.out} alt="Sold" />
+									) : (
+										<img class="tx-icon-img" src={icons.in} alt="Bought" />
+									)}
+									<button
+										class="tx-more"
+										type="button"
+										aria-expanded="false"
+										aria-controls={`tx-details-${item.row.id}`}
+									>
+										More
+									</button>
+								</span>
+							</span>
+							<div class="tx-details" id={`tx-details-${item.row.id}`} hidden>
+								<div class="tx-details-grid">
+									<span class="tx-detail-key">description</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.description)}</span>
+									<span class="tx-detail-key">kind</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.kind)}</span>
+									<span class="tx-detail-key">tx_hash</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.tx_hash)}</span>
+									<span class="tx-detail-key">currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.currency)}</span>
+									<span class="tx-detail-key">amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.amount)}</span>
+									<span class="tx-detail-key">to_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.to_currency)}</span>
+									<span class="tx-detail-key">to_amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.to_amount)}</span>
+									<span class="tx-detail-key">native_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_currency)}</span>
+									<span class="tx-detail-key">native_amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_amount)}</span>
+									<span class="tx-detail-key">native_usd</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_usd)}</span>
+									<span class="tx-detail-key">direction</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.direction)}</span>
+									<span class="tx-detail-key">asset_symbol</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.asset_symbol)}</span>
+									<span class="tx-detail-key">import_batch_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.import_batch_id)}</span>
+									<span class="tx-detail-key">fee_usd</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_usd)}</span>
+									<span class="tx-detail-key">fee_native</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_native)}</span>
+									<span class="tx-detail-key">fee_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_currency)}</span>
+									<span class="tx-detail-key">gas_used</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.gas_used)}</span>
+									<span class="tx-detail-key">group_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.group_id)}</span>
+									<span class="tx-detail-key">parent_tx_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.parent_tx_id)}</span>
+								</div>
+							</div>
+							<textarea
+								class="tx-notes"
+								placeholder="Notes..."
+								data-id={item.row.id}
+								data-initial={item.row.notes ?? ''}
+								data-category={item.row.category ?? ''}
+								data-group-id={item.row.group_id ?? ''}
+							>{item.row.notes ?? ''}</textarea>
+							<span class="tx-saved" aria-live="polite">Saved</span>
+						</div>
+					)
+				)}
+			</div>
+		) : null}
+	</div>
+</article>
+
+<script>
+	const container = document.querySelector('.imported-files__list');
+	if (container) {
+		container.addEventListener('click', (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement) || !target.classList.contains('tx-more')) return;
+			const card = target.closest('.tx-card');
+			if (!card) return;
+			const details = card.querySelector('.tx-details');
+			if (!(details instanceof HTMLElement)) return;
+			const isOpen = target.getAttribute('aria-expanded') === 'true';
+			target.setAttribute('aria-expanded', (!isOpen).toString());
+			details.toggleAttribute('hidden', isOpen);
+		});
+
+		container.addEventListener('blur', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLTextAreaElement) || !target.classList.contains('tx-notes')) return;
+			const id = target.dataset.id;
+			if (!id) return;
+			const initial = target.dataset.initial ?? '';
+			if (target.value === initial) return;
+			const saved = target.nextElementSibling;
+			try {
+				const response = await fetch('/api/import/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						id,
+						note: target.value,
+						category: target.dataset.category || null,
+						group_id: target.dataset.groupId || null,
+					}),
+				});
+				if (!response.ok) throw new Error('Failed to save.');
+				target.dataset.initial = target.value;
+				if (saved instanceof HTMLElement) {
+					saved.classList.add('is-visible');
+					setTimeout(() => saved.classList.remove('is-visible'), 1500);
+				}
+			} catch {
+				if (saved instanceof HTMLElement) {
+					saved.textContent = 'Save failed';
+					saved.classList.add('is-visible');
+					setTimeout(() => {
+						saved.classList.remove('is-visible');
+						saved.textContent = 'Saved';
+					}, 2000);
+				}
+			}
+		}, true);
+	}
+</script>
+

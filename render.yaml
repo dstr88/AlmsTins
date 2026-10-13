@@ -1,0 +1,30 @@
+# render.yaml — intentionally not an active Blueprint.
+#
+# This project's WEB SERVICE is configured manually in the Render dashboard
+# (deploy = git push → manual "Deploy latest commit"). It is NOT provisioned from
+# this file — which is why the cron blocks that used to live here never actually ran.
+#
+# ── All scheduled jobs now run as GitHub Actions ──────────────────────────────
+# Every cron is a workflow in .github/workflows/*.yml. They fire from the default
+# branch (production) and simply curl the /api/cron/* endpoints on the live web
+# service, authenticated with the CRON_SECRET header.
+#
+# Why moved off Render: Render Cron Jobs are billed per service, while GitHub
+# Actions schedules are free — and both do the identical thing (a curl to the same
+# endpoint). No reason to pay for the trigger.
+#
+# Cron inventory (schedule · endpoint):
+#   sync-wallets          0 2 * * 1     /api/cron/sync-wallets
+#   sync-aave             0 3 * * 1     /api/cron/sync-aave
+#   sync-btc              0 4 * * 1     /api/cron/sync-btc
+#   sync-solana           0 5 * * 1     /api/cron/sync-solana
+#   monthly-digest        0 6 1 * *     /api/cron/monthly-digest
+#   petro-tins-reminder   0 9 25 * *    /api/cron/petro-tins-reminder
+#   verify-monitor        30 */6 * * *  /api/cron/verify-monitor
+#   onboarding-drip       0 * * * *     /api/cron/onboarding-drip
+#   health-alerts         */30 * * * *  /api/cron/health-alerts
+#   price-alerts          */15 * * * *  /api/cron/price-alerts
+#   promo-expiry          0 10 * * *    /api/cron/promo-expiry
+#   weekly-defi-sync      0 2 * * 6     /api/cron/sync-defi   (redundant DeFi backup)
+#
+# If a Blueprint is ever wanted, add a real `services:` block below.

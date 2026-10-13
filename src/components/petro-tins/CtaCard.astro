@@ -1,0 +1,27 @@
+---
+// "Ready to see it?" CTA block — reused on docs (and available to the landing).
+interface Props {
+  title: string;
+  sub: string;
+  btnLabel: string;
+  btnHref: string;
+  linkLabel?: string;
+  linkHref?: string;
+}
+const { title, sub, btnLabel, btnHref, linkLabel, linkHref } = Astro.props;
+---
+<div class="pt-cta">
+  <div class="pt-cta__title">{title}</div>
+  <div class="pt-cta__sub">{sub}</div>
+  <a href={btnHref} class="pt-cta__btn">{btnLabel}</a>
+  {linkLabel && linkHref && <a href={linkHref} class="pt-cta__link">{linkLabel}</a>}
+</div>
+<style>
+  .pt-cta { text-align: center; padding: 2.5rem 1.5rem; background: var(--card); border: 1px solid var(--border-hi); border-radius: 16px; }
+  .pt-cta__title { font-size: 1.3rem; font-weight: 800; margin-bottom: 0.5rem; }
+  .pt-cta__sub { font-size: 0.875rem; color: var(--sub); margin-bottom: 1.5rem; }
+  .pt-cta__btn { display: inline-block; background: var(--pt); color: var(--bg); border-radius: 9px; padding: 0.7rem 1.75rem; font-size: 0.9rem; font-weight: 700; text-decoration: none; transition: opacity 0.15s; }
+  .pt-cta__btn:hover { opacity: 0.88; }
+  .pt-cta__link { display: block; margin-top: 0.75rem; font-size: 0.78rem; color: var(--muted); text-decoration: none; }
+  .pt-cta__link:hover { color: var(--pt); }
+</style>

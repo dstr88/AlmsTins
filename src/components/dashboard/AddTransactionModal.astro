@@ -1,0 +1,464 @@
+---
+import './AddTransactionModal.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getAddTransactionModal } from '@/i18n/components/addTransactionModal';
+/**
+ * AddTransactionModal — global modal for adding a transaction to a custom wallet.
+ *
+ * Two tabs:
+ *   Hash   — paste a tx hash, auto-lookup fills from/to/date, user adds kind + notes
+ *   Manual — full manual entry: date, symbol, amount, direction, USD value, kind, notes
+ *
+ * Triggered by: CustomWalletCard button dispatching CustomEvent('open-add-tx', { walletId, walletLabel })
+ */
+const lang = getLang(Astro.request);
+const t = getAddTransactionModal(lang);
+---
+
+<div class="atm-overlay is-hidden" id="add-tx-modal" role="dialog" aria-modal="true" aria-labelledby="atm-title">
+	<div class="atm-dialog">
+		<header class="atm-header">
+			<h2 class="atm-title" id="atm-title">{t.title}</h2>
+			<p class="atm-wallet-name" id="atm-wallet-name"></p>
+			<button class="atm-close" type="button" aria-label={t.closeAriaLabel} id="atm-close">✕</button>
+		</header>
+
+		<!-- Tab bar -->
+		<div class="atm-tabs" role="tablist">
+			<button class="atm-tab is-active" type="button" role="tab" aria-selected="true" data-atm-tab="hash">
+				{t.tabHashLookup}
+			</button>
+			<button class="atm-tab" type="button" role="tab" aria-selected="false" data-atm-tab="manual">
+				{t.tabManualEntry}
+			</button>
+		</div>
+
+		<!-- Hash panel -->
+		<div class="atm-panel" data-atm-panel="hash">
+			<p class="atm-hint">
+				{t.hashHint}
+			</p>
+
+			<div class="atm-lookup-row">
+				<label class="atm-field atm-field--grow">
+					<span class="atm-label">{t.labelTxHash}</span>
+					<input class="atm-input" type="text" placeholder="0x…" data-hash-input autocomplete="off" spellcheck="false" />
+				</label>
+				<label class="atm-field">
+					<span class="atm-label">{t.labelChain}</span>
+					<select class="atm-select" data-hash-chain>
+						<option value="bitcoin">Bitcoin</option>
+						<option value="ethereum">Ethereum</option>
+						<option value="avalanche">Avalanche</option>
+						<option value="polygon">Polygon</option>
+						<option value="arbitrum">Arbitrum</option>
+						<option value="litecoin">Litecoin</option>
+						<option value="sui">Sui</option>
+					</select>
+				</label>
+				<button class="atm-btn atm-btn--lookup" type="button" data-hash-lookup>{t.btnLookup}</button>
+			</div>
+
+			<!-- Pre-fill result area -->
+			<div class="atm-prefill is-hidden" data-hash-prefill>
+				<div class="atm-prefill-grid">
+					<span class="atm-prefill-label">{t.prefillDate}</span>
+					<span class="atm-prefill-value" data-prefill-date>—</span>
+					<span class="atm-prefill-label">{t.prefillFrom}</span>
+					<span class="atm-prefill-value atm-mono" data-prefill-from>—</span>
+					<span class="atm-prefill-label">{t.prefillTo}</span>
+					<span class="atm-prefill-value atm-mono" data-prefill-to>—</span>
+					<span class="atm-prefill-label">{t.prefillValue}</span>
+					<span class="atm-prefill-value" data-prefill-value>—</span>
+				</div>
+			</div>
+
+			<label class="atm-field">
+				<span class="atm-label">{t.labelTokenSymbol} <span class="atm-optional">{t.optional}</span></span>
+				<input class="atm-input" type="text" placeholder={t.hashSymbolPlaceholder} data-hash-symbol autocomplete="off" />
+			</label>
+			<label class="atm-field">
+				<span class="atm-label">{t.labelUsdValue} <span class="atm-optional">{t.optional}</span></span>
+				<input class="atm-input" type="number" placeholder="0.00" min="0" step="any" data-hash-usd />
+			</label>
+			<label class="atm-field">
+				<span class="atm-label">{t.labelKind}</span>
+				<select class="atm-select" data-hash-kind>
+					<option value="">{t.kindSelectPlaceholder}</option>
+					<option value="buy">Buy</option>
+					<option value="sell">Sell</option>
+					<option value="transfer">Transfer</option>
+					<option value="swap">Swap</option>
+				</select>
+			</label>
+			<div class="atm-field is-hidden" data-hash-transfer-row>
+				<span class="atm-label">{t.labelSentToAddress} <span class="atm-optional">{t.optional}</span></span>
+				<input class="atm-input atm-mono-sm" type="text" placeholder={t.hashDestinationPlaceholder} data-hash-transfer-to autocomplete="off" spellcheck="false" />
+			</div>
+			<label class="atm-field">
+				<span class="atm-label">{t.labelNotes} <span class="atm-optional">{t.optional}</span></span>
+				<textarea class="atm-textarea" rows="2" placeholder={t.hashNotesPlaceholder} data-hash-notes></textarea>
+			</label>
+
+			<button class="atm-btn atm-btn--submit" type="button" data-hash-submit>{t.btnSaveTransaction}</button>
+			<p class="atm-message" data-hash-message aria-live="polite"></p>
+		</div>
+
+		<!-- Manual panel -->
+		<div class="atm-panel is-hidden" data-atm-panel="manual">
+			<p class="atm-hint">
+				{t.manualHint}
+			</p>
+
+			<div class="atm-row-2">
+				<label class="atm-field">
+					<span class="atm-label">{t.labelDate} <span class="atm-required">{t.required}</span></span>
+					<input class="atm-input" type="datetime-local" data-manual-date />
+				</label>
+				<label class="atm-field">
+					<span class="atm-label">{t.labelChainOptional} <span class="atm-optional">{t.optional}</span></span>
+					<select class="atm-select" data-manual-chain>
+						<option value="custom">{t.chainCustomUnknown}</option>
+						<option value="bitcoin">Bitcoin</option>
+						<option value="ethereum">Ethereum</option>
+						<option value="avalanche">Avalanche</option>
+						<option value="polygon">Polygon</option>
+						<option value="arbitrum">Arbitrum</option>
+						<option value="litecoin">Litecoin</option>
+						<option value="sui">Sui</option>
+					</select>
+				</label>
+			</div>
+			<div class="atm-row-2">
+				<label class="atm-field">
+					<span class="atm-label">{t.labelSymbol} <span class="atm-required">{t.required}</span></span>
+					<input class="atm-input" type="text" placeholder={t.manualSymbolPlaceholder} data-manual-symbol autocomplete="off" />
+				</label>
+				<label class="atm-field">
+					<span class="atm-label">{t.labelAmount} <span class="atm-required">{t.required}</span></span>
+					<input class="atm-input" type="number" placeholder={t.manualAmountPlaceholder} min="0" step="any" data-manual-amount />
+				</label>
+			</div>
+			<div class="atm-row-2">
+				<label class="atm-field">
+					<span class="atm-label">{t.labelDirection}</span>
+					<div class="atm-toggle" data-manual-direction-group>
+						<button class="atm-toggle__btn is-active" type="button" data-direction="in">{t.dirIn}</button>
+						<button class="atm-toggle__btn" type="button" data-direction="out">{t.dirOut}</button>
+					</div>
+				</label>
+				<label class="atm-field">
+					<span class="atm-label">{t.labelUsdValue} <span class="atm-optional">{t.optional}</span></span>
+					<input class="atm-input" type="number" placeholder="0.00" min="0" step="any" data-manual-usd />
+				</label>
+			</div>
+			<label class="atm-field">
+				<span class="atm-label">{t.labelKind}</span>
+				<select class="atm-select" data-manual-kind>
+					<option value="">{t.kindSelectPlaceholder}</option>
+					<option value="buy">Buy</option>
+					<option value="sell">Sell</option>
+					<option value="transfer">Transfer</option>
+					<option value="swap">Swap</option>
+				</select>
+			</label>
+			<div class="atm-field is-hidden" data-manual-transfer-row>
+				<span class="atm-label">{t.labelSentToAddress} <span class="atm-optional">{t.optional}</span></span>
+				<input class="atm-input atm-mono-sm" type="text" placeholder={t.manualDestinationPlaceholder} data-manual-transfer-to autocomplete="off" spellcheck="false" />
+			</div>
+			<label class="atm-field">
+				<span class="atm-label">{t.labelNotes} <span class="atm-optional">{t.optional}</span></span>
+				<textarea class="atm-textarea" rows="2" placeholder={t.manualNotesPlaceholder} data-manual-notes></textarea>
+			</label>
+
+			<button class="atm-btn atm-btn--submit" type="button" data-manual-submit>{t.btnSaveManual}</button>
+			<p class="atm-message" data-manual-message aria-live="polite"></p>
+		</div>
+	</div>
+</div>
+
+<script is:inline define:vars={{ addTxI18n: {
+	enterHashFirst:      t.scriptEnterHashFirst,
+	lookingUp:           t.scriptLookingUp,
+	lookupFailed:        t.scriptLookupFailed,
+	txNotFound:          t.scriptTxNotFound,
+	foundReview:         t.scriptFoundReview,
+	networkErrorLookup:  t.scriptNetworkErrorLookup,
+	hashRequired:        t.scriptHashRequired,
+	saving:              t.scriptSaving,
+	unableToSave:        t.scriptUnableToSave,
+	saved:               t.scriptSaved,
+	networkError:        t.scriptNetworkError,
+	dateRequired:        t.scriptDateRequired,
+	symbolRequired:      t.scriptSymbolRequired,
+	positiveAmount:      t.scriptPositiveAmount,
+} }}>window.__addTxI18n = addTxI18n;</script>
+
+<script>
+	const overlay = document.getElementById('add-tx-modal');
+	if (overlay instanceof HTMLElement) {
+		let currentWalletId: string | null = null;
+
+		// Strings injected by the <script is:inline define:vars> island above.
+		const I = (window as any).__addTxI18n ?? {};
+
+		// ── Prefill state shared between hash path ────────────────────────
+		let hashPrefillData: {
+			timestamp?: string | null;
+			from?: string | null;
+			to?: string | null;
+			value?: string | null;
+			blockNumber?: number | null;
+		} = {};
+
+		// ── Open / close ──────────────────────────────────────────────────
+		const open = (walletId: string, walletLabel: string) => {
+			currentWalletId = walletId;
+			const nameEl = overlay.querySelector('#atm-wallet-name');
+			if (nameEl) nameEl.textContent = walletLabel;
+			overlay.classList.remove('is-hidden');
+			document.body.style.overflow = 'hidden';
+		};
+
+		const close = () => {
+			overlay.classList.add('is-hidden');
+			document.body.style.overflow = '';
+			currentWalletId = null;
+			hashPrefillData = {};
+			resetMessages();
+		};
+
+		overlay.querySelector('#atm-close')?.addEventListener('click', close);
+		overlay.addEventListener('click', (e) => {
+			if (e.target === overlay) close();
+		});
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape' && !overlay.classList.contains('is-hidden')) close();
+		});
+
+		// Listen for open events from CustomWalletCard buttons
+		document.addEventListener('open-add-tx', (e: Event) => {
+			const { walletId, walletLabel } = (e as CustomEvent).detail;
+			open(walletId, walletLabel);
+		});
+
+		// ── Tab switching ─────────────────────────────────────────────────
+		const tabs = overlay.querySelectorAll<HTMLButtonElement>('[data-atm-tab]');
+		const panels = overlay.querySelectorAll<HTMLElement>('[data-atm-panel]');
+		tabs.forEach((tab) => {
+			tab.addEventListener('click', () => {
+				const target = tab.dataset.atmTab;
+				tabs.forEach((t) => {
+					t.classList.toggle('is-active', t.dataset.atmTab === target);
+					t.setAttribute('aria-selected', t.dataset.atmTab === target ? 'true' : 'false');
+				});
+				panels.forEach((p) => p.classList.toggle('is-hidden', p.dataset.atmPanel !== target));
+			});
+		});
+
+		// ── Helpers ───────────────────────────────────────────────────────
+		const resetMessages = () => {
+			overlay.querySelectorAll<HTMLElement>('[data-hash-message],[data-manual-message]').forEach((el) => {
+				el.textContent = '';
+			});
+		};
+
+		const setMsg = (el: HTMLElement | null, text: string) => {
+			if (el) el.textContent = text;
+		};
+
+		// ── Hash: Lookup ──────────────────────────────────────────────────
+		const hashInput = overlay.querySelector<HTMLInputElement>('[data-hash-input]');
+		const hashChain = overlay.querySelector<HTMLSelectElement>('[data-hash-chain]');
+		const hashLookupBtn = overlay.querySelector<HTMLButtonElement>('[data-hash-lookup]');
+		const hashPrefillEl = overlay.querySelector<HTMLElement>('[data-hash-prefill]');
+		const prefillDate = overlay.querySelector<HTMLElement>('[data-prefill-date]');
+		const prefillFrom = overlay.querySelector<HTMLElement>('[data-prefill-from]');
+		const prefillTo = overlay.querySelector<HTMLElement>('[data-prefill-to]');
+		const prefillValue = overlay.querySelector<HTMLElement>('[data-prefill-value]');
+		const hashMsgEl = overlay.querySelector<HTMLElement>('[data-hash-message]');
+
+		hashLookupBtn?.addEventListener('click', async () => {
+			if (!currentWalletId) return;
+			const hash = hashInput?.value.trim() ?? '';
+			const chain = hashChain?.value ?? 'ethereum';
+			if (!hash) { setMsg(hashMsgEl, I.enterHashFirst ?? 'Enter a tx hash first.'); return; }
+
+			if (hashLookupBtn) hashLookupBtn.disabled = true;
+			setMsg(hashMsgEl, I.lookingUp ?? 'Looking up…');
+
+			try {
+				const res = await fetch(
+					`/api/wallets/${currentWalletId}/transactions?hash=${encodeURIComponent(hash)}&chain=${chain}`,
+				);
+				const data = await res.json();
+
+				if (!res.ok) {
+					setMsg(hashMsgEl, data.message ?? (I.lookupFailed ?? 'Lookup failed.'));
+					return;
+				}
+
+				if (!data.found) {
+					setMsg(hashMsgEl, I.txNotFound ?? 'Tx not found on explorer — fill in details manually below.');
+					hashPrefillEl?.classList.add('is-hidden');
+					return;
+				}
+
+				hashPrefillData = {
+					timestamp: data.timestamp,
+					from: data.from,
+					to: data.to,
+					value: data.value,
+					blockNumber: data.blockNumber,
+				};
+
+				if (prefillDate) prefillDate.textContent = data.timestamp ? new Date(data.timestamp).toLocaleString() : '—';
+				if (prefillFrom) prefillFrom.textContent = data.from ? `${data.from.slice(0, 8)}…${data.from.slice(-6)}` : '—';
+				if (prefillTo) prefillTo.textContent = data.to ? `${data.to.slice(0, 8)}…${data.to.slice(-6)}` : '—';
+				if (prefillValue) prefillValue.textContent = data.value ? `${BigInt(data.value) / 10n**18n} ETH` : '—';
+
+				hashPrefillEl?.classList.remove('is-hidden');
+				setMsg(hashMsgEl, I.foundReview ?? 'Found — review details, then save.');
+			} catch {
+				setMsg(hashMsgEl, I.networkErrorLookup ?? 'Network error during lookup.');
+			} finally {
+				if (hashLookupBtn) hashLookupBtn.disabled = false;
+			}
+		});
+
+		// ── Hash: Kind → show/hide transfer address ───────────────────────
+		const hashKind = overlay.querySelector<HTMLSelectElement>('[data-hash-kind]');
+		const hashTransferRow = overlay.querySelector<HTMLElement>('[data-hash-transfer-row]');
+		const hashTransferTo = overlay.querySelector<HTMLInputElement>('[data-hash-transfer-to]');
+		hashKind?.addEventListener('change', () => {
+			const isTransfer = hashKind.value === 'transfer';
+			hashTransferRow?.classList.toggle('is-hidden', !isTransfer);
+		});
+
+		// ── Hash: Submit ──────────────────────────────────────────────────
+		const hashSymbol = overlay.querySelector<HTMLInputElement>('[data-hash-symbol]');
+		const hashUsd = overlay.querySelector<HTMLInputElement>('[data-hash-usd]');
+		const hashNotes = overlay.querySelector<HTMLTextAreaElement>('[data-hash-notes]');
+		const hashSubmitBtn = overlay.querySelector<HTMLButtonElement>('[data-hash-submit]');
+
+		hashSubmitBtn?.addEventListener('click', async () => {
+			if (!currentWalletId) return;
+			const hash = hashInput?.value.trim() ?? '';
+			if (!hash) { setMsg(hashMsgEl, I.hashRequired ?? 'A tx hash is required.'); return; }
+
+			if (hashSubmitBtn) hashSubmitBtn.disabled = true;
+			setMsg(hashMsgEl, I.saving ?? 'Saving…');
+
+			const usdRaw = parseFloat(hashUsd?.value ?? '');
+
+			try {
+				const res = await fetch(`/api/wallets/${currentWalletId}/transactions`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						path: 'hash',
+						hash,
+						chain: hashChain?.value ?? 'ethereum',
+						timestamp: hashPrefillData.timestamp ?? null,
+						from: hashPrefillData.from ?? null,
+						to: hashPrefillData.to ?? null,
+						value: hashPrefillData.value ?? null,
+						blockNumber: hashPrefillData.blockNumber ?? null,
+						symbol: hashSymbol?.value.trim() || null,
+						usdValue: isFinite(usdRaw) ? usdRaw : null,
+						kind: hashKind?.value || null,
+						transferTo: hashKind?.value === 'transfer' ? (hashTransferTo?.value.trim() || null) : null,
+						notes: hashNotes?.value.trim() || null,
+					}),
+				});
+				const data = await res.json();
+				if (!res.ok) {
+					setMsg(hashMsgEl, data.message ?? (I.unableToSave ?? 'Unable to save.'));
+					return;
+				}
+				setMsg(hashMsgEl, I.saved ?? 'Saved!');
+				setTimeout(() => close(), 900);
+			} catch {
+				setMsg(hashMsgEl, I.networkError ?? 'Network error — please try again.');
+			} finally {
+				if (hashSubmitBtn) hashSubmitBtn.disabled = false;
+			}
+		});
+
+		// ── Manual: Direction toggle ──────────────────────────────────────
+		const directionGroup = overlay.querySelector<HTMLElement>('[data-manual-direction-group]');
+		let selectedDirection = 'in';
+		directionGroup?.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				selectedDirection = btn.dataset.direction ?? 'in';
+				directionGroup.querySelectorAll('[data-direction]').forEach((b) => {
+					(b as HTMLElement).classList.toggle('is-active', (b as HTMLElement).dataset.direction === selectedDirection);
+				});
+			});
+		});
+
+		// ── Manual: Kind → show/hide transfer address ─────────────────────
+		const manualKind = overlay.querySelector<HTMLSelectElement>('[data-manual-kind]');
+		const manualTransferRow = overlay.querySelector<HTMLElement>('[data-manual-transfer-row]');
+		const manualTransferTo = overlay.querySelector<HTMLInputElement>('[data-manual-transfer-to]');
+		manualKind?.addEventListener('change', () => {
+			const isTransfer = manualKind.value === 'transfer';
+			manualTransferRow?.classList.toggle('is-hidden', !isTransfer);
+		});
+
+		// ── Manual: Submit ────────────────────────────────────────────────
+		const manualDate = overlay.querySelector<HTMLInputElement>('[data-manual-date]');
+		const manualChain = overlay.querySelector<HTMLSelectElement>('[data-manual-chain]');
+		const manualSymbol = overlay.querySelector<HTMLInputElement>('[data-manual-symbol]');
+		const manualAmount = overlay.querySelector<HTMLInputElement>('[data-manual-amount]');
+		const manualUsd = overlay.querySelector<HTMLInputElement>('[data-manual-usd]');
+		const manualNotes = overlay.querySelector<HTMLTextAreaElement>('[data-manual-notes]');
+		const manualSubmitBtn = overlay.querySelector<HTMLButtonElement>('[data-manual-submit]');
+		const manualMsgEl = overlay.querySelector<HTMLElement>('[data-manual-message]');
+
+		manualSubmitBtn?.addEventListener('click', async () => {
+			if (!currentWalletId) return;
+			const date = manualDate?.value ?? '';
+			const symbol = manualSymbol?.value.trim() ?? '';
+			const amountRaw = parseFloat(manualAmount?.value ?? '');
+			const usdRaw = parseFloat(manualUsd?.value ?? '');
+
+			if (!date) { setMsg(manualMsgEl, I.dateRequired ?? 'Date is required.'); return; }
+			if (!symbol) { setMsg(manualMsgEl, I.symbolRequired ?? 'Symbol is required.'); return; }
+			if (!isFinite(amountRaw) || amountRaw <= 0) { setMsg(manualMsgEl, I.positiveAmount ?? 'Enter a positive amount.'); return; }
+
+			if (manualSubmitBtn) manualSubmitBtn.disabled = true;
+			setMsg(manualMsgEl, I.saving ?? 'Saving…');
+
+			try {
+				const res = await fetch(`/api/wallets/${currentWalletId}/transactions`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						path: 'manual',
+						date: new Date(date).toISOString(),
+						chain: manualChain?.value ?? 'custom',
+						symbol,
+						amount: amountRaw,
+						direction: selectedDirection,
+						usdValue: isFinite(usdRaw) ? usdRaw : null,
+						kind: manualKind?.value || null,
+						transferTo: manualKind?.value === 'transfer' ? (manualTransferTo?.value.trim() || null) : null,
+						notes: manualNotes?.value.trim() || null,
+					}),
+				});
+				const data = await res.json();
+				if (!res.ok) {
+					setMsg(manualMsgEl, data.message ?? (I.unableToSave ?? 'Unable to save.'));
+					return;
+				}
+				setMsg(manualMsgEl, I.saved ?? 'Saved!');
+				setTimeout(() => close(), 900);
+			} catch {
+				setMsg(manualMsgEl, I.networkError ?? 'Network error — please try again.');
+			} finally {
+				if (manualSubmitBtn) manualSubmitBtn.disabled = false;
+			}
+		});
+	}
+</script>

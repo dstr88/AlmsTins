@@ -1,0 +1,28 @@
+.crypto-accounts__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+}
+
+.crypto-accounts__section-label {
+	margin: 0 0 0.1rem;
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	color: var(--surface-card);
+	opacity: 0.9;
+}
+
+.crypto-accounts__empty {
+	margin: 0;
+	font-size: var(--font-sm);
+	opacity: 0.7;
+}
+
+.crypto-accounts__error {
+	margin: 0;
+	font-size: var(--font-sm);
+	color: var(--loss);
+	opacity: 0.9;
+}
+

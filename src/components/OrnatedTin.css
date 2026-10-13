@@ -1,0 +1,150 @@
+/* =========================================================
+  Ornate Tin
+  - Outer decorative frame (was "aged copper", now Titanium Mint)
+  - Inner inset frame
+  - Corner filigree (SVG data URIs updated to accent color)
+  - Scroll is on .ornate-tin__body
+========================================================= */
+
+.ornate-tin {
+  /* Local theme knobs — resolved to global tokens */
+  --tin-bg:      var(--surface-card);
+  --tin-fg:      var(--text-primary);
+  --tin-body-bg: rgba(0, 0, 0, 0.08);
+
+  --radius:      16px;
+  --pad-x:       1.1rem;
+  --pad-top:     2.8rem; /* leaves room for label */
+  --pad-bottom:  1.1rem;
+
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  background: var(--tin-bg);
+  color: var(--tin-fg);
+
+  border-radius: var(--radius);
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  box-sizing: border-box;
+  min-height: 0;
+
+  box-shadow:
+    0 0 0 1px var(--border-subtle) inset,
+    0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.ornate-tin__label {
+  position: absolute;
+  top: -12px;
+  left: 1rem;
+
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+  color: var(--surface-bg);
+  font-weight: 800;
+  font-size: 0.98rem;
+
+  padding: 0.42rem 0.85rem;
+  border-radius: 10px;
+
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(0, 0, 0, 0.18) inset;
+
+  z-index: 3;
+}
+
+.ornate-tin__summary {
+  margin-top: 0.2rem;
+  padding-bottom: 0.6rem;
+}
+
+.ornate-tin__body {
+  position: relative;
+  z-index: 1;
+
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 0.75rem 0.5rem 1.1rem;
+  box-sizing: border-box;
+
+  border-radius: calc(var(--radius) - 10px);
+  background:
+    radial-gradient(1200px 400px at 15% 10%, var(--border-subtle), transparent 50%),
+    radial-gradient(900px 380px at 85% 85%, var(--accent-soft), transparent 55%),
+    var(--tin-body-bg);
+}
+
+/* ===== Outer ornate frame — filigree updated to accent (#2DD4A8) ===== */
+.ornate-tin::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  pointer-events: none;
+  z-index: 0;
+
+  background:
+    /* corner filigree — stroke color changed from #FA8072 to #2DD4A8 */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/svg%3E")
+      top 10px left 10px / 92px 92px no-repeat,
+
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,0) scale(-1,1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+      top 10px right 10px / 92px 92px no-repeat,
+
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(0,120) scale(1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+      bottom 10px left 10px / 92px 92px no-repeat,
+
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,120) scale(-1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+      bottom 10px right 10px / 92px 92px no-repeat;
+
+  box-shadow:
+    0 0 0 2px var(--accent-dim) inset,
+    0 0 0 8px var(--accent-soft) inset,
+    0 0 0 1px var(--border-subtle) inset;
+}
+
+/* inner inset frame */
+.ornate-tin::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: calc(var(--radius) - 10px);
+  pointer-events: none;
+  z-index: 2;
+
+  border: 2px solid var(--accent-dim);
+
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.25) inset,
+    0 0 0 1px var(--border-subtle);
+
+  background:
+    radial-gradient(24px 24px at 0% 0%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 100% 0%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 0% 100%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 100% 100%, var(--accent-soft), transparent 70%);
+}
+
+/* Scrollbar polishing */
+.ornate-tin__body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+.ornate-tin__body::-webkit-scrollbar {
+  width: 6px;
+}
+.ornate-tin__body::-webkit-scrollbar-thumb {
+  background: var(--border-bright);
+  border-radius: 20px;
+}

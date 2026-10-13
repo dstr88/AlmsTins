@@ -1,0 +1,56 @@
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [production]
+  schedule:
+    # Also runs every 6 hours to catch anything that broke in production
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # On a push-triggered run, give Render ~90 seconds to finish deploying
+      # before we hit the live URL. Adjust if your build takes longer.
+      - name: Wait for Render deployment
+        if: github.event_name == 'push'
+        run: |
+          echo "Waiting 90s for Render to deploy..."
+          sleep 90
+
+      - name: Run Playwright tests
+        env:
+          BASE_URL:      ${{ secrets.E2E_BASE_URL }}
+          E2E_EMAIL:     ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD:  ${{ secrets.E2E_PASSWORD }}
+        run: npx playwright test
+
+      # Upload screenshots + traces when tests fail so you can see exactly
+      # what the browser saw.
+      - name: Upload test report on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

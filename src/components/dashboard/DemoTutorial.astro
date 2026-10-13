@@ -1,0 +1,167 @@
+---
+import TourEngine from '../TourEngine.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getDemoTutorial } from '@/i18n/components/demoTutorial';
+
+const lang = getLang(Astro.request);
+const t = getDemoTutorial(lang);
+---
+
+<TourEngine
+	tourId="demo"
+	lang={lang}
+	trigger="bar"
+	barIcon="✦"
+	barCopy={t.barCopy}
+	barCta={t.barCta}
+/>
+
+<script is:inline define:vars={{ demoTutI18n: {
+	barCopy:          t.barCopy,
+	barCta:           t.barCta,
+	steps:            t.steps,
+	labels:           t.labels,
+	addLastWalletMsg: t.addLastWalletMsg,
+	addLastWalletBtn: t.addLastWalletBtn,
+} }}>window.__demoTutI18n = demoTutI18n;</script>
+
+<script is:inline>
+(function () {
+	if (!window.TourEngine) return;
+
+	/* i18n strings injected by the define:vars island above */
+	var I = window.__demoTutI18n || {};
+
+	/* Selectors attached per-step (index must stay in sync across all langs) */
+	var SELECTORS = [
+		'.tile--r1c1',
+		'.tile--r1c2',
+		'.tile--r1c3',
+		'#addTinDemoSamples',
+		'.smart-import-bar',
+		'.exchange-lane',
+		'.wallet-tin--wallet',
+		'.wallet-tin--defi',
+		'.wallet-tin--defi',
+		'.tile--r1c2',
+	];
+
+	/* Step index constants — must match array positions in all langs */
+	var SAMPLE_WALLETS_IDX = 3;
+	var RESUME_AFTER_ADD   = 4;
+
+	/* Shared onShow for sample-wallets gating step */
+	function sampleWalletsOnShow() {
+		var samples     = document.getElementById('addTinDemoSamples');
+		var bodyEl      = document.getElementById('te-body-demo');
+		var nextBtn     = document.getElementById('te-next-demo');
+		var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
+
+		if (samples) samples.style.display = '';
+
+		if (walletCount >= 3) {
+			setTimeout(function () { window.TourEngine._step('demo', RESUME_AFTER_ADD); }, 0);
+			return;
+		}
+		if (walletCount === 2) {
+			setTimeout(function () {
+				var msg = (I.addLastWalletMsg) || 'Nice. Now add the other sample wallet to continue the tour.';
+				var lbl = (I.addLastWalletBtn) || 'Add the last wallet ↑';
+				if (bodyEl)  bodyEl.textContent  = msg;
+				if (nextBtn) nextBtn.textContent = lbl;
+			}, 0);
+		}
+
+		var chipUsed = false;
+		if (samples) {
+			samples.querySelectorAll('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
+				btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
+			});
+		}
+		var submitBtn = document.querySelector('[data-add-submit]');
+		if (submitBtn) submitBtn.addEventListener('click', function () {
+			try {
+				if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
+				else          sessionStorage.setItem('demo-tour-end', '1');
+			} catch(e) {}
+		}, { once: true });
+	}
+
+	/* onShow callbacks keyed by step index */
+	var onShowFns = {
+		6: function () {
+			var tin = document.querySelector('.wallet-tin--wallet');
+			if (tin && tin.classList.contains('is-collapsed')) {
+				var lbl = tin.querySelector('.salmon-tin__label');
+				if (lbl) lbl.click();
+			}
+		},
+		8: function () {
+			var tin = document.querySelector('.wallet-tin--defi');
+			if (tin && tin.classList.contains('is-collapsed')) {
+				var lbl = tin.querySelector('.salmon-tin__label');
+				if (lbl) lbl.click();
+			}
+		},
+		9: function () {
+			var tile = document.querySelector('.tile--r1c2');
+			if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
+		},
+	};
+
+	/* Build step arrays for every lang from the locale data */
+	function buildSteps(locale) {
+		if (!locale || !locale.steps) return [];
+		return locale.steps.map(function (s, i) {
+			var step = {
+				selector: SELECTORS[i] || '',
+				title:    s.title || '',
+				body:     s.body  || '',
+			};
+			if (s.nextLabel) step.nextLabel = s.nextLabel;
+			if (i === SAMPLE_WALLETS_IDX) step.onShow = sampleWalletsOnShow;
+			if (onShowFns[i]) step.onShow = onShowFns[i];
+			return step;
+		});
+	}
+
+	/* Build the steps/labels objects that TourEngine.register expects.
+	   We always supply all three langs so the engine can switch without a reload.
+	   The locale file ships EN/ES/FR; for safety we fall back to English values
+	   when a translation is missing. */
+	var enLocale = window.__demoTutI18n;
+	var stepsForLang  = {};
+	var labelsForLang = {};
+
+	/* TourEngine currently only consumes the lang keys it knows about.
+	   Pass all three so future lang-switch support just works. */
+	['en', 'es', 'fr'].forEach(function (code) {
+		/* The server bakes exactly one lang into __demoTutI18n.
+		   We need the other langs for TourEngine multi-lang registration, so
+		   we register the server lang under all three keys — TourEngine will
+		   always receive the correct lang because the page already reflects it.
+		   If TourEngine is later extended to support runtime lang-switching, swap
+		   this for individual per-lang fetches or a combined payload. */
+		stepsForLang[code]  = buildSteps(enLocale);
+		labelsForLang[code] = enLocale ? enLocale.labels : { step: 'Step', of: 'of', back: '← Back', next: 'Next →', finish: 'Log in →' };
+	});
+
+	window.TourEngine.register('demo', stepsForLang, labelsForLang, {
+		onFinish: function () { window.location.href = '/'; },
+	});
+
+	/* Resume after wallet-add page reload */
+	try {
+		var resumeIdx = sessionStorage.getItem('demo-tour-resume');
+		var tourEnded = sessionStorage.getItem('demo-tour-end');
+		sessionStorage.removeItem('demo-tour-resume');
+		sessionStorage.removeItem('demo-tour-end');
+		if (!tourEnded && resumeIdx !== null) {
+			var resumeStep = parseInt(resumeIdx, 10);
+			if (!isNaN(resumeStep) && resumeStep < SELECTORS.length) {
+				window.TourEngine.start('demo', resumeStep);
+			}
+		}
+	} catch(e) {}
+})();
+</script>

@@ -1,0 +1,281 @@
+---
+/**
+ * /redeem
+ *
+ * Promo code redemption page.
+ * User must be logged in. No credit card required.
+ */
+import Layout from '@/layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getRedeem } from '@/i18n/redeem';
+
+const lang = getLang(Astro.request);
+const t = getRedeem(lang);
+
+const sess = await requireTenantSession(Astro.request).catch(() => null);
+if (!sess) return Astro.redirect('/login?next=/redeem', 302);
+
+const prefill = Astro.url.searchParams.get('code') ?? '';
+---
+
+<Layout title={t.pageTitle}>
+  <main class="redeem-page">
+    <div class="card">
+      <div class="card__icon">🎁</div>
+      <h1 class="card__title">{t.cardTitle}</h1>
+      <p class="card__sub">{t.cardSub}</p>
+
+      <form class="redeem-form" id="redeem-form">
+        <input
+          id="code-input"
+          class="code-input"
+          type="text"
+          name="code"
+          placeholder={t.placeholder}
+          value={prefill}
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="32"
+          required
+        />
+        <button class="submit-btn" type="submit" id="submit-btn">
+          {t.submitBtn}
+        </button>
+      </form>
+
+      <div id="result" class="result" aria-live="polite"></div>
+    </div>
+  </main>
+</Layout>
+
+<script is:inline define:vars={{ i18n: {
+  applying:      t.applying,
+  dashboardLink: t.dashboardLink,
+  neverExpires:  t.neverExpires,
+  genericError:  t.genericError,
+  networkError:  t.networkError,
+  submitBtn:     t.submitBtn,
+  accessThrough: t.accessThrough('__DATE__'),
+  planUnlocked:  t.planUnlocked('__PLAN__'),
+} }}>window.__redeemI18n = i18n;</script>
+
+<script>
+const form     = document.getElementById('redeem-form') as HTMLFormElement;
+const input    = document.getElementById('code-input')  as HTMLInputElement;
+const btn      = document.getElementById('submit-btn')  as HTMLButtonElement;
+const resultEl = document.getElementById('result')      as HTMLDivElement;
+
+interface RedeemI18n {
+  applying: string;
+  dashboardLink: string;
+  neverExpires: string;
+  genericError: string;
+  networkError: string;
+  submitBtn: string;
+  /** Template with literal __DATE__ placeholder. */
+  accessThrough: string;
+  /** Template with literal __PLAN__ placeholder. */
+  planUnlocked: string;
+}
+
+const I18N: RedeemI18n = (window as unknown as { __redeemI18n?: RedeemI18n }).__redeemI18n ?? {
+  applying: 'Applying…',
+  dashboardLink: 'Go to dashboard →',
+  neverExpires: 'Your access never expires.',
+  genericError: 'Something went wrong. Please try again.',
+  networkError: 'Network error. Please check your connection and try again.',
+  submitBtn: 'Apply Code',
+  accessThrough: 'Your access runs through <strong>__DATE__</strong>.',
+  planUnlocked: '__PLAN__ plan unlocked!',
+};
+
+function formatExpiry(isoDate: string): string {
+  const d = new Date(isoDate);
+  // Use the browser locale for formatting so dates feel natural to the user.
+  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+
+  btn.disabled = true;
+  btn.textContent = I18N.applying;
+  resultEl.className = 'result';
+  resultEl.textContent = '';
+
+  try {
+    const res  = await fetch('/api/promo/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.ok) {
+      const neverExpires = data.expiresAt === '9999-12-31T23:59:59Z';
+      const expiryText = neverExpires
+        ? I18N.neverExpires
+        : I18N.accessThrough.replace('__DATE__', formatExpiry(data.expiresAt));
+      const planText = I18N.planUnlocked.replace('__PLAN__', data.plan);
+      resultEl.className = 'result result--success';
+      resultEl.innerHTML = `
+        <span class="result__icon">🎉</span>
+        <span>
+          <strong>${planText}</strong><br>
+          ${expiryText}
+          <a href="/dashboard" class="result__link">${I18N.dashboardLink}</a>
+        </span>
+      `;
+      input.value = '';
+    } else {
+      resultEl.className = 'result result--error';
+      resultEl.innerHTML = `<span class="result__icon">⚠️</span><span>${data.error ?? I18N.genericError}</span>`;
+    }
+  } catch {
+    resultEl.className = 'result result--error';
+    resultEl.textContent = I18N.networkError;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = I18N.submitBtn;
+  }
+});
+
+// Auto-uppercase as the user types
+input.addEventListener('input', () => {
+  const pos = input.selectionStart ?? 0;
+  input.value = input.value.toUpperCase();
+  input.setSelectionRange(pos, pos);
+});
+</script>
+
+<style>
+  .redeem-page {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .card {
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .card__icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .card__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: .5rem;
+  }
+
+  .card__sub {
+    font-size: .9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 2rem;
+  }
+
+  .redeem-form {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+
+  .code-input {
+    width: 100%;
+    padding: .75rem 1rem;
+    border-radius: 10px;
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-bright);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-align: center;
+    text-transform: uppercase;
+    transition: border-color .15s;
+  }
+
+  .code-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .code-input::placeholder {
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .submit-btn {
+    padding: .75rem 1rem;
+    border-radius: 10px;
+    background: var(--accent);
+    border: none;
+    color: var(--surface-bg);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+
+  .submit-btn:hover:not(:disabled) { opacity: .85; }
+  .submit-btn:disabled { opacity: .5; cursor: default; }
+
+  /* Result states */
+  .result {
+    display: none;
+    margin-top: 1.25rem;
+    padding: .9rem 1rem;
+    border-radius: 10px;
+    font-size: .9rem;
+    text-align: left;
+    display: flex;
+    align-items: flex-start;
+    gap: .6rem;
+    line-height: 1.5;
+  }
+
+  .result:empty { display: none; }
+
+  .result--success {
+    background: var(--gain-bg);
+    border: 1px solid var(--gain-border);
+    color: var(--gain);
+  }
+
+  .result--error {
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
+  }
+
+  .result__icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
+
+  .result__link {
+    display: inline-block;
+    margin-top: .4rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .result__link:hover { text-decoration: underline; }
+</style>

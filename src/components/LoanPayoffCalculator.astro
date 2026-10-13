@@ -1,0 +1,684 @@
+---
+import './LoanPayoffCalculator.css';
+type Props = {
+	initialDebt?: number;
+	initialRate?: number;
+	id?: string;
+	loanId?: string;
+	startDate?: string;
+};
+
+const {
+	initialDebt = 10000,
+	initialRate = 10,
+	id = 'loan-payoff',
+	loanId = '',
+	startDate = '2025-10-27',
+} = Astro.props;
+
+import yearlyDivide2025 from '../assets/2025yearlyDivide.webp';
+import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
+---
+
+<div
+	class="loan-payoff"
+	data-loan-payoff
+	data-expiry-group={`${id}-expiry`}
+	data-loan-id={loanId}
+	data-start-date={startDate}
+	data-initial-debt={initialDebt}
+	data-initial-rate={initialRate}
+>
+	<button type="button" class="loan-contract-button" data-contract-open>Contract details</button>
+
+	<div class="loan-summary">
+		<div class="loan-summary__value-row">
+			<p class="loan-summary__value" data-loan-value>Value of loan is $0</p>
+			<button type="button" class="loan-penalty__info" data-loanvalue-info>What is this?</button>
+		</div>
+		<p class="loan-summary__interest" data-loan-interest>Interest rate</p>
+	</div>
+
+	<div class="loan-years">
+		<div class="loan-year">
+			<button type="button" class="loan-add-payment" data-add-payment>Add a payment</button>
+			<div class="loan-modal" data-payment-modal hidden>
+				<div class="loan-modal__panel">
+					<h4>Add a payment</h4>
+					<div class="loan-payment-entry" data-payment-entry>
+						<label class="loan-label" for={`${id}-payment-date`}>Payment date</label>
+						<input id={`${id}-payment-date`} type="date" class="loan-input loan-input--date" />
+						<label class="loan-label" for={`${id}-payment-amount`}>Payment amount</label>
+						<textarea
+							id={`${id}-payment-amount`}
+							class="loan-input loan-input--amount"
+							rows="1"
+							inputmode="decimal"
+							spellcheck="false"
+							placeholder="$0"
+						></textarea>
+						<p class="loan-payment-saved" data-payment-saved hidden></p>
+						<button type="button" class="loan-save-payment" data-save-payment>Save payment</button>
+						<p class="loan-payment-status" data-payment-status></p>
+					</div>
+				</div>
+			</div>
+			<img
+				class="loan-year__divider"
+				src={yearlyDivide2026.src}
+				alt="2026 divider"
+				data-current-year-divider
+				data-divider-2025={yearlyDivide2025.src}
+				data-divider-2026={yearlyDivide2026.src}
+			/>
+			<div class="loan-payments" data-payments-2026>
+				<h5 class="loan-payments__title">Payments</h5>
+				<ul class="loan-payments__list" data-payment-list data-payment-year="2026" data-current-year-list></ul>
+			</div>
+			<img class="loan-year__divider" src={yearlyDivide2025.src} alt="2025 divider" />
+			<div class="loan-payments" data-payments-2025>
+				<h5 class="loan-payments__title">Payments</h5>
+				<ul class="loan-payments__list" data-payment-list data-payment-year="2025"></ul>
+			</div>
+		</div>
+	</div>
+
+	<div class="loan-modal" data-penalty-modal hidden>
+		<div class="loan-modal__panel">
+			<h4>Prepayment penalties</h4>
+			<p>
+				Some lenders charge a fee if you pay off a loan early or make extra payments above the scheduled
+				amount. This is meant to recoup interest the lender expected to earn.
+			</p>
+			<button type="button" class="loan-modal__close" data-penalty-close>Close</button>
+		</div>
+	</div>
+
+	<div class="loan-modal" data-expiry-modal hidden>
+		<div class="loan-modal__panel">
+			<h4>Rate expires</h4>
+			<p>
+				Some loans have a teaser or promotional rate that ends on a specific month/year. After it
+				expires, the interest rate can increase or reset to a different index.
+			</p>
+			<button type="button" class="loan-modal__close" data-expiry-close>Close</button>
+		</div>
+	</div>
+
+	<div class="loan-modal" data-loanvalue-modal hidden>
+		<div class="loan-modal__panel">
+			<h4>Value of the loan</h4>
+			<p>
+				This is the total amount you will repay with the current balance and rate. It combines the
+				remaining principal plus the interest calculated from the current APR.
+			</p>
+			<button type="button" class="loan-modal__close" data-loanvalue-close>Close</button>
+		</div>
+	</div>
+
+	<div class="loan-modal" data-contract-modal hidden>
+		<div class="loan-modal__panel">
+			<h4>Contract details</h4>
+			<div class="loan-inputs">
+				<div class="loan-penalty loan-penalty--inline">
+					<span class="loan-label">Prepayment penalties</span>
+					<label class="loan-radio">
+						<input type="radio" name={`${id}-penalty`} value="no" checked />
+						<span>No</span>
+					</label>
+					<label class="loan-radio">
+						<input type="radio" name={`${id}-penalty`} value="yes" />
+						<span>Yes</span>
+					</label>
+					<button type="button" class="loan-penalty__info" data-penalty-info>What is this?</button>
+				</div>
+
+				<div class="loan-expiry loan-expiry--inline">
+					<span class="loan-label">Rate expires</span>
+					<label class="loan-radio">
+						<input type="radio" name={`${id}-expiry`} value="no" checked />
+						<span>No</span>
+					</label>
+					<label class="loan-radio">
+						<input type="radio" name={`${id}-expiry`} value="yes" />
+						<span>Yes</span>
+					</label>
+					<button type="button" class="loan-penalty__info" data-expiry-info>What is this?</button>
+				</div>
+
+				<div class="loan-expiry-inputs" data-expiry-inputs>
+					<select class="loan-select" data-expiry-month>
+						<option value="">Month</option>
+						<option value="01">Jan</option>
+						<option value="02">Feb</option>
+						<option value="03">Mar</option>
+						<option value="04">Apr</option>
+						<option value="05">May</option>
+						<option value="06">Jun</option>
+						<option value="07">Jul</option>
+						<option value="08">Aug</option>
+						<option value="09">Sep</option>
+						<option value="10">Oct</option>
+						<option value="11">Nov</option>
+						<option value="12">Dec</option>
+					</select>
+					<input class="loan-select" type="number" min="2024" max="2100" placeholder="Year" data-expiry-year />
+				</div>
+
+				<label class="loan-label" for={`${id}-debt`}>Original debt</label>
+				<textarea
+					id={`${id}-debt`}
+					class="loan-input loan-input--debt"
+					rows="1"
+					inputmode="decimal"
+					spellcheck="false"
+					data-loan-debt
+				>{initialDebt}</textarea>
+
+				<label class="loan-label" for={`${id}-rate`}>Interest rate</label>
+				<textarea
+					id={`${id}-rate`}
+					class="loan-input"
+					rows="1"
+					inputmode="decimal"
+					spellcheck="false"
+					data-loan-rate
+				>{initialRate}</textarea>
+
+				<label class="loan-label" for={`${id}-interest-type`}>Interest type</label>
+				<select id={`${id}-interest-type`} class="loan-input loan-input--notes" data-interest-type>
+					<option value="">Select type</option>
+					<option value="auto">Auto</option>
+					<option value="mortgage">Mortgage</option>
+					<option value="student-loan">Student loan</option>
+					<option value="interest-free">Interest free</option>
+					<option value="credit-card">Credit card</option>
+					<option value="personal-loan">Personal loan</option>
+					<option value="heloc">HELOC</option>
+					<option value="home-equity-loan">Home equity loan</option>
+					<option value="business-loan">Business loan</option>
+					<option value="balance-transfer">Balance transfer</option>
+					<option value="payday-loan">Payday / short-term</option>
+				</select>
+
+				<div class="loan-payoff-term" data-payoff-term>
+					<label class="loan-label" for={`${id}-auto-term`}>Payoff time</label>
+					<select id={`${id}-auto-term`} class="loan-input loan-input--notes" data-auto-term>
+						<option value="">Select term</option>
+						<option value="36-months">36 months</option>
+						<option value="48-months">48 months</option>
+						<option value="60-months">60 months</option>
+						<option value="72-months">72 months</option>
+						<option value="other">Other</option>
+					</select>
+
+					<textarea
+						id={`${id}-custom-term`}
+						class="loan-input loan-input--notes"
+						rows="1"
+						spellcheck="false"
+						placeholder="Add payoff timeframe"
+						data-custom-term
+					></textarea>
+				</div>
+			</div>
+			<button type="button" class="loan-modal__close" data-contract-close>Close</button>
+		</div>
+	</div>
+</div>
+
+<script>
+	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+	function parseNumber(value) {
+		if (!value) return 0;
+		const cleaned = value.replace(/[^0-9.]/g, '');
+		const parsed = Number.parseFloat(cleaned);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+
+	function parseDate(value) {
+		if (!value) return null;
+		const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10));
+		if (!year || !month || !day) return null;
+		return new Date(Date.UTC(year, month - 1, day));
+	}
+
+	function diffDays(start, end) {
+		const msPerDay = 24 * 60 * 60 * 1000;
+		const diff = Math.floor((end.getTime() - start.getTime()) / msPerDay);
+		return Math.max(0, diff);
+	}
+
+	function getStoredPayments(container) {
+		const raw = container.dataset.payments || '[]';
+		try {
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) return parsed;
+		} catch (error) {
+			console.warn('[LoanPayoffCalculator] Failed to parse payments', error);
+		}
+		return [];
+	}
+
+	function calculatePayoff(principal, ratePct, payments, startDateValue) {
+		const dailyRate = ratePct / 100 / 365;
+		const sorted = [...payments].sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
+		let balance = principal;
+		let accruedInterest = 0;
+		let lastDate = parseDate(startDateValue);
+
+		for (const payment of sorted) {
+			const paymentDate = parseDate(payment.paymentDate);
+			if (!paymentDate) continue;
+			if (lastDate) {
+				const days = diffDays(lastDate, paymentDate);
+				accruedInterest += balance * dailyRate * days;
+			}
+
+			let remainingPayment = Number(payment.amountUsd) || 0;
+			if (remainingPayment >= accruedInterest) {
+				remainingPayment -= accruedInterest;
+				accruedInterest = 0;
+				balance = Math.max(0, balance - remainingPayment);
+			} else {
+				accruedInterest -= remainingPayment;
+			}
+
+			lastDate = paymentDate;
+		}
+
+		if (lastDate) {
+			const today = new Date();
+			const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+			const days = diffDays(lastDate, todayUtc);
+			accruedInterest += balance * dailyRate * days;
+		}
+
+		return { balance, accruedInterest, payoff: balance + accruedInterest };
+	}
+
+	function calculateSnapshots(principal, ratePct, payments, startDateValue) {
+		const dailyRate = ratePct / 100 / 365;
+		const sorted = [...payments].sort((a, b) => a.paymentDate.localeCompare(b.paymentDate));
+		let balance = principal;
+		let accruedInterest = 0;
+		let lastDate = parseDate(startDateValue);
+		const snapshots = new Map();
+
+		for (const payment of sorted) {
+			const paymentDate = parseDate(payment.paymentDate);
+			if (!paymentDate) continue;
+			if (lastDate) {
+				const days = diffDays(lastDate, paymentDate);
+				accruedInterest += balance * dailyRate * days;
+			}
+
+			let remainingPayment = Number(payment.amountUsd) || 0;
+			if (remainingPayment >= accruedInterest) {
+				remainingPayment -= accruedInterest;
+				accruedInterest = 0;
+				balance = Math.max(0, balance - remainingPayment);
+			} else {
+				accruedInterest -= remainingPayment;
+			}
+
+			snapshots.set(payment.id, {
+				remainingBalance: balance + accruedInterest,
+			});
+			lastDate = paymentDate;
+		}
+
+		return snapshots;
+	}
+
+	function getLoanParams(container) {
+		const debtField = container.querySelector('[data-loan-debt]');
+		const rateField = container.querySelector('[data-loan-rate]');
+		const fallbackDebt = Number(container.dataset.initialDebt || 0);
+		const fallbackRate = Number(container.dataset.initialRate || 0);
+		const debt = debtField ? parseNumber(debtField.value) : fallbackDebt;
+		const rate = rateField ? parseNumber(rateField.value) : fallbackRate;
+		return {
+			debt: debt || fallbackDebt,
+			rate: rate || fallbackRate,
+		};
+	}
+
+	function updateSummary(container) {
+		const debtField = container.querySelector('[data-loan-debt]');
+		const valueEl = container.querySelector('[data-loan-value]');
+		const interestEl = container.querySelector('[data-loan-interest]');
+		const currentBalanceEl = container.querySelector('[data-current-balance]');
+		const startDateValue = container.dataset.startDate || '';
+		const expiryInputs = container.querySelector('[data-contract-modal] [data-expiry-inputs]');
+		const expiryMonth = container.querySelector('[data-contract-modal] [data-expiry-month]');
+		const expiryYear = container.querySelector('[data-contract-modal] [data-expiry-year]');
+		const expiryGroup = container.dataset.expiryGroup;
+		const expiryChoice = expiryGroup
+			? container.querySelector(`input[name="${expiryGroup}"]:checked`)
+			: null;
+
+		const { debt, rate } = getLoanParams(container);
+		const payments = getStoredPayments(container);
+		const payoffData = calculatePayoff(debt, rate, payments, startDateValue);
+		valueEl.textContent = `Value of loan is ${formatter.format(payoffData.payoff)}`;
+		valueEl.dataset.debtValue = String(payoffData.payoff);
+		valueEl.dispatchEvent(new CustomEvent('debt-updated', { bubbles: true }));
+		if (currentBalanceEl) {
+			currentBalanceEl.textContent = formatter.format(payoffData.balance);
+		}
+		if (debtField && document.activeElement !== debtField) {
+			debtField.value = formatter.format(debt);
+		}
+
+		let interestText = `${rate || 0}% interest`;
+		const hasExpiry = expiryChoice && expiryChoice.value === 'yes';
+		expiryInputs.style.display = hasExpiry ? 'flex' : 'none';
+
+		if (hasExpiry && expiryMonth.value && expiryYear.value) {
+			interestText += ` expires ${expiryMonth.value}/${expiryYear.value}`;
+		}
+
+		interestEl.textContent = interestText;
+
+	}
+
+	function initLoanPayoff(container) {
+		if (!container || container.dataset.loanInit === 'true') return;
+		container.dataset.loanInit = 'true';
+		const inputs = container.querySelectorAll('textarea, input, select');
+		const expiryGroup = container.dataset.expiryGroup;
+		const expiryRadios = expiryGroup
+			? container.querySelectorAll(`input[name="${expiryGroup}"]`)
+			: [];
+		const interestType = container.querySelector('[data-contract-modal] [data-interest-type]');
+		const autoTerm = container.querySelector('[data-contract-modal] [data-auto-term]');
+		const customTerm = container.querySelector('[data-contract-modal] [data-custom-term]');
+		const penaltyInfo = container.querySelector('[data-penalty-info]');
+		const penaltyModal = container.querySelector('[data-penalty-modal]');
+		const penaltyClose = container.querySelector('[data-penalty-close]');
+		const expiryInfo = container.querySelector('[data-expiry-info]');
+		const expiryModal = container.querySelector('[data-expiry-modal]');
+		const expiryClose = container.querySelector('[data-expiry-close]');
+		const loanValueInfo = container.querySelector('[data-loanvalue-info]');
+		const loanValueModal = container.querySelector('[data-loanvalue-modal]');
+		const loanValueClose = container.querySelector('[data-loanvalue-close]');
+		const contractOpen = container.querySelector('[data-contract-open]');
+		const contractModal = container.querySelector('[data-contract-modal]');
+		const contractClose = container.querySelector('[data-contract-close]');
+		const loanId = container.dataset.loanId || '';
+		const paymentLists = Array.from(container.querySelectorAll('[data-payment-list]'));
+		const currentYearLabel = container.querySelector('[data-current-year-label]');
+		const currentYearList = container.querySelector('[data-current-year-list]');
+		const currentYearDivider = container.querySelector('[data-current-year-divider]');
+
+		const resolveCurrentYear = () => {
+			const now = new Date();
+			const isJanFirst = now.getMonth() === 0 && now.getDate() === 1;
+			const year = isJanFirst && now.getHours() < 1 ? now.getFullYear() - 1 : now.getFullYear();
+			return year;
+		};
+
+		const currentYear = resolveCurrentYear();
+		container.dataset.currentYear = String(currentYear);
+		if (currentYearLabel) {
+			currentYearLabel.textContent = String(currentYear);
+		}
+		if (currentYearList) {
+			currentYearList.dataset.paymentYear = String(currentYear);
+		}
+		if (currentYearDivider) {
+			const divider2026 = currentYearDivider.dataset.divider2026 || '';
+			const divider2025 = currentYearDivider.dataset.divider2025 || '';
+			const dividerSrc = currentYear === 2026 ? divider2026 : divider2025;
+			if (dividerSrc) {
+				currentYearDivider.src = dividerSrc;
+				currentYearDivider.alt = `${currentYear} divider`;
+			}
+		}
+
+		const handleUpdate = () => updateSummary(container);
+		inputs.forEach((input) => input.addEventListener('input', handleUpdate));
+		expiryRadios.forEach((radio) => radio.addEventListener('change', handleUpdate));
+		const debtField = container.querySelector('[data-loan-debt]');
+		if (debtField) {
+			debtField.addEventListener('blur', () => {
+				const debt = parseNumber(debtField.value);
+				debtField.value = formatter.format(debt);
+			});
+		}
+
+		if (interestType && autoTerm && customTerm) {
+			const toggleTermFields = () => {
+				const isAuto = interestType.value === 'auto';
+				autoTerm.style.display = isAuto ? 'block' : 'none';
+				customTerm.style.display = isAuto ? 'none' : 'block';
+			};
+
+			interestType.addEventListener('change', toggleTermFields);
+			toggleTermFields();
+		}
+
+		if (penaltyInfo && penaltyModal && penaltyClose) {
+			const openModal = () => {
+				penaltyModal.hidden = false;
+			};
+			const closeModal = () => {
+				penaltyModal.hidden = true;
+			};
+			penaltyInfo.addEventListener('click', openModal);
+			penaltyClose.addEventListener('click', closeModal);
+			penaltyModal.addEventListener('click', (event) => {
+				if (event.target === penaltyModal) closeModal();
+			});
+			closeModal();
+		}
+
+		if (expiryInfo && expiryModal && expiryClose) {
+			const openModal = () => {
+				expiryModal.hidden = false;
+			};
+			const closeModal = () => {
+				expiryModal.hidden = true;
+			};
+			expiryInfo.addEventListener('click', openModal);
+			expiryClose.addEventListener('click', closeModal);
+			expiryModal.addEventListener('click', (event) => {
+				if (event.target === expiryModal) closeModal();
+			});
+			closeModal();
+		}
+
+		if (loanValueInfo && loanValueModal && loanValueClose) {
+			const openModal = () => {
+				loanValueModal.hidden = false;
+			};
+			const closeModal = () => {
+				loanValueModal.hidden = true;
+			};
+			loanValueInfo.addEventListener('click', openModal);
+			loanValueClose.addEventListener('click', closeModal);
+			loanValueModal.addEventListener('click', (event) => {
+				if (event.target === loanValueModal) closeModal();
+			});
+			closeModal();
+		}
+
+		if (contractOpen && contractModal && contractClose) {
+			const openModal = () => {
+				contractModal.hidden = false;
+			};
+			const closeModal = () => {
+				contractModal.hidden = true;
+			};
+			contractOpen.addEventListener('click', openModal);
+			contractClose.addEventListener('click', closeModal);
+			contractModal.addEventListener('click', (event) => {
+				if (event.target === contractModal) closeModal();
+			});
+			closeModal();
+		}
+
+		const addPaymentButton = container.querySelector('[data-add-payment]');
+		const paymentModal = container.querySelector('[data-payment-modal]');
+		const paymentEntry = container.querySelector('[data-payment-entry]');
+		const paymentDate = container.querySelector('.loan-input--date');
+		const paymentAmount = container.querySelector('.loan-input--amount');
+		const savePaymentButton = container.querySelector('[data-save-payment]');
+		const paymentStatus = container.querySelector('[data-payment-status]');
+		if (addPaymentButton && paymentModal && paymentDate) {
+			addPaymentButton.addEventListener('click', () => {
+				paymentModal.hidden = false;
+				if (!paymentDate.value) {
+					const today = new Date();
+					const month = String(today.getMonth() + 1).padStart(2, '0');
+					const day = String(today.getDate()).padStart(2, '0');
+					paymentDate.value = `${today.getFullYear()}-${month}-${day}`;
+				}
+			});
+			paymentModal.addEventListener('click', (event) => {
+				if (event.target === paymentModal) {
+					paymentModal.hidden = true;
+				}
+			});
+		}
+
+		if (paymentAmount) {
+			paymentAmount.addEventListener('blur', () => {
+				const amount = parseNumber(paymentAmount.value);
+				paymentAmount.value = formatter.format(amount);
+			});
+		}
+
+		const renderPayment = (payment) => {
+			if (paymentLists.length === 0) return;
+			const year = String(payment.paymentDate || '').slice(0, 4);
+			const targetList =
+				paymentLists.find((list) => list.dataset.paymentYear === year) ??
+				paymentLists.find((list) => list.dataset.paymentYear === container.dataset.currentYear) ??
+				paymentLists[0];
+			const item = document.createElement('li');
+			item.className = 'loan-payments__item';
+			item.dataset.paymentId = payment.id;
+			const remainingText = Number.isFinite(payment.remainingBalance)
+				? formatter.format(payment.remainingBalance)
+				: '—';
+			item.innerHTML = `
+				<span>${payment.paymentDate}</span>
+				<span>${formatter.format(payment.amountUsd)}</span>
+				<span>${remainingText}</span>
+				<button type="button" class="loan-payment-delete" data-delete-payment>Delete</button>
+			`;
+			targetList.append(item);
+		};
+
+		const loadPayments = async () => {
+			if (!loanId || paymentLists.length === 0) return;
+			try {
+				const response = await fetch(`/api/tradfi/loan-payments?loanId=${encodeURIComponent(loanId)}`);
+				const data = await response.json();
+				if (!response.ok || !data?.ok) return;
+				paymentLists.forEach((list) => {
+					list.innerHTML = '';
+				});
+				const { debt, rate } = getLoanParams(container);
+				const sortedPayments = [...data.payments].sort((a, b) =>
+					String(b.paymentDate || '').localeCompare(String(a.paymentDate || '')),
+				);
+				const snapshots = calculateSnapshots(debt, rate, sortedPayments, container.dataset.startDate || '');
+				sortedPayments.forEach((payment) => {
+					const snapshot = snapshots.get(payment.id);
+					renderPayment({
+						...payment,
+						remainingBalance: snapshot?.remainingBalance ?? null,
+					});
+				});
+				container.dataset.payments = JSON.stringify(data.payments);
+				updateSummary(container);
+			} catch (error) {
+				console.error('[LoanPayoffCalculator] Failed to load payments', error);
+			}
+		};
+
+		if (savePaymentButton && paymentStatus && paymentDate && paymentAmount && paymentModal) {
+			savePaymentButton.addEventListener('click', async () => {
+				const dateValue = paymentDate.value;
+				const amountValue = parseNumber(paymentAmount.value);
+				if (!loanId) {
+					paymentStatus.textContent = 'Set a loan id to save payments.';
+					return;
+				}
+				if (!dateValue || !amountValue) {
+					paymentStatus.textContent = 'Enter a payment date and amount.';
+					return;
+				}
+				paymentStatus.textContent = 'Saving...';
+				try {
+					const response = await fetch('/api/tradfi/loan-payments', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							loanId,
+							paymentDate: dateValue,
+							amountUsd: amountValue,
+						}),
+					});
+					const data = await response.json();
+					if (!response.ok || !data?.ok) {
+						throw new Error(data?.error || 'Failed to save payment');
+					}
+					paymentStatus.textContent = 'Saved.';
+					await loadPayments();
+					paymentModal.hidden = true;
+					const paymentSaved = container.querySelector('[data-payment-saved]');
+					if (paymentSaved) {
+						paymentSaved.textContent = `Payment: ${formatter.format(amountValue)}`;
+						paymentSaved.hidden = false;
+					}
+					paymentAmount.hidden = true;
+				} catch (error) {
+					const message = error instanceof Error ? error.message : 'Failed to save payment';
+					paymentStatus.textContent = message;
+				}
+			});
+		}
+
+		if (paymentLists.length) {
+			container.addEventListener('click', async (event) => {
+				const target = event.target;
+				if (!(target instanceof HTMLElement)) return;
+				if (!target.matches('[data-delete-payment]')) return;
+				const item = target.closest('[data-payment-id]');
+				if (!(item instanceof HTMLElement)) return;
+				const paymentId = item.dataset.paymentId;
+				if (!paymentId) return;
+				try {
+					const response = await fetch('/api/tradfi/loan-payments', {
+						method: 'DELETE',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ id: paymentId }),
+					});
+					const data = await response.json();
+					if (!response.ok || !data?.ok) {
+						throw new Error(data?.error || 'Failed to delete payment');
+					}
+					item.remove();
+					const payments = getStoredPayments(container).filter((payment) => payment.id !== paymentId);
+					container.dataset.payments = JSON.stringify(payments);
+					await loadPayments();
+				} catch (error) {
+					const message = error instanceof Error ? error.message : 'Failed to delete payment';
+					paymentStatus.textContent = message;
+				}
+			});
+		}
+
+		loadPayments();
+		updateSummary(container);
+	}
+
+	document.querySelectorAll('[data-loan-payoff]').forEach(initLoanPayoff);
+	window.loanPayoffInit = initLoanPayoff;
+</script>
+

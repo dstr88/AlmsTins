@@ -1,0 +1,217 @@
+import { useMemo, useRef } from 'react';
+import type { SplitsTin, PetroTinEntry } from './types';
+import ExpenseGrid, { evalFormula, type GridRow } from './ExpenseGrid';
+import './SharedSheet.css';
+
+interface Props {
+  tin: SplitsTin;
+  budgetEntries: PetroTinEntry[];
+  onRefresh: () => void;
+  onDelete: (id: string) => void;
+}
+
+/**
+ * Lays ExpenseGrid out on one row: one grid per person, plus a spare.
+ *
+ * The row expands as people are added — two boys and a spare is three grids today,
+ * three people and a spare is four. Naming the spare creates that person and a fresh
+ * spare takes its place. The "＋ Add person" button under the grids takes you to that
+ * spare, and each person's grid carries a labeled Delete.
+ */
+export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }: Props) {
+  const owed = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    for (const person of tin.people) {
+      map[person.id] = {};
+      for (const bill of tin.bills) {
+        const a = bill.assignments.find(x => x.personId === person.id);
+        map[person.id][bill.id] = !a ? 0 : a.type === 'flat' ? a.value : bill.amount * (a.value / 100);
+      }
+    }
+    return map;
+  }, [tin.people, tin.bills]);
+
+  const month = new Date().toISOString().slice(0, 7);
+
+  /** Deposits are payments recorded against a row this month. */
+  const deposits = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    for (const pmt of tin.payments.filter(p => p.month === month)) {
+      if (!map[pmt.personId]) map[pmt.personId] = {};
+      map[pmt.personId][pmt.billId] = (map[pmt.personId][pmt.billId] ?? 0) + pmt.amount;
+    }
+    return map;
+  }, [tin.payments, month]);
+
+  async function api(body: Record<string, unknown>) {
+    const res = await fetch('/api/petro-tins/splits', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  /**
+   * Rows for one person, with formulas recalculated from current data.
+   *
+   * The stored amount is only what a formula came to when it was last saved, so a bill
+   * changing in the budget register would otherwise leave every sheet quietly stale. Any
+   * row holding a formula is worked out again here against today's figures; rows holding
+   * a plain number keep it. A row never sees itself, so =[Rent]/4 on the row called
+   * "rent" reaches the register rather than dividing its own total.
+   */
+  function rowsFor(personId: string): GridRow[] {
+    const base = tin.bills
+      .filter(b => b.assignments.some(a => a.personId === personId))
+      .map(b => {
+        const a = b.assignments.find(x => x.personId === personId);
+        let raw = String(a?.value ?? '');
+        if (a?.breakdown) {
+          try {
+            const parsed = JSON.parse(a.breakdown);
+            if (parsed?.[0]?.label != null) raw = String(parsed[0].label);
+          } catch { /* keep the plain number */ }
+        }
+        return { id: b.id, name: b.name, raw, stored: owed[personId]?.[b.id] ?? 0 };
+      });
+
+    return base.map(r => {
+      const entry = r.raw.trim();
+      const isFormula = entry.startsWith('=') || /\[[^\]]+\]/.test(entry);
+      const others = base.filter(o => o.id !== r.id).map(o => ({ name: o.name, amount: o.stored }));
+      const live = isFormula ? evalFormula(entry, others, budgetEntries) : NaN;
+      return {
+        id: r.id,
+        name: r.name,
+        raw: r.raw,
+        amount: isNaN(live) ? r.stored : live,
+        deposit: deposits[personId]?.[r.id] ?? 0,
+      };
+    });
+  }
+
+  async function saveAmount(personId: string, billId: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>) {
+    const entry = raw.trim();
+    const looksLikeFormula = entry.startsWith('=') || /\[[^\]]+\]/.test(entry);
+    const parsed = evalFormula(entry, lookup.filter(r => r.id !== billId), budgetEntries);
+    // Reject only outright junk. A formula waiting on a name it cannot see yet is kept,
+    // holding the amount it already had, so it recomputes the moment that name exists.
+    if (entry !== '' && !looksLikeFormula && isNaN(parsed)) return;
+    const current = owed[personId]?.[billId] ?? 0;
+    const value = isNaN(parsed) ? current : parsed;
+    await api({
+      action: 'set_assignment', billId, personId, type: 'flat', value,
+      breakdown: JSON.stringify([{ label: entry, value }]),
+    });
+    onRefresh();
+  }
+
+  async function setDeposit(personId: string, billId: string, amount: number) {
+    // Clear this month's payments for the row, then record the new figure. The cell is
+    // the source of truth, so typing over it corrects rather than accumulates.
+    const existing = tin.payments.filter(
+      p => p.month === month && p.personId === personId && p.billId === billId,
+    );
+    for (const p of existing) await api({ action: 'delete_payment', paymentId: p.id });
+    if (amount > 0) {
+      await api({
+        action: 'add_payment', splitsId: tin.id, personId, billId,
+        amount, paidDate: new Date().toISOString().slice(0, 10),
+        budgetTinId: tin.budgetTinId,
+      });
+    }
+    onRefresh();
+  }
+
+  async function addRow(personId: string, name: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>, deposit = 0) {
+    const value = evalFormula(raw, lookup, budgetEntries);
+    if (isNaN(value)) return;
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name, amount: value, isDefault: false });
+    if (res?.id) {
+      await api({
+        action: 'set_assignment', billId: res.id, personId, type: 'flat', value,
+        breakdown: JSON.stringify([{ label: raw, value }]),
+      });
+      // Income entered on the same new line — record it as a payment against this row, so a
+      // person's first deposit no longer requires creating the expense row first.
+      if (deposit > 0) {
+        await api({
+          action: 'add_payment', splitsId: tin.id, personId, billId: res.id,
+          amount: deposit, paidDate: new Date().toISOString().slice(0, 10), budgetTinId: tin.budgetTinId,
+        });
+      }
+    }
+    onRefresh();
+  }
+
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * The "＋ Add person" button. Naming the spare is what creates a person, so the button
+   * takes you to that field rather than adding a second way to do the same thing.
+   */
+  function startNewPerson() {
+    const field = rowRef.current?.querySelector<HTMLInputElement>('input.xg__name--start');
+    field?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    field?.focus();
+  }
+
+  return (
+    <div>
+      <div className="sh__head">
+        <span className="sh__title">{tin.name}</span>
+        <button className="sh__x" title="Delete this tin" onClick={() => onDelete(tin.id)}>✕</button>
+      </div>
+
+      <div className="sh__row" ref={rowRef}>
+        {tin.people.map(person => {
+          const rows = rowsFor(person.id);
+          const lookup = rows.map(r => ({ id: r.id, name: r.name, amount: r.amount }));
+          return (
+            <ExpenseGrid
+              key={person.id}
+              title={person.name}
+              rows={rows}
+              carried={tin.carriedBalances[person.id] ?? 0}
+              budgetEntries={budgetEntries}
+              onRename={async next => { await api({ action: 'update_person', personId: person.id, name: next }); onRefresh(); }}
+              onRemove={async () => {
+                if (!confirm(`Delete ${person.name}? This removes their whole sheet: every row, deposit and carried balance on it.`)) return;
+                await api({ action: 'delete_person', personId: person.id });
+                onRefresh();
+              }}
+              onItemName={async (billId, next) => {
+                const row = rows.find(r => r.id === billId);
+                await api({ action: 'update_bill', billId, name: next, amount: row?.amount ?? 0 });
+                onRefresh();
+              }}
+              onAmount={(billId, raw) => saveAmount(person.id, billId, raw, lookup)}
+              onDeposit={(billId, amount) => setDeposit(person.id, billId, amount)}
+              onAddRow={(name, raw, deposit) => addRow(person.id, name, raw, lookup, deposit)}
+              onRemoveRow={async (billId, name) => {
+                if (!confirm(`Remove "${name}"?`)) return;
+                await api({ action: 'delete_bill', billId });
+                onRefresh();
+              }}
+            />
+          );
+        })}
+
+        {/* The spare. Name it and it becomes a person's grid; a new spare replaces it. */}
+        <ExpenseGrid
+          key={`spare-${tin.people.length}`}
+          title=""
+          namePlaceholder="New person"
+          rows={[]}
+          budgetEntries={budgetEntries}
+          locked
+          onRename={async next => { await api({ action: 'add_person', splitsId: tin.id, name: next, isOwner: false }); onRefresh(); }}
+        />
+      </div>
+
+      <div className="sh__foot">
+        <button type="button" className="sh__addbtn" onClick={startNewPerson}>＋ Add person</button>
+      </div>
+    </div>
+  );
+}

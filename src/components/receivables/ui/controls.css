@@ -1,0 +1,7 @@
+/* controls.css — presentation only.
+   Shared receivables control primitives, read through fragments.css and by each widget's own
+   .css. A primitive is added here when its first user ships (later slices add .rcv-field,
+   .rcv-btn and friends). Nothing here encodes logic. */
+
+/* A link inside a note the claim flow builds (was desk L1024's inline style="color:var(--accent)"). */
+.rcv-link.rcv-link { color: var(--accent); }

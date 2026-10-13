@@ -1,0 +1,826 @@
+---
+import './Layout.css';
+import '../styles/dashboard.css';
+import Footer from "@/components/Footer.astro";
+import Analytics from "@/components/Analytics.astro";
+import DemoBanner from "@/components/DemoBanner.astro";
+import { getAuthSession } from '@/lib/authSession';
+import { isOwner } from '@/lib/owner';
+import { newAccountKey } from '@/lib/analytics/newAccount';
+import { db } from '@/lib/db';
+import LogoutButton from '@/components/LogoutButton.astro';
+import { isDemoRequest } from '@/lib/demo';
+import { getActivePlan } from '@/lib/subscriptions';
+import { tenantHasTaxAccess } from '@/lib/taxAuth';
+import { isPetroTinsOwnerSession, petroTinsVisibility } from '@/lib/petroTinsAccess';
+import kingSolomon from '@/assets/KingSolomon.png';
+
+import minerva from '@/assets/Minerva.png';
+import { getLang, isLang } from '@/lib/i18n/locale';
+import { getDashboardCommon } from '@/i18n/dashboard/common';
+
+const currentPath = Astro.url.pathname;
+const isActive = (path: string) => currentPath === path;
+
+// Dashboard language follows the almstins-lang cookie (Phase-3 i18n).
+const cookieLang = getLang(Astro.request);
+
+const session = await getAuthSession(Astro.request).catch(() => null);
+const user = session?.user ?? null;
+
+// Real auth session always wins — never show the demo banner to a signed-in user
+const isDemo = !user?.id && isDemoRequest(Astro.request);
+const tenantId = session?.tenantId ?? null;
+
+// Tax documents (Summary hub + yearEnd/*) are the owner's alone (src/lib/taxAuth.ts):
+// hide the nav entry from everyone else so nobody gets a link they cannot open.
+const canTax = tenantHasTaxAccess(tenantId);
+
+// Avatar: use OAuth profile image if available, otherwise pick a random default
+const defaultAvatars = [kingSolomon, minerva];
+const defaultAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+
+// Pull last_login, email, and member-since from DB for the account dropdown
+let lastLoginIso: string | null = null;
+let memberSinceIso: string | null = null;
+let dbEmail: string | null = null;
+let alertEmail: string | null = null;
+if (user?.id) {
+  try {
+    const [userRow, memberRow] = await Promise.all([
+      db.execute({ sql: 'SELECT last_login, email, alert_email FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
+      db.execute({ sql: 'SELECT created_at FROM tenant_memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', args: [user.id] }),
+    ]);
+    lastLoginIso = userRow.rows[0] ? String((userRow.rows[0] as any).last_login ?? '') || null : null;
+    dbEmail = userRow.rows[0] ? String((userRow.rows[0] as any).email ?? '') || null : null;
+    alertEmail = userRow.rows[0] ? String((userRow.rows[0] as any).alert_email ?? '') || null : null;
+    memberSinceIso = memberRow.rows[0] ? String((memberRow.rows[0] as any).created_at ?? '') || null : null;
+  } catch { /* non-fatal */ }
+}
+
+// Prefer session email, fall back to DB email
+const displayEmail = user?.email || dbEmail;
+
+// What Google Analytics may learn about this session, and nothing about who: the owner's own
+// visits are internal, and a membership only minutes old is a new account to count once.
+const gaOwner = isOwner(tenantId);
+const gaNewAccount = gaOwner || isDemo ? null : newAccountKey(memberSinceIso);
+
+// Admin check — tenant ID is checked first (always in JWT, no email dependency).
+// Fall back to email match as a secondary check.
+const _adminTenantIdsRaw =
+  (process.env as any).ADMIN_TENANT_IDS ??
+  (process.env as any).ADMIN_TENANT_ID ??
+  '';
+const ADMIN_TENANT_IDS = new Set(
+  _adminTenantIdsRaw.split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean)
+);
+const _adminEmailsRaw =
+  (process.env as any).ADMIN_EMAILS ??
+  (process.env as any).ADMIN_EMAIL ??
+  import.meta.env.ADMIN_EMAILS ??
+  import.meta.env.ADMIN_EMAIL ??
+  '';
+const ADMIN_EMAILS = new Set(
+  _adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
+);
+const isAdmin =
+  (tenantId ? ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()) : false) ||
+  Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
+
+// Support unread count — only fetched for admin sessions (one cheap query)
+let adminSupportUnread = 0;
+if (isAdmin) {
+  try {
+    const unreadRow = await db.execute(
+      `SELECT COUNT(*) AS cnt FROM support_messages WHERE from_admin = 0 AND read_at IS NULL`
+    );
+    adminSupportUnread = Number((unreadRow.rows[0] as any)?.cnt ?? 0);
+  } catch { /* non-fatal */ }
+}
+
+export interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  image?: string;
+  noindex?: boolean;
+  /** Override where the Log out button redirects. Defaults to /login. */
+  logoutRedirect?: string;
+  /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
+  lang?: string;
+  /** Demo mode: where the demo's sign-up links go (banner + nav). Defaults to /signup (banner) and / (nav). */
+  demoSignupHref?: string;
+  /** Demo mode: plain-text banner message in place of the default tracker copy. */
+  demoBannerText?: string;
+  /** Demo mode: translated label for the banner's sign-up button. Defaults to English. */
+  demoSignupLabel?: string;
+}
+
+const {
+  title = 'Almstins — Crypto Portfolio Tracker & Bookkeeping Tool',
+  description = 'Track your crypto wallets, DeFi positions, and exchange accounts in one place. Calculate realized gains, download your Year Summary, and stay on top of your net worth.',
+  canonical = Astro.url.href,
+  image = 'https://almstins.com/og-default.png',
+  noindex = false,
+  logoutRedirect,
+  lang = cookieLang,
+  demoSignupHref,
+  demoBannerText,
+  demoSignupLabel,
+} = Astro.props;
+
+const navLang = isLang(lang) ? lang : 'en';
+const tNav = getDashboardCommon(navLang);
+
+const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
+  Astro.request.headers.get('x-forwarded-host') ?? Astro.url.hostname
+);
+
+// PetroTins is owner-only while PETRO_TINS_PUBLIC is false (src/lib/petroTinsFlag.mjs):
+// its links render for the owner alone, so nobody else sees that it exists. The owner check
+// agrees with the middleware gate (an older token without a tenant is resolved the same way).
+const petroNav = petroTinsVisibility({
+  isOwner: await isPetroTinsOwnerSession(Astro.request, session),
+  isAdmin,
+  isTradfiDomain,
+});
+
+// ── Promo expiry banner ───────────────────────────────────────────────────────
+const PROMO_EXPIRY_SENTINEL = '9999-12-31T23:59:59Z';
+let promoDaysLeft: number | null = null;
+let promoExpiryDisplay: string | null = null;
+if (tenantId) {
+  try {
+    const plan = await getActivePlan(tenantId);
+    const expiresAt = (plan as any).promoExpiresAt as string | undefined;
+    if (expiresAt && expiresAt !== PROMO_EXPIRY_SENTINEL) {
+      const msLeft = new Date(expiresAt).getTime() - Date.now();
+      const days = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+      if (days <= 30 && days > 0) {
+        promoDaysLeft = days;
+        const dateLocale = navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US';
+        promoExpiryDisplay = new Intl.DateTimeFormat(dateLocale, {
+          month: 'long', day: 'numeric', year: 'numeric'
+        }).format(new Date(expiresAt));
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  } catch { return null; }
+};
+
+const lastLoginDisplay = fmtDate(lastLoginIso);
+const memberSinceDisplay = memberSinceIso
+  ? new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(memberSinceIso))
+  : null;
+---
+
+<!doctype html>
+<html lang={navLang}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+		<!-- Open Graph -->
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Almstins" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={image} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+
+		<!-- Twitter / X -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={image} />
+
+		<!-- Favicon -->
+		<link rel="icon" type="image/webp" href="/favicon.webp" />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
+
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+		<!-- Google Analytics: the one tag component -->
+		<Analytics demo={isDemo} owner={gaOwner} newAccount={gaNewAccount} />
+	</head>
+	<body>
+		{isDemo && (
+			<DemoBanner
+				href={demoSignupHref}
+				text={demoBannerText}
+				ctaLabel={demoSignupLabel}
+				exitLabel={demoBannerText ? tNav.chrome.demoExit : undefined}
+			/>
+		)}
+		{promoDaysLeft !== null && (
+			<div class="promo-expiry-banner">
+				<span class="promo-expiry-banner__icon">⏳</span>
+				<span class="promo-expiry-banner__text">
+					<strong>{tNav.chrome.promoDays(promoDaysLeft!)}</strong>
+					{promoExpiryDisplay ? ` (${promoExpiryDisplay})` : ''}.
+					{tNav.chrome.promoKeep}
+				</span>
+				<a href="/dashboard/billing" class="promo-expiry-banner__btn">
+					{tNav.chrome.promoViewPlans}
+				</a>
+			</div>
+		)}
+		<div class="chrome">
+			<header class="chrome__header" id="chrome-header">
+				<div>
+					<p class="brand">Titanium Hut</p>
+					{isAdmin
+					? <a class="dashboard-link" href="/admin">{tNav.chrome.adminDashboard}</a>
+					: <a class="dashboard-link" href={currentPath}>{
+						currentPath.includes('/bookkeeping') ? tNav.nav.bookkeeping :
+						currentPath.includes('memory-lane')  ? tNav.nav.history :
+						currentPath.includes('/wallets')     ? tNav.nav.addresses :
+						currentPath.includes('/research')    ? tNav.nav.research :
+						currentPath.includes('/billing')     ? tNav.nav.billing :
+						currentPath.includes('/wallet-checker') ? tNav.chrome.scamChecker :
+						currentPath.includes('/admin')       ? tNav.chrome.admin :
+						tNav.nav.vault
+					}</a>
+				}
+				</div>
+				<button id="nav-toggle" class="nav-toggle" aria-label={tNav.chrome.ariaOpenMenu} aria-expanded="false" aria-controls="nav-drawer">☰</button>
+				<nav id="nav-drawer">
+				{petroNav.tradfiNav ? (
+					<!-- TradfiTins-only nav -->
+					<>
+						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>Dashboard</a>
+						<a href="/petro-tins/docs" class={`nav-link ${isActive('/petro-tins/docs') ? 'active' : ''}`}>Docs</a>
+						<a href="/dashboard/petro-tins/upgrade" class={`nav-link ${isActive('/dashboard/petro-tins/upgrade') ? 'active' : ''}`}>Upgrade</a>
+					</>
+				) : (
+					<!-- Full Almstins nav -->
+					<>
+						<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>{tNav.nav.bookkeeping}</a>
+						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>{tNav.nav.vault}</a>
+						<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>{tNav.nav.portfolio}</a>
+						<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>{tNav.nav.addresses}</a>
+						{canTax && (
+							<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>{tNav.nav.summary}</a>
+						)}
+						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>{tNav.nav.history}</a>
+						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>{tNav.nav.alerts}</a>
+						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>{tNav.chrome.scamChecker}</a>
+						<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>{tNav.nav.research}</a>
+					</>
+				)}
+				{!isTradfiDomain && isAdmin && (
+					<>
+						<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
+						<a href="/admin/support" class={`nav-link nav-link--admin ${isActive('/admin/support') ? 'active' : ''}`}>
+							Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
+						</a>
+						<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
+					</>
+				)}
+				{petroNav.navLink && (
+					<a href="/dashboard/petro-tins" class={`nav-link nav-link--admin ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>⛽ PetroTins</a>
+				)}
+
+					<!-- Language switcher -->
+					<div class="lang-switch" role="group" aria-label="Language">
+						<button type="button" class={`lang-opt ${navLang === 'en' ? 'active' : ''}`} data-setlang="en">EN</button>
+						<button type="button" class={`lang-opt ${navLang === 'es' ? 'active' : ''}`} data-setlang="es">ES</button>
+						<button type="button" class={`lang-opt ${navLang === 'fr' ? 'active' : ''}`} data-setlang="fr">FR</button>
+					</div>
+
+					<!-- Account dropdown -->
+					<details class="account-menu">
+						<summary class="account-trigger">
+							{user?.image ? (
+								<img class="account-avatar" src={user.image} alt={user.name ?? 'Account'} referrerpolicy="no-referrer" />
+							) : (
+								<img class="account-avatar account-avatar--default" src={defaultAvatar.src} alt="Account" />
+							)}
+							<span class="account-label">{tNav.chrome.account}</span>
+							<span class="account-caret" aria-hidden="true">▾</span>
+						</summary>
+
+						<div class="account-dropdown">
+							<!-- Identity -->
+							<div class="account-identity">
+								{user?.image ? (
+									<img class="account-avatar account-avatar--lg" src={user.image} alt={user.name ?? ''} referrerpolicy="no-referrer" />
+								) : (
+									<img class="account-avatar account-avatar--lg account-avatar--default" src={defaultAvatar.src} alt="Account" />
+								)}
+								<div class="account-info">
+									{user?.name && <p class="account-name">{user.name}</p>}
+									<p class="account-email">{displayEmail ?? '—'}</p>
+								</div>
+							</div>
+
+							<hr class="account-divider" />
+
+							<!-- Meta: email, tenant ID, last login, member since -->
+							<div class="account-meta-block">
+								<div class="account-meta-row">
+									<span class="account-meta-label">{tNav.chrome.accountEmail}</span>
+									<span class="account-meta-value account-meta-email">{displayEmail ?? '—'}</span>
+								</div>
+								<div class="account-meta-row">
+									<span class="account-meta-label">{tNav.chrome.alertEmail}</span>
+									<span id="alert-email-display" class="account-meta-value">
+										{alertEmail
+											? <span id="alert-email-text">{alertEmail}</span>
+											: <em id="alert-email-text" class="account-meta-unset">{tNav.chrome.notSet}</em>
+										}
+										<button type="button" id="alert-email-edit-btn" class="account-inline-edit" title={tNav.chrome.ariaEditAlertEmail} aria-label={tNav.chrome.ariaEditAlertEmail}>✏</button>
+									</span>
+									<form id="alert-email-form" class="alert-email-form" hidden>
+										<input
+											type="email"
+											id="alert-email-input"
+											name="alertEmail"
+											placeholder={displayEmail ?? 'you@example.com'}
+											value={alertEmail ?? ''}
+											autocomplete="email"
+										/>
+										<div class="alert-email-actions">
+											<button type="submit" class="alert-email-save">{tNav.ui.save}</button>
+											<button type="button" id="alert-email-cancel" class="alert-email-cancel">{tNav.ui.cancel}</button>
+										</div>
+									</form>
+								</div>
+								{tenantId && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">{tNav.chrome.tenantId}</span>
+										<span class="account-meta-value">
+											<code>{tenantId.slice(0, 8)}&hellip;</code>
+											<button
+												class="copy-btn"
+												type="button"
+												data-copy={tenantId}
+												aria-label={tNav.chrome.ariaCopyTenantId}
+												title={tNav.chrome.ariaCopyTenantId}
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+											</button>
+										</span>
+									</div>
+								)}
+								{lastLoginDisplay && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">{tNav.chrome.lastLogin}</span>
+										<span class="account-meta-value">{lastLoginDisplay}</span>
+									</div>
+								)}
+								{memberSinceDisplay && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">{tNav.chrome.memberSince}</span>
+										<span class="account-meta-value">{memberSinceDisplay}</span>
+									</div>
+								)}
+							</div>
+
+							<hr class="account-divider" />
+
+							<a href="/dashboard/billing" class="account-billing-link">{tNav.chrome.billingPlan}</a>
+
+							<hr class="account-divider" />
+
+							<!-- Delete account -->
+							<div class="account-delete-wrap">
+								<button id="delete-account-btn" class="account-delete" type="button">{tNav.chrome.deleteAccount}</button>
+							</div>
+
+							<hr class="account-divider" />
+
+							<!-- Logout: the one logout component -->
+							<LogoutButton class="account-logout" next={logoutRedirect}>{tNav.chrome.logOut}</LogoutButton>
+						</div>
+					</details>
+					{isDemo && (
+						<div class="nav-demo-links">
+							<a href={demoSignupHref ?? '/'} class="nav-link nav-demo-signup">{tNav.chrome.demoSignup}</a>
+							<a href="/api/demo/end" class="nav-link nav-demo-exit">{tNav.chrome.demoExit}</a>
+						</div>
+					)}
+				</nav>
+			</header>
+			<main>
+				<slot />
+			</main>
+			<Footer lang={navLang} />
+		</div>
+
+		{user && (
+			<>
+				<!-- ── Help pill ──────────────────────────────────────────────────── -->
+				<button id="help-pill" class="help-pill" aria-label={tNav.chrome.helpTitle} title={tNav.chrome.helpTitle}>
+					{tNav.chrome.helpPill}
+					<span id="help-pill-badge" class="help-pill__badge" hidden>0</span>
+				</button>
+
+				<!-- ── Help drawer ───────────────────────────────────────────────── -->
+				<div id="help-drawer" class="help-drawer" role="dialog" aria-modal="true" aria-label="Support chat" hidden>
+					<div class="help-drawer__header">
+						<span class="help-drawer__title">{tNav.chrome.helpTitle}</span>
+						<button id="help-drawer-close" class="help-drawer__close" aria-label={tNav.ui.close}>✕</button>
+					</div>
+					<div class="help-drawer__messages" id="help-messages">
+						<p class="help-drawer__loading">{tNav.chrome.helpLoading}</p>
+					</div>
+					<div class="help-drawer__compose">
+						<textarea
+							id="help-input"
+							class="help-drawer__input"
+							placeholder={tNav.chrome.helpPlaceholder}
+							maxlength="500"
+							rows="3"
+						></textarea>
+						<div class="help-drawer__footer">
+							<span id="help-char-count" class="help-drawer__count">0 / 500</span>
+							<button id="help-send" class="help-drawer__send">{tNav.chrome.helpSend}</button>
+						</div>
+					</div>
+				</div>
+			</>
+		)}
+	</body>
+</html>
+
+{user && (
+<script is:inline define:vars={{ chromeI18n: {
+  helpLoading:       tNav.chrome.helpLoading,
+  helpEmpty:         tNav.chrome.helpEmpty,
+  helpSupportPrefix: tNav.chrome.helpSupportPrefix,
+  helpYouPrefix:     tNav.chrome.helpYouPrefix,
+  helpLoadError:     tNav.chrome.helpLoadError,
+  helpSending:       tNav.chrome.helpSending,
+  helpSend:          tNav.chrome.helpSend,
+  helpSendError:     tNav.chrome.helpSendError,
+  deleteConfirm1:    tNav.chrome.deleteConfirm1,
+  deleteConfirm2:    tNav.chrome.deleteConfirm2,
+  deleteFailed:      tNav.chrome.deleteFailed,
+  deleteBillingFailed: tNav.chrome.deleteBillingFailed,
+  dateLocale:        navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US',
+} }}>
+window.__chromeI18n = chromeI18n;
+</script>
+)}
+
+{user && (
+
+<script>
+// ── Mobile nav hamburger toggle ──────────────────────────────────────────
+(function () {
+	var toggle = document.getElementById('nav-toggle');
+	var header = document.getElementById('chrome-header');
+	if (!toggle || !header) return;
+
+	function close() {
+		header.classList.remove('nav-open');
+		toggle.textContent = '☰';
+		toggle.setAttribute('aria-expanded', 'false');
+	}
+
+	toggle.addEventListener('click', function (e) {
+		e.stopPropagation();
+		var open = header.classList.toggle('nav-open');
+		toggle.textContent = open ? '✕' : '☰';
+		toggle.setAttribute('aria-expanded', String(open));
+	});
+
+	// Close when clicking outside
+	document.addEventListener('click', function (e) {
+		if (!header.contains(e.target)) close();
+	});
+
+	// Close on nav link click (navigating away)
+	document.getElementById('nav-drawer')?.querySelectorAll('a').forEach(function (a) {
+		a.addEventListener('click', close);
+	});
+})();
+
+
+(function () {
+	const pill    = document.getElementById('help-pill');
+	const drawer  = document.getElementById('help-drawer');
+	const closeBtn= document.getElementById('help-drawer-close');
+	const messages= document.getElementById('help-messages');
+	const input   = document.getElementById('help-input') as HTMLTextAreaElement | null;
+	const sendBtn = document.getElementById('help-send') as HTMLButtonElement | null;
+	const counter = document.getElementById('help-char-count');
+	const badge   = document.getElementById('help-pill-badge');
+	if (!pill || !drawer || !messages || !input || !sendBtn || !counter || !badge) return;
+
+	const LIMIT = 500;
+
+	const fmtDate = (iso: string) => {
+		try {
+			const _loc = (window as any).__chromeI18n?.dateLocale || 'en-US';
+			return new Intl.DateTimeFormat(_loc, {
+				month: 'short', day: 'numeric',
+				hour: 'numeric', minute: '2-digit',
+			}).format(new Date(iso));
+		} catch { return ''; }
+	};
+
+	function renderMessages(msgs: any[]) {
+		messages!.innerHTML = '';
+		if (!msgs.length) {
+			const p = document.createElement('p');
+			p.className = 'help-drawer__empty';
+			p.textContent = ((window as any).__chromeI18n?.helpEmpty) || 'No messages yet.\nDescribe your issue below and we\'ll get back to you.';
+			messages!.appendChild(p);
+			return;
+		}
+		for (const msg of msgs) {
+			const isAdmin = Number(msg.from_admin) === 1;
+			const wrap    = document.createElement('div');
+			wrap.className = `help-msg ${isAdmin ? 'help-msg--admin' : 'help-msg--user'}`;
+
+			const text = document.createElement('div');
+			text.className = 'help-msg__text';
+			text.textContent = msg.body;
+
+			const time = document.createElement('div');
+			time.className = 'help-msg__time';
+			const _i18n = (window as any).__chromeI18n || {};
+			time.textContent = (isAdmin ? (_i18n.helpSupportPrefix || 'Support · ') : (_i18n.helpYouPrefix || 'You · ')) + fmtDate(msg.created_at);
+
+			wrap.appendChild(text);
+			wrap.appendChild(time);
+			messages!.appendChild(wrap);
+		}
+		messages!.scrollTop = messages!.scrollHeight;
+	}
+
+	async function loadThread() {
+		messages!.innerHTML = `<p class="help-drawer__loading">${((window as any).__chromeI18n?.helpLoading) || 'Loading…'}</p>`;
+		try {
+			const res  = await fetch('/api/support');
+			const data = await res.json();
+			renderMessages(Array.isArray(data.messages) ? data.messages : []);
+			badge!.hidden = true; // cleared on read
+		} catch {
+			messages!.innerHTML = `<p class="help-drawer__empty">${((window as any).__chromeI18n?.helpLoadError) || 'Could not load messages.'}</p>`;
+		}
+	}
+
+	// Badge: check unread on page load
+	fetch('/api/support/unread')
+		.then((r) => r.json())
+		.then((d) => {
+			const n = Number(d.unread ?? 0);
+			if (n > 0) {
+				badge!.textContent = String(n);
+				badge!.hidden = false;
+			}
+		})
+		.catch(() => {});
+
+	let drawerOpen = false;
+
+	pill.addEventListener('click', () => {
+		drawerOpen = !drawerOpen;
+		drawer!.hidden = !drawerOpen;
+		if (drawerOpen) {
+			loadThread();
+			setTimeout(() => input!.focus(), 60);
+		}
+	});
+
+	closeBtn!.addEventListener('click', () => {
+		drawerOpen = false;
+		drawer!.hidden = true;
+	});
+
+	// Close on Escape
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && drawerOpen) {
+			drawerOpen = false;
+			drawer!.hidden = true;
+		}
+	});
+
+	// Character counter
+	input.addEventListener('input', () => {
+		const len = input!.value.length;
+		counter!.textContent = `${len} / ${LIMIT}`;
+		counter!.className = 'help-drawer__count' +
+			(len >= LIMIT ? ' at-limit' : len >= LIMIT * 0.85 ? ' near-limit' : '');
+	});
+
+	// Send
+	sendBtn.addEventListener('click', async () => {
+		const text = input!.value.trim();
+		if (!text) return;
+		sendBtn!.disabled = true;
+		sendBtn!.textContent = ((window as any).__chromeI18n?.helpSending) || 'Sending…';
+		try {
+			const res  = await fetch('/api/support', {
+				method:  'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ body: text }),
+			});
+			const data = await res.json();
+			if (!data.ok) throw new Error(data.error ?? 'Failed to send.');
+			input!.value = '';
+			counter!.textContent = `0 / ${LIMIT}`;
+			counter!.className = 'help-drawer__count';
+			await loadThread();
+		} catch (err: any) {
+			alert(err?.message ?? ((window as any).__chromeI18n?.helpSendError || 'Could not send message. Please try again.'));
+		} finally {
+			sendBtn!.disabled = false;
+			sendBtn!.textContent = ((window as any).__chromeI18n?.helpSend) || 'Send';
+		}
+	});
+
+	// Cmd/Ctrl+Enter to send
+	input.addEventListener('keydown', (e) => {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendBtn!.click();
+	});
+})();
+</script>
+)}
+
+
+<script>
+	// Copy-to-clipboard for tenant ID button
+	// Attach directly to each button so the click is treated as a user gesture
+	// (document-level delegation can lose transient activation in strict Chrome contexts).
+	function initCopyBtn(btn: HTMLButtonElement) {
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation(); // prevent details from toggling
+			const text = btn.dataset.copy ?? '';
+			if (!text) return;
+
+			const checkmark = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+			const showFeedback = () => {
+				const prev = btn.innerHTML;
+				const origTitle = btn.title;
+				btn.classList.add('copied');
+				btn.title = 'Copied!';
+				btn.innerHTML = checkmark;
+				setTimeout(() => {
+					btn.classList.remove('copied');
+					btn.title = origTitle;
+					btn.innerHTML = prev;
+				}, 2000);
+			};
+
+			if (navigator.clipboard?.writeText) {
+				navigator.clipboard.writeText(text).then(showFeedback).catch(() => {
+					// fallback
+					const ta = document.createElement('textarea');
+					ta.value = text;
+					ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+					document.body.appendChild(ta);
+					ta.select();
+					document.execCommand('copy');
+					document.body.removeChild(ta);
+					showFeedback();
+				});
+			} else {
+				const ta = document.createElement('textarea');
+				ta.value = text;
+				ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+				document.body.appendChild(ta);
+				ta.select();
+				document.execCommand('copy');
+				document.body.removeChild(ta);
+				showFeedback();
+			}
+		});
+	}
+
+	document.querySelectorAll<HTMLButtonElement>('.copy-btn[data-copy]').forEach(initCopyBtn);
+
+	// ── Alert email inline editor ────────────────────────────────────────────
+	(() => {
+		const editBtn   = document.getElementById('alert-email-edit-btn') as HTMLButtonElement | null;
+		const cancelBtn = document.getElementById('alert-email-cancel')   as HTMLButtonElement | null;
+		const form      = document.getElementById('alert-email-form')     as HTMLFormElement   | null;
+		const display   = document.getElementById('alert-email-display')  as HTMLElement       | null;
+		const input     = document.getElementById('alert-email-input')    as HTMLInputElement  | null;
+
+		if (!editBtn || !form || !display || !input) return;
+
+		editBtn.addEventListener('click', () => {
+			display.hidden = true;
+			form.hidden = false;
+			input.focus();
+		});
+
+		cancelBtn?.addEventListener('click', () => {
+			form.hidden = true;
+			display.hidden = false;
+		});
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const saveBtn = form.querySelector<HTMLButtonElement>('.alert-email-save');
+			if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving\u2026'; }
+
+			try {
+				const res = await fetch('/api/account/alert-email', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ alertEmail: input.value.trim() }),
+				});
+				const data = await res.json();
+				if (!data.ok) throw new Error(data.error ?? 'Save failed');
+
+				// Update display text without a page reload
+				const textEl = document.getElementById('alert-email-text');
+				if (textEl) {
+					const newVal = data.alertEmail ?? '';
+					if (textEl.tagName === 'EM') {
+						const span = document.createElement('span');
+						span.id = 'alert-email-text';
+						span.textContent = newVal || 'not set';
+						textEl.replaceWith(span);
+					} else {
+						textEl.textContent = newVal || 'not set';
+					}
+				}
+				form.hidden = true;
+				display.hidden = false;
+			} catch (err: any) {
+				alert(err?.message ?? 'Could not save alert email. Please try again.');
+			} finally {
+				if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+			}
+		});
+	})();
+</script>
+
+<script>
+	// Delete account
+	document.getElementById('delete-account-btn')?.addEventListener('click', async () => {
+		const i18n = (window as any).__chromeI18n || {};
+		const failed = i18n.deleteFailed || 'Could not delete account. Please try again.';
+		const confirmed = confirm(i18n.deleteConfirm1 || 'Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
+		if (!confirmed) return;
+		const confirmed2 = confirm(i18n.deleteConfirm2 || 'Last chance: all your tins, entries, and subscription data will be permanently and irreversibly deleted. Any paid plan is canceled right away, and you will not be charged again. If you use Verify, your public Claimed and Verified results, your business name, and your agent API keys are removed too. Continue?');
+		if (!confirmed2) return;
+		try {
+			const res = await fetch('/api/account/delete', { method: 'POST' });
+			if (res.ok) {
+				window.location.href = '/login';
+			} else {
+				const d = await res.json().catch(() => ({}));
+				// The paid plan could not be canceled, so nothing was deleted (api/account/delete).
+				alert((d.code === 'billing_cancel_failed' && i18n.deleteBillingFailed) || (d.error ?? failed));
+			}
+		} catch {
+			alert(failed);
+		}
+	});
+</script>
+
+<script>
+	// Dashboard language switcher — set the almstins-lang cookie and reload.
+	document.querySelectorAll('[data-setlang]').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const l = btn.getAttribute('data-setlang');
+			if (!l) return;
+			document.cookie = 'almstins-lang=' + l + '; path=/; max-age=31536000; samesite=lax';
+			// Persist to the account so emails (digests, alerts, receipts) match the chosen language.
+			try { fetch('/api/account/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: l }), keepalive: true }); } catch (e) {}
+			location.reload();
+		});
+	});
+</script>
+
+<style>
+	.lang-switch { display: inline-flex; gap: 2px; align-items: center; }
+	.lang-opt {
+		background: transparent;
+		border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+		color: var(--text-muted, rgba(245,248,255,0.45));
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		padding: 0.18rem 0.42rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+	}
+	.lang-opt:hover { color: var(--text-secondary, rgba(245,248,255,0.70)); border-color: var(--border-bright, rgba(255,255,255,0.12)); }
+	.lang-opt.active { color: var(--surface-bg, #0a0f1a); background: var(--accent, #2dd4a8); border-color: var(--accent, #2dd4a8); }
+</style>

@@ -1,0 +1,15 @@
+/* tones.css — presentation only.
+   The one place receivables CSS reads the caution, gain and loss color families (plan
+   convention 5; decision 1 sanctions the --warning trio for caution). Components read the
+   --rcv-* aliases, never the base tokens, so a tone change is a one-file change. */
+:root {
+	--rcv-caution: var(--warning);
+	--rcv-caution-bg: var(--warning-bg);
+	--rcv-caution-border: var(--warning-border);
+	--rcv-gain: var(--gain);
+	--rcv-gain-bg: var(--gain-bg);
+	--rcv-gain-border: var(--gain-border);
+	--rcv-loss: var(--loss);
+	--rcv-loss-bg: var(--loss-bg);
+	--rcv-loss-border: var(--loss-border);
+}

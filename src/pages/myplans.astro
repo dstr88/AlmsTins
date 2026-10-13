@@ -1,0 +1,1261 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const title = "Almstins Pricing — Crypto Portfolio Tracker & Bookkeeping Plans";
+const description =
+  "Simple, transparent pricing for Almstins. Track wallets, DeFi positions, and exchange accounts. Calculate realized gains and download your Year Summary. Start free.";
+const contactEmail = "support@almstins.com";
+const websiteUrl = "almstins.com";
+---
+
+<Layout title={title} description={description}>
+  <style is:global>
+    :root {
+      --primary: #4a8a8c;       /* soft teal-blue */
+      --primary-dark: #3a6d6f;
+      --secondary: #8cc084;     /* soft mint green */
+      --accent: #e07a5f;        /* warm coral for CTAs */
+      --bg-light: #f8fafc;
+      --bg-gradient-start: #e6f2f2;
+      --bg-gradient-end: #f0f9f4;
+      --text: #1f2937;
+      --text-light: #4b5563;
+      --card: #ffffff;
+      --border: rgba(0,0,0,0.08);
+      --shadow: 0 10px 28px rgba(0,0,0,0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      color: var(--text);
+      background: var(--bg-light);
+      line-height: 1.6;               /* ✅ requested */
+      font-size: 18px;                /* ✅ larger base font */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+    }
+
+    /* Hero */
+    .hero {
+      position: relative;
+      background: linear-gradient(to bottom, var(--bg-gradient-start), var(--bg-gradient-end));
+      padding: 5rem 0 3.5rem;
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.14;
+      pointer-events: none;
+    }
+    .hero-bg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scale(1.03);
+    }
+
+    .hero-inner {
+      position: relative;
+      text-align: center;
+      padding: 0 0.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 4.2vw, 3rem);
+      margin: 0 0 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      max-width: 760px;
+      margin: 0.5rem auto 1.5rem;
+      color: var(--text-light);
+      font-size: 1.1rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      gap: .5rem;
+      align-items: center;
+      padding: .5rem .9rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.75);
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+      font-size: .95rem;
+      color: var(--primary-dark);
+      margin-bottom: 1rem;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      justify-content: center;
+      margin-top: 1.25rem;
+    }
+
+    .btn {
+      display: inline-block;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      font-weight: 650;
+      padding: 0.95rem 1.4rem;
+      border-radius: 9999px;
+      text-decoration: none;
+      box-shadow: var(--shadow);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      font-size: 1.02rem;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 34px rgba(74,138,140,0.25);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary);
+      color: var(--primary);
+      box-shadow: none;
+    }
+    .btn-outline:hover {
+      background: rgba(74,138,140,0.08);
+    }
+
+    /* Sections */
+    section { padding: 3.25rem 0; }
+    .section-title {
+      font-size: 1.6rem;
+      margin: 0 0 1.25rem;
+      text-align: center;
+      letter-spacing: -0.01em;
+    }
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-light);
+      max-width: 860px;
+      margin: 0 auto 2rem;
+      font-size: 1.05rem;
+    }
+
+    /* Cards */
+    .grid {
+      display: grid;
+      gap: 1.25rem;
+    }
+    @media (min-width: 900px) {
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .plan {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .plan h3 {
+      margin: 0 0 0.25rem;
+      font-size: 1.25rem;
+      color: var(--primary-dark);
+    }
+
+    .plan .tag {
+      display: inline-block;
+      margin-top: 0.4rem;
+      font-size: 0.92rem;
+      color: var(--text-light);
+    }
+
+    .plan ul {
+      margin: 1rem 0 1.25rem;
+      padding-left: 1.15rem;
+      color: var(--text);
+    }
+    .plan li { margin: 0.35rem 0; }
+
+    .price {
+      font-size: 1.7rem;
+      font-weight: 800;
+      margin: 0.4rem 0 0.2rem;
+      color: var(--primary);
+    }
+    .price small {
+      font-weight: 600;
+      color: var(--text-light);
+      font-size: 1rem;
+    }
+
+    .fineprint {
+      color: var(--text-light);
+      font-size: 0.95rem;
+      margin-top: 0.6rem;
+    }
+
+    /* Highlight Growth subtly */
+    .plan.featured {
+      border: 2px solid rgba(74,138,140,0.35);
+      background: linear-gradient(180deg, rgba(230,242,242,0.45), rgba(255,255,255,1));
+    }
+    .badge {
+      position: absolute;
+      top: 1.1rem;
+      right: 1.1rem;
+      background: rgba(224,122,95,0.12);
+      color: #9a3f2b;
+      border: 1px solid rgba(224,122,95,0.25);
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    /* Comparison Table */
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    thead th {
+      background: var(--primary);
+      color: white;
+      text-align: left;
+      padding: 0.9rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+    }
+
+    tbody td {
+      padding: 0.85rem;
+      border-top: 1px solid rgba(0,0,0,0.06);
+      vertical-align: top;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: rgba(240,249,244,0.55);
+    }
+
+    .check { font-weight: 900; color: var(--primary-dark); }
+    .muted { color: var(--text-light); }
+
+    /* Add-ons */
+    .addons {
+      background: white;
+      border-top: 1px solid rgba(0,0,0,0.06);
+    }
+    .addon-grid {
+      display: grid;
+      gap: 1.25rem;
+    }
+    @media (min-width: 900px) {
+      .addon-grid { grid-template-columns: 1.2fr 1fr; }
+    }
+    .box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+    }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      padding-top: 2.5rem;
+    }
+    .contact {
+      margin-top: 1rem;
+      color: var(--text-light);
+      font-size: 1rem;
+    }
+    .contact a { color: var(--primary-dark); font-weight: 700; text-decoration: none; }
+    .contact a:hover { text-decoration: underline; }
+
+    .inline-link {
+      color: var(--primary-dark);
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+    }
+    .inline-link:hover,
+    .inline-link:focus-visible {
+      color: var(--primary);
+    }
+
+    dialog {
+      border: 0;
+      border-radius: 1rem;
+      padding: 0;
+      width: min(92vw, 700px);
+      box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+    }
+    dialog::backdrop {
+      background: rgba(31,41,55,0.5);
+    }
+    .modal-card {
+      background: var(--card);
+      padding: 1.25rem 1.25rem 1.1rem;
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 1rem;
+      margin-bottom: 0.8rem;
+    }
+    .modal-head h3 {
+      margin: 0;
+      color: var(--primary-dark);
+      font-size: 1.4rem;
+    }
+    .modal-close {
+      border: 0;
+      background: transparent;
+      color: var(--text-light);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.1rem 0.2rem;
+    }
+    .modal-close:hover,
+    .modal-close:focus-visible {
+      color: var(--primary-dark);
+    }
+    .modal-body p {
+      margin: 0 0 0.85rem;
+      color: var(--text);
+    }
+    .modal-actions {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+  </style>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-bg">
+      <img
+        src="https://thumbs.dreamstime.com/b/calming-gradient-background-fluid-waves-blending-soft-mint-green-to-pastel-aqua-offering-serene-soothing-visual-336112551.jpg"
+        alt="Soft calming abstract waves in mint green and aqua"
+      />
+    </div>
+
+    <div class="container hero-inner">
+      <div class="pill">🌿 Calm • Professional • Secure</div>
+      <h1>A Calm, Professional Website for Your Therapy Practice</h1>
+      <p>
+        Built with care. Maintained with integrity. Designed for peace of mind.
+        Choose a plan that fits your stage today — and upgrade anytime as your practice grows.
+      </p>
+
+      <div class="btn-row">
+        <a class="btn" href="#plans">View Plans</a>
+        <a class="btn btn-outline" href={`mailto:${contactEmail}?subject=Therapist%20Website%20Plans%20-%20Inquiry`}>Request a Quote</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- PLANS -->
+  <section id="plans">
+    <div class="container">
+      <h2 class="section-title">Three Simple Plans</h2>
+      <p class="section-subtitle">
+        Each plan includes a privacy-conscious contact form, fast load times, and a calming design.
+        Start simple, then add features when you’re ready.
+      </p>
+
+      <div class="grid grid-3">
+        <!-- Starter -->
+        <article class="plan">
+          <h3>Starter Plan</h3>
+          <div class="tag">A simple, credible online presence</div>
+
+          <div class="price">$2,000 <small>one-time</small></div>
+
+          <ul>
+            <li>Custom 3–5 page website</li>
+            <li><a href="#modal-speed" class="inline-link" data-open-modal="modal-speed">Fast, mobile-friendly design</a></li>
+            <li>
+                <a href="#modal-contact" class="inline-link" data-open-modal="modal-contact">
+                    Secure contact form</a>
+            </li>
+            <li>
+              <a href="#modal-seo" class="inline-link" data-open-modal="modal-seo">
+                Basic SEO setup
+              </a>
+            </li>
+            <li>
+              <a href="#modal-ssl" class="inline-link" data-open-modal="modal-ssl">
+                Domain + SSL connection
+              </a>
+            </li>
+            <li>
+  <a href="#modal-email" class="inline-link" data-open-modal="modal-email">
+    2 professional email accounts
+  </a>
+</li>
+            <li>30 days of support</li>
+            <li>30 money back gurantee</li>
+          </ul>
+
+          <p class="fineprint">
+            Optional ongoing care (updates + monitoring): <strong>$50/month</strong>
+          </p>
+        </article>
+
+        <!-- Growth -->
+        <article class="plan featured">
+          <div class="badge">Most Popular</div>
+          <h3>Growth Plan</h3>
+          <div class="tag">Built for steady visibility and momentum</div>
+
+          <div class="price">$3,500 <small>one-time</small></div>
+          <p class="muted" style="margin:0.2rem 0 0.7rem;">
+            or <strong>$300/month</strong> for 12 months
+          </p>
+
+          <ul>
+            <li>Everything in Starter</li>
+            <li>Three free Branded email account</li>
+            <li>
+              <a href="#modal-blog" class="inline-link" data-open-modal="modal-blog">
+                Blog system
+              </a>
+            </li>
+            <li>
+              <a href="#modal-seo-monthly" class="inline-link" data-open-modal="modal-seo-monthly">
+                Monthly SEO refinements
+              </a>
+            </li>
+            <li>
+              <a href="#modal-report" class="inline-link" data-open-modal="modal-report">
+                Quarterly analytics summary
+              </a>
+            </li>
+            <li>Ongoing content updates (2 hrs/month)</li>
+            <li>
+              <a href="#modal-images-quarterly" class="inline-link" data-open-modal="modal-images-quarterly">
+                Quarterly image refresh
+              </a>
+            </li>
+            <li>
+              <a href="#modal-content-annual" class="inline-link" data-open-modal="modal-content-annual">
+                One content refresh per year
+              </a>
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            Optional ongoing care (updates + monitoring): <strong>$50/month</strong>
+          </p>
+        </article>
+
+        <!-- Premium -->
+        <article class="plan">
+          <h3>Premium Plan</h3>
+          <div class="tag">Full support + highest level of polish</div>
+
+          <div class="price">$5,000 <small>paid in full</small></div>
+          <p class="muted" style="margin:0.2rem 0 0.7rem;">
+            or <strong>$500/month</strong> for 12 months (<strong>$6,000</strong> total)
+          </p>
+
+          <ul>
+            <li>Everything in Growth</li>
+            <li>
+              <a href="#modal-weekly-updates" class="inline-link" data-open-modal="modal-weekly-updates">
+                Weekly content/photo updates
+              </a>
+            </li>
+            <li>
+              <a href="#modal-priority-support" class="inline-link" data-open-modal="modal-priority-support">
+                Priority support
+              </a>
+            </li>
+            <li>
+              <a href="#modal-seo-enhanced" class="inline-link" data-open-modal="modal-seo-enhanced">
+                Enhanced SEO attention
+              </a>
+            </li>
+            <li>
+              <a href="#modal-privacy-architecture" class="inline-link" data-open-modal="modal-privacy-architecture">
+                Privacy-first static architecture
+              </a>
+            </li>
+            <li>
+              <a href="#modal-performance" class="inline-link" data-open-modal="modal-performance">
+                Performance optimization
+              </a>
+            </li>
+            <li>
+              <a href="#modal-strategy" class="inline-link" data-open-modal="modal-strategy">
+                Strategy check-ins
+              </a>
+            </li>
+            <li>
+              <a href="#modal-export" class="inline-link" data-open-modal="modal-export">
+                Easy site export if needed
+              </a>
+            </li>
+          </ul>
+
+          <p class="fineprint">
+            <a href="#modal-ongoing-care" class="inline-link" data-open-modal="modal-ongoing-care">
+              Optional ongoing care (after launch): <strong>$50/month</strong>
+            </a>
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON TABLE -->
+  <section>
+    <div class="container">
+      <h2 class="section-title">Compare at a Glance</h2>
+      <p class="section-subtitle">
+        The same calm foundation — with different levels of ongoing support and visibility tools.
+      </p>
+
+      <div class="table-wrap" role="region" aria-label="Plan comparison table">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Starter</th>
+              <th>Growth</th>
+              <th>Premium</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Custom 3–5 page website</td>
+              <td class="check">✔</td>
+              <td class="check">✔</td>
+              <td class="check">✔</td>
+            </tr>
+            <tr>
+              <td>Secure contact form (privacy-conscious)</td>
+              <td class="check">✔</td>
+              <td class="check">✔</td>
+              <td class="check">✔</td>
+            </tr>
+            <tr>
+              <td>Professional email setup</td>
+              <td>2 accounts</td>
+              <td>4 accounts + 1 custom</td>
+              <td>4+ accounts</td>
+            </tr>
+            <tr>
+              <td>Blog system</td>
+              <td>—</td>
+              <td class="check">✔</td>
+              <td class="check">✔</td>
+            </tr>
+            <tr>
+              <td>Monthly SEO refinements</td>
+              <td>—</td>
+              <td class="check">✔</td>
+              <td>Enhanced</td>
+            </tr>
+            <tr>
+              <td>Content updates included</td>
+              <td>30 days</td>
+              <td>2 hrs/month</td>
+              <td>Weekly</td>
+            </tr>
+            <tr>
+              <td>Analytics summary</td>
+              <td>—</td>
+              <td class="check">Quarterly</td>
+              <td class="check">Priority</td>
+            </tr>
+            <tr>
+              <td>Image refresh support</td>
+              <td>—</td>
+              <td>Quarterly</td>
+              <td>Ongoing</td>
+            </tr>
+            <tr>
+              <td>Strategy check-ins</td>
+              <td>—</td>
+              <td>—</td>
+              <td class="check">✔</td>
+            </tr>
+            <tr>
+              <td>Easy site export guarantee</td>
+              <td>—</td>
+              <td>—</td>
+              <td class="check">✔</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD-ONS -->
+  <section class="addons" id="addons">
+    <div class="container">
+      <h2 class="section-title">Optional Add-Ons</h2>
+      <p class="section-subtitle">
+        Add only what you need. Upgrade later without rebuilding your website from scratch.
+      </p>
+
+      <div class="addon-grid">
+        <div class="box">
+          <h3 style="margin-top:0;color:var(--primary-dark);">Popular Add-Ons</h3>
+          <ul style="padding-left:1.15rem;margin:0.9rem 0;">
+            <li>Online booking integration</li>
+            <li>Newsletter setup</li>
+            <li>Logo design & brand guide</li>
+            <li>Additional email accounts</li>
+            <li>Local SEO campaign focus</li>
+            <li>Payment integration</li>
+            <li>Custom feature development</li>
+          </ul>
+          <p class="fineprint">Add-ons are quoted transparently based on scope.</p>
+        </div>
+
+        <div class="box">
+          <h3 style="margin-top:0;color:var(--primary-dark);">Upscale Path</h3>
+          <p class="muted" style="margin:0.7rem 0 0;">
+            Start with Starter, then upgrade when you’re ready:
+          </p>
+          <ul style="padding-left:1.15rem;margin:0.9rem 0;">
+            <li><strong>Starter → Growth:</strong> add blog + ongoing SEO + monthly updates</li>
+            <li><strong>Growth → Premium:</strong> move to weekly support + enhanced SEO + strategy</li>
+            <li><strong>Any plan:</strong> add booking, newsletters, or local SEO campaigns</li>
+          </ul>
+          <p class="fineprint">
+            You’re never locked in — you can scale up as your caseload and budget grow.
+          </p>
+        </div>
+      </div>
+
+      <div class="cta">
+        <a class="btn" href={`mailto:${contactEmail}?subject=Therapist%20Website%20Plans%20-%20I%20want%20to%20get%20started`}>
+          Let’s Build Your Digital Presence
+        </a>
+
+        <div class="contact">
+          Contact: <a href={`mailto:${contactEmail}`}>{contactEmail}</a><br />
+          Website: <a href={`https://${websiteUrl}`} target="_blank" rel="noopener">{websiteUrl}</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="modal-speed" aria-labelledby="modal-speed-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-speed-title">Why mobile speed matters</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Most therapy clients discover providers on their phones. If a site feels slow or hard to use on mobile, people often leave before they contact you.
+        </p>
+        <p>
+        Our sites are custom built, using HTML, CSS and java script when necessary, keeping pages quick. That lighter approach makes mobile browsing feel smoother.
+        </p>
+        <p>
+          Hosting also matters. TitaniumHut uses performance-focused infrastructure, including NVMe storage and modern server CPUs, which supports faster delivery and a more responsive experience.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-contact" aria-labelledby="modal-contact-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-contact-title">Simple. Safe. Private.</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your website includes a privacy-conscious contact form designed for initial inquiries only.
+        </p>
+
+        <ul>
+          <li>Visitors enter their name, email, and a short message.</li>
+          <li>Messages are sent securely to your inbox.</li>
+          <li>No client information is stored on the website.</li>
+          <li>Built-in spam protection prevents automated abuse.</li>
+          <li>A gentle notice reminds visitors not to include sensitive medical details.</li>
+        </ul>
+
+        <p>
+          This gives you a professional way for new clients to reach you — without creating unnecessary data risks.
+        </p>
+
+        <p>
+          If you later decide you need more advanced form capabilities, you can upgrade at any time.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-seo" aria-labelledby="modal-seo-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-seo-title">What “Basic SEO Setup” Includes</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your website is structured so search engines can clearly understand who you are, what you offer, and where you’re located.
+        </p>
+
+        <ul>
+          <li>Proper page titles and meta descriptions</li>
+          <li>Clean heading structure for clarity</li>
+          <li>Local keyword alignment (example: “anxiety therapist in Nashville”)</li>
+          <li>Mobile optimization</li>
+          <li>Fast-loading pages</li>
+          <li>Google indexing readiness</li>
+        </ul>
+
+        <p>
+          This provides a strong foundation for being found online.
+        </p>
+
+        <p>
+          Ongoing SEO refinements and content strategy are available in higher-tier plans.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-email" aria-labelledby="modal-email-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-email-title">Professional Email — Included</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p>
+          Your website includes professional email addresses using your own domain
+          (example: you@yourpractice.com).
+        </p>
+
+        <ul>
+          <li>Builds immediate credibility and trust</li>
+          <li>No third-party subscription required</li>
+          <li>Accessible from phone, tablet, or computer</li>
+          <li>Secure, encrypted email delivery</li>
+          <li>Spam filtering and inbox protection</li>
+          <li>Email setup handled for you</li>
+        </ul>
+
+        <p>
+          Many platforms charge monthly per-user fees for domain-based email.
+          With this setup, your professional email is included within your hosting environment.
+        </p>
+
+        <p>
+          You can add, adjust, or forward accounts anytime as your practice grows.
+        </p>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>
+          Back to plans
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-ssl" aria-labelledby="modal-ssl-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-ssl-title">Secure Domain & SSL Setup</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your website includes professional domain connection and SSL encryption — so everything works together reliably and securely.
+        </p>
+
+        <ul>
+          <li>Your custom domain (example: yourpractice.com) is properly connected to your hosting environment</li>
+          <li>Secure HTTPS encryption is installed and active</li>
+          <li>Visitors see the trusted browser lock icon</li>
+          <li>Contact form submissions are encrypted in transit</li>
+          <li>Google recognizes your site as secure</li>
+          <li>SSL certificate monitoring is handled for you</li>
+        </ul>
+
+        <p>
+          This ensures your website and email operate smoothly, without security warnings or technical confusion.
+        </p>
+
+        <p>
+          It also reinforces trust — especially important in a privacy-sensitive field like therapy.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>
+          Back to plans
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-seo-monthly" aria-labelledby="modal-seo-monthly-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-seo-monthly-title">What Monthly SEO Refinements Include</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Each month, your website is reviewed and refined to improve visibility and stay aligned with how potential clients are searching.
+        </p>
+
+        <ul>
+          <li>Keyword alignment adjustments for service and location phrases</li>
+          <li>Content refinements to improve clarity and search relevance</li>
+          <li>Internal linking improvements between pages</li>
+          <li>Technical health checks (mobile usability, speed, indexing)</li>
+          <li>Local SEO strengthening where appropriate</li>
+        </ul>
+
+        <p>
+          SEO is not a one-time setup. Ongoing refinements help your site stay competitive and continue improving over time.
+        </p>
+
+        <p>
+          Performance trends are monitored so adjustments are intentional — not guesswork.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>
+          Back to plans
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-blog" aria-labelledby="modal-blog-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-blog-title">Blog System for Ongoing Visibility</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your website includes a built-in blog system designed to support long-term visibility and trust.
+        </p>
+
+        <p>
+          This is not just a text editor — it’s structured for search performance and easy publishing.
+        </p>
+
+        <ul>
+          <li>Blog architecture properly integrated into your website</li>
+          <li>Search-engine-ready formatting</li>
+          <li>Category and internal linking structure</li>
+          <li>1 optimized article per month (approximately 800–1,000 words)</li>
+          <li>Formatting, publishing, and on-page SEO handled for you</li>
+        </ul>
+
+        <p>
+          Regular content updates signal freshness to search engines and help potential clients understand your expertise.
+        </p>
+
+        <p>
+          For practices that want more frequent publishing or expanded content strategy, additional support is available in higher-tier plans.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>
+          Back to plans
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-report" aria-labelledby="modal-report-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-report-title">What to Expect from Your Visibility Report</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          You will receive a clear, easy-to-read summary showing how your website is performing.
+        </p>
+
+        <ul>
+          <li>Total website visits</li>
+          <li>Top-performing pages</li>
+          <li>Traffic sources (Google, direct, referrals, etc.)</li>
+          <li>Contact or inquiry activity (if tracked)</li>
+          <li>Visibility trends compared to the previous period</li>
+        </ul>
+
+        <p>
+          You won’t receive overwhelming technical data — just the information that helps you understand whether your online presence is growing.
+        </p>
+
+        <p>
+          When appropriate, the report may include a short note highlighting what improved and one suggested next step.
+        </p>
+
+        <p>
+          The goal is steady, measurable progress — not vanity metrics.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>
+          Back to plans
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-images-quarterly" aria-labelledby="modal-images-quarterly-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-images-quarterly-title">Quarterly Image Refresh</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Every quarter, we refresh a small set of images on your site to keep things visually current and aligned with your practice.
+        </p>
+
+        <ul>
+          <li>Replace or update up to 3–5 images across key pages (Home, About, Services, etc.)</li>
+          <li>Light editing/cropping for consistency and calm branding</li>
+          <li>Proper file optimization so pages stay fast</li>
+          <li>Alt text updates (helps accessibility + SEO)</li>
+        </ul>
+
+        <p>
+          This keeps your site feeling active and cared for — without needing a full redesign.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-content-annual" aria-labelledby="modal-content-annual-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-content-annual-title">One Annual Content Refresh</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Once per year, you get one focused content refresh to keep your site accurate, current, and aligned with how you want to present your practice.
+        </p>
+
+        <ul>
+          <li>Refresh one primary page (typically About, Services, or a flagship specialty page)</li>
+          <li>Rewrite for clarity, tone, and client confidence</li>
+          <li>Update services, fees, specialties, or messaging as needed</li>
+          <li>Light on-page SEO cleanup (headings + clarity)</li>
+        </ul>
+
+        <p>
+          This is designed to keep your website “true to you” as your practice evolves.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-weekly-updates" aria-labelledby="modal-weekly-updates-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-weekly-updates-title">Weekly Content & Photo Updates</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your website stays current and aligned with your evolving practice.
+        </p>
+
+        <p>Each week, you can request:</p>
+        <ul>
+          <li>One focused content update (example: service wording, a new testimonial, an announcement, or publishing a prepared blog post)</li>
+          <li>Photo swaps or small visual refinements</li>
+          <li>Formatting cleanup for clarity and polish</li>
+          <li>Light on-page SEO touch-ups related to the update</li>
+        </ul>
+
+        <p>
+          This keeps your site active, professional, and cared for — without waiting for quarterly cycles.
+        </p>
+
+        <p>
+          If a request becomes a larger content project or redesign, we’ll scope it clearly before starting.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-priority-support" aria-labelledby="modal-priority-support-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-priority-support-title">Priority Support</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          When you need a change, you won’t sit in a queue.
+        </p>
+
+        <p>Priority support means:</p>
+        <ul>
+          <li>Faster response time for questions and small updates</li>
+          <li>Time-sensitive edits handled first (schedule changes, announcements, urgent corrections)</li>
+          <li>Direct communication for quick clarifications</li>
+          <li>Help troubleshooting website-related issues (forms, email routing, broken links)</li>
+        </ul>
+
+        <p>
+          This is designed for practices that want ongoing oversight and fast help when details matter.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-seo-enhanced" aria-labelledby="modal-seo-enhanced-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-seo-enhanced-title">Enhanced SEO Attention</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Premium includes a higher level of SEO oversight to keep your website improving and competitive over time.
+        </p>
+        <ul>
+          <li>More frequent page-level refinements (titles, headings, internal links)</li>
+          <li>Local SEO strengthening for the services you want to be found for</li>
+          <li>Content expansion recommendations based on real search behavior</li>
+          <li>Ongoing technical checks (indexing, broken links, mobile issues)</li>
+        </ul>
+        <p>
+          The focus is steady visibility growth and higher-quality inquiries — without hype or unrealistic guarantees.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-privacy-architecture" aria-labelledby="modal-privacy-architecture-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-privacy-architecture-title">Privacy-First Static Architecture</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Your site is built with a privacy-first approach that minimizes data risk.
+        </p>
+        <ul>
+          <li>No client data stored on the website</li>
+          <li>Fewer moving parts than database-heavy sites</li>
+          <li>Smaller attack surface and lower maintenance risk</li>
+          <li>Fast, stable pages that don’t rely on heavy plugins</li>
+        </ul>
+        <p>
+          This approach supports a calm, trustworthy experience — especially important for privacy-sensitive practices.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-performance" aria-labelledby="modal-performance-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-performance-title">Performance Optimization</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Premium includes extra attention to speed and smoothness — especially on mobile.
+        </p>
+        <ul>
+          <li>Image optimization (size, compression, modern formats)</li>
+          <li>Cleaner page structure for faster loading</li>
+          <li>Reducing unnecessary scripts and page weight</li>
+          <li>Periodic checks to keep performance strong over time</li>
+        </ul>
+        <p>
+          Faster websites reduce drop-off and make it easier for new clients to contact you.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-strategy" aria-labelledby="modal-strategy-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-strategy-title">Strategy Check-Ins</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Premium includes periodic check-ins to make sure your website supports your real goals — not just “looks nice.”
+        </p>
+        <ul>
+          <li>Review what’s working (top pages, inquiry flow, search visibility)</li>
+          <li>Clarify what you want to promote next (services, specialties, availability)</li>
+          <li>Decide on the next best content or SEO improvement</li>
+          <li>Small adjustments that improve inquiry conversion over time</li>
+        </ul>
+        <p>
+          This keeps your site aligned with your practice as it evolves.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-export" aria-labelledby="modal-export-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-export-title">Easy Site Export If Needed</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          You’re never locked in. If you ever need to move your website, we can provide a clean export and handoff.
+        </p>
+        <ul>
+          <li>Exportable site files and assets</li>
+          <li>Basic handover guidance for hosting + domain settings</li>
+          <li>Clear documentation of key site sections and structure</li>
+        </ul>
+        <p>
+          This protects your investment and gives you peace of mind.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="modal-ongoing-care" aria-labelledby="modal-ongoing-care-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-ongoing-care-title">Optional Ongoing Care</h3>
+        <button type="button" class="modal-close" aria-label="Close modal" data-close-modal>&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Ongoing care keeps your website stable, secure, and up to date after launch — without you needing to manage the technical side.
+        </p>
+        <ul>
+          <li>Small text changes and quick updates as needed</li>
+          <li>Form monitoring and basic troubleshooting</li>
+          <li>Performance checks (speed and broken links)</li>
+          <li>Plugin-free upkeep (this site is designed to stay lightweight)</li>
+        </ul>
+        <p>
+          If you want ongoing improvements beyond maintenance (new pages, new features, major content work), those can be scoped separately.
+        </p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close-modal>Back to plans</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const openers = document.querySelectorAll('[data-open-modal]');
+    const closers = document.querySelectorAll('[data-close-modal]');
+
+    openers.forEach((trigger) => {
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        const modalId = trigger.getAttribute('data-open-modal');
+        if (!modalId) return;
+        const modal = document.getElementById(modalId) as HTMLDialogElement | null;
+        if (modal && typeof modal.showModal === 'function') {
+          modal.showModal();
+        }
+      });
+    });
+
+    closers.forEach((button) => {
+      button.addEventListener('click', () => {
+        const modal = button.closest('dialog') as HTMLDialogElement | null;
+        if (modal) modal.close();
+      });
+    });
+
+    document.querySelectorAll<HTMLDialogElement>('dialog').forEach((modal) => {
+      modal.addEventListener('click', (event) => {
+        const rect = modal.getBoundingClientRect();
+        const clickedOutside =
+          event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom;
+        if (clickedOutside) modal.close();
+      });
+    });
+  </script>
+</Layout>

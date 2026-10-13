@@ -1,0 +1,15 @@
+/* AnchorPill — presentation only.
+   Markup comes from anchorPill.ts (anchorPillHtml); clicks are bound by bindAnchorPills in the
+   same file. Nothing here encodes logic: every state is a class the helper renders. */
+
+/* Confirmed block date: was registry .seal (registry.astro L165). Sets no font-weight, as before. */
+.rcv-anchor.rcv-anchor--confirmed { font-size: .64rem; color: var(--rcv-gain); border: 1px solid var(--rcv-gain-border); background: var(--rcv-gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
+
+/* Read-only pending or none: the registry .seal.off look. No S1 page renders these. */
+.rcv-anchor.rcv-anchor--pending, .rcv-anchor.rcv-anchor--none { font-size: .64rem; color: var(--text-muted); border: 1px solid var(--border-subtle); background: transparent; border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
+
+/* Re-check and Anchor buttons: was registry .btn + .btn-xs (L61-66, L149). margin and filter
+   neutralize a page's bare button rules should the pill ever render there. */
+.rcv-anchor.rcv-anchor--action { appearance: none; margin: 0; border: 1px solid var(--border-bright); background: var(--surface-card-2); color: var(--text-primary); font: inherit; font-size: .68rem; font-weight: 600; padding: .18rem .5rem; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; transition: border-color .15s, background .15s; }
+.rcv-anchor.rcv-anchor--action:hover { border-color: var(--accent-glow); background: var(--surface-hover); filter: none; }
+.rcv-anchor.rcv-anchor--action:disabled { opacity: .5; cursor: not-allowed; }

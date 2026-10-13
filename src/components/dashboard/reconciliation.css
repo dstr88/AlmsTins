@@ -1,0 +1,265 @@
+/**
+ * reconciliation.css
+ *
+ * Styles for ReconciliationTransactions and ReconciliationSnapshot components.
+ * Matches the vault page aesthetic — same surface tokens, same accent.
+ * Imported once by each component; only one copy ends up in the bundle.
+ */
+
+/* ── Section wrapper ─────────────────────────────────────────────────────── */
+.recon-section {
+	margin-top: 3rem;
+	padding: 0 clamp(1.5rem, 5vw, 3.5rem) 3rem;
+}
+
+.recon-section-divider {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+}
+
+.recon-section-divider__label {
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--accent);
+	white-space: nowrap;
+}
+
+.recon-section-divider__line {
+	flex: 1;
+	height: 1px;
+	background: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Two-column grid ─────────────────────────────────────────────────────── */
+.recon-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1.25rem;
+	align-items: start;
+}
+
+@media (max-width: 700px) {
+	.recon-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* ── Card shell ──────────────────────────────────────────────────────────── */
+.recon-card {
+	background: var(--surface-card);
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	overflow: hidden;
+}
+
+.recon-card__header {
+	padding: 0.85rem 1.1rem 0.75rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+}
+
+.recon-card__num {
+	font-size: 0.62rem;
+	font-weight: 800;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 4px;
+	padding: 0.15rem 0.45rem;
+}
+
+.recon-card__title {
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+/* ── Row list ────────────────────────────────────────────────────────────── */
+.recon-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.recon-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.6rem 1.1rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+	transition: background 0.1s;
+}
+
+.recon-row:last-child {
+	border-bottom: none;
+}
+
+.recon-row:hover {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Symbol badge (matches vault tile style) ─────────────────────────────── */
+.recon-symbol {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	min-width: 0;
+}
+
+.recon-symbol__badge {
+	flex-shrink: 0;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 6px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 0.6rem;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-transform: uppercase;
+}
+
+.recon-symbol__name {
+	font-size: 0.88rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-primary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── Quantity (primary — large) ──────────────────────────────────────────── */
+.recon-qty {
+	text-align: right;
+	flex-shrink: 0;
+}
+
+.recon-qty__amount {
+	font-size: 0.95rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-primary);
+	letter-spacing: -0.01em;
+}
+
+.recon-qty__usd {
+	font-size: 0.68rem;
+	color: var(--text-secondary);
+	font-variant-numeric: tabular-nums;
+	margin-top: 0.1rem;
+}
+
+/* ── Status indicator ────────────────────────────────────────────────────── */
+.recon-status {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	flex-shrink: 0;
+}
+
+.recon-status__dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.recon-status__dot--match {
+	background: var(--gain);
+}
+
+.recon-status__dot--gap {
+	background: var(--accent);  /* amber/mint — warning, not loss */
+}
+
+.recon-status__label {
+	font-size: 0.67rem;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.recon-status__label--match {
+	color: var(--gain);
+}
+
+.recon-status__label--gap {
+	color: var(--accent);
+}
+
+/* ── Memory Lane link ────────────────────────────────────────────────────── */
+.recon-ml-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-size: 0.65rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--accent);
+	text-decoration: none;
+	opacity: 0.8;
+	transition: opacity 0.15s;
+}
+
+.recon-ml-link:hover {
+	opacity: 1;
+	text-decoration: underline;
+}
+
+/* ── Delta pill (shows +/- qty difference) ───────────────────────────────── */
+.recon-delta {
+	font-size: 0.67rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-radius: 4px;
+	padding: 0.1rem 0.4rem;
+}
+
+/* ── Loading / empty states ──────────────────────────────────────────────── */
+.recon-state {
+	padding: 2rem 1.1rem;
+	text-align: center;
+	color: var(--text-secondary);
+	font-size: 0.78rem;
+}
+
+.recon-spinner {
+	width: 18px;
+	height: 18px;
+	border: 2px solid rgba(255, 255, 255, 0.1);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: recon-spin 0.7s linear infinite;
+	margin: 0 auto 0.6rem;
+}
+
+@keyframes recon-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* ── Updated-at timestamp ────────────────────────────────────────────────── */
+.recon-footer {
+	padding: 0.5rem 1.1rem 0.75rem;
+	font-size: 0.62rem;
+	color: var(--text-secondary);
+	opacity: 0.55;
+	border-top: 1px solid rgba(255, 255, 255, 0.05);
+}

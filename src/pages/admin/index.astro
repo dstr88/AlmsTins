@@ -1,0 +1,1030 @@
+---
+import Analytics from '@/components/Analytics.astro';
+import { requireAdminSession } from '@/lib/adminGuard';
+import { db } from '@/lib/db';
+import { getGA4Summary } from '@/lib/ga4';
+import { countUniqueChecksByKind, countUniqueChecksByKindAndCountry } from '@/lib/checkLog';
+import MailboxWindows from '@/components/admin/MailboxWindows.astro';
+import { getAuthSession } from '@/lib/authSession';
+import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
+
+// Guard — redirect non-admin users rather than returning a raw 4xx,
+// since Render's infrastructure renders raw error responses as "file not found".
+let adminEmail = '';
+let adminUserId = '';
+try {
+	const admin = await requireAdminSession(Astro.request);
+	adminEmail = admin.email;
+	adminUserId = admin.userId;
+} catch (resp) {
+	if (resp instanceof Response) {
+		if (resp.status === 401) return Astro.redirect('/login', 303);
+		// 403 = authenticated but not admin
+		return Astro.redirect('/dashboard/vault', 303);
+	}
+	return Astro.redirect('/dashboard/vault', 303);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const q = async (sql: string, args: any[] = []) => {
+	const r = await db.execute({ sql, args });
+	return r.rows as Record<string, any>[];
+};
+const scalar = async (sql: string, args: any[] = []): Promise<number> => {
+	const rows = await q(sql, args);
+	const val = rows[0] ? Object.values(rows[0])[0] : 0;
+	return Number(val ?? 0);
+};
+
+const now = new Date();
+const iso = (d: Date) => d.toISOString();
+const daysAgo = (n: number) => {
+	const d = new Date(now);
+	d.setDate(d.getDate() - n);
+	return iso(d);
+};
+
+// ── Helpers — safe variants that never throw ──────────────────────────────────
+const safeScalar = async (sql: string, args: any[] = []): Promise<number> => {
+	try { return await scalar(sql, args); } catch { return 0; }
+};
+const safeQ = async (sql: string, args: any[] = []): Promise<Record<string, any>[]> => {
+	try { return await q(sql, args); } catch { return []; }
+};
+
+// ── Auto-cleanup: remove old unprotected messages ────────────────────────────
+const fifteenDaysAgo = daysAgo(15);
+await safeQ(
+  `DELETE FROM contact_messages WHERE persisted = 0 AND created_at < ?`,
+  [fifteenDaysAgo],
+);
+
+// ── Load inbox messages ───────────────────────────────────────────────────────
+const inboxMessages = await safeQ(
+  `SELECT id, subject, body, created_at, persisted FROM contact_messages ORDER BY created_at DESC`,
+);
+
+// ── Queries (run in parallel) ─────────────────────────────────────────────────
+const [
+	totalUsers,
+	newUsersToday,
+	newUsers7d,
+	newUsers30d,
+	totalTenants,
+	loginsToday,
+	logins7d,
+	totalWallets,
+	totalImportFiles,
+	totalImportRows,
+	totalSuiTx,
+	totalOnchainTx,
+	recentUsers,
+	walletsByChain,
+	requestsToday,
+	topRoutes,
+	ga4,
+] = await Promise.all([
+	safeScalar('SELECT COUNT(*) FROM auth_users'),
+	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(1)]),
+	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(7)]),
+	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(30)]),
+	safeScalar('SELECT COUNT(*) FROM tenants'),
+	safeScalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(1)]),
+	safeScalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(7)]),
+	safeScalar('SELECT COUNT(*) FROM wallets'),
+	safeScalar('SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions'),
+	safeScalar('SELECT COUNT(*) FROM import_transactions'),
+	safeScalar('SELECT COUNT(*) FROM sui_transactions'),
+	safeScalar('SELECT COUNT(*) FROM transactions'),
+	safeQ(`SELECT u.email, u.name, u.last_login, MIN(tm.created_at) AS member_since
+	   FROM auth_users u
+	   LEFT JOIN tenant_memberships tm ON tm.user_id = u.id
+	   GROUP BY u.id, u.email, u.name, u.last_login
+	   ORDER BY u.last_login DESC NULLS LAST
+	   LIMIT 20`),
+	safeQ(`SELECT
+	     CASE
+	       WHEN chains LIKE '%sui%' THEN 'Sui'
+	       WHEN chains LIKE '%eth%' THEN 'Ethereum'
+	       WHEN chains LIKE '%base%' THEN 'Base'
+	       WHEN chains LIKE '%arb%' THEN 'Arbitrum'
+	       ELSE 'Other'
+	     END AS chain,
+	     COUNT(*) AS cnt
+	   FROM wallets
+	   GROUP BY chain
+	   ORDER BY cnt DESC`),
+	safeScalar(`SELECT SUM(count) FROM request_agg_daily WHERE day >= ?`, [daysAgo(1).slice(0, 10)]),
+	safeQ(`SELECT route_key, SUM(count) AS hits
+	   FROM request_agg_daily
+	   WHERE day >= ?
+	   GROUP BY route_key
+	   ORDER BY hits DESC
+	   LIMIT 8`, [daysAgo(7).slice(0, 10)]),
+	getGA4Summary(28).catch(() => null),
+]);
+
+// Unified safety-tool usage counter — one query → { wallet, dapp } (src/lib/checkLog.ts).
+const checkCounts = await countUniqueChecksByKind().catch(() => ({ wallet: 0, dapp: 0 } as Record<'wallet' | 'dapp', number>));
+const checkCountriesEmpty = { wallet: [], dapp: [] } as Record<'wallet' | 'dapp', { country: string; count: number }[]>;
+const checkCountries = await countUniqueChecksByKindAndCountry().catch(() => checkCountriesEmpty);
+
+// ── Adoption stats (separate pass — these need the above to finish first) ────
+const [
+	tenantsWithWallets,
+	tenantsWithExchanges,
+	totalExchangeAccounts,
+	adoptionRows,
+] = await Promise.all([
+	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM wallets`),
+	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM exchange_accounts`),
+	safeScalar(`SELECT COUNT(*) FROM exchange_accounts`),
+	safeQ(`
+		SELECT
+			t.id AS tenant_id,
+			COALESCE(u.email, t.id) AS label,
+			(SELECT COUNT(*) FROM wallets w WHERE w.tenant_id = t.id) AS wallet_count,
+			(SELECT COUNT(*) FROM exchange_accounts ea WHERE ea.tenant_id = t.id) AS exchange_count,
+			(SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
+			u.last_login
+		FROM tenants t
+		LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
+		LEFT JOIN auth_users u ON u.id = tm.user_id
+		ORDER BY wallet_count DESC, exchange_count DESC
+		LIMIT 40
+	`),
+]);
+
+// ── PetroTins visit stats ─────────────────────────────────────────────────────
+// While PetroTins is owner-only (src/lib/petroTinsFlag.mjs) this section is shown to the
+// owner alone, not to every admin, and its queries are skipped for anyone else. PetroTins
+// routes and pages are also dropped from the traffic tables below for anyone else.
+const showPetroTins = petroTinsVisibility({
+	isOwner: await isPetroTinsOwnerSession(Astro.request, await getAuthSession(Astro.request).catch(() => null)),
+}).adminStats;
+const shownTopRoutes = withoutPetroTinsRows(topRoutes, (row) => row.route_key, showPetroTins);
+const shownTopPages = withoutPetroTinsRows(ga4?.topPages ?? [], (p) => p.page, showPetroTins);
+const [petroVisitCount, petroAvgDuration, petroRecentVisits] = showPetroTins
+	? await Promise.all([
+		safeScalar(`SELECT COUNT(*) FROM petro_visits`).catch(() => 0),
+		safeScalar(`SELECT ROUND(AVG(duration_s)) FROM petro_visits`).catch(() => 0),
+		safeQ(`SELECT visited_at, duration_s FROM petro_visits ORDER BY visited_at DESC LIMIT 10`).catch(() => []),
+	])
+	: ([0, 0, []] as [number, number, Record<string, any>[]]);
+
+const fmt = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
+	catch { return iso; }
+};
+const fmtDate = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(iso)); }
+	catch { return iso; }
+};
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Admin Dashboard · AlmsTins</title>
+	<link rel="icon" type="image/webp" href="/favicon.webp" />
+	<link rel="icon" href="/favicon.ico" sizes="any" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+	<style>
+		*, *::before, *::after { box-sizing: border-box; }
+		body {
+			margin: 0;
+			background: #070c18;
+			color: #e2e8f0;
+			font-family: 'Inter', system-ui, sans-serif;
+			min-height: 100vh;
+		}
+		.topbar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 1rem 2rem;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+			background: rgba(4,6,12,0.8);
+			backdrop-filter: blur(12px);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		.topbar-left { display: flex; align-items: center; gap: 1rem; }
+		.topbar-badge {
+			background: linear-gradient(135deg, #6366f1, #a855f7);
+			color: #fff;
+			font-size: 0.65rem;
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+			padding: 0.2rem 0.6rem;
+			border-radius: 999px;
+		}
+		.topbar h1 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+		.topbar-right { display: flex; align-items: center; gap: 1rem; font-size: 0.82rem; color: rgba(255,255,255,0.45); }
+		.back-link { color: #818cf8; text-decoration: none; font-size: 0.82rem; }
+		.back-link:hover { color: #a5b4fc; }
+
+		.page { padding: 2rem; max-width: 1280px; margin: 0 auto; }
+
+		/* Stat cards */
+		.stat-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+			gap: 1rem;
+			margin-bottom: 2rem;
+		}
+		.stat-card {
+			background: rgba(255,255,255,0.04);
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 12px;
+			padding: 1.1rem 1.25rem;
+		}
+		.stat-label {
+			font-size: 0.72rem;
+			color: rgba(255,255,255,0.4);
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			margin-bottom: 0.4rem;
+		}
+		.stat-value {
+			font-size: 2rem;
+			font-weight: 700;
+			color: #f1f5f9;
+			line-height: 1;
+		}
+		.stat-sub {
+			font-size: 0.72rem;
+			color: rgba(255,255,255,0.35);
+			margin-top: 0.35rem;
+		}
+		.stat-card.highlight { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.08); }
+		.stat-card.green { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.06); }
+		.stat-card.amber { border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+		.stat-card--link { border-color: rgba(56,189,248,0.25); background: rgba(56,189,248,0.06); transition: background 0.15s, border-color 0.15s; }
+		.stat-card--link:hover { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); }
+
+		/* Section */
+		.section { margin-bottom: 2rem; }
+		.section-title {
+			font-size: 0.78rem;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: rgba(255,255,255,0.4);
+			margin-bottom: 0.85rem;
+		}
+
+		/* Table */
+		.data-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.82rem;
+		}
+		.data-table th {
+			text-align: left;
+			padding: 0.5rem 0.75rem;
+			color: rgba(255,255,255,0.35);
+			font-weight: 500;
+			font-size: 0.72rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+		}
+		.data-table td {
+			padding: 0.6rem 0.75rem;
+			border-bottom: 1px solid rgba(255,255,255,0.05);
+			color: #cbd5e1;
+		}
+		.data-table tr:last-child td { border-bottom: none; }
+		.data-table tr:hover td { background: rgba(255,255,255,0.03); }
+		.table-wrap {
+			background: rgba(255,255,255,0.03);
+			border: 1px solid rgba(255,255,255,0.07);
+			border-radius: 12px;
+			overflow: hidden;
+		}
+
+		/* Two col layout */
+		.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+		@media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+		/* Chain pills */
+		.pill {
+			display: inline-block;
+			padding: 0.15rem 0.5rem;
+			border-radius: 999px;
+			font-size: 0.7rem;
+			font-weight: 600;
+			background: rgba(255,255,255,0.08);
+			color: rgba(255,255,255,0.6);
+		}
+		.pill.sui { background: rgba(79,174,255,0.15); color: #7dd3fc; }
+		.pill.eth { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+		.pill.base { background: rgba(59,130,246,0.15); color: #93c5fd; }
+		.pill.arb { background: rgba(6,182,212,0.15); color: #67e8f9; }
+
+		.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 0.4rem; }
+		.dot-green { background: #4ade80; }
+		.dot-gray { background: rgba(255,255,255,0.2); }
+
+		.refresh-note { font-size: 0.72rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
+
+		/* ── Inbox ─────────────────────────────────────────────────────── */
+		.inbox-count {
+			display: inline-block;
+			margin-left: 0.6rem;
+			font-size: 0.72rem;
+			font-weight: 600;
+			padding: 0.1rem 0.5rem;
+			border-radius: 999px;
+			background: rgba(99,102,241,0.15);
+			color: rgba(165,180,252,0.8);
+			vertical-align: middle;
+		}
+		.inbox-note {
+			font-size: 0.78rem;
+			opacity: 0.4;
+			margin: -0.5rem 0 1rem;
+			font-style: italic;
+		}
+		.inbox-list { display: flex; flex-direction: column; gap: 0.85rem; }
+		.inbox-card {
+			background: rgba(255,255,255,0.03);
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 10px;
+			padding: 1rem 1.1rem 0.85rem;
+			transition: opacity 0.25s;
+		}
+		.inbox-card-head {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 0.75rem;
+			margin-bottom: 0.4rem;
+			flex-wrap: wrap;
+		}
+		.inbox-subject {
+			font-weight: 700;
+			font-size: 0.92rem;
+			color: #f7f2eb;
+		}
+		.inbox-date {
+			font-size: 0.72rem;
+			opacity: 0.35;
+			white-space: nowrap;
+		}
+		.inbox-body {
+			font-size: 0.84rem;
+			line-height: 1.55;
+			opacity: 0.75;
+			margin: 0 0 0.75rem;
+			white-space: pre-wrap;
+		}
+		.inbox-actions {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+		.inbox-persist-label {
+			display: flex;
+			align-items: center;
+			gap: 0.35rem;
+			font-size: 0.78rem;
+			opacity: 0.55;
+			cursor: pointer;
+			user-select: none;
+		}
+		.inbox-persist-check { cursor: pointer; accent-color: #6366f1; }
+		.inbox-delete-btn {
+			margin-left: auto;
+			padding: 0.3rem 0.8rem;
+			border-radius: 6px;
+			border: 1px solid rgba(248,113,113,0.3);
+			background: rgba(248,113,113,0.08);
+			color: #fca5a5;
+			font-size: 0.78rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.12s;
+		}
+		.inbox-delete-btn:hover:not(:disabled) { background: rgba(248,113,113,0.18); }
+		.inbox-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+		/* GA4 section */
+		.ga4-unavailable {
+			padding: 0.85rem 1.1rem;
+			border-radius: 10px;
+			border: 1px solid rgba(255,255,255,0.07);
+			background: rgba(0,0,0,0.15);
+			font-size: 0.8rem;
+			color: rgba(255,255,255,0.35);
+			margin-bottom: 2rem;
+		}
+		.ga4-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.85rem; margin-bottom: 1.5rem; }
+		.ga4-card {
+			padding: 1rem 1.1rem;
+			border-radius: 12px;
+			border: 1px solid rgba(99,102,241,0.25);
+			background: rgba(99,102,241,0.07);
+		}
+		.ga4-live {
+			display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem;
+			padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 12px;
+			border: 1px solid rgba(16,185,129,0.3); background: rgba(16,185,129,0.07);
+			font-size: 0.85rem;
+		}
+		.ga4-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; align-self: center; }
+		.ga4-live-count { font-size: 1.25rem; font-weight: 700; }
+		.ga4-live-detail { color: var(--text-muted); }
+		.ga4-card .stat-label { font-size: 0.7rem; }
+		.ga4-card .stat-value { font-size: 1.6rem; }
+		.ga4-tables { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.25rem; }
+		@media (max-width: 900px) { .ga4-tables { grid-template-columns: 1fr; } }
+	</style>
+	<Analytics />
+</head>
+<body>
+
+<div class="topbar">
+	<div class="topbar-left">
+		<a class="back-link" href="/dashboard/vault">← App</a>
+		<h1>Admin Dashboard</h1>
+		<span class="topbar-badge">Internal</span>
+	</div>
+	<div class="topbar-right">
+		<a class="back-link" href="/dashboard/vault">Vault →</a>
+		<span>·</span>
+		<span>{adminEmail}</span>
+		<span>·</span>
+		<span>{now.toUTCString()}</span>
+	</div>
+</div>
+
+<div class="page">
+
+	<!-- ── Mailbox (donnie@almstins.com) — first thing on the page ────── -->
+	<MailboxWindows adminEmail={adminEmail} adminUserId={adminUserId} />
+
+	<!-- ── Adoption ─────────────────────────────────────────────── -->
+	<div class="section">
+		<div class="section-title">Adoption — wallets &amp; exchanges plugged in</div>
+		<div class="stat-grid" style="margin-bottom:1rem;">
+			<div class="stat-card highlight">
+				<div class="stat-label">Tenants w/ wallets</div>
+				<div class="stat-value">{tenantsWithWallets}</div>
+				<div class="stat-sub">of {totalTenants} total tenants</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">Tenants w/ exchanges</div>
+				<div class="stat-value">{tenantsWithExchanges}</div>
+				<div class="stat-sub">CSV import accounts</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Exchange accounts</div>
+				<div class="stat-value">{totalExchangeAccounts}</div>
+				<div class="stat-sub">across all tenants</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">On-chain tins</div>
+				<div class="stat-value">{totalWallets}</div>
+				<div class="stat-sub">active wallet addresses</div>
+			</div>
+		</div>
+		<div class="table-wrap">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Tenant / email</th>
+						<th style="text-align:right">Wallets</th>
+						<th style="text-align:right">Exchanges</th>
+						<th style="text-align:right">Import batches</th>
+						<th>Last login</th>
+					</tr>
+				</thead>
+				<tbody>
+					{adoptionRows.map((row) => (
+						<tr>
+							<td style="font-size:0.8rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.label}</td>
+							<td style="text-align:right; font-weight:600; color: {Number(row.wallet_count) > 0 ? '#4ade80' : 'inherit'}">
+								{Number(row.wallet_count) > 0
+									? <span style="color:#4ade80">{row.wallet_count}</span>
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="text-align:right;">
+								{Number(row.exchange_count) > 0
+									? <span style="color:#818cf8">{row.exchange_count}</span>
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="text-align:right;">
+								{Number(row.import_batches) > 0
+									? row.import_batches
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="font-size:0.78rem; opacity:0.65;">{row.last_login ? fmt(String(row.last_login)) : '—'}</td>
+						</tr>
+					))}
+					{adoptionRows.length === 0 && (
+						<tr><td colspan="5" style="opacity:0.35; text-align:center; padding:1.5rem;">No tenants yet</td></tr>
+					)}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<!-- ── KPI Strip ─────────────────────────────────────────────── -->
+	<div class="section">
+		<div class="section-title">Platform overview</div>
+		<div class="stat-grid">
+			<div class="stat-card highlight">
+				<div class="stat-label">Total users</div>
+				<div class="stat-value">{totalUsers}</div>
+				<div class="stat-sub">+{newUsersToday} today · +{newUsers7d} this week</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">New (30 days)</div>
+				<div class="stat-value">{newUsers30d}</div>
+				<div class="stat-sub">tenant signups</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Tenants</div>
+				<div class="stat-value">{totalTenants}</div>
+				<div class="stat-sub">active workspaces</div>
+			</div>
+			<div class="stat-card amber">
+				<div class="stat-label">Logins today</div>
+				<div class="stat-value">{loginsToday}</div>
+				<div class="stat-sub">{logins7d} in last 7 days</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Import rows</div>
+				<div class="stat-value">{totalImportRows.toLocaleString()}</div>
+				<div class="stat-sub">{totalImportFiles} import batches</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">EVM transactions</div>
+				<div class="stat-value">{totalOnchainTx.toLocaleString()}</div>
+				<div class="stat-sub">synced on-chain</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Sui transactions</div>
+				<div class="stat-value">{totalSuiTx.toLocaleString()}</div>
+				<div class="stat-sub">synced on-chain</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Requests today</div>
+				<div class="stat-value">{requestsToday > 0 ? requestsToday.toLocaleString() : '—'}</div>
+				<div class="stat-sub">from request log</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ── Safety-checker usage ─────────────────────────────────────
+	     Totals + geographic breakdown live together so they read as one metric,
+	     not two. Country comes from Cloudflare's own cf-ipcountry header at
+	     request time, never from the hashed IP, so this works without weakening
+	     check_log's no-attribution design. Rows logged before that column shipped
+	     (2026-09) read as 'Unknown' — expected for old data, not a bug. -->
+	<div class="section">
+		<div class="section-title">Safety checker usage</div>
+		<div class="stat-grid" style="margin-bottom:1rem;">
+			<div class="stat-card green">
+				<div class="stat-label">Wallets checked</div>
+				<div class="stat-value">{checkCounts.wallet.toLocaleString()}</div>
+				<div class="stat-sub">unique addresses checked</div>
+			</div>
+			<a href="/wallet-checker" class="stat-card stat-card--link green" style="text-decoration:none; cursor:pointer;">
+				<div class="stat-label">dApp Checker</div>
+				<div class="stat-value">{checkCounts.dapp.toLocaleString()}</div>
+				<div class="stat-sub">unique sites checked →</div>
+			</a>
+		</div>
+		<div class="ga4-tables" style="grid-template-columns: 1fr 1fr;">
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Country</th>
+							<th style="text-align:right">Wallets checked</th>
+						</tr>
+					</thead>
+					<tbody>
+						{checkCountries.wallet.slice(0, 10).map((c) => (
+							<tr>
+								<td>{c.country}</td>
+								<td style="text-align:right">{c.count.toLocaleString()}</td>
+							</tr>
+						))}
+						{checkCountries.wallet.length === 0 && (
+							<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Country</th>
+							<th style="text-align:right">Sites checked</th>
+						</tr>
+					</thead>
+					<tbody>
+						{checkCountries.dapp.slice(0, 10).map((c) => (
+							<tr>
+								<td>{c.country}</td>
+								<td style="text-align:right">{c.count.toLocaleString()}</td>
+							</tr>
+						))}
+						{checkCountries.dapp.length === 0 && (
+							<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<!-- ── Google Analytics 4 — last 28 days ────────────────────── -->
+	<div class="section">
+		<div class="section-title">Tool usage · last 28 days</div>
+		{ga4?.toolTraffic ? (
+			<div class="stat-grid">
+				{ga4.toolTraffic.map((t) => (
+					<div class="stat-card highlight">
+						<div class="stat-label">{t.label}</div>
+						<div class="stat-value">{t.views}</div>
+						<div class="stat-sub">{t.users} {t.users === 1 ? 'visitor' : 'visitors'} · authenticated views</div>
+					</div>
+				))}
+			</div>
+		) : (
+			<div class="ga4-unavailable">Google Analytics is not connected, so tool traffic is unavailable.</div>
+		)}
+	</div>
+
+	<div class="section">
+		<div class="section-title">Google Analytics · last 28 days</div>
+
+		{ga4 ? (
+			<>
+				<!-- Live: who is on the site now (GA4 Realtime, last 30 min), via /api/analytics.json -->
+				<div class="ga4-live" id="ga4-live" hidden>
+					<span class="ga4-live-dot" aria-hidden="true"></span>
+					<span><span class="ga4-live-count" id="ga4-live-count">—</span> on the site now (last 30 min)</span>
+					<span class="ga4-live-detail" id="ga4-live-countries"></span>
+					<span class="ga4-live-detail" id="ga4-live-pages"></span>
+				</div>
+
+				<!-- KPI row -->
+				<div class="ga4-grid">
+					{[
+						{ label: 'Users',             value: ga4.totalUsers.toLocaleString()   },
+						{ label: 'New Users',          value: ga4.newUsers.toLocaleString()     },
+						{ label: 'Sessions',           value: ga4.sessions.toLocaleString()     },
+						{ label: 'Scam Checker Views', value: ga4.checkerViews.toLocaleString() },
+						{ label: 'Login Page Views',   value: ga4.loginViews.toLocaleString()   },
+						{ label: 'Checker → Login',    value: ga4.conversionRate                },
+					].map((s) => (
+						<div class="ga4-card">
+							<div class="stat-label">{s.label}</div>
+							<div class="stat-value">{s.value}</div>
+						</div>
+					))}
+				</div>
+
+				<!-- Three sub-tables -->
+				<div class="ga4-tables">
+					<!-- Top pages -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Page</th>
+									<th style="text-align:right">Views</th>
+									<th style="text-align:right">Users</th>
+								</tr>
+							</thead>
+							<tbody>
+								{shownTopPages.map((p) => (
+									<tr>
+										<td style="font-family:monospace; font-size:0.75rem;">{p.page}</td>
+										<td style="text-align:right">{p.views.toLocaleString()}</td>
+										<td style="text-align:right">{p.users.toLocaleString()}</td>
+									</tr>
+								))}
+								{shownTopPages.length === 0 && (
+									<tr><td colspan="3" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Traffic sources -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Source</th>
+									<th style="text-align:right">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topSources.map((s) => (
+									<tr>
+										<td>{s.source || '(direct)'}</td>
+										<td style="text-align:right">{s.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+								{ga4.topSources.length === 0 && (
+									<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Countries -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Country</th>
+									<th style="text-align:right">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topCountries.map((c) => (
+									<tr>
+										<td>{c.country}</td>
+										<td style="text-align:right">{c.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+								{ga4.topCountries.length === 0 && (
+									<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</>
+		) : (
+			<div class="ga4-unavailable">
+				Google Analytics data unavailable — check <code>GA4_PROPERTY_ID</code> and <code>GA4_PRIVATE_KEY</code> in environment variables.
+			</div>
+		)}
+	</div>
+
+	<!-- ── Two-col: Recent users + Wallets by chain ───────────────── -->
+	<div class="two-col section">
+
+		<!-- Recent users -->
+		<div>
+			<div class="section-title">Recent users — last login</div>
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Email</th>
+							<th>Member since</th>
+							<th>Last login</th>
+						</tr>
+					</thead>
+					<tbody>
+						{recentUsers.map((u) => (
+							<tr>
+								<td>
+									<span class={`dot ${u.last_login ? 'dot-green' : 'dot-gray'}`}></span>
+									{u.email ?? '—'}
+								</td>
+								<td>{fmtDate(u.member_since)}</td>
+								<td>{u.last_login ? fmt(u.last_login) : <span style="opacity:0.35">Never</span>}</td>
+							</tr>
+						))}
+						{recentUsers.length === 0 && (
+							<tr><td colspan="3" style="opacity:0.35; text-align:center; padding:1.5rem;">No users yet</td></tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- Right column: wallets by chain + top routes -->
+		<div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+			<!-- Wallets by chain -->
+			<div>
+				<div class="section-title">Wallets by chain</div>
+				<div class="table-wrap">
+					<table class="data-table">
+						<thead>
+							<tr><th>Chain</th><th style="text-align:right">Wallets</th></tr>
+						</thead>
+						<tbody>
+							{walletsByChain.map((row) => (
+								<tr>
+									<td>
+										<span class={`pill ${row.chain?.toLowerCase()}`}>{row.chain}</span>
+									</td>
+									<td style="text-align:right; font-weight:600;">{row.cnt}</td>
+								</tr>
+							))}
+							{walletsByChain.length === 0 && (
+								<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1.5rem;">No wallets</td></tr>
+							)}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Top routes (7 days) -->
+			{shownTopRoutes.length > 0 && (
+				<div>
+					<div class="section-title">Top routes — last 7 days</div>
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr><th>Route</th><th style="text-align:right">Hits</th></tr>
+							</thead>
+							<tbody>
+								{shownTopRoutes.map((row) => (
+									<tr>
+										<td style="font-family:monospace; font-size:0.75rem;">{row.route_key}</td>
+										<td style="text-align:right;">{Number(row.hits).toLocaleString()}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+		</div>
+	</div>
+
+	{/* ── PetroTins visits (owner-only while PetroTins is private) ──────── */}
+	{showPetroTins && (
+		<div class="section">
+			<div class="section-title">PetroTins — visitor sessions</div>
+			<div class="stat-grid" style="margin-bottom:1rem">
+				<div class="stat-card">
+					<div class="stat-label">Total visits</div>
+					<div class="stat-value">{Number(petroVisitCount).toLocaleString()}</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Avg time on page</div>
+					<div class="stat-value">
+						{petroAvgDuration
+							? `${Math.floor(Number(petroAvgDuration) / 60)}m ${Number(petroAvgDuration) % 60}s`
+							: '—'}
+					</div>
+				</div>
+			</div>
+			{(petroRecentVisits as any[]).length > 0 && (
+				<div class="table-wrap">
+					<table class="data-table">
+						<thead>
+							<tr><th>Visited at</th><th style="text-align:right">Time on page</th></tr>
+						</thead>
+						<tbody>
+							{(petroRecentVisits as any[]).map(row => (
+								<tr>
+									<td style="font-size:0.78rem">{fmt(String(row.visited_at))}</td>
+									<td style="text-align:right; font-variant-numeric:tabular-nums">
+										{Math.floor(Number(row.duration_s) / 60)}m {Number(row.duration_s) % 60}s
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
+			{(petroRecentVisits as any[]).length === 0 && (
+				<p style="font-size:0.82rem; color:var(--text-muted)">No visits recorded yet.</p>
+			)}
+		</div>
+	)}
+
+	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
+
+	<!-- ── Question Inbox ─────────────────────────────────────────────── -->
+	<div class="section" id="inbox-section">
+		<div class="section-title">
+			Question Inbox
+			<span class="inbox-count">{inboxMessages.length} message{inboxMessages.length !== 1 ? 's' : ''}</span>
+		</div>
+		<p class="inbox-note">Submitted anonymously from the login page. Messages auto-delete after 15 days unless marked Persist.</p>
+
+		{inboxMessages.length === 0 ? (
+			<p style="opacity:0.35; font-size:0.85rem; padding:1rem 0;">No messages yet.</p>
+		) : (
+			<div class="inbox-list" id="inbox-list">
+				{inboxMessages.map((msg) => (
+					<div class="inbox-card" data-id={msg.id}>
+						<div class="inbox-card-head">
+							<span class="inbox-subject">{msg.subject}</span>
+							<span class="inbox-date">{new Date(String(msg.created_at)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+						</div>
+						<p class="inbox-body">{msg.body}</p>
+						<div class="inbox-actions">
+							<label class="inbox-persist-label">
+								<input
+									type="checkbox"
+									class="inbox-persist-check"
+									data-id={msg.id}
+									checked={Boolean(msg.persisted)}
+								/>
+								Persist
+							</label>
+							<button class="inbox-delete-btn" data-id={msg.id}>Delete</button>
+						</div>
+					</div>
+				))}
+			</div>
+		)}
+	</div>
+</div>
+
+<script>
+	// ── Inbox interactions ────────────────────────────────────────────────────
+	document.addEventListener('click', async (e: MouseEvent) => {
+		const btn = (e.target as Element).closest<HTMLButtonElement>('.inbox-delete-btn');
+		if (!btn) return;
+		const id   = btn.dataset.id;
+		const card = btn.closest<HTMLElement>('.inbox-card');
+		if (!id || !card) return;
+
+		btn.disabled = true;
+		btn.textContent = 'Deleting…';
+
+		try {
+			const res = await fetch(`/api/admin/contact/${id}`, { method: 'DELETE' });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			card.style.opacity = '0';
+			card.style.transition = 'opacity 0.25s';
+			setTimeout(() => card.remove(), 260);
+		} catch {
+			btn.disabled = false;
+			btn.textContent = 'Delete';
+			alert('Failed to delete message.');
+		}
+	});
+
+	document.addEventListener('change', async (e: Event) => {
+		const chk = (e.target as Element).closest<HTMLInputElement>('.inbox-persist-check');
+		if (!chk) return;
+		const id = chk.dataset.id;
+		if (!id) return;
+
+		try {
+			const res = await fetch(`/api/admin/contact/${id}`, {
+				method:  'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ persisted: chk.checked }),
+			});
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		} catch {
+			// Revert on failure
+			chk.checked = !chk.checked;
+			alert('Failed to update message.');
+		}
+	});
+
+	// ── Live visitors (GA4 Realtime), refreshed every minute while the page is open ──
+	// textContent only: country names and page titles come from Google and are never HTML.
+	(function liveVisitors() {
+		const box = document.getElementById('ga4-live');
+		const count = document.getElementById('ga4-live-count');
+		const countries = document.getElementById('ga4-live-countries');
+		const pages = document.getElementById('ga4-live-pages');
+		if (!box || !count || !countries || !pages) return;
+		type Row = { activeUsers: number };
+		const list = (rows: Array<Row & Record<string, unknown>>, key: string) =>
+			rows.slice(0, 5).map((r) => `${String(r[key])} ${r.activeUsers}`).join(' · ');
+		async function refresh() {
+			try {
+				const res = await fetch('/api/analytics.json', { cache: 'no-store' });
+				const data = await res.json();
+				if (!data?.ok) { box!.hidden = true; return; }
+				count!.textContent = String(data.activeUsers ?? 0);
+				countries!.textContent = data.countries?.length ? `Countries: ${list(data.countries, 'country')}` : '';
+				pages!.textContent = data.pages?.length ? `Pages: ${list(data.pages, 'title')}` : '';
+				box!.hidden = false;
+			} catch {
+				box!.hidden = true;
+			}
+		}
+		refresh();
+		setInterval(() => { if (!document.hidden) refresh(); }, 60_000);
+	})();
+</script>
+
+</body>
+</html>

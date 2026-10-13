@@ -1,0 +1,1328 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { requireAdminSession } from '@/lib/adminGuard';
+
+try {
+	await requireAdminSession(Astro.request);
+} catch (resp) {
+	if (resp instanceof Response) {
+		if (resp.status === 401) return Astro.redirect('/login', 303);
+		return Astro.redirect('/dashboard/vault', 303);
+	}
+	return Astro.redirect('/dashboard/vault', 303);
+}
+---
+
+<Layout
+  title="AaveAlisis · Aave V4 Liquidity Dashboard"
+  description="Live Aave V4 liquidity data — TVL by chain/spoke, top tokens, and adoption metrics."
+  noindex={true}
+>
+  <div class="page">
+
+    <header class="page-header">
+      <div class="header-inner">
+        <p class="eyebrow">Aave Protocol V4 · Live Data</p>
+        <h1>AaveAlisis</h1>
+        <p class="lede">
+          Liquidity locked across every Aave V4 spoke — which chains and tokens are winning.
+        </p>
+      </div>
+      <div class="header-stats" id="header-stats">
+        <div class="stat-card">
+          <p class="stat-label">Total Value Locked</p>
+          <p class="stat-value" id="total-tvl">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label">Leading Spoke</p>
+          <p class="stat-value" id="top-chain">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label">Top Token</p>
+          <p class="stat-value" id="top-token">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-label">Active Spokes</p>
+          <p class="stat-value" id="spoke-count">—</p>
+        </div>
+      </div>
+    </header>
+
+    <p class="status" id="status">Fetching liquidity data…</p>
+
+    <!-- Multi-Chain Rate Comparison -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Aave V3 Supply APY — Multi-Chain</h2>
+          <p class="panel-sub">Ethereum · Polygon · Avalanche · Arbitrum on one graph</p>
+        </div>
+        <div class="token-btns" id="token-btns">
+          <button class="token-btn active" data-token="USDC">USDC</button>
+          <button class="token-btn" data-token="USDT">USDT</button>
+          <button class="token-btn" data-token="WETH">WETH</button>
+        </div>
+      </div>
+
+      <!-- Amount locked per chain -->
+      <div class="chain-tvl-row" id="chain-tvl-row">
+        <div class="chain-card" id="ctc-ethereum">
+          <span class="chain-dot" style="background:#627eea"></span>
+          <div>
+            <p class="chain-card-label">Ethereum</p>
+            <p class="chain-card-val" id="lock-ethereum">—</p>
+          </div>
+        </div>
+        <div class="chain-card" id="ctc-polygon">
+          <span class="chain-dot" style="background:#8247e5"></span>
+          <div>
+            <p class="chain-card-label">Polygon</p>
+            <p class="chain-card-val" id="lock-polygon">—</p>
+          </div>
+        </div>
+        <div class="chain-card" id="ctc-avalanche">
+          <span class="chain-dot" style="background:#e84142"></span>
+          <div>
+            <p class="chain-card-label">Avalanche</p>
+            <p class="chain-card-val" id="lock-avalanche">—</p>
+          </div>
+        </div>
+        <div class="chain-card" id="ctc-arbitrum">
+          <span class="chain-dot" style="background:#28a0f0"></span>
+          <div>
+            <p class="chain-card-label">Arbitrum</p>
+            <p class="chain-card-val" id="lock-arbitrum">—</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="rate-status" id="rate-status">Loading rates…</p>
+      <div class="chart-shell">
+        <canvas id="multi-chain-chart" aria-label="Multi-chain supply APY" role="img"></canvas>
+      </div>
+      <div class="window-btns" id="rate-window-btns">
+        <button class="window-btn active" data-days="30">30d</button>
+        <button class="window-btn" data-days="90">90d</button>
+        <button class="window-btn" data-days="180">180d</button>
+      </div>
+    </section>
+
+    <!-- TVL by Chain/Spoke Bar Chart -->
+    <section class="panel">
+      <div class="panel-header">
+        <h2>TVL by Spoke (Chain)</h2>
+        <p class="panel-sub">Current USD value locked per deployment</p>
+      </div>
+      <div class="chart-shell">
+        <canvas id="chain-bar-chart" aria-label="TVL by chain" role="img"></canvas>
+      </div>
+    </section>
+
+    <!-- TVL History Line Chart -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Total Liquidity Over Time</h2>
+          <p class="panel-sub">Combined TVL across all V4 spokes</p>
+        </div>
+        <div class="window-btns" id="window-btns">
+          <button class="window-btn active" data-days="30">30d</button>
+          <button class="window-btn" data-days="90">90d</button>
+          <button class="window-btn" data-days="180">180d</button>
+          <button class="window-btn" data-days="365">1y</button>
+        </div>
+      </div>
+      <div class="chart-shell">
+        <canvas id="tvl-line-chart" aria-label="TVL history" role="img"></canvas>
+      </div>
+    </section>
+
+    <!-- Chain Dominance Doughnut -->
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Spoke Dominance</h2>
+          <p class="panel-sub">Share of total liquidity per chain</p>
+        </div>
+        <div class="chart-shell chart-shell--sm">
+          <canvas id="spoke-donut-chart" aria-label="Spoke dominance" role="img"></canvas>
+        </div>
+      </section>
+
+      <!-- Top Tokens Table -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Top Tokens by TVL</h2>
+          <p class="panel-sub">Most liquidity locked by asset</p>
+        </div>
+        <div class="table-wrap">
+          <table id="token-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Token</th>
+                <th>TVL (USD)</th>
+                <th>Share</th>
+              </tr>
+            </thead>
+            <tbody id="token-tbody">
+              <tr><td colspan="4" class="loading-row">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- Developer Activity -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Developer Activity by Chain</h2>
+          <p class="panel-sub">Weekly commits across core repos · GitHub public API · no key required</p>
+        </div>
+        <div class="window-btns" id="dev-window-btns">
+          <button class="window-btn active" data-weeks="12">12w</button>
+          <button class="window-btn" data-weeks="26">26w</button>
+          <button class="window-btn" data-weeks="52">1y</button>
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="dev-stat-row" id="dev-stat-row">
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#627eea"></span>
+          <div>
+            <p class="chain-card-label">Ethereum</p>
+            <p class="chain-card-val" id="dev-ethereum">—</p>
+            <p class="dev-trend" id="trend-ethereum"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#8247e5"></span>
+          <div>
+            <p class="chain-card-label">Polygon</p>
+            <p class="chain-card-val" id="dev-polygon">—</p>
+            <p class="dev-trend" id="trend-polygon"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#e84142"></span>
+          <div>
+            <p class="chain-card-label">Avalanche</p>
+            <p class="chain-card-val" id="dev-avalanche">—</p>
+            <p class="dev-trend" id="trend-avalanche"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#28a0f0"></span>
+          <div>
+            <p class="chain-card-label">Arbitrum</p>
+            <p class="chain-card-val" id="dev-arbitrum">—</p>
+            <p class="dev-trend" id="trend-arbitrum"></p>
+          </div>
+        </div>
+      </div>
+
+      <p class="rate-status" id="dev-status">Loading developer data…</p>
+      <div class="chart-shell">
+        <canvas id="dev-chart" aria-label="Weekly developer commits by chain" role="img"></canvas>
+      </div>
+
+      <!-- Repo sources -->
+      <details class="repo-list">
+        <summary>Repos tracked</summary>
+        <div class="repo-grid" id="repo-grid">
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#627eea">Ethereum</p>
+            <code>ethereum/go-ethereum</code>
+            <code>ethereum/consensus-specs</code>
+            <code>ethereum/EIPs</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#8247e5">Polygon</p>
+            <code>maticnetwork/bor</code>
+            <code>0xPolygon/polygon-edge</code>
+            <code>0xPolygon/heimdall</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#e84142">Avalanche</p>
+            <code>ava-labs/avalanchego</code>
+            <code>ava-labs/coreth</code>
+            <code>ava-labs/subnet-evm</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#28a0f0">Arbitrum</p>
+            <code>OffchainLabs/nitro</code>
+            <code>OffchainLabs/bold</code>
+            <code>OffchainLabs/arbitrum-classic</code>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <p class="attribution">
+      TVL data: <a href="https://defillama.com" target="_blank" rel="noreferrer">DeFiLlama</a> ·
+      Rates: <a href="https://defillama.com/yields" target="_blank" rel="noreferrer">DeFiLlama Yields</a> ·
+      Dev activity: <a href="https://github.com" target="_blank" rel="noreferrer">GitHub public API</a>
+    </p>
+  </div>
+</Layout>
+
+<script>
+  import Chart from 'chart.js/auto';
+
+  type TvlData = {
+    name: string;
+    totalTvl: number;
+    currentChainTvls: Record<string, number>;
+    tvlHistory: Array<{ date: number; totalLiquidityUSD: number }>;
+    topTokens: Array<{ symbol: string; tvlUsd: number }>;
+    updatedAt: number | null;
+  };
+
+  const CHAIN_COLORS: Record<string, string> = {
+    Ethereum:  '#627eea',
+    Base:      '#0052ff',
+    Arbitrum:  '#28a0f0',
+    Optimism:  '#ff0420',
+    Polygon:   '#8247e5',
+    Avalanche: '#e84142',
+    BNB:       '#f3ba2f',
+    Gnosis:    '#04795b',
+    Scroll:    '#ffdbb2',
+    zkSync:    '#8c8dfc',
+  };
+
+  const PALETTE = [
+    '#627eea','#0052ff','#28a0f0','#ff0420','#8247e5',
+    '#e84142','#f3ba2f','#04795b','#ffdbb2','#8c8dfc',
+    '#2d7cf7','#ff6a3d','#3ec2a0','#f5b431','#c44fff',
+  ];
+
+  let tvlData: TvlData | null = null;
+  let lineChart: Chart | null = null;
+  let barChart: Chart | null = null;
+  let donutChart: Chart | null = null;
+  let activeDays = 30;
+
+  function fmt(n: number): string {
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+    if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+    return `$${n.toFixed(0)}`;
+  }
+
+  function fmtFull(n: number): string {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+  }
+
+  function setStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
+    const el = document.getElementById('status')!;
+    el.textContent = msg;
+    el.dataset.mode = type;
+    el.style.display = msg ? '' : 'none';
+  }
+
+  function chainColor(name: string, idx: number): string {
+    return CHAIN_COLORS[name] ?? PALETTE[idx % PALETTE.length];
+  }
+
+  // ── Header stats ──────────────────────────────────────────────────────────────
+  function renderStats(data: TvlData) {
+    const chains = Object.entries(data.currentChainTvls);
+    document.getElementById('total-tvl')!.textContent = fmt(data.totalTvl);
+    document.getElementById('top-chain')!.textContent = chains[0]?.[0] ?? '—';
+    document.getElementById('top-token')!.textContent = data.topTokens[0]?.symbol ?? '—';
+    document.getElementById('spoke-count')!.textContent = String(chains.length);
+  }
+
+  // ── Bar chart: TVL by chain ───────────────────────────────────────────────────
+  function renderBarChart(data: TvlData) {
+    const canvas = document.getElementById('chain-bar-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const entries = Object.entries(data.currentChainTvls);
+    const labels = entries.map(([chain]) => chain);
+    const values = entries.map(([, tvl]) => tvl);
+    const colors = labels.map((name, i) => chainColor(name, i));
+
+    if (barChart) {
+      barChart.data.labels = labels;
+      barChart.data.datasets[0].data = values;
+      (barChart.data.datasets[0] as any).backgroundColor = colors;
+      barChart.update();
+      return;
+    }
+
+    barChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'TVL (USD)',
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 6,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${fmtFull(ctx.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255,255,255,0.07)' },
+            ticks: {
+              color: 'rgba(255,255,255,0.7)',
+              callback: (v) => fmt(Number(v)),
+            },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: 'rgba(255,255,255,0.7)' },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Line chart: TVL history ───────────────────────────────────────────────────
+  function renderLineChart(data: TvlData, days: number) {
+    const canvas = document.getElementById('tvl-line-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const cutoff = Date.now() / 1000 - days * 86400;
+    const filtered = data.tvlHistory.filter((p) => p.date >= cutoff);
+
+    const labels = filtered.map((p) =>
+      new Date(p.date * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    );
+    const values = filtered.map((p) => p.totalLiquidityUSD);
+
+    if (lineChart) {
+      lineChart.data.labels = labels;
+      lineChart.data.datasets[0].data = values;
+      lineChart.update();
+      return;
+    }
+
+    lineChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Total TVL',
+          data: values,
+          borderColor: '#2d7cf7',
+          backgroundColor: 'rgba(45,124,247,0.12)',
+          tension: 0.3,
+          borderWidth: 2,
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${fmtFull(ctx.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255,255,255,0.07)' },
+            ticks: {
+              color: 'rgba(255,255,255,0.7)',
+              callback: (v) => fmt(Number(v)),
+            },
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: 'rgba(255,255,255,0.7)', maxTicksLimit: 8 },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Donut: spoke dominance ────────────────────────────────────────────────────
+  function renderDonut(data: TvlData) {
+    const canvas = document.getElementById('spoke-donut-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const entries = Object.entries(data.currentChainTvls);
+    const labels = entries.map(([c]) => c);
+    const values = entries.map(([, v]) => v);
+    const colors = labels.map((name, i) => chainColor(name, i));
+
+    if (donutChart) {
+      donutChart.data.labels = labels;
+      donutChart.data.datasets[0].data = values;
+      (donutChart.data.datasets[0] as any).backgroundColor = colors;
+      donutChart.update();
+      return;
+    }
+
+    donutChart = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: 'rgba(0,0,0,0.3)',
+          borderWidth: 2,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: {
+            display: true,
+            position: 'right',
+            labels: {
+              color: 'rgba(255,255,255,0.8)',
+              padding: 12,
+              boxWidth: 12,
+              font: { size: 12 },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const pct = ((ctx.parsed / data.totalTvl) * 100).toFixed(1);
+                return ` ${fmt(ctx.parsed)} (${pct}%)`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Token table ───────────────────────────────────────────────────────────────
+  function renderTokenTable(data: TvlData) {
+    const tbody = document.getElementById('token-tbody')!;
+    const totalTokenTvl = data.topTokens.reduce((s, t) => s + t.tvlUsd, 0);
+
+    tbody.innerHTML = data.topTokens
+      .map(({ symbol, tvlUsd }, i) => {
+        const pct = totalTokenTvl > 0 ? ((tvlUsd / totalTokenTvl) * 100).toFixed(1) : '0.0';
+        return `
+          <tr>
+            <td class="rank">${i + 1}</td>
+            <td class="sym"><span class="sym-badge">${symbol}</span></td>
+            <td class="tvl">${fmtFull(tvlUsd)}</td>
+            <td class="share">
+              <div class="bar-wrap">
+                <div class="bar-fill" style="width:${pct}%"></div>
+                <span>${pct}%</span>
+              </div>
+            </td>
+          </tr>`;
+      })
+      .join('');
+  }
+
+  // ── Multi-chain rate comparison (DeFiLlama yields API) ───────────────────────
+
+  const CHAIN_META: Record<string, { label: string; color: string }> = {
+    ethereum: { label: 'Ethereum', color: '#627eea' },
+    polygon:  { label: 'Polygon',  color: '#8247e5' },
+    avalanche:{ label: 'Avalanche',color: '#e84142' },
+    arbitrum: { label: 'Arbitrum', color: '#28a0f0' },
+  };
+
+  let multiChart: Chart | null = null;
+  let activeToken   = 'USDC';
+  let activeRateDays = 30;
+
+  function setRateStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
+    const el = document.getElementById('rate-status')!;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = msg;
+    el.dataset.mode = type;
+  }
+
+  async function loadMultiChainRates(token: string, days: number) {
+    setRateStatus('Loading rates…');
+
+    // Reset locked cards
+    Object.keys(CHAIN_META).forEach((key) => {
+      const el = document.getElementById(`lock-${key}`);
+      if (el) el.textContent = '—';
+    });
+
+    try {
+      const qs = new URLSearchParams({ token, days: String(days) });
+      const res = await fetch(`/api/aave-chain-rates?${qs}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message ?? `HTTP ${res.status}`);
+      }
+
+      const payload = await res.json() as {
+        token: string;
+        days:  number;
+        chains: Array<{
+          key:            string;
+          chain:          string;
+          currentApy:     number | null;
+          currentTvlUsd:  number | null;
+          history:        Array<{ date: string; apy: number; tvlUsd: number }>;
+        }>;
+      };
+
+      // Update locked amount cards
+      for (const chainData of payload.chains) {
+        const el = document.getElementById(`lock-${chainData.key}`);
+        if (!el) continue;
+        el.textContent = chainData.currentTvlUsd != null && chainData.currentTvlUsd > 0
+          ? fmt(chainData.currentTvlUsd)
+          : 'N/A';
+      }
+
+      // Build chart datasets
+      const datasets = payload.chains
+        .filter((c) => c.history.length > 0)
+        .map((c) => {
+          const meta = CHAIN_META[c.key] ?? { label: c.chain, color: '#aaa' };
+          return {
+            label:           meta.label,
+            data:            c.history.map((p) => ({
+              x: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+              y: Number(p.apy.toFixed(3)),
+            })),
+            borderColor:     meta.color,
+            backgroundColor: `${meta.color}18`,
+            tension:         0.3,
+            borderWidth:     2,
+            fill:            false,
+            pointRadius:     0,
+            pointHoverRadius:4,
+          };
+        });
+
+      const canvas = document.getElementById('multi-chain-chart') as HTMLCanvasElement;
+      if (!canvas) return;
+
+      if (multiChart) {
+        multiChart.data.datasets = datasets;
+        multiChart.update();
+      } else {
+        multiChart = new Chart(canvas, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  color:    'rgba(255,255,255,0.8)',
+                  boxWidth: 12,
+                  padding:  16,
+                  font:     { size: 12 },
+                },
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) =>
+                    ` ${ctx.dataset.label}: ${Number((ctx.raw as any).y).toFixed(2)}%`,
+                },
+              },
+            },
+            scales: {
+              y: {
+                grid:  { color: 'rgba(255,255,255,0.07)' },
+                ticks: {
+                  color:    'rgba(255,255,255,0.7)',
+                  callback: (v) => `${v}%`,
+                },
+              },
+              x: {
+                type:  'category',
+                grid:  { display: false },
+                ticks: { color: 'rgba(255,255,255,0.7)', maxTicksLimit: 8 },
+              },
+            },
+          },
+        });
+      }
+
+      setRateStatus('', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setRateStatus(`Failed to load rates: ${msg}`, 'error');
+    }
+  }
+
+  // Token selector
+  document.getElementById('token-btns')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.token-btn');
+    if (!btn) return;
+    document.querySelectorAll('.token-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeToken = btn.dataset.token!;
+    loadMultiChainRates(activeToken, activeRateDays);
+  });
+
+  // Rate window selector
+  document.getElementById('rate-window-btns')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.window-btn');
+    if (!btn) return;
+    (e.currentTarget as HTMLElement).querySelectorAll('.window-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeRateDays = Number(btn.dataset.days);
+    loadMultiChainRates(activeToken, activeRateDays);
+  });
+
+  // ── Window selector ───────────────────────────────────────────────────────────
+  document.getElementById('window-btns')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.window-btn');
+    if (!btn || !tvlData) return;
+    document.querySelectorAll('#window-btns .window-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDays = Number(btn.dataset.days);
+    renderLineChart(tvlData, activeDays);
+  });
+
+  // ── Developer activity chart ──────────────────────────────────────────────────
+
+  type DevPayload = {
+    weekLabels: string[];
+    chains: Array<{
+      key:         string;
+      label:       string;
+      color:       string;
+      weekly:      number[];
+      currentWeek: number;
+      trend:       number;
+      totalYear:   number;
+    }>;
+  };
+
+  let devChart: Chart | null = null;
+  let activeDevWeeks = 12;
+
+  function setDevStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
+    const el = document.getElementById('dev-status')!;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = msg;
+    el.dataset.mode = type;
+  }
+
+  function renderDevChart(payload: DevPayload, weeks: number) {
+    const canvas = document.getElementById('dev-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const sliceFrom = 52 - weeks;
+    const labels    = payload.weekLabels.slice(sliceFrom);
+    const datasets  = payload.chains.map((c) => ({
+      label:            c.label,
+      data:             c.weekly.slice(sliceFrom),
+      borderColor:      c.color,
+      backgroundColor:  `${c.color}18`,
+      tension:          0.3,
+      borderWidth:      2,
+      fill:             false,
+      pointRadius:      0,
+      pointHoverRadius: 4,
+    }));
+
+    if (devChart) {
+      devChart.data.labels   = labels;
+      devChart.data.datasets = datasets;
+      devChart.update();
+      return;
+    }
+
+    devChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display:  true,
+            position: 'top',
+            labels: {
+              color:    'rgba(255,255,255,0.8)',
+              boxWidth: 12,
+              padding:  16,
+              font:     { size: 12 },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} commits`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            grid:  { color: 'rgba(255,255,255,0.07)' },
+            ticks: {
+              color:    'rgba(255,255,255,0.7)',
+              callback: (v) => `${v}`,
+            },
+          },
+          x: {
+            grid:  { display: false },
+            ticks: { color: 'rgba(255,255,255,0.7)', maxTicksLimit: 8 },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadDevActivity(weeks: number) {
+    setDevStatus('Loading developer data…');
+    try {
+      const res = await fetch('/api/dev-activity');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json() as DevPayload;
+
+      // Stat cards
+      for (const c of payload.chains) {
+        const valEl   = document.getElementById(`dev-${c.key}`);
+        const trendEl = document.getElementById(`trend-${c.key}`);
+        if (valEl)   valEl.textContent   = `${c.currentWeek} commits`;
+        if (trendEl) {
+          const sign = c.trend >= 0 ? '▲' : '▼';
+          trendEl.textContent  = `${sign} ${Math.abs(c.trend)}% vs last week`;
+          trendEl.style.color  = c.trend >= 0 ? '#3ec2a0' : '#ff6a6a';
+        }
+      }
+
+      renderDevChart(payload, weeks);
+      setDevStatus('', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setDevStatus(`Failed to load developer data: ${msg}`, 'error');
+    }
+  }
+
+  // Dev window selector
+  document.getElementById('dev-window-btns')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.window-btn');
+    if (!btn) return;
+    (e.currentTarget as HTMLElement).querySelectorAll('.window-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDevWeeks = Number(btn.dataset.weeks);
+    if (devChart) {
+      // re-render with new window using cached data
+      fetch('/api/dev-activity')
+        .then((r) => r.json())
+        .then((p) => renderDevChart(p as DevPayload, activeDevWeeks))
+        .catch(() => {});
+    }
+  });
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────────
+  async function init() {
+    // Fire TVL and dev activity in parallel
+    const [tvlRes] = await Promise.allSettled([
+      fetch('/api/aave-tvl'),
+      loadDevActivity(activeDevWeeks),
+    ]);
+
+    try {
+      if (tvlRes.status === 'rejected') throw tvlRes.reason;
+      const res = tvlRes.value as Response;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message ?? `HTTP ${res.status}`);
+      }
+
+      tvlData = await res.json() as TvlData;
+
+      if (!tvlData.totalTvl && !Object.keys(tvlData.currentChainTvls).length) {
+        setStatus('Aave V4 TVL data unavailable — the protocol may not yet have deployments indexed by DeFiLlama.', 'error');
+      } else {
+        setStatus('', 'success');
+        renderStats(tvlData);
+        renderBarChart(tvlData);
+        renderLineChart(tvlData, activeDays);
+        renderDonut(tvlData);
+        renderTokenTable(tvlData);
+      }
+
+      loadMultiChainRates(activeToken, activeRateDays);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setStatus(`Failed to load TVL data: ${msg}`, 'error');
+    }
+  }
+
+  init();
+</script>
+
+<style>
+  :global(body) {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at top, #141727 0%, #090b12 55%);
+    color: #f4f7ff;
+    min-height: 100vh;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .header-inner .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.55);
+    margin: 0 0 0.4rem;
+  }
+
+  .header-inner h1 {
+    margin: 0 0 0.5rem;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    background: linear-gradient(135deg, #78a1ff 0%, #2d7cf7 50%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .lede {
+    margin: 0;
+    color: rgba(255,255,255,0.75);
+    font-size: 1.05rem;
+    max-width: 560px;
+  }
+
+  .header-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+
+  .stat-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+  }
+
+  .stat-label {
+    margin: 0 0 0.35rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .stat-value {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ── Status bar ── */
+  .status {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .status[data-mode='error'] {
+    border-color: rgba(255,107,107,0.5);
+    color: #ff9b9b;
+  }
+
+  .status[data-mode='success'],
+  .status:empty {
+    display: none;
+  }
+
+  /* ── Panels ── */
+  .panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .panel-header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .panel-header h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  .panel-sub {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* ── Charts ── */
+  .chart-shell {
+    width: 100%;
+    height: 320px;
+  }
+
+  .chart-shell--sm {
+    height: 280px;
+  }
+
+  /* ── Two-col layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.75rem;
+  }
+
+  @media (max-width: 760px) {
+    .two-col { grid-template-columns: 1fr; }
+    .chart-shell { height: 260px; }
+  }
+
+  /* ── Window buttons ── */
+  .window-btns {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .window-btn {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+
+  .window-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
+
+  .window-btn.active {
+    background: rgba(45,124,247,0.25);
+    border-color: rgba(45,124,247,0.6);
+    color: #78a1ff;
+  }
+
+  /* ── Token table ── */
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.45);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    position: sticky;
+    top: 0;
+    background: #0d1020;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover {
+    background: rgba(255,255,255,0.04);
+  }
+
+  td {
+    padding: 0.55rem 0.75rem;
+    vertical-align: middle;
+  }
+
+  td.rank {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.82rem;
+    width: 2rem;
+  }
+
+  td.sym { font-weight: 600; }
+
+  .sym-badge {
+    display: inline-block;
+    background: rgba(45,124,247,0.15);
+    border: 1px solid rgba(45,124,247,0.3);
+    border-radius: 6px;
+    padding: 0.1rem 0.5rem;
+    font-size: 0.82rem;
+    color: #78a1ff;
+  }
+
+  td.tvl {
+    font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,0.88);
+  }
+
+  td.share { min-width: 120px; }
+
+  .bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .bar-fill {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2d7cf7, #a78bfa);
+    min-width: 2px;
+    transition: width 0.4s ease;
+  }
+
+  .loading-row {
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    padding: 2rem 0;
+  }
+
+  /* ── Token selector ── */
+  .token-btns {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .token-btn {
+    padding: 0.35rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+
+  .token-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+  .token-btn.active {
+    background: rgba(45,124,247,0.25);
+    border-color: rgba(45,124,247,0.6);
+    color: #78a1ff;
+  }
+
+  /* ── Chain TVL cards ── */
+  .chain-tvl-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    .chain-tvl-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .chain-card {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+
+  .chain-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .chain-card-label {
+    margin: 0 0 0.15rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .chain-card-val {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ── Rate status ── */
+  .rate-status {
+    margin: 0;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .rate-status[data-mode='error'] { border-color: rgba(255,107,107,0.5); color: #ff9b9b; }
+  .rate-status[data-mode='success'],
+  .rate-status[style*='display: none'] { display: none; }
+
+  /* ── Developer activity ── */
+  .dev-stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    .dev-stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .dev-stat-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+
+  .dev-trend {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* ── Repo list ── */
+  .repo-list {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.65rem 1rem;
+    background: rgba(255,255,255,0.02);
+    font-size: 0.85rem;
+  }
+
+  .repo-list summary {
+    cursor: pointer;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.82rem;
+    user-select: none;
+  }
+
+  .repo-list summary:hover { color: rgba(255,255,255,0.75); }
+
+  .repo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-top: 0.75rem;
+  }
+
+  .repo-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .repo-chain {
+    margin: 0 0 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .repo-group code {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.05);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  /* ── Attribution ── */
+  .attribution {
+    text-align: center;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.35);
+    margin: 0;
+  }
+
+  .attribution a {
+    color: rgba(255,255,255,0.55);
+    text-decoration: none;
+  }
+
+  .attribution a:hover {
+    color: #78a1ff;
+  }
+</style>

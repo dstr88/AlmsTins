@@ -1,0 +1,74 @@
+---
+import type { Lang } from "@/lib/i18n/locale";
+import { getPrivacy } from "@/i18n/privacyPolicy";
+
+const { variant = "inline", lang = "en" } = Astro.props as {
+  variant?: "inline" | "modal";
+  lang?: Lang;
+};
+
+const t = getPrivacy(lang);
+const body = t.body;
+---
+
+<section class={`privacy-policy ${variant}`}>
+  {variant === "inline" ? (
+    <details>
+      <summary>{t.summaryLabel}</summary>
+      <div class="policy-body" set:html={body} />
+    </details>
+  ) : (
+    <div class="policy-body" set:html={body} />
+  )}
+</section>
+
+<style>
+  .privacy-policy {
+    color: var(--text-primary);
+  }
+
+  details {
+    background: var(--border-subtle);
+    border: 1px solid var(--border-bright);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .policy-body {
+    margin-top: 1rem;
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 0.5rem;
+  }
+
+  .modal .policy-body {
+    max-height: unset;
+  }
+
+  .policy-body h1,
+  .policy-body h2,
+  .policy-body h3 {
+    margin: 1rem 0 0.5rem;
+  }
+
+  .policy-body p,
+  .policy-body li {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    opacity: 0.9;
+  }
+
+  .policy-body ul {
+    margin: 0.5rem 0 0.75rem 1.1rem;
+  }
+
+  .policy-body a {
+    color: salmon;
+  }
+</style>

@@ -1,0 +1,142 @@
+.site-footer {
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  padding: 3rem clamp(1.5rem, 4vw, 3rem);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  align-items: start;
+  width: calc(100% - 2rem);
+  margin: 0 1rem;
+}
+
+.footer-col {
+  min-width: 0;
+}
+
+.footer-license {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 3rem;
+}
+
+.license-media {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.license-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 3px solid var(--accent);
+}
+
+.license-copy h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.license-copy p {
+  margin: 0.2rem 0;
+  color: var(--text-secondary);
+}
+
+.license-logo {
+  display: block;
+  margin-top: 0;
+  max-width: 240px;
+  height: auto;
+}
+
+.license-logo-link {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.license-logo-link:hover .license-logo {
+  filter: brightness(1.1);
+}
+
+.footer-legal {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--text-muted);
+}
+
+.footer-legal-link {
+  background: none;
+  border: none;
+  padding: 0.3rem 0;
+  text-align: left;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.footer-legal-link:hover {
+  color: var(--accent);
+}
+
+.footer-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 2rem;
+}
+
+.footer-modal.is-open {
+  display: flex;
+}
+
+.footer-modal-content {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-bright);
+  border-radius: 16px;
+  padding: 1.5rem 1.5rem 1rem;
+  max-width: 720px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: auto;
+  position: relative;
+}
+
+.footer-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+@media (max-width: 1000px) {
+  .footer-grid {
+    grid-template-columns: 1fr;
+    width: calc(100% - 2rem);
+    margin: 0 1rem;
+  }
+
+  .license-media {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}

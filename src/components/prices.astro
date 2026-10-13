@@ -1,0 +1,155 @@
+---
+/*
+ * prices.astro — public pricing page template (EN · ES · FR).
+ * Strings come from src/i18n/prices.ts; wrappers: src/pages/prices.astro (en),
+ * /prices/es.astro (es), /prices/fr.astro (fr). Wraps the public LoginLayout
+ * (clean header + Footer), noindex=false so it's crawlable.
+ *
+ * Reflects what the app actually enforces: wallet plans Free 3 · Starter 8 · Pro 20 ·
+ * Unlimited ∞ (live Stripe $7/$70 · $20/$200 · $39/$400); premium features (AI Triage,
+ * receipts, price backfill) unlock at the first paid tier; Year-Summary PDF is Unlimited.
+ * Verify is FREE / early access — 3 destinations, unlimited placements, no paid store tiers.
+ */
+import LoginLayout from '@/layouts/LoginLayout.astro';
+import type { PricesCopy } from '@/i18n/prices';
+
+interface Props { t: PricesCopy }
+const { t } = Astro.props;
+
+const langs = [
+  { code: 'en', label: 'EN', href: '/prices' },
+  { code: 'es', label: 'ES', href: '/prices/es' },
+  { code: 'fr', label: 'FR', href: '/prices/fr' },
+] as const;
+
+const CONTACT = 'mailto:hello@almstins.com?subject=Almstins%20—%20more%20Verify%20destinations';
+const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
+---
+
+<LoginLayout title={t.meta.title} description={t.meta.description} lang={t.lang} noindex={false}>
+  <header class="prices-top">
+    <a class="prices-top__brand" href="/">Almstins</a>
+    <nav class="prices-top__nav">
+      <span class="prices-top__langs">
+        {langs.map((l) => (
+          <a href={l.href} aria-current={l.code === t.lang ? 'true' : undefined}>{l.label}</a>
+        ))}
+      </span>
+      <a href="/login">{t.nav.login}</a>
+      <a class="prices-top__cta" href="/signup">{t.nav.signup}</a>
+    </nav>
+  </header>
+
+  <section class="pricing">
+    <header class="pricing__intro">
+      <h1>{t.hero.title}</h1>
+      <p>{t.hero.sub}</p>
+    </header>
+
+    <!-- ─── FREE — FOR EVERYONE ───────────────────────────── -->
+    <h2 class="pricing__group">{t.free.heading}</h2>
+    <div class="pricing__grid">
+      <article class="card">
+        <h3 class="card__name">{t.free.checker.name}</h3>
+        <p class="card__price">{t.free.checker.price} <span class="card__unit">{t.free.checker.unit}</span></p>
+        <p class="card__desc">{t.free.checker.desc}</p>
+        <a class="card__cta" href="/wallet-checker">{t.free.checker.cta}</a>
+      </article>
+      <article class="card">
+        <h3 class="card__name">{t.free.tracking.name}</h3>
+        <p class="card__price">{t.free.tracking.price} <span class="card__unit">{t.free.tracking.unit}</span></p>
+        <p class="card__desc">{t.free.tracking.desc}</p>
+        <a class="card__cta" href="/">{t.free.tracking.cta}</a>
+      </article>
+      <article class="card">
+        <h3 class="card__name">{t.free.verify.name}</h3>
+        <p class="card__price">{t.free.verify.price} <span class="card__unit">{t.free.verify.unit}</span></p>
+        <p class="card__desc">{t.free.verify.desc}</p>
+        <a class="card__cta" href="/verify">{t.free.verify.cta}</a>
+      </article>
+    </div>
+
+    <!-- ─── WALLET PLANS (paid) ───────────────────────────── -->
+    <h2 class="pricing__group">{t.plans.heading}</h2>
+    <p class="pricing__sub">{t.plans.sub}</p>
+    <div class="pricing__grid">
+      {[t.plans.starter, t.plans.pro, t.plans.unlimited].map((plan, i) => (
+        <article class={`card ${i === 1 ? 'card--featured' : ''}`}>
+          {plan.badge && <p class="card__badge">{plan.badge}</p>}
+          <h3 class="card__name">{plan.name}</h3>
+          <p class="card__price">{plan.price}<span class="card__unit">{plan.unit}</span></p>
+          <p class="card__yearly">{plan.yearly}</p>
+          <ul class="card__list">
+            {plan.items.map((it) => <li>{it}</li>)}
+          </ul>
+          <a class={`card__cta ${i === 1 ? 'card__cta--solid' : ''}`} href="/dashboard/billing">{plan.cta}</a>
+        </article>
+      ))}
+    </div>
+
+    <!-- ─── VERIFY — early access ─────────────────────────── -->
+    <h2 class="pricing__group">{t.verify.heading} <span class="pricing__tag">{t.verify.tag}</span></h2>
+    <p class="pricing__sub pricing__sub--lead">{t.verify.lead}</p>
+    <div class="pricing__grid">
+      <article class="card">
+        <h3 class="card__name">{t.verify.storeFree.name}</h3>
+        <p class="card__price">{t.verify.storeFree.price} <span class="card__unit">{t.verify.storeFree.unit}</span></p>
+        <ul class="card__list">
+          {t.verify.storeFree.items.map((it) => <li>{it}</li>)}
+        </ul>
+        <a class="card__cta" href="/verify">{t.verify.storeFree.cta}</a>
+      </article>
+      <article class="card">
+        <h3 class="card__name">{t.verify.needMore.name}</h3>
+        <p class="card__price">{t.verify.needMore.price}</p>
+        <p class="card__desc">{t.verify.needMore.desc}</p>
+        <a class="card__cta" href={CONTACT}>{t.verify.needMore.cta}</a>
+      </article>
+      <article class="card card--enterprise">
+        <h3 class="card__name">{t.verify.exchanges.name}</h3>
+        <p class="card__price">{t.verify.exchanges.price}</p>
+        <p class="card__desc">{t.verify.exchanges.desc}</p>
+        <a class="card__cta" href={EXCHANGE}>{t.verify.exchanges.cta}</a>
+      </article>
+    </div>
+
+    <p class="pricing__foot">{t.foot}</p>
+  </section>
+</LoginLayout>
+
+<style>
+  .prices-top { max-width: 1080px; margin: 0 auto; padding: 1.25rem 1rem .25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .prices-top__brand { font-weight: 700; font-size: 1.1rem; color: var(--text-primary); text-decoration: none; }
+  .prices-top__nav { display: flex; align-items: center; gap: 1rem; }
+  .prices-top__nav > a { font-size: .9rem; color: var(--text-secondary); text-decoration: none; }
+  .prices-top__nav > a:hover { color: var(--text-primary); }
+  .prices-top__langs { display: inline-flex; gap: .5rem; padding-right: .5rem; border-right: 1px solid var(--border-subtle); }
+  .prices-top__langs a { font-size: .8rem; color: var(--text-muted); text-decoration: none; }
+  .prices-top__langs a:hover { color: var(--text-secondary); }
+  .prices-top__langs a[aria-current="true"] { color: var(--text-primary); font-weight: 700; }
+  .prices-top__cta { background: var(--accent); color: var(--surface-bg) !important; padding: .45rem .9rem; border-radius: 8px; font-weight: 600; }
+  .pricing { color: var(--text-primary); max-width: 1080px; margin: 0 auto; padding: 2rem 1rem; }
+  .pricing__intro { text-align: center; margin-bottom: 2rem; }
+  .pricing__intro h1 { font-size: 1.9rem; margin: 0 0 .5rem; }
+  .pricing__intro p { color: var(--text-secondary); max-width: 48ch; margin: 0 auto; }
+  .pricing__group { font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin: 2.25rem 0 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: .5rem; }
+  .pricing__sub { color: var(--text-secondary); font-size: .9rem; line-height: 1.55; margin: -.4rem 0 1rem; max-width: 70ch; }
+  .pricing__sub--lead { color: var(--text-primary); font-size: .95rem; }
+  .pricing__tag { color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; }
+  .pricing__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; }
+  .card--featured { border: 1px solid var(--accent); }
+  .card--enterprise { background: var(--surface-card-2); }
+  .card__badge { color: var(--accent); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 .4rem; }
+  .card__name { font-size: 1.05rem; margin: 0 0 .4rem; }
+  .card__price { font-size: 1.7rem; font-weight: 600; margin: 0; color: var(--text-primary); }
+  .card__unit { font-size: .9rem; font-weight: 400; color: var(--text-muted); }
+  .card__yearly { font-size: .82rem; color: var(--accent-dim); margin: .2rem 0 0; }
+  .card__desc { font-size: .9rem; line-height: 1.55; color: var(--text-secondary); margin: .75rem 0 1.1rem; flex: 1; }
+  .card__list { list-style: none; padding: 0; margin: .85rem 0 1.1rem; flex: 1; display: flex; flex-direction: column; gap: .5rem; }
+  .card__list li { font-size: .88rem; line-height: 1.45; color: var(--text-secondary); padding-left: 1.1rem; position: relative; }
+  .card__list li::before { content: '✓'; color: var(--accent); position: absolute; left: 0; font-weight: 700; }
+  .card__cta { margin-top: auto; font-size: .9rem; color: var(--accent); text-decoration: none; font-weight: 500; }
+  .card__cta--solid { background: var(--accent); color: var(--surface-bg); text-align: center; padding: .6rem; border-radius: 8px; }
+  .pricing__foot { text-align: center; color: var(--text-muted); font-size: .85rem; margin-top: 2rem; }
+</style>

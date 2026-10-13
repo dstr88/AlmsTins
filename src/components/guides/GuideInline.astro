@@ -1,0 +1,48 @@
+---
+/*
+ * One run of guide inline markup (src/lib/guides/inline.ts) as elements, no set:html.
+ * Outside links open in the same tab with rel="noopener"; a link to an official source
+ * (src/lib/guides/officialSources.ts) is labeled as one. Kept on one line below so no stray
+ * whitespace lands between a link and the punctuation after it.
+ */
+import { parseInline } from '@/lib/guides/inline';
+import { officialSourceHost } from '@/lib/guides/officialSources';
+
+interface Props {
+	md: string;
+}
+const tokens = parseInline(Astro.props.md).map((tk) => {
+	if (tk.type !== 'link') return tk;
+	const host = officialSourceHost(tk.href);
+	return { ...tk, outside: /^https:\/\//.test(tk.href), title: host ? `Official source: ${host}` : undefined, long: tk.text === tk.href };
+});
+---
+{tokens.map((tk) => tk.type === 'link' ? <a class:list={['cite', { 'cite--url': tk.long }]} href={tk.href} rel={tk.outside ? 'noopener' : undefined} title={tk.title}>{tk.text}</a> : tk.type === 'strong' ? <strong>{tk.text}</strong> : tk.type === 'em' ? <em>{tk.text}</em> : tk.text)}
+
+<style>
+	.cite {
+		color: var(--accent);
+		text-decoration: underline;
+		text-decoration-color: var(--accent-dim);
+		text-decoration-thickness: 1px;
+		text-underline-offset: 0.18em;
+	}
+	.cite:hover,
+	.cite:focus-visible {
+		text-decoration-color: var(--accent);
+		text-decoration-thickness: 2px;
+	}
+	.cite:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+	.cite--url {
+		overflow-wrap: anywhere;
+		word-break: break-word;
+	}
+	strong {
+		color: var(--text-primary);
+		font-weight: 650;
+	}
+</style>

@@ -1,0 +1,483 @@
+---
+import './CryptoComAccounts.css';
+import './ExchangeAccounts.css';
+import { db } from '@/lib/db';
+import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
+import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
+import { loadOwnerIndex, ownerForAccount, type OwnerIndex } from '@/lib/walletIdentity';
+
+type AccountRow = {
+	id: string;
+	name: string;
+};
+
+type ImportRow = {
+	timestamp_utc: string;
+	asset_symbol: string | null;
+	direction: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	description: string | null;
+};
+
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toAccountRow = (row: unknown): AccountRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		name: toStringOrEmpty(r.name),
+	};
+};
+
+const toAccountRows = (rows: unknown): AccountRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: AccountRow[] = [];
+	for (const row of rows) {
+		const mapped = toAccountRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const toImportRow = (row: unknown): ImportRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+		asset_symbol: toStringOrNull(r.asset_symbol),
+		direction: toStringOrNull(r.direction),
+		currency: toStringOrNull(r.currency),
+		amount: toNumberOrNull(r.amount),
+		to_currency: toStringOrNull(r.to_currency),
+		to_amount: toNumberOrNull(r.to_amount),
+		native_usd: toNumberOrNull(r.native_usd),
+		kind: toStringOrNull(r.kind),
+		description: toStringOrNull(r.description),
+	};
+};
+
+const toImportRows = (rows: unknown): ImportRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: ImportRow[] = [];
+	for (const row of rows) {
+		const mapped = toImportRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+type Holding = {
+	symbol: string;
+	balance: number;
+	stakingYtd: number;          // coins earned from staking/earn this calendar year
+	stakingYtdUsd: number | null; // USD value of YTD staking income
+	lastPurchaseAt: string | null;
+	costBasis: number | null;
+};
+
+type AccountWithHoldings = AccountRow & {
+	holdings: Holding[];
+};
+
+const parseNumber = (value: number | string | null | undefined) => {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	const cleaned = value.replace(/,/g, '');
+	const num = Number(cleaned);
+	return Number.isFinite(num) ? num : null;
+};
+
+const normalizeSymbol = (symbol: string) => {
+	const upper = symbol.trim().toUpperCase();
+	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+	return upper;
+};
+
+const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
+
+const pickTokenAmount = (row: ImportRow) => {
+	const symbol = pickSymbol(row);
+	if (!symbol) return null;
+	if (row.to_currency && symbol === row.to_currency) return row.to_amount;
+	if (row.currency && symbol === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const CURRENT_YEAR = String(new Date().getFullYear()); // e.g. '2026'
+
+// Crypto.com staking/earn income kinds (all lowercase for comparison)
+const isCryptoComStakingIncome = (kind: string) => {
+	const k = kind.toLowerCase();
+	return (
+		k.includes('earn_interest') ||      // crypto_earn_interest_paid, crypto_earn_extra_interest_paid
+		k.includes('stake_reward') ||       // mco_stake_reward
+		k.includes('supercharger_reward')   // supercharger_reward_to_app_wallet
+	);
+};
+
+const computeHoldings = (rows: ImportRow[]): Holding[] => {
+	const balanceMap      = new Map<string, number>();
+	const stakingYtdMap   = new Map<string, number>();   // coins earned from staking/earn this year
+	const stakingYtdUsdMap= new Map<string, number>();   // USD value of YTD staking income
+	const lastPurchaseMap = new Map<string, string>();
+	const lastSeenMap     = new Map<string, string>();
+	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
+	const unknownCost = new Set<string>();
+
+	for (const row of rows) {
+		// Skip MCO→CRO card-stake conversion events. These credited CRO directly
+		// into the locked card stake (never the available wallet), but the
+		// corresponding lockup_lock debit is absent from the CSV export.
+		// Counting them inflates the CRO balance by ~1,764 CRO.
+		const rowKind = row.kind ?? '';
+		if (rowKind === 'lockup_swap_credited' || rowKind === 'lockup_swap_rebate') continue;
+
+		const symbolRaw = pickSymbol(row);
+		if (!symbolRaw) continue;
+		const symbol = normalizeSymbol(symbolRaw);
+		// Skip single-character symbols — these are Crypto.com internal conversion
+		// artifacts (e.g. "A" from a Balance Conversion row), not real assets.
+		if (symbol.length < 2) continue;
+		if (row.timestamp_utc) {
+			lastSeenMap.set(symbol, row.timestamp_utc);
+		}
+		const qtyRaw = parseNumber(pickTokenAmount(row));
+		if (qtyRaw === null || qtyRaw === 0) continue;
+		const qty = Math.abs(qtyRaw);
+		const direction = row.direction ?? (qtyRaw < 0 ? 'out' : 'in');
+		const isIn = direction === 'in';
+		const isOut = direction === 'out' || direction === 'lost';
+
+		if (isIn) {
+			balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) + qty);
+			lastPurchaseMap.set(symbol, row.timestamp_utc);
+			const cost = parseNumber(row.native_usd);
+			if (cost === null) {
+				unknownCost.add(symbol);
+			} else {
+				const lots = lotsMap.get(symbol) ?? [];
+				lots.push({ qty, cost: Math.abs(cost) });
+				lotsMap.set(symbol, lots);
+			}
+
+			// ── Staking / Earn income earned this calendar year ──────────────
+			if (isCryptoComStakingIncome(rowKind) && row.timestamp_utc.startsWith(CURRENT_YEAR)) {
+				stakingYtdMap.set(symbol, (stakingYtdMap.get(symbol) ?? 0) + qty);
+				const usd = parseNumber(row.native_usd);
+				if (usd !== null) stakingYtdUsdMap.set(symbol, (stakingYtdUsdMap.get(symbol) ?? 0) + Math.abs(usd));
+			}
+		}
+
+		if (isOut) {
+			balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) - qty);
+			const lots = lotsMap.get(symbol);
+			if (lots?.length) {
+				let remaining = qty;
+				while (remaining > 0 && lots.length) {
+					const lot = lots[0];
+					if (lot.qty <= remaining) {
+						remaining -= lot.qty;
+						lots.shift();
+					} else {
+						const ratio = remaining / lot.qty;
+						lot.qty -= remaining;
+						lot.cost -= lot.cost * ratio;
+						remaining = 0;
+					}
+				}
+			}
+		}
+	}
+
+	const holdings: Holding[] = [];
+	for (const [symbol, balance] of balanceMap.entries()) {
+		if (balance <= 0 && (stakingYtdMap.get(symbol) ?? 0) <= 0) continue;
+		const lots = lotsMap.get(symbol) ?? [];
+		const costBasis =
+			unknownCost.has(symbol) || !lots.length
+				? null
+				: lots.reduce((sum, lot) => sum + lot.cost, 0);
+		holdings.push({
+			symbol,
+			balance: Math.max(0, balance),
+			stakingYtd: stakingYtdMap.get(symbol) ?? 0,
+			stakingYtdUsd: stakingYtdUsdMap.has(symbol) ? (stakingYtdUsdMap.get(symbol) ?? 0) : null,
+			lastPurchaseAt: lastPurchaseMap.get(symbol) ?? lastSeenMap.get(symbol) ?? null,
+			costBasis,
+		});
+	}
+
+	return holdings.sort((a, b) => b.balance - a.balance);
+};
+
+const fetchCachedPrices = async (symbols: string[]) => {
+	if (!symbols.length) return {} as Record<string, number>;
+	const symbolSet = new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
+	if (!symbolSet.size) return {};
+	const tickers = (await getTickersUSD()) as Array<{
+		symbol?: string;
+		quotes?: { USD?: { price?: number } };
+	}>;
+	const map: Record<string, number> = {};
+	for (const ticker of tickers) {
+		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+		if (!symbol || !symbolSet.has(symbol)) continue;
+		const price = ticker.quotes?.USD?.price;
+		// Use only the first match per symbol — coinpaprika sorts by market cap rank,
+		// so the highest-ranked (real) coin comes first. Without this guard, a tiny
+		// altcoin sharing the same ticker (e.g. a micro-cap "ETH") would overwrite
+		// the real Ethereum price with ~$0.03.
+		if (typeof price === 'number' && !(symbol in map)) {
+			map[symbol] = price;
+		}
+	}
+	return map;
+};
+
+let tinError: string | null = null;
+let accountsWithHoldings: AccountWithHoldings[] = [];
+let priceMap: Record<string, number> = {};
+let dataThrough: string | null = null;
+let lastImported: string | null = null;
+let owners: OwnerIndex = { byKey: new Map(), byAddress: new Map() };
+
+try {
+	const { tenantId } = await requireTenantSession(Astro.request);
+
+	const accountsResult = await db.execute({
+		sql: `SELECT id, name FROM exchange_accounts
+			WHERE tenant_id = ? AND source = 'crypto_com'
+			ORDER BY created_at ASC`,
+		args: [tenantId],
+	});
+	const accounts = toAccountRows(accountsResult.rows);
+	const priceSymbols = new Set<string>();
+	// "Whose account is this?" for each card. A failure here shows empty fields, not an error tin.
+	if (accounts.length) {
+		owners = await loadOwnerIndex(tenantId).catch((err) => {
+			console.error('[CryptoComAccounts] owner labels:', err instanceof Error ? err.message : String(err));
+			return owners;
+		});
+	}
+
+	for (const account of accounts) {
+		const txResult = await db.execute({
+			sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+				FROM import_transactions
+				WHERE tenant_id = ? AND source = 'crypto_com' AND account_id = ?
+				ORDER BY timestamp_utc ASC`,
+			args: [tenantId, account.id],
+		});
+		const rows = toImportRows(txResult.rows);
+		const holdings = computeHoldings(rows);
+		holdings.forEach((holding) => priceSymbols.add(holding.symbol));
+		accountsWithHoldings.push({ ...account, holdings });
+	}
+
+	priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols)));
+
+	const freshnessResult = await db.execute({
+		sql: `SELECT MAX(timestamp_utc) AS data_through, MAX(created_at) AS last_imported
+		      FROM import_transactions WHERE tenant_id = ? AND source = 'crypto_com'`,
+		args: [tenantId],
+	});
+	const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+	dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+	lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+} catch (err) {
+	tinError = err instanceof Error ? err.message : String(err);
+	console.error('[CryptoComAccounts] render error:', err);
+}
+---
+
+<ExchangeTin title="Crypto.com" class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
+	<button slot="header-actions" type="button" class="exchange-tin__add" data-crypto-add>
+		Add Crypto.com account
+	</button>
+
+	{tinError ? (
+		<p class="crypto-accounts__error">Temporarily unavailable — try refreshing</p>
+	) : accountsWithHoldings.length ? (
+		<div class="crypto-accounts__list">
+		<p class="crypto-accounts__section-label">Account</p>
+			{accountsWithHoldings.map((account, index) => {
+				const accountIndex = index + 1;
+				return (
+					<ExchangeAccountCard
+						accountId={account.id}
+						accountIndex={accountIndex}
+						name={account.name}
+						source="crypto-com"
+						ownerLabel={ownerForAccount(owners, 'crypto_com', account.id)}
+					>
+						{account.holdings.length ? (
+							<div slot="holdings">
+								{account.holdings.map((holding) => {
+									const price = priceMap[holding.symbol] ?? 0;
+									const usdValue = price > 0 ? holding.balance * price : null;
+									const pnl =
+										price > 0 && holding.costBasis !== null
+											? usdValue! - holding.costBasis
+											: null;
+									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
+									const daysHeld = (usdValue === null || usdValue > 1) ? formatDaysSince(holding.lastPurchaseAt) : null;
+									const isLongTerm = daysHeld !== null && daysHeld >= 365;
+									return (
+										<div class="exchange-holding">
+											<div class="exchange-holding__row">
+												<span class="exchange-holding__days">
+													{daysHeld === null ? '—' : daysHeld > 999 ? '999+' : `${daysHeld}d`}
+													{daysHeld !== null && (
+														<span class={`exchange-holding__term-badge exchange-holding__term-badge--${isLongTerm ? 'lt' : 'st'}`}>
+															{isLongTerm ? 'LT' : 'ST'}
+														</span>
+													)}
+												</span>
+												<span class="exchange-holding__ticker">{holding.symbol}</span>
+												<span class="exchange-holding__qty">
+													{formatNumber(holding.balance, { maximumFractionDigits: 4 })} ea
+												</span>
+												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
+												<span class="exchange-holding__usd usd-value">
+													{usdValue === null ? '—' : formatCurrency(usdValue)}
+												</span>
+												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>
+													{pnl === null ? '—' : formatCurrency(pnl)}
+												</span>
+											</div>
+											{holding.stakingYtd > 0 && (
+												<div class="exchange-holding__row exchange-holding__row--staking">
+													<div class="exchange-holding__field exchange-holding__field--numeric">
+														<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
+														<span class="exchange-holding__value">
+															{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
+															{holding.stakingYtdUsd !== null && (
+																<span class="exchange-holding__staking-usd"> ({formatCurrency(holding.stakingYtdUsd)})</span>
+															)}
+														</span>
+													</div>
+												</div>
+											)}
+										</div>
+									);
+								})}
+							</div>
+						) : null}
+					</ExchangeAccountCard>
+				);
+			})}
+		</div>
+	) : (
+		<p class="crypto-accounts__empty">No Crypto.com accounts yet.</p>
+	)}
+</ExchangeTin>
+
+<script>
+	const addButton = document.querySelector('[data-crypto-add]');
+	addButton?.addEventListener('click', async () => {
+		try {
+			const response = await fetch('/api/exchanges/crypto-com/accounts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({}),
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				throw new Error('Failed to create account.');
+			}
+			window.location.reload();
+		} catch (error) {
+			console.error(error);
+		}
+	});
+
+	document.addEventListener('click', async (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+		const delBtn = target.closest('[data-exchange-delete]');
+		if (!(delBtn instanceof HTMLElement)) return;
+		const accountId = delBtn.dataset.accountId ?? '';
+		if (!accountId) return;
+		if (!confirm('Delete this account and all its imported transactions? This cannot be undone.')) return;
+		try {
+			const response = await fetch('/api/exchanges/crypto-com/accounts/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ accountId }),
+				credentials: 'include',
+			});
+			if (!response.ok) throw new Error('Failed to delete account.');
+			window.location.reload();
+		} catch (error) {
+			console.error(error);
+		}
+	});
+
+	document.addEventListener('submit', async (event) => {
+		const form = event.target;
+		if (
+			!(form instanceof HTMLFormElement) ||
+			!form.classList.contains('exchange-account__upload') ||
+			form.dataset.exchangeSource !== 'crypto-com'
+		) {
+			return;
+		}
+		event.preventDefault();
+		const status = form.querySelector('.exchange-account__status');
+		const fileInput = form.querySelector('input[type="file"]');
+		const accountId = form.dataset.accountId ?? '';
+		const accountIndex = Number(form.dataset.accountIndex ?? '1');
+
+		if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
+			if (status instanceof HTMLElement) status.textContent = 'Select a CSV file first.';
+			return;
+		}
+
+		if (status instanceof HTMLElement) status.textContent = 'Uploading...';
+		const data = new FormData();
+		data.append('file', fileInput.files[0]);
+		data.append('accountId', accountId);
+
+		try {
+			const response = await fetch('/api/import/crypto-com', {
+				method: 'POST',
+				body: data,
+				credentials: 'include',
+			});
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(payload?.error || 'Upload failed.');
+			}
+			if (status instanceof HTMLElement) {
+				const msg = payload.insertedNormalized === 0
+					? `No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
+					: `✓ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+				status.textContent = msg;
+			}
+			if (accountIndex > 1) {
+				window.location.href = '/dashboard/bookkeeping#all-transactions';
+				return;
+			}
+			setTimeout(() => window.location.reload(), 3000);
+		} catch (error) {
+			if (status instanceof HTMLElement) {
+				status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+			}
+		}
+	});
+</script>
+

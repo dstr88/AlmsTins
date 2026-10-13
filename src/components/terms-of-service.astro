@@ -1,0 +1,74 @@
+---
+import type { Lang } from "@/lib/i18n/locale";
+import { getTerms } from "@/i18n/termsOfService";
+
+const { variant = "inline", lang = "en" } = Astro.props as {
+  variant?: "inline" | "modal";
+  lang?: Lang;
+};
+
+const t = getTerms(lang);
+const body = t.body;
+---
+
+<section class={`terms-of-service ${variant}`}>
+  {variant === "inline" ? (
+    <details>
+      <summary>{t.summaryLabel}</summary>
+      <div class="terms-body" set:html={body} />
+    </details>
+  ) : (
+    <div class="terms-body" set:html={body} />
+  )}
+</section>
+
+<style>
+  .terms-of-service {
+    color: var(--text-primary);
+  }
+
+  details {
+    background: var(--border-subtle);
+    border: 1px solid var(--border-bright);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .terms-body {
+    margin-top: 1rem;
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 0.5rem;
+  }
+
+  .modal .terms-body {
+    max-height: unset;
+  }
+
+  .terms-body h1,
+  .terms-body h2,
+  .terms-body h3 {
+    margin: 1rem 0 0.5rem;
+  }
+
+  .terms-body p,
+  .terms-body li {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    opacity: 0.9;
+  }
+
+  .terms-body ul {
+    margin: 0.5rem 0 0.75rem 1.1rem;
+  }
+
+  .terms-body a {
+    color: salmon;
+  }
+</style>

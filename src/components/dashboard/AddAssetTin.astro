@@ -1,0 +1,591 @@
+---
+import './AddAssetTin.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getAddAssetTin } from '@/i18n/components/addAssetTin';
+/**
+ * AddAssetTin — compact "Add +" control tin.
+ *
+ * Two tabs:
+ *   Wallet   — chain selector (ETH / AVAX / Polygon) + address input + submit
+ *   Exchange — list of supported exchanges pointing to CSV import tins below
+ *
+ * Handles the POST /api/wallets call internally via an inline script tag.
+ */
+const lang = getLang(Astro.request);
+const t = getAddAssetTin(lang);
+---
+
+<div class="add-tin">
+	<div class="add-tin__heading">
+		<span class="add-tin__plus" aria-hidden="true">＋</span>
+		<span class="add-tin__title">{t.headingTitle}</span>
+	</div>
+	<div id="demo-clear-wrap" class="add-tin__demo-clear-wrap" style="display:none">
+		<button
+			id="demo-clear-btn"
+			class="add-tin__demo-clear"
+			type="button"
+			aria-label="Reset demo"
+			title="Reset demo"
+		>✕</button>
+		<div id="demo-clear-popover" class="add-tin__demo-popover" hidden>
+			<p class="add-tin__demo-popover__msg">{t.demoClearMsg}</p>
+			<div class="add-tin__demo-popover__actions">
+				<button id="demo-clear-confirm" class="add-tin__demo-popover__confirm" type="button">{t.demoClearConfirm}</button>
+				<button id="demo-clear-cancel"  class="add-tin__demo-popover__cancel"  type="button">{t.demoClearCancel}</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Tab bar -->
+	<div class="add-tin__tabs" role="tablist">
+		<button
+			class="add-tin__tab is-active"
+			type="button"
+			role="tab"
+			aria-selected="true"
+			data-add-tab="wallet"
+		>{t.tabWallet}</button>
+		<button
+			class="add-tin__tab"
+			type="button"
+			role="tab"
+			aria-selected="false"
+			data-add-tab="exchange"
+		>{t.tabExchange}</button>
+		<button
+			class="add-tin__tab"
+			type="button"
+			role="tab"
+			aria-selected="false"
+			data-add-tab="custom"
+		>{t.tabCustom}</button>
+	</div>
+
+	<!-- Wallet panel -->
+	<div class="add-tin__panel" data-add-panel="wallet">
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">{t.fieldChain}</span>
+			<select class="add-tin__select" data-add-chain>
+				<option value="bitcoin">Bitcoin (BTC)</option>
+				<option value="ethereum">Ethereum (ETH)</option>
+				<option value="avalanche">Avalanche (AVAX)</option>
+				<option value="polygon">Polygon (POL)</option>
+				<option value="arbitrum">Arbitrum (ARB)</option>
+				<option value="litecoin">Litecoin (LTC)</option>
+				<option value="solana">Solana (SOL)</option>
+				<option value="sui">Sui (SUI)</option>
+			</select>
+			<p class="add-tin__chain-hint" data-chain-hint aria-live="polite"></p>
+		</label>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">{t.fieldAddress}</span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder="0x…"
+				data-add-address
+				autocomplete="off"
+				spellcheck="false"
+				maxlength="90"
+			/>
+		</label>
+		<button class="add-tin__submit" type="button" data-add-submit>
+			{t.btnAddWallet}
+		</button>
+		<div class="add-tin__demo-samples" id="addTinDemoSamples" style="display:none">
+			<span class="add-tin__demo-samples-label">{t.demoSamplesLabel}</span>
+		</div>
+		<p class="add-tin__message" data-add-message aria-live="polite"></p>
+	</div>
+
+	<!-- Exchange panel -->
+	<div class="add-tin__panel is-hidden" data-add-panel="exchange">
+		<p class="add-tin__hint">
+			{t.exchangeHint}
+		</p>
+		<ul class="add-tin__exchange-list">
+			<li class="add-tin__exchange-item" data-add-exchange="crypto-com" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Crypto.com</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="coinbase" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Coinbase</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="gemini" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Gemini</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="venmo" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Venmo</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="cashapp" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Cash App</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="exodus" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Exodus</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="kraken" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Kraken</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+		</ul>
+		<p class="add-tin__export-hint" id="kraken-export-hint" style="display:none;">
+			{t.krakenExportHint}
+		</p>
+		<p class="add-tin__coming-soon">
+			{t.comingSoon}
+		</p>
+	</div>
+
+	<!-- Custom wallet panel -->
+	<div class="add-tin__panel is-hidden" data-add-panel="custom">
+		<p class="add-tin__hint">
+			{t.customHint}
+		</p>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">{t.fieldLabel} <span class="add-tin__required">{t.fieldLabelRequired}</span></span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder={t.customPlaceholderLabel}
+				data-custom-label
+				autocomplete="off"
+				maxlength="80"
+			/>
+		</label>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">{t.fieldAddress} <span class="add-tin__optional">{t.fieldAddressOptional}</span></span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder={t.customPlaceholderAddress}
+				data-custom-address
+				autocomplete="off"
+				spellcheck="false"
+			/>
+		</label>
+		<button class="add-tin__submit" type="button" data-custom-submit>
+			{t.btnSaveCustom}
+		</button>
+		<p class="add-tin__message" data-custom-message aria-live="polite"></p>
+	</div>
+</div>
+
+
+<script is:inline define:vars={{ __addAssetI18n: {
+	enterAddressFirst:  t.enterAddressFirst,
+	saving:             t.saving,
+	planLimitWallet:    t.planLimitWallet,
+	alreadyTracked:     t.alreadyTracked,
+	unableToAddWallet:  t.unableToAddWallet,
+	syncingHistory:     t.syncingHistory,
+	walletAddedReloading: t.walletAddedReloading,
+	labelRequired:      t.labelRequired,
+	planLimitCustom:    t.planLimitCustom,
+	unableToSaveWallet: t.unableToSaveWallet,
+	savedReloading:     t.savedReloading,
+	chainHintEvm:       t.chainHintEvm,
+	chainHintEthereum:  t.chainHintEthereum,
+	chainHintBitcoin:   t.chainHintBitcoin,
+	chainHintLitecoin:  t.chainHintLitecoin,
+	chainHintSolana:    t.chainHintSolana,
+	chainHintSui:       t.chainHintSui,
+	chainHintAutoPrefix: t.lang === 'es' ? 'Detectado automaticamente: ' : t.lang === 'fr' ? 'Detecte automatiquement : ' : 'Auto-detected: ',
+} }}>window.__addAssetI18n = __addAssetI18n;</script>
+
+<script is:inline>
+(function () {
+	var I = (window).__addAssetI18n || {};
+
+	function initAddTin() {
+		var tin = document.querySelector('.add-tin');
+		if (!tin || tin.dataset.addTinInit === 'true') return;
+		tin.dataset.addTinInit = 'true';
+
+		// ── Tab switching (event delegation on the tin) ───────────────────
+		tin.addEventListener('click', function (event) {
+			var tab = event.target && event.target.closest('[data-add-tab]');
+			if (!tab) return;
+			var target = tab.dataset.addTab;
+			tin.querySelectorAll('[data-add-tab]').forEach(function (t) {
+				var active = t.dataset.addTab === target;
+				t.classList.toggle('is-active', active);
+				t.setAttribute('aria-selected', active ? 'true' : 'false');
+			});
+			tin.querySelectorAll('[data-add-panel]').forEach(function (p) {
+				p.classList.toggle('is-hidden', p.dataset.addPanel !== target);
+			});
+		});
+
+		// ── Wallet submit ─────────────────────────────────────────────────
+		var chainSelect  = tin.querySelector('[data-add-chain]');
+		var addressInput = tin.querySelector('[data-add-address]');
+		var submitBtn    = tin.querySelector('[data-add-submit]');
+		var messageEl    = tin.querySelector('[data-add-message]');
+
+		// Cache of existing wallets: address (lowercased) → wallet id.
+		// Populated once on init, updated after adds/deletes.
+		var existingWallets = {};
+		fetch('/api/wallets')
+			.then(function (r) { return r.ok ? r.json() : []; })
+			.then(function (wallets) {
+				if (!Array.isArray(wallets)) return;
+				wallets.forEach(function (w) {
+					if (w.address && w.id) existingWallets[String(w.address).toLowerCase()] = w.id;
+				});
+			})
+			.catch(function () {});
+
+		var CHAIN_PLACEHOLDERS = {
+			bitcoin:   'bc1q… or 1… or 3…',
+			ethereum:  '0x…',
+			avalanche: '0x…',
+			polygon:   '0x…',
+			solana:    'Base58 address…',
+			sui:       '0x…',
+		};
+
+		function updatePlaceholder() {
+			if (!chainSelect || !addressInput) return;
+			var chain = chainSelect.value;
+			addressInput.placeholder = CHAIN_PLACEHOLDERS[chain] || '0x…';
+		}
+
+		if (chainSelect) {
+			chainSelect.addEventListener('change', updatePlaceholder);
+			updatePlaceholder();
+		}
+
+		// ── Chain auto-detection ──────────────────────────────────────────────
+		var hintEl = tin.querySelector('[data-chain-hint]');
+
+		var EVM_CHAINS = { ethereum: true, avalanche: true, polygon: true, arbitrum: true };
+
+		var CHAIN_HINTS = {
+			ethereum: I.chainHintEthereum || 'Auto-detected: EVM address — covers Ethereum, Polygon, Avalanche & Arbitrum.',
+			bitcoin:  I.chainHintBitcoin  || 'Auto-detected: Bitcoin address.',
+			litecoin: I.chainHintLitecoin || 'Auto-detected: Litecoin address.',
+			solana:   I.chainHintSolana   || 'Auto-detected: Solana address.',
+			sui:      I.chainHintSui      || 'Auto-detected: Sui address.',
+		};
+
+		var EVM_HINT = I.chainHintEvm || 'EVM addresses (0x…) are tracked across Ethereum, Polygon, Avalanche & Arbitrum automatically.';
+
+		function detectChain(addr) {
+			var v = addr.trim();
+			var lower = v.toLowerCase();
+			// EVM: 0x + exactly 40 hex
+			if (/^0x[a-f0-9]{40}$/.test(lower)) return 'ethereum';
+			// Sui: 0x + 1–64 hex (but not exactly 40)
+			if (/^0x[a-f0-9]{1,64}$/.test(lower)) return 'sui';
+			// Bitcoin native SegWit / Taproot
+			if (/^bc1[a-z0-9]{6,87}$/.test(lower)) return 'bitcoin';
+			// Bitcoin legacy P2PKH / P2SH
+			if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(v)) return 'bitcoin';
+			// Litecoin
+			if (/^ltc1[a-z0-9]{6,87}$/.test(lower)) return 'litecoin';
+			// Solana base58
+			if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v)) return 'solana';
+			return null;
+		}
+
+		function setChainHint(text, isAuto) {
+			if (!hintEl) return;
+			hintEl.textContent = text || '';
+			hintEl.classList.toggle('add-tin__chain-hint--auto', !!isAuto);
+			hintEl.style.display = text ? '' : 'none';
+		}
+
+		function onAddressInput() {
+			var addr = addressInput ? addressInput.value : '';
+			var detected = addr.trim().length > 10 ? detectChain(addr) : null;
+
+			if (detected && chainSelect && chainSelect.value !== detected) {
+				chainSelect.value = detected;
+				updatePlaceholder();
+				setChainHint(CHAIN_HINTS[detected] || ((I.chainHintAutoPrefix || 'Auto-detected: ') + detected + '.'), true);
+			} else if (detected && EVM_CHAINS[detected]) {
+				setChainHint(EVM_HINT, false);
+			} else if (!detected && addr.trim().length > 5) {
+				setChainHint('', false);
+			} else if (!addr.trim()) {
+				// show EVM hint when an EVM chain is selected and address is empty
+				if (chainSelect && EVM_CHAINS[chainSelect.value]) {
+					setChainHint(EVM_HINT, false);
+				} else {
+					setChainHint('', false);
+				}
+			}
+		}
+
+		// Show EVM hint immediately if the default chain is EVM
+		if (chainSelect && EVM_CHAINS[chainSelect.value]) setChainHint(EVM_HINT, false);
+
+		chainSelect && chainSelect.addEventListener('change', function () {
+			// Re-run hint logic after manual chain change
+			if (addressInput && addressInput.value.trim()) {
+				onAddressInput();
+			} else {
+				setChainHint(EVM_CHAINS[chainSelect.value] ? EVM_HINT : '', false);
+			}
+		});
+
+		if (addressInput) {
+			addressInput.addEventListener('input', onAddressInput);
+			addressInput.addEventListener('paste', function () {
+				// paste fires before value updates — defer one tick
+				setTimeout(onAddressInput, 0);
+			});
+		}
+
+		function setMessage(text, isUpgrade) {
+			if (!messageEl) return;
+			messageEl.textContent = text;
+			messageEl.classList.toggle('add-tin__limit-msg', !!isUpgrade);
+		}
+
+		if (submitBtn) {
+			submitBtn.addEventListener('click', function () {
+				var address = addressInput ? addressInput.value.trim() : '';
+				var chain   = chainSelect  ? chainSelect.value.trim()  : '';
+				if (!address) { setMessage(I.enterAddressFirst || 'Enter a wallet address first.'); return; }
+				submitBtn.disabled = true;
+				setMessage(I.saving || 'Saving\u2026');
+				var SINGLE_CHAIN = { bitcoin: true, litecoin: true, solana: true, sui: true };
+				var chains = SINGLE_CHAIN[chain] ? [chain]
+				           : chain ? [chain, 'ethereum', 'polygon', 'avalanche'].filter(function(c, i, a) { return a.indexOf(c) === i; })
+				           : ['ethereum', 'polygon', 'avalanche'];
+				fetch('/api/wallets', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ address: address, chains: chains }),
+				}).then(function (res) {
+					return res.json().catch(function () { return {}; }).then(function (payload) {
+						if (res.status === 402) {
+							setMessage(payload.message || I.planLimitWallet || 'Plan limit reached. Upgrade to add more tins.', true);
+							submitBtn.disabled = false;
+							return;
+						}
+						if (res.status === 409) {
+							setMessage(payload.message || I.alreadyTracked || 'Already tracked — edit the existing wallet instead.');
+							submitBtn.disabled = false;
+							return;
+						}
+						if (!res.ok) throw new Error(payload.message || payload.error || I.unableToAddWallet || 'Unable to add wallet.');
+						// Track the new address so a second add attempt is caught immediately
+						if (address && payload.id) existingWallets[address.toLowerCase()] = payload.id;
+						if (addressInput) addressInput.value = '';
+						// Analytics — track wallet adds (demo and real)
+						if (typeof window.gtag === 'function') {
+							window.gtag('event', 'wallet_added', {
+								event_category: isDemo ? 'demo' : 'onboarding',
+								event_label: chain || 'unknown',
+							});
+						}
+						// In demo mode, sync transaction history so "days held" shows real data.
+						// We race the sync against a 5-second guard so the UX never stalls.
+						if (isDemo && payload.id) {
+							setMessage(I.syncingHistory || 'Syncing wallet history\u2026');
+							var syncReq = fetch('/api/wallets/' + payload.id + '/sync', { method: 'POST' }).catch(function() {});
+							var syncTimeout = new Promise(function(resolve) { setTimeout(resolve, 5000); });
+							Promise.race([syncReq, syncTimeout]).then(function() {
+								setMessage(I.walletAddedReloading || 'Wallet added \u2014 reloading\u2026');
+								try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+								window.location.reload();
+							});
+						} else {
+							setMessage(I.walletAddedReloading || 'Wallet added \u2014 reloading\u2026');
+							try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+							window.location.reload();
+						}
+					});
+				}).catch(function (err) {
+					setMessage(err.message || I.unableToAddWallet || 'Unable to add wallet.');
+					submitBtn.disabled = false;
+				});
+			});
+		}
+
+		if (addressInput) {
+			addressInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' && submitBtn) submitBtn.click();
+			});
+		}
+
+		// ── Custom wallet submit ──────────────────────────────────────────
+		var customLabelInput   = tin.querySelector('[data-custom-label]');
+		var customAddressInput = tin.querySelector('[data-custom-address]');
+		var customSubmitBtn    = tin.querySelector('[data-custom-submit]');
+		var customMessageEl    = tin.querySelector('[data-custom-message]');
+
+		function setCustomMessage(text, isUpgrade) {
+			if (!customMessageEl) return;
+			customMessageEl.textContent = text;
+			customMessageEl.classList.toggle('add-tin__limit-msg', !!isUpgrade);
+		}
+
+		if (customSubmitBtn) {
+			customSubmitBtn.addEventListener('click', function () {
+				var label = customLabelInput ? customLabelInput.value.trim() : '';
+				if (!label) { setCustomMessage(I.labelRequired || 'A label is required.'); return; }
+				customSubmitBtn.disabled = true;
+				setCustomMessage(I.saving || 'Saving\u2026');
+				var addr = customAddressInput ? customAddressInput.value.trim() : '';
+				var body = { walletType: 'custom', label: label };
+				if (addr) body.address = addr;
+				fetch('/api/wallets', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body),
+				}).then(function (res) {
+					return res.json().catch(function () { return {}; }).then(function (payload) {
+						if (res.status === 402) {
+							setCustomMessage(payload.message || I.planLimitCustom || 'Plan limit reached. Upgrade to add more tins.', true);
+							customSubmitBtn.disabled = false;
+							return;
+						}
+						if (!res.ok) throw new Error(payload.message || payload.error || I.unableToSaveWallet || 'Unable to save wallet.');
+						if (customLabelInput) customLabelInput.value = '';
+						if (customAddressInput) customAddressInput.value = '';
+						if (typeof window.gtag === 'function') {
+							window.gtag('event', 'wallet_added', {
+								event_category: isDemo ? 'demo' : 'onboarding',
+								event_label: 'custom',
+							});
+						}
+						setCustomMessage(I.savedReloading || 'Saved \u2014 reloading\u2026');
+						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+						window.location.reload();
+					});
+				}).catch(function (err) {
+					setCustomMessage(err.message || I.unableToSaveWallet || 'Unable to save wallet.');
+					customSubmitBtn.disabled = false;
+				});
+			});
+		}
+
+		if (customLabelInput) {
+			customLabelInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' && customSubmitBtn) customSubmitBtn.click();
+			});
+		}
+
+		// ── Exchange shortcuts ────────────────────────────────────────────
+		tin.querySelectorAll('[data-add-exchange]').forEach(function (item) {
+			function activate() {
+				var source = item.dataset.addExchange || '';
+				if (!source) return;
+
+				// Show Kraken export hint only when Kraken is selected
+				var krakenHint = document.getElementById('kraken-export-hint');
+				if (krakenHint) krakenHint.style.display = source === 'kraken' ? 'block' : 'none';
+
+				var addBtn = document.querySelector(
+					'[data-exchange-add][data-exchange-source="' + source + '"]'
+				);
+				if (addBtn) {
+					addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					addBtn.click();
+				}
+			}
+			item.addEventListener('click', activate);
+			item.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+			});
+		});
+	}
+
+	// Run now if DOM is ready, otherwise wait for it
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initAddTin);
+	} else {
+		initAddTin();
+	}
+
+	// ── Demo mode extras ──────────────────────────────────────────────────────
+	var isDemo = document.cookie.split(';').some(function (c) {
+		return c.trim() === 'almstins-demo=1';
+	});
+
+	if (isDemo) {
+		// Show sample address chips
+		var samplesEl = document.getElementById('addTinDemoSamples');
+		if (samplesEl) {
+			samplesEl.style.display = '';
+			samplesEl.querySelectorAll('[data-fill-addr]').forEach(function (btn) {
+				btn.addEventListener('click', function () {
+					var addr = btn.dataset.fillAddr || '';
+					var addrInput = document.querySelector('[data-add-address]');
+					if (addrInput) {
+						addrInput.value = addr;
+						// trigger auto-chain-detect
+						addrInput.dispatchEvent(new Event('input'));
+					}
+					var submitBtn = document.querySelector('[data-add-submit]');
+					if (submitBtn) submitBtn.click();
+				});
+			});
+		}
+
+		// Show the ✕ reset button + wire up confirmation popover
+		var clearWrap    = document.getElementById('demo-clear-wrap');
+		var clearBtn     = document.getElementById('demo-clear-btn');
+		var clearPopover = document.getElementById('demo-clear-popover');
+		var clearConfirm = document.getElementById('demo-clear-confirm');
+		var clearCancel  = document.getElementById('demo-clear-cancel');
+		if (clearWrap && clearBtn && clearPopover && clearConfirm && clearCancel) {
+			clearWrap.style.display = '';
+
+			clearBtn.addEventListener('click', function (e) {
+				e.stopPropagation();
+				clearPopover.hidden = !clearPopover.hidden;
+			});
+
+			clearCancel.addEventListener('click', function () {
+				clearPopover.hidden = true;
+			});
+
+			clearConfirm.addEventListener('click', function () {
+				clearPopover.hidden = true;
+				fetch('/api/demo/cleanup', { method: 'POST' })
+					.catch(function () {})
+					.finally(function () {
+						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+						window.location.reload();
+					});
+			});
+
+			// Close popover on outside click
+			document.addEventListener('click', function (e) {
+				if (!clearWrap.contains(e.target)) clearPopover.hidden = true;
+			});
+		}
+
+		// Wipe demo data when the visitor truly navigates away.
+		// sessionStorage key 'demo-reloading' is set before any intentional reload
+		// (wallet add, custom save, Delete All). If it exists we're just refreshing —
+		// remove it and skip the beacon so the new wallet survives the reload.
+		window.addEventListener('beforeunload', function () {
+			try {
+				if (sessionStorage.getItem('demo-reloading')) {
+					sessionStorage.removeItem('demo-reloading');
+					return; // intentional reload — keep data
+				}
+			} catch(e) {}
+			navigator.sendBeacon('/api/demo/cleanup');
+		});
+	}
+})();
+</script>

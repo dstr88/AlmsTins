@@ -1,0 +1,191 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import SalmonTin from '../../components/dashboard/SalmonTin.astro';
+import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
+import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
+import { getLang } from '@/lib/i18n/locale';
+import { getTradfi } from '@/i18n/dashboard/tradfi';
+
+const lang = getLang(Astro.request);
+const t = getTradfi(lang);
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section class="tradfi-page">
+		<div class="hero-bleed">
+			<NetWorthHero title="TradFi" subtitle={t.heroSubtitle} />
+		</div>
+
+		<section class="tins-grid">
+			<SalmonTin label={t.tinTotals}>
+				<div class="totals-row">
+					<span class="totals-label">{t.debtLabel}</span>
+					<span class="totals-value" data-total-debt>$0</span>
+				</div>
+			</SalmonTin>
+			<SalmonTin label={t.tinAddLoan}>
+				<button type="button" class="add-loan-button" data-add-loan>{t.addLoanButton}</button>
+				<p class="add-loan-status" data-add-loan-status></p>
+			</SalmonTin>
+			<SalmonTin label={t.tinLoanPayoff} class="loan-tin">
+				<LoanPayoffCalculator loanId="tradfi-loan-1" />
+			</SalmonTin>
+		</section>
+
+		<section class="tradfi-table">
+			<h2>{t.paymentHistory}</h2>
+			<LoanPaymentsTable client:only="react" />
+		</section>
+	</section>
+
+	<style>
+		.tradfi-page {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5rem;
+			padding: 1rem 0 2rem;
+		}
+
+		.tins-grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 24px;
+			align-items: stretch;
+		}
+
+		@media (min-width: 720px) {
+			.tins-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.tins-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+		}
+
+		.tradfi-table {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+		}
+
+.totals-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 1rem;
+			font-size: 0.95rem;
+		}
+
+		.totals-label {
+			color: rgba(255, 255, 255, 0.7);
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			font-size: 0.75rem;
+		}
+
+		.totals-value {
+			font-size: 1.1rem;
+			font-weight: 600;
+			color: #f5f8ff;
+		}
+
+		.add-loan-button {
+			width: 100%;
+			background: rgba(250, 128, 114, 0.2);
+			color: #f7f2eb;
+			border: 1px solid rgba(250, 128, 114, 0.5);
+			border-radius: 999px;
+			padding: 0.5rem 1rem;
+			cursor: pointer;
+			font-weight: 600;
+		}
+
+		.add-loan-button:hover {
+			background: rgba(250, 128, 114, 0.3);
+		}
+
+		.add-loan-status {
+			margin: 0.5rem 0 0;
+			font-size: 0.85rem;
+			color: rgba(255, 255, 255, 0.7);
+		}
+
+		h2 {
+			margin: 0;
+			font-size: 1.1rem;
+			font-weight: 600;
+		}
+	</style>
+
+	<script define:vars={{ i18nLoanPayoffLabel: t.loanPayoffLabel(0).replace('0', '{n}'), i18nAddedContract: t.addedContract(0).replace('0', '{n}') }}>
+	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+	function parseAmount(value) {
+		if (!value) return 0;
+		const cleaned = value.replace(/[^0-9.]/g, '');
+		const parsed = Number.parseFloat(cleaned);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+
+	function updateTotalDebt() {
+		const debtEls = document.querySelectorAll('[data-debt-value]');
+		let total = 0;
+		debtEls.forEach((el) => {
+			const amount = Number(el.dataset.debtValue || 0) || parseAmount(el.textContent || '');
+			total += amount;
+		});
+		const target = document.querySelector('[data-total-debt]');
+		if (target) target.textContent = formatter.format(total);
+	}
+
+	document.addEventListener('debt-updated', updateTotalDebt);
+	document.addEventListener('DOMContentLoaded', updateTotalDebt);
+
+	const addLoanButton = document.querySelector('[data-add-loan]');
+	const addLoanStatus = document.querySelector('[data-add-loan-status]');
+	if (addLoanButton) {
+		addLoanButton.addEventListener('click', () => {
+			const grid = document.querySelector('.tins-grid');
+			const templateTin = document.querySelector('.loan-tin');
+			if (!grid || !templateTin) return;
+
+			const clone = templateTin.cloneNode(true);
+			const existingCount = grid.querySelectorAll('.loan-tin').length;
+			const nextIndex = existingCount + 1;
+			const label = clone.querySelector('.salmon-tin__label');
+			if (label) label.textContent = i18nLoanPayoffLabel.replace('{n}', String(nextIndex));
+
+			const loanRoot = clone.querySelector('[data-loan-payoff]');
+			if (loanRoot) {
+				loanRoot.dataset.loanInit = '';
+				loanRoot.dataset.payments = '[]';
+				loanRoot.dataset.loanId = `tradfi-loan-${nextIndex}`;
+				const lists = loanRoot.querySelectorAll('[data-payment-list]');
+				lists.forEach((list) => {
+					list.innerHTML = '';
+				});
+				const saved = loanRoot.querySelector('[data-payment-saved]');
+				if (saved) {
+					saved.textContent = '';
+					saved.hidden = true;
+				}
+			}
+
+			grid.insertBefore(clone, templateTin.nextSibling);
+			if (loanRoot && window.loanPayoffInit) {
+				window.loanPayoffInit(loanRoot);
+			}
+			if (addLoanStatus) {
+				addLoanStatus.textContent = i18nAddedContract.replace('{n}', String(nextIndex));
+				setTimeout(() => {
+					addLoanStatus.textContent = '';
+				}, 2500);
+			}
+		});
+	}
+	</script>
+</Layout>

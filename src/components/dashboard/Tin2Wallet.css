@@ -1,0 +1,10 @@
+.tin2-wallet {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+}
+
+.tin2-wallet__status {
+	font-size: var(--font-sm);
+	opacity: 0.7;
+}

@@ -1,0 +1,81 @@
+.demo-banner {
+	position: sticky;
+	top: 0;
+	z-index: 9999;
+	background: var(--surface-card-2);
+	border-bottom: 1px solid var(--accent-soft);
+	color: var(--text-primary);
+	padding: 0.55rem 1.25rem;
+	box-shadow: 0 2px 12px var(--accent-glow);
+}
+
+.demo-banner__inner {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	max-width: 1200px;
+	margin: 0 auto;
+	flex-wrap: wrap;
+}
+
+.demo-badge {
+	flex-shrink: 0;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	color: var(--accent);
+	font-size: 0.62rem;
+	font-weight: 800;
+	letter-spacing: 0.12em;
+	padding: 0.18rem 0.5rem;
+	border-radius: 999px;
+}
+
+.demo-banner__text {
+	margin: 0;
+	font-size: 0.88rem;
+	color: var(--text-secondary);
+	flex: 1;
+}
+
+.demo-banner__text strong {
+	font-weight: 700;
+	color: var(--text-primary);
+}
+
+.demo-banner__actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-shrink: 0;
+}
+
+.demo-btn {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.38rem 0.9rem;
+	border-radius: 999px;
+	font-size: 0.82rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: filter 0.15s ease;
+	white-space: nowrap;
+}
+
+.demo-btn:hover {
+	filter: brightness(0.88);
+}
+
+.demo-btn--signup {
+	background: var(--accent);
+	color: var(--surface-bg);
+}
+
+.demo-btn--exit {
+	background: var(--accent-soft);
+	color: var(--accent);
+	border: 1px solid var(--accent-dim);
+}
+
+@media (max-width: 720px) {
+	/* Banner hidden on mobile — Sign up / Exit demo move into the hamburger menu */
+	.demo-banner { display: none; }
+}

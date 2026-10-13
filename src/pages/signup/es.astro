@@ -1,0 +1,13 @@
+---
+import { es } from '@/i18n/signup';
+import SignupPage from '@/components/SignupPage.astro';
+import { getAuthSession } from '@/lib/authSession';
+
+const session = await getAuthSession(Astro.request);
+if (session) {
+	return Astro.redirect('/dashboard', 303);
+}
+
+const error = Astro.url.searchParams.get('error');
+---
+<SignupPage t={es} error={error} />

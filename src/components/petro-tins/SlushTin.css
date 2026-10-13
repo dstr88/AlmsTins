@@ -1,0 +1,153 @@
+/* ── SlushTin ─────────────────────────────────────────────────────────────── */
+
+.pt-slush-tin {
+  background: var(--surface-card-2);
+  border: 1px solid var(--accent-glow);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.pt-slush-tin__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.25rem 0.5rem;
+}
+.pt-slush-tin__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.pt-slush-tin__del {
+  background: none; border: none;
+  cursor: pointer; font-size: 0.9rem;
+  padding: 3px 6px; border-radius: 6px;
+  opacity: 0.5; transition: opacity 0.12s, background 0.12s;
+}
+.pt-slush-tin__del:hover { opacity: 1; background: var(--loss-bg); }
+
+/* Balance */
+.pt-slush-tin__balance-wrap {
+  text-align: center;
+  padding: 1.25rem 1.25rem 1rem;
+}
+.pt-slush-tin__balance {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.pt-slush-tin__balance.gain { color: var(--gain); }
+.pt-slush-tin__balance.loss { color: var(--loss); }
+.pt-slush-tin__balance-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.3rem;
+}
+
+/* Controls */
+.pt-slush-tin__controls {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0 1.25rem 0.75rem;
+  justify-content: center;
+}
+.pt-slush-btn {
+  flex: 1;
+  max-width: 140px;
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+}
+.pt-slush-btn--add:hover,
+.pt-slush-btn--add.active {
+  background: var(--gain-bg);
+  border-color: var(--gain-border);
+  color: var(--gain);
+}
+.pt-slush-btn--withdraw:hover,
+.pt-slush-btn--withdraw.active {
+  background: var(--loss-bg);
+  border-color: var(--loss-border);
+  color: var(--loss);
+}
+
+/* Adjust row */
+.pt-slush-tin__adjust {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 1.25rem 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+.pt-slush-input {
+  flex: 1;
+  min-width: 100px;
+  -webkit-appearance: none; appearance: none;
+  background: var(--surface-card) !important;
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary);
+  font-size: 0.9rem;
+  color-scheme: dark;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.pt-slush-input:focus { border-color: var(--accent); }
+.pt-slush-input::placeholder { color: var(--text-muted); -webkit-text-fill-color: var(--text-muted); }
+
+.pt-slush-save {
+  background: var(--accent);
+  color: var(--surface-bg);
+  border: none;
+  border-radius: 7px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.12s;
+}
+.pt-slush-save:hover { opacity: 0.88; }
+.pt-slush-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* History */
+.pt-slush-tin__history {
+  border-top: 1px solid var(--border-subtle);
+}
+.pt-slush-history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+  transition: background 0.1s;
+}
+.pt-slush-history-row:last-child { border-bottom: none; }
+.pt-slush-history-row:hover { background: var(--surface-hover); }
+.pt-slush-history-date { color: var(--text-muted); white-space: nowrap; min-width: 80px; }
+.pt-slush-history-desc { flex: 1; color: var(--text-secondary); }
+.pt-slush-history-amt  { font-weight: 700; white-space: nowrap; }
+.pt-slush-history-amt.gain { color: var(--gain); }
+.pt-slush-history-amt.loss { color: var(--loss); }
+.pt-slush-history-del {
+  background: none; border: none;
+  color: var(--text-muted); cursor: pointer;
+  font-size: 0.7rem; padding: 2px 4px;
+  border-radius: 4px; opacity: 0.6;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.pt-slush-history-del:hover { opacity: 1; color: var(--loss); background: var(--loss-bg); }

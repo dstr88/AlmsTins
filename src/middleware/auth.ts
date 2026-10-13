@@ -1,0 +1,174 @@
+/**
+ * Auth path registry
+ *
+ * ⚠️  INTENTIONALLY MINIMAL — do not add business logic here.
+ *
+ * isPublicPath() is the single source of truth for which paths bypass app
+ * logic entirely. It is imported by src/middleware.ts, which routes auth/public
+ * requests directly to the route handler — app.ts never runs for these paths.
+ *
+ * Rules:
+ *  - Auth callback routes (/api/auth/*) must NEVER be gated or redirected.
+ *  - Public pages (login, signup, wallet) must be reachable without a session.
+ *  - Static assets must always pass through.
+ *
+ * To add a new public path: add it here. Do NOT add session checks, redirects,
+ * DB calls, or env-var reads to this file.
+ */
+
+// Import-free constant (no env, no db): whether the PetroTins pages are public.
+import { PETRO_TINS_PUBLIC } from '../lib/petroTinsFlag.mjs';
+
+export function isPublicPath(pathname: string): boolean {
+	return (
+		// Homepage — public marketing surface (merged with the login page 2026-06-15).
+		pathname === '/' ||
+		pathname === '/login' ||
+		pathname.startsWith('/login/') ||
+		// Astro internal asset + on-demand image-optimization endpoints — must be
+		// public so optimized images render on public pages for logged-out visitors.
+		pathname.startsWith('/_image') ||
+		pathname.startsWith('/_astro/') ||
+		pathname === '/es' ||
+		pathname === '/fr' ||
+		// Trust & discovery pages — must be reachable without a session
+		pathname === '/about' ||
+		pathname === '/about/es' ||
+		pathname === '/about/fr' ||
+		// Privacy Policy — public, crawlable canonical URL (same source as the footer modal)
+		pathname === '/privacy' ||
+		// Pricing — public marketing page (EN + /prices/es + /prices/fr)
+		pathname === '/prices' ||
+		pathname.startsWith('/prices/') ||
+		// Changelog — public "What's new" page, linked from the login/marketing page
+		pathname === '/changelog' ||
+		pathname === '/signup' ||
+		pathname.startsWith('/signup/') ||
+		// Credentials signup endpoint — must be reachable without a session
+		pathname === '/api/signup' ||
+		// Sign-up email confirmation: the page the emailed link opens, and the endpoint its
+		// Confirm button posts to. The token is the capability, and the person confirming is
+		// never signed in (password sign-in refuses an unverified address), so the session
+		// gate in app.ts would 401 it.
+		pathname === '/verify-email' ||
+		pathname === '/api/verify-email' ||
+		pathname === '/wallet' ||
+		pathname.startsWith('/wallet/') ||
+		pathname === '/wallet-checker' ||
+		pathname.startsWith('/wallet-checker/') ||
+		// Almstins Verify — public merchant landing (canonical /verify; /verify/es, /verify/fr;
+		// /marchand is the Francophone-Africa promo URL that redirects to /verify/fr)
+		pathname === '/verify' ||
+		pathname.startsWith('/verify/') ||
+		pathname === '/marchand' ||
+		// Receivables — public landing for the financing suite; a front door to the /verify
+		// tools. Must be reachable without a session (the gated desks handle their own login).
+		pathname === '/receivables' ||
+		pathname === '/receivables/' ||
+		// The financing pages under /receivables (aliases of /verify/<name> today). Every page
+		// gates itself, the same model as /verify/ above.
+		pathname.startsWith('/receivables/') ||
+		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
+		pathname === '/artifacts' ||
+		pathname.startsWith('/artifacts/') ||
+		// Guides: public, indexable informational pages (the weekly search series, English first)
+		pathname === '/guides' ||
+		pathname.startsWith('/guides/') ||
+		// All @auth/core routes — callbacks, CSRF, providers, sessions, etc.
+		pathname === '/api/auth' ||
+		pathname.startsWith('/api/auth/') ||
+		// Logout — must be public so the session cookie can be cleared even when expired
+		pathname === '/api/logout' ||
+		// Demo mode — set/clear cookie without requiring an auth session
+		pathname === '/api/demo/start' ||
+		pathname === '/api/demo/end' ||
+		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
+		pathname === '/aave-alisis' ||
+		// PetroTins public pages — only while PetroTins is public (src/lib/petroTinsFlag.mjs).
+		// While it is owner-only, src/middleware.ts 404s these for everyone but the owner
+		// before this list is consulted, and the owner goes through app.ts like any
+		// signed-in page.
+		(PETRO_TINS_PUBLIC && (
+			// PetroTins standalone login page — must be reachable without a session
+			pathname === '/petro-tins' ||
+			// PetroTins demo — clears session cookie then starts demo, no auth needed
+			pathname === '/api/petro-tins/demo' ||
+			// PetroTins docs — public documentation page
+			pathname === '/petro-tins/docs' ||
+			// PetroTins legal pages — public Terms & Privacy
+			pathname === '/petro-tins/terms' ||
+			pathname === '/petro-tins/privacy'
+		)) ||
+		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
+		pathname === '/api/wallet-check' ||
+		// The wallet checker's Activity tab (first/last activity, count, balance), split out
+		// of /api/wallet-check so the verdict never waits on it. Same validation and limits.
+		pathname === '/api/wallet-activity' ||
+		pathname === '/api/dapp-check' ||
+		// Verified-publisher lookup — public, login-free; address → publishing domain
+		// (reads the global mirror, never exposes tenant_id/identity)
+		pathname === '/api/verify/lookup' ||
+		// Agent pre-send destination check — public, login-free, machine-readable.
+		// Proof status only (proven/mismatch/unknown); never reputation, never identity.
+		pathname === '/api/verify/check' ||
+		// Bitcoin-anchor endpoint — public; anchors a caller-supplied SHA-256 digest to
+		// Bitcoin via OpenTimestamps (no key, no identity, no signing). Backs /artifacts/sandbox.
+		pathname === '/api/verify/anchor' ||
+		// Receivables financing-status check — public, login-free; receivable ID → its
+		// financing status + claims (self-chosen labels only, never tenant_id/identity).
+		// The base list path is public too, so a signed-out visitor never triggers a 401 the
+		// browser would log to the console on the registry page: its GET returns an empty list
+		// for anon and the caller's own list when signed in (the handler resolves the session
+		// itself via requireTenantSession), while its POST/DELETE writes self-gate and return
+		// 401 for anon. Other receivables write endpoints (…/claim, …/reverify) stay gated here.
+		pathname === '/api/verify/receivables' ||
+		pathname === '/api/verify/receivables/lookup' ||
+		// Buyer confirmation — public, login-free. The single-use token IS the capability:
+		// the debtor being asked to confirm has no account and must never need one.
+		pathname === '/api/verify/receivables/confirm' ||
+		// Supplier counter-signature — same reasoning: the client confirming that a
+		// lender's advance actually reached him need not hold an account to say so.
+		pathname === '/api/verify/receivables/countersign' ||
+		// The client confirming his own deal was recorded correctly — same reasoning again.
+		pathname === '/api/verify/receivables/attest-record' ||
+		// The client accepting or declining a financing offer, before money moves.
+		pathname === '/api/verify/receivables/offer-respond' ||
+		// Milestone-desk inspector attestation — public, login-free. The single-use token IS the
+		// capability: the inspector answering from a site has no account and never needs one.
+		pathname === '/api/verify/cairn/attest' ||
+		// Milestone-desk paperwork — the ?t= token path serves the report form to the
+		// inspector and accepts their completed upload; the handler gates every other branch.
+		pathname === '/api/verify/cairn/document' ||
+		// Receivables paperwork — same reasoning, and a bug fix: the debtor reading the
+		// attached note via ?t= was 401ing because this was never listed. The handler
+		// requires a session on all non-token branches.
+		pathname === '/api/verify/receivables/document' ||
+		// Reading an offer with its token. The handler still requires a session for the
+		// financier's own listing; only the ?t= branch is reachable without one.
+		pathname === '/api/verify/receivables/offer' ||
+		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
+		pathname === '/api/email/unsubscribe' ||
+		// Record-proof signing public key — published so anyone can verify a record proof
+		pathname === '/.well-known/almstins-signing-key.json' ||
+		// Roster-document encryption public key — published so a merchant's browser can
+		// encrypt a roster document to it; it's a public key, safe for anyone to fetch.
+		pathname === '/.well-known/almstins-verify-encryption-key.json' ||
+		// Public record verification — verify a proof bundle without an account
+		pathname === '/verify-record' ||
+		pathname === '/api/verify-record' ||
+		// Deploy probe — public so the live commit SHA can be verified with one curl
+		// (no session). Returns only RENDER_GIT_COMMIT/branch/engine, no secrets.
+		pathname === '/api/version' ||
+		// Machine endpoints — authenticated by their own secret/signature, not a
+		// user session. They must skip the session gate (app.ts), which 401s any
+		// /api/* without a logged-in user before the handler's own auth can run.
+		// Cron handlers check x-cron-secret; the billing webhook verifies its
+		// Stripe signature. (Regression since 2026-03-18 — crons + webhook were 401'd.)
+		pathname.startsWith('/api/cron/') ||
+		pathname === '/api/billing/webhook' ||
+		// Static assets
+		pathname.startsWith('/_astro/') ||
+		pathname.startsWith('/assets/') ||
+		pathname === '/favicon.ico'
+	);
+}

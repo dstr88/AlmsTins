@@ -1,0 +1,314 @@
+---
+import Layout from '@/layouts/LoginLayout.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getChangelog } from '@/i18n/changelog';
+// PetroTins entries show only while PetroTins is public (src/lib/petroTinsFlag.mjs).
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
+const lang = getLang(Astro.request);
+const t = getChangelog(lang);
+---
+
+<Layout
+  title={t.pageTitle}
+  description={t.description}
+  lang={lang}
+  noindex={true}
+>
+  <div class="page">
+
+    <header class="page-header">
+      <a href="/login" class="back-link">{t.backLink}</a>
+    </header>
+
+    <main class="content">
+      <h1 class="page-title">{t.heading}</h1>
+      <p class="page-sub">{t.sub}</p>
+
+      <div class="entries">
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>Privacy Policy version 1.2 is in effect, and four practices changed so the policy can say less leaves Almstins. The link checker now only asks VirusTotal whether it already has results for a link. It no longer asks VirusTotal to scan a link, but that lookup still sends VirusTotal the full link, so avoid checking links that are private. Links and wallet addresses in email to our own inboxes are now checked only against phishing, sanctions, and mixer lists we hold ourselves; nothing from those messages goes to an outside service. Signing in with Google or GitHub no longer saves your name, photo, or the provider's sign-in tokens. We keep your email and the account number the provider uses for you, which is how we recognize you next time, and names saved before are being cleared. The cookie section now describes exactly what the site uses.</p>
+            <p>We also changed how Almstins keeps and shows your data. Shared address labels are gone: a label you save stays in your account only, and the shared labels built from matching labels in different accounts are being deleted. Almstins still names well-known contracts and exchanges from its own list. A public Verify answer never includes a label you typed, unless it matches the name of a domain you have proven and so becomes your verified business name. It says only whether a proven address or link is Claimed or Verified, since when, and on which blockchain or payment network, plus the business name and domain of a Verified organization; an address or link that is not proven is never shown. After we check the encrypted address list you publish for Verify, we no longer keep a decrypted copy of the whole list; the saved copy is encrypted. Addresses from the list that become your Verify destinations are still saved in your account, with their labels, like addresses you add by hand. Deleting your account now removes all of your data, except records other parties rely on in our financing desks, such as receivables, projects, claims, confirmations, attestations, and their documents. An old profile form that could save a name, mailing address, phone number, and a second email address is removed, and what it saved is being cleared. In the wallet checker, scanning a QR code that holds a link now puts the link in the box and waits until you press Check site; a scanned wallet address is still checked right away. Google's advertising features (Google signals and ad personalization) are switched off in our analytics tag.</p>
+            <p>The policy also now names every service that receives data, grouped by purpose, and says what each one receives. Read it at <a href="/privacy">almstins.com/privacy</a>. Terms of Service version 1.2 corrects the same points.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>You can now say whose account each wallet and exchange account is. Each wallet card on the Wallets page (under Edit) and each exchange account card in the Vault has a Whose account is this? field. Type who it belongs to, for example Me or Spouse, and it becomes the Owner in your history download: in the ZIP from Download history by wallet, and in a new Owner column in the plain CSV. Two accounts at the same exchange can have two different owners. For an address you use on more than one blockchain, you set the owner once and it applies on every blockchain. Clear the field to remove it, and deleting a wallet or an exchange account deletes its owner too. The owner is text you type: it stays in your account and goes only into the files you download.</p>
+            <p>An exchange account named after its exchange now shows once in the download, as Coinbase instead of Coinbase · Coinbase. Accounts with their own name still show both, as in Crypto.com · Account #2.</p>
+            <p>The demo is shared by every visitor, so in the demo you can no longer rename a wallet or set its owner. Adding, syncing and deleting wallets in the demo work as before.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>The help pages no longer list gain calculations or short-term and long-term classification as features. They now describe what Bookkeeping keeps for you: when you got each coin and what you paid for it, and the Year Summary PDF on the Unlimited plan, for your records and your tax professional.</p>
+            <p>When Aave liquidates a position, the alert email, the note under the liquidation on the Vault page, and the help page answer about liquidations no longer call it a taxable disposal. They now say the liquidation was added to your records, with the collateral seized and its value at the time. The sample liquidation in the demo also says only what was seized and what it was worth, with no tax conclusion.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>You can now download your history organized by wallet. On any paid plan, the Download history by wallet button on the Wallets page, and next to the Year Summary on Bookkeeping for the year you are viewing, gives you one ZIP file: a CSV for each wallet and exchange account, one combined CSV sorted by owner, wallet and date, and an index that lists each wallet with its first and last date and its number of rows. Your records, organized by wallet, for you and your tax professional. The files list your transactions as recorded, with no cost basis, gain, loss or lot columns.</p>
+            <p>Two accounts at the same exchange are two wallets, and one address used on two blockchains is two wallets, one for each blockchain. Rows imported without an account are grouped as unassigned for that exchange. Each wallet uses its current name for now, and the Owner column reads Owner not set; naming each wallet and saying whose account it is comes in a later update, and so does linking both sides of a transfer between your own wallets.</p>
+            <p>The plain transaction export stays on every plan. On the Free plan, the Download my transactions (CSV) button on the Wallets page and on Bookkeeping gives you one plain CSV of your transactions, next to the History by wallet button marked for paid plans. The plain export got the same fixes: a file for one wallet now holds only that wallet's rows (it used to include every exchange row), rows marked as duplicates are left out, Sui wallets are included, on-chain amounts are filled in, and no cell can run as a spreadsheet formula. On Bookkeeping, a Free account now sees the Needs Attention and Income CSV buttons marked for paid plans, instead of a button that saved an error message as the file. A history with more than 50,000 rows downloads one year at a time, from Bookkeeping.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>Tax-form views are no longer offered. Almstins organizes your records; it is not tax software, and it does not prepare or file returns. The Form 8949, Schedule D and 1099 views, the 1099 upload, and tax document storage are no longer available to accounts. If you follow an old link to one of those pages, you land on Bookkeeping.</p>
+            <p>Bookkeeping still shows your cost basis, realized gains and losses, and income on every plan, and paid plans can still download the Needs Attention and Income lists as CSV files. The CSV downloads for realized gains and losses and for Still in Wallet are no longer offered, because those files list the cost basis, proceeds and holding period of every lot. The Year Summary PDF and its verification bundle remain on the Unlimited plan, as an organized record for you and your tax professional.</p>
+            <p>We also reworded the pricing page, the home page, the help pages, and our welcome emails so that none of them describe Almstins as a tax product.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 12, 2026</time>
+          <div class="entry-body">
+            <p>We corrected wording that claimed more than Almstins does. The wallet checker's description in search results now says which addresses get which checks: Ethereum and other EVM addresses are checked for known scam, phishing, honeypot, dark web and mixer flags and against the OFAC sanctions list; Solana, Bitcoin, Litecoin and Tron addresses get the sanctions check only; Sui addresses show balances and activity, with no scam or sanctions screening yet. Before, it promised the full set of checks for Solana and Sui addresses.</p>
+            <p>In Bookkeeping, the DeFi Positions note no longer says when tax is due on those positions; it says they are unrealized and shown at cost basis. The locked Year Summary button now names the Unlimited plan, as the pricing page does, and the French page calls it the récapitulatif annuel throughout.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">October 11, 2026</time>
+          <div class="entry-body">
+            <p>The help pages, the Terms (section B.3.2), and the Form 8949-style summary now say plainly how Almstins calculates cost basis. Sales are matched to purchases first-in, first-out, with the lots of each coin pooled across all the wallets and accounts you track. Since January 1, 2025, US rules apply first-in, first-out within each wallet or account instead, and Almstins does not calculate basis wallet by wallet yet. For 2025 and later, the figures can differ from a per-wallet calculation and from the cost basis a broker reports on Form 1099-DA, and the Form 8949-style summary for those years now says so in its header.</p>
+            <p>The help pages also no longer call the Form 8949-style PDF ready to attach to a return. It is an organized record for you and your tax professional. Almstins does not prepare or file returns.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 25, 2026</time>
+          <div class="entry-body">
+            <p>A merchant can now prove they control a crypto receiving address — with no website and without connecting a wallet. On the Verify dashboard, register an address, then prove it by sending any tiny amount from that wallet, even to yourself. Almstins watches the public chain for it and marks the address Verified. Nothing is connected and nothing is signed for us; the only thing that proves you control an address is sending <em>from</em> it, and that's all this asks. An address can be claimed by one account only, so no one else can list yours as theirs.</p>
+            <p>Every verified address gets a downloadable QR badge. Print it, or add it to your sign, invoice, or checkout, and a customer can scan it to confirm — on a public page, no account needed — that the address is really yours before they send anything.</p>
+            <p>That check lives at <a href="/verify/scan">almstins.com/verify/scan</a>: paste or scan any address and it answers two questions at once — whether it's a verified Almstins destination, and whether it's flagged by the scam, sanctions, and honeypot screens. It's the moment-before-you-pay check, built for the person doing the paying.</p>
+            <p>Also fixed: if you'd tried the demo and later signed in, a leftover demo session could occasionally still show you the sample dashboard. Your signed-in account now always takes priority, and signing in clears any leftover demo session — so you'll never see sample data in place of your own.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 23, 2026</time>
+          <div class="entry-body">
+            <p>The Year Summary export is now a verifiable record, not just a PDF. Alongside the summary you can download a small verification bundle that carries a cryptographic fingerprint of every line in the report, signed by Almstins. Together they turn an annual summary into something you can <em>prove</em> is genuine and unaltered — which matters the moment a number has to stand up to someone else: a tax filing, an audit, an inheritance, a dispute.</p>
+            <p>Anyone you hand the bundle to can check it at <a href="/verify-record">almstins.com/verify-record</a> — drop the file in and it confirms, right there in the browser, whether the record is authentic and whether a single figure has changed since it was generated. The check runs on your own device; nothing is uploaded. An accountant who would rather not take our word for anything can run the very same check offline. Importantly, this proves integrity and origin — that the record is a real Almstins export and hasn't been edited — it does not vouch for the tax math itself.</p>
+            <p>Underneath, every row of the summary is hashed, those hashes are folded into a single fingerprint, and Almstins signs that fingerprint with a private key only it holds. The matching public key is published openly, so the signature can be checked by anyone and forged by no one — change one dollar in the report and the fingerprint no longer lines up. The exact figures behind your numbers are frozen at the moment you generate the export, so a summary you download today will still verify years from now, long after your live balances have moved on.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 14, 2026</time>
+          <div class="entry-body">
+            <p>The wallet checker now has a prominent Scan QR button at the very top of the page. Checking an address with your phone's camera was already possible, but the entry point sat below the fold — and a phone is exactly the device most likely to have a camera ready. The button now sits above everything else, so it's the first thing you see. Tapping it switches to the wallet tab and opens the camera straight away; point it at a wallet QR code and the address is read on your device — nothing is sent until you run the check.</p>
+            <p>The wallet checker's language control now offers all three languages at once — a single <strong>EN / ES / FR</strong> switcher in the top corner, with your current language highlighted. The French version of the checker went live a couple of days ago, but there was no way to reach it from the page itself; the toggle only flipped between English and Spanish. French is now one tap away from anywhere in the checker, alongside English and Spanish.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 13, 2026</time>
+          <div class="entry-body">
+            <p>Search results in the Research ledger are now grouped and sortable. When a search returns transactions across multiple assets, results are organized into alphabetical symbol groups — all your ETH transactions together, then MATIC, then SOL, and so on — with a header between each group. A sort bar above the list lets you choose whether transactions within each group are ordered by date or by transaction amount, and toggle the direction up or down. Date ascending is the default, which reads as a chronological record of activity for each asset.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 12, 2026</time>
+          <div class="entry-body">
+            <p>The Year Summary page now has a second level of detail. Clicking any wallet card opens a panel showing what changed inside that wallet during the year across three tabs: Holdings Delta, Net Change, and Transactions. Holdings Delta shows every token that moved — what you held at the start of the year, what you held at year end, and the difference. Net Change gives the same picture condensed to one line per symbol, useful for quick scanning. Transactions shows every on-chain send and receive for that wallet in the selected year with date, type, asset, and USD value. Tokens under a dollar in current value that weren't held at the start of the year are hidden from the delta so the list stays focused on what matters. Self-custody wallets now have their own section on the year summary page, separate from exchange accounts.</p>
+            <p>The portfolio views — Holdings Delta, the portfolio table, and the reconciliation panel — no longer show phishing airdrop tokens. These are unsolicited tokens dropped into wallet addresses with scam URLs or instructions embedded in their symbol name: things like "VISIT TRUSTBOX.SITE TO CLAIM" or "CLAIM REWARDS ON T.LY/SHIBASWAP" or "*REDEEM WITHIN 7 DAYS." They appeared in holdings lists because wallet snapshots faithfully recorded everything found on-chain. They are now recognized by pattern — any token carrying a URL, a Telegram link, or a multi-word sentence as its symbol — and stripped from every view that displays token quantities. The filter runs at read time, so existing wallet snapshots are cleaned up immediately without a fresh sync.</p>
+            <p>The Data Sync Status section has been reorganized. Wallets are now grouped by type — self-custody wallets and exchange-linked accounts in separate sections — making it easier to see at a glance which sources are syncing and when each last ran.</p>
+            <p>A Privacy Policy is now available at <a href="/privacy">almstins.com/privacy</a>, covering what data is collected, what is not, and why certain commitments are architectural rather than contractual.</p>
+            <p>The wallet and website safety checker is now available in French at <a href="/wallet-checker/fr">almstins.com/wallet-checker/fr</a>.</p>
+          </div>
+        </article>
+
+        {PETRO_TINS_PUBLIC && (<>
+          <article class="entry">
+            <time class="entry-date">June 12, 2026 — TradfiTins</time>
+            <div class="entry-body">
+              <p>The Budget Register and Debt tin entry lists now have sort controls. In the Budget Register, click the date or amount column header to sort; click again to reverse. Debt tin entries can be sorted by date, amount, or kind — payments separate from charges. Both default to date descending, which is the natural reading order for a running register.</p>
+              <p>Descriptions in entry modals are now reliably editable. Clicking into an existing description field to make a change — a common action when a recurring bill amount or label shifts — previously required extra clicks or a workaround to trigger edit mode in certain cases. That is fixed.</p>
+            </div>
+          </article>
+        </>)}
+
+        <article class="entry">
+          <time class="entry-date">June 10, 2026</time>
+          <div class="entry-body">
+            <p>Solana wallets now sync their full transaction history, not just current balances. Previously, adding a Solana wallet showed its balance but never imported the underlying transactions — so a transfer like moving tokens from an exchange to your Solana wallet had no on-chain record to match against, and stayed stuck as an unresolved item. Now syncing a Solana wallet pulls every on-chain token and SOL transfer into your ledger.</p>
+            <p>Because those transfers now land in the same place as your exchange imports, the Resolve button can automatically pair an exchange withdrawal with its matching on-chain arrival and classify it as a non-taxable self-transfer — the same way it already works for Bitcoin and Ethereum wallets. Cost basis carries across the move instead of breaking at the chain boundary.</p>
+            <p>A scheduled job now re-syncs Solana wallets every week, staggered alongside the existing Bitcoin, Ethereum, and Aave syncs, so your Solana history stays current without manual action. USD values for newly imported transactions are filled in by the existing price backfill.</p>
+          </div>
+        </article>
+
+        {PETRO_TINS_PUBLIC && (<>
+          <article class="entry">
+            <time class="entry-date">June 3, 2026</time>
+            <div class="entry-body">
+              <p>TradfiTins now has its own domain at <strong>tradifitins.com</strong>. Visiting the root redirects to the TradfiTins dashboard. When accessed from tradifitins.com, the navigation shows only TradfiTins links — Dashboard, Docs, and Upgrade — keeping the Almstins portfolio tools out of view for users who are here only for personal finance.</p>
+              <p>The Shared Expenses section now has a dedicated URL anchor. Linking to <code>tradifitins.com/dashboard/petro-tins#splits</code> scrolls directly to the Shared Expenses section after the page loads, even though the data loads asynchronously.</p>
+              <p>Each register entry in the Budget tin now has an optional payment URL field. Click any description or amount to enter edit mode, and a second input appears for the payment website. Save a URL once and a <code>🔗</code> link appears next to the bill name — click it to open the payment site directly. The URL carries over automatically when the bill rolls over to the next month.</p>
+              <p>The splits tin layout has been redesigned around people rather than a bill grid. The top of each tin shows each person's name with a checkbox and their total balance — green with ✓ when fully paid, red with the amount remaining. A total line sits below. The add-bill form stays at the bottom. Clicking a person's name opens their responsibility panel, which now includes + Pay buttons per bill, inline bill editing, and a breakdown of how multi-line charges were calculated.</p>
+              <p>Each bill assignment now stores a line-item breakdown — the individual formula and resolved value for every line. This is preserved permanently so that months later you can open the responsibility panel and see exactly what made up a charge: <code>=[Rent]*.25 = $350.00</code>, <code>=[Electric]*.5 = $186.59</code>, and so on.</p>
+              <p>A new Shared Credit Card Expenses grid sits above the splits tins in the Shared Expenses section. Add bills that are paid on a credit card rather than out of the budget — choose the card, enter a description and amount, and the grid flags any charge that would push the card over its credit limit or past 90% utilization.</p>
+              <p>Credit card tins now have a recurring charges register. Add charges like Netflix, Spotify, or a storage unit as recurring items. Check them off each month as they post to the card. Amounts and descriptions are editable inline. When all are checked, next month's list seeds automatically. One-time charges and payments remain in a collapsible section below.</p>
+              <p>The FOUNDER promo code grants lifetime free access to TradfiTins with no payment required and no expiry date.</p>
+            </div>
+          </article>
+
+          <article class="entry">
+            <time class="entry-date">June 2, 2026</time>
+            <div class="entry-body">
+              <p>Budget register entries are now editable inline. Click any saved amount or description and it switches to an input field. Type the new value and press Enter or click away to save — Escape cancels. This makes it straightforward to update a recurring bill like an electric charge that changes month to month without deleting and re-entering the row.</p>
+              <p>The splits bill form now supports multiple line items per person. Instead of one amount field, each person gets a stack of inputs with a small "+ add line" button below. Add <code>=[Rent]</code> on one line, <code>=[Electric]</code> on the next, and the form sums them automatically and shows the running total next to the person's name. Individual lines can be removed with ✕. The Add Bill button shows the derived total before you save.</p>
+              <p>Splits formulas can now reference entries from your Budget Register by description. Type <code>=[Rent]</code> in a splits amount field and it pulls the current amount of the Rent entry from your linked budget tin. Budget entry chips appear below the amount fields as one-click shortcuts — click a chip and it fills the next empty line automatically. No need to remember exact description names.</p>
+              <p>Clicking a person's name in the splits grid opens a responsibility panel showing every bill assigned to them, the amount owed for each, payment status, and a footer summary of total owed, paid, and remaining. Click the name again to close it. Names are now also clickable before any bills have been added, so the panel is accessible from the start.</p>
+              <p>The Budget Register has a "+ Add row" button at the bottom of the blank entry section. Each click appends one more blank row for the current session — useful when a month has more entries than the default five rows.</p>
+              <p>TradfiTins splits now support bill references in formulas. In any amount field — whether you're adding a shared bill or a personal one — you can type <code>=[Rent]</code> and it will substitute the current amount of the bill named Rent. From there you can do math on it: <code>=[Rent]*0.5</code> gives half the rent, <code>=[Rent]+[Utilities]</code> sums two bills together. The result previews in real time as you type so you can confirm the number before saving.</p>
+              <p>Each person's column in the splits grid now has a small "+ and" button at the bottom. Clicking it opens a quick inline form — bill name and amount — that creates a bill assigned only to that person. Other people's cells for that bill stay blank rather than prompting you to set a value. This makes it straightforward to give each person their own list of bills without those bills cluttering everyone else's view.</p>
+            </div>
+          </article>
+        </>)}
+
+        <article class="entry">
+          <time class="entry-date">May 28, 2026</time>
+          <div class="entry-body">
+            <p>Google Safe Browsing and VirusTotal are now active sources in the dApp and website checker, bringing the total to seven. Both were previously wired up but inactive due to missing API keys. Google Safe Browsing catches malware, phishing, and unwanted software across the broader web — not just crypto-specific threats. VirusTotal aggregates results from dozens of independent security engines and returns a count of how many flagged a given URL. A site that slips past the crypto-specific databases may still be caught here.</p>
+            <p>The loading spinner on the dApp checker is now properly hidden between checks. A CSS specificity conflict — <code>display: flex</code> on the loading element overriding the browser's built-in <code>[hidden]</code> rule — meant the spinner was permanently visible on screen regardless of whether a check was running. All the state management was working correctly; it just had no visual effect. That's fixed.</p>
+            <p>The yellow verdict label has been updated from "Proceed carefully" to "Cannot confirm this site is safe." The original wording implied permission to go ahead with a caveat. Yellow means there is not enough data to clear the site — not that it is probably fine.</p>
+            <p>Two new FAQ entries have been added to the wallet checker, eligible to appear as Google rich results. The first explains why a known investment scam or fake trading platform may show yellow instead of red — phishing databases are built to catch wallet-draining sites, not deposit-based fraud — and how to report one. The second covers what to do if you have already been scammed: stop sending immediately, revoke any open token approvals at revoke.cash, report to the FBI's IC3 and the FTC, and contact your bank if traditional payment methods were involved.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">May 26, 2026</time>
+          <div class="entry-body">
+            <p>The wallet checker now works correctly for users who are not logged in. A routing oversight meant that the API backing the wallet address checker was only reachable by authenticated users or active sessions — anyone arriving at the page without an account would see a "Sign up free to unlock all features" message instead of results. That's fixed. The wallet checker has always been designed to require no account, and it now behaves that way for everyone.</p>
+            <p>The dApp and website checker no longer times out on a cold start. Previously, the checker had to download three large security databases — MetaMask's phishing blocklist (198,000+ domains), ScamSniffer's database (345,000+ domains), and the OpenPhish feed — before it could return any results. On Render's free tier, where the service sleeps after inactivity, this caused the first check after a period of quiet to time out completely. The databases now load in the background the moment the service wakes up. If you check a URL before they finish loading, GoPlus and URLScan results return immediately and the remaining sources show "warming up — try again in a moment." A second check seconds later returns the full picture from all seven sources.</p>
+            <p>The two action cards at the top of the wallet checker page have been relabeled. "Malicious site connection" is now "Paste your URL here" and "Investing in a known scam" is now "Paste a wallet address" — making it immediately clear what each card does without having to read the input placeholder first.</p>
+            <p>Added FAQPage structured data (JSON-LD) to the wallet checker page. The twelve FAQ entries — covering honeypot scams, wallet drainers, Tornado Cash, what red and yellow verdicts mean, and what to do when a check returns a flag — are now marked up in a format Google can surface as rich results directly in search. This makes the answers findable for people searching those questions before they have a problem, not just after.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">May 24, 2026</time>
+          <div class="entry-body">
+            <p>Added a second sign-up prompt at the bottom of the demo vault page. The existing "Sign up free" button lives at the top of the page, but someone who scrolls through the full demo — all three wallets, exchanges, and on-chain data — ends up at the footer with no obvious next step. That's the moment of highest intent and it was being wasted. The new prompt reads "Ready to track your own portfolio? Sign up free — no credit card required. Your vault, your data." It sits just above the footer FAQ section, where the demo naturally ends.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">May 23, 2026</time>
+          <div class="entry-body">
+            <p>When a wallet tin fails to load its balance data — a network timeout, an API outage, or a bad response from the data provider — the tin now shows exactly what happened instead of going blank or silently displaying zero. You get a short message explaining the connection failed, a ref code (a short ID like <code>FA5B-1K2M9</code>) you can copy and send to support, and a Try again button that re-fetches without reloading the page. Behind the scenes, an alert fires automatically so the issue is already being looked into before you think to report it. The ref code is click-to-select for easy copying.</p>
+            <p>When a logged-in user triggers demo mode — for example to show the app to a friend — they are now logged out first before the demo starts. This keeps your real portfolio private when handing the screen to someone else. After the demo, just sign back in to return to your account.</p>
+            <p>Bitcoin wallets now sync automatically every week. Previously, your BTC balance and transaction history would only update when you manually triggered a sync from the vault. Now a scheduled job runs every Monday in the early hours, fetches the latest transactions from Blockstream, and updates your balance snapshot — so your cold storage tin stays current without any action on your part.</p>
+            <p>The same automatic weekly sync was also added for EVM wallet transactions (Ethereum, Polygon, Avalanche) and Aave DeFi positions. All three run on a staggered schedule so they don't overlap. If you haven't opened the app in a week, your numbers will still reflect what happened on-chain.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">May 21, 2026</time>
+          <div class="entry-body">
+            <p>Each tin on the vault dashboard now has a small corner flag that tells you what you're looking at at a glance. Wallet tins get a chain-colored triangle — gold for Bitcoin, silver for Ethereum, violet for Solana, and so on — with a chain-link icon. Exchange tins (Coinbase, Kraken, Gemini, etc.) get a muted fold with a bank icon instead. The colors match each chain's established identity, so once you learn them you don't have to read the label.</p>
+            <p>The "What's new" link on the home page has moved to the right side of the screen, below the portfolio preview, where it has room to breathe.</p>
+            <p>The wallet checker is now available in Spanish at <a href="/wallet-checker/es">/wallet-checker/es</a> — fully translated including all threat explanations, modals, verdict labels, FAQ, and safety tips. Crypto terms like wallet, token, phishing, and honeypot are kept in English, which is how the Spanish-speaking crypto community actually uses them.</p>
+            <p>Language toggles (🇪🇸 En Español / 🇺🇸 In English) now appear on all four pages: the main landing page, the Spanish landing page, the English wallet checker, and the Spanish wallet checker. One tap to switch languages from anywhere.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">May 16, 2026</time>
+          <div class="entry-body">
+            <p>Yesterday I had a chance to watch a friend use my demo for the first time. He was on his computer, while I looked over his shoulder. Seeing it through fresh eyes was clarifying.</p>
+            <p>So this morning I went to work. Instead of walking you, my visitors, through a how-to, I stripped it back. The goal is simple: I want to show you what's waiting when you sign up.</p>
+            <p>I seeded the demo with realistic numbers across exchanges and wallets, labeled the key sections so nothing feels mysterious, and refreshed the front page. The wallet lookup is still there — paste any address and see what's inside, no account needed — but I moved it out of the spotlight. The more important thing is that you can see the value before logging in and watching your own numbers fill the tins.</p>
+            <p>More updates coming as the project grows. I would welcome any feedback through the portal on the login page, or email me directly at <a href="mailto:hello@almstins.com">hello@almstins.com</a>.</p>
+          </div>
+        </article>
+
+      </div>
+    </main>
+
+  </div>
+</Layout>
+
+<style>
+  .page {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 4vw, 2rem) 6rem;
+  }
+
+  .page-header {
+    margin-bottom: clamp(2rem, 5vw, 3.5rem);
+  }
+
+  .back-link {
+    font-size: 0.85rem;
+    color: rgba(165,180,252,0.7);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #a5b4fc; }
+
+  .page-title {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f5f8ff;
+    margin-bottom: 0.4rem;
+  }
+  .page-sub {
+    font-size: 0.95rem;
+    color: rgba(245,248,255,0.45);
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .entries {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  .entry {
+    border-left: 2px solid rgba(45,212,168,0.35);
+    padding-left: 1.5rem;
+  }
+
+  .entry-date {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(45,212,168,0.8);
+    margin-bottom: 1rem;
+  }
+
+  .entry-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .entry-body p {
+    font-size: 0.975rem;
+    line-height: 1.7;
+    color: rgba(245,248,255,0.8);
+  }
+  .entry-body a {
+    color: rgba(45,212,168,0.9);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .entry-body a:hover { color: rgb(45,212,168); }
+</style>

@@ -1,0 +1,35 @@
+---
+import { getAuthSession } from '@/lib/authSession';
+import { db } from '@/lib/db';
+
+const session = await getAuthSession(Astro.request).catch(() => null);
+if (!session?.user?.id) {
+	return Astro.redirect('/login', 302);
+}
+
+// ── Tenant-ID-based admin check (most reliable — always in JWT) ────────────
+const ADMIN_TENANT_IDS = new Set(
+	(process.env.ADMIN_TENANT_IDS ?? process.env.ADMIN_TENANT_ID ?? '')
+		.split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean),
+);
+const tenantId = String(session.tenantId ?? '').toLowerCase();
+if (tenantId && ADMIN_TENANT_IDS.has(tenantId)) {
+	return Astro.redirect('/admin', 302);
+}
+
+// ── Email-based admin check (fallback) ────────────────────────────────────
+const row = await db
+	.execute({ sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1', args: [session.user.id] })
+	.then((r) => r.rows[0] as Record<string, unknown> | undefined)
+	.catch(() => undefined);
+
+const email = String(row?.email ?? session.user.email ?? '').toLowerCase();
+
+const ADMIN_EMAILS = new Set(
+	(process.env.ADMIN_EMAILS ?? process.env.ADMIN_EMAIL ?? '')
+		.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean),
+);
+
+const dest = (email && ADMIN_EMAILS.has(email)) ? '/admin' : '/dashboard/vault';
+return Astro.redirect(dest, 302);
+---

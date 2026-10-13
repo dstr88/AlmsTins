@@ -1,0 +1,198 @@
+/* ── Tour Engine — shared CSS (te- prefix) ─────────────────────────────────── */
+
+/* ── Launch bar (demo / marketing pages) ──────────────────────────────────── */
+@keyframes teBarFadeIn {
+	from { opacity: 0; transform: translateY(-6px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes teCtaPulse {
+	0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+	50%       { box-shadow: 0 0 0 8px transparent; }
+}
+.te-bar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-glow);
+	border-radius: 10px;
+	padding: 0.8rem 1.5rem;
+	margin-bottom: 1.25rem;
+	text-align: center;
+	opacity: 0;
+	animation: teBarFadeIn 0.6s ease 0.8s forwards;
+}
+.te-bar__icon {
+	color: var(--accent);
+	font-size: 1rem;
+	flex-shrink: 0;
+}
+.te-bar__copy {
+	color: var(--text-secondary);
+	font-size: 0.875rem;
+}
+.te-bar__cta {
+	background: var(--accent);
+	color: var(--surface-bg);
+	border: none;
+	border-radius: 6px;
+	padding: 0.45rem 1.3rem;
+	font-size: 0.9rem;
+	font-weight: 700;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: opacity 0.15s;
+	animation: teCtaPulse 2s ease-in-out 1.6s infinite;
+}
+.te-bar__cta:hover {
+	opacity: 0.88;
+	animation: none;
+}
+
+/* ── Inline "?" trigger button (signed-in pages) ───────────────────────────── */
+.te-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	border-radius: 50%;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-glow);
+	color: var(--accent);
+	font-size: 0.78rem;
+	font-weight: 700;
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+	flex-shrink: 0;
+	line-height: 1;
+}
+.te-btn:hover {
+	background: var(--accent-glow);
+	border-color: var(--accent);
+}
+
+/* ── Backdrop ──────────────────────────────────────────────────────────────── */
+.te-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0,0,0,0.52);
+	z-index: 1000;
+	pointer-events: none;
+}
+
+/* ── Highlighted element ring ──────────────────────────────────────────────── */
+.te-highlight {
+	outline: 2px solid var(--accent) !important;
+	outline-offset: 5px;
+	border-radius: 10px;
+	box-shadow: 0 0 0 8px var(--accent-glow), 0 0 30px var(--accent-glow) !important;
+	position: relative;
+	z-index: 1001;
+}
+
+/* ── Tooltip card ──────────────────────────────────────────────────────────── */
+.te-tip {
+	position: fixed;
+	bottom: 1.75rem;
+	left: 50%;
+	transform: translateX(-50%);
+	width: min(440px, calc(100vw - 2rem));
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	border-radius: 14px;
+	padding: 1.25rem 1.25rem 1rem;
+	z-index: 1002;
+	box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+}
+.te-tip__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.6rem;
+	gap: 0.5rem;
+}
+.te-tip__counter {
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	flex: 1;
+}
+/* Language toggle pill */
+.te-tip__lang {
+	background: none;
+	border: 1px solid var(--border-bright);
+	border-radius: 4px;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	padding: 0.15rem 0.45rem;
+	transition: color 0.15s, border-color 0.15s;
+	white-space: nowrap;
+}
+.te-tip__lang:hover {
+	color: var(--accent);
+	border-color: var(--accent-glow);
+}
+.te-tip__skip {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+	font-size: 1rem;
+	line-height: 1;
+	transition: color 0.15s;
+}
+.te-tip__skip:hover { color: var(--text-secondary); }
+.te-tip__title {
+	margin: 0 0 0.45rem;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--text-primary);
+}
+.te-tip__body {
+	margin: 0 0 1.1rem;
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	line-height: 1.55;
+}
+.te-tip__foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.te-tip__dots {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+}
+.te-tip__btns {
+	display: flex;
+	gap: 0.5rem;
+}
+.te-tip__btn {
+	border: none;
+	border-radius: 6px;
+	padding: 0.4rem 1rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.15s;
+}
+.te-tip__btn--back {
+	background: transparent;
+	border: 1px solid var(--border-bright);
+	color: var(--text-secondary);
+}
+.te-tip__btn--back:hover { background: var(--surface-hover); }
+.te-tip__btn--next {
+	background: var(--accent);
+	color: var(--surface-bg);
+}
+.te-tip__btn--next:hover { opacity: 0.88; }

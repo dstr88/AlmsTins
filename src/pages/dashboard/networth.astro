@@ -1,0 +1,728 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import NetWorthTable from '@/components/dashboard/NetWorthTable';
+import NetWorthOverviewCard from '@/components/dashboard/NetWorthOverviewCard';
+import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
+import SalmonTin from '@/components/dashboard/SalmonTin.astro';
+import TotalsTin from '@/components/dashboard/TotalsTin';
+import TinColumn from '@/components/dashboard/TinColumn';
+import WalletRows from '@/components/dashboard/WalletRows';
+import { db } from '@/lib/db';
+import { getLatestNetWorthSummary } from '@/lib/networth';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getNetworth } from '@/i18n/dashboard/networth';
+
+type SliceType = 'asset' | 'stable' | 'debt';
+
+const colorThemes = {
+	asset: ['#8fe0f0', '#a9f5c1', '#9fc4ff', '#7ed4c7'],
+	stable: ['#d5d1c8', '#bfb8ab'],
+	debt: ['#f9a14d', '#e86648', '#b93731'],
+	highlight: '#587D71',
+};
+
+const donutSlices: Array<{ label: string; value: number; type: SliceType }> = [
+	{ label: 'BTC', value: 38, type: 'asset' },
+	{ label: 'ETH', value: 24, type: 'asset' },
+	{ label: 'POL', value: 14, type: 'asset' },
+	{ label: 'AVAX', value: 10, type: 'asset' },
+	{ label: 'Stable debt', value: 8, type: 'debt' },
+	{ label: 'Variable debt', value: 6, type: 'debt' },
+];
+
+const donutTotal = donutSlices.reduce((sum, slice) => sum + slice.value, 0);
+let donutAccumulator = 0;
+const counters: Record<SliceType, number> = { asset: 0, stable: 0, debt: 0 };
+const donutSliceMeta = donutSlices.map((slice) => {
+	const palette = slice.type === 'debt' ? colorThemes.debt : slice.type === 'stable' ? colorThemes.stable : colorThemes.asset;
+	const color = palette[counters[slice.type] % palette.length];
+	counters[slice.type] += 1;
+	const startValue = donutAccumulator;
+	donutAccumulator += slice.value;
+	const startPct = (startValue / donutTotal) * 100;
+	const endPct = (donutAccumulator / donutTotal) * 100;
+	const midAngle = (((startValue + donutAccumulator) / 2) / donutTotal) * 360;
+	return {
+		...slice,
+		color,
+		startPct,
+		endPct,
+		midAngle,
+		amountUsd: slice.value * 1000,
+	};
+});
+const donutGradient = donutSliceMeta.map((slice) => `${slice.color} ${slice.startPct}% ${slice.endPct}%`).join(', ');
+const donutSlicesJson = encodeURIComponent(JSON.stringify(donutSliceMeta));
+const assetValue = donutSlices.filter((slice) => slice.type === 'asset').reduce((sum, slice) => sum + slice.value, 0);
+const debtValue = donutSlices.filter((slice) => slice.type === 'debt').reduce((sum, slice) => sum + slice.value, 0);
+const assetPct = donutTotal ? ((assetValue / donutTotal) * 100).toFixed(1) : '0.0';
+const debtPct = donutTotal ? ((debtValue / donutTotal) * 100).toFixed(1) : '0.0';
+const netValue = assetValue - debtValue;
+const assetAmount = assetValue * 1000;
+const debtAmount = debtValue * 1000;
+const netAmount = netValue * 1000;
+const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const lang = getLang(Astro.request);
+const t = getNetworth(lang);
+
+const { tenantId } = await requireTenantSession(Astro.request);
+const walletsResult = await db.execute({
+	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
+	args: [tenantId],
+});
+
+const wallets = walletsResult.rows.map((row: Record<string, any>) => ({
+	id: String(row.id),
+	address: String(row.address),
+	label: row.label ? String(row.label) : null,
+}));
+
+const shortenAddress = (address: string) =>
+	address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
+
+const latestSummary = await getLatestNetWorthSummary(tenantId).catch((err) => {
+	console.warn('[networth] failed to load latest summary for tins', err);
+	return null;
+});
+
+const tinLookup = new Map(
+	(latestSummary?.tins ?? []).map((tin) => [String(tin.tinId), tin]),
+);
+
+const walletTins = wallets.map((wallet) => {
+	const tinData = tinLookup.get(wallet.id);
+	return {
+		tinId: wallet.id,
+		tinName: wallet.label ?? shortenAddress(wallet.address),
+		type: 'wallet',
+		assetsUsd: Number(tinData?.assetsUsd ?? 0),
+		debtUsd: Number(tinData?.debtUsd ?? 0),
+		walletLabel: wallet.label ? String(wallet.label) : null,
+	};
+});
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section class="networth-page">
+		<div class="hero-bleed">
+			<NetWorthHero title={t.heroTitle} subtitle={t.heroSubtitle} />
+		</div>
+
+		<header>
+			<h1 class="text-2xl font-semibold">{t.heading}</h1>
+		</header>
+
+	<section class="tins-grid">
+		<SalmonTin label={t.watchlistLabel}>
+			<PriceWatchlist client:load />
+		</SalmonTin>
+		<div class="tin tin--totals">
+			<TotalsTin client:load />
+		</div>
+		<div class="tin tin--placeholder" aria-hidden="true"></div>
+		<WalletRows client:load />
+	</section>
+
+		<section class="networth-content">
+			<NetWorthTable client:load />
+		</section>
+	</section>
+
+	<style>
+		.networth-page {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5rem;
+			padding: 0 0 2rem;
+		}
+
+		/* === Tin grid and stacks === */
+		.tins-grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 24px;
+			align-items: stretch;
+		}
+
+		@media (min-width: 720px) {
+			.tins-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.tins-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+		}
+
+		.wallet-rows {
+			display: contents;
+		}
+
+		.wallet-stack {
+			display: flex;
+			flex-direction: column;
+			gap: 15px;
+			width: 100%;
+		}
+
+		/* === Shared tin styling === */
+		.tin,
+		.wallet-tin,
+		.aave-tin,
+		.tin-panel,
+		.card {
+			background: darkslategray;
+			border: 1px solid #fff;
+			border-radius: 12px;
+			padding: 14px 16px;
+			color: #f7f2eb;
+			box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+			font-size: 1.12rem;
+		}
+
+		.tin--placeholder {
+			min-height: 120px;
+		}
+
+		/* Tables inside tins */
+		.tin table,
+		.wallet-tin table,
+		.aave-tin table,
+		.card table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 1rem;
+		}
+
+		.tin th,
+		.tin td,
+		.wallet-tin th,
+		.wallet-tin td,
+		.aave-tin th,
+		.aave-tin td,
+		.card th,
+		.card td {
+			padding: 8px 10px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+			text-align: left;
+		}
+
+		.tin tr:last-child td,
+		.wallet-tin tr:last-child td,
+		.aave-tin tr:last-child td,
+		.card tr:last-child td {
+			border-bottom: none;
+		}
+
+		.tin h2,
+		.tin h3,
+		.wallet-tin h2,
+		.wallet-tin h3,
+		.aave-tin h2,
+		.aave-tin h3,
+		.tin-panel h2,
+		.tin-panel h3 {
+			text-align: center;
+			font-size: clamp(1.25rem, 2vw + 1rem, 1.4rem);
+			margin: 0 0 0.4em;
+		}
+
+		/* Scrollable Aave table */
+		.aave-positions-table {
+			max-height: 240px;
+			overflow: auto;
+			border-radius: 8px;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+		}
+
+		.aave-positions-table table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.9rem;
+		}
+
+		.aave-positions-table th,
+		.aave-positions-table td {
+			padding: 6px 8px;
+			text-align: left;
+		}
+
+		.aave-positions-table th {
+			position: sticky;
+			top: 0;
+			background: rgba(255, 255, 255, 0.06);
+		}
+
+		.aave-positions-table tbody tr:nth-child(odd) {
+			background: rgba(255, 255, 255, 0.02);
+		}
+
+		:global(.networth-overview-card) {
+			width: 100%;
+			border-radius: 12px;
+			padding: 14px 16px;
+			background: darkslategray;
+			color: #f7f2eb;
+			box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+			border: 1px solid #fff;
+			font-size: 1rem;
+			line-height: 1.65;
+		}
+
+		:global(.key-price-card) {
+			display: flex;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		:global(.key-price-card h3) {
+			margin: 0;
+			font-size: 1.2rem;
+			letter-spacing: 0.08em;
+		}
+
+		:global(.key-price-list) {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 0.6rem;
+		}
+
+		:global(.key-price-row) {
+			display: grid;
+			grid-template-columns: auto auto 1fr;
+			gap: 0.5rem;
+			align-items: center;
+			cursor: pointer;
+		}
+
+		:global(.key-price-row--expanded) {
+			font-weight: 600;
+		}
+
+		:global(.key-price-sparkline) {
+			height: 18px;
+		}
+
+		:global(.key-price-sparkline svg) {
+			width: 100%;
+			height: 100%;
+		}
+
+		:global(.key-price-expanded-panel) {
+			margin-top: 1rem;
+			padding-top: 1rem;
+			border-top: 1px solid rgba(255, 255, 255, 0.35);
+			font-size: 0.95rem;
+		}
+
+		:global(.networth-overview-header) {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 1.25rem;
+			gap: 1rem;
+		}
+
+		:global(.overview-title-block) {
+			text-align: right;
+		}
+
+		:global(.overview-subtitle) {
+			text-transform: uppercase;
+			font-size: 0.85rem;
+			letter-spacing: 0.2em;
+			color: rgba(15, 23, 42, 0.6);
+			margin: 0;
+		}
+
+		:global(.overview-description) {
+			margin: 0.25rem 0 0;
+			font-size: 1rem;
+			color: rgba(15, 23, 42, 0.75);
+		}
+
+		:global(.overview-body) {
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		:global(.overview-total) {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 1.2rem;
+			color: rgba(15, 23, 42, 0.65);
+		}
+
+		:global(.overview-total strong) {
+			font-size: 2.4rem;
+			font-weight: 600;
+			color: #060910;
+		}
+
+		:global(.overview-note) {
+			font-size: 1rem;
+			color: rgba(15, 23, 42, 0.7);
+			margin: 0;
+		}
+
+		:global(.overview-placeholder-btn) {
+			background: rgba(99, 102, 241, 0.08);
+			color: #3238ab;
+			border: 1px solid rgba(99, 102, 241, 0.35);
+			padding: 0.75rem 1.25rem;
+			border-radius: 999px;
+			cursor: pointer;
+			font-size: 1rem;
+		}
+
+		:global(.overview-breakdown) {
+			border-top: 1px solid rgba(15, 23, 42, 0.12);
+			margin-top: 1rem;
+			padding-top: 1rem;
+		}
+
+		:global(.overview-token-list) {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 0.5rem;
+			font-size: 1rem;
+		}
+
+		:global(.overview-token-row) {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		:global(.overview-token-symbol) {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			font-weight: 500;
+		}
+
+		:global(.token-mature-badge) {
+			border: 1px solid rgba(34, 197, 94, 0.35);
+			color: #166534;
+			padding: 0.1rem 0.5rem;
+			border-radius: 999px;
+			font-size: 0.75rem;
+		}
+
+		:global(.token-debt) {
+			margin-left: 0.5rem;
+			color: #be123c;
+			font-size: 0.85rem;
+		}
+
+		:global(.overview-empty) {
+			font-size: 1rem;
+			color: rgba(15, 23, 42, 0.6);
+			margin: 0.5rem 0;
+		}
+
+		:global(.overview-realized) {
+			margin-top: 1rem;
+			padding: 0.85rem 1rem;
+			border: 1px dashed rgba(15, 23, 42, 0.2);
+			border-radius: 0.9rem;
+			font-size: 1rem;
+			color: rgba(15, 23, 42, 0.75);
+		}
+
+		.chain-donut-container {
+			position: relative;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			margin-top: 0.5rem;
+			overflow: hidden;
+		}
+
+		.chain-donut-container :global(.donut-center-panel) {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 0.35rem;
+			text-align: center;
+			min-width: 120px;
+			pointer-events: none;
+		}
+
+		.chain-donut-container :global(.donut-center-line1) {
+			text-transform: uppercase;
+			font-size: 0.9rem;
+			letter-spacing: 0.18em;
+			color: rgba(255, 255, 255, 0.7);
+			margin: 0;
+		}
+
+		.chain-donut-container :global(.donut-center-line2) {
+			margin: 0;
+			font-size: 1.55rem;
+			font-weight: 700;
+			color: #f7f2eb;
+		}
+
+		.chain-donut-container :global(.donut-center-line3) {
+			margin: 0;
+			font-size: 1rem;
+			font-weight: 600;
+			color: rgba(255, 255, 255, 0.9);
+		}
+
+		.chain-donut-container :global(.donut-center-line4) {
+			margin: 0;
+			font-size: 0.875rem;
+			color: rgba(255, 255, 255, 0.55);
+		}
+
+		:global(.overview-screw) {
+			width: 42px;
+			height: 42px;
+			border-radius: 50%;
+			border: 1px solid rgba(255, 255, 255, 0.4);
+			background: radial-gradient(circle, rgba(255, 255, 255, 0.12), rgba(30, 64, 175, 0.15));
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+			cursor: pointer;
+			transition: transform 0.25s ease;
+		}
+
+		:global(.overview-screw--open) {
+			transform: rotate(90deg);
+		}
+
+		:global(.screw-groove) {
+			position: absolute;
+			background: rgba(255, 255, 255, 0.75);
+			border-radius: 2px;
+		}
+
+		:global(.screw-groove--horizontal) {
+			width: 24px;
+			height: 4px;
+			background: rgba(255, 255, 255, 0.8);
+		}
+
+		:global(.screw-groove--vertical) {
+			width: 4px;
+			height: 24px;
+			background: rgba(255, 255, 255, 0.8);
+		}
+
+		@media (max-width: 768px) {
+			.networth-top-grid {
+				grid-template-columns: minmax(0, 1fr);
+			}
+
+			.networth-card {
+				min-height: auto;
+			}
+		}
+
+		.token-donut-chart {
+			width: 90%;
+			max-width: 260px;
+			margin: 0 auto;
+			aspect-ratio: 1;
+			border-radius: 50%;
+			position: relative;
+			box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.6);
+			border: 3px solid rgba(255, 255, 255, 0.2);
+			cursor: pointer;
+		}
+
+		.token-donut-hole {
+			position: absolute;
+			inset: 18%;
+			border-radius: 50%;
+			background: rgba(8, 11, 21, 0.9);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+		}
+
+		.token-donut-hole p {
+			margin: 0;
+			font-size: 1rem;
+			letter-spacing: 0.08em;
+		}
+
+		.token-donut-hole strong {
+			font-size: 1.8rem;
+			font-weight: 600;
+		}
+
+		.token-donut-label {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			transform: rotate(var(--label-angle));
+			transform-origin: center;
+			cursor: pointer;
+		}
+
+		.token-donut-label-inner {
+			background: rgba(0, 0, 0, 0.9);
+			backdrop-filter: blur(2px);
+			color: #fff;
+			padding: 0.4rem 0.7rem;
+			border-radius: 0.45rem;
+			font-size: 0.95rem;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			transform: rotate(calc(-1 * var(--label-angle)));
+			white-space: nowrap;
+			border: 1px solid var(--label-color, #fff);
+		}
+
+		.token-donut-label strong {
+			font-size: 1.1rem;
+			color: #fff;
+			text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+		}
+
+		.donut-slice {
+			transition: opacity 0.18s ease, r 0.18s ease;
+		}
+
+		.donut-slice--dimmed {
+			opacity: 0.6;
+		}
+
+		.donut-slice--selected {
+			stroke-width: 2px;
+			stroke: #f7f2eb;
+			opacity: 1;
+		}
+
+		.token-donut-label small {
+			color: #f9fafb;
+			font-size: 0.9rem;
+			text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+		}
+
+		.token-donut-label--debt strong {
+			color: #fecaca;
+		}
+
+		.donut-tooltip {
+			position: absolute;
+			padding: 0.45rem 0.65rem;
+			background: rgba(12, 18, 30, 0.92);
+			border: 1px solid rgba(247, 242, 235, 0.45);
+			border-radius: 6px;
+			font-size: 0.9rem;
+			color: #f7f2eb;
+			pointer-events: none;
+			transform: translate(-50%, -50%);
+			opacity: 0;
+			transition: opacity 0.15s ease;
+		}
+
+		.donut-tooltip-title {
+			margin: 0;
+			font-weight: 600;
+			font-size: 0.9rem;
+		}
+
+		.donut-tooltip-values {
+			margin: 0.1rem 0 0;
+			font-size: 0.875rem;
+		}
+
+	</style>
+
+	<script is:inline>
+		document.addEventListener('DOMContentLoaded', () => {
+			const card = document.querySelector('.token-donut-card');
+			if (!card) return;
+			const chart = card.querySelector('.token-donut-chart');
+			const hole = card.querySelector('.token-donut-hole');
+			if (!chart || !hole) return;
+
+			const holeLabel = hole.querySelector('p');
+			const holeValue = hole.querySelector('strong');
+			const defaultLabel = holeLabel?.textContent ?? 'Allocation';
+			const defaultValue = holeValue?.textContent ?? '';
+			const slices = JSON.parse(decodeURIComponent(chart.getAttribute('data-slices') || '[]'));
+			const labels = card.querySelectorAll('.token-donut-label');
+			const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+			let lockedIndex = null;
+
+			const showPercent = (slice) => {
+				if (!holeLabel || !holeValue) return;
+				holeLabel.textContent = slice.label;
+				holeValue.textContent = `${slice.value}%`;
+				holeValue.style.color = slice.color || '#fdfaf3';
+			};
+
+			const showAmount = (slice) => {
+				if (!holeLabel || !holeValue) return;
+				holeLabel.textContent = `${slice.label} total`;
+				holeValue.textContent = usdFormatter.format(slice.amountUsd);
+				holeValue.style.color = slice.color || '#fdfaf3';
+			};
+
+			const resetHole = () => {
+				if (lockedIndex !== null) {
+					showAmount(slices[lockedIndex]);
+				} else if (holeLabel && holeValue) {
+					holeLabel.textContent = defaultLabel;
+					holeValue.textContent = defaultValue;
+					holeValue.style.color = '#fdfaf3';
+				}
+			};
+
+			labels.forEach((label) => {
+				const index = Number(label.getAttribute('data-index'));
+				const slice = slices[index];
+				if (!slice) return;
+
+				label.addEventListener('mouseenter', () => {
+					showPercent(slice);
+				});
+
+				label.addEventListener('mouseleave', () => {
+					resetHole();
+				});
+
+				label.addEventListener('click', () => {
+					if (lockedIndex === index) {
+						lockedIndex = null;
+						resetHole();
+					} else {
+						lockedIndex = index;
+						showAmount(slice);
+					}
+				});
+			});
+		});
+	</script>
+</Layout>

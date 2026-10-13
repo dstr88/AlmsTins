@@ -1,0 +1,233 @@
+---
+/**
+ * <CompletenessScore year={2024} />
+ *
+ * Fetches /api/yearEnd/completeness client-side and renders:
+ *   • SVG ring gauge (0–100 score)
+ *   • Grade letter + label
+ *   • Expandable per-pillar checklist with Fix links
+ *
+ * Props:
+ *   year        — tax year to evaluate (default: current year - 1)
+ *   compact     — if true, renders a single-line banner instead of the full card
+ */
+
+interface Props {
+	year?:    number;
+	compact?: boolean;
+}
+
+const { year = new Date().getFullYear() - 1, compact = false } = Astro.props;
+const uid = `cs-${Math.random().toString(36).slice(2, 8)}`;   // unique per instance
+---
+
+{compact ? (
+	<!-- ── Compact banner ─────────────────────────────────────────────────── -->
+	<div id={`${uid}-banner`}
+	     class="completeness-banner flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm text-sm"
+	     data-year={year}
+	     data-uid={uid}>
+		<span id={`${uid}-ring-sm`} class="ring-sm shrink-0"></span>
+		<div class="min-w-0 flex-1">
+			<span id={`${uid}-grade-sm`} class="font-bold mr-1"></span>
+			<span id={`${uid}-label-sm`} class="text-gray-600 truncate"></span>
+		</div>
+		<a href="/dashboard/yearEnd#completeness" class="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">Details →</a>
+	</div>
+) : (
+	<!-- ── Full card ──────────────────────────────────────────────────────── -->
+	<div id={`${uid}-card`}
+	     class="completeness-card rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+	     data-year={year}
+	     data-uid={uid}>
+
+		<!-- Header row -->
+		<div class="flex items-center gap-5 px-6 py-5">
+
+			<!-- SVG ring gauge -->
+			<div class="shrink-0 relative" style="width:88px;height:88px;">
+				<svg width="88" height="88" viewBox="0 0 88 88" class="rotate-[-90deg]">
+					<!-- Track -->
+					<circle cx="44" cy="44" r="36" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+					<!-- Progress arc -->
+					<circle id={`${uid}-arc`}
+					        cx="44" cy="44" r="36" fill="none"
+					        stroke="#6b7280" stroke-width="8"
+					        stroke-linecap="round"
+					        stroke-dasharray="226.19"
+					        stroke-dashoffset="226.19"
+					        style="transition: stroke-dashoffset 0.8s ease, stroke 0.4s ease"/>
+				</svg>
+				<!-- Score text in centre -->
+				<div class="absolute inset-0 flex flex-col items-center justify-center">
+					<span id={`${uid}-pct`} class="text-xl font-black text-gray-900 leading-none">—</span>
+					<span class="text-xs text-gray-400 font-medium leading-none mt-0.5">/ 100</span>
+				</div>
+			</div>
+
+			<!-- Grade + label -->
+			<div class="min-w-0 flex-1">
+				<div class="flex items-baseline gap-2">
+					<span id={`${uid}-grade`} class="text-3xl font-black"></span>
+					<span id={`${uid}-year-badge`} class="text-xs text-gray-400 font-medium">{year}</span>
+				</div>
+				<p id={`${uid}-label`} class="text-sm text-gray-600 mt-0.5"></p>
+				<p id={`${uid}-loading`} class="text-sm text-gray-400 mt-0.5">Calculating completeness…</p>
+			</div>
+
+			<!-- Toggle button -->
+			<button id={`${uid}-toggle`}
+			        class="hidden shrink-0 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+			        aria-expanded="false">
+				Details ▾
+			</button>
+		</div>
+
+		<!-- Pillar checklist (collapsed by default) -->
+		<div id={`${uid}-pillars`} class="hidden border-t border-gray-100 divide-y divide-gray-100">
+			<!-- rows injected by JS -->
+		</div>
+
+	</div>
+)}
+
+<script define:vars={{ uid, year, compact }}>
+// ── Helpers ────────────────────────────────────────────────────────────────
+const CIRCUMFERENCE = 2 * Math.PI * 36;  // 226.19
+
+const STATUS_ICON = { ok: '✓', warning: '!', error: '✕', na: '–' };
+const STATUS_COLOR = {
+	ok:      { text: '#059669', badge: 'bg-emerald-100 text-emerald-700' },
+	warning: { text: '#d97706', badge: 'bg-amber-100 text-amber-700' },
+	error:   { text: '#dc2626', badge: 'bg-red-100 text-red-700' },
+	na:      { text: '#9ca3af', badge: 'bg-gray-100 text-gray-500' },
+};
+
+function gradeColor(grade) {
+	if (grade.startsWith('A')) return '#059669';
+	if (grade === 'B')         return '#16a34a';
+	if (grade === 'C')         return '#d97706';
+	if (grade === 'D')         return '#ea580c';
+	return '#dc2626';
+}
+
+async function loadCompleteness() {
+	try {
+		const res  = await fetch(`/api/yearEnd/completeness?year=${year}`);
+		if (!res.ok) return;
+		const data = await res.json();
+		if (!data.ok) return;
+
+		const score    = data.score;
+		const grade    = data.grade;
+		const label    = data.label;
+		const pillars  = data.pillars;
+		const color    = gradeColor(grade);
+		const offset   = CIRCUMFERENCE * (1 - score / 100);
+
+		if (compact) {
+			// ── Compact banner ──────────────────────────────────────────────
+			const ringEl  = document.getElementById(`${uid}-ring-sm`);
+			const gradeEl = document.getElementById(`${uid}-grade-sm`);
+			const labelEl = document.getElementById(`${uid}-label-sm`);
+
+			if (ringEl) {
+				ringEl.innerHTML = `
+					<svg width="28" height="28" viewBox="0 0 28 28">
+						<circle cx="14" cy="14" r="10" fill="none" stroke="#e5e7eb" stroke-width="3.5"/>
+						<circle cx="14" cy="14" r="10" fill="none" stroke="${color}" stroke-width="3.5"
+						        stroke-linecap="round"
+						        stroke-dasharray="${2 * Math.PI * 10}"
+						        stroke-dashoffset="${2 * Math.PI * 10 * (1 - score / 100)}"
+						        transform="rotate(-90 14 14)"/>
+						<text x="14" y="18" text-anchor="middle" font-size="7" font-weight="800" fill="${color}">${score}</text>
+					</svg>
+				`;
+			}
+			if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = color; }
+			if (labelEl) labelEl.textContent = label;
+			return;
+		}
+
+		// ── Full card ───────────────────────────────────────────────────────
+		const arc     = document.getElementById(`${uid}-arc`);
+		const pctEl   = document.getElementById(`${uid}-pct`);
+		const gradeEl = document.getElementById(`${uid}-grade`);
+		const labelEl = document.getElementById(`${uid}-label`);
+		const loadEl  = document.getElementById(`${uid}-loading`);
+		const toggle  = document.getElementById(`${uid}-toggle`);
+		const pillarsEl = document.getElementById(`${uid}-pillars`);
+
+		if (arc)     { arc.style.strokeDashoffset = String(offset); arc.style.stroke = color; }
+		if (pctEl)   { pctEl.textContent = String(score); pctEl.style.color = color; }
+		if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = color; }
+		if (labelEl) { labelEl.textContent = label; }
+		if (loadEl)  loadEl.classList.add('hidden');
+		if (toggle)  toggle.classList.remove('hidden');
+
+		// Build pillar rows
+		if (pillarsEl) {
+			pillarsEl.innerHTML = '';
+			for (const p of pillars) {
+				const sc    = STATUS_COLOR[p.status] || STATUS_COLOR.na;
+				const icon  = STATUS_ICON[p.status]  || '–';
+				const pct   = Math.round((p.score / p.maxScore) * 100);
+				const barW  = pct;
+
+				const row   = document.createElement('div');
+				row.className = 'px-6 py-3.5 flex items-start gap-4 hover:bg-gray-50 transition-colors';
+				row.innerHTML = `
+					<span class="text-base shrink-0 mt-0.5">${icon}</span>
+					<div class="flex-1 min-w-0 space-y-1.5">
+						<div class="flex items-center justify-between gap-2">
+							<p class="text-sm font-semibold text-gray-800">${p.label}</p>
+							<span class="text-xs font-bold ${sc.badge} px-1.5 py-0.5 rounded-full shrink-0">
+								${p.score}/${p.maxScore}
+							</span>
+						</div>
+						<!-- Progress bar -->
+						<div class="w-full bg-gray-100 rounded-full h-1.5">
+							<div class="h-1.5 rounded-full transition-all duration-700"
+							     style="width:${barW}%; background:${sc.text}"></div>
+						</div>
+						<p class="text-xs text-gray-500">${p.detail}</p>
+						${p.issues.length > 0 ? `
+							<ul class="text-xs text-gray-400 space-y-0.5 mt-1 ml-1">
+								${p.issues.map(i => `<li class="truncate">· ${i}</li>`).join('')}
+							</ul>
+						` : ''}
+					</div>
+					${p.issueCount > 0 ? `
+						<a href="${p.link}"
+						   class="shrink-0 text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap mt-0.5">
+							Fix →
+						</a>
+					` : ''}
+				`;
+				pillarsEl.appendChild(row);
+			}
+
+			// Toggle behaviour
+			toggle?.addEventListener('click', () => {
+				const open = pillarsEl.classList.toggle('hidden');
+				if (toggle) {
+					toggle.textContent = open ? 'Details ▾' : 'Hide ▴';
+					toggle.setAttribute('aria-expanded', String(!open));
+				}
+			});
+		}
+
+		// Auto-expand if score < 90
+		if (score < 90) {
+			document.getElementById(`${uid}-pillars`)?.classList.remove('hidden');
+			if (toggle) { toggle.textContent = 'Hide ▴'; toggle.setAttribute('aria-expanded', 'true'); }
+		}
+
+	} catch (e) {
+		// Silent fail — completeness is a nice-to-have, not blocking
+		console.warn('[completeness] load failed', e);
+	}
+}
+
+loadCompleteness();
+</script>

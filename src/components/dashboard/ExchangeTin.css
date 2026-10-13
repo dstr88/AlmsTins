@@ -1,0 +1,146 @@
+.exchange-tin {
+	position: relative;
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 1px solid var(--border-bright);
+	border-radius: 12px;
+	padding: 0.5rem 0.75rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-height: 0;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+}
+
+.exchange-tin__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-sm);
+	flex-wrap: wrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.exchange-tin__header-right {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+}
+
+.exchange-tin__title-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+/* Outlined mint chip — signals "imported/static data" vs filled = live */
+.exchange-tin__header h3 {
+	margin: 0;
+	display: inline-block;
+	padding: 0.4rem 0.8rem;
+	border-radius: 8px;
+	border: 1px solid var(--accent);
+	background: transparent;
+	color: var(--accent);
+	font-size: 1rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	line-height: 1;
+}
+
+.exchange-tin__freshness {
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.exchange-tin__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+	min-height: 0;
+}
+
+.exchange-tin__body[hidden] {
+	display: none;
+}
+
+.exchange-tin__toggle {
+	background: none;
+	border: none;
+	color: var(--accent-dim);
+	font-size: 1rem;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0.1rem 0.3rem;
+	border-radius: 4px;
+	transition: color 0.15s, transform 0.2s;
+	flex-shrink: 0;
+}
+
+.exchange-tin__toggle:hover {
+	color: var(--accent);
+}
+
+.exchange-tin__toggle[aria-expanded="true"] {
+	transform: rotate(180deg);
+}
+
+.exchange-tin__add {
+	border-radius: 999px;
+	border: 1px solid var(--border-bright);
+	background: transparent;
+	color: var(--text-secondary);
+	padding: 0.35rem 0.8rem;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	cursor: pointer;
+	transition: background 0.12s, color 0.12s;
+}
+
+.exchange-tin__add:hover {
+	background: var(--surface-hover);
+	color: var(--text-primary);
+}
+
+/* ── Diver-down corner fold ─────────────────────────────────────── */
+.tin-flag--exchange {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 52px;
+	height: 52px;
+	overflow: hidden;
+	border-radius: 0 12px 0 0;
+	z-index: 3;
+	pointer-events: none;
+}
+
+.tin-flag--exchange::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 0 52px 52px 0;
+	border-color: transparent var(--border-bright) transparent transparent;
+}
+
+.tin-flag--exchange .tin-flag__icon {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	font-size: 0.65rem;
+	color: rgba(255,255,255,0.6);
+	z-index: 1;
+	line-height: 1;
+	user-select: none;
+}

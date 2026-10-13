@@ -1,0 +1,76 @@
+/* PetroTins design system — the single source of truth for the dark theme.
+ *
+ * Imported once by PetroTinsLayout.astro, so every /petro-tins/* surface
+ * (landing, docs, legal) shares the same tokens, reset, and base typography.
+ * Token values are reconciled from the old landing + docs blocks (which had
+ * drifted); the landing's values win. PetroTins is amber-themed and intentionally
+ * separate from Almstins.
+ */
+
+:root {
+  --bg:        #09090f;
+  --card:      #0f1117;
+  --card-2:    #141720;
+  --border:    rgba(255, 255, 255, 0.10);
+  --border-hi: rgba(255, 255, 255, 0.18);
+  --text:      #f0f4ff;
+  --muted:     rgba(240, 244, 255, 0.50);
+  --sub:       rgba(240, 244, 255, 0.70);
+  /* Petro accent — amber / fuel */
+  --pt:        #f59e0b;
+  --pt-dim:    rgba(245, 158, 11, 0.55);
+  --pt-soft:   rgba(245, 158, 11, 0.12);
+  --pt-glow:   rgba(245, 158, 11, 0.28);
+  --gain:      #34d399;
+  --loss:      #ef4444;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── Shared content primitives (used by docs + legal prose) ──────────── */
+
+.pt-content-wrap { max-width: 720px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+.pt-doc-title { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
+.pt-doc-intro { font-size: 0.95rem; color: var(--sub); line-height: 1.65; margin-bottom: 3rem; }
+
+/* Table of contents */
+.pt-toc { background: var(--card); border: 1px solid var(--border-hi); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 3rem; }
+.pt-toc__title { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.75rem; }
+.pt-toc__list { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.pt-toc__list a { font-size: 0.85rem; color: var(--sub); text-decoration: none; transition: color 0.15s; }
+.pt-toc__list a:hover { color: var(--pt); }
+.pt-toc__list li::before { content: '→ '; color: var(--muted); }
+
+/* Sections */
+.pt-section { margin-bottom: 3rem; scroll-margin-top: 2rem; }
+.pt-section__label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--pt); margin-bottom: 0.4rem; }
+.pt-section__title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 0.75rem; }
+.pt-section__body { font-size: 0.9rem; color: var(--sub); line-height: 1.7; }
+.pt-section__body p { margin-bottom: 0.85rem; }
+.pt-section__body p:last-child { margin-bottom: 0; }
+.pt-section__body strong { color: var(--text); font-weight: 600; }
+
+/* Numbered steps */
+.pt-steps { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+.pt-step { display: flex; gap: 1rem; align-items: flex-start; }
+.pt-step__num { width: 26px; height: 26px; flex-shrink: 0; background: var(--pt-soft); border: 1px solid var(--pt-glow); border-radius: 50%; font-size: 0.75rem; font-weight: 700; color: var(--pt); display: flex; align-items: center; justify-content: center; }
+.pt-step__text { font-size: 0.875rem; color: var(--sub); line-height: 1.55; padding-top: 3px; }
+.pt-step__text strong { color: var(--text); }
+
+/* Callout boxes */
+.pt-callout { background: var(--card); border: 1px solid var(--border-hi); border-left: 3px solid var(--pt); border-radius: 8px; padding: 0.9rem 1.1rem; font-size: 0.84rem; color: var(--sub); line-height: 1.6; margin-top: 1rem; }
+.pt-callout strong { color: var(--pt); }
+.pt-callout--gain { border-left-color: var(--gain); }
+.pt-callout--gain strong { color: var(--gain); }
+
+/* Horizontal rule between sections */
+.pt-rule { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }

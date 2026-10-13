@@ -1,0 +1,643 @@
+---
+/**
+ * /dashboard/yearEnd/schedule-d
+ *
+ * Schedule D Summary — Capital Gains and Losses.
+ * Summarises Form 8949 box totals into the Schedule D line-by-line format.
+ *
+ * Schedule D line mapping for crypto:
+ *   Part I  Short-Term
+ *     Line 1a → Box A totals (covered, no adjustments)
+ *     Line 1b → Box B totals (uncovered)
+ *     Line 2  → Box C totals  ← most crypto lands here pre-2025
+ *     Line 6  → Capital loss carryover (ST portion)
+ *     Line 7  → Net ST gain or (loss)
+ *   Part II Long-Term
+ *     Line 8a → Box D totals (covered, no adjustments)
+ *     Line 8b → Box E totals (uncovered)
+ *     Line 9  → Box F totals  ← most crypto lands here pre-2025
+ *     Line 14 → Capital loss carryover (LT portion) — always $0 for crypto (all CL carryover is ST)
+ *     Line 15 → Net LT gain or (loss)
+ *   Part III Summary
+ *     Line 16 → Combine lines 7 + 15
+ *     Line 21 → Total capital loss carryover (from prior years, capped at $3,000 deduction)
+ */
+import Layout from '../../../layouts/Layout.astro';
+import TaxNotice from '@/components/TaxNotice.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getScheduleD } from '@/i18n/dashboard/yearEnd/schedule-d';
+
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+const _authSess = await requireTenantSession(Astro.request);
+if (!_authSess) return Astro.redirect('/login');
+
+const lang = getLang(Astro.request);
+const t = getScheduleD(lang);
+const localeFmt = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<div id="app">
+
+		<!-- Header -->
+		<div class="sd-header">
+			<div>
+				<a href="/dashboard/yearEnd" class="sd-back">{t.backLink}</a>
+				<h1 class="sd-title">{t.heroTitle}</h1>
+				<p class="sd-subtitle">{t.heroSubtitle}</p>
+			</div>
+			<div class="sd-controls">
+				<select id="year-sel" class="sd-select">
+					{Array.from({ length: 8 }, (_, i) => currentYear - 1 - i).map(y => (
+						<option value={y} selected={y === defaultYear}>{y}</option>
+					))}
+				</select>
+				<select id="method-sel" class="sd-select">
+					<option value="fifo">FIFO</option>
+					<option value="hifo">HIFO</option>
+					<option value="lifo">LIFO</option>
+					<option value="spec_id">Spec ID</option>
+				</select>
+				<button id="btn-print" class="sd-btn sd-btn--dark hidden">{t.btnPrint}</button>
+			</div>
+		</div>
+
+		<TaxNotice />
+
+		<div id="state-loading" class="sd-loading">
+			<div class="sd-spinner"></div>
+			<p>{t.loadingText}</p>
+		</div>
+		<div id="state-error" class="sd-error hidden"></div>
+
+		<!-- Schedule D Output -->
+		<div id="sched-d-output" class="hidden sd-output">
+
+			<!-- Print header (screen-hidden) -->
+			<div class="sd-print-header">
+				<p style="font-size:0.7rem; color:#6b7280; margin:0 0 2px; text-transform:uppercase; letter-spacing:.06em;">{t.printHeaderBadge}</p>
+				<p style="font-size:1.1rem; font-weight:800; margin:0 0 2px;">{t.printHeaderTitle}</p>
+				<p id="print-year-method" style="font-size:0.8rem; color:#374151; margin:0;"></p>
+			</div>
+
+			<!-- Disclaimer -->
+			<div class="sd-disclaimer">{t.disclaimer}</div>
+
+			<!-- Part I: Short-Term -->
+			<section class="sd-section">
+				<h2 class="sd-section-title">
+					{t.part1Title}
+					<span class="sd-section-sub">{t.part1Sub}</span>
+				</h2>
+				<div class="sd-table-card" id="part1-table"></div>
+			</section>
+
+			<!-- Part II: Long-Term -->
+			<section class="sd-section">
+				<h2 class="sd-section-title">
+					{t.part2Title}
+					<span class="sd-section-sub">{t.part2Sub}</span>
+				</h2>
+				<div class="sd-table-card" id="part2-table"></div>
+			</section>
+
+			<!-- Part III: Summary -->
+			<section class="sd-section">
+				<h2 class="sd-section-title">{t.part3Title}</h2>
+				<div class="sd-table-card" id="part3-table"></div>
+			</section>
+
+			<!-- Next steps panel -->
+			<div class="sd-next-steps">
+				<p class="sd-next-steps__title">{t.nextStepsTitle}</p>
+				<ul class="sd-next-steps__list">
+					<li set:html={t.nextStep1}></li>
+					<li>{t.nextStep2}</li>
+					<li>{t.nextStep3}</li>
+					<li>{t.nextStep4}</li>
+				</ul>
+			</div>
+
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+/* ── Safety net ────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── Page container ────────────────────────────────────────────────────────── */
+#app {
+	width: 100%;
+	max-width: 56rem;
+	margin: 0 auto;
+	padding: 2rem 2.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+@media (max-width: 640px) { #app { padding: 1.25rem 1rem; } }
+@media print { #app { max-width: none; padding: 0.4in; } }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.sd-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+@media print { .sd-header { display: none; } }
+
+.sd-back {
+	display: inline-block;
+	font-size: .75rem;
+	font-weight: 500;
+	color: #6366f1;
+	text-decoration: none;
+	margin-bottom: .3rem;
+}
+.sd-back:hover { color: #818cf8; }
+.sd-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+.sd-subtitle { font-size: .875rem; color: #9ca3af; margin: .25rem 0 0; }
+
+.sd-controls { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+
+.sd-select {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 8px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .45rem .75rem;
+	outline: none;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+.sd-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.sd-select option { background: #1a1f2e; color: #e5e7eb; }
+
+.sd-btn {
+	border-radius: 8px;
+	font-size: .875rem;
+	font-weight: 500;
+	padding: .45rem 1rem;
+	cursor: pointer;
+	border: 1px solid transparent;
+	transition: background .15s;
+	white-space: nowrap;
+}
+.sd-btn--dark { background: #1f2937; color: #fff; }
+.sd-btn--dark:hover { background: #111827; }
+
+/* ── Loading state ─────────────────────────────────────────────────────────── */
+.sd-loading {
+	text-align: center;
+	padding: 4rem 0;
+	color: #6b7280;
+	font-size: .875rem;
+}
+@media print { .sd-loading { display: none; } }
+
+.sd-spinner {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: 2px solid rgba(255,255,255,.1);
+	border-top-color: #6366f1;
+	border-radius: 50%;
+	animation: sdspin .7s linear infinite;
+	margin: 0 auto .75rem;
+}
+@keyframes sdspin { to { transform: rotate(360deg); } }
+
+/* ── Error state ───────────────────────────────────────────────────────────── */
+.sd-error {
+	border: 1px solid rgba(239,68,68,.25);
+	background: rgba(239,68,68,.07);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+	color: #fca5a5;
+	font-size: .875rem;
+}
+@media print { .sd-error { display: none; } }
+
+/* ── Output wrapper ────────────────────────────────────────────────────────── */
+.sd-output { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* ── Print header ──────────────────────────────────────────────────────────── */
+.sd-print-header { display: none; }
+@media print {
+	.sd-print-header {
+		display: block;
+		border-bottom: 2px solid #000;
+		padding-bottom: .5rem;
+		margin-bottom: 1rem;
+	}
+}
+
+/* ── Disclaimer ────────────────────────────────────────────────────────────── */
+.sd-disclaimer {
+	background: rgba(99,102,241,.07);
+	border: 1px solid rgba(99,102,241,.2);
+	border-left: 3px solid #6366f1;
+	border-radius: 0 10px 10px 0;
+	padding: .875rem 1.25rem;
+	font-size: .875rem;
+	color: rgba(255,255,255,.6);
+	line-height: 1.6;
+}
+@media print { .sd-disclaimer { display: none; } }
+
+/* ── Section ───────────────────────────────────────────────────────────────── */
+.sd-section { display: flex; flex-direction: column; gap: .75rem; }
+.sd-section-title {
+	font-size: 1rem;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+	padding-bottom: .6rem;
+	border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.sd-section-sub {
+	font-size: .75rem;
+	font-weight: 400;
+	color: #9ca3af;
+	margin-left: .4rem;
+}
+
+/* ── Table card ────────────────────────────────────────────────────────────── */
+.sd-table-card {
+	background: #161b27;
+	border-radius: 12px;
+	overflow: hidden;
+	border: 1px solid rgba(255,255,255,.07);
+}
+
+/* ── Schedule D table — must NOT be scoped (table built by JS) ─────────────── */
+
+/* ── Next steps ────────────────────────────────────────────────────────────── */
+.sd-next-steps {
+	background: rgba(255,255,255,.04);
+	border: 1px solid rgba(255,255,255,.08);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+}
+.sd-next-steps__title {
+	font-size: .875rem;
+	font-weight: 600;
+	color: #e5e7eb;
+	margin: 0 0 .75rem;
+}
+.sd-next-steps__list {
+	font-size: .8rem;
+	color: rgba(255,255,255,.55);
+	margin: 0;
+	padding-left: 1.25rem;
+	line-height: 2.2;
+}
+.sd-next-steps__list a { color: #818cf8; text-decoration: none; }
+.sd-next-steps__list a:hover { text-decoration: underline; }
+@media print { .sd-next-steps { display: none; } }
+
+@media print {
+	.sd-next-steps { display: none; }
+}
+</style>
+
+<!-- Table styles must be global — table DOM is built by JS, Astro scoping won't reach it -->
+<style is:global>
+.sched-d-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.sched-d-table td { padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.sched-d-table .line-num {
+	width: 3rem;
+	font-weight: 700;
+	color: #818cf8;
+	text-align: center;
+	font-size: .9rem;
+	vertical-align: top;
+	padding-top: 15px;
+}
+.sched-d-table .line-desc { color: #ffffff; line-height: 1.6; }
+.sched-d-table .line-note {
+	font-size: 0.78rem;
+	color: #cbd5e1;
+	display: block;
+	margin-top: 3px;
+	line-height: 1.4;
+}
+.sched-d-table .line-val {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	font-size: 1rem;
+	min-width: 8rem;
+	white-space: nowrap;
+	color: #ffffff;
+	vertical-align: top;
+	padding-top: 15px;
+}
+.sched-d-table .line-val.gain { color: #6ee7b7; }
+.sched-d-table .line-val.loss { color: #fca5a5; }
+.sched-d-table .line-val.zero { color: #94a3b8; }
+.sched-d-table tr:hover td { background: rgba(255,255,255,.03); }
+.sched-d-table tr.subtotal td {
+	border-top: 1px solid rgba(99,102,241,.4);
+	background: rgba(99,102,241,.12);
+}
+.sched-d-table tr.subtotal .line-desc { color: #ffffff; font-weight: 600; }
+.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1.05rem; }
+.sched-d-table tr.total td {
+	border-top: 2px solid rgba(99,102,241,.5);
+	background: rgba(99,102,241,.18);
+}
+.sched-d-table tr.total .line-desc { color: #ffffff; font-weight: 700; }
+.sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.1rem; }
+.sched-d-table tr.n-a td { opacity: 0.45; }
+.sched-d-table tr:last-child td { border-bottom: none; }
+
+@media print {
+	.sched-d-table td { padding: 4px 8px; font-size: 9pt; color: #000 !important; }
+	.sched-d-table td * { color: inherit !important; }
+	.sched-d-table .line-num { color: #374151 !important; }
+	.sched-d-table tr.subtotal td { background: #f1f5f9 !important; color: #000 !important; }
+	.sched-d-table tr.total td { background: #e2e8f0 !important; color: #000 !important; }
+	.sched-d-table tr.n-a td { opacity: 0.5 !important; }
+	.sched-d-table { min-width: 100%; }
+}
+</style>
+
+<script is:inline define:vars={{ sdI18n: {
+	localeFmt,
+	loadingText: t.loadingText,
+	errorLoad: t.errorLoad,
+	errorNetwork: t.errorNetwork,
+	printSuffix: t.printSuffix,
+	printStLtNote: t.printStLtNote,
+	carryEstimateNote: t.carryEstimateNote,
+	line1aDesc: t.line1aDesc, line1aNote: t.line1aNote,
+	line1bDesc: t.line1bDesc, line1bNote: t.line1bNote,
+	line2Desc: t.line2Desc,
+	line3Desc: t.line3Desc,
+	line4Desc: t.line4Desc,
+	line5Desc: t.line5Desc,
+	line6Desc: t.line6Desc, line6Note: t.line6Note,
+	line7Desc: t.line7Desc, line7Note: t.line7Note,
+	line8aDesc: t.line8aDesc, line8aNote: t.line8aNote,
+	line8bDesc: t.line8bDesc, line8bNote: t.line8bNote,
+	line9Desc: t.line9Desc,
+	line10Desc: t.line10Desc,
+	line11Desc: t.line11Desc,
+	line12Desc: t.line12Desc,
+	line13Desc: t.line13Desc,
+	line14Desc: t.line14Desc,
+	line15Desc: t.line15Desc, line15Note: t.line15Note,
+	line16Desc: t.line16Desc, line16Note: t.line16Note,
+	line17Desc: t.line17Desc,
+	line18Desc: t.line18Desc,
+	line19Desc: t.line19Desc,
+	line20Desc: t.line20Desc,
+	line21Desc: t.line21Desc, line21Note: t.line21Note,
+	lineCarryDesc: t.lineCarryDesc, lineCarryNote: t.lineCarryNote,
+} }}>window.__sdI18n = sdI18n;</script>
+
+<script>
+// Localized strings injected by the inline define:vars block above.
+interface SdI18n {
+	localeFmt: string;
+	loadingText: string; errorLoad: string; errorNetwork: string;
+	printSuffix: string; printStLtNote: string; carryEstimateNote: string;
+	line1aDesc: string; line1aNote: string; line1bDesc: string; line1bNote: string;
+	line2Desc: string; line3Desc: string; line4Desc: string; line5Desc: string;
+	line6Desc: string; line6Note: string; line7Desc: string; line7Note: string;
+	line8aDesc: string; line8aNote: string; line8bDesc: string; line8bNote: string;
+	line9Desc: string; line10Desc: string; line11Desc: string; line12Desc: string;
+	line13Desc: string; line14Desc: string; line15Desc: string; line15Note: string;
+	line16Desc: string; line16Note: string; line17Desc: string; line18Desc: string;
+	line19Desc: string; line20Desc: string; line21Desc: string; line21Note: string;
+	lineCarryDesc: string; lineCarryNote: string;
+}
+const L: SdI18n = (window as unknown as { __sdI18n?: SdI18n }).__sdI18n ?? {
+	localeFmt: 'en-US',
+	loadingText: 'Loading Schedule D…',
+	errorLoad: 'Failed to load Form 8949 data.',
+	errorNetwork: 'Network error — please try again.',
+	printSuffix: 'Prepared by Almstins · Informational, not for filing',
+	printStLtNote: 'Short-term + Long-term net',
+	carryEstimateNote: 'Enter as negative number. Value shown is Almstins estimate from loss carryforward tracker.',
+	line1aDesc: 'Totals for all short-term transactions reported on Form 1099-B with Box A checked — basis shown to IRS, no adjustments',
+	line1aNote: 'Form 8949 Box A totals',
+	line1bDesc: 'Totals for all short-term transactions where basis was NOT reported to IRS (Box B)',
+	line1bNote: 'Form 8949 Box B totals',
+	line2Desc: 'Totals for short-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
+	line3Desc: 'Net short-term gain/loss from partnerships, S-corps, estates, and trusts',
+	line4Desc: 'Short-term gain from Form 6252, and short-term gain/loss from Forms 4684, 6781, and 8824',
+	line5Desc: 'Net short-term gain/loss from partnerships, S-corps (Schedule K-1)',
+	line6Desc: 'Short-term capital loss carryover (from prior-year Schedule D Worksheet)',
+	line6Note: 'Enter as negative number. Value shown is Almstins estimate from loss carryforward tracker.',
+	line7Desc: 'Net short-term capital gain or (loss)',
+	line7Note: 'Lines 1a + 1b + 2 + 3 + 4 + 5 + 6. Transfer to Schedule D line 7.',
+	line8aDesc: 'Totals for all long-term transactions reported on Form 1099-B with Box D checked — basis shown to IRS, no adjustments',
+	line8aNote: 'Form 8949 Box D totals',
+	line8bDesc: 'Totals for long-term transactions where basis was NOT reported to IRS (Box E)',
+	line8bNote: 'Form 8949 Box E totals',
+	line9Desc: 'Totals for long-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
+	line10Desc: 'Net long-term gain/loss from partnerships, S-corps, estates, and trusts',
+	line11Desc: 'Long-term capital gain distributions not reported directly on Form 1040',
+	line12Desc: 'Gain from Form 4797, Part I; long-term gain from Forms 2439 and 6252',
+	line13Desc: 'Net long-term gain/loss from partnerships, S-corps (Schedule K-1)',
+	line14Desc: 'Long-term capital loss carryover (from prior-year Schedule D Worksheet)',
+	line15Desc: 'Net long-term capital gain or (loss)',
+	line15Note: 'Lines 8a + 8b + 9 through 14. Transfer to Form 1040, Line 7.',
+	line16Desc: 'Combine lines 7 and 15. If a loss, go to line 17; if a gain, enter on Form 1040, Line 7.',
+	line16Note: 'Short-term + Long-term net',
+	line17Desc: 'Are you reporting a gain from Form 2439, 4684, 6252, 6781, or 8824?',
+	line18Desc: 'Unrecaptured Section 1250 gain from installment sales or pass-throughs',
+	line19Desc: 'Net Section 1202 gain (qualified small business stock — 50% exclusion)',
+	line20Desc: 'Collectibles (28% rate) gain or (loss)',
+	line21Desc: 'If line 16 is a loss — your allowable capital loss deduction (max $3,000 / $1,500 if MFS)',
+	line21Note: 'Enter as negative on Form 1040 line 7. Excess carries forward to next year.',
+	lineCarryDesc: 'Capital loss carryforward to next year (not entered on 1040)',
+	lineCarryNote: "Retain this amount for next year's Schedule D Worksheet.",
+};
+
+const USD = (n: number) => new Intl.NumberFormat(L.localeFmt, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
+const gainClass = (n: number) => n < -0.005 ? 'loss' : n > 0.005 ? 'gain' : 'zero';
+
+interface BoxTotals { proceeds: number; basis: number; gainLoss: number }
+interface BoxData { box: string; rows: unknown[]; totals: BoxTotals }
+
+function buildTable(lines: Array<{
+	num: string;
+	desc: string;
+	note?: string;
+	value: number | null;
+	rowClass?: string;
+	na?: boolean;
+}>): HTMLTableElement {
+	const t = document.createElement('table');
+	t.className = 'sched-d-table';
+	const tb = document.createElement('tbody');
+
+	for (const line of lines) {
+		const tr = document.createElement('tr');
+		if (line.rowClass) tr.className = line.rowClass;
+		if (line.na) tr.className = (tr.className + ' n-a').trim();
+		if (line.rowClass === 'subtotal') tr.style.cssText = 'background:rgba(99,102,241,.12);border-top:1px solid rgba(99,102,241,.4);';
+		if (line.rowClass === 'total')    tr.style.cssText = 'background:rgba(99,102,241,.18);border-top:2px solid rgba(99,102,241,.5);';
+
+		const gc = line.value != null ? gainClass(line.value) : 'zero';
+		const valColor = gc === 'gain' ? '#6ee7b7' : gc === 'loss' ? '#fca5a5' : '#e2e8f0';
+		const valHtml = line.value != null
+			? `<span style="color:${valColor}">${fmtGain(line.value)}</span>`
+			: `<span style="color:#e2e8f0">—</span>`;
+
+		const naOpacity = line.na ? 'opacity:0.45;' : '';
+		tr.innerHTML = `
+			<td class="line-num" style="${naOpacity}color:#818cf8;font-weight:700;text-align:center;font-size:.9rem;width:3rem;vertical-align:top;padding:13px 16px;">${line.num}</td>
+			<td class="line-desc" style="${naOpacity}color:#ffffff;vertical-align:top;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.06);">
+				${line.desc}
+				${line.note ? `<span style="font-size:0.78rem;color:#cbd5e1;display:block;margin-top:3px;line-height:1.4;">${line.note}</span>` : ''}
+			</td>
+			<td style="${naOpacity}color:#ffffff;text-align:right;font-weight:600;font-size:1rem;min-width:8rem;white-space:nowrap;vertical-align:top;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.06);">${valHtml}</td>
+		`;
+		tb.appendChild(tr);
+	}
+	t.appendChild(tb);
+	return t;
+}
+
+async function loadScheduleD() {
+	const yearSel   = (document.getElementById('year-sel')   as HTMLSelectElement).value;
+	const methodSel = (document.getElementById('method-sel') as HTMLSelectElement).value;
+
+	const stLoading = document.getElementById('state-loading')!;
+	const stError   = document.getElementById('state-error')!;
+	const output    = document.getElementById('sched-d-output')!;
+
+	stLoading.classList.remove('hidden');
+	stError.classList.add('hidden');
+	output.classList.add('hidden');
+
+	try {
+		// Fetch Form 8949 data (box totals) and tax summary (carryforward)
+		const [f8949Res, summaryRes] = await Promise.all([
+			fetch(`/api/yearEnd/form8949?year=${yearSel}&method=${methodSel}`),
+			fetch(`/api/yearEnd/summary?year=${yearSel}&method=${methodSel}`),
+		]);
+
+		const [f8949, summary] = await Promise.all([f8949Res.json(), summaryRes.json()]) as [
+			{ ok: boolean; boxes: Record<string, BoxData>; totals: BoxTotals },
+			{ ok: boolean; carryforwardAvailable?: number; gains?: { shortTermGain: number; longTermGain: number; netGain: number } },
+		];
+
+		stLoading.classList.add('hidden');
+
+		if (!f8949.ok) {
+			stError.textContent = L.errorLoad;
+			stError.classList.remove('hidden');
+			return;
+		}
+
+		const bA = f8949.boxes.A?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bB = f8949.boxes.B?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bC = f8949.boxes.C?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bD = f8949.boxes.D?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bE = f8949.boxes.E?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bF = f8949.boxes.F?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+
+		const stCarryover = 0;  // ST loss carryover — sourced from prior-year worksheet
+		const ltCarryover = 0;  // LT loss carryover — sourced from prior-year worksheet
+		const totalCarryover = summary.carryforwardAvailable ?? 0;
+		// Split carryover 50/50 between ST/LT as a reasonable default
+		// (actual split comes from prior-year Schedule D Worksheet Line 8)
+		const stCarry = Math.min(totalCarryover / 2, totalCarryover);
+		const ltCarry = Math.max(totalCarryover - stCarry, 0);
+
+		const stNet = bA.gainLoss + bB.gainLoss + bC.gainLoss - stCarry;
+		const ltNet = bD.gainLoss + bE.gainLoss + bF.gainLoss - ltCarry;
+		const combined = stNet + ltNet;
+
+		// ── Part I ──────────────────────────────────────────────────────────
+		const part1El = document.getElementById('part1-table')!;
+		part1El.innerHTML = '';
+		part1El.appendChild(buildTable([
+			{ num: '1a', desc: L.line1aDesc, note: L.line1aNote, value: bA.gainLoss },
+			{ num: '1b', desc: L.line1bDesc, note: L.line1bNote, value: bB.gainLoss },
+			{ num: '2',  desc: L.line2Desc,
+			  note: `Form 8949 Box C · ${f8949.boxes.C?.rows?.length ?? 0} transactions · Proceeds ${USD(bC.proceeds)} · Basis ${USD(bC.basis)}`,
+			  value: bC.gainLoss },
+			{ num: '3',  desc: L.line3Desc, value: null, na: true },
+			{ num: '4',  desc: L.line4Desc, value: null, na: true },
+			{ num: '5',  desc: L.line5Desc, value: null, na: true },
+			{ num: '6',  desc: L.line6Desc, note: L.carryEstimateNote,
+			  value: stCarry > 0 ? -stCarry : null, na: stCarry === 0 },
+			{ num: '7',  desc: L.line7Desc, rowClass: 'subtotal', note: L.line7Note, value: stNet },
+		]));
+
+		// ── Part II ─────────────────────────────────────────────────────────
+		const part2El = document.getElementById('part2-table')!;
+		part2El.innerHTML = '';
+		part2El.appendChild(buildTable([
+			{ num: '8a', desc: L.line8aDesc, note: L.line8aNote, value: bD.gainLoss },
+			{ num: '8b', desc: L.line8bDesc, note: L.line8bNote, value: bE.gainLoss },
+			{ num: '9',  desc: L.line9Desc,
+			  note: `Form 8949 Box F · ${f8949.boxes.F?.rows?.length ?? 0} transactions · Proceeds ${USD(bF.proceeds)} · Basis ${USD(bF.basis)}`,
+			  value: bF.gainLoss },
+			{ num: '10', desc: L.line10Desc, value: null, na: true },
+			{ num: '11', desc: L.line11Desc, value: null, na: true },
+			{ num: '12', desc: L.line12Desc, value: null, na: true },
+			{ num: '13', desc: L.line13Desc, value: null, na: true },
+			{ num: '14', desc: L.line14Desc, value: ltCarry > 0 ? -ltCarry : null, na: ltCarry === 0 },
+			{ num: '15', desc: L.line15Desc, rowClass: 'subtotal', note: L.line15Note, value: ltNet },
+		]));
+
+		// ── Part III ────────────────────────────────────────────────────────
+		const allowedDeduction = combined < 0
+			? Math.max(combined, -3000)   // $3,000 annual loss deduction cap
+			: 0;
+		const carryforwardToNextYear = combined < -3000
+			? combined + 3000             // excess after $3k deduction
+			: 0;
+
+		const part3El = document.getElementById('part3-table')!;
+		part3El.innerHTML = '';
+		part3El.appendChild(buildTable([
+			{ num: '16', desc: L.line16Desc, rowClass: 'total', note: L.line16Note, value: combined },
+			{ num: '17', desc: L.line17Desc, value: null, na: true },
+			{ num: '18', desc: L.line18Desc, value: null, na: true },
+			{ num: '19', desc: L.line19Desc, value: null, na: true },
+			{ num: '20', desc: L.line20Desc, value: null, na: true },
+			{ num: '21', desc: L.line21Desc, note: L.line21Note,
+			  value: allowedDeduction !== 0 ? allowedDeduction : null, na: combined >= 0 },
+			{ num: '→', desc: L.lineCarryDesc, note: L.lineCarryNote,
+			  value: carryforwardToNextYear !== 0 ? carryforwardToNextYear : null, na: carryforwardToNextYear === 0 },
+		]));
+
+		// Print header
+		(document.getElementById('print-year-method') as HTMLElement).textContent =
+			`Tax Year: ${yearSel} · Cost Basis Method: ${methodSel.toUpperCase()} · ${L.printSuffix}`;
+
+		document.getElementById('btn-print')!.classList.remove('hidden');
+		output.classList.remove('hidden');
+
+	} catch (err) {
+		stLoading.classList.add('hidden');
+		stError.textContent = L.errorNetwork;
+		stError.classList.remove('hidden');
+	}
+}
+
+document.getElementById('year-sel')?.addEventListener('change', loadScheduleD);
+document.getElementById('method-sel')?.addEventListener('change', loadScheduleD);
+document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+
+loadScheduleD();
+</script>

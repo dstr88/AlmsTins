@@ -1,0 +1,67 @@
+---
+import './CoinStory.css';
+import walletIn from '@/assets/walletIn.webp';
+import walletOut from '@/assets/walletOut.webp';
+import { getLang } from '@/lib/i18n/locale';
+import { getCoinStory } from '@/i18n/components/coinStory';
+
+const { title = 'All Transactions' } = Astro.props;
+const lang = getLang(Astro.request);
+const t = getCoinStory(lang);
+---
+
+<article class="coin-story">
+	<header class="coin-story__header">
+		<h3 class="coin-story__title">{title}</h3>
+	</header>
+
+	<div class="coin-story__body">
+		<div class="coin-story__list">
+			<div class="tx-row">
+				<span class="tx-date">Dec 28</span>
+				<span class="tx-desc">ETH</span>
+				<span class="tx-amt">
+					<span class="tx-amt-value">0.42</span>
+				</span>
+				<span class="tx-usd">
+					<span class="tx-usd-value">$1,245.19</span>
+				</span>
+				<span class="tx-status">
+					<img class="tx-status-icon" src={walletIn.src} alt={t.altBought} />
+				</span>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
+			</div>
+
+			<div class="tx-row">
+				<span class="tx-date">Nov 18</span>
+				<span class="tx-desc">WBTC</span>
+				<span class="tx-amt">
+					<span class="tx-amt-value">0.12</span>
+				</span>
+				<span class="tx-usd">
+					<span class="tx-usd-value">$4,812.22</span>
+				</span>
+				<span class="tx-status">
+					<img class="tx-status-icon" src={walletOut.src} alt={t.altSold} />
+				</span>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
+			</div>
+
+			<div class="tx-row">
+				<span class="tx-date">Oct 02</span>
+				<span class="tx-desc">POL</span>
+				<span class="tx-amt">
+					<span class="tx-amt-value">9,400</span>
+				</span>
+				<span class="tx-usd">
+					<span class="tx-usd-value">$6,030.10</span>
+				</span>
+				<span class="tx-status">
+					<span class="tx-status-loss">✕</span>
+				</span>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
+			</div>
+		</div>
+	</div>
+</article>
+

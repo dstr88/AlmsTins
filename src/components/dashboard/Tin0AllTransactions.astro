@@ -1,0 +1,543 @@
+---
+import './Tin0AllTransactions.css';
+import { db } from '@/lib/db';
+import type { Row } from '@libsql/client';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAssetLifecycleCache, refreshLifecycleCacheIfStale } from '@/lib/lifecycle';
+import {
+	getImportTransactionColumns,
+	selectImportColumn,
+	selectImportNotes,
+} from '@/lib/importTransactionsSchema';
+import walletIn from '@/assets/walletIn.webp';
+import walletOut from '@/assets/walletOut.webp';
+import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
+import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
+import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
+import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+import Tin0AllTransactionsClient from '@/components/transactions/Tin0AllTransactionsClient';
+import { getLang } from '@/lib/i18n/locale';
+import { getTin0AllTransactions } from '@/i18n/components/tin0AllTransactions';
+
+const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
+const { walletId } = Astro.props as { walletId?: string };
+const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getTin0AllTransactions(lang);
+const requestUrl = new URL(Astro.request.url);
+const rowsLimit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') ?? 200), 1), 500);
+const rowsOffset = Math.max(Number(requestUrl.searchParams.get('offset') ?? 0), 0);
+const lifecycleLimit = Math.min(Math.max(Number(requestUrl.searchParams.get('lifecycleLimit') ?? 200), 1), 500);
+
+try {
+	const lifecycleStart = Date.now();
+	void refreshLifecycleCacheIfStale(tenantId);
+	console.log('[Tin0AllTransactions] lifecycles ms', Date.now() - lifecycleStart);
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to rebuild lifecycles', error);
+}
+
+const lifecycleCache = await getAssetLifecycleCache(tenantId, {
+	limitGroups: lifecycleLimit,
+	limitEvents: lifecycleLimit,
+});
+const lifecycleGroups = lifecycleCache.groups ?? [];
+const lifecycleEvents = lifecycleCache.events ?? [];
+const lifecycleByGroup = new Map<string, typeof lifecycleEvents>();
+lifecycleEvents.forEach((event) => {
+	const list = lifecycleByGroup.get(event.group_id) ?? [];
+	list.push(event);
+	lifecycleByGroup.set(event.group_id, list);
+});
+const lifecycleCacheKey = `lifecycle:${tenantId}`;
+
+const sourcesArgs: any[] = [tenantId, tenantId];
+const sourcesWalletClause = walletId ? 'AND wallet_id = ?' : '';
+if (walletId) sourcesArgs.push(walletId);
+
+let sources: string[] = [];
+let rows: UnifiedRow[] = [];
+let loadError: string | null = null;
+
+let importColumns = new Set<string>();
+try {
+	importColumns = await getImportTransactionColumns();
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load import_transactions schema', error);
+}
+
+try {
+	const sourcesResult = await db.execute({
+		sql: `SELECT DISTINCT source FROM import_transactions WHERE tenant_id = ?
+			UNION
+			SELECT DISTINCT 'onchain_' || chain AS source
+			FROM transactions
+			WHERE tenant_id = ? ${sourcesWalletClause}
+			ORDER BY source`,
+		args: sourcesArgs,
+	});
+
+	sources = sourcesResult.rows
+		.map((row) => String(row.source))
+		.filter(Boolean);
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load sources', error);
+	loadError = t.internalError;
+}
+
+type UnifiedRow = {
+	id: string;
+	source: string;
+	import_batch_id: string | null;
+	timestamp_utc: string;
+	description: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_currency: string | null;
+	native_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	tx_hash: string | null;
+	direction: string | null;
+	asset_symbol: string | null;
+	notes: string | null;
+	category: string | null;
+	group_id: string | null;
+	fee_usd: number | null;
+	fee_native: number | null;
+	fee_currency: string | null;
+	fee_paid: string | null;
+	onchain_value: string | null;
+	onchain_decimals: number | null;
+	onchain_chain: string | null;
+};
+
+// Map raw DB rows into the precise UnifiedRow shape to keep type safety at the boundary.
+const normalizeUnifiedRow = (row: Row): UnifiedRow => {
+	const requireString = (value: unknown, label: string): string => {
+		const text = typeof value === 'string' ? value : value != null ? String(value) : '';
+		if (!text) {
+			throw new Error(`[Tin0AllTransactions] Missing ${label} in query row.`);
+		}
+		return text;
+	};
+
+	const toStringOrNull = (value: unknown): string | null => {
+		if (value === null || value === undefined) return null;
+		const text = String(value);
+		return text.length ? text : null;
+	};
+
+	const toNumberOrNull = (value: unknown): number | null => {
+		if (value === null || value === undefined) return null;
+		const num = typeof value === 'number' ? value : Number(value);
+		return Number.isFinite(num) ? num : null;
+	};
+
+	const normalizeTimestamp = (value: unknown): string => {
+		const raw = requireString(value, 'timestamp_utc');
+		const parsed = new Date(raw);
+		if (Number.isNaN(parsed.getTime())) {
+			throw new Error(`[Tin0AllTransactions] Invalid timestamp_utc: ${raw}`);
+		}
+		return parsed.toISOString();
+	};
+
+	return {
+		id: requireString(row.id, 'id'),
+		source: requireString(row.source, 'source'),
+		import_batch_id: toStringOrNull(row.import_batch_id),
+		timestamp_utc: normalizeTimestamp(row.timestamp_utc),
+		description: toStringOrNull(row.description),
+		currency: toStringOrNull(row.currency),
+		amount: toNumberOrNull(row.amount),
+		to_currency: toStringOrNull(row.to_currency),
+		to_amount: toNumberOrNull(row.to_amount),
+		native_currency: toStringOrNull(row.native_currency),
+		native_amount: toNumberOrNull(row.native_amount),
+		native_usd: toNumberOrNull(row.native_usd),
+		kind: toStringOrNull(row.kind),
+		tx_hash: toStringOrNull(row.tx_hash),
+		direction: toStringOrNull(row.direction),
+		asset_symbol: toStringOrNull(row.asset_symbol),
+		notes: toStringOrNull(row.notes),
+		category: toStringOrNull(row.category),
+		group_id: toStringOrNull(row.group_id),
+		fee_usd: toNumberOrNull(row.fee_usd),
+		fee_native: toNumberOrNull(row.fee_native),
+		fee_currency: toStringOrNull(row.fee_currency),
+		fee_paid: toStringOrNull(row.fee_paid),
+		onchain_value: toStringOrNull(row.onchain_value),
+		onchain_decimals: toNumberOrNull(row.onchain_decimals),
+		onchain_chain: toStringOrNull(row.onchain_chain),
+	};
+};
+
+const rowsArgs: any[] = [tenantId, tenantId];
+const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
+if (walletId) rowsArgs.push(walletId);
+
+try {
+	const rowsStart = Date.now();
+	const importNotes = selectImportNotes(importColumns);
+	const importCategory = selectImportColumn(importColumns, 'category');
+	const importGroupId = selectImportColumn(importColumns, 'group_id');
+	const importFeeUsd = selectImportColumn(importColumns, 'fee_usd');
+	const importFeeNative = selectImportColumn(importColumns, 'fee_native');
+	const importFeeCurrency = selectImportColumn(importColumns, 'fee_currency');
+	const result = await db.execute({
+		sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
+			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, ${importNotes}, ${importCategory}, ${importGroupId},
+			${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, NULL AS fee_paid,
+			NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
+			FROM import_transactions
+			WHERE tenant_id = ? AND (is_duplicate IS NULL OR is_duplicate = 0 OR is_duplicate = -1)
+			UNION ALL
+			SELECT
+				t.id,
+				'onchain_' || t.chain AS source,
+				NULL AS import_batch_id,
+				t.timestamp AS timestamp_utc,
+				t.tx_type AS description,
+				CASE
+					WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
+					WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
+					ELSE t.token_symbol
+				END AS currency,
+				NULL AS amount,
+				NULL AS to_currency,
+				NULL AS to_amount,
+				NULL AS native_currency,
+				NULL AS native_amount,
+				NULL AS native_usd,
+				t.tx_type AS kind,
+				t.hash AS tx_hash,
+				CASE
+					WHEN t.tx_type IN ('incoming', 'token_in') THEN 'in'
+					WHEN t.tx_type IN ('outgoing', 'token_out') THEN 'out'
+					ELSE NULL
+				END AS direction,
+				CASE
+					WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
+					WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
+					ELSE t.token_symbol
+				END AS asset_symbol,
+				a.note AS notes,
+				a.category AS category,
+				NULL AS group_id,
+				NULL AS fee_usd,
+				NULL AS fee_native,
+				CASE
+					WHEN t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.chain = 'polygon' THEN 'POL'
+					WHEN t.chain = 'avalanche' THEN 'AVAX'
+					ELSE NULL
+				END AS fee_currency,
+				t.fee_paid AS fee_paid,
+				t.value AS onchain_value,
+				t.token_decimals AS onchain_decimals,
+				t.chain AS onchain_chain
+			FROM transactions t
+			LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+			WHERE t.tenant_id = ? AND (t.is_duplicate IS NULL OR t.is_duplicate = 0 OR t.is_duplicate = -1) ${rowsWalletClause}
+			ORDER BY timestamp_utc DESC
+			LIMIT ? OFFSET ?`,
+		args: [...rowsArgs, rowsLimit, rowsOffset],
+	});
+
+	rows = result.rows.map(normalizeUnifiedRow);
+	console.log('[Tin0AllTransactions] rows ms', Date.now() - rowsStart, 'count', rows.length);
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load rows', error);
+	loadError = loadError ?? t.internalError;
+	rows = [];
+}
+
+const yearDividerAssets: Record<number, string> = {
+	2023: yearDivide2023.src,
+	2024: yearDivide2024.src,
+	2025: yearDivide2025.src,
+};
+
+const dividerForYear = (year: number) => yearDividerAssets[year] ?? yearDivideEarlier.src;
+
+const parseNumber = (value: number | string | null | undefined) => {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	const cleaned = value.replace(/,/g, '');
+	const num = Number(cleaned);
+	return Number.isFinite(num) ? num : null;
+};
+
+const formatAmount = (
+	value: number | string | null | undefined,
+	options?: Intl.NumberFormatOptions
+) => {
+	const num = parseNumber(value);
+	if (num === null) return '—';
+	return new Intl.NumberFormat('en-US', options).format(num);
+};
+
+const formatUsd = (value: number | null | undefined) => {
+	if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+};
+
+const formatDate = (value: string) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString(t.dateLocale, { month: 'short', day: 'numeric' });
+};
+
+const formatRelativeDays = (value: string | null) => {
+	if (!value) return '—';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return '—';
+	const diffMs = Date.now() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+	if (!Number.isFinite(diffDays)) return '—';
+	return t.daysAgo(diffDays);
+};
+
+const formatTokenAmount = (value: string | null, decimals = 18) => {
+	if (!value) return '0';
+	const safeDecimals = Number.isFinite(decimals) ? decimals : 18;
+	const padded = value.padStart(safeDecimals + 1, '0');
+	const whole = padded.slice(0, -safeDecimals);
+	const fraction = padded.slice(-safeDecimals).replace(/0+$/, '');
+	const formattedWhole = Number(whole).toLocaleString();
+	return fraction ? `${formattedWhole}.${fraction}` : formattedWhole;
+};
+
+const normalizeDisplaySymbol = (symbol: string) => {
+	const upper = symbol.toUpperCase();
+	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+	return upper;
+};
+
+const pickSymbol = (row: UnifiedRow) => {
+	const raw = row.asset_symbol || row.to_currency || row.currency || '';
+	return raw ? normalizeDisplaySymbol(raw) : '';
+};
+
+const resolvePriceSymbol = (symbol: string) => {
+	const upper = symbol.toUpperCase();
+	if (upper === 'APOLWETH') return 'WETH';
+	if (upper === 'APOLWMATIC') return 'POL';
+	if (upper === 'APOLUSDC') return 'USDC';
+	if (upper === 'APOLUSDT') return 'USDT';
+	if (upper === 'APOLDAI') return 'DAI';
+	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+	return upper;
+};
+
+const isOnchainRow = (row: UnifiedRow) => row.source.startsWith('onchain_');
+
+const resolveChain = (row: UnifiedRow) => row.onchain_chain || (row.source.startsWith('onchain_') ? row.source.replace('onchain_', '') : '');
+
+const pickTokenAmount = (row: UnifiedRow) => {
+	const symbol = pickSymbol(row);
+	if (symbol && row.to_currency && symbol === row.to_currency) return row.to_amount;
+	if (symbol && row.currency && symbol === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const pickUsdAmount = (row: UnifiedRow) => row.native_usd ?? row.native_amount;
+
+const normalizeDirection = (row: UnifiedRow) => row.direction ?? null;
+
+const latestRowId = rows[0]?.id ?? null;
+const DISPLAY_THRESHOLD_USD = 1;
+
+const isUnwrapRow = (row: UnifiedRow) => {
+	const text = `${row.kind ?? ''} ${row.description ?? ''}`.toLowerCase();
+	return text.includes('unwrap');
+};
+
+const resolveFee = (row: UnifiedRow) => {
+	if (row.fee_usd !== null && row.fee_usd !== undefined) {
+		return `$${formatAmount(row.fee_usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+	if (row.fee_native !== null && row.fee_native !== undefined) {
+		const symbol = row.fee_currency || pickSymbol(row) || '';
+		return `${formatAmount(row.fee_native, { maximumFractionDigits: 8 })}${symbol ? ` ${symbol}` : ''}`;
+	}
+	if (row.fee_paid) {
+		const symbol = row.fee_currency || '';
+		return `${formatTokenAmount(row.fee_paid)}${symbol ? ` ${symbol}` : ''}`;
+	}
+	return null;
+};
+
+const aaveLabel = (row: UnifiedRow) => {
+	if (row.source !== 'aave') return null;
+	const symbol = pickSymbol(row) || 'assets';
+	return t.aaveDeposit(symbol);
+};
+
+const filteredRows = rows.filter((row) => {
+	if (isOnchainRow(row)) return true;
+	const usd = parseNumber(row.native_usd);
+	if (usd === null) return true;
+	return Math.abs(usd) >= DISPLAY_THRESHOLD_USD;
+});
+const rowsWithDividers = filteredRows.map((row) => ({ type: 'row' as const, row }));
+
+const exportUrl = walletId
+	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
+	: '/api/transactions/export';
+
+---
+
+<article class="tin0-all" id="all-transactions">
+	<div class="tin0-all__inner">
+	<header class="tin0-all__header">
+		<h3 class="tin0-all__title">{t.headerTitle}</h3>
+		<a class="tin0-all__export" href={exportUrl}>{t.exportCsv}</a>
+		<label class="tin0-all__filter">
+			<span>{t.filterSourceLabel}</span>
+			<select class="tin0-all__select" aria-label={t.filterSourceAriaLabel}>
+				<option value="all">{t.filterAllSources}</option>
+				{sources.map((source) => (
+					<option value={source}>{source}</option>
+				))}
+			</select>
+		</label>
+	</header>
+
+	{lifecycleGroups.length ? (
+		<div class="tin0-all__lifecycles">
+			{lifecycleGroups.map((group) => {
+				const events = lifecycleByGroup.get(group.id) ?? [];
+				return (
+					<details class="lifecycle-group">
+						<summary class="lifecycle-summary">
+							<span class="lifecycle-asset">{group.asset_symbol}</span>
+							<span class="lifecycle-meta">
+								{t.lifecycleAvgCost} {formatUsd(group.weighted_avg_cost_usd)} · {t.lifecycleQty} {formatAmount(group.total_quantity)}
+							</span>
+							<span class="lifecycle-meta">
+								{t.lifecycleLastBuy} {group.latest_acquired_at ? formatDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
+							</span>
+						</summary>
+						<div class="lifecycle-events">
+							{events.length === 0 ? (
+								<p class="lifecycle-empty">{t.lifecycleNoEvents}</p>
+							) : (
+								events.map((event) => (
+									<div class="lifecycle-event">
+										<span class="lifecycle-event__time">
+											{new Date(event.timestamp_utc).toLocaleString()}
+										</span>
+										<span class="lifecycle-event__dir">{event.direction ?? '—'}</span>
+										<span class="lifecycle-event__amt">
+											{formatAmount(event.amount, { maximumFractionDigits: 8 })}
+										</span>
+										<span class="lifecycle-event__src">
+											{event.source_type}{event.linked_transfer ? ` · ${t.lifecycleLinked}` : ''}
+										</span>
+									</div>
+								))
+							)}
+						</div>
+					</details>
+				);
+			})}
+		</div>
+	) : null}
+
+	<div class="tin0-all__list" data-filter="all">
+		{loadError ? <p class="tin0-all__error">{loadError}</p> : null}
+		{rowsWithDividers.map((item) => (
+			<div
+				class="tx-card"
+				data-type="row"
+				data-source={item.row.source}
+				data-year={new Date(item.row.timestamp_utc).getUTCFullYear()}
+				data-hash={item.row.tx_hash ?? ''}
+				data-chain={resolveChain(item.row)}
+				data-timestamp={item.row.timestamp_utc}
+				data-symbol={pickSymbol(item.row)}
+				data-direction={normalizeDirection(item.row) ?? ''}
+				data-onchain={isOnchainRow(item.row) ? 'true' : 'false'}
+				data-raw={item.row.onchain_value ?? ''}
+				data-decimals={item.row.onchain_decimals ?? ''}
+				data-usd={item.row.native_usd ?? ''}
+				data-import-amount={item.row.amount ?? ''}
+				data-import-usd={item.row.native_usd ?? ''}
+			>
+					<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+					<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
+					{isUnwrapRow(item.row) && pickTokenAmount(item.row) === null ? (
+						<span class="tx-amount">
+							<span class="tx-na" data-tooltip={t.unwrapTooltip}>{t.unwrapLabel}</span>
+						</span>
+					) : (
+						<span class="tx-amount">
+							{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}
+						</span>
+					)}
+					{isUnwrapRow(item.row) && pickUsdAmount(item.row) === null ? (
+						<span class="tx-usd" data-role="usd">
+							<span class="tx-na" data-tooltip={t.unwrapTooltip}>{t.unwrapLabel}</span>
+						</span>
+					) : (
+						<span class="tx-usd" data-role="usd">
+							{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+						</span>
+					)}
+					<span class="tx-icon">
+						<span class="tx-icon-stack">
+							{normalizeDirection(item.row) === 'lost' ? (
+								<span class="tx-icon-svg" set:html={lostIcon} />
+							) : normalizeDirection(item.row) === 'out' ? (
+								<img class="tx-icon-img" src={walletOut.src} alt={t.altSold} />
+							) : (
+								<img class="tx-icon-img" src={walletIn.src} alt={t.altBought} />
+							)}
+						</span>
+					</span>
+					{aaveLabel(item.row) ? <div class="tx-meta">{aaveLabel(item.row)}</div> : null}
+					{item.row.id === latestRowId ? (
+						<div class="tx-detail">
+							<span>
+								{t.detailToken}{' '}
+								{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}{' '}
+								{pickSymbol(item.row)}
+							</span>
+							<span>
+								{t.detailUsd}{' '}
+								{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+							</span>
+							{resolveFee(item.row) ? <span>{t.detailFee} {resolveFee(item.row)}</span> : null}
+						</div>
+					) : null}
+					<textarea
+						class="tx-notes"
+						placeholder={t.notesPlaceholder}
+						data-id={item.row.id}
+						data-initial={item.row.notes ?? ''}
+						data-category={item.row.category ?? ''}
+						data-group-id={item.row.group_id ?? ''}
+					>{item.row.notes ?? ''}</textarea>
+					<span class="tx-saved" aria-live="polite">{t.savedLabel}</span>
+			</div>
+		))}
+	</div>
+	</div>
+	<script
+		type="application/json"
+		id="lifecycle-data"
+		data-cache-key={lifecycleCacheKey}
+		set:html={JSON.stringify({ groups: lifecycleGroups, events: lifecycleEvents })}
+	></script>
+</article>
+<Tin0AllTransactionsClient client:load />
+
+

@@ -1,0 +1,1306 @@
+/**
+ * walletChecker.ts
+ *
+ * Public wallet scam checker — used by /api/wallet-check (the verdict) and
+ * /api/wallet-activity (activity facts, never part of the verdict)
+ *
+ * Security measures baked in:
+ *   - Strict address validation before ANY external fetch (SSRF prevention)
+ *   - In-memory rate limiter: 10 req/min per IP, rolling window
+ *   - In-memory LRU result cache: 500 entries max, 5-min TTL
+ *   - 8-second AbortController timeout on every upstream call
+ *   - All upstream errors are non-fatal — collected in result.errors[]
+ *   - Checked addresses are NEVER logged or persisted to the database
+ */
+
+import { createHash } from 'node:crypto';
+import { lookupSanctionedAddress } from './threatLists';
+import { fetchEvmActivity } from './evmActivity';
+import { etherscanGate, GATE_PRIORITY } from './explorerGates';
+import { emptyActivity, isUnread, summarizeChains, type ActivityChain, type WalletActivity } from './walletActivity';
+
+// ─── Address detection ────────────────────────────────────────────────────────
+
+const EVM_REGEX     = /^0x[0-9a-fA-F]{40}$/;
+const SUI_REGEX     = /^0x[0-9a-fA-F]{64}$/;
+// Segwit (bech32/bech32m), matched on the lowercased value: the prefix is exact and the
+// data part uses only the bech32 charset (no '1', 'b', 'i', 'o'), so a base58 Solana key
+// that happens to start with "bc1" is not mistaken for one. Checksum validation is a
+// separate, stricter step (not here).
+const BTC_BECH32_REGEX = /^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+const LTC_BECH32_REGEX = /^ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+
+const SOLANA_SHAPE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+// What isValidAddress() has always accepted, kept verbatim: the lookup, check, mail and
+// address-activity endpoints validate with it, so fixing chain detection must neither
+// narrow nor widen it (per-network validators are a separate change). Address-shaped
+// values on no chain we recognize (a mistyped checksum, Dogecoin, XRP) pass here, and
+// detectChain() reports them as 'unknown', which the scan treats as a limited check.
+const ACCEPTED_SHAPES = [
+  SUI_REGEX,
+  EVM_REGEX,
+  SOLANA_SHAPE,
+  /^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|ltc1[a-zA-HJ-NP-Z0-9]{6,87})$/,
+  /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{6,87})$/,
+];
+
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+/** Decode a base58 string to bytes (leading '1's are leading zero bytes). Null if not base58. */
+function base58Decode(s: string): Uint8Array | null {
+  let n = 0n;
+  for (const ch of s) {
+    const i = BASE58_ALPHABET.indexOf(ch);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const body: number[] = [];
+  while (n > 0n) { body.unshift(Number(n & 0xffn)); n >>= 8n; }
+  let zeros = 0;
+  while (zeros < s.length && s[zeros] === '1') zeros++;
+  return Uint8Array.from([...new Array<number>(zeros).fill(0), ...body]);
+}
+
+/**
+ * Version byte of a valid base58check address (1 version byte + 20-byte hash + 4-byte
+ * double-SHA-256 checksum), or null when the length or checksum is wrong.
+ */
+function base58CheckVersion(bytes: Uint8Array): number | null {
+  if (bytes.length !== 25) return null;
+  const payload = bytes.subarray(0, 21);
+  const once = createHash('sha256').update(payload).digest();
+  const twice = createHash('sha256').update(once).digest();
+  for (let i = 0; i < 4; i++) if (twice[i] !== bytes[21 + i]) return null;
+  return bytes[0];
+}
+
+// base58check version bytes → chain. BTC P2SH (0x05, '3…') was also Litecoin's legacy
+// P2SH prefix; it is reported as Bitcoin, the far more common owner (Litecoin moved to 'M…').
+const BASE58CHECK_CHAINS: Record<number, Chain> = {
+  0x00: 'bitcoin',   // 1… P2PKH
+  0x05: 'bitcoin',   // 3… P2SH
+  0x30: 'litecoin',  // L… P2PKH
+  0x32: 'litecoin',  // M… P2SH
+  0x41: 'tron',      // T…
+};
+
+export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'tron' | 'unknown';
+
+/**
+ * The segwit chain of a bech32-shaped address, in either case. BIP-173 allows all
+ * lowercase or all uppercase (uppercase is the recommended form inside QR codes); a
+ * mixed-case value is not a valid address, so it is 'unknown' rather than a guess.
+ * Null when the value is not bech32-shaped at all.
+ */
+function bech32Chain(address: string): Chain | null {
+  const lc = address.toLowerCase();
+  const chain: Chain | null = BTC_BECH32_REGEX.test(lc) ? 'bitcoin' : LTC_BECH32_REGEX.test(lc) ? 'litecoin' : null;
+  if (!chain) return null;
+  return address === lc || address === address.toUpperCase() ? chain : 'unknown';
+}
+
+/**
+ * Which chain an address belongs to. Order matters: a legacy Bitcoin, Litecoin or Tron
+ * address, and an uppercase segwit address, are also valid base58 of Solana's length, so
+ * those are identified first (segwit by its prefix and charset in either case, base58
+ * by its base58check checksum). Solana is only claimed for a string that decodes to a
+ * 32-byte public key. Anything else is 'unknown'.
+ */
+export function detectChain(address: string): Chain {
+  if (SUI_REGEX.test(address))        return 'sui';       // check before EVM (both start with 0x)
+  if (EVM_REGEX.test(address))        return 'evm';
+  const segwit = bech32Chain(address);
+  if (segwit) return segwit;
+  if (address.length > 128) return 'unknown';
+  const bytes = base58Decode(address);
+  if (!bytes) return 'unknown';
+  const version = base58CheckVersion(bytes);
+  if (version !== null && BASE58CHECK_CHAINS[version]) return BASE58CHECK_CHAINS[version];
+  if (bytes.length === 32 && SOLANA_SHAPE.test(address)) return 'solana';
+  return 'unknown';
+}
+
+/**
+ * The form of an address to send to outside lookups: a segwit address is case-insensitive
+ * and explorers, sanctions lists and report databases hold it lowercase, so an uppercase
+ * (QR-style) one is lowercased. Every other address is case-sensitive and returned as is.
+ */
+export function canonicalAddress(address: string): string {
+  const segwit = bech32Chain(address);
+  return segwit === 'bitcoin' || segwit === 'litecoin' ? address.toLowerCase() : address;
+}
+
+export function isValidAddress(address: string): boolean {
+  if (typeof address !== 'string') return false;
+  const trimmed = address.trim();
+  if (trimmed.length < 25 || trimmed.length > 128) return false;
+  return ACCEPTED_SHAPES.some((re) => re.test(trimmed));
+}
+
+// ─── Rate limiter ─────────────────────────────────────────────────────────────
+
+interface RateEntry { count: number; resetAt: number }
+const _rateLimiter = new Map<string, RateEntry>();
+// /api/wallet-activity counts apart: the checker loads activity once per check, so the
+// same 10 per minute, and loading it never uses up a check.
+const _activityRateLimiter = new Map<string, RateEntry>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
+
+// Prune stale entries every 5 min to avoid memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const limiter of [_rateLimiter, _activityRateLimiter]) {
+    for (const [ip, entry] of limiter) {
+      if (now > entry.resetAt) limiter.delete(ip);
+    }
+  }
+}, 5 * 60_000);
+
+function takeRateSlot(limiter: Map<string, RateEntry>, ip: string): boolean {
+  const now = Date.now();
+  const entry = limiter.get(ip);
+  if (!entry || now > entry.resetAt) {
+    limiter.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+export function checkRateLimit(ip: string): boolean {
+  return takeRateSlot(_rateLimiter, ip);
+}
+
+export function checkActivityRateLimit(ip: string): boolean {
+  return takeRateSlot(_activityRateLimiter, ip);
+}
+
+// ─── Result types ─────────────────────────────────────────────────────────────
+
+export interface WalletCheckResult {
+  address: string;
+  chain: Chain;
+  checkedAt: string;
+  scamScore: number;       // 0–100
+  scamLevel: 'clean' | 'caution' | 'danger';
+  flags: {
+    blacklisted: boolean;
+    phishing: boolean;
+    honeypotRelated: boolean;
+    stealingAttack: boolean;
+    darkwebTransactions: boolean;
+    cybercrime: boolean;
+    moneyLaundering: boolean;
+    financialCrime: boolean;
+    blackmail: boolean;
+    mixer: boolean;
+    sanctioned: boolean;
+  };
+  ensName: string | null;
+  multiSig: boolean | null;
+  chainabuseReports: number | null;
+  holdings: Array<{
+    symbol: string;
+    name: string;
+    balance: string;
+    usdValue: number | null;
+  }>;
+  /**
+   * Facts shown to the person (src/lib/walletActivity.ts), never an input to the score or
+   * flags. checkWallet() leaves it empty: activity is read by fetchWalletActivity() and
+   * served by /api/wallet-activity, so the verdict never waits for the explorers.
+   */
+  activity: WalletActivity;
+  honeypot: {
+    checked: boolean;
+    isHoneypot: boolean | null;
+    reason: string | null;
+    /** honeypot.is found no trading pair and GoPlus saw no contract code: an ordinary wallet, nothing to test. */
+    notAToken?: boolean;
+    /** honeypot.is found no trading pair for a contract: its tokens have no market to test (the check stays unavailable). */
+    noMarket?: boolean;
+  };
+  fundingSource: {
+    fromMixer: boolean | null;
+    fromExchange: boolean | null;
+    label: string | null;
+  };
+  entityLabel: {
+    name: string;
+    type: 'exchange' | 'contract' | 'defi' | 'bridge' | 'mixer';
+    subLabel: string | null;
+    url: string | null;
+    confidence: 'definite' | 'likely';
+  } | null;
+  errors: string[];
+  /** Which scam sources actually ran for this address's chain (P0/P1 honesty). */
+  coverage: {
+    goplus: 'ran' | 'skipped' | 'error';
+    honeypot: 'ran' | 'skipped' | 'error';
+    chainabuse: 'ran' | 'skipped' | 'error';
+    /** The local OFAC SDN mirror. 'error' = the list could not be read, so sanctions were NOT checked. */
+    sanctions?: 'ran' | 'error';
+    /** Chainalysis' sanctions API: 'skipped' when no key is set or it was not needed. */
+    chainalysis?: 'ran' | 'skipped' | 'error';
+  };
+  /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
+  partialCoverage: boolean;
+}
+
+// ─── In-memory LRU cache ──────────────────────────────────────────────────────
+
+interface CacheEntry { data: WalletCheckResult; expiresAt: number }
+const _cache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 5 * 60_000;
+const CACHE_MAX = 500;
+
+/**
+ * The cache key for an address: one entry per real address. Hex addresses (EVM, Sui) and
+ * segwit addresses are case-insensitive, so they are lowercased. Base58 addresses (Solana,
+ * Tron, legacy Bitcoin and Litecoin) are case-sensitive and keep their case: lowercasing
+ * them let anyone check a case-flipped copy of a sanctioned Solana or Tron address (not on
+ * the list, so clean) and have that clean result served for the real address, here and in
+ * mail scanning, until the entry expired.
+ */
+export function cacheKeyFor(address: string): string {
+  const a = address.trim();
+  if (EVM_REGEX.test(a) || SUI_REGEX.test(a)) return a.toLowerCase();
+  return canonicalAddress(a);
+}
+
+export function getCached(address: string): WalletCheckResult | null {
+  const key = cacheKeyFor(address);
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
+  return entry.data;
+}
+
+export function setCache(address: string, data: WalletCheckResult): void {
+  if (_cache.size >= CACHE_MAX) {
+    const oldest = _cache.keys().next().value;
+    if (oldest) _cache.delete(oldest);
+  }
+  _cache.set(cacheKeyFor(address), { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// Activity (/api/wallet-activity) has its own cache. A read with a chain that could not be
+// read right now, or only in part, is kept for a minute only, so a later look can fill it.
+interface ActivityCacheEntry { data: WalletActivityResult; expiresAt: number }
+const _activityCache = new Map<string, ActivityCacheEntry>();
+const ACTIVITY_PARTIAL_TTL_MS = 60_000;
+
+export function getCachedActivity(address: string): WalletActivityResult | null {
+  const key = cacheKeyFor(address);
+  const entry = _activityCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _activityCache.delete(key); return null; }
+  return entry.data;
+}
+
+export function setCachedActivity(address: string, data: WalletActivityResult): void {
+  if (_activityCache.size >= CACHE_MAX) {
+    const oldest = _activityCache.keys().next().value;
+    if (oldest) _activityCache.delete(oldest);
+  }
+  const partial = (data.activity.chains ?? []).some((c) => isUnread(c) || c.lastActivityComplete === false);
+  const ttl = partial ? ACTIVITY_PARTIAL_TTL_MS : CACHE_TTL_MS;
+  _activityCache.set(cacheKeyFor(address), { data, expiresAt: Date.now() + ttl });
+}
+
+// ─── Scam score ───────────────────────────────────────────────────────────────
+
+const FLAG_WEIGHTS: Record<keyof WalletCheckResult['flags'], number> = {
+  sanctioned:          100,
+  blacklisted:          90,
+  phishing:             80,
+  stealingAttack:       80,
+  honeypotRelated:      70,
+  cybercrime:           70,
+  financialCrime:       65,
+  moneyLaundering:      60,
+  darkwebTransactions:  60,
+  blackmail:            50,
+  mixer:                40,
+};
+
+// A CONFIRMED high-risk hit → red (danger). A mixer is a privacy tool (legal since the
+// March-2025 Tornado Cash delisting), so it is caution-grade — off green, but never red
+// on its own. Every other flag is a confirmed-malicious signal → danger.
+const CAUTION_GRADE_FLAGS = new Set<keyof WalletCheckResult['flags']>(['mixer']);
+
+export function calculateScamScore(flags: WalletCheckResult['flags']): {
+  score: number;
+  level: WalletCheckResult['scamLevel'];
+} {
+  // The score reflects the SEVERITY of the single worst signal present (0–100), so one
+  // confirmed serious hit (blacklisted 90, sanctioned 100) reads as high risk instead of
+  // being diluted by averaging across every possible flag. The LEVEL is graded: any
+  // confirmed-malicious flag → danger; a caution-grade flag alone (mixer) → caution;
+  // nothing → clean. This matches the model: red = confirmed hit, yellow = caution.
+  let score = 0;
+  let hasDanger = false;
+  let hasCaution = false;
+  for (const [key, weight] of Object.entries(FLAG_WEIGHTS)) {
+    if (!flags[key as keyof typeof flags]) continue;
+    score = Math.max(score, weight);
+    if (CAUTION_GRADE_FLAGS.has(key as keyof WalletCheckResult['flags'])) hasCaution = true;
+    else hasDanger = true;
+  }
+  const level: WalletCheckResult['scamLevel'] =
+    hasDanger ? 'danger' : hasCaution ? 'caution' : 'clean';
+  return { score, level };
+}
+
+// ─── Known privacy mixers ───────────────────────────────────────────────────────
+// A positive mixer identification is a caution-level safety signal that MUST feed the
+// risk score — it can never sit under an all-clear (the consumer-safety fail-safe).
+// OFAC delisted Tornado Cash in March 2025, so the correct basis is "known mixer",
+// NOT "sanctioned". Addresses are stored lower-case. This is a curated core set;
+// isMixerName() is the wider net that also catches explorer-named mixer contracts.
+export const KNOWN_MIXER_ADDRESSES = new Set<string>([
+  '0x722122df12d4e14e13ac3b6895a86e84145b6967', // Tornado Cash: Proxy (TornadoProxy)
+  '0xd90e2f925da726b50c4ed8d0fb90ad053324f31b', // Tornado Cash: Router
+  '0x905b63fff465b9ffbf41dea908ceb12478ec7601', // Tornado Cash: Router (old)
+  '0x12d66f87a04a9e220743712ce6d9bb1b5616b8fc', // Tornado Cash: 0.1 ETH
+  '0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936', // Tornado Cash: 1 ETH
+  '0x910cbd523d972eb0a6f4cae4618ad62622b39dbf', // Tornado Cash: 10 ETH
+  '0xa160cdab225685da1d56aa342ad8841c3b53f291', // Tornado Cash: 100 ETH
+  '0xb541fc07bc7619fd4062a54d96268525cbc6ffef', // Tornado Cash: MultiSig proxy
+]);
+
+/** True when the address is a known privacy-mixer contract. */
+export function isMixerAddress(address: string): boolean {
+  return KNOWN_MIXER_ADDRESSES.has(address.toLowerCase());
+}
+
+/** True when a resolved contract/entity name looks like a known mixer (Tornado, etc.). */
+export function isMixerName(name?: string | null): boolean {
+  if (!name) return false;
+  return /tornado|(^|[^a-z])mixer([^a-z]|$)|blender\.io|sinbad/i.test(name);
+}
+
+/**
+ * True when an identified entity is a known-compromised / exploited contract a user
+ * must not interact with (e.g. the Multichain bridge exploited in 2023). A positive
+ * identification like this is a confirmed high-risk destination — it must feed the
+ * verdict, never leave a green all-clear.
+ */
+export function isCompromisedEntity(label: WalletCheckResult['entityLabel']): boolean {
+  if (!label) return false;
+  const hay = `${label.name} ${label.subLabel ?? ''}`;
+  return /compromis|exploit|hack|drain|stolen|do not use/i.test(hay);
+}
+
+// ─── Coverage / fail-safe ───────────────────────────────────────────────────────
+/**
+ * A green ("clean") verdict must mean every PRIMARY safety source actually ran.
+ * GoPlus (blacklist/sanctions/phishing) covers EVM only (see GOPLUS_CHAIN_IDS for why
+ * not Solana); honeypot.is is EVM-only. A chain with no primary source at all, or one
+ * whose primary source was unavailable or errored, is PARTIAL and must not
+ * read as a confident all-clear. Chainabuse is community/secondary — it does not gate
+ * a verdict on its own. "No positive hit" is not "safe".
+ *
+ * A sanctions lookup that failed (the OFAC mirror could not be read, or Chainalysis was asked
+ * and did not answer) is a check that did not run, so it makes the scan partial too.
+ */
+export function computePartialCoverage(chain: string, coverage: WalletCheckResult['coverage']): boolean {
+  if (coverage.sanctions === 'error' || coverage.chainalysis === 'error') return true;
+  const goplusSupported = GOPLUS_CHAINS.has(chain as Chain);
+  const primary: Array<'ran' | 'skipped' | 'error'> = [];
+  if (goplusSupported) primary.push(coverage.goplus);
+  if (chain === 'evm') primary.push(coverage.honeypot);
+  return primary.length === 0 || primary.some((s) => s !== 'ran');
+}
+
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+
+const TIMEOUT_MS = 8_000;
+
+function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
+}
+
+// GoPlus chain IDs — check EVM across multiple chains, merge flags.
+// Solana is deliberately absent: the address_security endpoint answers
+// {code: 5000, "system error"} for every chain_id=solana query (checked 2026-09-24 on
+// several well-known Solana addresses), so it never ran for a Solana address. Asking
+// anyway spends the shared GoPlus budget for a guaranteed error. Solana scans are
+// therefore partial (a "limited check"), with the local OFAC mirror and the Chainalysis
+// sanctions fallback still running. Do NOT substitute the query without chain_id: it
+// answers code 1 for any string, including a Bitcoin address, so it would read as a
+// clean scan without checking anything. Re-add Solana here only once a query is shown to
+// return code 1 for real Solana addresses and an error for non-Solana ones.
+// Bitcoin, Litecoin, Tron and Sui are not covered by this endpoint either.
+const GOPLUS_EVM_CHAINS = [
+  { id: '1',   label: 'Ethereum' },
+  { id: '56',  label: 'BSC' },
+  { id: '137', label: 'Polygon' },
+];
+const GOPLUS_CHAIN_IDS: Partial<Record<Chain, Array<{ id: string; label: string }>>> = {
+  evm: GOPLUS_EVM_CHAINS,
+};
+const GOPLUS_CHAINS = new Set<Chain>(Object.keys(GOPLUS_CHAIN_IDS) as Chain[]);
+
+// GoPlus Security — free, no API key needed
+// https://gopluslabs.io/
+async function fetchGoPlusFlags(
+  address: string,
+): Promise<{ flags: Partial<WalletCheckResult['flags']>; errors: string[]; isContract?: boolean | null }> {
+  const errors: string[] = [];
+  const flags: Partial<WalletCheckResult['flags']> = {};
+  const chain = detectChain(address);
+
+  const chainIds = GOPLUS_CHAIN_IDS[chain];
+  if (!chainIds) {
+    return { flags, errors }; // chain not covered: skipped, which makes the scan partial
+  }
+  // GoPlus's contract_address on each chain it answered: true if any chain has code.
+  const contractFlags: boolean[] = [];
+
+  const flag = (v: unknown) => String(v) === '1';
+
+  // Run all chain checks in parallel and merge (any positive flag wins)
+  await Promise.allSettled(chainIds.map(async ({ id, label }) => {
+    try {
+      const res = await fetchWithTimeout(
+        `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${id}`,
+      );
+      if (!res.ok) { errors.push(`GoPlus(${label}) returned ${res.status}`); return; }
+      const json = await res.json() as Record<string, any>;
+      // GoPlus reports failures inside an HTTP 200: `code` is 1 only for a complete answer
+      // (an unsupported or malformed address, a rate limit or partial data all come back
+      // with another code). Anything else means the source did not run for this address,
+      // so it is recorded as an error and the scan stays partial. A positive flag in a
+      // partial answer is still merged below: never clear a hit.
+      if (Number(json?.code) !== 1) {
+        errors.push(`GoPlus(${label}) error code ${String(json?.code ?? 'missing').slice(0, 12)}`);
+      }
+      const d = json?.result && typeof json.result === 'object' ? json.result : {};
+      if (Number(json?.code) === 1 && (d.contract_address === '0' || d.contract_address === '1')) {
+        contractFlags.push(d.contract_address === '1');
+      }
+      // OR-merge: once a flag is true on any chain it stays true
+      if (flag(d.blacklist_doubt))          flags.blacklisted         = true;
+      if (flag(d.phishing_activities))      flags.phishing            = true;
+      if (flag(d.honeypot_related_address)) flags.honeypotRelated     = true;
+      if (flag(d.stealing_attack))          flags.stealingAttack      = true;
+      if (flag(d.darkweb_transactions))     flags.darkwebTransactions = true;
+      if (flag(d.cybercrime))               flags.cybercrime          = true;
+      if (flag(d.money_laundering))         flags.moneyLaundering     = true;
+      if (flag(d.financial_crime))          flags.financialCrime      = true;
+      if (flag(d.blackmail_activities))     flags.blackmail           = true;
+      if (flag(d.mixer))                    flags.mixer               = true;
+      if (flag(d.sanctioned))               flags.sanctioned          = true;
+    } catch {
+      errors.push(`GoPlus(${label}) unavailable`);
+    }
+  }));
+
+  return { flags, errors, isContract: contractVerdict(contractFlags, chainIds.length) };
+}
+
+/** True if any chain reported contract code, false only if every chain answered "no code", else unknown. */
+function contractVerdict(flags: boolean[], expected: number): boolean | null {
+  if (flags.some(Boolean)) return true;
+  return flags.length === expected ? false : null;
+}
+
+// Chains honeypot.is can find token pairs on that the GoPlus flag lookup above does not ask
+// about. Asked only whether the address has contract code there, so a token that lives only
+// on Base or Arbitrum is never mistaken for an ordinary wallet. A failure here counts as
+// "unknown", which keeps the scan partial; it never adds an error of its own.
+const GOPLUS_CONTRACT_PROBE_CHAINS = [
+  { id: '8453',  label: 'Base' },
+  { id: '42161', label: 'Arbitrum' },
+];
+
+async function fetchGoPlusContractProbe(address: string): Promise<boolean | null> {
+  const results = await Promise.allSettled(GOPLUS_CONTRACT_PROBE_CHAINS.map(async ({ id }) => {
+    const res = await fetchWithTimeout(
+      `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${id}`,
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as Record<string, any>;
+    const v = json?.result?.contract_address;
+    return Number(json?.code) === 1 && (v === '0' || v === '1') ? v === '1' : null;
+  }));
+  const flags = results.map((r) => (r.status === 'fulfilled' ? r.value : null)).filter((v): v is boolean => v !== null);
+  return contractVerdict(flags, GOPLUS_CONTRACT_PROBE_CHAINS.length);
+}
+
+/**
+ * honeypot.is answered "No pairs found". For an ordinary wallet (GoPlus saw no contract code
+ * on any chain asked) that is nothing to test: the source ran. For a contract it means the
+ * token has no market, so the check stays unavailable and the scan stays partial, the
+ * cautious result for a token being sold outside any exchange. Unknown stays unavailable.
+ */
+export function resolveNoPairs(isContract: boolean | null | undefined, probe: boolean | null | undefined): {
+  honeypot: WalletCheckResult['honeypot'];
+  errors: string[];
+} {
+  if (isContract === false && probe === false) {
+    return { honeypot: { checked: true, isHoneypot: null, reason: null, notAToken: true }, errors: [] };
+  }
+  const honeypot: WalletCheckResult['honeypot'] = { checked: false, isHoneypot: null, reason: null };
+  if (isContract === true || probe === true) honeypot.noMarket = true;
+  return { honeypot, errors: ['Honeypot.is found no trading pair'] };
+}
+
+// Chainalysis free sanctions-screening API — an OPTIONAL live fallback for the `sanctioned`
+// flag when GoPlus is unavailable. Requires CHAINALYSIS_API_KEY (free, register once); when
+// unset it is 'skipped' and the always-on local OFAC mirror carries the redundancy. Never
+// throws. A failed or malformed answer is 'unavailable', never a clean "not sanctioned".
+export async function chainalysisSanctioned(address: string): Promise<'match' | 'clear' | 'unavailable' | 'skipped'> {
+  const key = import.meta.env.CHAINALYSIS_API_KEY ?? process.env.CHAINALYSIS_API_KEY ?? '';
+  if (!key) return 'skipped';
+  try {
+    const res = await fetchWithTimeout(
+      `https://public.chainalysis.com/api/v1/address/${encodeURIComponent(address)}`,
+      { headers: { 'X-API-Key': key, Accept: 'application/json' } },
+    );
+    if (!res.ok) return 'unavailable';
+    const json = (await res.json()) as { identifications?: unknown[] };
+    if (!Array.isArray(json?.identifications)) return 'unavailable';
+    return json.identifications.length > 0 ? 'match' : 'clear';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+// EVM wallet age, transactions sent and ETH balance: fetchEvmActivity (src/lib/evmActivity.ts)
+// reads Ethereum, Polygon, Arbitrum and Avalanche and lists the chains it could not read.
+
+// Alchemy — ERC-20 token balances
+async function fetchTokenBalances(
+  address: string,
+): Promise<{ holdings: WalletCheckResult['holdings']; errors: string[] }> {
+  const errors: string[] = [];
+  const holdings: WalletCheckResult['holdings'] = [];
+
+  const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  if (!apiKey) { errors.push('Alchemy not configured'); return { holdings, errors }; }
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'alchemy_getTokenBalances',
+          params: [address, 'erc20'],
+        }),
+      },
+    );
+    if (!res.ok) { errors.push(`Alchemy returned ${res.status}`); return { holdings, errors }; }
+    const json = await res.json() as any;
+    const balances: Array<{ contractAddress: string; tokenBalance: string }> =
+      json?.result?.tokenBalances ?? [];
+
+    // Fetch metadata for tokens with non-zero balance (cap at 10 to avoid quota burn)
+    const nonZero = balances
+      .filter(b => b.tokenBalance && b.tokenBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000')
+      .slice(0, 10);
+
+    await Promise.allSettled(nonZero.map(async (b) => {
+      try {
+        const metaRes = await fetchWithTimeout(
+          `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0', id: 1,
+              method: 'alchemy_getTokenMetadata',
+              params: [b.contractAddress],
+            }),
+          },
+        );
+        if (!metaRes.ok) return;
+        const meta = await metaRes.json() as any;
+        const m = meta?.result;
+        if (!m) return;
+        const decimals = m.decimals ?? 18;
+        const rawBal = BigInt(b.tokenBalance);
+        const balance = (Number(rawBal) / Math.pow(10, decimals)).toFixed(4);
+        holdings.push({
+          symbol: String(m.symbol ?? '???').slice(0, 12),
+          name:   String(m.name   ?? 'Unknown').slice(0, 40),
+          balance,
+          usdValue: null, // price lookup would need another call — skip for now
+        });
+      } catch { /* skip this token */ }
+    }));
+  } catch (err) {
+    errors.push('Alchemy unavailable');
+  }
+
+  return { holdings, errors };
+}
+
+// Honeypot.is — free, EVM only
+async function fetchHoneypotCheck(
+  address: string,
+): Promise<{ honeypot: WalletCheckResult['honeypot']; errors: string[]; noPairs?: boolean }> {
+  const errors: string[] = [];
+  const honeypot: WalletCheckResult['honeypot'] = { checked: false, isHoneypot: null, reason: null };
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.honeypot.is/v2/IsHoneypot?address=${encodeURIComponent(address)}`,
+    );
+    if (res.status === 404) {
+      // honeypot.is tests tokens that trade. For an address it has no market for it answers
+      // 404 "No pairs found" or "Token not found" (both seen live for ordinary wallets on
+      // 2026-10-10), and the same for a token with no market. checkWallet tells a wallet from
+      // a contract with GoPlus's contract flag (see resolveNoPairs). Any other 404 is an error.
+      const body = await res.text().catch(() => '');
+      if (/no pairs found|token not found/i.test(body)) return { honeypot, errors, noPairs: true };
+    }
+    if (!res.ok) { errors.push(`Honeypot.is returned ${res.status}`); return { honeypot, errors }; }
+    const json = await res.json() as any;
+    honeypot.checked    = true;
+    honeypot.isHoneypot = Boolean(json?.isHoneypot);
+    honeypot.reason     = typeof json?.honeypotReason === 'string'
+      ? json.honeypotReason.slice(0, 120)
+      : null;
+  } catch {
+    errors.push('Honeypot.is unavailable');
+  }
+  return { honeypot, errors };
+}
+
+/** Error recorded when the Etherscan contract-name lookup did not answer (see fetchEntityLabel). */
+export const CONTRACT_NAME_UNAVAILABLE = 'Contract name lookup unavailable';
+
+// Check if address is a multi-sig contract (basic: check if it has code + is Gnosis Safe)
+async function fetchMultiSigCheck(
+  address: string,
+): Promise<{ multiSig: boolean | null; errors: string[] }> {
+  const errors: string[] = [];
+  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  if (!apiKey) return { multiSig: null, errors: [] };
+  try {
+    // Through the shared Etherscan gate (explorerGates.ts), ahead of activity reads and sync.
+    const res = await etherscanGate.schedule(() => fetchWithTimeout(
+      `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}&module=contract&action=getabi&address=${address}`,
+    ), { priority: GATE_PRIORITY.safety });
+    if (!res.ok) return { multiSig: null, errors };
+    const json = await res.json() as any;
+    // If ABI exists and mentions "execTransaction" or "confirmTransaction" → Gnosis Safe / multi-sig
+    const abi = String(json?.result ?? '');
+    const isMultiSig = abi.includes('execTransaction') ||
+                       abi.includes('confirmTransaction') ||
+                       abi.includes('submitTransaction');
+    return { multiSig: json?.status === '1' ? isMultiSig : null, errors };
+  } catch {
+    errors.push('Multi-sig check unavailable');
+    return { multiSig: null, errors };
+  }
+}
+
+// ─── Sui RPC helpers ──────────────────────────────────────────────────────────
+
+const SUI_RPC = 'https://fullnode.mainnet.sui.io/';
+const MIST_PER_SUI = 1_000_000_000;
+
+async function suiRpc(method: string, params: unknown[]): Promise<any> {
+  const res = await fetchWithTimeout(SUI_RPC, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+  if (!res.ok) throw new Error(`Sui RPC ${res.status}`);
+  const json = await res.json() as any;
+  if (json.error) throw new Error(json.error.message ?? 'Sui RPC error');
+  return json.result;
+}
+
+async function fetchSuiHoldings(
+  address: string,
+): Promise<{ holdings: WalletCheckResult['holdings']; errors: string[] }> {
+  const errors: string[] = [];
+  try {
+    const balances = await suiRpc('suix_getAllBalances', [address]) as Array<{
+      coinType: string; totalBalance: string;
+    }>;
+
+    // Fetch SUI price once from CoinGecko (free, no key)
+    let suiPriceUsd: number | null = null;
+    try {
+      const priceRes = await fetchWithTimeout(
+        'https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd',
+      );
+      if (priceRes.ok) {
+        const p = await priceRes.json() as any;
+        suiPriceUsd = p?.sui?.usd ?? null;
+      }
+    } catch { /* price optional */ }
+
+    const holdings: WalletCheckResult['holdings'] = balances.map((b) => {
+      // coinType looks like "0x2::sui::SUI" or "0xPKG::module::SYMBOL"
+      const parts = b.coinType.split('::');
+      const symbol = parts[parts.length - 1] ?? b.coinType;
+      const isSui  = b.coinType === '0x2::sui::SUI';
+      const amount = Number(b.totalBalance) / (isSui ? MIST_PER_SUI : 1e9);
+      const usdValue = isSui && suiPriceUsd != null
+        ? Math.round(amount * suiPriceUsd * 100) / 100
+        : null;
+      return {
+        symbol,
+        name: isSui ? 'Sui' : symbol,
+        balance: amount.toLocaleString(undefined, { maximumFractionDigits: 6 }),
+        usdValue,
+      };
+    });
+
+    return { holdings, errors };
+  } catch (err) {
+    errors.push('Sui holdings unavailable');
+    return { holdings: [], errors };
+  }
+}
+
+async function fetchSuiActivity(
+  address: string,
+): Promise<{ activity: WalletCheckResult['activity']; errors: string[] }> {
+  const errors: string[] = [];
+  const activity: WalletCheckResult['activity'] = emptyActivity();
+  const sui: ActivityChain = {
+    id: 'sui', name: 'Sui', checked: false, reason: 'unavailable',
+    firstSeen: null, lastActivity: null, txCount: null,
+  };
+  Object.assign(activity, summarizeChains([sui], 'all'));
+  try {
+    // Get last 50 transactions (most recent first) to find last activity
+    const [toTxs, fromTxs] = await Promise.all([
+      suiRpc('suix_queryTransactionBlocks', [
+        { filter: { ToAddress: address }, options: { showInput: false } },
+        null, 50, true,
+      ]),
+      suiRpc('suix_queryTransactionBlocks', [
+        { filter: { FromAddress: address }, options: { showInput: false } },
+        null, 50, true,
+      ]),
+    ]);
+
+    const allDigests = [
+      ...(toTxs?.data ?? []),
+      ...(fromTxs?.data ?? []),
+    ] as Array<{ digest: string; timestampMs?: string }>;
+
+    if (allDigests.length > 0) {
+      // Sort by timestamp
+      allDigests.sort((a, b) =>
+        Number(a.timestampMs ?? 0) - Number(b.timestampMs ?? 0),
+      );
+      const first = allDigests[0];
+      const last  = allDigests[allDigests.length - 1];
+      if (first?.timestampMs) {
+        sui.firstSeen = new Date(Number(first.timestampMs)).toISOString();
+      }
+      if (last?.timestampMs) {
+        sui.lastActivity = new Date(Number(last.timestampMs)).toISOString();
+      }
+    }
+    // Count each transaction once (one the address sends to itself is in both lists). Each
+    // query reads at most the latest 50, so with more pages the count is a minimum ("N+")
+    // and the earliest one found may not be the first activity.
+    const capped = Boolean(toTxs?.hasNextPage || fromTxs?.hasNextPage);
+    sui.txCount = new Set(allDigests.map((d) => d.digest)).size;
+    sui.txCountIsMinimum = capped;
+    sui.firstSeenComplete = !capped;
+    sui.checked = true;
+    delete sui.reason;
+    Object.assign(activity, summarizeChains([sui], 'all'));
+
+    // SUI balance
+    const balance = await suiRpc('suix_getBalance', [address, '0x2::sui::SUI']) as {
+      totalBalance: string;
+    };
+    const suiAmount = Number(balance.totalBalance) / MIST_PER_SUI;
+    activity.ethBalance = suiAmount.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' SUI';
+
+    return { activity, errors };
+  } catch (err) {
+    errors.push('Sui activity unavailable');
+    return { activity, errors };
+  }
+}
+
+// ─── Known address registry ───────────────────────────────────────────────────
+
+type EntityLabel = NonNullable<WalletCheckResult['entityLabel']>;
+
+const KNOWN_ADDRESSES = new Map<string, EntityLabel>([
+  // Binance
+  ['0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 1',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0xd551234ae421e3bcba99a0da6d736074f22192ff', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 2',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0x564286362092d8e7936f0549571a803b203aaced', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 3',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0x0681d8db095565fe8a346fa0277bffd65d716364', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 4',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0xfe9e8709d3215310075d67e3ed32a380ccf451c8', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 5',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0x4e9ce36e442e55ecd9025b9a6e0d88485d628a67', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 6',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0xbe0eb53f46cd790cd13851d5eff43d12404d33e8', { name: 'Binance', type: 'exchange', subLabel: 'Cold Wallet',   url: 'https://binance.com', confidence: 'definite' }],
+  ['0xf977814e90da44bfa03b6295a0616a897441acec', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 8',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0x001866ae5b3de6caa5a51543fd9fb64f524f5478', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 9',  url: 'https://binance.com', confidence: 'definite' }],
+  ['0x85b931a32a0725be14285b66f1a22178c672d69b', { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 10', url: 'https://binance.com', confidence: 'definite' }],
+  ['0x708396f17127c42383e3b9014072679b2f60b82',  { name: 'Binance', type: 'exchange', subLabel: 'Hot Wallet 11', url: 'https://binance.com', confidence: 'definite' }],
+
+  // Coinbase
+  ['0x71660c4005ba85c37ccec55d0c4493e66fe775d3', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0x503828976d22510aad0201ac7ec88293211d23da', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xddfabcdc4d8ffc6d5beaf154f18b778f892a0740', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0x3cd751e6b0078be393132286c442345e5dc49699', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 4', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xb5d85cbf7cb3ee0d56b3bb207d5fc4b82f43f511', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 5', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xeb2629a2734e272bcc07bda959863f316f4bd4cf', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 6', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xa090e606e30bd747d4e6245a1517ebe430f0057e', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 7', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xf6874c88b04d44c58c4a6ef5a6e45f0a96e95524', { name: 'Coinbase', type: 'exchange', subLabel: 'Hot Wallet 8', url: 'https://coinbase.com', confidence: 'definite' }],
+  ['0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43', { name: 'Coinbase', type: 'exchange', subLabel: 'Prime',        url: 'https://coinbase.com', confidence: 'definite' }],
+
+  // Kraken
+  ['0xe853c56864a2ebe4576a807d26fdc4a0ada51919', { name: 'Kraken', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://kraken.com', confidence: 'definite' }],
+  ['0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0', { name: 'Kraken', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://kraken.com', confidence: 'definite' }],
+  ['0xfa52274dd61e1643d2205169732f29114bc240b3', { name: 'Kraken', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://kraken.com', confidence: 'definite' }],
+  ['0x53d284357ec70ce289d6d64134dfac8e511c8a3d', { name: 'Kraken', type: 'exchange', subLabel: 'Hot Wallet 4', url: 'https://kraken.com', confidence: 'definite' }],
+  ['0x89e51fa8ca5d66cd220baed62ed01e8951aa7c40', { name: 'Kraken', type: 'exchange', subLabel: 'Hot Wallet 5', url: 'https://kraken.com', confidence: 'definite' }],
+
+  // Gemini
+  ['0xd24400ae8bfebb18ca49be86258a3c749cf46853', { name: 'Gemini', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://gemini.com', confidence: 'definite' }],
+  ['0x6fcd8a9b64fd0863e0c001d6e7f62e87b70a56b0', { name: 'Gemini', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://gemini.com', confidence: 'definite' }],
+  ['0x5f65f7b609678448494de4c87521cdf6cef1e932', { name: 'Gemini', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://gemini.com', confidence: 'definite' }],
+
+  // Bitfinex
+  ['0x1151314c646ce4e0efd76d1af4760ae66a9fe30f', { name: 'Bitfinex', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://bitfinex.com', confidence: 'definite' }],
+  ['0x742d35cc6634c0532925a3b844bc454e4438f44e', { name: 'Bitfinex', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://bitfinex.com', confidence: 'definite' }],
+  ['0x876eabf441b2ee5b5b0554fd502a8e0600950cfa', { name: 'Bitfinex', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://bitfinex.com', confidence: 'definite' }],
+
+  // OKX
+  ['0x6cc5f688a315f3dc28a7781717a9a798a59fda7b', { name: 'OKX', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://okx.com', confidence: 'definite' }],
+  ['0x236f9f97e0e62388479bf9e1b2c2d4e79a9c6c35', { name: 'OKX', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://okx.com', confidence: 'definite' }],
+  ['0xa7efae728d2936e78bda97dc267687568dd593f3', { name: 'OKX', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://okx.com', confidence: 'definite' }],
+
+  // Crypto.com
+  ['0x6262998ced04146fa42253a5c0af90ca02dfd2a3', { name: 'Crypto.com', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://crypto.com', confidence: 'definite' }],
+  ['0x46340b20830761efd32832a74d7169b29feb9758', { name: 'Crypto.com', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://crypto.com', confidence: 'definite' }],
+
+  // Huobi / HTX
+  ['0xab5c66752a9e8167967685f1450532fb96d5d24f', { name: 'Huobi', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://htx.com', confidence: 'definite' }],
+  ['0x6748f50f686bfbca6fe8ad62b22228b87f31ff2b', { name: 'Huobi', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://htx.com', confidence: 'definite' }],
+  ['0xfdb16996831753d5331ff813c29a93c76834a0ad', { name: 'Huobi', type: 'exchange', subLabel: 'Hot Wallet 3', url: 'https://htx.com', confidence: 'definite' }],
+
+  // KuCoin
+  ['0x2b5634c42055806a59e9107ed44d43c426e58258', { name: 'KuCoin', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://kucoin.com', confidence: 'definite' }],
+  ['0xa1d8d972560c2f8144af871db508f0b0b10a3fba', { name: 'KuCoin', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://kucoin.com', confidence: 'definite' }],
+
+  // Bybit
+  ['0xf89d7b9c864f589bbf53a82105107622b35ea40',  { name: 'Bybit', type: 'exchange', subLabel: 'Hot Wallet 1', url: 'https://bybit.com', confidence: 'definite' }],
+  ['0x1ab4973a48dc892cd9971ece8e01dcc7688f8f23', { name: 'Bybit', type: 'exchange', subLabel: 'Hot Wallet 2', url: 'https://bybit.com', confidence: 'definite' }],
+
+  // FTX (defunct)
+  ['0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2', { name: 'FTX (Defunct)', type: 'exchange', subLabel: 'Hot Wallet 1', url: null, confidence: 'definite' }],
+  ['0xc098b2a3aa256d2140208c3de6543aaef5cd3a94', { name: 'FTX (Defunct)', type: 'exchange', subLabel: 'Hot Wallet 2', url: null, confidence: 'definite' }],
+
+  // Uniswap V3
+  ['0x1f98431c8ad98523631ae4a59f267346ea31f984', { name: 'Uniswap V3', type: 'defi', subLabel: 'Factory',  url: 'https://uniswap.org', confidence: 'definite' }],
+  ['0xe592427a0aece92de3edee1f18e0157c05861564', { name: 'Uniswap V3', type: 'defi', subLabel: 'Router',   url: 'https://uniswap.org', confidence: 'definite' }],
+  ['0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45', { name: 'Uniswap V3', type: 'defi', subLabel: 'Router 2', url: 'https://uniswap.org', confidence: 'definite' }],
+
+  // Aave
+  ['0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', { name: 'Aave V2', type: 'defi', subLabel: 'Lending Pool', url: 'https://aave.com', confidence: 'definite' }],
+  ['0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', { name: 'Aave V3', type: 'defi', subLabel: 'Pool',         url: 'https://aave.com', confidence: 'definite' }],
+
+  // ── Wormhole (EVM) ────────────────────────────────────────────────────────
+  ['0x3ee18b2214aff97000d974cf647e7c347e8fa585', { name: 'Wormhole', type: 'bridge', subLabel: 'Token Bridge (ETH)',  url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x98f3c9e6e3face36baad05fe09d375ef1464288b', { name: 'Wormhole', type: 'bridge', subLabel: 'Core Bridge (ETH)',   url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x6ffd7ede62328b3af38fcd61461bbfc52f5651fe', { name: 'Wormhole', type: 'bridge', subLabel: 'NFT Bridge (ETH)',    url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x27428dd2d3dd32a4d7f7c497eaaa23130d894911', { name: 'Wormhole', type: 'bridge', subLabel: 'Relayer (ETH)',       url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x706f82e9bb5b0813501714ab5974216704980e31', { name: 'Wormhole', type: 'bridge', subLabel: 'CCTP Relayer (ETH)',  url: 'https://wormhole.com', confidence: 'definite' }],
+
+  // ── Wormhole (Sui) ────────────────────────────────────────────────────────
+  ['0xaeab97f96cf9877fee2883315d459552b2b921edc16d7ceac6eab944dd88919c', { name: 'Wormhole', type: 'bridge', subLabel: 'Core Bridge (Sui)',  url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x26efee2b51c911237888e5dc6702868abca3c7ac12c53f76ef8eba0697695e3d', { name: 'Wormhole', type: 'bridge', subLabel: 'Token Bridge (Sui)', url: 'https://wormhole.com', confidence: 'definite' }],
+
+  // ── Stargate / LayerZero ──────────────────────────────────────────────────
+  ['0x8731d54e9d02c286767d56ac03e8037c07e01e98', { name: 'Stargate', type: 'bridge', subLabel: 'Router',      url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0xdf0770df86a8034b3efef0a1bb3c889b8332ff56', { name: 'Stargate', type: 'bridge', subLabel: 'USDC Pool',   url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0x38ea452219524bb87e18de1c24d3bb59510bd783', { name: 'Stargate', type: 'bridge', subLabel: 'USDT Pool',   url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0x101816545f6bd2b1076434b54383a1e633390a2e', { name: 'Stargate', type: 'bridge', subLabel: 'ETH Pool',    url: 'https://stargate.finance', confidence: 'definite' }],
+
+  // ── Celer cBridge ─────────────────────────────────────────────────────────
+  ['0x5427fefa711eff984124bfbb1ab6fbf5e3da1820', { name: 'Celer cBridge', type: 'bridge', subLabel: 'v2',  url: 'https://cbridge.celer.network', confidence: 'definite' }],
+  ['0x1619de6b6b20ed217a58d00f37b9d47c7663feca', { name: 'Celer cBridge', type: 'bridge', subLabel: 'v1',  url: 'https://cbridge.celer.network', confidence: 'definite' }],
+
+  // ── Hop Protocol ──────────────────────────────────────────────────────────
+  ['0xb8901acb165ed027e32754e0ffe830802919727f', { name: 'Hop Protocol', type: 'bridge', subLabel: 'USDC Bridge', url: 'https://hop.exchange', confidence: 'definite' }],
+  ['0x3666f603cc164936c1b87e207f36beba4ac5f18a', { name: 'Hop Protocol', type: 'bridge', subLabel: 'USDT Bridge', url: 'https://hop.exchange', confidence: 'definite' }],
+  ['0xb98454270065a31d71bf635f6f7ee6a518dfb849', { name: 'Hop Protocol', type: 'bridge', subLabel: 'ETH Bridge',  url: 'https://hop.exchange', confidence: 'definite' }],
+
+  // ── Across Protocol ───────────────────────────────────────────────────────
+  ['0x4d9079bb4165aeb4084c526a32695dcfd2f77381', { name: 'Across Protocol', type: 'bridge', subLabel: 'Spoke Pool', url: 'https://across.to', confidence: 'definite' }],
+  ['0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5', { name: 'Across Protocol', type: 'bridge', subLabel: 'Spoke Pool v2', url: 'https://across.to', confidence: 'definite' }],
+
+  // ── Synapse Protocol ──────────────────────────────────────────────────────
+  ['0x2796317b0ff8538f253012862c06787adfb8ceb6', { name: 'Synapse Protocol', type: 'bridge', subLabel: 'Bridge',  url: 'https://synapseprotocol.com', confidence: 'definite' }],
+
+  // ── Connext ───────────────────────────────────────────────────────────────
+  ['0x8898b472c54c31894e3b9bb83cea802a5d0e63c6', { name: 'Connext', type: 'bridge', subLabel: 'Diamond',  url: 'https://connext.network', confidence: 'definite' }],
+
+  // ── Arbitrum Bridge ───────────────────────────────────────────────────────
+  ['0x72ce9c846789fdb6fc1f34ac4ad25dd9ef7031ef', { name: 'Arbitrum Bridge', type: 'bridge', subLabel: 'L1 Gateway Router', url: 'https://bridge.arbitrum.io', confidence: 'definite' }],
+  ['0x8315177ab297ba92a06054ce80a67ed4dbd7ed3a', { name: 'Arbitrum Bridge', type: 'bridge', subLabel: 'Inbox',             url: 'https://bridge.arbitrum.io', confidence: 'definite' }],
+
+  // ── Polygon Bridge ────────────────────────────────────────────────────────
+  ['0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf', { name: 'Polygon Bridge', type: 'bridge', subLabel: 'ERC20 Bridge', url: 'https://wallet.polygon.technology/bridge', confidence: 'definite' }],
+  ['0xa0c68c638235ee32657e8f720a23cec1bfc77c77', { name: 'Polygon Bridge', type: 'bridge', subLabel: 'Plasma Bridge', url: 'https://wallet.polygon.technology/bridge', confidence: 'definite' }],
+
+  // ── Optimism Bridge ───────────────────────────────────────────────────────
+  ['0x99c9fc46f92e8a1c0dec1b1747d010903e884be1', { name: 'Optimism Bridge', type: 'bridge', subLabel: 'L1 Standard Bridge', url: 'https://app.optimism.io/bridge', confidence: 'definite' }],
+  ['0xbeb5fc579115071764c7423a4f12edde41f106ed', { name: 'Optimism Bridge', type: 'bridge', subLabel: 'Portal',             url: 'https://app.optimism.io/bridge', confidence: 'definite' }],
+
+  // ── Base Bridge ───────────────────────────────────────────────────────────
+  ['0x3154cf16ccdb4c6d922629664174b904d80f2c35', { name: 'Base Bridge', type: 'bridge', subLabel: 'L1 Standard Bridge', url: 'https://bridge.base.org', confidence: 'definite' }],
+  ['0x49048044d57e1c92a77f79988d21fa8faf74e97e', { name: 'Base Bridge', type: 'bridge', subLabel: 'Portal',             url: 'https://bridge.base.org', confidence: 'definite' }],
+
+  // ── Multichain (compromised/defunct — warn users) ─────────────────────────
+  ['0x765277eebeca2e31912c9946eae1021199b39c61', { name: 'Multichain (Compromised)', type: 'bridge', subLabel: 'Do not use — exploited 2023', url: null, confidence: 'definite' }],
+  ['0x4f3aff3a747fcade12598081e80c6605a8be192f', { name: 'Multichain (Compromised)', type: 'bridge', subLabel: 'Do not use — exploited 2023', url: null, confidence: 'definite' }],
+]);
+
+/**
+ * The entity behind an address: our curated list first, then (EVM only) the contract name
+ * published on Etherscan. That name can identify a mixer (isMixerName), so a lookup that
+ * did not answer is reported as an error (the "checks unavailable" banner), never skipped
+ * silently.
+ */
+async function fetchEntityLabel(
+  address: string,
+): Promise<{ label: WalletCheckResult['entityLabel']; errors: string[] }> {
+  // 1. Check hardcoded lookup first (instant, no API)
+  const known = KNOWN_ADDRESSES.get(address.toLowerCase());
+  if (known) return { label: known, errors: [] };
+
+  // 2. For EVM only: check Etherscan for verified contract name
+  if (detectChain(address) !== 'evm') return { label: null, errors: [] };
+  // Without a key the name is not checked either, and the banner must say so (the activity
+  // read's "Etherscan not configured" used to, but activity no longer runs with the verdict).
+  const unavailable = { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
+  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  if (!apiKey) return unavailable;
+  try {
+    // Shared Etherscan gate, safety priority: the activity reads and background sync must
+    // never use up the rate limit ahead of this lookup.
+    const res = await etherscanGate.schedule(() => fetchWithTimeout(
+      `https://api.etherscan.io/v2/api?chainid=1&apikey=${apiKey}&module=contract&action=getsourcecode&address=${address}`,
+    ), { priority: GATE_PRIORITY.safety });
+    if (!res.ok) return unavailable;
+    const json = await res.json() as any;
+    // Status '1' with a list is an answer, also for an address with no contract (an empty
+    // name). Anything else, such as a rate-limit message, means the name was not checked.
+    if (String(json?.status) !== '1' || !Array.isArray(json?.result)) return unavailable;
+    const contractName = json.result[0]?.ContractName;
+    if (!contractName) return { label: null, errors: [] };
+    return {
+      label: {
+        name: contractName,
+        type: 'contract',
+        // "Verified" here means the SOURCE CODE is published on Etherscan — it is
+        // not a safety signal. Worded so it can't read as reassurance.
+        subLabel: 'Source-verified on Etherscan (not a safety check)',
+        url: `https://etherscan.io/address/${address}`,
+        confidence: 'definite',
+      },
+      errors: [],
+    };
+  } catch {
+    // Includes RateGateTimeout: the gate had no free slot in time.
+    return unavailable;
+  }
+}
+
+/**
+ * True only for an address on our curated KNOWN_ADDRESSES list whose label marks it
+ * compromised. An Etherscan contract name never counts: whoever deploys a contract picks
+ * its name, and "ShackleToken" or "HackathonRewards" would match the words below and
+ * show "On a scam blacklist" for an innocent contract.
+ */
+export function isCompromisedAddress(address: string): boolean {
+  return isCompromisedEntity(KNOWN_ADDRESSES.get(address.toLowerCase()) ?? null);
+}
+
+// ─── ENS reverse lookup ───────────────────────────────────────────────────────
+// Uses ENS ReverseRecords contract via Alchemy eth_call — no extra API key needed.
+// Contract 0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C · getNames(address[])
+// Selector 0x3a0c74c8 (keccak256("getNames(address[])")[0..3])
+
+async function fetchENSName(address: string): Promise<string | null> {
+  if (detectChain(address) !== 'evm') return null;
+  const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  if (!apiKey) return null;
+
+  try {
+    const REVERSE_RECORDS = '0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C';
+    const addr = address.toLowerCase().slice(2).padStart(64, '0');
+    // ABI-encode: getNames(address[]) with one element
+    const calldata =
+      '0x3a0c74c8' +
+      '0000000000000000000000000000000000000000000000000000000000000020' + // offset
+      '0000000000000000000000000000000000000000000000000000000000000001' + // length = 1
+      addr;                                                                 // address
+
+    const res = await fetchWithTimeout(
+      `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'eth_call',
+          params: [{ to: REVERSE_RECORDS, data: calldata }, 'latest'],
+        }),
+      },
+    );
+
+    if (!res.ok) return null;
+    const json = await res.json() as any;
+    const hex: string = json?.result;
+    if (!hex || hex === '0x' || hex.length < 258) return null;
+
+    // ABI decode string[]:
+    // hex[0..63]    outer offset (0x20)
+    // hex[64..127]  array length (1)
+    // hex[128..191] string[0] offset (0x20)
+    // hex[192..255] string[0] byte length
+    // hex[256..]    string bytes
+    const data = hex.slice(2); // strip 0x
+    const strLen = parseInt(data.slice(192, 256), 16);
+    if (!strLen || strLen > 200) return null;
+
+    const strHex = data.slice(256, 256 + strLen * 2);
+    const name = Buffer.from(strHex, 'hex').toString('utf8').trim();
+    return name && name.includes('.') ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Chainabuse community reports ─────────────────────────────────────────────
+// Free tier available — set CHAINABUSE_API_KEY env var to enable.
+// https://www.chainabuse.com/
+
+async function fetchChainavuseReports(address: string): Promise<{ count: number | null; errors: string[]; skipped?: boolean }> {
+  const apiKey = process.env.CHAINABUSE_API_KEY ?? import.meta.env.CHAINABUSE_API_KEY ?? '';
+  // Not configured, or no network for this chain: it did not run, so never report it as checked.
+  if (!apiKey) return { count: null, errors: [], skipped: true };
+
+  const chain = detectChain(address);
+  const network =
+    chain === 'evm'      ? 'ethereum' :
+    chain === 'solana'   ? 'solana' :
+    chain === 'bitcoin'  ? 'bitcoin' :
+    chain === 'litecoin' ? 'litecoin' : null;
+  if (!network) return { count: null, errors: [], skipped: true };
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.chainabuse.com/v0/reports?address=${encodeURIComponent(address)}&network=${network}`,
+      { headers: { 'X-API-KEY': apiKey } },
+    );
+    if (!res.ok) return { count: null, errors: [`Chainabuse returned ${res.status}`] };
+    const json = await res.json() as any;
+    const count = Array.isArray(json?.reports) ? json.reports.length : (json?.total ?? null);
+    return { count: typeof count === 'number' ? count : null, errors: [] };
+  } catch {
+    return { count: null, errors: ['Chainabuse unavailable'] };
+  }
+}
+
+// ─── Main orchestrator ────────────────────────────────────────────────────────
+
+/** fetchWalletActivity()'s answer: the facts for /api/wallet-activity. */
+export interface WalletActivityResult {
+  chain: Chain;
+  activity: WalletActivity;
+  errors: string[];
+}
+
+/**
+ * Activity facts for one address: first and last activity, transactions sent, native
+ * balance and which chains were read. Separate from checkWallet() on purpose: the facts
+ * never feed the score or the flags, and reading them (rate-limited explorers, several
+ * chains) must never delay the verdict. Never throws.
+ */
+export async function fetchWalletActivity(input: string): Promise<WalletActivityResult> {
+  const address = canonicalAddress(input);
+  const chain = detectChain(address);
+  try {
+    if (chain === 'evm') return { chain, ...(await fetchEvmActivity(address)) };
+    if (chain === 'sui') return { chain, ...(await fetchSuiActivity(address)) };
+  } catch {
+    return { chain, activity: emptyActivity(), errors: ['Activity check failed'] };
+  }
+  return { chain, activity: emptyActivity(), errors: [`Activity tracking not available for ${chain}`] };
+}
+
+export async function checkWallet(input: string): Promise<WalletCheckResult> {
+  // Outside lookups get the canonical form (an uppercase, QR-style segwit address is
+  // lowercased, the form sanctions lists and report databases hold); the result echoes
+  // the address as it was given.
+  const address = canonicalAddress(input);
+  const chain = detectChain(address);
+  const allErrors: string[] = [];
+
+  const emptyFlags: WalletCheckResult['flags'] = {
+    blacklisted: false, phishing: false, honeypotRelated: false,
+    stealingAttack: false, darkwebTransactions: false, cybercrime: false,
+    moneyLaundering: false, financialCrime: false, blackmail: false,
+    mixer: false, sanctioned: false,
+  };
+
+  // Run all fetchers in parallel — each is independently fault-tolerant. Activity is not
+  // one of them: it is a fact, never a verdict input (fetchWalletActivity, its own endpoint).
+  const [goplusResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult, contractProbeResult] =
+    await Promise.allSettled([
+      fetchGoPlusFlags(address),
+      chain === 'evm'                          ? fetchTokenBalances(address)
+        : chain === 'sui'                      ? fetchSuiHoldings(address)
+        : Promise.resolve({ holdings: [], errors: [`Token balances not available for ${chain}`] }),
+      chain === 'evm' ? fetchHoneypotCheck(address) : Promise.resolve({ honeypot: { checked: false, isHoneypot: null, reason: `EVM only` as string | null }, errors: [] }),
+      chain === 'evm' ? fetchMultiSigCheck(address) : Promise.resolve({ multiSig: null, errors: [] }),
+      fetchEntityLabel(address),
+      fetchENSName(address),
+      fetchChainavuseReports(address),
+      chain === 'evm' ? fetchGoPlusContractProbe(address) : Promise.resolve(null),
+    ]);
+
+  const goplus       = goplusResult.status       === 'fulfilled' ? goplusResult.value       : { flags: {}, errors: ['GoPlus check failed'] };
+  const holdings     = holdingsResult.status     === 'fulfilled' ? holdingsResult.value     : { holdings: [], errors: ['Holdings check failed'] };
+  const honeypotRaw  = honeypotResult.status     === 'fulfilled' ? honeypotResult.value     : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
+  // "No pairs found": nothing to test for an ordinary wallet, no market for a contract.
+  const honeypot = 'noPairs' in honeypotRaw && honeypotRaw.noPairs
+    ? resolveNoPairs(
+        (goplus as { isContract?: boolean | null }).isContract,
+        contractProbeResult.status === 'fulfilled' ? contractProbeResult.value : null,
+      )
+    : honeypotRaw;
+  const multiSig     = multiSigResult.status     === 'fulfilled' ? multiSigResult.value     : { multiSig: null, errors: [] };
+  const entityLookup = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
+  const entityLabel  = entityLookup.label;
+  const ensName      = ensResult.status          === 'fulfilled' ? ensResult.value          : null;
+  const chainabuse: { count: number | null; errors: string[]; skipped?: boolean } =
+    chainabuseResult.status === 'fulfilled' ? chainabuseResult.value : { count: null, errors: [] };
+
+  allErrors.push(
+    ...(goplus.errors    ?? []),
+    ...(holdings.errors  ?? []),
+    ...(honeypot.errors  ?? []),
+    ...(multiSig.errors  ?? []),
+    ...(entityLookup.errors ?? []),
+    ...(chainabuse.errors ?? []),
+  );
+
+  const flags: WalletCheckResult['flags'] = { ...emptyFlags, ...(goplus.flags ?? {}) };
+
+  // Sanctions redundancy — GoPlus is the primary signal, but if it is down or rate-limited the
+  // flag would silently read false. Two independent backstops (OR-merge, never clear a hit):
+  //   1) the always-on local OFAC mirror (free, no live dependency — survives any API outage);
+  //   2) Chainalysis' free sanctions API as a live fallback, when GoPlus errored or does not
+  //      cover this chain at all (Solana, Bitcoin, Litecoin, Tron…).
+  // A lookup that could not answer is recorded as 'error' in coverage, which makes the scan
+  // partial ("Limited check"): a failed lookup is a check that did not run, never a clean one.
+  const ofac = await lookupSanctionedAddress(address).catch(() => null);
+  if (ofac === true) flags.sanctioned = true;
+  const sanctionsCoverage: 'ran' | 'error' = ofac === null ? 'error' : 'ran';
+  let chainalysisCoverage: 'ran' | 'skipped' | 'error' = 'skipped';
+  if (!flags.sanctioned && (goplus.errors.length > 0 || !GOPLUS_CHAINS.has(chain))) {
+    const answer = await chainalysisSanctioned(address).catch(() => 'unavailable' as const);
+    if (answer === 'match') flags.sanctioned = true;
+    chainalysisCoverage = answer === 'skipped' ? 'skipped' : answer === 'unavailable' ? 'error' : 'ran';
+  }
+
+  // Consumer-safety fail-safe: a positive known-mixer identification — by curated
+  // address OR by the resolved contract name (e.g. "TornadoProxy" from Etherscan) —
+  // MUST feed the risk score. Otherwise a mixer scores 0 and shows a green all-clear
+  // while a label lower on the page still identifies it as a mixer. "Known mixer",
+  // never "sanctioned" (OFAC delisted Tornado Cash in March 2025).
+  const knownMixer = isMixerAddress(address) || isMixerName(entityLabel?.name);
+  if (knownMixer) flags.mixer = true;
+
+  // Same fail-safe for a positive honeypot.is detection: an identified honeypot must
+  // feed the score even if GoPlus didn't independently flag it.
+  if (honeypot.honeypot.isHoneypot === true) flags.honeypotRelated = true;
+
+  // A known-compromised / exploited identified contract (e.g. the Multichain bridge) is
+  // a confirmed high-risk destination — route it into the verdict, never leave it green.
+  if (isCompromisedAddress(address)) flags.blacklisted = true;
+
+  // Wallet age and activity are deliberately NOT inputs: they are facts shown to the person,
+  // never a verdict (new is not bad: exchange deposit addresses are fresh; old is not safe).
+  const { score, level } = calculateScamScore(flags);
+
+  // Present a mixer as a caution in the entity card, not a reassuring "verified contract".
+  const finalEntityLabel: WalletCheckResult['entityLabel'] = knownMixer
+    ? {
+        name: entityLabel?.name ?? 'Known mixer',
+        type: 'mixer',
+        subLabel: 'Known mixer — treat with caution',
+        url: entityLabel?.url ?? `https://etherscan.io/address/${address}`,
+        confidence: 'definite',
+      }
+    : entityLabel;
+
+  // ── Coverage: did the PRIMARY scam source run for this chain? ──────────────────
+  // GoPlus (blacklist/sanctions/phishing) is the primary source and covers EVM only
+  // (its Solana endpoint errors, see GOPLUS_CHAIN_IDS); honeypot.is is EVM-only;
+  // Chainabuse is community/secondary. A "clean" verdict where the primary source could
+  // not run must NOT be shown as a confident green (P0/P1 hardening). Solana, Bitcoin,
+  // Litecoin, Tron, Sui and unrecognized chains have no primary source, so they are
+  // always partial. The local OFAC mirror above still runs for every chain.
+  const goplusSupported   = GOPLUS_CHAINS.has(chain);
+  const goplusErrored     = goplusResult.status     === 'rejected' || (goplus.errors     ?? []).some((e: string) => e.includes('GoPlus'));
+  const honeypotErrored   = honeypotResult.status   === 'rejected' || (honeypot.errors   ?? []).some((e: string) => e.includes('Honeypot'));
+  const chainabuseErrored = chainabuseResult.status === 'rejected' || (chainabuse.errors ?? []).length > 0;
+  const coverage: WalletCheckResult['coverage'] = {
+    goplus:     !goplusSupported ? 'skipped' : goplusErrored ? 'error' : 'ran',
+    honeypot:   chain === 'evm' ? (honeypotErrored ? 'error' : 'ran') : 'skipped',
+    chainabuse: chainabuseErrored ? 'error' : chainabuse.skipped ? 'skipped' : 'ran',
+    sanctions:   sanctionsCoverage,
+    chainalysis: chainalysisCoverage,
+  };
+  // Partial when any PRIMARY safety source (GoPlus, or honeypot.is on EVM) didn't run, or a
+  // sanctions lookup failed — a partial scan must never render as a confident green (see
+  // computePartialCoverage).
+  const partialCoverage = computePartialCoverage(chain, coverage);
+
+  // Funding source: infer from the mixer flag (GoPlus or known-mixer identification).
+  const fundingSource: WalletCheckResult['fundingSource'] = {
+    fromMixer:    flags.mixer ? true : null,
+    fromExchange: null,
+    label:        flags.mixer ? 'Known mixer contract' : null,
+  };
+
+  return {
+    address: input,
+    chain,
+    checkedAt: new Date().toISOString(),
+    scamScore: score,
+    scamLevel: level,
+    flags,
+    ensName,
+    chainabuseReports: chainabuse.count,
+    multiSig:      multiSig.multiSig,
+    holdings:      holdings.holdings,
+    activity:      emptyActivity(),
+    honeypot:      honeypot.honeypot,
+    fundingSource,
+    entityLabel: finalEntityLabel,
+    errors: allErrors,
+    coverage,
+    partialCoverage,
+  };
+}

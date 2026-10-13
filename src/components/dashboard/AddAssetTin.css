@@ -1,0 +1,391 @@
+.add-tin {
+	position: relative;
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px dashed var(--accent);
+	border-radius: 12px;
+	padding: 2.5rem 1.25rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+/* Chip label — matches salmon-tin__label exactly (filled mint) */
+.add-tin__heading {
+	position: absolute;
+	top: -12px;
+	left: 1rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	background: var(--accent);
+	color: var(--surface-bg);
+	padding: 0.4rem 0.8rem;
+	border-radius: 8px;
+	font-weight: 700;
+	font-size: 1rem;
+	z-index: 2;
+}
+
+/* + icon sits inline inside the chip — no circle */
+.add-tin__plus {
+	display: inline;
+	width: auto;
+	height: auto;
+	border-radius: 0;
+	background: none;
+	color: inherit;
+	font-size: inherit;
+	font-weight: inherit;
+	line-height: 1;
+}
+
+.add-tin__title {
+	font-size: inherit;
+	font-weight: inherit;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+}
+
+/* Tabs */
+.add-tin__tabs {
+	display: flex;
+	gap: 0.4rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+	padding-bottom: 0.6rem;
+}
+
+.add-tin__tab {
+	flex: 1;
+	padding: 0.35rem 0.6rem;
+	border-radius: 999px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: transparent;
+	color: var(--text-secondary);
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.add-tin__tab.is-active {
+	background: var(--accent);
+	color: var(--surface-bg);
+	border-color: var(--accent);
+	font-weight: 700;
+}
+
+.add-tin__tab:not(.is-active):hover {
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--text-primary);
+}
+
+/* Panels */
+.add-tin__panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.add-tin__panel.is-hidden {
+	display: none;
+}
+
+/* Wallet form */
+.add-tin__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.add-tin__field-label {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	opacity: 0.7;
+}
+
+.add-tin__select,
+.add-tin__input {
+	width: 100%;
+	border-radius: 0.6rem;
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	background: rgba(255, 255, 255, 0.07);
+	color: inherit;
+	padding: 0.45rem 0.65rem;
+	font-size: 0.875rem;
+	outline: none;
+	box-sizing: border-box;
+}
+
+.add-tin__select:focus,
+.add-tin__input:focus {
+	border-color: var(--accent-dim);
+}
+
+.add-tin__input::placeholder {
+	opacity: 0.4;
+}
+
+.add-tin__submit {
+	border-radius: 0.65rem;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
+	padding: 0.5rem 0.75rem;
+	font-size: 0.85rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.add-tin__submit:hover {
+	background: var(--loss-bg);
+	border-color: var(--loss);
+}
+
+.add-tin__submit:disabled {
+	opacity: 0.55;
+	cursor: wait;
+}
+
+.add-tin__message {
+	margin: 0;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	opacity: 0.8;
+	min-height: 1.1em;
+}
+
+.add-tin__limit-msg {
+	opacity: 1;
+	color: var(--accent);
+	font-weight: 600;
+	text-transform: none;
+	letter-spacing: 0.02em;
+}
+
+/* Chain auto-detect hint (below the chain selector) */
+.add-tin__chain-hint {
+	display: none;
+	margin: 0.25rem 0 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: var(--text-muted);
+}
+
+.add-tin__chain-hint--auto {
+	color: var(--gain); /* green — confirms a successful auto-detect */
+}
+
+/* Exchange panel */
+.add-tin__hint {
+	margin: 0;
+	font-size: 0.8rem;
+	opacity: 0.75;
+	line-height: 1.5;
+}
+
+.add-tin__exchange-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.add-tin__exchange-item {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.4rem 0.5rem;
+	border-radius: 0.5rem;
+	border: 1px solid var(--accent-soft);
+	background: var(--accent-soft);
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.add-tin__exchange-item:hover,
+.add-tin__exchange-item:focus-visible {
+	background: var(--accent-soft);
+	border-color: var(--accent-dim);
+	outline: none;
+}
+
+.add-tin__exchange-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.add-tin__exchange-dot--amber {
+	background: var(--accent);
+}
+
+.add-tin__exchange-name {
+	flex: 1;
+	font-size: 0.85rem;
+	font-weight: 600;
+}
+
+.add-tin__exchange-arrow {
+	font-size: 0.75rem;
+	opacity: 0.55;
+}
+
+.add-tin__coming-soon {
+	margin: 0.25rem 0 0;
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	opacity: 0.45;
+	font-style: italic;
+}
+
+.add-tin__required {
+	font-size: 0.65rem;
+	color: var(--accent);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	margin-left: 0.25rem;
+}
+
+.add-tin__optional {
+	font-size: 0.65rem;
+	opacity: 0.5;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	margin-left: 0.25rem;
+}
+
+/* Demo-only reset button — floats at top-right as a small ✕ icon */
+.add-tin__demo-clear-wrap {
+	position: absolute;
+	top: -14px;
+	right: 1rem;
+	z-index: 10;
+}
+
+.add-tin__demo-clear {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 1px solid var(--loss-border);
+	background: var(--surface-card);
+	color: var(--loss);
+	font-size: 0.75rem;
+	line-height: 1;
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.add-tin__demo-clear:hover {
+	background: var(--loss-bg);
+	border-color: var(--loss);
+	color: var(--text-primary);
+}
+
+.add-tin__demo-popover {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	min-width: 160px;
+	background: var(--surface-card-2);
+	border: 1px solid var(--loss-border);
+	border-radius: 10px;
+	padding: 0.65rem 0.75rem 0.6rem;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.add-tin__demo-popover__msg {
+	margin: 0 0 0.5rem;
+	font-size: 0.78rem;
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+
+.add-tin__demo-popover__actions {
+	display: flex;
+	gap: 0.4rem;
+}
+
+.add-tin__demo-popover__confirm {
+	flex: 1;
+	padding: 0.3rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
+	font-size: 0.75rem;
+	font-weight: 700;
+	cursor: pointer;
+	transition: background 0.12s;
+}
+
+.add-tin__demo-popover__confirm:hover {
+	background: rgba(239,68,68,0.2);
+}
+
+.add-tin__demo-popover__cancel {
+	flex: 1;
+	padding: 0.3rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid var(--border-bright);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.12s;
+}
+
+.add-tin__demo-popover__cancel:hover {
+	background: var(--surface-hover);
+	color: var(--text-secondary);
+}
+
+.add-tin__demo-samples {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-top: 0.5rem;
+}
+
+.add-tin__demo-samples-label {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	margin-right: 0.1rem;
+}
+
+.add-tin__demo-sample {
+	font-size: 0.72rem;
+	padding: 0.18rem 0.55rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-bright);
+	background: var(--surface-card-2);
+	color: var(--accent);
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.add-tin__demo-sample:hover {
+	background: var(--accent-soft);
+	border-color: var(--accent);
+}

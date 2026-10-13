@@ -1,0 +1,99 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import WalletOverview from '../../components/dashboard/WalletOverview';
+import AddressLabels from '../../components/dashboard/AddressLabels';
+import { db } from '../../lib/db';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getWallets } from '@/i18n/dashboard/wallets';
+import HistoryDownload from '../../components/dashboard/HistoryDownload.astro';
+import { getActivePlan } from '../../lib/subscriptions';
+import { canDownloadHistoryByWallet } from '../../lib/historyAccess';
+import { loadOwnerIndex, ownerForWalletAddress, type OwnerIndex } from '../../lib/walletIdentity';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const lang = getLang(Astro.request);
+const t = getWallets(lang);
+
+// History by wallet: any paid plan and the owner; Free sees the button locked.
+const activePlan = await getActivePlan(tenantId);
+const canDownloadHistory = canDownloadHistoryByWallet(activePlan.id, tenantId);
+
+const walletResult = await db.execute({
+	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
+	args: [tenantId],
+});
+
+// "Whose account is this?" for each wallet card. A failure here shows "Not set", not an error page.
+const owners: OwnerIndex = await loadOwnerIndex(tenantId).catch((err) => {
+	console.error('[wallets] owner labels:', err instanceof Error ? err.message : String(err));
+	return { byKey: new Map(), byAddress: new Map() };
+});
+
+const wallets = walletResult.rows.map((row: Record<string, any>) => ({
+	id:      String(row.id),
+	address: String(row.address),
+	label:   row.label ? String(row.label) : null,
+	ownerLabel: ownerForWalletAddress(owners, row.address),
+}));
+
+const labelResult = await db.execute({
+	sql: `SELECT id, address, label, source FROM address_labels
+	      WHERE tenant_id = ? ORDER BY created_at DESC`,
+	args: [tenantId],
+});
+
+const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
+	id:      String(row.id),
+	address: String(row.address),
+	label:   String(row.label),
+	source:  String(row.source),
+}));
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section style="
+		max-width: 900px;
+		margin: 0 auto;
+		padding: 2.5rem 1.5rem 4rem;
+		display: flex;
+		flex-direction: column;
+		gap: 3rem;
+	">
+		<WalletOverview client:load wallets={wallets} />
+
+		<HistoryDownload lang={lang} canDownload={canDownloadHistory} />
+
+		<div style="
+			background: rgba(45,212,168,0.08);
+			border: 1px solid rgba(45,212,168,0.22);
+			border-left: 4px solid var(--accent);
+			border-radius: 0 8px 8px 0;
+			padding: 1.1rem 1.4rem;
+			display: flex;
+			flex-direction: column;
+			gap: 0.55rem;
+			margin-bottom: -1rem;
+		">
+			<p style="margin:0; font-size:0.88rem; font-weight:600; color:var(--accent);">
+				{t.whyLabelTitle}
+			</p>
+			<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
+				{t.whyLabelBody1} (<em>Coinbase Deposit</em>, <em>Sis's Wallet</em>, <em>Aave V3 Pool</em>)
+				{" "}{t.whyLabelBody2}
+			</p>
+			<ul style="margin:0.2rem 0 0; padding-left:1.2rem; font-size:0.83rem; color:var(--text-secondary); line-height:1.7;">
+				<li><strong style="color:var(--text-primary);">{t.bookkeepingLabel}</strong> — {t.bookkeepingText}</li>
+				<li><strong style="color:var(--text-primary);">{t.fewerNeedsAttentionLabel}</strong> — {t.fewerNeedsAttentionText}</li>
+				<li><strong style="color:var(--text-primary);">{t.scamDetectionLabel}</strong> — {t.scamDetectionText}</li>
+				<li><strong style="color:var(--text-primary);">{t.auditTrailLabel}</strong> — {t.auditTrailText}</li>
+			</ul>
+			<p style="margin:0.3rem 0 0; font-size:0.78rem; color:var(--text-muted);">
+				{t.tip}
+			</p>
+		</div>
+
+		<AddressLabels client:load labels={addressLabels} />
+	</section>
+</Layout>

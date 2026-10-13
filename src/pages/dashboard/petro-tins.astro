@@ -1,0 +1,1923 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
+import ReceiptRegistry from '../../components/petro-tins/ReceiptRegistry';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPetroSubscription } from '@/lib/petroSubscription';
+import { OWNER_TENANT_ID } from '@/lib/owner';
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/petro-tins');
+// Demo users can view but not write (API endpoints block isDemo mutations)
+const isOwner = String(session.tenantId).toLowerCase() === OWNER_TENANT_ID;
+const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.tenantId);
+// While PetroTins is owner-only its landing is a 404 once signed out, so log out to /login.
+const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
+---
+
+<Layout title="PetroTins | Almstins" noindex={true} logoutRedirect={logoutRedirect}>
+  <section class="dt-page">
+    <div class="hero-bleed">
+      <NetWorthHero title="PetroTins" subtitle="Debt, budget & business — the real numbers" />
+    </div>
+
+    <!-- Content wrapper adds breathing room without breaking full-width hero -->
+    <div class="dt-content">
+
+      <!-- Summary bar -->
+      <div class="dt-summary-bar">
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Total Debt</span>
+          <span class="dt-summary-value loss" id="dt-total-debt">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Monthly Interest</span>
+          <span class="dt-summary-value loss" id="dt-monthly-interest">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Est. Annual Interest</span>
+          <span class="dt-summary-value loss" id="dt-annual-interest">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Net Cash Flow</span>
+          <span class="dt-summary-value" id="dt-net-cashflow">—</span>
+        </div>
+      </div>
+
+      <!-- Monthly bills check-in panel -->
+      <div class="dt-monthly-panel" id="dt-monthly-panel" style="display:none">
+        <button class="dt-monthly-header" id="dt-monthly-toggle" aria-expanded="false">
+          <span>📋 Monthly Bills Check-In</span>
+          <span class="dt-monthly-meta" id="dt-monthly-meta"></span>
+          <span class="dt-monthly-chevron" id="dt-monthly-chevron">▸</span>
+        </button>
+        <div class="dt-monthly-body" id="dt-monthly-body" style="display:none">
+          <!-- rows rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Add Tin buttons -->
+      <div class="dt-add-row">
+        <button class="dt-add-btn" data-add-type="debt">＋ Debt Tin</button>
+        <button class="dt-add-btn" data-add-type="budget">＋ Budget</button>
+        <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
+        <button class="dt-add-btn" data-add-type="splits">＋ Splits</button>
+        {petroTier === 'free' && (
+          <a href="/dashboard/petro-tins/upgrade" class="dt-upgrade-link">
+            ⛽ Free Plan — <strong>Upgrade $100/yr</strong>
+          </a>
+        )}
+        {petroTier === 'paid' && (
+          <span class="dt-plan-badge">⛽ Full Access</span>
+        )}
+      </div>
+
+      <!-- Sample data banner (shown when sample tins exist) -->
+      <div class="dt-sample-banner" id="dt-sample-banner" style="display:none">
+        <span class="dt-sample-banner__icon">🧪</span>
+        <span class="dt-sample-banner__text">You're looking at <strong>sample data</strong> — coming soon.</span>
+        <button class="dt-sample-banner__dismiss" id="dt-sample-dismiss">✕</button>
+      </div>
+
+      <!-- Tins grid — React component handles layout, fetching, and rendering -->
+      <PetroTinsGrid client:load />
+
+      <!-- Receipt registry — tax-receipt log: amount, purpose, photo + ZIP/CSV export.
+           Owner-only for now (the API endpoints are owner-gated too). -->
+      {isOwner && (
+        <ReceiptRegistry client:load isDemo={session.isDemo ?? false} />
+      )}
+
+    </div><!-- /dt-content -->
+
+    {isOwner && (
+      <div class="dt-owner-timer" id="dt-owner-timer">
+        <span class="dt-owner-timer__label">👁 on page</span>
+        <span class="dt-owner-timer__time" id="dt-page-timer">0:00</span>
+      </div>
+    )}
+  </section>
+
+  <!-- Add / Edit Tin Modal -->
+  <div class="dt-modal-overlay" id="dt-modal" style="display:none" aria-modal="true" role="dialog">
+    <div class="dt-modal">
+      <h2 id="dt-modal-title">Add Tin</h2>
+      <form id="dt-modal-form">
+        <input type="hidden" id="dt-modal-id" value="" />
+        <input type="hidden" id="dt-modal-type" value="" />
+
+        <label class="dt-label">
+          Name
+          <input class="dt-input" id="dt-modal-name" type="text" placeholder="e.g. Chase Sapphire, Chase Checking" maxlength="100" required />
+        </label>
+
+        <!-- Debt fields -->
+        <div class="dt-fields-debt" style="display:none">
+          <label class="dt-label">
+            Current Balance ($)
+            <input class="dt-input" id="dt-debt-balance" type="number" step="0.01" min="0" placeholder="0.00" />
+          </label>
+          <label class="dt-label">
+            Credit Limit ($) <span class="dt-optional">(optional)</span>
+            <input class="dt-input" id="dt-debt-limit" type="number" step="0.01" min="0" placeholder="0.00" />
+          </label>
+          <label class="dt-label">
+            APR (%) <span class="dt-optional">e.g. 21.99</span>
+            <input class="dt-input" id="dt-debt-apr" type="number" step="0.01" min="0" max="100" placeholder="0.00" />
+          </label>
+          <label class="dt-label">
+            Minimum Payment ($)
+            <input class="dt-input" id="dt-debt-min" type="number" step="0.01" min="0" placeholder="0.00" />
+          </label>
+        </div>
+
+        <!-- Business fields -->
+        <div class="dt-fields-business" style="display:none">
+          <label class="dt-label">
+            Monthly Revenue Goal ($) <span class="dt-optional">(optional)</span>
+            <input class="dt-input" id="dt-biz-goal" type="number" step="0.01" min="0" placeholder="0.00" />
+          </label>
+        </div>
+
+        <div class="dt-modal-actions">
+          <button type="submit" class="dt-btn-primary" id="dt-modal-submit">Save</button>
+          <button type="button" class="dt-btn-ghost" id="dt-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Splits Modal -->
+  <div class="dt-modal-overlay" id="dt-splits-modal" style="display:none" aria-modal="true" role="dialog">
+    <div class="dt-modal">
+      <h2>Create Splits Tin</h2>
+      <p class="dt-splits-modal-desc">A splits tin tracks shared expenses between roommates, travel partners, or anyone splitting costs.</p>
+      <form id="dt-splits-form">
+        <label class="dt-label">
+          Name <span class="dt-optional">e.g. "Apartment 4B", "Bahamas Trip"</span>
+          <input class="dt-input dt-input--bright" id="dt-splits-name" type="text" placeholder="Name this splits tin" maxlength="100" required autocomplete="off" />
+        </label>
+        <div class="dt-modal-actions">
+          <button type="submit" class="dt-btn-primary">Create</button>
+          <button type="button" class="dt-btn-ghost" id="dt-splits-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Entry Modal -->
+  <div class="dt-modal-overlay" id="dt-entry-modal" style="display:none" aria-modal="true" role="dialog">
+    <div class="dt-modal">
+      <h2 id="dt-entry-modal-title">Add Entry</h2>
+      <form id="dt-entry-form">
+        <input type="hidden" id="dt-entry-tin-id" value="" />
+        <input type="hidden" id="dt-entry-tin-type" value="" />
+
+        <label class="dt-label">
+          Date
+          <input class="dt-input" id="dt-entry-date" type="date" required />
+        </label>
+
+        <label class="dt-label">
+          Type
+          <select class="dt-input" id="dt-entry-kind">
+            <option value="payment">Payment</option>
+            <option value="charge">Charge / Purchase</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </label>
+
+        <label class="dt-label">
+          Amount ($)
+          <input class="dt-input" id="dt-entry-amount" type="number" step="0.01" min="0.01" placeholder="0.00" required />
+        </label>
+
+        <label class="dt-label">
+          Description <span class="dt-optional">(optional)</span>
+          <input class="dt-input" id="dt-entry-desc" name="description" type="text" maxlength="200" placeholder="What was this for?" autocomplete="off" />
+        </label>
+
+        <label class="dt-label">
+          Payment URL <span class="dt-optional">(optional)</span>
+          <input class="dt-input" id="dt-entry-url" name="url" type="url" placeholder="https://example.com/payment" />
+        </label>
+
+        <div class="dt-modal-actions">
+          <button type="submit" class="dt-btn-primary">Add</button>
+          <button type="button" class="dt-btn-ghost" id="dt-entry-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <style>
+    .dt-page {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      padding: 0 0 3rem;
+      width: 100%;
+    }
+
+    /* Padded content area — keeps hero-bleed full width but gives everything else room */
+    .dt-content {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding: 1.5rem 1.5rem 0;
+    }
+    @media (min-width: 900px) {
+      .dt-content { padding: 2rem 2.5rem 0; }
+    }
+
+    /* Monthly check-in panel */
+    .dt-monthly-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .dt-monthly-header {
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+    }
+    .dt-monthly-header:hover { background: var(--surface-hover); }
+    .dt-monthly-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      flex: 1;
+    }
+    .dt-monthly-chevron { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; }
+    .dt-monthly-chevron.open { transform: rotate(90deg); }
+    .dt-monthly-body {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .dt-monthly-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-monthly-row:last-child { border-bottom: none; }
+    .dt-monthly-row.logged { opacity: 0.5; pointer-events: none; }
+    .dt-monthly-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+    }
+    .dt-monthly-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+    .dt-monthly-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dt-monthly-tin-name {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .dt-monthly-amount-input {
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      width: 100px;
+      text-align: right;
+      box-sizing: border-box;
+    }
+    .dt-monthly-amount-input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent); }
+    .dt-monthly-log-btn {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-glow);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dt-monthly-log-btn:hover { background: var(--accent-glow); }
+    .dt-monthly-logged-badge {
+      font-size: 0.75rem;
+      color: var(--gain);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .dt-monthly-empty {
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Summary bar */
+    .dt-summary-bar {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1px;
+      background: var(--border-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    @media (min-width: 640px) {
+      .dt-summary-bar { grid-template-columns: repeat(4, 1fr); }
+    }
+    .dt-summary-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 1rem 1.25rem;
+      background: var(--surface-card);
+    }
+    .dt-summary-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+    .dt-summary-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .dt-summary-value.loss { color: var(--loss); }
+    .dt-summary-value.gain { color: var(--gain); }
+
+    /* Add buttons */
+    .dt-add-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+    .dt-add-btn {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .dt-add-btn:hover {
+      background: var(--surface-hover);
+      color: var(--accent);
+      border-color: var(--accent-glow);
+    }
+    .dt-upgrade-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(245,158,11,0.10);
+      border: 1px solid rgba(245,158,11,0.30);
+      color: #f59e0b;
+      border-radius: 8px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.875rem;
+      text-decoration: none;
+      transition: background 0.15s;
+      margin-left: auto;
+    }
+    .dt-upgrade-link:hover { background: rgba(245,158,11,0.20); }
+    .dt-upgrade-link strong { color: #f59e0b; }
+    .dt-plan-badge {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(245,158,11,0.10);
+      border: 1px solid rgba(245,158,11,0.20);
+      color: #f59e0b;
+      border-radius: 8px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-left: auto;
+    }
+
+    /* Zone layout */
+    .dt-zone-top {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    @media (min-width: 900px) {
+      .dt-zone-top { grid-template-columns: 1fr auto; align-items: start; }
+    }
+
+    /* Summary side panel */
+    .dt-summary-side {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      min-width: 220px;
+    }
+    .dt-summary-side__title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .dt-summary-side__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.5rem;
+      padding: 0.35rem 0;
+    }
+    .dt-summary-side__row--net .dt-summary-side__label { color: var(--text-primary); font-weight: 600; }
+    .dt-summary-side__row--net .dt-summary-side__val   { font-size: 1.1rem; font-weight: 700; }
+    .dt-summary-side__label { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+    .dt-summary-side__val   { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+    .dt-summary-side__val.gain { color: var(--gain); }
+    .dt-summary-side__val.loss { color: var(--loss); }
+    .dt-summary-side__divider { border-top: 1px solid var(--border-subtle); margin: 0.6rem 0; }
+
+    /* Debt zone */
+    .dt-zone-debt { margin-bottom: 2rem; margin-left: 3rem; }
+    .dt-zone-income { }
+    .dt-zone-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .dt-zone-divider {
+      border-top: 2px solid var(--border-bright);
+      margin-bottom: 1.5rem;
+    }
+    .dt-debt-grid,
+    .dt-income-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    @media (min-width: 720px) {
+      .dt-debt-grid,
+      .dt-income-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1080px) {
+      .dt-debt-grid,
+      .dt-income-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    /* Sample data banner */
+    .dt-sample-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-glow);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-size: 0.83rem;
+      color: var(--text-secondary);
+    }
+    .dt-sample-banner__icon { font-size: 1rem; flex-shrink: 0; }
+    .dt-sample-banner__text { flex: 1; }
+    .dt-sample-banner__text strong { color: var(--accent); }
+    /* Owner-only session timer — fixed bottom-right, invisible to visitors */
+    .dt-owner-timer {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      z-index: 500;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .dt-owner-timer__label { color: var(--text-muted); }
+    .dt-owner-timer__time  { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .dt-sample-banner__dismiss {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .dt-sample-banner__dismiss:hover { color: var(--text-primary); background: var(--accent-glow); }
+
+    /* Sample badge on tin header */
+    .dt-tin__sample-badge {
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--accent-soft);
+      color: var(--accent-dim);
+      border: 1px solid var(--accent-glow);
+      flex-shrink: 0;
+    }
+
+    .dt-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--text-muted);
+      padding: 3rem 1rem;
+      font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .dt-load-sample-btn {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dt-load-sample-btn:hover { background: var(--surface-hover); }
+
+    /* Tin card */
+    .dt-tin {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+
+    /* Debt tins — vault SalmonTin style */
+    .dt-tin--debt {
+      position: relative;
+      border: 2px solid var(--loss) !important;
+      overflow: visible !important;
+      margin-top: 1.2rem;
+      padding-top: 0.5rem;
+    }
+
+    /* Header */
+    .dt-tin__header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1rem 0.75rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-tin--debt .dt-tin__header {
+      border-bottom: 1px solid var(--border-subtle);
+      padding-top: 0.75rem;
+    }
+
+    .dt-tin__name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dt-tin__badge {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    /* Debt badge: floating pill above the card, anchored to .dt-tin */
+    .dt-tin--debt .dt-tin__badge {
+      position: absolute;
+      top: -14px;
+      left: 1rem;
+      background: var(--loss);
+      color: var(--surface-bg);
+      border: none;
+      border-radius: 99px;
+      padding: 3px 12px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      z-index: 2;
+    }
+    .dt-tin__badge--budget   { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-glow); }
+    .dt-tin__badge--business { background: var(--gain-bg);    color: var(--gain);   border: 1px solid var(--gain-border); }
+
+    .dt-tin__actions {
+      display: flex;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .dt-tin__icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 3px 5px;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      line-height: 1;
+      transition: background 0.12s, color 0.12s;
+    }
+    .dt-tin__icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+    .dt-tin__icon-btn--delete:hover { color: var(--loss); }
+
+    /* Progress bar (debt utilization or business revenue) */
+    .dt-tin__progress-wrap {
+      padding: 0.75rem 1rem 0.25rem;
+    }
+    .dt-tin__progress-track {
+      height: 6px;
+      background: var(--surface-card-2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .dt-tin__progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+    .dt-tin__progress-fill--debt     { background: var(--loss); }
+    .dt-tin__progress-fill--business { background: var(--gain); }
+    .dt-tin__progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Key numbers — clean list, label left / value right, divider between rows */
+    .dt-tin__nums {
+      display: flex;
+      flex-direction: column;
+      padding: 0.25rem 0 0.25rem;
+    }
+    .dt-tin__num-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-tin__num-row:last-child { border-bottom: none; }
+    .dt-tin__num-label { color: var(--text-secondary); }
+    .dt-tin__num-value { color: var(--text-primary); font-weight: 600; }
+    .dt-tin__num-value.loss { color: var(--loss); }
+    .dt-tin__num-value.gain { color: var(--gain); }
+
+    /* Budget tin */
+    .dt-tin--budget {
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+    }
+
+    /* Checkbook register */
+    .dt-register {
+      width: 100%;
+      overflow-x: auto;
+    }
+    .dt-register table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    .dt-register thead tr {
+      border-bottom: 2px solid var(--border-bright);
+    }
+    .dt-register th {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .dt-register th.col-amt { text-align: right; }
+    .dt-register th.col-bal { text-align: right; }
+
+    /* Sort button styling */
+    .dt-sort-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+    .dt-sort-btn:hover {
+      color: var(--accent);
+    }
+    .dt-sort-arrow {
+      font-size: 0.6rem;
+      display: inline-block;
+      min-width: 0.4rem;
+      text-align: center;
+    }
+
+    /* Existing saved rows */
+    .dt-reg-saved {
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background 0.1s;
+    }
+    .dt-reg-saved:hover { background: var(--surface-hover); }
+    .dt-reg-saved td {
+      padding: 0.45rem 0.75rem;
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+    .dt-reg-saved td.col-date  { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+    .dt-reg-saved td.col-desc  { color: var(--text-primary); }
+    .dt-reg-saved td.col-pay   { text-align: right; color: var(--loss); font-weight: 600; }
+    .dt-reg-saved td.col-dep   { text-align: right; color: var(--gain); font-weight: 600; }
+    .dt-reg-saved td.col-bal   { text-align: right; color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+    .dt-reg-saved td.col-del   { text-align: center; width: 28px; }
+    .dt-reg-del {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 0.7rem; padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .dt-reg-del:hover { color: var(--loss); background: var(--loss-bg); }
+
+    /* Blank input rows */
+    .dt-reg-blank {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-reg-blank:last-child { border-bottom: none; }
+    .dt-reg-blank td { padding: 0.3rem 0.4rem; vertical-align: middle; }
+    .dt-reg-input {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--surface-card-2) !important;
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-primary) !important;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.4rem;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.15s;
+      color-scheme: dark;
+      font-family: inherit;
+      -webkit-text-fill-color: var(--text-primary);
+    }
+    .dt-reg-input:focus {
+      border-bottom-color: var(--accent);
+      background: var(--surface-hover) !important;
+    }
+    .dt-reg-input::placeholder { color: var(--text-muted); opacity: 1; }
+    .dt-reg-input.col-amt-input { text-align: right; font-variant-numeric: tabular-nums; }
+    .dt-reg-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+    .dt-reg-blank td.col-bal { text-align: right; color: var(--text-muted); font-size: 0.78rem; padding-right: 0.75rem; }
+    .dt-reg-blank td.col-del { width: 28px; }
+
+    /* Saved indicator flash */
+    @keyframes rowSaved { 0%{background:var(--gain-bg)} 100%{background:transparent} }
+    .dt-reg-saved.just-saved { animation: rowSaved 1.2s ease forwards; }
+
+    /* Accordion / entry list */
+    .dt-tin__accordion {
+      border-top: 1px solid var(--border-subtle);
+    }
+    .dt-tin__accordion-toggle {
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0.6rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-align: left;
+    }
+    .dt-tin__accordion-toggle:hover { background: var(--surface-hover); }
+    .dt-tin__accordion-toggle .chevron { transition: transform 0.2s; }
+    .dt-tin__accordion-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+    .dt-tin__entries {
+      padding: 0 1rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .dt-tin__entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.8rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 0.5rem;
+    }
+    .dt-tin__entry:last-child { border-bottom: none; }
+    .dt-tin__entry-left { display: flex; flex-direction: column; gap: 2px; }
+    .dt-tin__entry-kind {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+    }
+    .dt-tin__entry-desc { color: var(--text-secondary); }
+    .dt-tin__entry-date { color: var(--text-muted); font-size: 0.7rem; }
+    .dt-tin__entry-amount { font-weight: 600; flex-shrink: 0; }
+    .dt-tin__entry-amount.payment  { color: var(--gain); }
+    .dt-tin__entry-amount.charge   { color: var(--loss); }
+    .dt-tin__entry-amount.income   { color: var(--gain); }
+    .dt-tin__entry-amount.expense  { color: var(--loss); }
+    .dt-tin__entry-del {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 0.75rem; padding: 0 4px;
+      flex-shrink: 0;
+    }
+    .dt-tin__entry-del:hover { color: var(--loss); }
+    .dt-tin__no-entries { font-size: 0.8rem; color: var(--text-muted); padding: 0.25rem 0; }
+
+    /* Add entry button at bottom of tin */
+    .dt-tin__footer {
+      padding: 0.5rem 1rem 0.875rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .dt-add-entry-btn {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-glow);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dt-add-entry-btn:hover { background: var(--accent-glow); }
+
+    /* Modal */
+    .dt-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .dt-modal {
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 14px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .dt-modal h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    .dt-label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    .dt-optional { color: var(--text-muted); font-size: 0.75rem; }
+    .dt-input {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 7px;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .dt-input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent); }
+    #dt-modal-form, #dt-entry-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+    .dt-fields-debt, .dt-fields-business {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+    .dt-modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      margin-top: 0.25rem;
+    }
+    .dt-btn-primary {
+      background: var(--accent);
+      color: var(--surface-bg);
+      border: none;
+      border-radius: 7px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dt-btn-primary:hover { opacity: 0.9; }
+    .dt-btn-ghost {
+      background: none;
+      border: 1px solid var(--border-bright);
+      color: var(--text-secondary);
+      border-radius: 7px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .dt-btn-ghost:hover { background: var(--surface-hover); }
+
+    /* Splits modal extras */
+    .dt-splits-modal-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin: -0.5rem 0 0;
+      line-height: 1.5;
+    }
+    .dt-input--bright {
+      background: var(--surface-hover);
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+    }
+    .dt-input--bright::placeholder { color: var(--text-muted); }
+    .dt-input--bright:focus { border-color: var(--text-primary); outline: 2px solid var(--accent-glow); }
+  </style>
+
+  <script is:inline define:vars={{ isOwner }}>
+    window.__petroOwner = isOwner;
+  </script>
+  <script is:inline>
+    // ── Utilities ──────────────────────────────────────────────────────────────
+    const $ = (sel, ctx = document) => ctx.querySelector(sel);
+    const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
+    const fmt  = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtPct = n => (Number(n) * 100).toFixed(2) + '%';
+
+    let _tins = [];
+
+    // Sort state: { tinId: { column: 'date'|'amount'|'checked', direction: 'asc'|'desc' } }
+    const _sortState = {};
+
+    // ── Load tins from API ─────────────────────────────────────────────────────
+    async function loadTins() {
+      try {
+        const res = await fetch('/api/petro-tins');
+        const data = await res.json();
+        _tins = data.tins ?? [];
+      } catch { _tins = []; }
+      renderAll();
+      buildMonthlyCheckin();
+    }
+
+    // ── Summaries ──────────────────────────────────────────────────────────────
+    function computeSummary() {
+      let totalDebt = 0, monthlyInterest = 0, annualInterest = 0;
+      let totalIncome = 0, totalExpense = 0;
+      const now = new Date();
+      const thisMonth = now.toISOString().slice(0, 7); // YYYY-MM
+
+      for (const tin of _tins) {
+        if (tin.type === 'debt') {
+          const bal = tin.balance ?? 0;
+          const apr = tin.apr ?? 0;
+          totalDebt += bal;
+          monthlyInterest += bal * (apr / 12);
+          annualInterest  += bal * apr;
+        }
+        if (tin.type === 'budget' || tin.type === 'business') {
+          for (const e of (tin.entries ?? [])) {
+            if (!e.entryDate.startsWith(thisMonth)) continue;
+            if (e.kind === 'income')  totalIncome  += e.amount;
+            if (e.kind === 'expense') totalExpense += e.amount;
+          }
+        }
+      }
+      return { totalDebt, monthlyInterest, annualInterest, netCashflow: totalIncome - totalExpense };
+    }
+
+    function renderSummary() {
+      const { totalDebt, monthlyInterest, annualInterest, netCashflow } = computeSummary();
+      // Top stats bar
+      const debtEl = document.getElementById('dt-total-debt');
+      const miEl   = document.getElementById('dt-monthly-interest');
+      const aiEl   = document.getElementById('dt-annual-interest');
+      const cfEl   = document.getElementById('dt-net-cashflow');
+      if (debtEl) debtEl.textContent = fmt(totalDebt);
+      if (miEl)   miEl.textContent   = fmt(monthlyInterest);
+      if (aiEl)   aiEl.textContent   = fmt(annualInterest);
+      if (cfEl) {
+        cfEl.textContent = fmt(Math.abs(netCashflow));
+        cfEl.classList.toggle('gain', netCashflow >= 0);
+        cfEl.classList.toggle('loss', netCashflow < 0);
+      }
+      // Side summary panel
+      const { totalIncome, totalExpense } = (() => {
+        const now = new Date();
+        const thisMonth = now.toISOString().slice(0, 7);
+        let inc = 0, exp = 0;
+        for (const tin of _tins) {
+          if (tin.type === 'budget' || tin.type === 'business') {
+            for (const e of (tin.entries ?? [])) {
+              if (!e.entryDate.startsWith(thisMonth)) continue;
+              if (e.kind === 'income')  inc += e.amount;
+              if (e.kind === 'expense') exp += e.amount;
+            }
+          }
+        }
+        return { totalIncome: inc, totalExpense: exp };
+      })();
+      const netEl  = document.getElementById('dss-net');
+      const incEl  = document.getElementById('dss-income');
+      const expEl  = document.getElementById('dss-expense');
+      const sdEl   = document.getElementById('dss-debt');
+      const siEl   = document.getElementById('dss-interest');
+      const saEl   = document.getElementById('dss-annual');
+      if (incEl)  incEl.textContent  = fmt(totalIncome);
+      if (expEl)  expEl.textContent  = fmt(totalExpense);
+      if (netEl) {
+        netEl.textContent = fmt(Math.abs(netCashflow));
+        netEl.className = 'dt-summary-side__val ' + (netCashflow >= 0 ? 'gain' : 'loss');
+      }
+      if (sdEl) sdEl.textContent  = fmt(totalDebt);
+      if (siEl) siEl.textContent  = fmt(monthlyInterest);
+      if (saEl) saEl.textContent  = fmt(annualInterest);
+    }
+
+    // ── Render all tins ────────────────────────────────────────────────────────
+    function renderAll() {
+      renderSummary();
+      const emptyMsg    = document.getElementById('dt-empty');
+      const budgetSlot  = document.getElementById('dt-budget-slot');
+      const debtGrid    = document.getElementById('dt-debt-grid');
+      const incomeGrid  = document.getElementById('dt-income-grid');
+      const zoneTop     = document.getElementById('dt-zone-top');
+      const zoneDebt    = document.getElementById('dt-zone-debt');
+      const zoneIncome  = document.getElementById('dt-zone-income');
+      const sampleBanner = document.getElementById('dt-sample-banner');
+      const hasSample = _tins.some(t => t.notes === '__sample__');
+
+      // Clear zones
+      if (budgetSlot) budgetSlot.innerHTML = '';
+      if (debtGrid)   debtGrid.innerHTML   = '';
+      if (incomeGrid) incomeGrid.innerHTML  = '';
+
+      if (!_tins.length) {
+        if (emptyMsg) emptyMsg.style.display = 'flex';
+        if (zoneDebt)   zoneDebt.style.display   = 'none';
+        if (zoneIncome) zoneIncome.style.display  = 'none';
+        if (sampleBanner) sampleBanner.style.display = 'none';
+        return;
+      }
+      if (emptyMsg) emptyMsg.style.display = 'none';
+      if (sampleBanner) sampleBanner.style.display = hasSample ? 'flex' : 'none';
+
+      const debtTins     = _tins.filter(t => t.type === 'debt');
+      const budgetTins   = _tins.filter(t => t.type === 'budget');
+      const businessTins = _tins.filter(t => t.type === 'business');
+
+      // Row 1 col 2: budget tin(s)
+      for (const tin of budgetTins) {
+        budgetSlot?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+      }
+
+      // Row 2: debt tins
+      if (debtTins.length && zoneDebt) {
+        zoneDebt.style.display = 'block';
+        for (const tin of debtTins) {
+          debtGrid?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+        }
+      } else if (zoneDebt) {
+        zoneDebt.style.display = 'none';
+      }
+
+      // Below divider: business/income tins
+      if (businessTins.length && zoneIncome) {
+        zoneIncome.style.display = 'block';
+        for (const tin of businessTins) {
+          incomeGrid?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+        }
+      } else if (zoneIncome) {
+        zoneIncome.style.display = 'none';
+      }
+
+      // Bind accordion toggles
+      $$('.dt-tin__accordion-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+          const target = document.getElementById(btn.dataset.target);
+          if (target) target.style.display = expanded ? 'none' : 'flex';
+        });
+      });
+
+      // Bind delete entry buttons (debt/business tins)
+      $$('.dt-tin__entry-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteEntry(btn.dataset.entryId));
+      });
+
+      // Bind register row delete buttons (budget tins)
+      $$('.dt-reg-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteEntry(btn.dataset.entryId));
+      });
+
+      // Bind register blank row auto-save
+      $$('.dt-reg-blank').forEach(row => bindRegisterRow(row));
+    }
+
+    function buildTinHTML(tin) {
+      const badgeClass = `dt-tin__badge--${tin.type}`;
+      const badgeLabel = tin.type === 'debt' ? 'Debt' : tin.type === 'budget' ? 'Budget' : 'Business';
+      const sampleBadge = tin.notes === '__sample__' ? '<span class="dt-tin__sample-badge">sample</span>' : '';
+
+      let progressHTML = '';
+      if (tin.type === 'debt' && tin.creditLimit) {
+        const pct = Math.min(100, ((tin.balance ?? 0) / tin.creditLimit) * 100);
+        progressHTML = `
+          <div class="dt-tin__progress-wrap">
+            <div class="dt-tin__progress-track">
+              <div class="dt-tin__progress-fill dt-tin__progress-fill--debt" style="width:${pct.toFixed(1)}%"></div>
+            </div>
+            <div class="dt-tin__progress-labels">
+              <span>${fmt(tin.balance ?? 0)} owed</span>
+              <span>${pct.toFixed(0)}% of ${fmt(tin.creditLimit)}</span>
+            </div>
+          </div>`;
+      }
+      if (tin.type === 'business' && tin.goalRevenue) {
+        const monthRevenue = (tin.entries ?? [])
+          .filter(e => e.kind === 'income' && e.entryDate.startsWith(new Date().toISOString().slice(0,7)))
+          .reduce((s, e) => s + e.amount, 0);
+        const pct = Math.min(100, (monthRevenue / tin.goalRevenue) * 100);
+        progressHTML = `
+          <div class="dt-tin__progress-wrap">
+            <div class="dt-tin__progress-track">
+              <div class="dt-tin__progress-fill dt-tin__progress-fill--business" style="width:${pct.toFixed(1)}%"></div>
+            </div>
+            <div class="dt-tin__progress-labels">
+              <span>${fmt(monthRevenue)} this month</span>
+              <span>${pct.toFixed(0)}% of ${fmt(tin.goalRevenue)} goal</span>
+            </div>
+          </div>`;
+      }
+
+      let numsHTML = '';
+      if (tin.type === 'debt') {
+        const monthly = (tin.balance ?? 0) * ((tin.apr ?? 0) / 12);
+        numsHTML = `
+          <div class="dt-tin__nums">
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Balance</span>
+              <span class="dt-tin__num-value loss">${fmt(tin.balance ?? 0)}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">APR</span>
+              <span class="dt-tin__num-value">${tin.apr ? fmtPct(tin.apr) : '—'}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Monthly interest</span>
+              <span class="dt-tin__num-value loss">${tin.apr ? fmt(monthly) : '—'}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Min payment</span>
+              <span class="dt-tin__num-value">${tin.minPayment ? fmt(tin.minPayment) : '—'}</span>
+            </div>
+          </div>`;
+      } else if (tin.type === 'business') {
+        const entries = tin.entries ?? [];
+        const thisMonth = new Date().toISOString().slice(0,7);
+        const revenue = entries.filter(e => e.kind === 'income'  && e.entryDate.startsWith(thisMonth)).reduce((s,e) => s+e.amount,0);
+        const costs   = entries.filter(e => e.kind === 'expense' && e.entryDate.startsWith(thisMonth)).reduce((s,e) => s+e.amount,0);
+        const profit  = revenue - costs;
+        numsHTML = `
+          <div class="dt-tin__nums">
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Revenue (this month)</span>
+              <span class="dt-tin__num-value gain">${fmt(revenue)}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Expenses (this month)</span>
+              <span class="dt-tin__num-value loss">${fmt(costs)}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Net profit</span>
+              <span class="dt-tin__num-value ${profit >= 0 ? 'gain' : 'loss'}">${fmt(profit)}</span>
+            </div>
+          </div>`;
+      } else {
+        // Budget: show this month income vs expenses
+        const entries = tin.entries ?? [];
+        const thisMonth = new Date().toISOString().slice(0,7);
+        const income  = entries.filter(e => e.kind === 'income'  && e.entryDate.startsWith(thisMonth)).reduce((s,e) => s+e.amount,0);
+        const expense = entries.filter(e => e.kind === 'expense' && e.entryDate.startsWith(thisMonth)).reduce((s,e) => s+e.amount,0);
+        const net = income - expense;
+        numsHTML = `
+          <div class="dt-tin__nums">
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Income (this month)</span>
+              <span class="dt-tin__num-value gain">${fmt(income)}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Expenses (this month)</span>
+              <span class="dt-tin__num-value loss">${fmt(expense)}</span>
+            </div>
+            <div class="dt-tin__num-row">
+              <span class="dt-tin__num-label">Net</span>
+              <span class="dt-tin__num-value ${net >= 0 ? 'gain' : 'loss'}">${fmt(net)}</span>
+            </div>
+          </div>`;
+      }
+
+      const entries = tin.entries ?? [];
+      const entriesId = `entries-${tin.id}`;
+      const entriesLabel = tin.type === 'debt'
+        ? 'Payments & charges'
+        : tin.type === 'budget' ? 'Income & expenses' : 'Transactions';
+
+      const entryRows = entries.length
+        ? entries.slice(0, 30).map(e => {
+            const sign = (e.kind === 'payment' || e.kind === 'income') ? '−' : '+';
+            return `<div class="dt-tin__entry">
+              <div class="dt-tin__entry-left">
+                <span class="dt-tin__entry-kind">${e.kind}</span>
+                <span class="dt-tin__entry-desc">${e.description ?? '—'}</span>
+                <span class="dt-tin__entry-date">${e.entryDate}</span>
+              </div>
+              <span class="dt-tin__entry-amount ${e.kind}">${sign}${fmt(e.amount)}</span>
+              <button class="dt-tin__entry-del" data-entry-id="${e.id}" title="Remove">✕</button>
+            </div>`;
+          }).join('')
+        : '<p class="dt-tin__no-entries">No entries yet.</p>';
+
+      const addEntryKind = tin.type === 'debt' ? 'payment' : 'income';
+
+      // Budget tins get the full-width checkbook register layout
+      if (tin.type === 'budget') {
+        return buildBudgetRegister(tin, badgeClass, badgeLabel, sampleBadge);
+      }
+
+      return `
+        <div class="dt-tin dt-tin--${tin.type}" data-tin-id="${tin.id}" data-tin-type="${tin.type}">
+          <div class="dt-tin__header">
+            <span class="dt-tin__name">${escHtml(tin.name)}</span>
+            <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
+            ${sampleBadge}
+            <div class="dt-tin__actions">
+              <button class="dt-tin__icon-btn" title="Edit" onclick="openEditTin('${tin.id}')">✏️</button>
+              <button class="dt-tin__icon-btn dt-tin__icon-btn--delete" title="Delete" onclick="deleteTin('${tin.id}')">🗑</button>
+            </div>
+          </div>
+          ${progressHTML}
+          ${numsHTML}
+          <div class="dt-tin__accordion">
+            <button class="dt-tin__accordion-toggle" aria-expanded="false" data-target="${entriesId}">
+              ${entriesLabel} (${entries.length})
+              <span class="chevron">▼</span>
+            </button>
+            <div class="dt-tin__entries" id="${entriesId}" style="display:none">
+              ${entryRows}
+            </div>
+          </div>
+          <div class="dt-tin__footer">
+            <button class="dt-add-entry-btn" onclick="openAddEntry('${tin.id}', '${tin.type}')">＋ Add entry</button>
+          </div>
+        </div>`;
+    }
+
+    function sortEntries(entries, tinId) {
+      const sort = _sortState[tinId] ?? { column: 'date', direction: 'desc' };
+      const sorted = entries.slice();
+
+      if (sort.column === 'date') {
+        sorted.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+      } else if (sort.column === 'amount') {
+        sorted.sort((a, b) => a.amount - b.amount);
+      } else if (sort.column === 'checked') {
+        sorted.sort((a, b) => (a.checked ? 1 : 0) - (b.checked ? 1 : 0));
+      }
+
+      return sort.direction === 'desc' ? sorted.reverse() : sorted;
+    }
+
+    function toggleSort(tinId, column) {
+      const current = _sortState[tinId] ?? { column: 'date', direction: 'desc' };
+      if (current.column === column) {
+        current.direction = current.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        current.column = column;
+        current.direction = 'desc';
+      }
+      _sortState[tinId] = current;
+      renderAll();
+    }
+
+    function getSortArrow(tinId, column) {
+      const sort = _sortState[tinId];
+      if (!sort || sort.column !== column) return '⇅';
+      return sort.direction === 'asc' ? '↑' : '↓';
+    }
+
+    function buildBudgetRegister(tin, badgeClass, badgeLabel, sampleBadge) {
+      const entries = sortEntries(tin.entries ?? [], tin.id);
+      const BLANK_ROWS = 10;
+
+      // Compute running balance
+      let running = 0;
+      const savedRows = entries.map(e => {
+        if (e.kind === 'income')  running += e.amount;
+        if (e.kind === 'expense') running -= e.amount;
+        const pay = e.kind === 'expense' ? fmt(e.amount) : '';
+        const dep = e.kind === 'income'  ? fmt(e.amount) : '';
+        const balClass = running >= 0 ? 'gain' : 'loss';
+        return `<tr class="dt-reg-saved" data-entry-id="${e.id}">
+          <td class="col-date">${e.entryDate}</td>
+          <td class="col-desc">${escHtml(e.description ?? '')}</td>
+          <td class="col-pay">${pay}</td>
+          <td class="col-dep">${dep}</td>
+          <td class="col-bal ${balClass}">${fmt(running)}</td>
+          <td class="col-del"><button class="dt-reg-del" data-entry-id="${e.id}" title="Delete">✕</button></td>
+        </tr>`;
+      }).join('');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const blankRows = Array.from({ length: BLANK_ROWS }, (_, i) => `
+        <tr class="dt-reg-blank" data-row="${i}" data-tin-id="${tin.id}">
+          <td><input class="dt-reg-input dt-reg-date-i" type="date" value="${today}" /></td>
+          <td><input class="dt-reg-input dt-reg-desc-i" type="text" placeholder="Description" maxlength="120" /></td>
+          <td><input class="dt-reg-input dt-reg-input col-amt-input dt-reg-pay-i" type="number" step="0.01" min="0" placeholder="—" /></td>
+          <td><input class="dt-reg-input dt-reg-input col-amt-input dt-reg-dep-i" type="number" step="0.01" min="0" placeholder="—" /></td>
+          <td class="col-bal">—</td>
+          <td class="col-del"></td>
+        </tr>`).join('');
+
+      const balClass = running >= 0 ? 'gain' : 'loss';
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      const income  = entries.filter(e => e.kind === 'income'  && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
+      const expense = entries.filter(e => e.kind === 'expense' && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
+      const net = income - expense;
+
+      return `
+        <div class="dt-tin dt-tin--budget" data-tin-id="${tin.id}" data-tin-type="budget">
+          <div class="dt-tin__header">
+            <span class="dt-tin__name">${escHtml(tin.name)}</span>
+            <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
+            ${sampleBadge}
+            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">
+              Income <span style="color:var(--gain);font-weight:600">${fmt(income)}</span>
+              &nbsp;·&nbsp;
+              Expenses <span style="color:var(--loss);font-weight:600">${fmt(expense)}</span>
+              &nbsp;·&nbsp;
+              Net <span style="color:var(--${net>=0?'gain':'loss'});font-weight:600">${fmt(net)}</span>
+            </span>
+            <div class="dt-tin__actions" style="margin-left:auto">
+              <button class="dt-tin__icon-btn" title="Edit" onclick="openEditTin('${tin.id}')">✏️</button>
+              <button class="dt-tin__icon-btn dt-tin__icon-btn--delete" title="Delete" onclick="deleteTin('${tin.id}')">🗑</button>
+            </div>
+          </div>
+          <div class="dt-register">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'date')">Date <span class="dt-sort-arrow">${getSortArrow(tin.id, 'date')}</span></button></th>
+                  <th>Description</th>
+                  <th class="col-amt" style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'amount')">Amount <span class="dt-sort-arrow">${getSortArrow(tin.id, 'amount')}</span></button></th>
+                  <th class="col-amt" style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'amount')">Deposit <span class="dt-sort-arrow">${getSortArrow(tin.id, 'amount')}</span></button></th>
+                  <th class="col-bal" style="width:110px">Balance</th>
+                  <th style="width:28px"></th>
+                </tr>
+              </thead>
+              <tbody id="reg-body-${tin.id}">
+                ${savedRows}
+                ${blankRows}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    function escHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Modal: Add / Edit Tin ─────────────────────────────────────────────────
+    function openAddTin(type) {
+      // Splits tins use a dedicated modal
+      if (type === 'splits') {
+        const modal = document.getElementById('dt-splits-modal');
+        const input = document.getElementById('dt-splits-name');
+        input.value = '';
+        modal.style.display = 'flex';
+        setTimeout(() => input.focus(), 50);
+        return;
+      }
+
+      const modal = document.getElementById('dt-modal');
+      document.getElementById('dt-modal-id').value = '';
+      document.getElementById('dt-modal-type').value = type;
+      document.getElementById('dt-modal-title').textContent = type === 'debt' ? 'Add Debt Tin' : type === 'budget' ? 'Add Budget' : 'Add Business Tin';
+      document.getElementById('dt-modal-name').value = '';
+      document.getElementById('dt-debt-balance').value = '';
+      document.getElementById('dt-debt-limit').value = '';
+      document.getElementById('dt-debt-apr').value = '';
+      document.getElementById('dt-debt-min').value = '';
+      document.getElementById('dt-biz-goal').value = '';
+      document.querySelector('.dt-fields-debt').style.display     = type === 'debt'     ? 'flex' : 'none';
+      document.querySelector('.dt-fields-business').style.display = type === 'business' ? 'flex' : 'none';
+      modal.style.display = 'flex';
+      document.getElementById('dt-modal-name').focus();
+    }
+
+    function openEditTin(tinId) {
+      const tin = _tins.find(t => t.id === tinId);
+      if (!tin) return;
+      document.getElementById('dt-modal-id').value = tin.id;
+      document.getElementById('dt-modal-type').value = tin.type;
+      document.getElementById('dt-modal-title').textContent = 'Edit ' + tin.name;
+      document.getElementById('dt-modal-name').value = tin.name;
+      document.getElementById('dt-debt-balance').value = tin.balance ?? '';
+      document.getElementById('dt-debt-limit').value = tin.creditLimit ?? '';
+      document.getElementById('dt-debt-apr').value = tin.apr ? (tin.apr * 100).toFixed(2) : '';
+      document.getElementById('dt-debt-min').value = tin.minPayment ?? '';
+      document.getElementById('dt-biz-goal').value = tin.goalRevenue ?? '';
+      document.querySelector('.dt-fields-debt').style.display     = tin.type === 'debt'     ? 'flex' : 'none';
+      document.querySelector('.dt-fields-business').style.display = tin.type === 'business' ? 'flex' : 'none';
+      document.getElementById('dt-modal').style.display = 'flex';
+      document.getElementById('dt-modal-name').focus();
+    }
+
+    document.getElementById('dt-modal-cancel')?.addEventListener('click', () => {
+      document.getElementById('dt-modal').style.display = 'none';
+    });
+
+    // ── Splits modal ───────────────────────────────────────────────────────────
+    document.getElementById('dt-splits-cancel')?.addEventListener('click', () => {
+      document.getElementById('dt-splits-modal').style.display = 'none';
+    });
+
+    document.getElementById('dt-splits-form')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = document.getElementById('dt-splits-name').value.trim();
+      if (!name) return;
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/petro-tins/splits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_splits', name }),
+        });
+        if (res.ok) {
+          document.getElementById('dt-splits-modal').style.display = 'none';
+          window.dispatchEvent(new Event('petro-tins-changed'));
+          location.reload();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert('Could not create splits tin: ' + (data.error ?? `server error ${res.status}`));
+          btn.disabled = false;
+          btn.textContent = 'Create';
+        }
+      } catch (err) {
+        alert('Could not reach the server. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Create';
+      }
+    });
+
+    document.getElementById('dt-modal-form')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const id   = document.getElementById('dt-modal-id').value;
+      const type = document.getElementById('dt-modal-type').value;
+      const name = document.getElementById('dt-modal-name').value.trim();
+      const aprRaw = parseFloat(document.getElementById('dt-debt-apr').value);
+
+      const body = {
+        name,
+        type,
+        balance:     parseFloat(document.getElementById('dt-debt-balance').value) || null,
+        creditLimit: parseFloat(document.getElementById('dt-debt-limit').value)   || null,
+        apr:         isNaN(aprRaw) ? null : aprRaw / 100,  // store as decimal
+        minPayment:  parseFloat(document.getElementById('dt-debt-min').value)     || null,
+        goalRevenue: parseFloat(document.getElementById('dt-biz-goal').value)     || null,
+      };
+
+      if (id) {
+        await fetch(`/api/petro-tins/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      } else {
+        const res = await fetch('/api/petro-tins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (res.status === 403) {
+          const data = await res.json().catch(() => ({}));
+          if (data.error === 'upgrade_required') {
+            document.getElementById('dt-modal').style.display = 'none';
+            window.location.href = '/dashboard/petro-tins/upgrade';
+            return;
+          }
+        }
+      }
+
+      document.getElementById('dt-modal').style.display = 'none';
+      await loadTins();
+      // Notify React component to refresh
+      window.dispatchEvent(new Event('petro-tins-changed'));
+    });
+
+    // Expose to onclick handlers
+    window.openEditTin = openEditTin;
+    window.openAddTin = openAddTin;
+
+    // ── Delete tin ─────────────────────────────────────────────────────────────
+    async function deleteTin(tinId) {
+      const tin = _tins.find(t => t.id === tinId);
+      if (!tin) return;
+      if (!confirm(`Delete "${tin.name}"? This cannot be undone.`)) return;
+      await fetch(`/api/petro-tins/${tinId}`, { method: 'DELETE' });
+      await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
+    }
+    window.deleteTin = deleteTin;
+
+    // ── Add entry modal ────────────────────────────────────────────────────────
+    function openAddEntry(tinId, tinType) {
+      document.getElementById('dt-entry-tin-id').value = tinId;
+      document.getElementById('dt-entry-tin-type').value = tinType;
+      document.getElementById('dt-entry-modal-title').textContent = 'Add Entry';
+      document.getElementById('dt-entry-date').value = new Date().toISOString().slice(0,10);
+      document.getElementById('dt-entry-amount').value = '';
+      document.getElementById('dt-entry-desc').value = '';
+      document.getElementById('dt-entry-url').value = '';
+
+      // Set sensible default kind
+      const kindSel = document.getElementById('dt-entry-kind');
+      kindSel.value = tinType === 'debt' ? 'payment' : 'income';
+
+      document.getElementById('dt-entry-modal').style.display = 'flex';
+      document.getElementById('dt-entry-amount').focus();
+    }
+    window.openAddEntry = openAddEntry;
+
+    document.getElementById('dt-entry-cancel')?.addEventListener('click', () => {
+      document.getElementById('dt-entry-modal').style.display = 'none';
+    });
+
+    document.getElementById('dt-entry-form')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const tinId     = document.getElementById('dt-entry-tin-id').value;
+      const kind      = document.getElementById('dt-entry-kind').value;
+      const amount    = parseFloat(document.getElementById('dt-entry-amount').value);
+      const entryDate = document.getElementById('dt-entry-date').value;
+      const description = document.getElementById('dt-entry-desc').value.trim() || null;
+      const url = document.getElementById('dt-entry-url').value.trim() || null;
+
+      await fetch('/api/petro-tins/entries', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ tinId, kind, amount, entryDate, description, url }),
+      });
+
+      document.getElementById('dt-entry-modal').style.display = 'none';
+      await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
+    });
+
+    // ── Delete entry ───────────────────────────────────────────────────────────
+    async function deleteEntry(entryId) {
+      await fetch('/api/petro-tins/entries', {
+        method: 'DELETE',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ entryId }),
+      });
+      await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
+    }
+
+    // ── Register row auto-save ────────────────────────────────────────────────
+    function bindRegisterRow(row) {
+      const tinId   = row.dataset.tinId;
+      const dateI   = row.querySelector('.dt-reg-date-i');
+      const descI   = row.querySelector('.dt-reg-desc-i');
+      const payI    = row.querySelector('.dt-reg-pay-i');
+      const depI    = row.querySelector('.dt-reg-dep-i');
+      const balCell = row.querySelector('.col-bal');
+
+      // Live balance preview as user types
+      function previewBalance() {
+        const pay = parseFloat(payI.value) || 0;
+        const dep = parseFloat(depI.value) || 0;
+        if (!pay && !dep) { balCell.textContent = '—'; return; }
+        // Find running balance of last saved row
+        const tbody = row.closest('tbody');
+        const saved = [...tbody.querySelectorAll('.dt-reg-saved')];
+        const lastBal = saved.length
+          ? parseFloat(saved[saved.length-1].querySelector('.col-bal').dataset.raw ?? 0)
+          : 0;
+        const preview = lastBal + dep - pay;
+        balCell.textContent = fmt(preview);
+        balCell.style.color = preview >= 0 ? 'var(--gain)' : 'var(--loss)';
+      }
+      payI.addEventListener('input', previewBalance);
+      depI.addEventListener('input', previewBalance);
+
+      // Mutually exclusive: filling payment clears deposit and vice versa
+      payI.addEventListener('input', () => { if (payI.value) depI.value = ''; });
+      depI.addEventListener('input', () => { if (depI.value) payI.value = ''; });
+
+      async function trySave() {
+        const date = dateI.value;
+        const desc = descI.value.trim();
+        const pay  = parseFloat(payI.value);
+        const dep  = parseFloat(depI.value);
+        if (!date || !desc) return;
+        if (!pay && !dep) return;
+
+        const kind   = dep > 0 ? 'income' : 'expense';
+        const amount = dep > 0 ? dep : pay;
+
+        // Disable row while saving
+        [dateI, descI, payI, depI].forEach(el => el.disabled = true);
+
+        await fetch('/api/petro-tins/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tinId, kind, amount, entryDate: date, description: desc }),
+        });
+
+        await loadTins();  // re-render — the blank rows repopulate with fresh data
+      }
+
+      // Save on Enter in any field
+      [dateI, descI, payI, depI].forEach(el => {
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') trySave(); });
+      });
+      // Save on blur out of the row
+      [payI, depI].forEach(el => {
+        el.addEventListener('blur', () => {
+          setTimeout(() => {
+            if (!row.contains(document.activeElement)) trySave();
+          }, 120);
+        });
+      });
+    }
+
+    // ── Monthly bills check-in ─────────────────────────────────────────────────
+    function buildMonthlyCheckin() {
+      const panel  = document.getElementById('dt-monthly-panel');
+      const body   = document.getElementById('dt-monthly-body');
+      const meta   = document.getElementById('dt-monthly-meta');
+      const toggle = document.getElementById('dt-monthly-toggle');
+      const chev   = document.getElementById('dt-monthly-chevron');
+      if (!panel || !body) return;
+
+      const now       = new Date();
+      const today     = now.getDate();
+      const thisMonth = now.toISOString().slice(0, 7);           // YYYY-MM
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+
+      // Collect last month's expense entries across all budget tins
+      // Also collect last month's payment entries across all debt tins
+      const rows = [];
+      for (const tin of _tins) {
+        const isDebt   = tin.type === 'debt';
+        const isBudget = tin.type === 'budget';
+        if (!isDebt && !isBudget) continue;
+
+        const targetKind = isDebt ? 'payment' : 'expense';
+        const lastEntries = (tin.entries ?? []).filter(e =>
+          e.entryDate.startsWith(lastMonth) && e.kind === targetKind
+        );
+
+        // Deduplicate by description within this tin
+        const seen = new Map();
+        for (const e of lastEntries) {
+          const key = (e.description ?? '').toLowerCase().trim() || `__unnamed_${e.id}`;
+          if (!seen.has(key) || e.amount > seen.get(key).amount) seen.set(key, e);
+        }
+
+        for (const e of seen.values()) {
+          rows.push({ tinId: tin.id, tinName: tin.name, kind: targetKind, description: e.description ?? '', lastAmount: e.amount });
+        }
+      }
+
+      if (!rows.length) { panel.style.display = 'none'; return; }
+
+      panel.style.display = '';
+      if (meta) meta.textContent = `${rows.length} recurring item${rows.length === 1 ? '' : 's'} from last month`;
+
+      // Auto-open on the 1st of the month
+      const autoOpen = (today === 1);
+      if (autoOpen) {
+        toggle.setAttribute('aria-expanded', 'true');
+        body.style.display = 'flex';
+        chev.classList.add('open');
+      }
+
+      toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!expanded));
+        body.style.display = expanded ? 'none' : 'flex';
+        chev.classList.toggle('open', !expanded);
+      });
+
+      // Check if any of these have already been logged this month
+      const loggedThisMonth = new Set();
+      for (const tin of _tins) {
+        for (const e of (tin.entries ?? [])) {
+          if (e.entryDate.startsWith(thisMonth)) {
+            loggedThisMonth.add(`${tin.id}::${(e.description ?? '').toLowerCase().trim()}`);
+          }
+        }
+      }
+
+      body.innerHTML = rows.length ? rows.map((row, idx) => {
+        const alreadyLogged = loggedThisMonth.has(`${row.tinId}::${row.description.toLowerCase().trim()}`);
+        return `
+          <div class="dt-monthly-row${alreadyLogged ? ' logged' : ''}" id="dt-mrow-${idx}" data-idx="${idx}" data-tin-id="${row.tinId}" data-kind="${row.kind}" data-last="${row.lastAmount}" data-desc="${escHtml(row.description)}">
+            <label class="dt-monthly-check" title="Check to use last month&#39;s amount">
+              <input type="checkbox" class="dt-mrow-chk" data-idx="${idx}" ${alreadyLogged ? '' : 'checked'} />
+              <span class="dt-monthly-desc">${escHtml(row.description || '(no description)')}</span>
+            </label>
+            <span class="dt-monthly-tin-name">${escHtml(row.tinName)}</span>
+            <input type="number" class="dt-monthly-amount-input dt-mrow-amt" data-idx="${idx}"
+              value="${row.lastAmount.toFixed(2)}" step="0.01" min="0.01"
+              ${alreadyLogged ? 'disabled' : ''} />
+            ${alreadyLogged
+              ? '<span class="dt-monthly-logged-badge">✓ Logged</span>'
+              : `<button class="dt-monthly-log-btn dt-mrow-btn" data-idx="${idx}">✓ Log</button>`}
+          </div>`;
+      }).join('') : '<div class="dt-monthly-empty">No recurring bills from last month.</div>';
+
+      // Wire up interactions
+      body.querySelectorAll('.dt-mrow-btn').forEach(btn => {
+        btn.addEventListener('click', () => logMonthlyRow(parseInt(btn.dataset.idx), rows));
+      });
+      // Enter key on amount field triggers log
+      body.querySelectorAll('.dt-mrow-amt').forEach(input => {
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') logMonthlyRow(parseInt(input.dataset.idx), rows);
+        });
+      });
+    }
+
+    async function logMonthlyRow(idx, rows) {
+      const row      = rows[idx];
+      const rowEl    = document.getElementById(`dt-mrow-${idx}`);
+      const amtInput = rowEl?.querySelector('.dt-mrow-amt');
+      const amount   = parseFloat(amtInput?.value ?? row.lastAmount);
+      if (!amount || amount <= 0) { amtInput?.focus(); return; }
+
+      const today = new Date().toISOString().slice(0, 10);
+      await fetch('/api/petro-tins/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tinId: row.tinId, kind: row.kind, amount, entryDate: today, description: row.description || null }),
+      });
+
+      // Mark row as logged without full reload
+      if (rowEl) {
+        rowEl.classList.add('logged');
+        const btn = rowEl.querySelector('.dt-mrow-btn');
+        if (btn) btn.outerHTML = '<span class="dt-monthly-logged-badge">✓ Logged</span>';
+        if (amtInput) amtInput.disabled = true;
+      }
+
+      // Refresh tin data silently
+      try {
+        const res = await fetch('/api/petro-tins');
+        const data = await res.json();
+        _tins = data.tins ?? [];
+        renderSummary();
+        renderAll();
+      } catch {}
+    }
+
+    // ── Add tin buttons ────────────────────────────────────────────────────────
+    document.querySelectorAll('.dt-add-btn').forEach(btn => {
+      btn.addEventListener('click', () => openAddTin(btn.dataset.addType));
+    });
+
+    // ── Close modals on overlay click ──────────────────────────────────────────
+    ['dt-modal', 'dt-entry-modal', 'dt-splits-modal'].forEach(modalId => {
+      const modalEl = document.getElementById(modalId);
+      if (modalEl) {
+        modalEl.addEventListener('click', e => {
+          if (e.target.id === modalId) e.target.style.display = 'none';
+        });
+        // Prevent backspace from closing modal when typing in inputs
+        modalEl.addEventListener('keydown', e => {
+          if (e.key === 'Backspace' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+            e.stopPropagation();
+          }
+        });
+      }
+    });
+
+    // ── Load sample data ───────────────────────────────────────────────────────
+    document.getElementById('dt-load-sample')?.addEventListener('click', async () => {
+      const btn = document.getElementById('dt-load-sample');
+      if (btn) btn.textContent = 'Loading…';
+      const res = await fetch('/api/petro-tins/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (res.ok) {
+        await loadTins();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? 'Could not load sample data.');
+        if (btn) btn.textContent = 'Load sample data →';
+      }
+    });
+
+    document.getElementById('dt-sample-dismiss')?.addEventListener('click', () => {
+      const banner = document.getElementById('dt-sample-banner');
+      if (banner) banner.style.display = 'none';
+    });
+
+    // ── Page timer ─────────────────────────────────────────────────────────────
+    (function() {
+      const start = Date.now();
+      const el = document.getElementById('dt-page-timer');
+      if (!el) return;
+      setInterval(() => {
+        const s = Math.floor((Date.now() - start) / 1000);
+        const m = Math.floor(s / 60);
+        const ss = String(s % 60).padStart(2, '0');
+        el.textContent = `${m}:${ss}`;
+      }, 1000);
+    })();
+
+    // ── Visit logger (non-owner only) ─────────────────────────────────────────
+    (function() {
+      const start = Date.now();
+      if (window.__petroOwner) return;
+      function logVisit() {
+        const duration = Math.round((Date.now() - start) / 1000);
+        navigator.sendBeacon('/api/petro-tins/visit', JSON.stringify({ duration }));
+      }
+      window.addEventListener('pagehide', logVisit);
+      window.addEventListener('beforeunload', logVisit);
+    })();
+
+    // ── Boot ───────────────────────────────────────────────────────────────────
+    loadTins();
+  </script>
+</Layout>

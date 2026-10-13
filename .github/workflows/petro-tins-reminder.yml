@@ -1,0 +1,34 @@
+name: PetroTins Reminder
+
+on:
+  schedule:
+    - cron: '0 9 25 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  petro-tins-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      # Only the curl wrapper. It retries a request that never reached the server, nothing else.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/cron-curl.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Trigger petro-tins-reminder
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          # Public repo, public log: print the status code only, never the response body.
+          bash scripts/cron-curl.sh -sS --fail --max-time 300 -o /dev/null -w '%{http_code}\n' \
+            "$SYNC_URL/api/cron/petro-tins-reminder?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

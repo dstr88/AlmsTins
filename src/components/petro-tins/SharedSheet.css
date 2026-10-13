@@ -1,0 +1,26 @@
+/* The grids sit on one row and wrap as more are added. */
+
+.sh__head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.sh__title { flex: 1 1 auto; font-weight: 700; color: var(--text-primary); }
+.sh__x {
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.35rem;
+}
+.sh__x:hover { color: var(--loss); }
+
+/* Three abreast on a normal screen; drops to two then one as it narrows. */
+.sh__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: start;
+  gap: 1.25rem;
+}
+.sh__row > .xg { min-width: 0; }
+
+/* Under the grids: takes you to the spare "New person" field. */
+.sh__foot { margin-top: 0.75rem; }
+.sh__addbtn {
+  background: transparent; border: 1px dashed var(--border-bright); border-radius: 4px;
+  color: var(--text-secondary); cursor: pointer; font-size: 0.85rem; padding: 0.35rem 0.8rem;
+}
+.sh__addbtn:hover { color: var(--accent); border-color: var(--accent); }

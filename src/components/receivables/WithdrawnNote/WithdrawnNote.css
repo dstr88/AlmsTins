@@ -1,0 +1,14 @@
+/* WithdrawnNote — presentation only.
+   Markup lives in WithdrawnNote.astro, behavior in withdrawnNote.client.ts. Nothing here encodes
+   logic: the client only fills the text and toggles [hidden]. The root sets no display, so
+   [hidden] hides it. Muted, so the pill inside it (the StatusPill "withdrawn" tag) carries the tone. */
+
+/* Desk: above the decision banner in the record panel, with the desk .note metrics (desk L124). */
+.wdn.wdn--desk { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; line-height: 1.55; margin: 0 0 .9rem; color: var(--text-secondary); background: var(--surface-hover); border: 1px solid var(--border-bright); }
+.wdn .wdn__pill { margin-right: .5rem; }
+
+/* Registry: under the "Query the registry" button, with the registry .note metrics. */
+.wdn.wdn--registry { border-radius: 9px; padding: .7rem .85rem; font-size: .82rem; line-height: 1.55; margin-top: .9rem; color: var(--text-secondary); background: var(--surface-hover); border: 1px solid var(--border-bright); }
+
+/* Client portal: in "Where it stands", under the test banner, with the client .note metrics (client L113). */
+.wdn.wdn--client { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; line-height: 1.55; margin: 0 0 .85rem; color: var(--text-secondary); background: var(--surface-hover); border: 1px solid var(--border-bright); }

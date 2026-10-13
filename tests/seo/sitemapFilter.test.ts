@@ -1,0 +1,70 @@
+import { describe, it, expect, vi } from 'vitest';
+
+// Pin PetroTins to owner-only, so these cases hold whatever the committed switch says.
+vi.mock('../../src/lib/petroTinsFlag.mjs', () => ({ PETRO_TINS_PUBLIC: false }));
+
+import { sitemapFilter } from '../../src/lib/seo/sitemapFilter.mjs';
+
+/**
+ * The sitemap is a public list. Under /verify/ and /receivables/ only the public landings
+ * may appear; desks and single-use-link pages never do. Everything else keeps the old
+ * denylist. @astrojs/sitemap hands the filter absolute URLs ending in a slash.
+ */
+const url = (path: string) => `https://almstins.com${path}`;
+
+describe('sitemap filter', () => {
+  it('keeps the public Verify and Receivables landings', () => {
+    for (const p of ['/verify/', '/verify/es/', '/verify/fr/', '/verify/agents/', '/receivables/']) {
+      expect(sitemapFilter(url(p))).toBe(true);
+    }
+    expect(sitemapFilter(url('/verify'))).toBe(true);
+    expect(sitemapFilter(url('/receivables'))).toBe(true);
+  });
+
+  it('drops every desk and single-use-link page under the product prefixes', () => {
+    for (const p of [
+      '/verify/desk/', '/verify/client/', '/verify/registry/', '/verify/login/', '/verify/scan/',
+      '/verify/attest/', '/verify/authenticate/', '/verify/countersign/', '/verify/offer/',
+      '/verify/invite/', '/verify/confirm/', '/verify/cairn/', '/verify/cairn-attest/',
+      '/verify/agent-keys/', '/verify/runsheet/', '/verify/guide/', '/verify/changelog/',
+      '/verify/thanks/', '/receivables/desk/', '/receivables/anything-new/',
+    ]) {
+      expect(sitemapFilter(url(p)), p).toBe(false);
+    }
+  });
+
+  it('leaves every PetroTins page out while PetroTins is owner-only', () => {
+    for (const p of [
+      '/petro-tins/', '/petro-tins', '/petro-tins/docs/', '/petro-tins/privacy/', '/petro-tins/terms/',
+      '/dashboard/petro-tins/', '/dashboard/petro-tins/upgrade/',
+    ]) {
+      expect(sitemapFilter(url(p)), p).toBe(false);
+    }
+    expect(sitemapFilter(url('/privacy/'))).toBe(true);
+    expect(sitemapFilter(url('/'))).toBe(true);
+  });
+
+  it('leaves the owner-only tax pages out, and only those exact paths', () => {
+    for (const p of ['/tax/', '/tax', '/tax-login/', '/tax-login', '/year-summary/', '/year-summary', '/TAX/']) {
+      expect(sitemapFilter(url(p)), p).toBe(false);
+    }
+    expect(sitemapFilter(url('/taxonomy/'))).toBe(true);
+    expect(sitemapFilter(url('/guides/crypto-tax-records/'))).toBe(true);
+  });
+
+  it('submits every guide, even when a slug holds a denylisted word', () => {
+    expect(sitemapFilter(url('/guides/crypto-holding-period-after-transfer/'))).toBe(true);
+    expect(sitemapFilter(url('/guides/crypto-holding-period-after-transfer'))).toBe(true);
+    expect(sitemapFilter(url('/guides/welcome-to-crypto-records/'))).toBe(true);
+    expect(sitemapFilter(url('/guides/success-cancel-transition/'))).toBe(true);
+  });
+
+  it('leaves other pages to the existing denylist', () => {
+    expect(sitemapFilter(url('/'))).toBe(true);
+    expect(sitemapFilter(url('/verify-record/'))).toBe(true);
+    expect(sitemapFilter(url('/wallet-checker/'))).toBe(true);
+    expect(sitemapFilter(url('/dashboard/vault/'))).toBe(false);
+    expect(sitemapFilter(url('/login/'))).toBe(false);
+    expect(sitemapFilter(url('/admin/'))).toBe(false);
+  });
+});

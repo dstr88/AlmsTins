@@ -1,0 +1,2789 @@
+---
+import './research.css';
+import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
+import ResearchTour from '../../components/tours/ResearchTour.astro';
+import LostTxTour from '../../components/tours/LostTxTour.astro';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { isAdminSession } from '../../lib/adminGuard';
+import { db } from '../../lib/db';
+import { runNeedsAttentionQueries } from '../../lib/getNeedsAttention';
+import { getCache, setCache } from '../../lib/tursoCache';
+import { getLang } from '@/lib/i18n/locale';
+import { getResearch } from '@/i18n/dashboard/research';
+
+const lang = getLang(Astro.request);
+const t = getResearch(lang);
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/login');
+const { tenantId } = session;
+const isAdmin = await isAdminSession(Astro.request);
+
+// Pre-fetch NA data server-side so the page is never blank on cold start.
+// Render's cold-start takes 30-60s; the client's AbortController fires at 28s,
+// causing an infinite "Loading…" loop. By embedding the data in the HTML we
+// guarantee the first render is instant regardless of service-wake timing.
+const NA_TURSO_KEY = `t:${tenantId}:research:needs-attention:v2`;
+const NA_CACHE_TTL = 900;
+const NA_STALE_MAX = 3600;
+let naData: object | null = null;
+const ssrT0 = Date.now();
+
+// Step 1: try cache with a short timeout — treat any failure as a miss
+let cachedValue: object | null = null;
+try {
+  const cacheResult = await Promise.race([
+    getCache<object>(NA_TURSO_KEY, { allowStale: true, staleMaxAgeSeconds: NA_STALE_MAX }),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000)),
+  ]);
+  if (cacheResult?.value != null) cachedValue = cacheResult.value;
+} catch { /* cache unavailable — fall through to live query */ }
+
+if (cachedValue != null) {
+  naData = cachedValue;
+  console.log(`[research SSR] NA cache hit (${Date.now() - ssrT0}ms) total=${(naData as any)?.total ?? '?'}`);
+} else {
+  // Step 2: live query — fail fast so Render's 30s HTTP cutoff isn't hit
+  try {
+    naData = await Promise.race([
+      runNeedsAttentionQueries(tenantId),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('SSR NA query timed out')), 20_000)
+      ),
+    ]);
+    void setCache(NA_TURSO_KEY, naData, NA_CACHE_TTL);
+    console.log(`[research SSR] NA live query (${Date.now() - ssrT0}ms) total=${(naData as any)?.total ?? '?'}`);
+  } catch (err) {
+    console.error('[research SSR] NA prefetch failed, client will fetch:', err);
+  }
+}
+console.log(`[research SSR] naData is ${naData == null ? 'NULL — client will fetch' : `present (total=${(naData as any)?.total ?? '?'})`}`);
+
+// Load all distinct symbols the user has data for (for the chip row)
+const symbolResult = await db.execute({
+  sql: `SELECT DISTINCT upper(asset_symbol) as sym
+        FROM import_transactions
+        WHERE tenant_id = ? AND asset_symbol IS NOT NULL
+        ORDER BY upper(asset_symbol) ASC`,
+  args: [tenantId],
+});
+const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filter(Boolean);
+
+// Load tenant wallets for the "Add Transaction" picker
+const walletResult = await db.execute({
+  sql: `SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY label ASC`,
+  args: [tenantId],
+});
+const tenantWallets = walletResult.rows.map(r => ({
+  id:      String((r as any).id      ?? ''),
+  address: String((r as any).address ?? ''),
+  label:   String((r as any).label   ?? ''),
+}));
+
+// Prevent Render's edge / CDN layer from caching this authenticated page.
+// Without this, the HTML response can be served stale from cache — the
+// client never gets a fresh page and the na-ssr-data element is never
+// updated, causing NA to show "Loading…" indefinitely.
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+  <section class="research-page">
+
+    <div class="hero-bleed">
+      <NetWorthHero title="Research" subtitle="Explore & resolve your transactions" />
+    </div>
+
+    <!-- ── Sticky note ──────────────────────────────────────────────────────── -->
+    <div style="
+      background: rgba(45,212,168,0.08);
+      border: 1px solid rgba(45,212,168,0.22);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.4rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      margin: 0 0 1.5rem;
+    ">
+      <span style="font-size:1.1rem; line-height:1.4;"></span>
+      <div style="display:flex; flex-direction:column; gap:0.4rem;">
+        <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">{t.stickyHeading}</p>
+        <p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
+          {t.stickyBody}
+        </p>
+        <ul style="margin:0.2rem 0 0; padding-left:1.2rem; font-size:0.83rem; color:var(--text-secondary); line-height:1.7;">
+          <li><strong style="color:var(--text-primary);">{t.stickyLi1Strong}</strong>{t.stickyLi1Rest}</li>
+          <li><strong style="color:var(--text-primary);">{t.stickyLi2Strong}</strong>{t.stickyLi2Rest}</li>
+          <li><strong style="color:var(--text-primary);">{t.stickyLi3Strong}</strong>{t.stickyLi3Rest}</li>
+        </ul>
+        <p style="margin:0.3rem 0 0; font-size:0.78rem; color:var(--text-muted);">
+          {t.stickyTip}
+        </p>
+      </div>
+    </div>
+
+    <!-- ── Address lookup panel ───────────────────────────────────────────────── -->
+    <div id="addr-panel" class="addr-panel" style="display:none">
+      <div id="addr-panel-inner"></div>
+    </div>
+
+    <!-- ── Two-column body ─────────────────────────────────────────────────── -->
+    <div class="research-body">
+
+      <!-- Left: Needs Attention -->
+      <div class="col-left">
+        <div class="col-header">
+          <h2>{t.colNeedsAttention} <span id="na-count" class="count-badge"></span> <ResearchTour /> <LostTxTour /></h2>
+          <p class="col-scope">{t.colScope} <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
+          <div class="na-ai-actions">
+            <button id="btn-ai-triage" class="btn-ai-triage" type="button">{t.btnAiTriage}</button>
+            <button id="btn-backfill" class="btn-backfill" type="button">{t.btnFillPrices}</button>
+          </div>
+        </div>
+        <div id="triage-panel" class="triage-panel" style="display:none"></div>
+        <div id="na-list" class="item-list">
+          <div class="loading-msg">Loading…</div>
+        </div>
+
+        <!-- Resolved tin -->
+        <div class="resolved-header" id="resolved-header" style="display:none">
+          <span>{t.resolved}</span>
+          <span id="resolved-count" class="count-badge-green"></span>
+          <button id="resolved-toggle" class="resolved-toggle" type="button">{t.resolvedShow}</button>
+        </div>
+        <div id="resolved-list" class="resolved-list" style="display:none"></div>
+      </div>
+
+      <!-- Right: Search + Results -->
+      <div class="col-right">
+
+        <!-- Search card — lives at top of the results panel -->
+        <div class="search-card">
+          <div class="search-tier-1">
+            <span class="search-icon"></span>
+            <input
+              id="q"
+              type="text"
+              placeholder={t.searchPlaceholder}
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="search-tier-2">
+            <select id="filter-symbol">
+              <option value="">{t.filterAllSymbols}</option>
+              {allSymbols.map(sym => <option value={sym}>{sym}</option>)}
+            </select>
+
+            <input id="filter-from" type="date" title="From date" />
+            <span class="date-sep">→</span>
+            <input id="filter-to"   type="date" title="To date"   />
+
+            <input id="filter-note" type="text" placeholder={t.filterNotePlaceholder} autocomplete="off" />
+          </div>
+
+          <!-- Symbol chips -->
+          <div class="chip-row" id="chip-row">
+            {allSymbols.map(sym => (
+              <button class="chip" data-sym={sym} type="button">{sym}</button>
+            ))}
+          </div>
+
+          <div class="search-actions">
+            <button id="btn-resolve" class="btn-secondary" type="button">{t.btnResolve}</button>
+            <button id="btn-ignore-dust" class="btn-secondary" type="button">{t.btnIgnoreDust}</button>
+            <button id="btn-classify-p2p" class="btn-secondary" type="button">{t.btnP2p}</button>
+            <div class="wallet-picker-wrap">
+              <button id="btn-add-tx" class="btn-secondary" type="button">{t.btnAddTransaction}</button>
+              <div id="wallet-picker" class="wallet-picker" style="display:none">
+                <div class="wallet-picker-header">{t.walletPickerHeader}</div>
+                {tenantWallets.length === 0 ? (
+                  <div class="wallet-picker-empty">{t.walletPickerEmpty}</div>
+                ) : (
+                  tenantWallets.map(w => (
+                    <button
+                      class="wallet-picker-item"
+                      type="button"
+                      data-wallet-id={w.id}
+                      data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
+                      data-wallet-address={w.address}
+                    >
+                      <span class="wpi-label">{w.label || <span style="opacity:0.5">{t.walletUnnamed}</span>}</span>
+                      <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <button id="btn-search" class="btn-primary" type="button">{t.btnSearch}</button>
+          </div>
+          <div id="resolve-status-bar" class="resolve-status-bar" style="display:none">
+            <span id="resolve-status" class="resolve-status"></span>
+          </div>
+          <div id="p2p-panel" class="p2p-panel" style="display:none">
+            <span class="p2p-panel__label">{t.p2pPanelLabel}</span>
+            <button id="btn-p2p-own" class="btn-secondary" type="button">{t.p2pOwnAccount}</button>
+            <button id="btn-p2p-disposal" class="btn-secondary" type="button">{t.p2pThirdParty}</button>
+            <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
+          </div>
+        </div>
+
+        <!-- Results header -->
+        <div class="col-header">
+          <h2>{t.colResults} <span id="results-count" class="count-badge"></span></h2>
+          <div id="results-label" class="results-label" style="display:none"></div>
+        </div>
+
+        <!-- Sort controls -->
+        <div id="results-sort-bar" class="results-sort-bar" style="display:none">
+          <span class="sort-label">{t.sortLabel}</span>
+          <button id="sort-btn-date"   class="sort-btn active" onclick="setResultsSort('date')">{t.sortDate}</button>
+          <button id="sort-btn-amount" class="sort-btn"        onclick="setResultsSort('amount')">{t.sortAmount}</button>
+        </div>
+
+        <!-- Action panel: shown when an NA item is selected -->
+        <div id="na-action-panel" style="display:none"></div>
+
+        <div id="results-list" class="item-list">
+          <div class="empty-msg">{t.emptySearch}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Dataset Health Check ──────────────────────────────────────────── -->
+    <div class="health-section" id="health-section">
+      <div class="health-header">
+        <h2>{t.healthTitle}</h2>
+        <div class="health-header-right">
+          <span id="health-last-run" class="health-last-run"></span>
+          <button id="btn-run-health" class="btn-secondary" type="button">{t.btnRunDiagnostics}</button>
+        </div>
+      </div>
+
+      <div id="health-grid" class="health-grid"></div>
+
+      <div class="intake-launch-row">
+        <button id="btn-open-questionnaire" class="btn-questionnaire-launch" type="button">
+          {t.btnDatasetQuestionnaire}
+        </button>
+        <span id="intake-completion-badge" class="intake-completion-badge" style="display:none"></span>
+      </div>
+    </div>
+
+  <!-- ── Dataset Questionnaire Wizard ───────────────────────────────────────── -->
+  <div id="intake-wizard-overlay" class="intake-wizard-overlay" style="display:none" aria-modal="true" role="dialog">
+    <div class="intake-wizard-modal">
+      <button class="intake-wizard-close" id="intake-wizard-close" aria-label="Close">✕</button>
+      <div class="intake-wizard-progress" id="intake-wizard-progress"></div>
+      <div class="intake-wizard-body" id="intake-wizard-body"></div>
+      <div class="intake-wizard-nav">
+        <button class="btn-secondary intake-wizard-back" id="intake-wizard-back" type="button">← Back</button>
+        <button class="btn-primary intake-wizard-next" id="intake-wizard-next" type="button">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  </section>
+
+  {isAdmin && (
+    <>
+      <!-- ── Admin activity log pill ──────────────────────────────────────── -->
+      <button id="log-pill" aria-label="Activity log">Log</button>
+
+      <!-- ── Admin activity log panel ────────────────────────────────────── -->
+      <div id="log-panel" aria-hidden="true">
+        <div class="log-panel-header">
+          <span class="log-panel-title">Activity Log</span>
+          <span class="log-panel-note">Counts only — no private data stored</span>
+          <button id="log-panel-close" aria-label="Close">✕</button>
+        </div>
+        <div class="log-filter-row" id="log-filter-row">
+          <button class="log-chip log-chip-active" data-filter="all" data-group="source">All sources</button>
+          <button class="log-chip log-chip-active" data-filter="all" data-group="chain">All chains</button>
+        </div>
+        <div id="log-entries" class="log-entries">
+          <div class="log-empty">Loading…</div>
+        </div>
+      </div>
+    </>
+  )}
+</Layout>
+
+<!-- ── Suggested match confirmation modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="match-modal" style="display:none">
+  <div class="modal-content">
+    <button class="modal-close" id="match-modal-close">×</button>
+    <h2>{t.matchModalTitle}</h2>
+    <div id="match-modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn-danger"    id="match-reject">{t.matchModalReject}</button>
+      <button class="btn-primary"   id="match-confirm">{t.matchModalConfirm}</button>
+    </div>
+  </div>
+</div>
+
+{naData && (
+  <div id="na-ssr-data" style="display:none" set:text={JSON.stringify(naData)}></div>
+)}
+
+<script is:inline define:vars={{ researchI18n: {
+  loading:                   t.colNeedsAttention === 'Needs Attention' ? 'Loading…' : (t.lang === 'es' ? 'Cargando…' : 'Chargement…'),
+  retrying:                  t.lang === 'es' ? "Reintentando…" : t.lang === 'fr' ? "Nouvelle tentative…" : "Retrying…",
+  stillWorking:              t.lang === 'es' ? "Aún procesando — vuelve en un momento." : t.lang === 'fr' ? "Toujours en cours — revenez dans un instant." : "Still working on it — check back in a moment.",
+  nothingToReview:           t.lang === 'es' ? "✓ Todo al día — nada por revisar." : t.lang === 'fr' ? "✓ Tout est à jour — rien à examiner." : "✓ You're all caught up — nothing to review.",
+  everythingMatched:         t.lang === 'es' ? "✓ Todo coincide. Nada pendiente por revisar." : t.lang === 'fr' ? "✓ Tout est rapproché. Rien à examiner." : "✓ Everything's matched. Nothing left to review.",
+  cleanSlate:                t.lang === 'es' ? "✓ Tabla rasa — sin transacciones pendientes." : t.lang === 'fr' ? "✓ Ardoise vierge — aucune transaction à traiter." : "✓ Clean slate — no transactions need attention.",
+  syncedAt:                  t.lang === 'es' ? "· sincronizado a las __T__" : t.lang === 'fr' ? "· synchronisé à __T__" : "· synced __T__",
+  suggestedMatches:          t.lang === 'es' ? "Coincidencias sugeridas" : t.lang === 'fr' ? "Correspondances suggérées" : "Suggested matches",
+  unresolvedTxs:             t.lang === 'es' ? "Transacciones sin resolver" : t.lang === 'fr' ? "Transactions non résolues" : "Unresolved transactions",
+  confidence:                t.lang === 'es' ? "confianza" : t.lang === 'fr' ? "confiance" : "confidence",
+  sent:                      t.lang === 'es' ? "Enviado" : t.lang === 'fr' ? "Envoyé" : "Sent",
+  received:                  t.lang === 'es' ? "Recibido" : t.lang === 'fr' ? "Reçu" : "Received",
+  fee:                       t.lang === 'es' ? "Comisión" : t.lang === 'fr' ? "Frais" : "Fee",
+  clickToFindLanded:         t.lang === 'es' ? "Haz clic para ver a dónde fue →" : t.lang === 'fr' ? "Cliquer pour voir où cela est allé →" : "Click to find where this landed →",
+  clickToFindSource:         t.lang === 'es' ? "Haz clic para ver de dónde vino →" : t.lang === 'fr' ? "Cliquer pour voir d'où cela vient →" : "Click to find where this came from →",
+  dispose:                   t.lang === 'es' ? "Disponer" : t.lang === 'fr' ? "Céder" : "Dispose",
+  editDisposal:              t.lang === 'es' ? "Editar disposición" : t.lang === 'fr' ? "Modifier la cession" : "Edit disposal",
+  forward:                   t.lang === 'es' ? "↗ Reenviar" : t.lang === 'fr' ? "↗ Transférer" : "↗ Forward",
+  addNote:                   t.lang === 'es' ? "Añadir nota" : t.lang === 'fr' ? "Ajouter une note" : "Add note",
+  editNote:                  t.lang === 'es' ? "Editar nota" : t.lang === 'fr' ? "Modifier la note" : "Edit note",
+  legacyExchange:            t.lang === 'es' ? "Exchange heredado" : t.lang === 'fr' ? "Exchange défunt" : "Legacy exchange",
+  attach:                    t.lang === 'es' ? "Adjuntar" : t.lang === 'fr' ? "Joindre" : "Attach",
+  helpBtn:                   t.lang === 'es' ? "? Ayuda" : t.lang === 'fr' ? "? Aide" : "? Help",
+  aboutTxHistory:            t.lang === 'es' ? "Sobre mi historial de transacciones" : t.lang === 'fr' ? "À propos de mon historique de transactions" : "About my transaction history",
+  resolvedAuto:              t.lang === 'es' ? "auto" : t.lang === 'fr' ? "auto" : "auto",
+  resolvedConfirmed:         t.lang === 'es' ? "✓ confirmado" : t.lang === 'fr' ? "✓ confirmé" : "✓ confirmed",
+  resolvedShow:              t.resolvedShow,
+  resolvedHide:              t.resolvedHide,
+  searchCleared:             t.lang === 'es' ? "Búsqueda borrada." : t.lang === 'fr' ? "Recherche effacée." : "Search cleared.",
+  searching:                 t.lang === 'es' ? "Buscando…" : t.lang === 'fr' ? "Recherche en cours…" : "Searching…",
+  noTransactionsFound:       t.lang === 'es' ? "No se encontraron transacciones." : t.lang === 'fr' ? "Aucune transaction trouvée." : "No transactions found.",
+  searchFailed:              t.lang === 'es' ? "Búsqueda fallida: __MSG__" : t.lang === 'fr' ? "Échec de la recherche : __MSG__" : "Search failed: __MSG__",
+  matching:                  t.lang === 'es' ? "Cotejando…" : t.lang === 'fr' ? "Mise en correspondance…" : "Matching…",
+  classifying:               t.lang === 'es' ? "Clasificando…" : t.lang === 'fr' ? "Classification…" : "Classifying…",
+  nothingNewToResolve:       t.lang === 'es' ? "✓ Nada nuevo por resolver" : t.lang === 'fr' ? "✓ Rien de nouveau à résoudre" : "✓ Nothing new to resolve",
+  matched:                   t.lang === 'es' ? "cotejadas" : t.lang === 'fr' ? "rapprochées" : "matched",
+  classified:                t.lang === 'es' ? "clasificadas" : t.lang === 'fr' ? "classifiées" : "classified",
+  scanned:                   t.lang === 'es' ? "analizadas" : t.lang === 'fr' ? "analysées" : "scanned",
+  dismissing:                t.lang === 'es' ? "Descartando…" : t.lang === 'fr' ? "Rejet en cours…" : "Dismissing…",
+  dustDismissed:             t.lang === 'es' ? "✓ __N__ transacciones de polvo descartadas" : t.lang === 'fr' ? "✓ __N__ transactions poussière rejetées" : "✓ __N__ dust transactions dismissed",
+  noDust:                    t.lang === 'es' ? "✓ Sin polvo por descartar" : t.lang === 'fr' ? "✓ Aucune poussière à rejeter" : "✓ No dust to dismiss",
+  p2pClassified:             t.lang === 'es' ? "✓ __N__ transferencias P2P clasificadas" : t.lang === 'fr' ? "✓ __N__ transferts P2P classifiés" : "✓ __N__ P2P transfers classified",
+  noP2p:                     t.lang === 'es' ? "✓ No se encontraron transferencias P2P" : t.lang === 'fr' ? "✓ Aucun transfert P2P trouvé" : "✓ No P2P transfers found",
+  failedTryAgain:            t.lang === 'es' ? "Fallido — inténtalo de nuevo" : t.lang === 'fr' ? "Échec — veuillez réessayer" : "Failed — try again",
+  loadNaFirst:               t.lang === 'es' ? "Carga primero Needs Attention." : t.lang === 'fr' ? "Chargez d'abord Needs Attention." : "Load Needs Attention first.",
+  triaging:                  t.lang === 'es' ? "Triando…" : t.lang === 'fr' ? "Triage en cours…" : "Triaging…",
+  analysingTxs:              t.lang === 'es' ? "Analizando __N__ transacciones…" : t.lang === 'fr' ? "Analyse de __N__ transactions…" : "Analysing __N__ transactions…",
+  upgradeForTriage:          t.lang === 'es' ? "Actualiza a un plan de pago para usar AI Triage." : t.lang === 'fr' ? "Passez à un forfait payant pour utiliser AI Triage." : "Upgrade to a paid plan to use AI Triage.",
+  triageFailed:              t.lang === 'es' ? "Triage fallido: __MSG__" : t.lang === 'fr' ? "Échec du triage : __MSG__" : "Triage failed: __MSG__",
+  triageAutoNote:            t.lang === 'es' ? "✓ __N__ elemento(s) resueltos automáticamente y eliminados de Needs Attention. Los backfills de precios quedan para tu revisión." : t.lang === 'fr' ? "✓ __N__ élément(s) résolu(s) automatiquement et retiré(s) de Needs Attention. Les complétions de prix restent pour votre examen." : "✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.",
+  triageAdvisory:            t.lang === 'es' ? "El triage es orientativo — revisa antes de actuar." : t.lang === 'fr' ? "Le triage est indicatif — vérifiez avant d'agir." : "Triage is advisory — review before acting on AI suggestions.",
+  triageLabelAnnotated:      t.lang === 'es' ? "Ya anotado" : t.lang === 'fr' ? "Déjà annoté" : "Already annotated",
+  triageLabelPurchase:       t.lang === 'es' ? "Compra obvia" : t.lang === 'fr' ? "Achat évident" : "Obvious purchase",
+  triageLabelIncome:         t.lang === 'es' ? "Ingreso obvio" : t.lang === 'fr' ? "Revenu évident" : "Obvious income",
+  triageLabelOwnWallet:      t.lang === 'es' ? "Wallet propia obvia" : t.lang === 'fr' ? "Wallet propre évident" : "Obvious own-wallet",
+  triageLabelSale:           t.lang === 'es' ? "Venta/disposición obvia" : t.lang === 'fr' ? "Vente/cession évidente" : "Obvious sale/disposal",
+  triageLabelNeedsReview:    t.lang === 'es' ? "Necesita revisión manual" : t.lang === 'fr' ? "Nécessite une révision manuelle" : "Needs manual review",
+  fetchingPrices:            t.lang === 'es' ? "Obteniendo precios…" : t.lang === 'fr' ? "Récupération des prix…" : "Fetching prices…",
+  paidFeature:               t.lang === 'es' ? "Función de pago" : t.lang === 'fr' ? "Fonctionnalité payante" : "Paid feature",
+  pricedSkipped:             t.lang === 'es' ? "✓ __P__ valorados · __S__ omitidos" : t.lang === 'fr' ? "✓ __P__ valorisés · __S__ ignorés" : "✓ __P__ priced · __S__ skipped",
+  backfillFailed:            t.lang === 'es' ? "Backfill fallido" : t.lang === 'fr' ? "Échec du backfill" : "Backfill failed",
+  fillMissingPrices:         t.btnFillPrices,
+  addNoteEllipsis:           t.lang === 'es' ? "Añade una nota…" : t.lang === 'fr' ? "Ajouter une note…" : "Add a note…",
+  save:                      t.lang === 'es' ? "Guardar" : t.lang === 'fr' ? "Enregistrer" : "Save",
+  saving:                    t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  saveFailed:                t.lang === 'es' ? "Error al guardar" : t.lang === 'fr' ? "Échec de l'enregistrement" : "Save failed",
+  failed:                    t.lang === 'es' ? "Fallido" : t.lang === 'fr' ? "Échec" : "Failed",
+  fromLabel:                 t.lang === 'es' ? "De:" : t.lang === 'fr' ? "De :" : "From:",
+  forwardedTo:               t.lang === 'es' ? "Reenviado a…" : t.lang === 'fr' ? "Transféré vers…" : "Forwarded to…",
+  pickTrackedWallet:         t.lang === 'es' ? "— elige una wallet rastreada —" : t.lang === 'fr' ? "— choisir un wallet suivi —" : "— pick a tracked wallet —",
+  orTypeExchange:            t.lang === 'es' ? "O escribe un exchange / dirección…" : t.lang === 'fr' ? "Ou tapez un exchange / adresse…" : "Or type an exchange / address…",
+  orTypeExchangeLabel:       t.lang === 'es' ? "O escribe un exchange / dirección / etiqueta…" : t.lang === 'fr' ? "Ou tapez un exchange / adresse / étiquette…" : "Or type an exchange / address / label…",
+  optionalNote:              t.lang === 'es' ? "Nota opcional…" : t.lang === 'fr' ? "Note optionnelle…" : "Optional note…",
+  helpTitle:                 t.lang === 'es' ? "Ayúdame a entender esto" : t.lang === 'fr' ? "Aidez-moi à comprendre" : "Help me understand this",
+  whatDoesRepresent:         t.lang === 'es' ? "¿Qué representa esto?" : t.lang === 'fr' ? "Que représente ceci ?" : "What does this represent?",
+  myOwnWalletOut:            t.lang === 'es' ? "↗ Mi propia wallet" : t.lang === 'fr' ? "↗ Mon propre wallet" : "↗ My own wallet",
+  saleOrTrade:               t.lang === 'es' ? "Venta o intercambio" : t.lang === 'fr' ? "Vente ou échange" : "Sale or trade",
+  other:                     t.lang === 'es' ? "Otro" : t.lang === 'fr' ? "Autre" : "Other",
+  myOwnWalletIn:             t.lang === 'es' ? "↙ Mi propia wallet" : t.lang === 'fr' ? "↙ Mon propre wallet" : "↙ My own wallet",
+  incomePurchase:            t.lang === 'es' ? "Ingreso / compra" : t.lang === 'fr' ? "Revenu / achat" : "Income / purchase",
+  saveNote:                  t.lang === 'es' ? "Guardar nota" : t.lang === 'fr' ? "Enregistrer la note" : "Save note",
+  addContextPlaceholder:     t.lang === 'es' ? "Añade contexto o explicación…" : t.lang === 'fr' ? "Ajoutez un contexte ou une explication…" : "Add any context or explanation…",
+  uploadValidating:          t.lang === 'es' ? "Subiendo y validando…" : t.lang === 'fr' ? "Téléversement et validation…" : "Uploading & validating…",
+  upgradeToVerify:           t.lang === 'es' ? "Actualiza para verificar recibos automáticamente" : t.lang === 'fr' ? "Passez à la version supérieure pour vérifier les reçus automatiquement" : "Upgrade to verify receipts automatically",
+  uploadFailed:              t.lang === 'es' ? "Subida fallida — inténtalo de nuevo" : t.lang === 'fr' ? "Échec du téléversement — veuillez réessayer" : "Upload failed — try again",
+  receiptVerified:           t.lang === 'es' ? "✓ Recibo verificado · __F__" : t.lang === 'fr' ? "✓ Reçu vérifié · __F__" : "✓ Receipt verified · __F__",
+  overrideAccepted:          t.lang === 'es' ? "Anulación aceptada · __F__" : t.lang === 'fr' ? "Remplacement accepté · __F__" : "Override accepted · __F__",
+  receiptMismatch:           t.lang === 'es' ? "El recibo no coincide · __F__" : t.lang === 'fr' ? "Le reçu ne correspond pas · __F__" : "Receipt mismatch · __F__",
+  overrideRejection:         t.lang === 'es' ? "Anular rechazo" : t.lang === 'fr' ? "Ignorer le rejet" : "Override rejection",
+  overrideConfirmPrompt:     t.lang === 'es' ? "¿Estás seguro? Este recibo no coincide con los datos de la transacción. Proporciona un motivo:" : t.lang === 'fr' ? "Êtes-vous sûr(e) ? Ce reçu ne correspond pas aux données de la transaction. Veuillez indiquer un motif :" : "Are you sure? This receipt doesn't match the transaction data. Provide a reason:",
+  overrideNotePlaceholder:   t.lang === 'es' ? "p. ej. Comisión mostrada aparte, pequeño redondeo…" : t.lang === 'fr' ? "ex. Frais affichés séparément, léger arrondi…" : "e.g. Fee shown separately, minor rounding…",
+  yesKeepIt:                 t.lang === 'es' ? "Sí, mantenerlo" : t.lang === 'fr' ? "Oui, conserver" : "Yes, keep it",
+  cancel:                    t.lang === 'es' ? "Cancelar" : t.lang === 'fr' ? "Annuler" : "Cancel",
+  healthNoIssues:            t.lang === 'es' ? "Sin problemas detectados — el dataset parece limpio." : t.lang === 'fr' ? "Aucun problème détecté — le dataset semble propre." : "No issues found — dataset looks clean.",
+  healthTopUnresolved:       t.lang === 'es' ? "Principales sin resolver por valor en dólares" : t.lang === 'fr' ? "Principales non résolues par valeur en dollars" : "Top unresolved by dollar value",
+  healthRunning:             t.lang === 'es' ? "Ejecutando diagnósticos…" : t.lang === 'fr' ? "Exécution des diagnostics…" : "Running diagnostics…",
+  healthLastRun:             t.lang === 'es' ? "Última ejecución: __T__" : t.lang === 'fr' ? "Dernière exécution : __T__" : "Last run: __T__",
+  hcImportCoverage:          t.lang === 'es' ? "Cobertura de importación" : t.lang === 'fr' ? "Couverture des importations" : "Import Coverage",
+  hcSources:                 t.lang === 'es' ? "__N__ fuente(s)" : t.lang === 'fr' ? "__N__ source(s)" : "__N__ source__S__",
+  hcPre2019:                 t.lang === 'es' ? "Registros pre-2019" : t.lang === 'fr' ? "Enregistrements pré-2019" : "Pre-2019 Records",
+  hcTransactions:            t.lang === 'es' ? "__N__ transacciones" : t.lang === 'fr' ? "__N__ transactions" : "__N__ transactions",
+  hcNoHash:                  t.lang === 'es' ? "__N__ sin tx hash" : t.lang === 'fr' ? "__N__ sans tx hash" : "__N__ without tx hash",
+  hcExposed:                 t.lang === 'es' ? "__V__ expuesto" : t.lang === 'fr' ? "__V__ exposé" : "__V__ exposed",
+  hcNonEvm:                  t.lang === 'es' ? "No-EVM sin resolver" : t.lang === 'fr' ? "Non-EVM non résolues" : "Non-EVM Unresolved",
+  hcAssets:                  t.lang === 'es' ? "__N__ activo(s)" : t.lang === 'fr' ? "__N__ actif(s)" : "__N__ asset__S__",
+  hcTotal:                   t.lang === 'es' ? "__V__ total" : t.lang === 'fr' ? "__V__ total" : "__V__ total",
+  hcP2p:                     t.lang === 'es' ? "Transferencias P2P por teléfono" : t.lang === 'fr' ? "Transferts P2P par téléphone" : "P2P Phone Transfers",
+  hcNeedManual:              t.lang === 'es' ? "Requieren categorización manual" : t.lang === 'fr' ? "Nécessitent une catégorisation manuelle" : "Need manual categorization",
+  hcMissingPrices:           t.lang === 'es' ? "Precios faltantes" : t.lang === 'fr' ? "Prix manquants" : "Missing Prices",
+  hcOrphanedIns:             t.lang === 'es' ? "Recepciones inexplicadas" : t.lang === 'fr' ? "Réceptions inexpliquées" : "Unexplained Receipts",
+  hcFailedExchange:          t.lang === 'es' ? "Datos de exchange fallido" : t.lang === 'fr' ? "Données d'exchange défaillant" : "Failed Exchange Data",
+  hcFailedExchangeDetail:    t.lang === 'es' ? "Registros importados de plataformas fallidas — verifica pérdidas y bajas" : t.lang === 'fr' ? "Enregistrements importés de plateformes défaillantes — vérifiez les pertes et radiations" : "Records imported from failed platforms — verify loss claims and write-offs",
+  hcSuspectPrice:            t.lang === 'es' ? "Datos de precio sospechosos" : t.lang === 'fr' ? "Données de prix suspectes" : "Suspect Price Data",
+  hcBelowMax:                t.lang === 'es' ? "__R__× por debajo del máx" : t.lang === 'fr' ? "__R__× sous le max" : "__R__× below max",
+  hcSuspect:                 t.lang === 'es' ? "sospechoso" : t.lang === 'fr' ? "suspect" : "suspect",
+  hcCostBasisUnderstated:    t.lang === 'es' ? "La base de coste puede estar subestimada" : t.lang === 'fr' ? "La base de coût est peut-être sous-estimée" : "Cost basis may be understated",
+  hcMissingBasis:            t.lang === 'es' ? "Base de coste faltante" : t.lang === 'fr' ? "Base de coût manquante" : "Missing Cost Basis",
+  hcCurrentBalance:          t.lang === 'es' ? "saldo actual" : t.lang === 'fr' ? "solde actuel" : "current balance",
+  hcEstCostBasis:            t.lang === 'es' ? "Base de coste est. ~__T__ @ __P__/moneda el __D__ — solo estimación" : t.lang === 'fr' ? "Base de coût est. ~__T__ @ __P__/coin le __D__ — estimation seulement" : "Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only",
+  hcFirstSeen:               t.lang === 'es' ? "Visto por primera vez el __D__ · precio no disponible" : t.lang === 'fr' ? "Vu pour la première fois le __D__ · prix non disponible" : "First seen __D__ · no price available",
+  hcAndMore:                 t.lang === 'es' ? "…y __N__ más" : t.lang === 'fr' ? "…et __N__ de plus" : "…and __N__ more",
+  hcInWallet:                t.lang === 'es' ? "__N__ activo(s) · __V__ en wallet" : t.lang === 'fr' ? "__N__ actif(s) · __V__ en wallet" : "__N__ asset__S__ · __V__ in wallet",
+  hcImportMissing:           t.lang === 'es' ? "Importa los CSV del exchange faltante para establecer la base de coste" : t.lang === 'fr' ? "Importez les CSV d'exchange manquants pour établir la base de coût" : "Import missing exchange CSVs to establish cost basis",
+  hcFiatNoise:               t.lang === 'es' ? "Fiat como activo" : t.lang === 'fr' ? "Fiat comme actif" : "Fiat as Asset",
+  hcFiatDetail:              t.lang === 'es' ? "USD/EUR registrados como asset_symbol — probable ruido de stablecoins o CSV" : t.lang === 'fr' ? "USD/EUR enregistrés comme asset_symbol — probablement du bruit de stablecoins ou CSV" : "USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks",
+  hcMore:                    t.lang === 'es' ? "+más" : t.lang === 'fr' ? "+plus" : "+more",
+  hcMoreN:                   t.lang === 'es' ? "…y __N__ más" : t.lang === 'fr' ? "…et __N__ de plus" : "…and __N__ more",
+  wizardAnswered:            t.lang === 'es' ? "__A__/__T__ respondidas" : t.lang === 'fr' ? "__A__/__T__ répondues" : "__A__/__T__ answered",
+  wizardSave:                t.lang === 'es' ? "✓ Guardar" : t.lang === 'fr' ? "✓ Enregistrer" : "✓ Save",
+  wizardSaving:              t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  addrLoading:               t.lang === 'es' ? "Buscando __A__…" : t.lang === 'fr' ? "Recherche de __A__…" : "Looking up __A__…",
+  addrLookupFailed:          t.lang === 'es' ? "Búsqueda fallida: __MSG__" : t.lang === 'fr' ? "Échec de la recherche : __MSG__" : "Lookup failed: __MSG__",
+  addrInfoTitle:             t.lang === 'es' ? "Información de la dirección" : t.lang === 'fr' ? "Infos sur l'adresse" : "Address info",
+  addrCommunityLabel:        t.lang === 'es' ? "lista de Almstins" : t.lang === 'fr' ? "liste Almstins" : "Almstins list",
+  addrYourWallet:            t.lang === 'es' ? "Tu wallet: __L__" : t.lang === 'fr' ? "Votre wallet : __L__" : "Your wallet: __L__",
+  addrUnknown:               t.lang === 'es' ? "Dirección desconocida" : t.lang === 'fr' ? "Adresse inconnue" : "Unknown address",
+  addrAddAsWallet:           t.lang === 'es' ? "＋ Añadir como mi wallet" : t.lang === 'fr' ? "＋ Ajouter comme mon wallet" : "＋ Add as my wallet",
+  addrWalletLabel:           t.lang === 'es' ? "Etiqueta del wallet (p. ej. Mi wallet LTC)" : t.lang === 'fr' ? "Nom du wallet (ex. Mon wallet LTC)" : "Wallet label (e.g. My LTC wallet)",
+  addrSymbolPlaceholder:     t.lang === 'es' ? "Símbolo (p. ej. LTC, BTC, ETH)" : t.lang === 'fr' ? "Symbole (ex. LTC, BTC, ETH)" : "Symbol (e.g. LTC, BTC, ETH)",
+  addrLabelRequired:         t.lang === 'es' ? "La etiqueta es obligatoria" : t.lang === 'fr' ? "L'étiquette est obligatoire" : "Label is required",
+  addrSaving:                t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  addrRecentTxs:             t.lang === 'es' ? "Transacciones recientes" : t.lang === 'fr' ? "Transactions récentes" : "Recent transactions",
+  addrFailedToSave:          t.lang === 'es' ? "Error al guardar" : t.lang === 'fr' ? "Échec de l'enregistrement" : "Failed to save",
+  naReasonNeedsPrice:        t.lang === 'es' ? "precio faltante" : t.lang === 'fr' ? "prix manquant" : "needs price",
+  btnAiTriage:               t.btnAiTriage,
+  btnResolve:                t.btnResolve,
+  btnIgnoreDust:             t.btnIgnoreDust,
+  btnP2pCancel:              t.lang === 'es' ? "Cancelar" : t.lang === 'fr' ? "Annuler" : "Cancel",
+  showingReceived:           t.lang === 'es' ? "Mostrando __S__ recibidos__W__ — posibles orígenes de tu envío de __S__" : t.lang === 'fr' ? "Affichage de __S__ reçus__W__ — sources potentielles de votre envoi de __S__" : "Showing __S__ received__W__ — potential sources for your __S__ send",
+  showingSent:               t.lang === 'es' ? "Mostrando __S__ enviados__W__ — posibles destinos de tu depósito de __S__" : t.lang === 'fr' ? "Affichage de __S__ envoyés__W__ — destinations potentielles de votre dépôt de __S__" : "Showing __S__ sent__W__ — potential destinations for your __S__ deposit",
+  within7Days:               t.lang === 'es' ? " en 7 días de __D__" : t.lang === 'fr' ? " dans les 7 jours de __D__" : " within 7 days of __D__",
+} }}>window.__researchI18n = researchI18n;</script>
+
+<script is:inline>
+// ── Error catcher: shows JS errors inside na-list instead of silent failure ───
+window.__naErr = function(msg) {
+  var el = document.getElementById('na-list');
+  if (el) el.innerHTML = '<div class="loading-msg" style="color:var(--loss);font-size:0.85em;white-space:pre-wrap">JS Error:\n' + msg + '</div>';
+};
+window.addEventListener('error', function(e) {
+  window.__naErr(e.message + '\n' + e.filename.split('/').pop() + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  window.__naErr('Unhandled: ' + String(e.reason));
+});
+
+// ── Synchronous SSR render — runs before any module script ────────────────────
+// Renders NA data immediately so cold-start never shows "Loading…" even if the
+// main module script fails to load. The module replaces this with interactive
+// HTML (with buttons, event handlers) when it runs.
+(function () {
+  function escH(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  var SRC = { coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
+    kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood' };
+  function srcN(s) { return SRC[s] || s || ''; }
+
+  try {
+    var ssrEl = document.getElementById('na-ssr-data');
+    if (!ssrEl) return;
+    var data = JSON.parse(ssrEl.textContent || '');
+    if (!data || typeof data !== 'object') return;
+
+    // Store parsed data for module to consume (avoids re-parsing)
+    window.__naData = data;
+
+    // Update count badge immediately
+    var count = document.getElementById('na-count');
+    if (count) {
+      var total = data.total || 0;
+      count.textContent = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
+    }
+
+    // Build list HTML (no interactive buttons — module replaces with full version)
+    var list = document.getElementById('na-list');
+    if (!list) return;
+    var html = '';
+
+    var suggested = data.suggested || [];
+    if (suggested.length) {
+      html += '<div class="section-label">Suggested matches</div>';
+      for (var i = 0; i < suggested.length; i++) {
+        var m = suggested[i];
+        html += '<div class="suggest-item">' +
+          '<div class="suggest-top"><span class="suggest-sym">' + escH(m.asset_symbol || '') + '</span>' +
+          '<span class="suggest-score">confidence ' + escH(String(m.confidence_score || '')) + '</span></div>' +
+          '<div class="suggest-flow">' + escH(srcN(String(m.out_source || ''))) + ' → ' + escH(srcN(String(m.in_source || ''))) + '</div>' +
+          '<div class="suggest-dates">' + escH(String(m.out_ts || '').slice(0,10)) + ' → ' + escH(String(m.in_ts || '').slice(0,10)) + '</div>' +
+          '</div>';
+      }
+    }
+
+    var unmatched = data.unmatched || [];
+    if (unmatched.length) {
+      html += '<div class="section-label">Unresolved transactions</div>';
+      for (var j = 0; j < unmatched.length; j++) {
+        var t = unmatched[j];
+        var dir = String(t.direction || '').toLowerCase();
+        var isXfer = dir === 'out' && t.category === 'own_wallet';
+        var dClass = isXfer ? 'transfer' : dir;
+        var dLabel = isXfer ? 'transfer' : dir;
+        var sym = escH(String(t.asset_symbol || ''));
+        var absAmt = Math.abs(Number(t.amount || 0));
+        var amtDisp = (dir === 'out' ? '−' : '+') + absAmt.toLocaleString(undefined,{maximumFractionDigits:8}) + ' ' + sym;
+        var src = escH(srcN(String(t.source || '')));
+        var usd = t.native_usd ? '<span class="tx-usd">$' + Number(t.native_usd).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>' : '';
+        html += '<div class="tx-card na-item dir-' + dClass + '" data-sym="' + escH(String(t.asset_symbol||'')) + '" data-dir="' + dir + '" data-id="' + escH(String(t.id||'')) + '" data-ts="' + escH(String(t.timestamp_utc||'')) + '" data-src="' + src + '" data-amount="' + absAmt + '" data-usd="' + escH(String(t.native_usd||'')) + '">' +
+          '<div class="tx-badge-col"><span class="tx-dir ' + dClass + '">' + dLabel + '</span></div>' +
+          '<div class="tx-body">' +
+          '<div class="tx-row-1"><span class="tx-sym">' + sym + '</span><span class="tx-amt">' + amtDisp + '</span></div>' +
+          '<div class="tx-row-2"><span class="tx-src-badge">' + src + '</span>' + usd + '</div>' +
+          '<div class="tx-row-3"><span class="tx-dt">' + escH(String(t.timestamp_utc||'').slice(0,16).replace('T',' ')) + '</span></div>' +
+          '</div></div>';
+      }
+    }
+
+    if (!html) html = '<div class="empty-msg">✓ Nothing to review.</div>';
+    list.innerHTML = html;
+  } catch(e) {
+    if (window.__naErr) window.__naErr('inline: ' + e.message);
+  }
+})();
+</script>
+
+<script>
+import { escapeHtml } from '../../lib/escapeHtml';
+
+// ── i18n ─────────────────────────────────────────────────────────────────────
+// Strings injected by the <script is:inline define:vars> island above.
+// English fallbacks keep the script working if that block ever fails to run.
+const I18N = (window as any).__researchI18n ?? {};
+const i18n = (key: string, fallback: string) => (I18N[key] as string) ?? fallback;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeChip    = '';
+let pendingMatch  = null;
+let resolvedOpen  = false;
+let naContext     = null;   // { sym, dir } when search was triggered from NA click
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
+const fmtUsd = n => n == null ? '' : '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtDT = s => {
+  if (!s) return '';
+  try {
+    const d = new Date(s.replace(' UTC','Z').replace(' ','T'));
+    const date = d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+    return `${date} · ${time}`;
+  } catch { return s.slice(0,16); }
+};
+
+const fmtDate = s => {
+  if (!s) return '';
+  try {
+    return new Date(s.replace(' UTC','Z').replace(' ','T')).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  } catch { return s.slice(0,10); }
+};
+
+const srcName = s => ({
+  coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
+  kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood',
+})[s] ?? s;
+
+// ── Load Needs Attention ──────────────────────────────────────────────────────
+async function loadNeedsAttention(attempt = 1) {
+  const MAX_ATTEMPTS = 4;
+  const list = $('na-list');
+
+  // On the very first call, use SSR-embedded data (already rendered inline by
+  // the <script is:inline> block). window.__naData is set synchronously before
+  // any module runs, so it's always available when this function first fires.
+  if (attempt === 1) {
+    const inlineData = (window as any).__naData as object | null | undefined;
+    if (inlineData) {
+      (window as any).__naData = null; // consume once
+      try {
+        renderNeedsAttention(inlineData);
+        const badge = $('na-synced');
+        if (badge) {
+          const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+          badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
+          badge.style.display = 'inline';
+        }
+        return;
+      } catch (e) {
+        console.error('[NA] renderNeedsAttention threw on inline data — falling back to fetch:', e);
+      }
+    }
+    // Belt-and-suspenders: also check the DOM element (in case inline script skipped)
+    const ssrEl = document.getElementById('na-ssr-data');
+    if (ssrEl) {
+      let embedded: object | null = null;
+      try {
+        const parsed = JSON.parse(ssrEl.textContent || '');
+        if (parsed && typeof parsed === 'object') embedded = parsed;
+      } catch (e) {
+        console.warn('[NA] SSR DOM parse failed:', e);
+      }
+      if (embedded) {
+        ssrEl.remove();
+        try {
+          renderNeedsAttention(embedded);
+          const badge = $('na-synced');
+          if (badge) {
+            const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
+            badge.style.display = 'inline';
+          }
+          return;
+        } catch (e) {
+          console.error('[NA] renderNeedsAttention threw on SSR DOM data — falling back to fetch:', e);
+        }
+      }
+    }
+  }
+
+  list.innerHTML = '<div class="loading-msg">' + i18n('loading', 'Loading…') + '</div>';
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 28_000);
+    const res  = await fetch('/api/research/needs-attention', { signal: ctrl.signal });
+    clearTimeout(tid);
+    const data = await res.json();
+    if (data.error) {
+      if (attempt < MAX_ATTEMPTS) {
+        list.innerHTML = '<div class="loading-msg">' + i18n('retrying', 'Retrying…') + '</div>';
+        setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
+      } else {
+        list.innerHTML = '<div class="empty-msg">' + i18n('stillWorking', 'Still working on it — check back in a moment.') + '</div>';
+      }
+      return;
+    }
+    renderNeedsAttention(data);
+    const badge = $('na-synced');
+    if (badge) {
+      const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
+      badge.style.display = 'inline';
+    }
+  } catch {
+    if (attempt < MAX_ATTEMPTS) {
+      list.innerHTML = '<div class="loading-msg">' + i18n('retrying', 'Retrying…') + '</div>';
+      setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
+    } else {
+      list.innerHTML = '<div class="empty-msg">' + i18n('stillWorking', 'Still working on it — check back in a moment.') + '</div>';
+    }
+  }
+}
+
+const PHONE_RE = /(?:To|From)\s+\+\d{7,}/i;
+const NON_EVM_ASSETS = new Set(['BTC','XBT','LTC','SOL','XRP','DOT','ADA','ATOM','ALGO']);
+
+function naReasonTag(t, dir) {
+  const desc = t.description ?? '';
+  const sym  = (t.asset_symbol ?? '').toUpperCase();
+  if (!t.native_usd)                      return { label: i18n('naReasonNeedsPrice','needs price'),   cls: 'price' };
+  if (PHONE_RE.test(desc))                return { label: 'P2P',           cls: 'p2p' };
+  if (t.kind === 'crypto_earn_deposit' ||
+      t.kind === 'crypto_earn_withdraw')  return { label: 'Earn',          cls: 'earn' };
+  if (NON_EVM_ASSETS.has(sym))            return { label: 'non-EVM',       cls: 'nonevm' };
+  if (dir === 'out')                      return { label: 'unmatched send', cls: 'send' };
+  return                                         { label: 'unmatched recv', cls: 'recv' };
+}
+
+function renderNeedsAttention(data) {
+  naDataCache = data; // cache for AI triage
+  const list  = $('na-list');
+  const count = $('na-count');
+  const total = data.total ?? 0;
+  const countLabel = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
+  count.textContent = countLabel;
+
+  // Persist count for nav badge (other pages read from localStorage)
+  try {
+    localStorage.setItem('alms_na_count', String(total));
+    const navBadge = document.getElementById('na-nav-badge');
+    if (navBadge) {
+      if (total > 0) {
+        navBadge.textContent = total > 99 ? '99+' : String(total);
+        navBadge.hidden = false;
+      } else {
+        navBadge.hidden = true;
+      }
+    }
+  } catch { /* localStorage unavailable */ }
+
+  let html = '';
+
+  // ── Suggested matches ──────────────────────────────────────────────────────
+  if (data.suggested?.length) {
+    html += '<div class="section-label">' + i18n('suggestedMatches', 'Suggested matches') + '</div>';
+    for (const m of data.suggested) {
+      const safeM = JSON.stringify(m).replace(/'/g,"&#39;");
+      html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${safeM}'>
+        <div class="suggest-top">
+          <span class="suggest-sym">${m.asset_symbol}</span>
+          <span class="suggest-score">confidence ${m.confidence_score}</span>
+        </div>
+        <div class="suggest-flow">${srcName(m.out_source)}${m.out_account_name ? ' · ' + m.out_account_name : ''} → ${srcName(m.in_source)}${m.in_account_name ? ' · ' + m.in_account_name : ''}</div>
+        <div class="suggest-dates">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
+        <div class="suggest-amt">Sent ${fmt(m.out_amount)} · Received ${fmt(m.in_amount)}${m.fee_amount ? ' · Fee ' + fmt(m.fee_amount) : ''}</div>
+      </div>`;
+    }
+  }
+
+  // ── Unresolved transactions ────────────────────────────────────────────────
+  if (data.unmatched?.length) {
+    html += '<div class="section-label">' + i18n('unresolvedTxs', 'Unresolved transactions') + '</div>';
+    for (const t of data.unmatched) {
+      const dir       = (t.direction ?? '').toLowerCase();
+      const isTransfer = dir === 'out' && t.category === 'own_wallet';
+      const dirClass  = isTransfer ? 'transfer' : dir;
+      const dirLabel  = isTransfer ? 'transfer' : dir;
+      const absAmt = Math.abs(Number(t.amount));
+      const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
+      const hint    = dir === 'out' ? i18n('clickToFindLanded', 'Click to find where this landed →') : i18n('clickToFindSource', 'Click to find where this came from →');
+      const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+      const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
+      const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
+      const hasAnnotation = !!(t.category || t.notes);
+      const reasonTag = naReasonTag(t, dir);
+      html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
+        <div class="tx-badge-col">
+          <span class="tx-dir ${dirClass}">${dirLabel}</span>
+          <span class="na-reason na-reason--${reasonTag.cls}">${reasonTag.label}</span>
+        </div>
+        <div class="tx-body">
+          <div class="tx-row-1">
+            <span class="tx-sym">${t.asset_symbol}</span>
+            <span class="tx-amt">${amt} ${t.asset_symbol}</span>
+          </div>
+          <div class="tx-row-2">
+            <span class="tx-src-badge">${src}</span>
+            ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+          </div>
+          <div class="tx-row-3">
+            <span class="tx-hint">${hint}</span>
+            <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
+          </div>
+          ${hasAnnotation ? `<div class="tx-annotation-row">${catLabel}${noteText}</div>` : ''}
+          <div class="card-actions">
+            ${dir === 'out' ? `
+            <button class="btn-dispose${hasAnnotation ? ' has-note' : ''}"
+                    data-tx-id="${t.id}"
+                    data-category="${t.category ?? ''}"
+                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    onclick="openDisposeForm(event, this)">
+              ${hasAnnotation ? i18n('editDisposal', 'Edit disposal') : i18n('dispose', 'Dispose')}
+            </button>
+            ${t.category !== 'own_wallet' ? `
+            <button class="btn-transfer"
+                    data-tx-id="${t.id}"
+                    onclick="openForwardForm(event, this)">
+              ${i18n('forward', '↗ Forward')}
+            </button>` : ''}
+            ` : `
+            <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
+                    data-tx-id="${t.id}"
+                    data-category="${t.category ?? ''}"
+                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    onclick="openAnnotateForm(event, this)">
+              ${hasAnnotation ? i18n('editNote', 'Edit note') : i18n('addNote', 'Add note')}
+            </button>
+            ${t.category !== 'legacy_exchange' ? `
+            <button class="btn-legacy"
+                    onclick="markLegacy(event, '${t.id}')">
+              ${i18n('legacyExchange', 'Legacy exchange')}
+            </button>` : ''}`}
+            <button class="btn-attach"
+                    onclick="attachReceipt(event,'${t.id}')">
+              ${i18n('attach', 'Attach')}
+            </button>
+            <button class="btn-context-pill"
+                    onclick="event.stopPropagation();openWizard()"
+                    title="${i18n('aboutTxHistory', 'About my transaction history')}"></button>
+            <button class="btn-help"
+                    data-tx-id="${t.id}"
+                    onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
+              ${i18n('helpBtn', '? Help')}
+            </button>
+          </div>
+          <div class="att-panel" id="atp-${t.id}"></div>
+          <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
+          <div class="help-panel" id="hp-${t.id}" style="display:none"></div>
+        </div>
+      </div>`;
+    }
+  }
+
+  if (!html) {
+    const emptyMessages = [
+      { icon: '✓', text: i18n('nothingToReview', "You're all caught up — nothing to review.") },
+      { icon: '✓', text: i18n('everythingMatched', "Everything's matched. Nothing left to review.") },
+      { icon: '✓', text: i18n('cleanSlate', "Clean slate — no transactions need attention.") },
+    ];
+    const pick = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
+    html = '<div class="empty-msg">' + pick.icon + ' ' + pick.text + '</div>';
+  }
+
+  list.innerHTML = html;
+
+  // Wire NA item clicks → action panel + search
+  list.querySelectorAll('.na-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const sym  = el.getAttribute('data-sym');
+      const dir  = el.getAttribute('data-dir');
+      const ts   = el.getAttribute('data-ts');
+      const txId = el.getAttribute('data-id');
+      const src  = el.getAttribute('data-src') ?? '';
+      const cat  = el.querySelector('[data-category]')?.getAttribute('data-category') ?? '';
+      const note = el.querySelector('[data-note]')?.getAttribute('data-note') ?? '';
+      if (!sym) return;
+      list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+
+      // Populate the right-panel action panel
+      renderNaActionPanel({ txId, sym, dir, src, cat, note,
+        amt: el.querySelector('.tx-amt')?.textContent ?? '' });
+
+      // Search for potential matches on the opposite side
+      const opposite = dir === 'out' ? 'in' : 'out';
+      naContext = { sym, dir, opposite };
+      setActiveChip(sym);
+      $('filter-symbol').value = sym;
+      runSearchNa(sym, opposite, ts);
+    });
+  });
+
+  // Wire suggested match clicks → modal
+  list.querySelectorAll('.suggest-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const raw = el.getAttribute('data-match');
+      if (!raw) return;
+      openMatchModal(JSON.parse(raw.replace(/&#39;/g,"'")));
+    });
+  });
+
+  // ── Resolved tin ──────────────────────────────────────────────────────────
+  const resolved = data.resolved ?? [];
+  const rHeader  = $('resolved-header');
+  const rList    = $('resolved-list');
+  const rCount   = $('resolved-count');
+
+  if (resolved.length) {
+    rCount.textContent = String(resolved.length);
+    rHeader.style.display = 'flex';
+
+    let rHtml = '';
+    for (const r of resolved) {
+      const autoLabel = r.status === 'auto' ? i18n('resolvedAuto', 'auto') : i18n('resolvedConfirmed', '✓ confirmed');
+      rHtml += `<div class="resolved-item">
+        <div class="resolved-top">
+          <span class="resolved-sym">${r.asset_symbol}</span>
+          <span class="resolved-badge">${autoLabel}</span>
+        </div>
+        <div class="resolved-flow">${srcName(r.out_source)}${r.out_account_name ? ' · ' + r.out_account_name : ''} → ${srcName(r.in_source)}${r.in_account_name ? ' · ' + r.in_account_name : ''}</div>
+        <div class="resolved-meta">${fmtDate(r.out_ts)} → ${fmtDate(r.in_ts)} &nbsp;·&nbsp; ${fmt(r.out_amount)} → ${fmt(r.in_amount)}</div>
+      </div>`;
+    }
+    rList.innerHTML = rHtml;
+
+    // Honour current open/closed state
+    rList.style.display = resolvedOpen ? 'block' : 'none';
+    $('resolved-toggle').textContent = resolvedOpen ? '▴ hide' : '▾ show';
+  } else {
+    rHeader.style.display = 'none';
+    rList.style.display   = 'none';
+  }
+}
+
+// Toggle resolved list
+$('resolved-toggle')?.addEventListener('click', () => {
+  resolvedOpen = !resolvedOpen;
+  $('resolved-list').style.display  = resolvedOpen ? 'block' : 'none';
+  $('resolved-toggle').textContent  = resolvedOpen ? i18n('resolvedHide', '▴ hide') : i18n('resolvedShow', '▾ show');
+});
+
+// ── Chip row ──────────────────────────────────────────────────────────────────
+function setActiveChip(sym) {
+  activeChip = sym;
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('active', c.getAttribute('data-sym') === sym);
+  });
+}
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const sym = chip.getAttribute('data-sym');
+    if (activeChip === sym) {
+      setActiveChip('');
+      naContext = null;
+      $('filter-symbol').value = '';
+      $('results-label').textContent = '';
+      $('results-label').style.display = 'none';
+      $('results-list').innerHTML = '<div class="empty-msg">' + i18n('searchCleared', 'Search cleared.') + '</div>';
+      $('results-count').textContent = '';
+    } else {
+      setActiveChip(sym);
+      naContext = null;
+      $('results-label').textContent = '';
+      $('results-label').style.display = 'none';
+      $('filter-symbol').value = sym;
+      runSearch();
+    }
+  });
+});
+
+// ── NA-triggered search (opposite direction, ±7-day window) ──────────────────
+async function runSearchNa(sym, direction, ts) {
+  const params = new URLSearchParams({ symbol: sym, direction });
+
+  // Narrow results to ±7 days around the selected transaction's date
+  // so the user only sees plausible matches, not their entire history.
+  let windowLabel = '';
+  if (ts) {
+    const center = new Date(ts);
+    const before = new Date(center); before.setDate(before.getDate() - 7);
+    const after  = new Date(center); after.setDate(after.getDate()  + 7);
+    const toDate  = d => d.toISOString().slice(0, 10);   // YYYY-MM-DD
+    params.set('from', toDate(before));
+    params.set('to',   toDate(after));
+    // Also pre-fill the date inputs so the user can see / adjust the window
+    $('filter-from').value = toDate(before);
+    $('filter-to').value   = toDate(after);
+    windowLabel = i18n('within7Days',' within 7 days of __D__').replace('__D__',center.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }));
+  }
+
+  const list = $('results-list');
+  const fromLabel = direction === 'in'
+    ? i18n('showingReceived','Showing __S__ received__W__ — potential sources for your __S__ send').replace(/__S__/g,sym).replace('__W__',windowLabel)
+    : i18n('showingSent','Showing __S__ sent__W__ — potential destinations for your __S__ deposit').replace(/__S__/g,sym).replace('__W__',windowLabel);
+
+  list.innerHTML = '<div class="loading-msg">' + i18n('searching', 'Searching…') + '</div>';
+  $('results-count').textContent = '';
+  $('results-label').textContent = fromLabel;
+  $('results-label').style.display = 'block';
+
+  try {
+    const res  = await fetch('/api/research/search?' + params.toString());
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    list.innerHTML = '<div class="empty-msg">' + i18n('searchFailed', 'Search failed: __MSG__').replace('__MSG__', e.message) + '</div>';
+  }
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function runSearch() {
+  const params = new URLSearchParams();
+  const q      = $('q').value.trim();
+  const symbol = $('filter-symbol').value.trim();
+  const from   = $('filter-from').value;
+  const to     = $('filter-to').value;
+  const note   = $('filter-note').value.trim();
+
+  if (q)      params.set('q', q);
+  if (symbol) params.set('symbol', symbol);
+  if (from)   params.set('from', from);
+  if (to)     params.set('to', to);
+  if (note)   params.set('note', note);
+
+  if (!params.toString()) return;
+
+  naContext = null;
+  $('results-label').textContent = '';
+  $('results-label').style.display = 'none';
+
+  const list = $('results-list');
+  list.innerHTML = '<div class="loading-msg">' + i18n('searching', 'Searching…') + '</div>';
+  $('results-count').textContent = '';
+
+  try {
+    const res  = await fetch('/api/research/search?' + params.toString());
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    list.innerHTML = '<div class="empty-msg">' + i18n('searchFailed', 'Search failed: __MSG__').replace('__MSG__', e.message) + '</div>';
+  }
+}
+
+let _lastResultsData = null;
+let _sortBy  = 'date';
+let _sortDir = 'asc';
+
+window.setResultsSort = setResultsSort;
+function setResultsSort(field) {
+  if (_sortBy === field) {
+    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _sortBy  = field;
+    _sortDir = 'asc';
+  }
+  const arrow = _sortDir === 'asc' ? '↑' : '↓';
+  $('sort-btn-date').textContent   = 'Date'   + (_sortBy === 'date'   ? ' ' + arrow : '');
+  $('sort-btn-amount').textContent = 'Amount' + (_sortBy === 'amount' ? ' ' + arrow : '');
+  $('sort-btn-date').classList.toggle('active',   _sortBy === 'date');
+  $('sort-btn-amount').classList.toggle('active', _sortBy === 'amount');
+  if (_lastResultsData) renderResults(_lastResultsData);
+}
+
+function renderResults(data) {
+  _lastResultsData = data;
+  const list  = $('results-list');
+  const count = $('results-count');
+  const rows  = (data.rows ?? []).slice().sort((a, b) => {
+    const symCmp = (a.asset_symbol ?? '').localeCompare(b.asset_symbol ?? '');
+    if (symCmp !== 0) return symCmp;
+    let cmp = 0;
+    if (_sortBy === 'amount') {
+      cmp = Math.abs(Number(a.amount ?? 0)) - Math.abs(Number(b.amount ?? 0));
+    } else {
+      cmp = (a.timestamp_utc ?? '').localeCompare(b.timestamp_utc ?? '');
+    }
+    return _sortDir === 'asc' ? cmp : -cmp;
+  });
+  count.textContent = rows.length > 0 ? String(rows.length) : '';
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty-msg">' + i18n('noTransactionsFound', 'No transactions found.') + '</div>';
+    $('results-sort-bar').style.display = 'none';
+    return;
+  }
+
+  $('results-sort-bar').style.display = 'flex';
+
+  let html = '';
+  let lastSym = null;
+  for (const t of rows) {
+    if (t.asset_symbol !== lastSym) {
+      html += `<div class="results-group-header">${t.asset_symbol ?? '—'}</div>`;
+      lastSym = t.asset_symbol;
+    }
+    const dir         = (t.direction ?? '').toLowerCase();
+    const isTransfer  = dir === 'out' && t.category === 'own_wallet';
+    const dirClass    = isTransfer ? 'transfer' : dir;
+    const dirLabel    = isTransfer ? 'transfer' : dir;
+    const matchStatus = t.match_status_as_out ?? t.match_status_as_in ?? null;
+    const matchDir    = t.match_id_as_out ? '→' : '←';
+    const matchBadge  = (t.match_id_as_out || t.match_id_as_in)
+      ? `<span class="match-badge${matchStatus === 'suggested' ? ' suggested' : ''}">${matchDir} matched</span>`
+      : '';
+    const label = '';
+
+    // For Crypto.com fiat→crypto buys, amount = USD fiat side; to_amount = crypto qty.
+    // Use to_amount as the display quantity when to_currency matches asset_symbol.
+    const qty = (t.to_currency && t.to_currency === t.asset_symbol && t.to_amount != null)
+      ? t.to_amount
+      : t.amount;
+    const amtDisplay = dir === 'out'
+      ? `−${fmt(Math.abs(qty ?? 0))}`
+      : `+${fmt(qty ?? 0)}`;
+
+    const srcLine      = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+    const hasAnnotation = !!(t.category || t.notes);
+    const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
+    const noteText      = t.notes    ? `<span class="tx-note-text">${t.notes}</span>` : '';
+
+    html += `<div class="tx-card result-card dir-${dirClass}" data-id="${t.id}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-ts="${t.timestamp_utc}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
+      <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
+      <div class="tx-body">
+        <div class="tx-row-1">
+          <span class="tx-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
+          <span class="tx-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
+        </div>
+        <div class="tx-row-2">
+          <span class="tx-src">${srcLine}${label}</span>
+          ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+        </div>
+        <div class="tx-row-3">
+          <span class="tx-desc">${t.description ?? ''}</span>
+          <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
+        </div>
+        ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
+                  data-tx-id="${t.id}"
+                  data-category="${t.category ?? ''}"
+                  data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                  onclick="openResultAnnotateForm(event, this)">
+            ${hasAnnotation ? i18n('editNote','Edit note') : i18n('addNote','Add note')}
+          </button>
+          <button class="btn-attach"
+                  onclick="attachReceipt(event,'${t.id}')">
+            ${i18n('attach','Attach')}
+          </button>
+        </div>
+        <div class="att-panel" id="atp-${t.id}"></div>
+        <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
+      </div>
+    </div>`;
+  }
+  list.innerHTML = html;
+
+  // Wire result card clicks → chain exploration (search opposite direction)
+  list.querySelectorAll('.result-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const sym = el.getAttribute('data-sym');
+      const dir = el.getAttribute('data-dir') ?? el.querySelector('.tx-dir')?.textContent?.trim() ?? '';
+      const ts  = el.getAttribute('data-ts');
+      if (!sym) return;
+      list.querySelectorAll('.result-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      const opposite = dir === 'out' ? 'in' : 'out';
+      naContext = { sym, dir, opposite };
+      setActiveChip(sym);
+      $('filter-symbol').value = sym;
+      runSearchNa(sym, opposite, ts);
+    });
+  });
+}
+
+// ── Button wiring ─────────────────────────────────────────────────────────────
+function maybeAddressLookup() {
+  const stripped = ($('q').value ?? '').replace(/\s+/g, '');
+  if (ADDRESS_RE.test(stripped)) {
+    checkAddress(stripped);
+    return true;
+  }
+  return false;
+}
+
+$('btn-search').addEventListener('click', () => { if (!maybeAddressLookup()) runSearch(); });
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!maybeAddressLookup()) runSearch(); } });
+
+$('btn-resolve').addEventListener('click', async () => {
+  const btn    = $('btn-resolve');
+  const bar    = $('resolve-status-bar');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    bar.style.display = 'block';
+  };
+  btn.disabled = true;
+  bar.style.display = 'none';
+  try {
+    btn.textContent = i18n('matching', 'Matching…');
+    const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
+    if (!matchRes.ok) throw new Error(`Matching failed (${matchRes.status})`);
+    const matchData = await matchRes.json();
+
+    btn.textContent = i18n('classifying', 'Classifying…');
+    const classRes  = await fetch('/api/research/auto-classify', { method: 'POST' });
+    if (!classRes.ok) throw new Error(`Classify failed (${classRes.status})`);
+    const classData = await classRes.json();
+
+    const matched    = matchData.matched    ?? 0;
+    const skipped    = matchData.skipped    ?? 0;
+    const classified = classData.classified ?? 0;
+    const parts = [];
+    if (matched > 0)    parts.push(matched + ' ' + i18n('matched', 'matched'));
+    if (classified > 0) parts.push(classified + ' ' + i18n('classified', 'classified'));
+    const summary = parts.length ? '✓ ' + parts.join(' · ') : i18n('nothingNewToResolve', '✓ Nothing new to resolve');
+    const detail  = skipped > 0 ? ' (' + skipped + ' ' + i18n('scanned', 'scanned') + ')' : '';
+    setStatus(summary + detail);
+    btn.textContent = i18n('btnResolve', 'Resolve');
+    btn.disabled = false;
+    await loadNeedsAttention();
+  } catch (err) {
+    setStatus(`(err.message ?? i18n('failedTryAgain', 'Failed — try again'))`, true);
+    btn.textContent = 'Resolve';
+    btn.disabled = false;
+  }
+});
+
+// ── Ignore dust ───────────────────────────────────────────────────────────────
+$('btn-ignore-dust').addEventListener('click', async () => {
+  const btn    = $('btn-ignore-dust');
+  const bar    = $('resolve-status-bar');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    bar.style.display = 'block';
+  };
+  btn.disabled = true;
+  btn.textContent = i18n('dismissing', 'Dismissing…');
+  bar.style.display = 'none';
+  try {
+    const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
+    if (!res.ok) throw new Error(`Failed (${res.status})`);
+    const data = await res.json();
+    const dismissed = data.dismissed ?? 0;
+    setStatus(dismissed > 0 ? i18n('dustDismissed', '✓ __N__ dust transactions dismissed').replace('__N__', dismissed) : i18n('noDust', '✓ No dust to dismiss'));
+    btn.textContent = i18n('btnIgnoreDust', 'Ignore dust');
+    btn.disabled = false;
+    if (dismissed > 0) await loadNeedsAttention();
+  } catch (err) {
+    setStatus(`${err.message ?? 'Failed — try again'}`, true);
+    btn.textContent = 'Ignore dust';
+    btn.disabled = false;
+  }
+});
+
+// ── P2P classifier ────────────────────────────────────────────────────────────
+$('btn-classify-p2p').addEventListener('click', () => {
+  $('p2p-panel').style.display = $('p2p-panel').style.display === 'none' ? 'flex' : 'none';
+});
+$('btn-p2p-cancel').addEventListener('click', () => {
+  $('p2p-panel').style.display = 'none';
+});
+
+async function runP2PClassify(disposition) {
+  const bar    = $('resolve-status-bar');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    bar.style.display = 'block';
+  };
+  $('p2p-panel').style.display = 'none';
+  bar.style.display = 'none';
+  try {
+    const res  = await fetch('/api/research/classify-p2p', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disposition }),
+    });
+    if (!res.ok) throw new Error(`Failed (${res.status})`);
+    const data = await res.json();
+    const classified = data.classified ?? 0;
+    setStatus(classified > 0 ? i18n('p2pClassified', '✓ __N__ P2P transfers classified').replace('__N__', classified) : i18n('noP2p', '✓ No P2P transfers found'));
+    if (classified > 0) await loadNeedsAttention();
+  } catch (err) {
+    setStatus(`${err.message ?? 'Failed — try again'}`, true);
+  }
+}
+
+$('btn-p2p-own').addEventListener('click',      () => runP2PClassify('own_wallet'));
+$('btn-p2p-disposal').addEventListener('click', () => runP2PClassify('disposal'));
+
+// ── AI Triage ─────────────────────────────────────────────────────────────────
+const TRIAGE_LABELS = {
+  annotated:          { label: i18n('triageLabelAnnotated',   'Already annotated'),      cls: 'triage-ok'   },
+  obvious_purchase:   { label: i18n('triageLabelPurchase',    'Obvious purchase'),        cls: 'triage-info' },
+  obvious_income:     { label: i18n('triageLabelIncome',      'Obvious income'),          cls: 'triage-info' },
+  obvious_own_wallet: { label: i18n('triageLabelOwnWallet',   'Obvious own-wallet'),      cls: 'triage-info' },
+  obvious_sale:       { label: i18n('triageLabelSale',        'Obvious sale/disposal'),   cls: 'triage-info' },
+  needs_review:       { label: i18n('triageLabelNeedsReview', 'Needs manual review'),     cls: 'triage-warn' },
+};
+
+let naDataCache = null; // set by renderNeedsAttention
+
+$('btn-ai-triage').addEventListener('click', async () => {
+  const btn   = $('btn-ai-triage');
+  const panel = $('triage-panel');
+  if (!naDataCache?.unmatched?.length) {
+    panel.style.display = 'block';
+    panel.innerHTML = '<p class="triage-msg">' + i18n('loadNaFirst', 'Load Needs Attention first.') + '</p>';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = i18n('triaging', 'Triaging…');
+  panel.style.display = 'block';
+  panel.innerHTML = '<p class="triage-msg">' + i18n('analysingTxs', 'Analysing __N__ transactions…').replace('__N__', naDataCache.unmatched.length) + '</p>';
+  try {
+    const res  = await fetch('/api/research/ai-triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactions: naDataCache.unmatched }),
+    });
+    const data = await res.json();
+    if (res.status === 403) {
+      panel.innerHTML = '<p class="triage-msg"><a href="/dashboard/billing" style="color:var(--accent)">' + i18n('upgradeForTriage', 'Upgrade to a paid plan to use AI Triage.') + '</a></p>';
+      return;
+    }
+    if (!data.ok) throw new Error(data.error ?? 'Triage failed');
+
+    // Reload NA list if anything was auto-resolved
+    if (data.autoResolved > 0) await loadNeedsAttention();
+
+    const groups = data.groups;
+    const autoMsg = data.autoResolved > 0
+      ? '<p class="triage-auto-note">' + i18n('triageAutoNote', '✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.').replace('__N__', data.autoResolved).replace('__S__', data.autoResolved !== 1 ? 's' : '') + '</p>'
+      : '';
+    let html = `<div class="triage-results">${autoMsg}`;
+    for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
+      const rows = groups[key] ?? [];
+      if (!rows.length) continue;
+      html += `<div class="triage-group ${meta.cls}">
+        <div class="triage-group-header">
+          <span>${meta.label}</span>
+          <span class="triage-count">${rows.length}</span>
+        </div>
+        <div class="triage-group-body">`;
+      for (const r of rows) {
+        const tx = naDataCache.unmatched.find(t => t.id === r.id);
+        const sym  = tx?.asset_symbol ?? '?';
+        const amt  = tx ? Math.abs(Number(tx.amount)).toFixed(4) : '';
+        const date = tx?.timestamp_utc?.slice(0, 10) ?? '';
+        html += `<div class="triage-row">
+          <span class="triage-tx">${sym} ${amt} · ${date}</span>
+          <span class="triage-reason">${r.reason}</span>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+    html += '<p class="triage-note">' + i18n('triageAdvisory', 'Triage is advisory — review before acting on AI suggestions.') + '</p></div>';
+    panel.innerHTML = html;
+    // Wire group headers to expand/collapse
+    panel.querySelectorAll('.triage-group-header').forEach(hdr => {
+      hdr.addEventListener('click', () => hdr.closest('.triage-group').classList.toggle('open'));
+    });
+  } catch (err) {
+    panel.innerHTML = '<p class="triage-msg triage-err">' + i18n('triageFailed', 'Triage failed: __MSG__').replace('__MSG__', err.message) + '</p>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = i18n('btnAiTriage', 'AI Triage');
+  }
+});
+
+// ── Backfill missing prices ───────────────────────────────────────────────────
+$('btn-backfill').addEventListener('click', async () => {
+  const btn = $('btn-backfill');
+  btn.disabled = true;
+  btn.textContent = i18n('fetchingPrices', 'Fetching prices…');
+  try {
+    const res  = await fetch('/api/research/backfill-prices', { method: 'POST' });
+    const data = await res.json();
+    if (res.status === 403) {
+      btn.textContent = i18n('paidFeature', 'Paid feature');
+      setTimeout(() => { btn.textContent = i18n('fillMissingPrices', 'Fill Missing Prices'); btn.disabled = false; }, 3000);
+      return;
+    }
+    if (data.ok) {
+      btn.textContent = i18n('pricedSkipped', '✓ __P__ priced · __S__ skipped').replace('__P__', data.priced).replace('__S__', data.skipped);
+      if (data.priced > 0) await loadNeedsAttention();
+    } else {
+      btn.textContent = i18n('backfillFailed', 'Backfill failed');
+    }
+  } catch {
+    btn.textContent = 'Backfill failed';
+  }
+  setTimeout(() => { btn.textContent = i18n('fillMissingPrices', 'Fill Missing Prices'); btn.disabled = false; }, 4000);
+});
+
+// ── Suggested match modal ─────────────────────────────────────────────────────
+function openMatchModal(match) {
+  pendingMatch = match;
+  $('match-modal-body').innerHTML = `<div class="match-detail">
+    <strong>${match.asset_symbol}</strong> transfer<br>
+    <strong>${i18n('fromLabel','From:')}</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
+    <strong>To:</strong> ${srcName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${fmtDT(match.out_ts)}<br>
+    <strong>${i18n('received','Received')}:</strong> ${fmtDT(match.in_ts)}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
+    <strong>Confidence score:</strong> ${match.confidence_score}
+  </div>`;
+  $('match-modal').style.display = 'flex';
+}
+
+$('match-modal-close')?.addEventListener('click', () => { $('match-modal').style.display = 'none'; });
+$('match-modal')?.addEventListener('click', e => { if (e.target === $('match-modal')) $('match-modal').style.display = 'none'; });
+
+async function actOnMatch(action) {
+  if (!pendingMatch) return;
+  const res = await fetch(`/api/research/matches/${pendingMatch.match_id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (res.ok) {
+    $('match-modal').style.display = 'none';
+    await loadNeedsAttention();
+  }
+}
+$('match-confirm')?.addEventListener('click', () => actOnMatch('confirm'));
+$('match-reject')?.addEventListener('click',  () => actOnMatch('reject'));
+
+// ── Annotate inline form ──────────────────────────────────────────────────────
+const DISPOSAL_TYPES = [
+  { value: '',                 label: '— select type —' },
+  { value: 'sell',             label: 'Sell' },
+  { value: 'trade',            label: 'Trade (crypto → crypto)' },
+  { value: 'gift_out',         label: 'Gift out (sent to someone)' },
+  { value: 'gift_in',          label: 'Gift in (received as gift)' },
+  { value: 'lost',             label: 'Lost / stolen' },
+  { value: 'donation',         label: 'Donation (charity)' },
+  { value: 'own_wallet',        label: 'Own wallet (self transfer)' },
+  { value: 'legacy_exchange',  label: 'Legacy / defunct exchange (source unavailable)' },
+  { value: 'other',            label: 'Other / explained' },
+];
+
+function openAnnotateForm(e, btn) {
+  e.stopPropagation();          // don't trigger NA item search click
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') {
+    formEl.style.display = 'none';
+    return;
+  }
+
+  const options = DISPOSAL_TYPES.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveAnnotation(e, txId) {
+  e.stopPropagation();
+  const cat  = document.getElementById('af-cat-'  + txId)?.value  ?? '';
+  const note = document.getElementById('af-note-' + txId)?.value  ?? '';
+  const btn  = document.querySelector(`[data-tx-id="${txId}"].btn-annotate`);
+
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    // Reload NA list — transaction may now auto-resolve off the list
+    await loadNeedsAttention();
+  } catch (err) {
+    if (btn) btn.textContent = i18n('saveFailed','Save failed');
+  }
+}
+
+async function markLegacy(e, txId) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = i18n('saving','Saving…');
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'legacy_exchange' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = i18n('legacyExchange', 'Legacy exchange');
+  }
+}
+
+async function markOwnWallet(e, txId) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = i18n('myOwnWalletOut','↗ My own wallet');
+  }
+}
+
+const DISPOSAL_TYPES_ONLY = DISPOSAL_TYPES.filter(d =>
+  !['own_wallet','legacy_exchange'].includes(d.value)
+);
+
+// ── Right-panel action panel ───────────────────────────────────────────────────
+function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
+  const panel = $('na-action-panel');
+  panel.style.display = 'block';
+
+  const walletItems = Array.from(document.querySelectorAll('.wallet-picker-item'));
+  const walletOptions = walletItems.map(el => {
+    const label = el.getAttribute('data-wallet-label') ?? '';
+    const addr  = el.getAttribute('data-wallet-address') ?? '';
+    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+  }).join('');
+
+  const disposeOptions = DISPOSAL_TYPES_ONLY.map(d =>
+    `<option value="${d.value}"${d.value === cat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div class="nap-from">${i18n('fromLabel','From:')} ${src}</div>
+    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
+    ${dir === 'out' ? `
+    <div class="nap-actions">
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('dispose','Dispose')}</button>
+      <button class="nap-btn-forward" onclick="napShowForward('${txId}')">${i18n('forward','↗ Forward')}</button>
+    </div>
+    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    ` : `
+    <div class="nap-actions">
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('addNote','Add note')}</button>
+      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">${i18n('legacyExchange','Legacy exchange')}</button>
+    </div>
+    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    `}`;
+
+  // store for use by napShow* functions
+  panel._txId         = txId;
+  panel._disposeOpts  = disposeOptions;
+  panel._walletOpts   = walletOptions;
+  panel._src          = src;
+  panel._note         = note;
+}
+
+function napShowDispose(txId) {
+  const panel = $('na-action-panel');
+  const form  = $('nap-form-' + txId);
+  if (!form) return;
+  form.style.display = 'flex';
+  form.innerHTML = `
+    <select id="nap-cat-${txId}">${panel._disposeOpts}</select>
+    <input  id="nap-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${panel._note ?? ''}" />
+    <div class="nap-form-row">
+      <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
+      <span id="nap-status-${txId}" class="form-status"></span>
+    </div>`;
+}
+
+function napShowForward(txId) {
+  const panel = $('na-action-panel');
+  const form  = $('nap-form-' + txId);
+  if (!form) return;
+  form.style.display = 'flex';
+  form.innerHTML = `
+    <div class="form-hint">${i18n('forwardedTo','Forwarded to…')}</div>
+    ${panel._walletOpts ? `<select id="nap-fwallet-${txId}">
+      <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
+      ${panel._walletOpts}
+    </select>` : ''}
+    <input id="nap-faddr-${txId}" type="text" placeholder="${i18n('orTypeExchange','Or type an exchange / address…')}" />
+    <input id="nap-fnote-${txId}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
+    <div class="nap-form-row">
+      <button class="btn-annotate-save" onclick="napSaveForward('${txId}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
+      <span id="nap-status-${txId}" class="form-status"></span>
+    </div>`;
+}
+
+async function napSaveDispose(txId) {
+  const cat    = document.getElementById('nap-cat-'  + txId)?.value ?? '';
+  const note   = document.getElementById('nap-note-' + txId)?.value ?? '';
+  const status = $('nap-status-' + txId);
+  if (status) status.textContent = i18n('saving','Saving…');
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    $('na-action-panel').style.display = 'none';
+    await loadNeedsAttention();
+  } catch (e) {
+    if (status) status.textContent = '' + e.message;
+  }
+}
+
+async function napSaveForward(txId) {
+  const walletSel = document.getElementById('nap-fwallet-' + txId);
+  const addrInput = document.getElementById('nap-faddr-'   + txId);
+  const noteInput = document.getElementById('nap-fnote-'   + txId);
+  const status    = $('nap-status-' + txId);
+  const dest = walletSel?.value.trim() || addrInput?.value.trim() || '';
+  const extra = noteInput?.value.trim() ?? '';
+  const note = [dest ? `To: ${dest}` : '', extra].filter(Boolean).join(' · ');
+  if (status) status.textContent = i18n('addrSaving','Saving…');
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet', note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    $('na-action-panel').style.display = 'none';
+    await loadNeedsAttention();
+  } catch (e) {
+    if (status) status.textContent = '' + e.message;
+  }
+}
+
+function openDisposeForm(e, btn) {
+  e.stopPropagation();
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  const card    = btn.closest('[data-src]');
+  const srcName = card?.getAttribute('data-src') ?? '';
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+
+  const options = DISPOSAL_TYPES_ONLY.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcName}</div>
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+function openForwardForm(e, btn) {
+  e.stopPropagation();
+  const txId   = btn.getAttribute('data-tx-id');
+  const formEl = document.getElementById('af-' + txId);
+  const card   = btn.closest('[data-src]');
+  const srcTin = card?.getAttribute('data-src') ?? '';
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+
+  const walletItems = Array.from(document.querySelectorAll('.wallet-picker-item'));
+  const walletOptions = walletItems.map(el => {
+    const label = el.getAttribute('data-wallet-label') ?? '';
+    const addr  = el.getAttribute('data-wallet-address') ?? '';
+    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+  }).join('');
+
+  formEl.innerHTML = `
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcTin}</div>
+    <div class="form-hint-mb">${i18n('forwardedTo','Forwarded to…')}</div>
+    ${walletOptions ? `<select id="af-twallet-${txId}">
+      <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
+      ${walletOptions}
+    </select>` : ''}
+    <input id="af-taddr-${txId}" type="text" placeholder="${i18n('orTypeExchangeLabel','Or type an exchange / address / label…')}" />
+    <input id="af-tnote-${txId}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
+    <div class="annotate-form-row">
+      <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+      <span id="af-tstatus-${txId}" class="form-status"></span>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveTransfer(e, txId) {
+  e.stopPropagation();
+  const walletSel  = document.getElementById('af-twallet-' + txId);
+  const addrInput  = document.getElementById('af-taddr-'   + txId);
+  const noteInput  = document.getElementById('af-tnote-'   + txId);
+  const statusEl   = document.getElementById('af-tstatus-' + txId);
+
+  const destination = walletSel?.value.trim() || addrInput?.value.trim() || '';
+  const extra       = noteInput?.value.trim() ?? '';
+  const note        = [destination ? `To: ${destination}` : '', extra].filter(Boolean).join(' · ');
+
+  if (statusEl) statusEl.textContent = i18n('saving','Saving…');
+
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet', note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    if (statusEl) statusEl.textContent = i18n('saveFailed','Save failed');
+  }
+}
+
+// ── Annotate form for result cards (re-runs search after save) ───────────────
+function openResultAnnotateForm(e, btn) {
+  e.stopPropagation();
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+
+  const options = DISPOSAL_TYPES.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveResultAnnotation(e, txId) {
+  e.stopPropagation();
+  const cat  = document.getElementById('af-cat-'  + txId)?.value ?? '';
+  const note = document.getElementById('af-note-' + txId)?.value ?? '';
+  const btn  = document.querySelector(`[data-tx-id="${txId}"].btn-annotate`);
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await runSearch();
+  } catch (err) {
+    if (btn) btn.textContent = 'Save failed';
+  }
+}
+
+// ── Help panel ────────────────────────────────────────────────────────────────
+const KIND_EXPLANATIONS = {
+  'crypto_transfer':     'A direct crypto transfer — sent to another wallet or exchange address.',
+  'Withdrawal':          'A withdrawal from this exchange to an external address.',
+  'withdrawal':          'A withdrawal from this exchange to an external address.',
+  'Exchange Withdrawal': 'A withdrawal processed by the exchange to an external address.',
+  'Pro Withdrawal':      'A withdrawal from the Pro trading account to an external address.',
+  'Deposit':             'Funds arriving at this exchange, sent from an external wallet or another exchange.',
+  'deposit':             'Funds arriving at this exchange, sent from an external wallet or another exchange.',
+  'crypto_deposit':      'A crypto deposit arriving at this exchange from an external source.',
+  'Receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
+  'receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
+};
+
+// ── Receipt attachment & validation ──────────────────────────────────────────
+function renderAttPanel(panel, attId, filename, validation, overrideNote) {
+  if (!panel) return;
+  const fname = `${filename}`;
+  if (!validation || validation.status === 'skipped') {
+    panel.innerHTML = `<span class="att-badge">${fname}</span>`;
+    return;
+  }
+  if (validation.status === 'matched') {
+    panel.innerHTML = '<span class="att-badge att-badge--ok">' + i18n('receiptVerified','✓ Receipt verified · __F__').replace('__F__',fname) + '</span>';
+    return;
+  }
+  if (validation.status === 'overridden') {
+    const noteText = overrideNote ? ` · <em>${overrideNote}</em>` : '';
+    panel.innerHTML = '<span class="att-badge att-badge--warn">' + i18n('overrideAccepted','Override accepted · __F__').replace('__F__',fname) + noteText + '</span>';
+    return;
+  }
+  // rejected
+  const missList = (validation.mismatches ?? []).map(m => `<li>${m}</li>`).join('');
+  panel.innerHTML = `
+    <div class="att-rejected">
+      <span class="att-badge att-badge--err">${i18n('receiptMismatch','Receipt mismatch · __F__').replace('__F__',fname)}</span>
+      ${missList ? `<ul class="att-mismatch-list">${missList}</ul>` : ''}
+      <button class="btn-att-override" onclick="startOverride(event,'${attId}',this)">${i18n('overrideRejection','Override rejection')}</button>
+      <div class="att-override-form" id="ovf-${attId}" style="display:none">
+        <p class="att-override-confirm">${i18n('overrideConfirmPrompt',"Are you sure? This receipt doesn't match the transaction data. Provide a reason:")}</p>
+        <textarea class="att-override-note" id="ovn-${attId}" placeholder="${i18n('overrideNotePlaceholder','e.g. Fee shown separately, minor rounding…')}" rows="2"></textarea>
+        <div class="att-override-actions">
+          <button class="btn-att-confirm-override" onclick="confirmOverride(event,'${attId}')">${i18n('yesKeepIt','Yes, keep it')}</button>
+          <button class="btn-att-cancel-override" onclick="cancelOverride(event,'${attId}')">${i18n('cancel','Cancel')}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function attachReceipt(e, txId) {
+  e.stopPropagation();
+  const card  = e.target.closest('[data-id]');
+  const asset = card?.dataset.sym   ?? '';
+  const amt   = card?.dataset.amount ?? '0';
+  const usd   = card?.dataset.usd   ?? '0';
+  const ts    = card?.dataset.ts    ?? '';
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,application/pdf';
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const panel = document.getElementById('atp-' + txId);
+    if (panel) panel.innerHTML = '<span class="att-uploading">' + i18n('uploadValidating','Uploading & validating…') + '</span>';
+    const fd = new FormData();
+    fd.append('txId',           txId);
+    fd.append('file',           file);
+    fd.append('txAsset',        asset);
+    fd.append('txCryptoAmount', amt);
+    fd.append('txNativeUsd',    usd);
+    fd.append('txTimestampUtc', ts);
+    try {
+      const res  = await fetch('/api/research/attachment', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.ok) {
+        if (data.paywalled && panel) {
+          panel.innerHTML = '<span class="att-badge">' + data.filename + '</span><a class="att-upgrade-hint" href="/dashboard/billing">' + i18n('upgradeToVerify','Upgrade to verify receipts automatically') + '</a>';
+        } else {
+          renderAttPanel(panel, data.id, data.filename, data.validation, null);
+        }
+      } else {
+        if (panel) panel.innerHTML = `<span class="att-error">${data.error ?? 'Upload failed'}</span>`;
+      }
+    } catch {
+      if (panel) panel.innerHTML = '<span class="att-error">' + i18n('uploadFailed','Upload failed — try again') + '</span>';
+    }
+  };
+  input.click();
+}
+
+function startOverride(e, attId, btn) {
+  e.stopPropagation();
+  const form = document.getElementById('ovf-' + attId);
+  if (form) { form.style.display = 'block'; btn.style.display = 'none'; }
+}
+
+function cancelOverride(e, attId) {
+  e.stopPropagation();
+  const form = document.getElementById('ovf-' + attId);
+  if (form) {
+    form.style.display = 'none';
+    const btn = form.closest('.att-rejected')?.querySelector('.btn-att-override');
+    if (btn) btn.style.display = '';
+  }
+}
+
+async function confirmOverride(e, attId) {
+  e.stopPropagation();
+  const note = document.getElementById('ovn-' + attId)?.value?.trim() ?? '';
+  const btn  = e.target;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res  = await fetch('/api/research/attachment', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: attId, overrideNote: note }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const panel = btn.closest('.att-panel');
+      if (panel) renderAttPanel(panel, attId, panel.querySelector('.att-badge--err')?.textContent?.split('· ').pop() ?? '', { status: 'overridden' }, note);
+    }
+  } catch {
+    btn.disabled = false;
+    btn.textContent = i18n('yesKeepIt','Yes, keep it');
+  }
+}
+
+function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
+  e.stopPropagation();
+  const el = document.getElementById('hp-' + txId);
+  if (!el) return;
+
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+
+  const explanation = KIND_EXPLANATIONS[kind] || (kind
+    ? `Transaction type: "${kind}"`
+    : `No transaction type recorded.`);
+
+  const quickBtns = dir === 'out' ? `
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Sent to my own wallet')">${i18n('myOwnWalletOut','↗ My own wallet')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">${i18n('saleOrTrade','Sale or trade')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">${i18n('other','Other')}</button>
+  ` : `
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Received from my own wallet')">${i18n('myOwnWalletIn','↙ My own wallet')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">${i18n('incomePurchase','Income / purchase')}</button>
+  `;
+
+  el.innerHTML = `
+    <div class="help-panel-title">${i18n('helpTitle','Help me understand this')}</div>
+    <div class="help-kind-line">${explanation}</div>
+    ${desc ? `<div class="help-desc">"${desc}"</div>` : ''}
+    <div class="help-quick-label">${i18n('whatDoesRepresent','What does this represent?')}</div>
+    <div class="help-quick-row">${quickBtns}</div>
+    <div class="help-note-row">
+      <input id="hp-note-${txId}" type="text" class="help-note-input" placeholder="${i18n('addContextPlaceholder','Add any context or explanation…')}" />
+      <button class="btn-annotate-save" onclick="helpSaveNote(event,'${txId}')">${i18n('saveNote','Save note')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('hp-${txId}').style.display='none'">✕</button>
+    </div>`;
+  el.style.display = 'flex';
+}
+
+async function helpQuickSave(e, txId, cat, note) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, ...(note ? { note } : {}) }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = i18n('failed','Failed');
+  }
+}
+
+async function helpSaveNote(e, txId) {
+  e.stopPropagation();
+  const noteEl = document.getElementById('hp-note-' + txId);
+  const note   = noteEl?.value.trim() ?? '';
+  if (!note) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = i18n('failed','Failed');
+  }
+}
+
+// ── Dataset Health Check ──────────────────────────────────────────────────────
+async function loadHealthCheck() {
+  try {
+    const res  = await fetch('/api/research/diagnostics');
+    const data = await res.json();
+    if (data.ok) renderHealthCheck(data);
+  } catch {}
+}
+
+function renderHealthCheck(d) {
+  const grid = $('health-grid');
+  if (!grid) return;
+
+  const fmtV = n => n >= 1000 ? '$' + (n/1000).toFixed(0) + 'k' : '$' + n;
+
+  const cards = [];
+
+  // Import coverage
+  const sources = d.coverage ?? [];
+  if (sources.length) {
+    const years = sources.map(r => {
+      const e = String(r.earliest ?? '').slice(0, 4);
+      const l = String(r.latest   ?? '').slice(0, 4);
+      return `${r.source}: ${e}–${l}`;
+    });
+    cards.push({
+      title:   i18n('hcImportCoverage','Import Coverage'),
+      body:    i18n('hcSources','__N__ source__S__').replace('__N__',sources.length).replace('__S__',sources.length !== 1 ? 's' : ''),
+      detail:  years.slice(0, 4).join('<br>') + (years.length > 4 ? '<br>+more' : ''),
+      status:  'ok',
+    });
+  }
+
+  // Pre-2019 gaps
+  const pre = d.pre2019 ?? {};
+  if (Number(pre.total) > 0) {
+    const noHash = Number(pre.no_hash ?? 0);
+    cards.push({
+      title:  i18n('hcPre2019','Pre-2019 Records'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',pre.total),
+      detail: i18n('hcNoHash','__N__ without tx hash').replace('__N__',noHash) + ' · ' + i18n('hcExposed','__V__ exposed').replace('__V__',fmtV(Number(pre.value_usd ?? 0))),
+      status: noHash > 0 ? 'warn' : 'ok',
+    });
+  }
+
+  // Non-EVM
+  const nonEvm = (d.nonEvm ?? []).filter(r => Number(r.cnt) > 0);
+  if (nonEvm.length) {
+    const total = nonEvm.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
+    const top   = nonEvm.slice(0, 3).map(r => `${r.asset_symbol} (${r.cnt})`).join(', ');
+    cards.push({
+      title:  i18n('hcNonEvm','Non-EVM Unresolved'),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',nonEvm.length).replace('__S__',nonEvm.length !== 1 ? 's' : ''),
+      detail: top + (nonEvm.length > 3 ? ', ' + i18n('hcMore','+more') : '') + '<br>' + i18n('hcTotal','__V__ total').replace('__V__',fmtV(total)),
+      status: total > 5000 ? 'warn' : 'info',
+    });
+  }
+
+  // P2P
+  if (Number(d.p2p?.cnt) > 0) {
+    cards.push({
+      title:  i18n('hcP2p','P2P Phone Transfers'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.p2p.cnt),
+      detail: fmtV(Number(d.p2p.value_usd ?? 0)) + ' · ' + i18n('hcNeedManual','Need manual categorization'),
+      status: 'info',
+    });
+  }
+
+  // Price gaps
+  const gaps = (d.priceGaps ?? []).filter(r => Number(r.cnt) > 0);
+  if (gaps.length) {
+    const total = gaps.reduce((s, r) => s + Number(r.cnt ?? 0), 0);
+    cards.push({
+      title:  i18n('hcMissingPrices','Missing Prices'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',total),
+      detail: gaps.map(r => `${r.source}: ${r.cnt}`).slice(0, 4).join('<br>'),
+      status: 'warn',
+    });
+  }
+
+  // Orphaned INs
+  const orphans = (d.orphanedIns ?? []).filter(r => Number(r.value_usd) >= 500);
+  if (orphans.length) {
+    const total = orphans.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
+    cards.push({
+      title:  i18n('hcOrphanedIns','Unexplained Receipts'),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',orphans.length).replace('__S__',orphans.length !== 1 ? 's' : '') + ' · ' + fmtV(total),
+      detail: orphans.slice(0, 4).map(r => `${r.asset_symbol} ${fmtV(Number(r.value_usd))}`).join('<br>'),
+      status: 'warn',
+    });
+  }
+
+  // Failed exchanges
+  if (d.failedExchanges?.length) {
+    cards.push({
+      title:  i18n('hcFailedExchange','Failed Exchange Data'),
+      body:   d.failedExchanges.map(ex => ex.name).join(', '),
+      detail: i18n('hcFailedExchangeDetail','Records imported from failed platforms — verify loss claims and write-offs'),
+      status: 'warn',
+    });
+  }
+
+  // Suspicious implied prices
+  const suspPrices = (d.suspiciousPrices ?? []);
+  if (suspPrices.length) {
+    const sample = suspPrices.slice(0, 3).map(r => {
+      const implied = Number(r.implied_price ?? 0);
+      const max     = Number(r.max_price ?? 0);
+      const ratio   = max > 0 ? Math.round(max / implied) : 0;
+      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
+    }).join('<br>');
+    cards.push({
+      title:  i18n('hcSuspectPrice','Suspect Price Data'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',suspPrices.length),
+      detail: sample + '<br><span class="health-card-footnote">' + i18n('hcCostBasisUnderstated','Cost basis may be understated') + '</span>',
+      status: 'warn',
+    });
+  }
+
+  // Missing cost basis
+  const missingBasis = (d.missingBasis ?? []).filter(r => r.snapValueUsd >= 50);
+  if (missingBasis.length) {
+    const totalExposed = missingBasis.reduce((s, r) => s + Number(r.snapValueUsd ?? 0), 0);
+    const rows = missingBasis.slice(0, 6).map(r => {
+      const val   = fmtUsd(r.snapValueUsd);
+      const qty   = Number(r.snapQty ?? 0);
+      let line = '<strong>' + r.symbol + '</strong> · ' + val + ' ' + i18n('hcCurrentBalance','current balance');
+      if (r.estimatedPrice != null) {
+        const estTotal = fmtUsd(r.estimatedTotal ?? r.estimatedPrice * qty);
+        const estPer   = fmtUsd(r.estimatedPrice);
+        const dateStr  = r.earliestDate ? r.earliestDate.slice(0, 10) : '';
+        line += '<br><span class="health-card-footnote">' + i18n('hcEstCostBasis','Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only').replace('__T__',estTotal).replace('__P__',estPer).replace('__D__',dateStr) + '</span>';
+      } else if (r.earliestDate) {
+        line += '<br><span class="health-card-footnote">' + i18n('hcFirstSeen','First seen __D__ · no price available').replace('__D__',r.earliestDate.slice(0,10)) + '</span>';
+      }
+      return line;
+    });
+    if (missingBasis.length > 6) rows.push('<span class="health-card-footnote">' + i18n('hcAndMore','…and __N__ more').replace('__N__',missingBasis.length - 6) + '</span>');
+    cards.push({
+      title:  i18n('hcMissingBasis','Missing Cost Basis'),
+      body:   i18n('hcInWallet','__N__ asset__S__ · __V__ in wallet').replace('__N__',missingBasis.length).replace('__S__',missingBasis.length !== 1 ? 's' : '').replace('__V__',fmtUsd(totalExposed)),
+      detail: rows.join('<br>') + '<br><span class="health-card-footnote">' + i18n('hcImportMissing','Import missing exchange CSVs to establish cost basis') + '</span>',
+      status: 'warn',
+    });
+  }
+
+  // Fiat noise
+  if (Number(d.fiatNoise) > 0) {
+    cards.push({
+      title:  i18n('hcFiatNoise','Fiat as Asset'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.fiatNoise),
+      detail: i18n('hcFiatDetail','USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks'),
+      status: 'info',
+    });
+  }
+
+  if (!cards.length) {
+    grid.innerHTML = '<div class="health-empty">' + i18n('healthNoIssues','No issues found — dataset looks clean.') + '</div>';
+    return;
+  }
+
+  grid.innerHTML = cards.map(c => `
+    <div class="health-card health-card-${c.status}">
+      <div class="health-card-title">${c.title}</div>
+      <div class="health-card-body">${c.body}</div>
+      <div class="health-card-detail">${c.detail}</div>
+    </div>
+  `).join('');
+
+  // Top unresolved
+  const top = d.topUnresolved ?? [];
+  if (top.length) {
+    const topHtml = top.map(t => {
+      const dir = (t.direction ?? '').toLowerCase();
+      const amt = dir === 'out' ? `−${fmt(Math.abs(Number(t.amount)))}` : `+${fmt(Number(t.amount))}`;
+      return `<div class="health-tx-row">
+        <span class="tx-dir ${dir}">${dir}</span>
+        <span class="health-tx-sym">${t.asset_symbol}</span>
+        <span class="health-tx-amt">${amt}</span>
+        <span class="health-tx-usd">${t.native_usd ? fmtUsd(t.native_usd) : ''}</span>
+        <span class="health-tx-src">${srcName(t.source)}</span>
+        <span class="health-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+      </div>`;
+    }).join('');
+    grid.insertAdjacentHTML('beforeend', `
+      <div class="health-unresolved-block">
+        <div class="health-unresolved-title">${i18n('healthTopUnresolved','Top unresolved by dollar value')}</div>
+        ${topHtml}
+      </div>
+    `);
+  }
+}
+
+// ── Intake questionnaire ──────────────────────────────────────────────────────
+// ── Dataset Questionnaire Wizard ─────────────────────────────────────────────
+
+const WIZARD_STEPS = [
+  {
+    key: 'pre2019_records',
+    question: 'Do you have transaction records from before 2019?',
+    hint: 'Pre-2019 records often lack tx hashes, making transfers harder to match automatically.',
+    type: 'opts',
+    opts: [
+      { value: 'yes',     label: 'Yes — complete records' },
+      { value: 'partial', label: 'Some records'           },
+      { value: 'no',      label: 'No / don\'t know'       },
+    ],
+  },
+  {
+    key: 'non_evm',
+    question: 'Did you hold non-EVM assets?',
+    hint: 'Bitcoin, Solana, XRP, Litecoin, Cardano, and others can\'t be verified via on-chain EVM lookup.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'non_evm_detail', placeholder: 'Which ones? (optional)' },
+  },
+  {
+    key: 'failed_exchanges',
+    question: 'Were you affected by any failed exchanges?',
+    hint: 'FTX, Celsius, BlockFi, Voyager, Nexo — funds lost here won\'t have a matching withdrawal.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'failed_exchanges_detail', placeholder: 'Which ones? What happened to your funds?' },
+  },
+  {
+    key: 'p2p_transfers',
+    question: 'Did you make peer-to-peer transfers to phone numbers?',
+    hint: 'Crypto.com P2P and similar transfers don\'t produce a blockchain tx hash — they stay unmatched.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+  },
+  {
+    key: 'lost_access',
+    question: 'Are there exchanges or wallets you can no longer access?',
+    hint: 'Records you can\'t retrieve will leave gaps — note them so we know the gap is expected.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'lost_access_detail', placeholder: 'Which ones? Approximate years and amounts if known.' },
+  },
+  {
+    key: '_income',
+    question: 'Did you receive crypto from any of these sources?',
+    hint: 'Earned income has different tax treatment and often lacks a matching outbound transaction.',
+    type: 'checks',
+    checks: [
+      { key: 'income_staking',  label: 'Staking rewards'          },
+      { key: 'income_mining',   label: 'Mining'                   },
+      { key: 'income_airdrops', label: 'Airdrops'                 },
+      { key: 'income_salary',   label: 'Crypto salary / freelance'},
+      { key: 'income_defi',     label: 'DeFi yields / LP rewards' },
+    ],
+  },
+  {
+    key: 'context',
+    question: 'Any other context?',
+    hint: 'Notes about unusual transactions help reconcile gaps that automated matching can\'t resolve.',
+    type: 'textarea',
+    placeholder: 'e.g. "Sent AVAX to my Ledger around March 2022", "Got 100 LUNA before the crash"',
+  },
+];
+
+let wizardAnswers = {};
+let wizardStep    = 0;
+
+async function loadIntake() {
+  try {
+    const res  = await fetch('/api/research/intake');
+    const data = await res.json();
+    wizardAnswers = data.answers ?? {};
+    updateCompletionBadge();
+  } catch {}
+}
+
+function updateCompletionBadge() {
+  const badge = $('intake-completion-badge');
+  if (!badge) return;
+  const answered = WIZARD_STEPS.filter(s => {
+    if (s.type === 'checks') return s.checks.some(c => wizardAnswers[c.key]);
+    if (s.type === 'textarea') return !!wizardAnswers[s.key]?.trim();
+    return !!wizardAnswers[s.key];
+  }).length;
+  if (answered > 0) {
+    badge.textContent = i18n('wizardAnswered','__A__/__T__ answered').replace('__A__',answered).replace('__T__',WIZARD_STEPS.length);
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openWizard() {
+  wizardStep = 0;
+  renderWizardStep();
+  $('intake-wizard-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeWizard() {
+  $('intake-wizard-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function renderWizardStep() {
+  const step  = WIZARD_STEPS[wizardStep];
+  const total = WIZARD_STEPS.length;
+  const prog  = $('intake-wizard-progress');
+  const body  = $('intake-wizard-body');
+  const back  = $('intake-wizard-back');
+  const next  = $('intake-wizard-next');
+
+  // Progress dots
+  prog.innerHTML = Array.from({ length: total }, (_, i) =>
+    `<span class="wizard-dot${i === wizardStep ? ' wizard-dot-active' : i < wizardStep ? ' wizard-dot-done' : ''}"></span>`
+  ).join('') + `<span class="wizard-step-label">${wizardStep + 1} / ${total}</span>`;
+
+  // Question body
+  let html = `<p class="wizard-question">${step.question}</p>`;
+  if (step.hint) html += `<p class="wizard-hint">${step.hint}</p>`;
+
+  if (step.type === 'opts') {
+    html += `<div class="wizard-opts">`;
+    for (const opt of step.opts) {
+      const active = wizardAnswers[step.key] === opt.value;
+      html += `<button class="wizard-opt${active ? ' wizard-opt-active' : ''}" data-key="${step.key}" data-value="${opt.value}">${opt.label}</button>`;
+    }
+    html += `</div>`;
+    if (step.detail) {
+      const detailVal = wizardAnswers[step.detail.key] ?? '';
+      html += `<input class="wizard-detail-text" data-key="${step.detail.key}" type="text" placeholder="${step.detail.placeholder}" value="${detailVal.replace(/"/g,'&quot;')}" />`;
+    }
+  } else if (step.type === 'checks') {
+    html += `<div class="wizard-checks">`;
+    for (const c of step.checks) {
+      const checked = !!wizardAnswers[c.key];
+      html += `<label class="wizard-check"><input type="checkbox" data-key="${c.key}"${checked ? ' checked' : ''} /> ${c.label}</label>`;
+    }
+    html += `</div>`;
+  } else if (step.type === 'textarea') {
+    const val = wizardAnswers[step.key] ?? '';
+    html += `<textarea class="wizard-textarea" data-key="${step.key}" rows="4" placeholder="${step.placeholder}">${val}</textarea>`;
+  }
+
+  body.innerHTML = html;
+
+  // Wire opt buttons
+  body.querySelectorAll('.wizard-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.querySelectorAll('.wizard-opt').forEach(b => b.classList.remove('wizard-opt-active'));
+      btn.classList.add('wizard-opt-active');
+      wizardAnswers[btn.getAttribute('data-key')] = btn.getAttribute('data-value');
+    });
+  });
+
+  // Wire checkboxes (live update)
+  body.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      wizardAnswers[cb.getAttribute('data-key')] = cb.checked || undefined;
+      if (!cb.checked) delete wizardAnswers[cb.getAttribute('data-key')];
+    });
+  });
+
+  // Wire detail input (live update)
+  body.querySelectorAll('.wizard-detail-text').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim();
+      if (v) wizardAnswers[inp.getAttribute('data-key')] = v;
+      else   delete wizardAnswers[inp.getAttribute('data-key')];
+    });
+  });
+
+  // Wire textarea (live update)
+  body.querySelectorAll('.wizard-textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const v = ta.value.trim();
+      if (v) wizardAnswers[ta.getAttribute('data-key')] = v;
+      else   delete wizardAnswers[ta.getAttribute('data-key')];
+    });
+  });
+
+  // Nav buttons
+  back.style.visibility = wizardStep === 0 ? 'hidden' : 'visible';
+  const isLast = wizardStep === total - 1;
+  next.textContent = isLast ? i18n('wizardSave','✓ Save') : 'Next →';
+}
+
+async function saveWizardAnswers() {
+  const next = $('intake-wizard-next');
+  next.disabled = true;
+  next.textContent = i18n('wizardSaving','Saving…');
+  try {
+    const res = await fetch('/api/research/intake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(wizardAnswers),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    updateCompletionBadge();
+    closeWizard();
+  } catch (e) {
+    next.textContent = '' + e.message;
+    setTimeout(() => {
+      next.textContent = i18n('wizardSave','✓ Save');
+      next.disabled = false;
+    }, 2500);
+  }
+}
+
+$('intake-wizard-next')?.addEventListener('click', () => {
+  if (wizardStep < WIZARD_STEPS.length - 1) {
+    wizardStep++;
+    renderWizardStep();
+  } else {
+    saveWizardAnswers();
+  }
+});
+
+$('intake-wizard-back')?.addEventListener('click', () => {
+  if (wizardStep > 0) { wizardStep--; renderWizardStep(); }
+});
+
+$('intake-wizard-close')?.addEventListener('click', closeWizard);
+
+$('intake-wizard-overlay')?.addEventListener('click', e => {
+  if (e.target === $('intake-wizard-overlay')) closeWizard();
+});
+
+$('btn-open-questionnaire')?.addEventListener('click', openWizard);
+
+$('btn-run-health')?.addEventListener('click', async () => {
+  const btn = $('btn-run-health');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  const grid = $('health-grid');
+  if (grid) grid.innerHTML = '<div class="health-empty">' + i18n('healthRunning','Running diagnostics…') + '</div>';
+  await loadHealthCheck();
+  const now = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const lr = $('health-last-run');
+  if (lr) lr.textContent = i18n('healthLastRun','Last run: __T__').replace('__T__',now);
+  btn.textContent = i18n('btnRunDiagnostics','Run diagnostics');
+  btn.disabled = false;
+});
+
+// Expose to window so inline onclick="" attributes can find them
+window.openAnnotateForm       = openAnnotateForm;
+window.saveAnnotation         = saveAnnotation;
+window.markLegacy             = markLegacy;
+window.markOwnWallet          = markOwnWallet;
+window.openDisposeForm        = openDisposeForm;
+window.openForwardForm        = openForwardForm;
+window.saveTransfer           = saveTransfer;
+window.napShowDispose         = napShowDispose;
+window.napShowForward         = napShowForward;
+window.napSaveDispose         = napSaveDispose;
+window.napSaveForward         = napSaveForward;
+window.openResultAnnotateForm = openResultAnnotateForm;
+window.saveResultAnnotation   = saveResultAnnotation;
+window.openHelpPanel          = openHelpPanel;
+window.helpQuickSave          = helpQuickSave;
+window.helpSaveNote           = helpSaveNote;
+
+// ── Address lookup ────────────────────────────────────────────────────────────
+const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;
+
+function detectNetwork(address) {
+  const lower = address.toLowerCase();
+  if (lower.startsWith('ltc1'))                          return { symbol: 'LTC', chains: ['litecoin'] };
+  if (lower.startsWith('bc1') || /^[13]/.test(address)) return { symbol: 'BTC', chains: ['bitcoin'] };
+  if (/^0x[a-f0-9]{64}$/.test(lower))                   return { symbol: 'SUI', chains: ['sui'] };
+  if (/^0x[a-f0-9]{40}$/.test(lower))                   return { symbol: 'ETH', chains: ['ethereum', 'polygon', 'avalanche'] };
+  return { symbol: '', chains: [] };
+}
+
+let addrDebounce = null;
+
+$('q').addEventListener('input', () => {
+  clearTimeout(addrDebounce);
+  const raw      = $('q').value.trim();
+  const stripped = raw.replace(/\s+/g, '');   // drop mid-string spaces from multi-line copy-paste
+  if (ADDRESS_RE.test(stripped)) {
+    addrDebounce = setTimeout(() => checkAddress(stripped), 400);
+  } else {
+    $('addr-panel').style.display = 'none';
+  }
+});
+
+async function checkAddress(address) {
+  const panel = $('addr-panel');
+  const inner = $('addr-panel-inner');
+  panel.style.display = 'block';
+  inner.innerHTML = '<div class="addr-loading">' + i18n('addrLoading','Looking up __A__…').replace('__A__',address.slice(0,10)) + '</div>';
+
+  try {
+    const res  = await fetch('/api/research/address-lookup?address=' + encodeURIComponent(address));
+    const data = await res.json();
+    renderAddressPanel(data);
+  } catch (e) {
+    inner.innerHTML = '<div class="addr-loading">' + i18n('addrLookupFailed','Lookup failed: __MSG__').replace('__MSG__',e.message) + '</div>';
+  }
+}
+
+// Store last lookup for the "Add wallet" flow
+let lastLookupData = null;
+
+function renderAddressPanel(data) {
+  lastLookupData = data;
+  const inner = $('addr-panel-inner');
+  let html = '<div class="addr-panel-title">' + i18n('addrInfoTitle','Address info') + '</div>';
+
+  // Resolve the best label for this address
+  const resolvedLabel = data.addressLabel || data.globalLabel || data.knownExchange || null;
+  const labelSource   = data.addressLabel  ? (data.addressLabelSource === 'user' ? 'you' : 'auto')
+                      : data.globalLabel   ? 'community'
+                      : data.knownExchange ? 'known'
+                      : null;
+
+  // Copy-button row: [□ address] [□ label] whenever we have a label
+  html += `<div class="addr-copy-row">
+    <button class="addr-copy-btn" data-copy="${escapeHtml(data.address)}" title="Copy address">
+      ⧉ <span class="addr-copy-text">${escapeHtml(data.address.slice(0,10))}…${escapeHtml(data.address.slice(-6))}</span>
+    </button>`;
+  if (resolvedLabel) {
+    html += `<button class="addr-copy-btn" data-copy="${escapeHtml(resolvedLabel)}" title="Copy label">
+      ⧉ <span class="addr-copy-text">${escapeHtml(resolvedLabel)}</span>
+    </button>`;
+    if (labelSource === 'community') {
+      html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','Almstins list') + '</span>';
+    }
+  }
+  html += `</div>`;
+
+  // Chips row
+  html += `<div class="addr-info-grid">`;
+  if (data.ownWallet) {
+    const lbl = escapeHtml(data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…');
+    html += '<span class="addr-info-chip own">' + i18n('addrYourWallet','Your wallet: __L__').replace('__L__',lbl) + '</span>';
+  }
+  if (data.knownExchange) {
+    html += `<span class="addr-info-chip exchange">${escapeHtml(data.knownExchange)}</span>`;
+  }
+  if (data.addressLabel && !data.ownWallet) {
+    html += `<span class="addr-info-chip label">${escapeHtml(data.addressLabel)}</span>`;
+  }
+  if (data.globalLabel && !data.addressLabel && !data.ownWallet && !data.knownExchange) {
+    html += `<span class="addr-info-chip label">${escapeHtml(data.globalLabel)}</span>`;
+  }
+  if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
+    html += '<span class="addr-info-chip unknown">' + i18n('addrUnknown','Unknown address') + '</span>';
+  }
+  html += `</div>`;
+
+  // "Add as wallet" button — only when it's not already a registered wallet
+  if (!data.ownWallet) {
+    html += `
+      <div id="add-wallet-area">
+        <button class="btn-add-wallet" type="button" id="btn-show-add-wallet">${i18n('addrAddAsWallet','＋ Add as my wallet')}</button>
+        <div id="add-wallet-form" style="display:none" class="add-wallet-form">
+          <input id="add-wallet-label" type="text" placeholder="${i18n('addrWalletLabel','Wallet label (e.g. My LTC wallet)')}" class="add-wallet-input" />
+          <input id="add-wallet-symbol" type="text" placeholder="${i18n('addrSymbolPlaceholder','Symbol (e.g. LTC, BTC, ETH)')}" class="add-wallet-input" style="margin-top:0.4rem" />
+          <div class="add-wallet-row">
+            <button class="btn-annotate-save" type="button" id="btn-confirm-add-wallet">Save</button>
+            <button class="btn-annotate-cancel" type="button" id="btn-cancel-add-wallet">Cancel</button>
+            <span id="add-wallet-status" style="font-size:0.8rem;opacity:0.6;margin-left:0.5rem"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Recent transactions
+  const txs = data.recentTxs ?? [];
+  if (txs.length) {
+    html += '<div class="addr-txs-label" style="margin-top:0.75rem">' + i18n('addrRecentTxs','Recent transactions') + '</div>';
+    for (const t of txs) {
+      const dir    = (t.direction ?? '').toLowerCase();
+      const absAmt = Math.abs(Number(t.amount ?? 0));
+      const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
+      const sym    = escapeHtml(t.asset_symbol ?? '?');
+      html += `<div class="addr-tx-row">
+        <span class="addr-tx-dir ${dir}">${escapeHtml(dir)}</span>
+        <span class="addr-tx-sym">${sym}</span>
+        <span class="addr-tx-amt">${amt} ${sym}</span>
+        <span class="addr-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+      </div>`;
+    }
+  }
+
+  inner.innerHTML = html;
+
+  // Copy buttons via data-copy + attached handler (no inline onclick → a malicious
+  // community/global label can't break out of a JS-string/attribute context).
+  inner.querySelectorAll('.addr-copy-btn[data-copy]').forEach((b) => {
+    b.addEventListener('click', () => { navigator.clipboard?.writeText((b as HTMLElement).getAttribute('data-copy') || ''); });
+  });
+
+  // Wire add-wallet buttons after innerHTML is set
+  const btnShow = $('btn-show-add-wallet');
+  const form    = $('add-wallet-form');
+  if (btnShow && form) {
+    btnShow.addEventListener('click', () => {
+      form.style.display = 'block';
+      btnShow.style.display = 'none';
+      // Auto-fill symbol from address prefix
+      const symbolInput = $('add-wallet-symbol');
+      if (symbolInput && !symbolInput.value) {
+        symbolInput.value = detectNetwork(data.address).symbol;
+      }
+      $('add-wallet-label').focus();
+    });
+    $('btn-cancel-add-wallet').addEventListener('click', () => {
+      form.style.display = 'none';
+      btnShow.style.display = '';
+      $('add-wallet-status').textContent = '';
+    });
+    $('btn-confirm-add-wallet').addEventListener('click', () => saveNewWallet(data.address));
+    $('add-wallet-label').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewWallet(data.address); });
+  }
+}
+
+function symbolToChains(symbol, address) {
+  const s = symbol.trim().toUpperCase();
+  const knownMap = {
+    LTC: ['litecoin'], BTC: ['bitcoin'], ETH: ['ethereum', 'polygon', 'avalanche'],
+    SOL: ['solana'], SUI: ['sui'], AVAX: ['avalanche'], MATIC: ['polygon'],
+  };
+  if (knownMap[s]) return knownMap[s];
+  // Fall back to auto-detected chains if user left symbol blank or unknown
+  if (!s) return detectNetwork(address).chains;
+  return [s.toLowerCase()];
+}
+
+async function saveNewWallet(address) {
+  const label  = $('add-wallet-label')?.value.trim() ?? '';
+  const symbol = $('add-wallet-symbol')?.value ?? '';
+  const status = $('add-wallet-status');
+  const btn    = $('btn-confirm-add-wallet');
+  if (!label) { if (status) status.textContent = i18n('addrLabelRequired','Label is required'); return; }
+
+  const chains = symbolToChains(symbol, address);
+
+  btn.disabled = true;
+  if (status) status.textContent = 'Saving…';
+
+  try {
+    const res = await fetch('/api/wallets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, label, chains }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (status) status.textContent = data.message ?? i18n('addrFailedToSave','Failed to save');
+      btn.disabled = false;
+      return;
+    }
+    // Re-run the lookup so the panel now shows "Your wallet"
+    await checkAddress(address);
+  } catch (e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+// ── Add Transaction wallet picker ─────────────────────────────────────────────
+const btnAddTx     = $('btn-add-tx');
+const walletPicker = $('wallet-picker');
+
+btnAddTx?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = walletPicker.style.display !== 'none';
+  walletPicker.style.display = isOpen ? 'none' : 'block';
+});
+
+// Close picker when clicking outside
+document.addEventListener('click', (e) => {
+  if (walletPicker && !walletPicker.contains(e.target) && e.target !== btnAddTx) {
+    walletPicker.style.display = 'none';
+  }
+});
+
+// Wire wallet-picker items → open AddTransactionModal
+walletPicker?.querySelectorAll('.wallet-picker-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const walletId    = item.getAttribute('data-wallet-id');
+    const walletLabel = item.getAttribute('data-wallet-label');
+    walletPicker.style.display = 'none';
+    document.dispatchEvent(new CustomEvent('open-add-tx', {
+      detail: { walletId, walletLabel },
+    }));
+  });
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadNeedsAttention().catch(console.error);
+loadIntake();
+loadHealthCheck();
+</script>
+
+{isAdmin && (
+<script>
+// ── Admin activity log ────────────────────────────────────────────────────────
+(function () {
+  const pill    = document.getElementById('log-pill');
+  const panel   = document.getElementById('log-panel');
+  const closeBtn = document.getElementById('log-panel-close');
+  const entries  = document.getElementById('log-entries');
+  const filterRow = document.getElementById('log-filter-row');
+  if (!pill || !panel) return;
+
+  let loaded = false;
+  let activeSource = 'all';
+  let activeChain  = 'all';
+
+  pill.addEventListener('click', () => {
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    panel.setAttribute('aria-hidden', String(isOpen));
+    if (!isOpen && !loaded) fetchLog();
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+  });
+
+  function fmtTime(iso) {
+    const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function applyFilters() {
+    document.querySelectorAll('#log-entries .log-entry').forEach(el => {
+      const src   = el.dataset.source ?? '';
+      const chain = el.dataset.chain  ?? '';
+      const srcOk   = activeSource === 'all' || src   === activeSource;
+      const chainOk = activeChain  === 'all' || chain === activeChain;
+      el.classList.toggle('hidden', !(srcOk && chainOk));
+    });
+  }
+
+  function buildChips(sources, chains) {
+    filterRow.innerHTML = '';
+    const addChip = (label, val, group) => {
+      const btn = document.createElement('button');
+      btn.className = 'log-chip' + (val === 'all' ? ' log-chip-active' : '');
+      btn.textContent = label;
+      btn.dataset.filter = val;
+      btn.dataset.group  = group;
+      btn.addEventListener('click', () => {
+        filterRow.querySelectorAll(`[data-group="${group}"]`).forEach(b => b.classList.remove('log-chip-active'));
+        btn.classList.add('log-chip-active');
+        if (group === 'source') activeSource = val;
+        else activeChain = val;
+        applyFilters();
+      });
+      filterRow.appendChild(btn);
+    };
+
+    addChip('All sources', 'all', 'source');
+    sources.forEach(s => addChip(s.replace('_', '.'), s, 'source'));
+    addChip('All chains', 'all', 'chain');
+    chains.forEach(c => addChip(c, c, 'chain'));
+  }
+
+  async function fetchLog() {
+    entries.innerHTML = '<div class="log-empty">Loading…</div>';
+    try {
+      const res  = await fetch('/api/admin/activity-log?limit=300');
+      const data = await res.json();
+      if (!data.ok) throw new Error('not ok');
+
+      buildChips(data.sources ?? [], data.chains ?? []);
+
+      if (!data.entries?.length) {
+        entries.innerHTML = '<div class="log-empty">No activity recorded yet.</div>';
+        loaded = true;
+        return;
+      }
+
+      entries.innerHTML = data.entries.map(e => {
+        const badgeClass = `log-badge log-badge-${e.event_type}`;
+        const src   = e.source ?? '';
+        const chain = e.chain  ?? '';
+        return `<div class="log-entry" data-source="${src}" data-chain="${chain}">
+          <span class="log-time">${fmtTime(e.created_at)}</span>
+          <span class="log-summary">${e.summary}</span>
+          <span class="${badgeClass}">${e.event_type.replace('_', ' ')}</span>
+          <span class="log-tenant">${String(e.tenant_id).slice(0, 8)}… ${src ? '· ' + src.replace('_','.') : ''} ${chain ? '· ' + chain : ''}</span>
+        </div>`;
+      }).join('');
+
+      loaded = true;
+    } catch {
+      entries.innerHTML = '<div class="log-empty">Failed to load log.</div>';
+    }
+  }
+})();
+</script>
+)}
+
+<AddTransactionModal />

@@ -1,0 +1,37 @@
+name: Verify Monitor
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      # Only the curl wrapper. It retries a request that never reached the server, nothing else.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/cron-curl.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Trigger verify-monitor
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          bash scripts/cron-curl.sh -sS --fail --max-time 600 \
+            -o "$RUNNER_TEMP/cron-response.json" -w 'HTTP %{http_code}\n' \
+            "$SYNC_URL/api/cron/verify-monitor?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
+          # Print only numbers and true/false fields (counts, ok). The full response names wallets and
+          # accounts, and this repo's Actions logs are public.
+          jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"

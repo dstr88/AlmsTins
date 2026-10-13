@@ -1,0 +1,62 @@
+---
+// AckPrompt: the prompt shown before a financing claim is recorded when there is something to
+// read first (a duplicate-financing warning, or no debtor confirmation on record). Markup only:
+// one <template> per warning, cloned by ackPrompt.client.ts. `variant` keeps each page's prompt
+// exactly as it looked when it was written inline; `name` makes the root unique per use.
+import './AckPrompt.css';
+import {
+	DILIGENCE_ACCEPT, DILIGENCE_BODY_DESK, DILIGENCE_BODY_REGISTRY, DILIGENCE_FINE_PRINT,
+	DILIGENCE_METHODS, DILIGENCE_METHOD_LABEL, DILIGENCE_NOTE_LABEL,
+	DILIGENCE_NOTE_PLACEHOLDER_DESK, DILIGENCE_NOTE_PLACEHOLDER_REGISTRY,
+	DILIGENCE_TITLE, HEADROOM_RECORD_ANYWAY, HEADROOM_TITLE,
+} from '@/lib/receivables/copy/claim';
+
+interface Props { variant: 'desk' | 'registry'; name: string }
+const { variant, name } = Astro.props;
+const fid = (s: string) => `ack-${name}-${s}`;
+---
+<div class={`ack ack--${variant}`} data-rcv-root={`ack-${name}`} hidden>
+	<div class="ack__body" data-ack-body></div>
+	{variant === 'desk' ? (
+		<template data-ack-template="diligence_required">
+			<div class="ack__panel">
+				<b>{DILIGENCE_TITLE}</b>{' '}{DILIGENCE_BODY_DESK}
+				<div class="ack__row">
+					<select class="ack__method" data-ack-field="method">{DILIGENCE_METHODS.map(([v, l]) => <option value={v}>{l}</option>)}</select>
+					<input class="ack__note" data-ack-field="note" placeholder={DILIGENCE_NOTE_PLACEHOLDER_DESK} maxlength="300" autocomplete="off" />
+				</div>
+				<p class="ack__fine">{DILIGENCE_FINE_PRINT}</p>
+				<div class="ack__row ack__row--confirm"><button class="ack__btn" type="button" data-ack-choice="diligence_required">{DILIGENCE_ACCEPT}</button></div>
+			</div>
+		</template>
+	) : (
+		<template data-ack-template="diligence_required">
+			<div class="ack__panel ack__panel--caution"><b>{DILIGENCE_TITLE}</b>{' '}{DILIGENCE_BODY_REGISTRY}</div>
+			<div class="ack__field"><label for={fid('method')}>{DILIGENCE_METHOD_LABEL}</label>
+				<select id={fid('method')} data-ack-field="method">{DILIGENCE_METHODS.map(([v, l]) => <option value={v}>{l}</option>)}</select>
+			</div>
+			<div class="ack__field"><label for={fid('note')}>{DILIGENCE_NOTE_LABEL}</label><input id={fid('note')} type="text" data-ack-field="note" placeholder={DILIGENCE_NOTE_PLACEHOLDER_REGISTRY} maxlength="300" /></div>
+			<p class="ack__fine">{DILIGENCE_FINE_PRINT}</p>
+			<button class="ack__btn ack__btn--primary ack__btn--full" type="button" data-ack-choice="diligence_required">{DILIGENCE_ACCEPT}</button>
+		</template>
+	)}
+	{variant === 'desk' ? (
+		<template data-ack-template="exceeds_headroom">
+			<div class="ack__panel ack__panel--loss">
+				<b>{HEADROOM_TITLE}</b>{' '}<span data-ack-slot="headroom-body"></span>
+				<div class="ack__row">
+					<button class="ack__btn" type="button" data-ack-choice="take_available" data-ack-slot="take-available"></button>
+					<button class="ack__btn ack__btn--ghost" type="button" data-ack-choice="exceeds_headroom">{HEADROOM_RECORD_ANYWAY}</button>
+				</div>
+			</div>
+		</template>
+	) : (
+		<template data-ack-template="exceeds_headroom">
+			<div class="ack__panel ack__panel--loss"><b>{HEADROOM_TITLE}</b>{' '}<span data-ack-slot="headroom-body"></span></div>
+			<div class="ack__row">
+				<button class="ack__btn" type="button" data-ack-choice="take_available" data-ack-slot="take-available"></button>
+				<button class="ack__btn" type="button" data-ack-choice="exceeds_headroom">{HEADROOM_RECORD_ANYWAY}</button>
+			</div>
+		</template>
+	)}
+</div>

@@ -1,0 +1,602 @@
+---
+/**
+ * /dashboard/yearEnd/review
+ *
+ * Shows every item the pipeline couldn't confidently classify.
+ * The user picks a category, optionally adds a note, and resolves it.
+ * Resolved items disappear from this list and flow into the main report.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import YearEndTour from '../../../components/tours/YearEndTour.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getReview } from '@/i18n/dashboard/yearEnd/review';
+
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getReview(lang);
+const localeDateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const selectedYear = yearParam ? Number(yearParam) : defaultYear;
+
+type ReviewRow = {
+	id: string;
+	source_type: string;
+	source_id: string;
+	reason: string;
+	reason_detail: string;
+	snapshot_json: string;
+	notes: string | null;
+	created_at: string;
+	// pre-parsed snapshot fields (avoids TypeScript generics inside template)
+	sym: string;
+	amt: string;
+	usd: string;
+	ts: string;
+	autoCat: string;
+	needsPrice: boolean;
+};
+
+type DbRow = Record<string, unknown>;
+const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
+
+// Fetch available years so the selector only shows years that have items.
+// Item year = the snapshot's own timestamp, else created_at. Both are ISO-8601
+// UTC text, so the first 4 chars are the year.
+const yearsRes = await db.execute({
+	sql: `SELECT DISTINCT substr(COALESCE(
+	        snapshot_json::jsonb ->> 'timestamp', created_at
+	      ), 1, 4) AS yr
+	      FROM tax_review_items
+	      WHERE tenant_id = ? AND resolved = 0
+	      ORDER BY yr DESC`,
+	args: [tenantId],
+}).catch(() => ({ rows: [] }));
+const availableYears: number[] = (yearsRes.rows as DbRow[])
+	.map(r => Number(r.yr))
+	.filter(y => y >= 2009 && y <= 2100);
+
+// If the selected year has no items, fall back to the first available year
+const activeYear = availableYears.includes(selectedYear)
+	? selectedYear
+	: (availableYears[0] ?? defaultYear);
+
+const result = await db.execute({
+	sql: `SELECT id, source_type, source_id, reason, reason_detail, snapshot_json, notes, created_at
+	      FROM tax_review_items
+	      WHERE tenant_id = ? AND resolved = 0
+	        AND substr(COALESCE(
+	              snapshot_json::jsonb ->> 'timestamp', created_at
+	            ), 1, 4) = ?
+	      ORDER BY
+	        CASE reason
+	          WHEN 'unmatched_transfer' THEN 1
+	          WHEN 'possible_loan'      THEN 2
+	          WHEN 'missing_price'      THEN 3
+	          WHEN 'airdrop_unpriced'   THEN 4
+	          WHEN 'low_confidence'     THEN 5
+	          WHEN 'unknown_type'       THEN 6
+	          ELSE 7
+	        END,
+	        created_at DESC`,
+	args: [tenantId, String(activeYear)],
+});
+
+const items: ReviewRow[] = result.rows.map((r: DbRow) => {
+	const reason = s(r.reason);
+	const snapshot_json = s(r.snapshot_json);
+	let snap: Record<string, unknown> = {};
+	try { snap = JSON.parse(snapshot_json); } catch {}
+	const sym     = String(snap.symbol ?? snap.assetSymbol ?? '?');
+	const amt     = String(snap.amount ?? snap.value ?? '');
+	const usd     = String(snap.usd ?? snap.usdValue ?? '');
+	const ts      = String(snap.timestamp ?? r.created_at ?? '').slice(0, 10);
+	const autoCat = String(snap.autoCategory ?? '');
+	const needsPrice = reason === 'missing_price' || reason === 'airdrop_unpriced';
+	return {
+		id: s(r.id),
+		source_type: s(r.source_type),
+		source_id: s(r.source_id),
+		reason,
+		reason_detail: s(r.reason_detail),
+		snapshot_json,
+		notes: typeof r.notes === 'string' ? r.notes : null,
+		created_at: s(r.created_at),
+		sym, amt, usd, ts, autoCat, needsPrice,
+	};
+});
+
+// Group by reason
+const groups = new Map<string, ReviewRow[]>();
+const REASON_LABELS: Record<string, string> = t.reasonLabels;
+const REASON_DESC: Record<string, string> = t.reasonDescs;
+
+for (const item of items) {
+	const group = groups.get(item.reason) ?? [];
+	group.push(item);
+	groups.set(item.reason, group);
+}
+
+const CATEGORY_OPTIONS = t.categoryOptions;
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<div id="app">
+
+		<!-- Header -->
+		<div class="rq-header">
+			<div>
+				<a href="/dashboard/yearEnd" class="page-back">{t.backLink}</a>
+				<h1 class="page-title">{t.headingPrefix} {activeYear}</h1>
+				<p class="page-subtitle">
+					{items.length === 0
+						? t.subtitleEmpty(activeYear)
+						: t.subtitleItems(items.length, activeYear)}
+				</p>
+			</div>
+			<div class="header-actions">
+				<YearEndTour />
+				<select id="year-sel" class="rq-select" aria-label={t.yearAriaLabel}>
+					{availableYears.length === 0
+						? <option value={activeYear}>{activeYear}</option>
+						: availableYears.map(y => (
+							<option value={y} selected={y === activeYear}>{y}</option>
+						))
+					}
+				</select>
+				<a href={`/dashboard/yearEnd/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">{t.btnYearSummary}</a>
+				<button id="run-pipeline" class="rq-btn rq-btn--primary">{t.btnReclassify}</button>
+			</div>
+		</div>
+
+		<!-- Empty state -->
+		{items.length === 0 && (
+			<div class="empty-ok">
+				<p class="empty-ok__icon">✅</p>
+				<p class="empty-ok__title">{t.emptyTitle}</p>
+				<p class="empty-ok__text">{t.emptyText}</p>
+				<a href="/dashboard/yearEnd/report" class="rq-btn rq-btn--green">{t.emptyCta}</a>
+			</div>
+		)}
+
+		<!-- Groups -->
+		{[...groups.entries()].map(([reason, groupItems]) => (
+			<section class="rq-group">
+				<div class="group-header">
+					<h2 class="group-title">
+						{REASON_LABELS[reason] ?? reason}
+						<span class="group-count">({groupItems.length})</span>
+					</h2>
+					<p class="group-desc">{REASON_DESC[reason]}</p>
+				</div>
+
+				<div class="group-items">
+					{groupItems.map((item) => {
+						const { sym, amt, usd, ts, autoCat, needsPrice } = item;
+						const usdFmt = usd ? `$${Number(usd).toLocaleString(localeDateLocale, {minimumFractionDigits:2, maximumFractionDigits:2})}` : '';
+
+						return (
+							<div class="review-item"
+							     data-id={item.id}
+							     data-source-type={item.source_type}
+							     data-source-id={item.source_id}>
+
+								<!-- Transaction snapshot -->
+								<div class="item-header">
+									<div>
+										<p class="item-asset">
+											{amt ? `${amt} ` : ''}{sym}
+											{usdFmt && <span class="item-usd"> · {usdFmt}</span>}
+										</p>
+										<p class="item-date">{ts}</p>
+										{autoCat && (
+											<p class="item-auto" set:html={t.autoClassifiedAs(`<strong>${autoCat}</strong>`)}></p>
+										)}
+									</div>
+									<span class="reason-badge">{reason.replace(/_/g, ' ')}</span>
+								</div>
+
+								<!-- Reason detail -->
+								{item.reason_detail && <p class="item-detail">{item.reason_detail}</p>}
+
+								<!-- Resolution form -->
+								<form class="resolve-form">
+									<div class="field-row">
+										<label class="field-label">{t.labelClassify}</label>
+										<select class="category-select" value={autoCat}>
+											<option value="">{t.selectPlaceholder}</option>
+											{CATEGORY_OPTIONS.map((opt) => (
+												<option value={opt.value} selected={opt.value === autoCat}>{opt.label}</option>
+											))}
+										</select>
+									</div>
+
+									{needsPrice && (
+										<div class="field-row price-field">
+											<label class="field-label">{t.labelPricePerToken(ts)}</label>
+											<input type="number" step="any" min="0" placeholder={t.priceInputPlaceholder}
+											       class="price-input" />
+										</div>
+									)}
+
+									<div>
+										<label class="field-label">{t.labelNote}</label>
+										<textarea rows="2" class="notes-input"
+										          placeholder={t.notePlaceholder}
+										>{item.notes ?? ''}</textarea>
+									</div>
+
+									<div class="form-actions">
+										<button type="submit" class="save-btn">{t.btnSave}</button>
+										<span class="status-msg hidden"></span>
+									</div>
+								</form>
+
+							</div>
+						);
+					})}
+				</div>
+			</section>
+		))}
+
+	</div>
+</Layout>
+
+<style>
+/* ── Safety net ──────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── Page container ──────────────────────────────────────────────────────────── */
+#app {
+	width: 100%;
+	max-width: 56rem;
+	margin: 0 auto;
+	padding: 2rem 2.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 2rem;
+}
+@media (max-width: 640px) {
+	#app { padding: 1.25rem 1rem; }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.rq-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+.page-back {
+	display: inline-block;
+	font-size: .75rem;
+	font-weight: 500;
+	color: #6366f1;
+	text-decoration: none;
+	margin-bottom: .25rem;
+}
+.page-back:hover { color: #818cf8; }
+.page-title {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+}
+.page-subtitle {
+	font-size: .875rem;
+	color: #9ca3af;
+	margin: .3rem 0 0;
+}
+.header-actions {
+	display: flex;
+	gap: .75rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.rq-select {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 8px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .45rem .75rem;
+	outline: none;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+.rq-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.rq-select option { background: #1a1f2e; color: #e5e7eb; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.rq-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	padding: .5rem 1rem;
+	border-radius: 8px;
+	font-size: .875rem;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+	border: none;
+	transition: background .15s, border-color .15s;
+	white-space: nowrap;
+}
+.rq-btn--ghost {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.1);
+	color: #d1d5db;
+}
+.rq-btn--ghost:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.18); }
+.rq-btn--primary {
+	background: #4f46e5;
+	color: #fff;
+	border: 1px solid transparent;
+}
+.rq-btn--primary:hover { background: #4338ca; }
+.rq-btn--green {
+	background: #16a34a;
+	color: #fff;
+	border: 1px solid transparent;
+	margin-top: .75rem;
+}
+.rq-btn--green:hover { background: #15803d; }
+
+/* ── All-resolved empty state ────────────────────────────────────────────────── */
+.empty-ok {
+	border: 1px solid rgba(34,197,94,.2);
+	background: rgba(34,197,94,.06);
+	border-radius: 14px;
+	padding: 3rem 2rem;
+	text-align: center;
+}
+.empty-ok__icon { font-size: 2.5rem; margin: 0 0 .5rem; }
+.empty-ok__title { font-size: 1.05rem; font-weight: 600; color: #86efac; margin: 0 0 .3rem; }
+.empty-ok__text { font-size: .875rem; color: rgba(255,255,255,.5); margin: 0; }
+
+/* ── Group section ───────────────────────────────────────────────────────────── */
+.rq-group { display: flex; flex-direction: column; gap: .75rem; }
+.group-header {
+	border-bottom: 1px solid rgba(255,255,255,.07);
+	padding-bottom: .75rem;
+}
+.group-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #e5e7eb;
+	margin: 0;
+}
+.group-count {
+	margin-left: .4rem;
+	font-size: .75rem;
+	font-weight: 400;
+	color: #6b7280;
+}
+.group-desc {
+	font-size: .8rem;
+	color: #6b7280;
+	margin: .3rem 0 0;
+	line-height: 1.5;
+}
+.group-items { display: flex; flex-direction: column; gap: .75rem; }
+
+/* ── Review card ─────────────────────────────────────────────────────────────── */
+.review-item {
+	background: #161b27;
+	border: 1px solid rgba(255,255,255,.07);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: .9rem;
+	transition: border-color .2s;
+}
+.review-item:hover { border-color: rgba(255,255,255,.13); }
+
+.item-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+.item-asset {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #fff;
+	margin: 0;
+}
+.item-usd { color: #9ca3af; font-weight: 400; }
+.item-date { font-size: .75rem; color: #6b7280; margin: .2rem 0 0; }
+.item-auto { font-size: .75rem; color: #fbbf24; margin: .2rem 0 0; }
+.item-auto strong { color: #fde68a; }
+
+.reason-badge {
+	flex-shrink: 0;
+	font-size: .7rem;
+	font-weight: 500;
+	padding: .22rem .65rem;
+	border-radius: 999px;
+	background: rgba(251,191,36,.1);
+	color: #fbbf24;
+	border: 1px solid rgba(251,191,36,.2);
+	white-space: nowrap;
+	text-transform: capitalize;
+}
+
+.item-detail {
+	font-size: .85rem;
+	color: rgba(255,255,255,.5);
+	line-height: 1.6;
+	margin: 0;
+}
+
+/* ── Resolution form ─────────────────────────────────────────────────────────── */
+.resolve-form {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+	border-top: 1px solid rgba(255,255,255,.06);
+	padding-top: .9rem;
+}
+.field-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .5rem;
+}
+.field-label {
+	font-size: .8rem;
+	font-weight: 500;
+	color: #9ca3af;
+	flex-shrink: 0;
+}
+.category-select,
+.price-input,
+.notes-input {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.1);
+	border-radius: 6px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .4rem .75rem;
+	outline: none;
+	transition: border-color .15s, box-shadow .15s;
+	font-family: inherit;
+}
+.category-select:focus,
+.price-input:focus,
+.notes-input:focus {
+	border-color: #6366f1;
+	box-shadow: 0 0 0 2px rgba(99,102,241,.2);
+}
+.category-select option { background: #1a1f2e; color: #e5e7eb; }
+.price-input { width: 10rem; }
+.notes-input { width: 100%; resize: none; margin-top: .25rem; }
+
+.form-actions { display: flex; align-items: center; gap: .75rem; }
+.save-btn {
+	padding: .4rem 1rem;
+	border-radius: 8px;
+	background: #4f46e5;
+	color: #fff;
+	font-size: .85rem;
+	font-weight: 600;
+	border: none;
+	cursor: pointer;
+	transition: background .15s;
+}
+.save-btn:hover { background: #4338ca; }
+.save-btn:disabled { opacity: .45; cursor: not-allowed; }
+.status-msg { font-size: .85rem; color: #9ca3af; }
+</style>
+
+<script is:inline define:vars={{ i18n: {
+	statusRunning:    t.statusRunning,
+	statusDone:       t.statusDone,
+	statusFailed:     t.statusFailed,
+	statusError:      t.statusError,
+	statusSelectFirst: t.statusSelectFirst,
+	statusSaving:     t.statusSaving,
+	statusSaved:      t.statusSaved,
+	statusNetworkError: t.statusNetworkError,
+} }}>window.__reviewI18n = i18n;</script>
+
+<script>
+interface ReviewI18n {
+	statusRunning: string; statusDone: string; statusFailed: string; statusError: string;
+	statusSelectFirst: string; statusSaving: string; statusSaved: string; statusNetworkError: string;
+}
+const I18N: ReviewI18n = (window as unknown as { __reviewI18n?: ReviewI18n }).__reviewI18n ?? {
+	statusRunning: '⏳ Running…', statusDone: '✅ Done — reloading…',
+	statusFailed: '❌ Failed', statusError: '❌ Error',
+	statusSelectFirst: 'Please select a category first.',
+	statusSaving: 'Saving…', statusSaved: '✅ Saved!', statusNetworkError: '❌ Network error',
+};
+
+// ── Year selector — reload page with ?year= param ────────────────────────────
+document.getElementById('year-sel')?.addEventListener('change', (e) => {
+	const year = (e.currentTarget as HTMLSelectElement).value;
+	const url  = new URL(window.location.href);
+	url.searchParams.set('year', year);
+	window.location.href = url.toString();
+});
+
+// ── Re-classify button ────────────────────────────────────────────────────────
+document.getElementById('run-pipeline')?.addEventListener('click', async (e) => {
+	const btn = e.currentTarget as HTMLButtonElement;
+	btn.disabled = true;
+	btn.textContent = I18N.statusRunning;
+	try {
+		const year = new URL(window.location.href).searchParams.get('year') ?? String(new Date().getFullYear() - 1);
+	const res = await fetch('/api/yearEnd/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }) });
+		const data = await res.json();
+		if (data.ok) {
+			btn.textContent = I18N.statusDone;
+			setTimeout(() => window.location.reload(), 1000);
+		} else {
+			btn.textContent = I18N.statusFailed;
+			btn.disabled = false;
+		}
+	} catch {
+		btn.textContent = I18N.statusError;
+		btn.disabled = false;
+	}
+});
+
+// ── Resolve forms ─────────────────────────────────────────────────────────────
+document.querySelectorAll<HTMLDivElement>('.review-item').forEach((card) => {
+	const form = card.querySelector<HTMLFormElement>('.resolve-form');
+	if (!form) return;
+
+	form.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const reviewItemId  = card.dataset.id ?? '';
+		const sourceType    = card.dataset.sourceType ?? '';
+		const sourceId      = card.dataset.sourceId ?? '';
+		const category      = (card.querySelector<HTMLSelectElement>('.category-select'))?.value ?? '';
+		const notes         = (card.querySelector<HTMLTextAreaElement>('.notes-input'))?.value ?? '';
+		const priceInput    = card.querySelector<HTMLInputElement>('.price-input');
+		const pricePerToken = priceInput ? parseFloat(priceInput.value) || undefined : undefined;
+		const statusMsg     = card.querySelector<HTMLSpanElement>('.status-msg');
+		const saveBtn       = card.querySelector<HTMLButtonElement>('.save-btn');
+
+		if (!category) {
+			if (statusMsg) { statusMsg.textContent = I18N.statusSelectFirst; statusMsg.classList.remove('hidden'); }
+			return;
+		}
+
+		if (saveBtn) saveBtn.disabled = true;
+		if (statusMsg) { statusMsg.textContent = I18N.statusSaving; statusMsg.classList.remove('hidden'); }
+
+		try {
+			const res = await fetch('/api/yearEnd/review/resolve', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reviewItemId, sourceType, sourceId, category, notes, pricePerToken }),
+			});
+			const data = await res.json();
+			if (data.ok) {
+				if (statusMsg) statusMsg.textContent = I18N.statusSaved;
+				// Fade out the card
+				card.style.transition = 'opacity 0.4s';
+				card.style.opacity = '0';
+				setTimeout(() => card.remove(), 450);
+			} else {
+				if (statusMsg) statusMsg.textContent = `❌ ${data.error ?? I18N.statusFailed}`;
+				if (saveBtn) saveBtn.disabled = false;
+			}
+		} catch {
+			if (statusMsg) statusMsg.textContent = I18N.statusNetworkError;
+			if (saveBtn) saveBtn.disabled = false;
+		}
+	});
+});
+</script>

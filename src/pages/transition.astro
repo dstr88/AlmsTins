@@ -1,0 +1,295 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { Image } from 'astro:assets';
+import { getAuthSession } from '../lib/authSession';
+import Minerva from '../assets/Minerva.jpeg';
+import KingSolomon from '../assets/KingSolomon.jpeg';
+import { getLang } from '@/lib/i18n/locale';
+import { getTransition } from '@/i18n/transition';
+
+const session = await getAuthSession(Astro.request);
+const displayName = session?.user?.name ? String(session.user.name).trim() : '';
+const firstName = displayName ? displayName.split(/\s+/)[0] : '';
+const lang = getLang(Astro.request);
+const t = getTransition(lang);
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section class="transition">
+		<header>
+			<h1>{firstName ? t.welcomeBack(firstName) : t.chooseView}</h1>
+			<p>{t.subtitle}</p>
+		</header>
+
+		<div class="columns">
+			<div class="column">
+				<a class="portrait-link portrait-link--left" href="/dashboard/tradfi">
+					<div class="portrait-wrap">
+						<Image
+							class="portrait portrait-left"
+							src={Minerva}
+							alt="Minerva"
+							width={320}
+							format="jpeg"
+							quality={60}
+							loading="lazy"
+						/>
+					</div>
+				</a>
+				<a class="card tradfi slide-left" href="/dashboard/tradfi">
+					<span class="eyebrow">TradFi</span>
+					<strong>{t.tradfiTitle}</strong>
+					<p>{t.tradfiDescription}</p>
+				</a>
+			</div>
+			<div class="column">
+				<a class="portrait-link portrait-link--right" href="/dashboard/vault">
+					<div class="portrait-wrap">
+						<Image
+							class="portrait portrait-right"
+							src={KingSolomon}
+							alt="King Solomon"
+							width={320}
+							format="jpeg"
+							quality={60}
+							loading="lazy"
+						/>
+					</div>
+				</a>
+				<a class="card crypto slide-right" href="/dashboard/vault">
+					<span class="eyebrow">Crypto</span>
+					<strong>{t.cryptoTitle}</strong>
+					<p>{t.cryptoDescription}</p>
+				</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	.transition {
+		max-width: 900px;
+		margin: 3rem auto;
+		padding: 0 1.5rem;
+	}
+
+	.transition header {
+		margin-bottom: 2rem;
+	}
+
+	.transition h1 {
+		margin: 0 0 0.5rem;
+		font-size: clamp(2rem, 3vw, 2.6rem);
+		letter-spacing: -0.02em;
+	}
+
+	.transition p {
+		margin: 0;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.columns {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 3.5rem;
+		align-items: start;
+		margin-top: 1.5rem;
+	}
+
+	.column {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		align-items: center;
+	}
+
+	.portrait-link {
+		display: block;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.portrait-wrap {
+		padding: 1.2rem;
+		border-radius: 20px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: rgba(8, 12, 22, 0.9);
+		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.35);
+	}
+
+	.portrait {
+		--portrait-rotate: 0deg;
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 16px;
+		transform: rotate(var(--portrait-rotate));
+	}
+
+	.portrait-left {
+		--portrait-rotate: -5deg;
+		transform-origin: top left;
+	}
+
+	.portrait-right {
+		--portrait-rotate: 5deg;
+		transform-origin: top right;
+	}
+
+	.card {
+		position: relative;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		padding: 0.6rem;
+		max-width: 176px;
+		width: 100%;
+		border-radius: 18px;
+		text-decoration: none;
+		color: inherit;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: rgba(8, 12, 22, 0.85);
+		box-shadow:
+			0 18px 40px rgba(0, 0, 0, 0.3),
+			0 0 22px rgba(120, 170, 255, 0.15);
+		transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.card::before {
+		content: '';
+		position: absolute;
+		inset: -40% 30% 40% -10%;
+		background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0));
+		opacity: 0.5;
+		transform: rotate(-8deg);
+		pointer-events: none;
+	}
+
+	.card::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.18), transparent 55%);
+		opacity: 0.6;
+		pointer-events: none;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.portrait-link {
+			opacity: 0;
+			animation-duration: 0.7s;
+			animation-timing-function: ease;
+			animation-fill-mode: forwards;
+		}
+
+		.portrait-link--left {
+			animation-name: portrait-slide-left;
+			animation-delay: 0.05s;
+		}
+
+		.portrait-link--right {
+			animation-name: portrait-slide-right;
+			animation-delay: 0.25s;
+		}
+
+		.card {
+			opacity: 0;
+			animation-duration: 0.65s;
+			animation-timing-function: ease;
+			animation-fill-mode: forwards;
+		}
+
+		.slide-left {
+			animation-name: card-slide-left;
+			animation-delay: 0.15s;
+		}
+
+		.slide-right {
+			animation-name: card-slide-right;
+			animation-delay: 0.35s;
+		}
+	}
+
+	@keyframes card-slide-left {
+		from {
+			opacity: 0;
+			transform: translateX(-26px) translateY(12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0);
+		}
+	}
+
+	@keyframes card-slide-right {
+		from {
+			opacity: 0;
+			transform: translateX(26px) translateY(12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0);
+		}
+	}
+
+	@keyframes portrait-slide-left {
+		from {
+			opacity: 0;
+			transform: translateX(-80px) translateY(10px) rotate(calc(var(--portrait-rotate) - 8deg));
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0) rotate(var(--portrait-rotate));
+		}
+	}
+
+	@keyframes portrait-slide-right {
+		from {
+			opacity: 0;
+			transform: translateX(80px) translateY(10px) rotate(calc(var(--portrait-rotate) + 8deg));
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0) rotate(var(--portrait-rotate));
+		}
+	}
+
+	.card:hover {
+		transform: translateY(-4px);
+		border-color: rgba(255, 255, 255, 0.35);
+		box-shadow:
+			0 24px 60px rgba(0, 0, 0, 0.4),
+			0 0 28px rgba(120, 170, 255, 0.25);
+	}
+
+	.card strong {
+		font-size: 1.25rem;
+	}
+
+	.eyebrow {
+		text-transform: uppercase;
+		letter-spacing: 0.3em;
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.crypto {
+		background: linear-gradient(135deg, rgba(25, 146, 130, 0.3), rgba(12, 18, 32, 0.9));
+	}
+
+	.tradfi {
+		background: linear-gradient(135deg, rgba(235, 197, 102, 0.28), rgba(12, 18, 32, 0.9));
+	}
+
+
+	@media (max-width: 720px) {
+		.transition {
+			margin: 2.5rem auto;
+		}
+
+		.columns {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

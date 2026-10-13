@@ -1,0 +1,43 @@
+---
+/**
+ * VaultTin — unified tin component.
+ *
+ * variant="onchain"  → salmon border (default, identical to SalmonTin)
+ * variant="exchange" → amber/gold border for centralized exchanges
+ *
+ * Uses .salmon-tin class names so the wallet-stack accordion in vault.astro
+ * continues to work without changes.
+ */
+interface Props {
+	label: string;
+	variant?: 'onchain' | 'exchange';
+	class?: string;
+}
+
+const { label, variant = 'onchain', class: className = '' } = Astro.props;
+const hasSummary = Astro.slots.has('summary');
+---
+
+<div class={`salmon-tin vault-tin--${variant} ${className}`}>
+	<span class="salmon-tin__label">{label}</span>
+	{hasSummary && (
+		<div class="salmon-tin__summary">
+			<slot name="summary" />
+		</div>
+	)}
+	<div class="salmon-tin__body">
+		<slot />
+	</div>
+</div>
+
+<!-- Global so they override SalmonTin's scoped salmon styles -->
+<style is:global>
+	.vault-tin--exchange {
+		border-color: var(--accent) !important;
+		background: var(--surface-card-2) !important;
+	}
+	.vault-tin--exchange > .salmon-tin__label {
+		background: var(--accent) !important;
+		color: var(--surface-card-2) !important;
+	}
+</style>

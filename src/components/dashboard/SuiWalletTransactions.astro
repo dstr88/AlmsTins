@@ -1,0 +1,221 @@
+---
+import './SuiWalletTransactions.css';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import walletIn from '@/assets/walletIn.webp';
+import walletOut from '@/assets/walletOut.webp';
+import { getLang } from '@/lib/i18n/locale';
+import { getSuiWalletTransactions } from '@/i18n/components/suiWalletTransactions';
+
+type Props = {
+	walletId: string;
+	title: string;
+};
+
+type SuiTxRow = {
+	id: string;
+	digest: string;
+	coin_type: string;
+	symbol: string;
+	amount: string;   // signed, negative = out
+	decimals: number;
+	timestamp: string;
+	fee_mist: string | null;
+	status: string | null;
+	note: string | null;
+	category: string | null;
+};
+
+const { walletId, title } = Astro.props as Props;
+const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getSuiWalletTransactions(lang);
+
+// Last sync timestamp
+const syncResult = await db.execute({
+	sql: `SELECT MAX(last_run_at) as last_synced FROM wallet_sync_state
+	      WHERE wallet_id = ? AND chain = 'sui' AND tenant_id = ?`,
+	args: [walletId, tenantId],
+});
+const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
+const lastSynced = (syncRow?.last_synced as string | null) ?? null;
+
+function fmtSyncDate(iso: string | null): string {
+	if (!iso) return '';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '';
+	return d.toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const syncLabel = lastSynced ? `${t.syncedPrefix} ${fmtSyncDate(lastSynced)}` : null;
+
+const result = await db.execute({
+	sql: `SELECT t.id, t.digest, t.coin_type, t.symbol, t.amount, t.decimals,
+	           t.timestamp, t.fee_mist, t.status, t.note, t.category
+	      FROM sui_transactions t
+	      WHERE t.wallet_id = ? AND t.tenant_id = ?
+	      ORDER BY t.timestamp DESC`,
+	args: [walletId, tenantId],
+});
+
+const rows = result.rows.map((r) => ({
+	id: String(r.id ?? ''),
+	digest: String(r.digest ?? ''),
+	coin_type: String(r.coin_type ?? ''),
+	symbol: String(r.symbol ?? 'SUI'),
+	amount: String(r.amount ?? '0'),
+	decimals: Number(r.decimals ?? 9),
+	timestamp: String(r.timestamp ?? ''),
+	fee_mist: r.fee_mist != null ? String(r.fee_mist) : null,
+	status: r.status != null ? String(r.status) : null,
+	note: r.note != null ? String(r.note) : null,
+	category: r.category != null ? String(r.category) : null,
+})) as SuiTxRow[];
+
+const formatDate = (value: string) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString(t.dateLocale, { month: 'short', day: 'numeric' });
+};
+
+const formatAmount = (raw: string, decimals: number) => {
+	try {
+		const negative = raw.startsWith('-');
+		const abs = BigInt(negative ? raw.slice(1) : raw);
+		const base = 10n ** BigInt(decimals);
+		const whole = abs / base;
+		const fraction = abs % base;
+		const fracStr = fraction.toString().padStart(decimals, '0').replace(/0+$/, '');
+		const display = fracStr
+			? `${Number(whole).toLocaleString()}.${fracStr.slice(0, 6)}`
+			: Number(whole).toLocaleString();
+		return display;
+	} catch {
+		return '0';
+	}
+};
+
+const isOut = (amount: string) => amount.startsWith('-');
+
+const shortenDigest = (digest: string) => {
+	if (!digest || digest.length <= 8) return digest;
+	return `${digest.slice(0, 4)}…${digest.slice(-4)}`;
+};
+
+// Group by date
+const withDividers: Array<{ type: 'divider'; date: string } | { type: 'row'; row: SuiTxRow }> = [];
+let lastDate: string | null = null;
+for (const row of rows) {
+	const dateStr = row.timestamp ? new Date(row.timestamp).toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+	if (dateStr && dateStr !== lastDate) {
+		withDividers.push({ type: 'divider', date: dateStr });
+		lastDate = dateStr;
+	}
+	withDividers.push({ type: 'row', row });
+}
+---
+
+<article class="sui-wallet">
+	<header class="sui-wallet__header">
+		<div class="sui-wallet__title-group">
+			<h3 class="sui-wallet__title">{title}</h3>
+			{syncLabel && (
+				<span class="sui-wallet__freshness">{syncLabel}</span>
+			)}
+		</div>
+		<span class="sui-wallet__tag">sui</span>
+	</header>
+
+	<div class="sui-wallet__list">
+		{withDividers.length === 0 && (
+			<p class="sui-wallet__empty">{t.emptyState}</p>
+		)}
+		{withDividers.map((item) =>
+			item.type === 'divider' ? (
+				<div class="tx-date-divider">{item.date}</div>
+			) : (
+				<div class="tx-card" data-digest={item.row.digest}>
+					<div class="txRow">
+						<span class="txCol--date">{formatDate(item.row.timestamp)}</span>
+						<span class="txCol--digest" title={item.row.digest}>
+							<span class="tx-label">{t.labelDigest}</span>
+							<span class="tx-value">{shortenDigest(item.row.digest)}</span>
+						</span>
+						<span class="txCol--dir">
+							{isOut(item.row.amount) ? (
+								<img class="tx-icon-img" src={walletOut.src} alt={t.altOut} />
+							) : (
+								<img class="tx-icon-img" src={walletIn.src} alt={t.altIn} />
+							)}
+						</span>
+					</div>
+					<div class="txRow txRow--amount">
+						<span class="txCol--amount">
+							<span class="tx-label">{isOut(item.row.amount) ? t.labelSent : t.labelReceived}</span>
+							<span class="tx-value">
+								{formatAmount(item.row.amount, item.row.decimals)} {item.row.symbol}
+							</span>
+						</span>
+					</div>
+					{item.row.fee_mist && item.row.fee_mist !== '0' && (
+						<div class="tx-fee">
+							<span class="tx-label">{t.labelFee}</span>
+							<span class="tx-value">{formatAmount(item.row.fee_mist, 9)} SUI</span>
+						</div>
+					)}
+					<textarea
+						class="tx-notes"
+						placeholder={t.notesPlaceholder}
+						data-id={item.row.id}
+						data-initial={item.row.note ?? ''}
+					>{item.row.note ?? ''}</textarea>
+					<span class="tx-saved" aria-live="polite">{t.saved}</span>
+				</div>
+			)
+		)}
+	</div>
+</article>
+
+<script is:inline define:vars={{ suiTxI18n: {
+	saved:          t.saved,
+	saveFailed:     t.scriptSaveFailed,
+} }}>window.__suiTxI18n = suiTxI18n;</script>
+
+<script>
+	const I = (window as any).__suiTxI18n ?? {};
+	const container = document.querySelector('.sui-wallet__list');
+	if (container) {
+		container.addEventListener('blur', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLTextAreaElement) || !target.classList.contains('tx-notes')) return;
+			const id = target.dataset.id;
+			if (!id) return;
+			const initial = target.dataset.initial ?? '';
+			if (target.value === initial) return;
+			const saved = target.nextElementSibling;
+			try {
+				const response = await fetch('/api/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ transactionId: id, note: target.value, category: null }),
+				});
+				if (!response.ok) throw new Error('Failed to save.');
+				target.dataset.initial = target.value;
+				if (saved instanceof HTMLElement) {
+					saved.classList.add('is-visible');
+					setTimeout(() => saved.classList.remove('is-visible'), 1500);
+				}
+			} catch {
+				if (saved instanceof HTMLElement) {
+					saved.textContent = I.saveFailed ?? 'Save failed';
+					saved.classList.add('is-visible');
+					setTimeout(() => {
+						saved.classList.remove('is-visible');
+						saved.textContent = I.saved ?? 'Saved';
+					}, 2000);
+				}
+			}
+		}, true);
+	}
+</script>
+

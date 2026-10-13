@@ -1,0 +1,20 @@
+---
+import { en } from '../i18n/loginPage';
+import LoginPageComponent from '../components/LoginPageComponent.astro';
+import { getLoginPageData, resolveLoginAlert } from '../lib/loginPageData';
+
+const data = await getLoginPageData(Astro.request, Astro.url);
+const t = en;
+
+const { message, notice, hasAlert } = resolveLoginAlert(t, data);
+---
+<LoginPageComponent
+  t={t}
+  safeCallbackUrl={data.safeCallbackUrl}
+  csrfToken={data.csrfToken}
+  message={message}
+  notice={notice}
+  hasAlert={hasAlert}
+  isLoggedIn={data.isLoggedIn}
+  canonical="https://almstins.com/"
+/>

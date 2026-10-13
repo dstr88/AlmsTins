@@ -1,0 +1,91 @@
+---
+import SuiWalletTransactions from '@/components/dashboard/SuiWalletTransactions.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
+
+type Props = {
+	walletId: string;
+	label: string;
+};
+
+const { walletId, label } = Astro.props as Props;
+const t = getWalletSyncTin(getLang(Astro.request));
+---
+
+<section class="sui-tin" data-wallet-id={walletId}>
+	<div class="sui-tin__controls">
+		<span class="sui-tin__status" aria-live="polite"></span>
+		<button type="button" class="sui-tin__sync-btn">{t.sync}</button>
+	</div>
+
+	<SuiWalletTransactions walletId={walletId} title={label} />
+</section>
+
+<script is:inline define:vars={{ suiSyncI18n: { syncing: t.syncing, syncedNew: t.syncedNewTemplate, syncFailed: t.syncFailed } }}>window.__suiSyncI18n = suiSyncI18n;</script>
+
+<script>
+	document.querySelectorAll<HTMLElement>('.sui-tin').forEach((tin) => {
+		const walletId = tin.dataset.walletId;
+		const status = tin.querySelector<HTMLElement>('.sui-tin__status');
+		const syncBtn = tin.querySelector<HTMLButtonElement>('.sui-tin__sync-btn');
+
+		const setStatus = (msg: string) => {
+			if (status) status.textContent = msg;
+		};
+
+		const doSync = async () => {
+			if (!walletId) return;
+			setStatus((window as any).__suiSyncI18n?.syncing ?? 'Syncing…');
+			try {
+				const res = await fetch(`/api/wallets/${walletId}/sui-sync`, { method: 'POST' });
+				const data = await res.json();
+				if (!res.ok) throw new Error(data?.message ?? ((window as any).__suiSyncI18n?.syncFailed ?? 'Sync failed'));
+				setStatus(((window as any).__suiSyncI18n?.syncedNew ?? 'Synced {n} new transactions.').replace('{n}', String(data.inserted ?? 0)));
+				// Reload the tin to show fresh data
+				setTimeout(() => window.location.reload(), 800);
+			} catch (err) {
+				setStatus(err instanceof Error ? err.message : ((window as any).__suiSyncI18n?.syncFailed ?? 'Sync failed.'));
+			}
+		};
+
+		syncBtn?.addEventListener('click', () => void doSync());
+
+		// Auto-sync on load
+		void doSync();
+	});
+</script>
+
+<style>
+	.sui-tin {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm, 0.75rem);
+	}
+
+	.sui-tin__controls {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.sui-tin__status {
+		font-size: var(--font-sm, 0.8rem);
+		opacity: 0.65;
+	}
+
+	.sui-tin__sync-btn {
+		font-size: 0.8rem;
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid rgba(59, 130, 246, 0.7);
+		background: rgba(59, 130, 246, 0.12);
+		color: #bfdbfe;
+		cursor: pointer;
+		transition: background 0.15s ease;
+	}
+
+	.sui-tin__sync-btn:hover {
+		background: rgba(59, 130, 246, 0.25);
+	}
+</style>

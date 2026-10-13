@@ -1,0 +1,190 @@
+---
+// "Download history by wallet": the ZIP from GET /api/records/history-by-wallet (any paid plan
+// and the owner, src/lib/historyAccess.ts). A Free account sees that button locked, linking to
+// billing, with a short upgrade note; it is never sent to the route. Next to it, a Free account
+// gets "Download my transactions (CSV)", the plain CSV from GET /api/transactions/export
+// (every plan: the portability export the privacy policy promises).
+// Both clicks are handled with fetch: only a ZIP (or, for the plain file, a CSV) is saved;
+// anything else, an error, too many rows (413) or a download already being prepared (429),
+// shows a message here, so no error is ever saved as a file.
+//
+// layout 'panel' (Wallets page): button with the copy line under it, all years.
+// layout 'bar'   (Bookkeeping, next to the Year Summary): the selected year's file.
+import { getHistoryExport } from '@/i18n/historyExport';
+import type { Lang } from '@/lib/i18n/locale';
+
+interface Props {
+	lang: Lang;
+	canDownload: boolean;
+	year?: number;
+	layout?: 'panel' | 'bar';
+}
+
+const { lang, canDownload, year, layout = 'panel' } = Astro.props;
+const t = getHistoryExport(lang).ui;
+const query = year ? `?year=${year}` : '';
+const href = `/api/records/history-by-wallet${query}`;
+const plainHref = `/api/transactions/export${query}`;
+const tooMany = year ? t.btnTooManyYear : t.btnTooMany;
+---
+
+<div class={`hbw hbw--${layout}`}>
+	<div class="hbw-actions">
+		{canDownload ? (
+			<a
+				class="hbw-btn"
+				href={href}
+				data-hbw-download
+				data-hbw-type="application/zip"
+				data-hbw-file="almstins-history-by-wallet.zip"
+				data-busy={t.btnBusy}
+				data-error={t.btnError}
+				data-too-many={tooMany}
+				data-in-progress={t.btnInProgress}
+				title={t.btnTitle}
+			>
+				{year ? t.btnLabelYear(year) : t.btnLabel}
+			</a>
+		) : (
+			<>
+				<a
+					class="hbw-btn"
+					href={plainHref}
+					data-hbw-download
+					data-hbw-type="text/csv"
+					data-hbw-file="almstins-transactions.csv"
+					data-busy={t.btnBusy}
+					data-error={t.btnError}
+					data-too-many={tooMany}
+					data-in-progress={t.btnInProgress}
+					title={t.plainTitle}
+				>
+					{year ? t.plainLabelYear(year) : t.plainLabel}
+				</a>
+				<a class="hbw-btn hbw-btn--locked" href="/dashboard/billing" title={t.lockedNote}>
+					{t.lockedLabel}
+					<span class="hbw-badge">{t.lockedBadge}</span>
+				</a>
+			</>
+		)}
+	</div>
+	<p class="hbw-copy">{canDownload ? t.copyLine : t.lockedNote}</p>
+	<p class="hbw-status" role="status" aria-live="polite" hidden></p>
+</div>
+
+<script>
+	const filenameFrom = (res: Response, fallback: string) =>
+		/filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallback;
+
+	document.querySelectorAll<HTMLAnchorElement>('a[data-hbw-download]').forEach((a) => {
+		a.addEventListener('click', async (ev) => {
+			ev.preventDefault();
+			if (a.getAttribute('aria-busy') === 'true') return;
+			const status = a.closest('.hbw')?.querySelector<HTMLElement>('.hbw-status') ?? null;
+			const label = a.textContent;
+			const expected = a.dataset.hbwType ?? 'application/zip';
+			a.setAttribute('aria-busy', 'true');
+			a.textContent = a.dataset.busy ?? label;
+			if (status) {
+				status.hidden = true;
+				status.textContent = '';
+			}
+			let message = a.dataset.error ?? '';
+			try {
+				const res = await fetch(a.href, { credentials: 'same-origin' });
+				if (res.status === 413) message = a.dataset.tooMany ?? message;
+				else if (res.status === 429) message = a.dataset.inProgress ?? message;
+				// Only the file type this button asked for is saved; an error is never saved as a file.
+				if (!res.ok || !(res.headers.get('Content-Type') ?? '').includes(expected)) throw new Error('not the file');
+				const url = URL.createObjectURL(await res.blob());
+				const save = document.createElement('a');
+				save.href = url;
+				save.download = filenameFrom(res, a.dataset.hbwFile ?? 'almstins-download');
+				document.body.appendChild(save);
+				save.click();
+				save.remove();
+				setTimeout(() => URL.revokeObjectURL(url), 10_000);
+			} catch {
+				if (status) {
+					status.textContent = message;
+					status.hidden = false;
+				}
+			} finally {
+				a.removeAttribute('aria-busy');
+				a.textContent = label;
+			}
+		});
+	});
+</script>
+
+<style>
+	.hbw {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		min-width: 0;
+	}
+	.hbw--bar {
+		align-items: flex-end;
+		text-align: right;
+	}
+	.hbw-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		max-width: 100%;
+	}
+	.hbw--bar .hbw-actions {
+		justify-content: flex-end;
+	}
+	.hbw-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		max-width: 100%;
+		padding: 0.4rem 1rem;
+		border-radius: 20px;
+		border: 1px solid var(--accent-dim);
+		background: var(--accent-soft);
+		color: var(--accent);
+		font-size: 0.82rem;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: normal;
+	}
+	.hbw-btn:hover {
+		border-color: var(--accent);
+	}
+	.hbw-btn[aria-busy='true'] {
+		opacity: 0.7;
+		cursor: progress;
+	}
+	.hbw-btn--locked {
+		opacity: 0.6;
+		border-style: dashed;
+	}
+	.hbw-btn--locked:hover {
+		opacity: 0.8;
+	}
+	.hbw-badge {
+		font-size: 0.65rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 8px;
+		background: var(--accent-soft);
+		color: var(--accent);
+		font-weight: 700;
+		letter-spacing: 0.03em;
+	}
+	.hbw-copy {
+		margin: 0;
+		font-size: 0.78rem;
+		line-height: 1.5;
+		color: var(--text-muted);
+	}
+	.hbw-status {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--loss);
+	}
+</style>

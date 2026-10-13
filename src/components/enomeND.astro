@@ -1,0 +1,193 @@
+---
+import './enomeND.css';
+---
+<!-- Domain Availability Component -->
+<section class="domain-search" aria-label="Domain search">
+  <h2 class="domain-search__title">Find your domain</h2>
+
+  <form class="domain-search__form" id="domainForm" autocomplete="off">
+    <div
+      class="domain-search__pill"
+      role="group"
+      aria-label="Domain availability search"
+    >
+      <input
+        class="domain-search__sld"
+        id="sld"
+        name="sld"
+        placeholder="yourname"
+        minlength="2"
+        maxlength="63"
+        required
+        inputmode="url"
+        aria-label="Domain name"
+      />
+      <span class="domain-search__dot">.</span>
+      <select class="domain-search__tld" id="tld" name="tld" aria-label="Top level domain">
+        <option value="com">com</option>
+        <option value="net">net</option>
+        <option value="org">org</option>
+        <option value="io">io</option>
+        <option value="ai">ai</option>
+      </select>
+      <button class="domain-search__btn" id="checkBtn" type="submit">Check</button>
+      <button
+        class="domain-search__btn domain-search__btn--buy"
+        id="buyBtn"
+        type="button"
+        style="display:none;"
+      >
+        Buy
+      </button>
+    </div>
+
+    <div class="domain-search__result" id="result" aria-live="polite"></div>
+  </form>
+
+  <!-- Hidden sizer for auto-width input -->
+  <span class="domain-search__sizer" id="sizer" aria-hidden="true"></span>
+</section>
+
+
+<script>
+  (function () {
+    const form = document.getElementById("domainForm") as HTMLFormElement | null;
+    const sld = document.getElementById("sld") as HTMLInputElement | null;
+    const tld = document.getElementById("tld") as HTMLSelectElement | null;
+    const result = document.getElementById("result") as HTMLDivElement | null;
+    const sizer = document.getElementById("sizer") as HTMLSpanElement | null;
+    const btn = document.getElementById("checkBtn") as HTMLButtonElement | null;
+    const buyBtn = document.getElementById("buyBtn") as HTMLButtonElement | null;
+    let lastAvailableDomain: string | null = null;
+
+    if (!form || !sld || !tld || !result || !sizer || !btn || !buyBtn) {
+      return;
+    }
+
+    function hideBuy() {
+      lastAvailableDomain = null;
+      if (buyBtn) buyBtn.style.display = "none";
+    }
+
+    function showBuy(domain: string) {
+      lastAvailableDomain = domain;
+      if (buyBtn) buyBtn.style.display = "inline-block";
+    }
+
+    function sanitizeSLD(value: string) {
+      return (value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9-]/g, "")
+        .replace(/^-+/, "")
+        .replace(/-+$/, "");
+    }
+
+    function resizeInput() {
+      const text = sld.value || sld.placeholder || "";
+      sizer.textContent = text;
+      // +14px padding; clamp to prevent crazy widths on long text
+      const px = Math.min(Math.max(sizer.offsetWidth + 14, 90), 560);
+      sld.style.width = px + "px";
+    }
+
+    resizeInput();
+    hideBuy();
+
+    sld.addEventListener("input", () => {
+      const cleaned = sanitizeSLD(sld.value);
+      if (cleaned !== sld.value) sld.value = cleaned;
+      resizeInput();
+      result.textContent = "";
+      hideBuy();
+    });
+
+    tld.addEventListener("change", () => {
+      result.textContent = "";
+      hideBuy();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const sldVal = sanitizeSLD(sld.value);
+      const tldVal = (tld.value || "").toLowerCase().trim();
+
+      if (!sldVal || !tldVal) return;
+
+      hideBuy();
+      btn.disabled = true;
+      result.textContent = "Checking…";
+
+      try {
+        const isLocal =
+          location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+        const endpoint = isLocal
+          ? "/api/domains/check.json"
+          : "/api/domains/check.php";
+
+        const url = `${endpoint}?sld=${encodeURIComponent(sldVal)}&tld=${encodeURIComponent(tldVal)}`;
+        const res = await fetch(url, { method: "GET" });
+        const json = await res.json();
+
+        if (res.status === 404) {
+          result.textContent = "Domain checker is not deployed yet (missing /api/domains/check.php).";
+          hideBuy();
+          return;
+        }
+
+        if (!res.ok || !json.ok) {
+          result.textContent = `Error: ${json.error || "Request failed"}`;
+          hideBuy();
+          return;
+        }
+
+        const tag = json.mock ? " (mock)" : "";
+        if (json.available) {
+          result.textContent = `✅ ${json.domain} is available${tag}`;
+          showBuy(json.domain);
+        } else {
+          result.textContent = `❌ ${json.domain} is taken${tag}`;
+          hideBuy();
+        }
+      } catch {
+        result.textContent = "Network error while checking.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    buyBtn.addEventListener("click", async () => {
+      if (!lastAvailableDomain) return;
+
+      buyBtn.disabled = true;
+      btn.disabled = true;
+      result.textContent = `Starting checkout for ${lastAvailableDomain}…`;
+
+      try {
+        const res = await fetch("/api/pay/create-checkout.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: lastAvailableDomain })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok || !data.url) {
+          result.textContent = `Error: ${data.error || "Failed to start checkout"}`;
+          buyBtn.disabled = false;
+          btn.disabled = false;
+          return;
+        }
+
+        window.location.href = data.url;
+      } catch {
+        result.textContent = "Network error while starting checkout.";
+        buyBtn.disabled = false;
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>

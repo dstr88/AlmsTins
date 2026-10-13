@@ -1,0 +1,118 @@
+---
+import walletIn from '@/assets/walletIn.webp';
+import walletOut from '@/assets/walletOut.webp';
+import ImportedFilesFormat from '@/components/importedFilesFormat.astro';
+
+type Props = {
+	title?: string;
+	redirectTo?: string;
+};
+
+const { title = 'Crypto.com', redirectTo } = Astro.props as Props;
+
+const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+---
+
+<section class="crypto-com">
+	<form id="csv-upload" class="crypto-com__upload" data-redirect={redirectTo ?? ''}>
+		<label class="crypto-com__file">
+			<input type="file" name="file" accept=".csv" required />
+			<span>Choose CSV</span>
+		</label>
+		<button type="submit" class="crypto-com__button">Upload</button>
+		<span class="crypto-com__status" aria-live="polite"></span>
+	</form>
+
+	<ImportedFilesFormat
+		source="crypto_com"
+		title={title}
+		icons={{ in: walletIn.src, out: walletOut.src, lost: lostIcon }}
+		showList={false}
+	/>
+</section>
+
+<script>
+	document.addEventListener('submit', async (event) => {
+		const form = event.target;
+		if (!(form instanceof HTMLFormElement) || !form.classList.contains('crypto-com__upload')) {
+			return;
+		}
+		const status = form.querySelector('.crypto-com__status');
+		event.preventDefault();
+		const fileInput = form.querySelector('input[type="file"]');
+		if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+			if (status) status.textContent = 'Select a CSV file first.';
+			return;
+		}
+		if (status) status.textContent = 'Uploading...';
+		const data = new FormData();
+		data.append('file', fileInput.files[0]);
+		try {
+			const response = await fetch('/api/import/crypto-com', {
+				method: 'POST',
+				body: data,
+				credentials: 'include',
+			});
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(payload?.error || 'Upload failed.');
+			}
+			if (status) {
+				status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+			}
+			const redirectTo = form.dataset.redirect ?? '';
+			if (redirectTo) {
+				window.location.href = redirectTo;
+				return;
+			}
+			setTimeout(() => window.location.reload(), 600);
+		} catch (error) {
+			if (status) status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+		}
+	});
+</script>
+
+<style>
+	.crypto-com {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.crypto-com__upload {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.crypto-com__file {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.6rem;
+		border-radius: 999px;
+		border: 1px solid var(--text-muted);
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.crypto-com__file input {
+		display: none;
+	}
+
+	.crypto-com__button {
+		border: 1px solid var(--text-muted);
+		background: var(--border-bright);
+		color: inherit;
+		padding: 0.35rem 0.8rem;
+		border-radius: 999px;
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.crypto-com__status {
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+</style>

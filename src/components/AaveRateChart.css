@@ -1,0 +1,260 @@
+/**
+ * AaveRateChart — token-migrated
+ *
+ * NOTE (chart line colors): The three data series (supply, variable borrow,
+ * stable borrow) intentionally keep distinct colors so the chart is readable.
+ * Supply → var(--accent) [mint], Variable → var(--loss) [red],
+ * Stable → var(--gain) [green]. This is a deliberate exception to the
+ * "one accent" rule — data encoding requires distinct hues.
+ */
+
+:global(body) {
+	font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	background: var(--surface-bg);
+	color: var(--text-primary);
+	min-height: 100vh;
+}
+
+.page {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.panel {
+	width: min(960px, 100%);
+	background: var(--border-subtle);
+	border: 1px solid var(--border-subtle);
+	box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+	border-radius: 24px;
+	padding: clamp(1.5rem, 4vw, 2.5rem);
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.panel__header {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+@media (min-width: 720px) {
+	.panel__header {
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: flex-end;
+		gap: 2rem;
+	}
+}
+
+h1 {
+	margin: 0.25rem 0;
+	font-size: clamp(1.75rem, 4vw, 2.5rem);
+	color: var(--text-primary);
+}
+
+.lede {
+	margin: 0;
+	color: var(--text-secondary);
+	max-width: 540px;
+}
+
+.eyebrow {
+	text-transform: uppercase;
+	letter-spacing: 0.16em;
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	margin: 0;
+}
+
+.meta {
+	font-size: 0.9rem;
+	color: var(--text-secondary);
+}
+
+.meta .note {
+	margin-top: 0.4rem;
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+
+.controls {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+@media (min-width: 640px) {
+	.controls {
+		flex-direction: row;
+	}
+}
+
+.control {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	font-size: 0.9rem;
+	color: var(--text-secondary);
+	flex: 1;
+}
+
+.custom {
+	border: 1px solid var(--border-bright);
+	border-radius: 16px;
+	padding: 0.75rem 1rem;
+	background: var(--border-subtle);
+}
+
+.custom summary {
+	cursor: pointer;
+	font-weight: 600;
+	margin-bottom: 0.5rem;
+	color: var(--text-primary);
+}
+
+.custom__help {
+	margin: 0 0 0.75rem;
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+}
+
+.custom__help a {
+	color: var(--accent);
+}
+
+.custom__grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 0.75rem;
+	align-items: end;
+}
+
+.custom__button {
+	align-self: stretch;
+	padding: 0.85rem 1rem;
+	border-radius: 12px;
+	border: none;
+	background: var(--accent);
+	color: var(--surface-bg);
+	font-weight: 700;
+	cursor: pointer;
+	transition: filter 0.25s ease;
+}
+
+.custom__button:hover {
+	filter: brightness(0.88);
+}
+
+select {
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	backdrop-filter: blur(6px);
+	color: var(--text-primary);
+	padding: 0.65rem 0.9rem;
+	font-size: 1rem;
+	border-radius: 12px;
+}
+
+select:focus {
+	outline: 2px solid var(--accent-dim);
+	outline-offset: 1px;
+}
+
+input {
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	backdrop-filter: blur(6px);
+	color: var(--text-primary);
+	padding: 0.65rem 0.9rem;
+	font-size: 1rem;
+	border-radius: 12px;
+}
+
+input::placeholder {
+	color: var(--text-muted);
+}
+
+input:focus {
+	outline: 2px solid var(--accent-dim);
+	outline-offset: 1px;
+}
+
+.status {
+	margin: 0;
+	font-size: 0.95rem;
+	padding: 0.75rem 1rem;
+	border-radius: 12px;
+	background: var(--border-subtle);
+	border: 1px solid var(--border-subtle);
+}
+
+.status[data-mode='error'] {
+	border-color: var(--loss-border);
+	color: var(--loss);
+}
+
+.status[data-mode='success'] {
+	border-color: var(--gain-border);
+	color: var(--gain);
+}
+
+.chart-shell {
+	width: 100%;
+	height: 360px;
+}
+
+.legend {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	gap: 1rem;
+}
+
+.legend li {
+	display: flex;
+	gap: 0.75rem;
+	align-items: center;
+	background: var(--border-subtle);
+	border: 1px solid var(--border-subtle);
+	padding: 0.75rem;
+	border-radius: 12px;
+}
+
+.legend p {
+	margin: 0;
+	font-weight: 600;
+	font-size: 0.95rem;
+	color: var(--text-primary);
+}
+
+.legend small {
+	color: var(--text-muted);
+}
+
+.dot {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	display: inline-block;
+}
+
+/* Chart series colors — intentional multi-color exception for data encoding */
+.dot.supply {
+	background: var(--accent);
+	box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.dot.variable {
+	background: var(--loss);
+	box-shadow: 0 0 16px rgba(239, 68, 68, 0.35);
+}
+
+.dot.stable {
+	background: var(--gain);
+	box-shadow: 0 0 16px rgba(52, 211, 153, 0.35);
+}

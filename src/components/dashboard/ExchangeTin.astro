@@ -1,0 +1,80 @@
+---
+import './ExchangeTin.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getExchangeTin } from '@/i18n/components/exchangeTin';
+
+interface Props {
+	title: string;
+	class?: string;
+	dataThrough?: string | null; // ISO date string — most recent tx in imported data
+	lastImported?: string | null; // ISO date string — when CSV was last uploaded
+}
+
+const { title, class: className = '', dataThrough, lastImported } = Astro.props;
+const t = getExchangeTin(getLang(Astro.request));
+
+function fmtDate(iso: string | null | undefined): string {
+	if (!iso) return '—';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '—';
+	return d.toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+const throughLabel = fmtDate(dataThrough);
+const importedLabel = fmtDate(lastImported);
+---
+
+<section class={`exchange-tin ${className}`} data-tin-key={title}>
+	<!-- Diver-down corner fold — bank icon signals imported/exchange data -->
+	<div class="tin-flag tin-flag--exchange" aria-hidden="true">
+		<span class="tin-flag__icon">🏛</span>
+	</div>
+	<header class="exchange-tin__header">
+		<div class="exchange-tin__title-group">
+			<h3>{title}</h3>
+			{dataThrough && (
+				<span class="exchange-tin__freshness" title={t.lastImportedTemplate.replace('{date}', importedLabel)}>
+					{t.dataThrough} {throughLabel}
+				</span>
+			)}
+		</div>
+		<div class="exchange-tin__header-right">
+			<slot name="header-actions" />
+			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label={t.expand}>
+				<span class="exchange-tin__toggle-label" data-tin-label>{t.open}</span> ▾
+			</button>
+		</div>
+	</header>
+	<div class="exchange-tin__body" hidden>
+		<slot />
+	</div>
+</section>
+
+
+<script is:inline define:vars={{ exchangeTinI18n: { open: t.open, close: t.close } }}>window.__exchangeTinI18n = exchangeTinI18n;</script>
+
+<script>
+	// Collapsible exchange tins — always start collapsed (body hidden in HTML).
+	// No localStorage persistence: resets to closed on every page load, same as wallet tins.
+	document.querySelectorAll<HTMLElement>('.exchange-tin[data-tin-key]').forEach((tin) => {
+		const body   = tin.querySelector<HTMLElement>('.exchange-tin__body');
+		const toggle = tin.querySelector<HTMLButtonElement>('[data-tin-toggle]');
+		if (!body || !toggle) return;
+
+		const label = toggle.querySelector<HTMLElement>('[data-tin-label]');
+
+		const doToggle = () => {
+			const nowOpen = body.hidden;
+			body.hidden         = !nowOpen;
+			toggle.ariaExpanded = String(nowOpen);
+			if (label) label.textContent = nowOpen ? ((window as any).__exchangeTinI18n?.close ?? 'Close') : ((window as any).__exchangeTinI18n?.open ?? 'Open');
+		};
+
+		toggle.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });
+		// Also allow clicking the header row itself (but not the "Add" button inside)
+		tin.querySelector('.exchange-tin__header')?.addEventListener('click', (e) => {
+			if ((e.target as HTMLElement).closest('[data-tin-toggle], .exchange-tin__add, button, a')) return;
+			doToggle();
+		});
+	});
+</script>

@@ -1,0 +1,301 @@
+---
+import '../styles/tour-engine.css';
+
+interface Props {
+	tourId:    string;
+	lang?:     'en' | 'es' | 'fr';
+	/** 'bar' = full-width banner (demo pages), 'button' = small "?" pill, 'none' = no trigger rendered */
+	trigger?:  'bar' | 'button' | 'none';
+	barIcon?:  string;
+	barCopy?:  string;
+	barCta?:   string;
+	btnLabel?: string;
+	btnTitle?: string;
+}
+const {
+	tourId,
+	lang      = 'en',
+	trigger   = 'none',
+	barIcon   = '✦',
+	barCopy   = 'Take the guided tour',
+	barCta    = 'Take the tour →',
+	btnLabel  = '?',
+	btnTitle  = 'Take the tour',
+} = Astro.props;
+---
+
+{trigger === 'bar' && (
+	<div id={`te-bar-${tourId}`} class="te-bar" data-te-tourid={tourId}>
+		<span class="te-bar__icon">{barIcon}</span>
+		<span class="te-bar__copy">{barCopy}</span>
+		<button id={`te-bar-cta-${tourId}`} class="te-bar__cta">{barCta}</button>
+	</div>
+)}
+
+{trigger === 'button' && (
+	<button
+		id={`te-btn-${tourId}`}
+		class="te-btn"
+		title={btnTitle}
+		aria-label={btnTitle}
+	>{btnLabel}</button>
+)}
+
+<!-- Backdrop -->
+<div id={`te-overlay-${tourId}`} class="te-overlay" style="display:none" aria-hidden="true"></div>
+
+<!-- Floating tooltip -->
+<div
+	id={`te-tip-${tourId}`}
+	class="te-tip"
+	style="display:none"
+	role="dialog"
+	aria-modal="true"
+	aria-labelledby={`te-title-${tourId}`}
+	data-te-id={tourId}
+	data-te-lang={lang}
+>
+	<div class="te-tip__head">
+		<span class="te-tip__counter" id={`te-counter-${tourId}`}></span>
+		<!-- lang toggle — hidden until bilingual steps are registered -->
+		<button class="te-tip__lang" id={`te-lang-${tourId}`} style="display:none" aria-label="Switch language"></button>
+		<button class="te-tip__skip" id={`te-skip-${tourId}`} aria-label="Close tour">✕</button>
+	</div>
+	<h3 class="te-tip__title" id={`te-title-${tourId}`}></h3>
+	<p  class="te-tip__body"  id={`te-body-${tourId}`}></p>
+	<div class="te-tip__foot">
+		<div class="te-tip__dots" id={`te-dots-${tourId}`} aria-hidden="true"></div>
+		<div class="te-tip__btns">
+			<button class="te-tip__btn te-tip__btn--back" id={`te-back-${tourId}`}></button>
+			<button class="te-tip__btn te-tip__btn--next" id={`te-next-${tourId}`}></button>
+		</div>
+	</div>
+</div>
+
+<script is:inline>
+/* ── TourEngine singleton — set up once, shared by all tours on the page ── */
+if (!window.TourEngine) {
+	window.TourEngine = (function () {
+		var registry = {}; // tourId → entry
+
+		/* Detect preferred lang from cookie, then browser */
+		function _detectLang() {
+			try {
+				var m = document.cookie.match(/almstins-demo-lang=([a-z]{2})/);
+				if (m) return m[1];
+			} catch(e) {}
+			try {
+				var bl = (navigator.language || '').toLowerCase().slice(0, 2);
+				if (bl === 'es') return 'es';
+			} catch(e) {}
+			return 'en';
+		}
+
+		function _clear(t) {
+			if (t.highlighted) {
+				t.highlighted.classList.remove('te-highlight');
+				t.highlighted = null;
+			}
+		}
+
+		function _dots(dotsEl, total, idx) {
+			dotsEl.innerHTML = '';
+			for (var i = 0; i < total; i++) {
+				var dot = document.createElement('span');
+				var active = i === idx;
+				dot.style.cssText = [
+					'display:inline-block',
+					'height:6px',
+					'border-radius:' + (active ? '3px' : '50%'),
+					'width:' + (active ? '18px' : '6px'),
+					'background:' + (active ? 'var(--accent)' : 'var(--border-bright)'),
+					'transition:all 0.2s',
+				].join(';');
+				dotsEl.appendChild(dot);
+			}
+		}
+
+		/* Get active steps + labels for the current lang */
+		function _active(t) {
+			var bilingual = t.bilingual;
+			if (bilingual) {
+				var lang = t.lang;
+				return { steps: bilingual.steps[lang], labels: bilingual.labels[lang] };
+			}
+			return { steps: t.steps, labels: t.labels };
+		}
+
+		function _step(tourId, idx) {
+			var entry = registry[tourId];
+			if (!entry) return;
+			var t = entry;
+			_clear(t);
+
+			var a        = _active(t);
+			var step     = a.steps[idx];
+			var L        = a.labels;
+			var titleEl  = document.getElementById('te-title-'   + tourId);
+			var bodyEl   = document.getElementById('te-body-'    + tourId);
+			var counterEl= document.getElementById('te-counter-' + tourId);
+			var dotsEl   = document.getElementById('te-dots-'    + tourId);
+			var backBtn  = document.getElementById('te-back-'    + tourId);
+			var nextBtn  = document.getElementById('te-next-'    + tourId);
+			var langBtn  = document.getElementById('te-lang-'    + tourId);
+
+			if (step.onShow) step.onShow(tourId, idx);
+
+			var target = step.selector ? document.querySelector(step.selector) : null;
+			if (target) {
+				target.classList.add('te-highlight');
+				t.highlighted = target;
+				var rect = target.getBoundingClientRect();
+				window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 140), behavior: 'smooth' });
+			}
+
+			if (titleEl)   titleEl.textContent   = step.title;
+			if (bodyEl)    bodyEl.textContent     = step.body;
+			if (counterEl) counterEl.textContent  = L.step + ' ' + (idx + 1) + ' ' + L.of + ' ' + a.steps.length;
+			if (dotsEl)    _dots(dotsEl, a.steps.length, idx);
+
+			/* Lang toggle — show opposite lang label */
+			if (langBtn) {
+				if (t.bilingual) {
+					langBtn.style.display = '';
+					langBtn.textContent   = t.lang === 'en' ? 'ES' : 'EN';
+					langBtn.title         = t.lang === 'en' ? 'Ver en español' : 'View in English';
+				} else {
+					langBtn.style.display = 'none';
+				}
+			}
+
+			if (backBtn) {
+				backBtn.textContent   = L.back;
+				backBtn.style.display = idx === 0 ? 'none' : '';
+			}
+			var isLast  = idx === a.steps.length - 1;
+			var blocked = !!step.nextLabel;
+			if (nextBtn) {
+				nextBtn.textContent       = step.nextLabel || (isLast ? L.finish : L.next);
+				nextBtn.disabled          = blocked;
+				nextBtn.style.opacity     = blocked ? '0.45' : '';
+				nextBtn.style.cursor      = blocked ? 'default' : '';
+			}
+
+			t.current = idx;
+		}
+
+		function start(tourId, idx) {
+			var entry = registry[tourId];
+			if (!entry) return;
+			var t = entry;
+			t.current = (typeof idx === 'number' && idx >= 0) ? idx : 0;
+
+			var overlay = document.getElementById('te-overlay-' + tourId);
+			var tip     = document.getElementById('te-tip-'     + tourId);
+			var bar     = document.getElementById('te-bar-'     + tourId);
+			if (overlay) overlay.style.display = '';
+			if (tip)     tip.style.display     = '';
+			if (bar)     bar.style.display     = 'none';
+			_step(tourId, t.current);
+		}
+
+		function end(tourId) {
+			var entry = registry[tourId];
+			if (!entry) return;
+			_clear(entry);
+			var overlay = document.getElementById('te-overlay-' + tourId);
+			var tip     = document.getElementById('te-tip-'     + tourId);
+			var bar     = document.getElementById('te-bar-'     + tourId);
+			if (overlay) overlay.style.display = 'none';
+			if (tip)     tip.style.display     = 'none';
+			if (bar)     bar.style.display     = '';
+			if (entry.options && entry.options.onFinish) entry.options.onFinish();
+		}
+
+		/*
+		 * register(tourId, stepsOrBilingual, labelsOrNull, options)
+		 *
+		 * Single-lang: stepsOrBilingual = Step[], labelsOrNull = Labels
+		 * Bilingual:   stepsOrBilingual = { en: Step[], es: Step[] },
+		 *              labelsOrNull = { en: Labels, es: Labels } | null (uses defaults)
+		 */
+		function register(tourId, stepsOrBilingual, labelsOrNull, options) {
+			var isBilingual = !Array.isArray(stepsOrBilingual) && stepsOrBilingual && (stepsOrBilingual.en || stepsOrBilingual.es);
+
+			var defaultLabels = {
+				en: { step: 'Step', of: 'of', back: '← Back', next: 'Next →', finish: 'Done ✓' },
+				es: { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Listo ✓' },
+			};
+
+			var entry;
+			if (isBilingual) {
+				var lang = _detectLang();
+				var bl = labelsOrNull && labelsOrNull.en ? labelsOrNull : defaultLabels;
+				entry = {
+					bilingual: { steps: stepsOrBilingual, labels: bl },
+					lang:      lang,
+					steps:     null,
+					labels:    null,
+					options:   options || {},
+					current:   0,
+					highlighted: null,
+				};
+			} else {
+				entry = {
+					bilingual:   null,
+					lang:        null,
+					steps:       stepsOrBilingual,
+					labels:      labelsOrNull || defaultLabels.en,
+					options:     options || {},
+					current:     0,
+					highlighted: null,
+				};
+			}
+
+			registry[tourId] = entry;
+
+			/* Wire buttons */
+			var barCta  = document.getElementById('te-bar-cta-' + tourId);
+			var teBtn   = document.getElementById('te-btn-'     + tourId);
+			var overlay = document.getElementById('te-overlay-' + tourId);
+			var skipBtn = document.getElementById('te-skip-'    + tourId);
+			var backBtn = document.getElementById('te-back-'    + tourId);
+			var nextBtn = document.getElementById('te-next-'    + tourId);
+			var langBtn = document.getElementById('te-lang-'    + tourId);
+
+			if (barCta)  barCta.addEventListener('click',  function () { start(tourId); });
+			if (teBtn)   teBtn.addEventListener('click',   function () { start(tourId); });
+			if (overlay) overlay.addEventListener('click', function () { end(tourId); });
+			if (skipBtn) skipBtn.addEventListener('click', function () { end(tourId); });
+
+			if (langBtn) langBtn.addEventListener('click', function () {
+				var t = registry[tourId];
+				if (!t || !t.bilingual) return;
+				t.lang = t.lang === 'en' ? 'es' : 'en';
+				/* Persist choice */
+				try { document.cookie = 'almstins-demo-lang=' + t.lang + '; Path=/; SameSite=Lax; Max-Age=31536000'; } catch(e) {}
+				_step(tourId, t.current);
+			});
+
+			if (backBtn) backBtn.addEventListener('click', function () {
+				var t = registry[tourId];
+				if (t && t.current > 0) { t.current--; _step(tourId, t.current); }
+			});
+			if (nextBtn) nextBtn.addEventListener('click', function () {
+				var t = registry[tourId];
+				if (!t) return;
+				var a = _active(t);
+				if (t.current < a.steps.length - 1) {
+					t.current++;
+					_step(tourId, t.current);
+				} else {
+					end(tourId);
+					if (t.options && t.options.onFinish) t.options.onFinish();
+				}
+			});
+		}
+
+		return { register: register, start: start, end: end, _step: _step, _clear: _clear, _active: _active };
+	}());
+}
+</script>

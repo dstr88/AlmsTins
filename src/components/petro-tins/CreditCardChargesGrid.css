@@ -1,0 +1,119 @@
+.cc-charges-grid {
+  margin-bottom: 1.25rem;
+}
+
+.cc-charges-grid__title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.cc-charges-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cc-charges-table thead tr {
+  background: var(--surface-card-2);
+}
+
+.cc-charges-table th {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cc-charges-table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.cc-charges-table tbody tr:last-child td { border-bottom: none; }
+
+.cc-charges-table tfoot td {
+  background: var(--surface-card-2);
+  border-top: 1px solid var(--border-bright);
+  padding: 0.5rem 0.75rem;
+}
+
+.cc-row--over { background: var(--loss-bg); }
+.cc-row--near { background: rgba(245,158,11,0.06); }
+
+/* Columns */
+.cc-col-card  { min-width: 110px; }
+.cc-col-amt   { text-align: right; min-width: 80px; }
+.cc-col-status { text-align: center; min-width: 100px; }
+
+.cc-card-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cc-desc { color: var(--text-secondary); }
+.cc-desc--posted { opacity: 0.45; text-decoration: line-through; }
+
+.cc-posted-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gain);
+  background: var(--gain-bg);
+  border: 1px solid var(--gain-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 0.4rem;
+}
+
+.cc-amount { font-weight: 600; }
+
+.cc-warning {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.cc-warning--over {
+  color: var(--loss);
+  background: var(--loss-bg);
+  border: 1px solid var(--loss-border);
+}
+.cc-warning--near {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.28);
+}
+
+.cc-ok {
+  color: var(--gain);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cc-foot-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cc-foot-total {
+  font-weight: 700;
+  font-size: 0.88rem;
+}

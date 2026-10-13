@@ -1,0 +1,1059 @@
+---
+/**
+ * /dashboard/yearEnd/form8949
+ *
+ * Printable IRS Form 8949 — Sales and Other Dispositions of Capital Assets.
+ * Data is fetched client-side so the page can render immediately and the
+ * user can switch year/method without a full page reload.
+ *
+ * Print button opens browser print dialog. CSS @media print hides all chrome.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import TaxNotice from '@/components/TaxNotice.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getForm8949 } from '@/i18n/dashboard/yearEnd/form8949';
+
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { isOwner } from '@/lib/owner';
+
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+
+const lang = getLang(Astro.request);
+const t = getForm8949(lang);
+
+const _authSess = await requireTenantSession(Astro.request);
+if (!_authSess) return Astro.redirect('/login');
+const showTurboTax = isOwner(_authSess.tenantId);
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const initialYear = yearParam ? Number(yearParam) : defaultYear;
+const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<div id="app">
+
+		<!-- Screen-only header -->
+		<div class="f8-header">
+			<div class="f8-header__left">
+				<a href="/dashboard/yearEnd" class="f8-back">{t.backLink}</a>
+				<h1 class="f8-title">{t.heroTitle}</h1>
+				<p class="f8-subtitle">{t.heroSubtitle}</p>
+			</div>
+			<div class="f8-controls">
+				<!-- Year + method selectors -->
+				<select id="year-sel" class="f8-select">
+					{Array.from({ length: 8 }, (_, i) => currentYear - 1 - i).map(y => (
+						<option value={y} selected={y === initialYear}>{y}</option>
+					))}
+				</select>
+				<select id="method-sel" class="f8-select">
+					<option value="fifo"    selected={methodParam === 'fifo'}>FIFO</option>
+					<option value="hifo"    selected={methodParam === 'hifo'}>HIFO</option>
+					<option value="lifo"    selected={methodParam === 'lifo'}>LIFO</option>
+					<option value="spec_id" selected={methodParam === 'spec_id'}>Spec ID</option>
+				</select>
+				<button id="btn-load" class="f8-btn f8-btn--primary">{t.btnLoad}</button>
+				<button id="btn-csv"  class="f8-btn f8-btn--ghost hidden">{t.btnCsv}</button>
+				{showTurboTax && <button id="btn-turbotax" class="f8-btn f8-btn--turbotax hidden">↓ TurboTax</button>}
+				<button id="btn-print" class="f8-btn f8-btn--dark hidden">{t.btnPrint}</button>
+			</div>
+		</div>
+
+		<TaxNotice />
+
+		<!-- Loading/error/empty states -->
+		<div id="state-loading" class="f8-state-loading">
+			<div class="f8-spinner"></div>
+			<p>{t.stateLoading}</p>
+		</div>
+		<div id="state-error" class="f8-state-error hidden"></div>
+		<div id="state-empty" class="hidden empty-state">
+			<div class="empty-state__header">
+				<span class="empty-state__icon">⚠️</span>
+				<div>
+					<p class="empty-state__title">{t.emptyTitle}</p>
+					<p class="empty-state__context" id="empty-context">{t.emptyContext}</p>
+				</div>
+			</div>
+
+			<div class="empty-state__section">
+				<p class="empty-state__label">{t.emptyWhatLabel}</p>
+				<ul class="empty-state__list">
+					<li id="diag-pipeline"><strong>{t.diagPipelineStrong}</strong>{t.diagPipelineText}</li>
+					<li id="diag-missing-buy">{t.diagMissingBuyText}</li>
+					<li id="diag-no-data">{t.diagNoDataText}</li>
+				</ul>
+			</div>
+
+			<div id="empty-tokens" class="empty-state__section hidden">
+				<p class="empty-state__label">{t.emptyTokensLabel}</p>
+				<div id="empty-tokens-list" class="empty-state__chips"></div>
+			</div>
+
+			<div class="empty-state__actions" id="empty-actions">
+				<a href="/dashboard/yearEnd/review" class="es-btn es-btn--primary" id="btn-review-queue">{t.btnReviewQueue}</a>
+				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">{t.btnImport}</a>
+				<a href="/dashboard/yearEnd" class="es-btn es-btn--secondary" id="btn-pipeline">{t.btnPipeline}</a>
+			</div>
+		</div>
+
+		<!-- Form output — screen summary cards + printable pages -->
+		<div id="form-output" class="hidden f8-form-output">
+
+			<!-- Screen-only summary -->
+			<div id="summary-cards" class="f8-summary-cards">
+				<div class="f8-card">
+					<p class="f8-card__label">{t.cardProceeds}</p>
+					<p id="sum-proceeds" class="f8-card__value"></p>
+				</div>
+				<div class="f8-card">
+					<p class="f8-card__label">{t.cardBasis}</p>
+					<p id="sum-basis" class="f8-card__value"></p>
+				</div>
+				<div class="f8-card">
+					<p class="f8-card__label">{t.cardNetGain}</p>
+					<p id="sum-gain" class="f8-card__value"></p>
+				</div>
+			</div>
+
+			<!-- BO warning -->
+			<div id="bo-warning" class="f8-bo-warning hidden">
+				{t.boWarningText} <a href="/dashboard/yearEnd/review" class="f8-link">{t.boWarningLinkText}</a>{t.boWarningTail}
+			</div>
+
+			<!-- Form pages container — one page per part -->
+			<div id="form-pages"></div>
+
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+/* ── Global safety nets ────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── Page layout ───────────────────────────────────────────────────────────── */
+#app {
+	width: 100%;
+	max-width: 72rem;
+	margin: 0 auto;
+	padding: 2rem 2.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+	#app { padding: 1.5rem 1rem; }
+}
+
+@media print {
+	#app { max-width: none; padding: 0; }
+}
+
+/* ── Screen-only header ────────────────────────────────────────────────────── */
+.f8-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+@media print { .f8-header { display: none; } }
+
+.f8-back {
+	display: inline-block;
+	font-size: .75rem;
+	font-weight: 500;
+	color: #6366f1;
+	text-decoration: none;
+	margin-bottom: .3rem;
+}
+.f8-back:hover { color: #818cf8; }
+
+.f8-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+.f8-subtitle { font-size: .875rem; color: #9ca3af; margin: .25rem 0 0; }
+
+.f8-controls {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	flex-wrap: wrap;
+}
+
+.f8-select {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 8px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .45rem .75rem;
+	outline: none;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+.f8-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.f8-select option { background: #1a1f2e; color: #e5e7eb; }
+
+.f8-btn {
+	border-radius: 8px;
+	font-size: .875rem;
+	font-weight: 500;
+	padding: .45rem 1rem;
+	cursor: pointer;
+	border: 1px solid transparent;
+	transition: background .15s;
+	white-space: nowrap;
+}
+.f8-btn--primary { background: #4f46e5; color: #fff; }
+.f8-btn--primary:hover { background: #4338ca; }
+.f8-btn--ghost { background: rgba(255,255,255,.05); color: #d1d5db; border-color: rgba(255,255,255,.1); }
+.f8-btn--ghost:hover { background: rgba(255,255,255,.09); }
+.f8-btn--dark { background: #1f2937; color: #fff; }
+.f8-btn--dark:hover { background: #111827; }
+.f8-btn--turbotax { background: #0077b6; color: #fff; border-color: #0077b6; }
+.f8-btn--turbotax:hover { background: #005f94; }
+
+/* ── Loading state ─────────────────────────────────────────────────────────── */
+.f8-state-loading {
+	text-align: center;
+	padding: 4rem 0;
+	color: #6b7280;
+	font-size: .875rem;
+}
+@media print { .f8-state-loading { display: none; } }
+
+.f8-spinner {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: 2px solid rgba(255,255,255,.1);
+	border-top-color: #6366f1;
+	border-radius: 50%;
+	animation: f8spin .7s linear infinite;
+	margin: 0 auto .75rem;
+}
+@keyframes f8spin { to { transform: rotate(360deg); } }
+
+/* ── Error state ───────────────────────────────────────────────────────────── */
+.f8-state-error {
+	border: 1px solid rgba(239,68,68,.25);
+	background: rgba(239,68,68,.07);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+	color: #fca5a5;
+	font-size: .875rem;
+}
+@media print { .f8-state-error { display: none; } }
+
+/* ── Summary cards ─────────────────────────────────────────────────────────── */
+.f8-form-output {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+.f8-summary-cards {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1rem;
+}
+@media (max-width: 640px) { .f8-summary-cards { grid-template-columns: 1fr; } }
+@media print { .f8-summary-cards { display: none; } }
+
+.f8-card {
+	background: #161b27;
+	border: 1px solid rgba(255,255,255,.07);
+	border-radius: 12px;
+	padding: 1rem 1.25rem;
+}
+.f8-card__label {
+	font-size: .7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: .07em;
+	color: #6b7280;
+	margin: 0 0 .3rem;
+}
+.f8-card__value {
+	font-size: 1.25rem;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+}
+.f8-gain--positive { color: #34d399 !important; }
+.f8-gain--negative { color: #f87171 !important; }
+
+/* ── BO warning ────────────────────────────────────────────────────────────── */
+.f8-bo-warning {
+	border: 1px solid rgba(251,191,36,.2);
+	background: rgba(251,191,36,.07);
+	border-radius: 10px;
+	padding: 1rem 1.25rem;
+	font-size: .875rem;
+	color: #fde68a;
+	line-height: 1.6;
+}
+@media print { .f8-bo-warning { display: none; } }
+.f8-link { color: #818cf8; text-decoration: underline; }
+.f8-link:hover { color: #a5b4fc; }
+
+/* ── Empty / diagnostic state ──────────────────────────────────────────────── */
+.empty-state {
+	border: 1px solid rgba(251,191,36,.35);
+	border-left: 4px solid #f59e0b;
+	background: rgba(251,191,36,.07);
+	border-radius: 12px;
+	padding: 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.empty-state__header {
+	display: flex;
+	align-items: flex-start;
+	gap: .75rem;
+}
+
+.empty-state__icon { font-size: 1.4rem; flex-shrink: 0; margin-top: .1rem; }
+
+.empty-state__title {
+	font-size: 1rem;
+	font-weight: 700;
+	color: #fde68a;
+	margin: 0 0 .35rem;
+}
+
+.empty-state__context {
+	font-size: .875rem;
+	color: rgba(255,255,255,.65);
+	margin: 0;
+	line-height: 1.6;
+}
+
+.empty-state__section {
+	border-top: 1px solid rgba(251,191,36,.2);
+	padding-top: 1rem;
+}
+
+.empty-state__label {
+	font-size: .7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .08em;
+	color: #fbbf24;
+	margin: 0 0 .6rem;
+}
+
+.empty-state__list {
+	font-size: .875rem;
+	color: rgba(255,255,255,.7);
+	margin: 0;
+	padding-left: 1.4rem;
+	line-height: 2;
+}
+
+.empty-state__list strong { color: #fef3c7; }
+
+.empty-state__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .5rem;
+}
+
+.asset-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
+	padding: .28rem .65rem;
+	border-radius: 6px;
+	font-size: .8rem;
+	font-weight: 500;
+	border: 1px solid;
+	line-height: 1.4;
+}
+.asset-chip--no-buy {
+	background: rgba(239,68,68,.12);
+	border-color: rgba(239,68,68,.3);
+	color: #fca5a5;
+}
+.asset-chip--no-basis {
+	background: rgba(251,191,36,.12);
+	border-color: rgba(251,191,36,.3);
+	color: #fde68a;
+}
+.asset-chip strong { color: #fff; }
+.chip-badge { font-size: .7rem; font-weight: 400; opacity: .8; }
+.chip-count { font-size: .7rem; opacity: .65; }
+
+.empty-state__actions {
+	border-top: 1px solid rgba(251,191,36,.2);
+	padding-top: 1rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: .6rem;
+}
+
+.es-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	padding: .5rem 1.1rem;
+	border-radius: 8px;
+	font-size: .85rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background .15s, border-color .15s;
+	white-space: nowrap;
+}
+
+.es-btn--primary {
+	background: #f59e0b;
+	color: #1c1007;
+	border: none;
+}
+
+.es-btn--primary:hover { background: #fbbf24; }
+
+.es-btn--secondary {
+	background: rgba(251,191,36,.1);
+	color: #fde68a;
+	border: 1px solid rgba(251,191,36,.3);
+}
+
+.es-btn--secondary:hover {
+	background: rgba(251,191,36,.2);
+	border-color: rgba(251,191,36,.5);
+}
+
+/* ── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+	body { margin: 0; font-family: Arial, sans-serif; font-size: 9pt; }
+	.form-page {
+		page-break-after: always;
+		padding: 0.4in 0.4in 0.3in;
+		width: 100%;
+		box-sizing: border-box;
+	}
+	.form-page:last-child { page-break-after: avoid; }
+	table { border-collapse: collapse; width: 100%; }
+	th, td { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; }
+	th { background: #e8e8e8 !important; -webkit-print-color-adjust: exact; }
+	.irs-header { border: 2px solid #000; padding: 6px; margin-bottom: 6px; }
+	.part-label { font-size: 11pt; font-weight: bold; margin: 6px 0 4px; }
+	.box-row { display: flex; gap: 16px; align-items: center; margin: 4px 0; }
+	.checkbox { width: 12px; height: 12px; border: 1px solid #000; display: inline-flex; align-items: center; justify-content: center; margin-right: 4px; font-weight: bold; font-size: 9pt; }
+	.totals-row td { font-weight: bold; background: #f0f0f0 !important; -webkit-print-color-adjust: exact; }
+}
+
+/* ── Screen preview styles ─────────────────────────────────────────────────── */
+@media screen {
+	.form-page {
+		background: #fff;
+		border: 1px solid #d1d5db;
+		border-radius: 0.75rem;
+		padding: 2rem 2.5rem;
+		box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+		overflow-x: auto;
+	}
+	.irs-header {
+		border: 2px solid #d1d5db;
+		border-radius: 0.5rem;
+		padding: 1rem 1.25rem;
+		margin-bottom: 1.75rem;
+		background: #f9fafb;
+		line-height: 1.6;
+	}
+	table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+	th {
+		background: #f3f4f6;
+		font-weight: 600;
+		text-align: left;
+		padding: 9px 12px;
+		border: 1px solid #d1d5db;
+		font-size: 0.75rem;
+		letter-spacing: 0.01em;
+	}
+	td { padding: 7px 12px; border: 1px solid #e5e7eb; line-height: 1.4; }
+	tr:hover td { background: #f9fafb; }
+	.part-label { font-size: 1rem; font-weight: 700; color: #111827; margin: 0 0 1rem; }
+	.box-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2rem;
+		align-items: center;
+		margin: 0.75rem 0 1.25rem;
+		font-size: 0.85rem;
+		color: #374151;
+		line-height: 1.6;
+	}
+	.box-row label { display: flex; align-items: center; gap: 6px; cursor: default; }
+	.checkbox {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		border: 1.5px solid #9ca3af;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: bold;
+		border-radius: 3px;
+	}
+	.checked { background: #1e40af; border-color: #1e40af; color: #fff; }
+	.totals-row td { font-weight: 700; background: #f3f4f6; }
+}
+</style>
+
+<script is:inline define:vars={{ f8i18n: {
+	errLoadFailed:           t.errLoadFailed,
+	errNetwork:              t.errNetwork,
+	ctxNoImports:            t.ctxNoImports,
+	ctxPipelineNotRun:       t.ctxPipelineNotRun,
+	ctxCoinSingular:         t.ctxCoinSingular,
+	ctxCoinPlural:           t.ctxCoinPlural,
+	ctxHasSingular:          t.ctxHasSingular,
+	ctxHavePlural:           t.ctxHavePlural,
+	ctxTxSingular:           t.ctxTxSingular,
+	ctxTxPlural:             t.ctxTxPlural,
+	ctxMustFix:              t.ctxMustFix,
+	ctxNone:                 t.ctxNone,
+	diagPipelineNotRunStrong: t.diagPipelineNotRunStrong,
+	diagPipelineNotRunText:  t.diagPipelineNotRunText,
+	diagNoBuyStrong:         t.diagNoBuyStrong,
+	diagNoBuyConnector:      t.diagNoBuyConnector,
+	diagNoBuyTail:           t.diagNoBuyTail,
+	diagNoBasisStrong:       t.diagNoBasisStrong,
+	diagNoBasisConnector:    t.diagNoBasisConnector,
+	diagNoBasisTail:         t.diagNoBasisTail,
+	diagNoDisposalsStrong:   t.diagNoDisposalsStrong,
+	diagNoDisposalsTail:     t.diagNoDisposalsTail,
+	diagNoFoundStrong:       t.diagNoFoundStrong,
+	diagNoFoundTail:         t.diagNoFoundTail,
+	importBtnLabel:          t.importBtnLabel,
+	pipelineAfterImport:     t.pipelineAfterImport,
+	pipelineClassify:        t.pipelineClassify,
+	pipelineRerunMissing:    t.pipelineRerunMissing,
+	pipelineRerunPrices:     t.pipelineRerunPrices,
+	reviewNoBuy:             t.reviewNoBuy,
+	reviewNoBasis:           t.reviewNoBasis,
+	rowCountSingular:        t.rowCountSingular,
+	rowCountPlural:          t.rowCountPlural,
+	chipNoBuy:               t.chipNoBuy,
+	chipNoPrice:             t.chipNoPrice,
+	irsHeaderBadge:          t.irsHeaderBadge,
+	irsHeaderTitle:          t.irsHeaderTitle,
+	irsHeaderDesc:           t.irsHeaderDesc,
+	irsHeaderDisclaimer:     t.irsHeaderDisclaimer,
+	irsHeaderTaxYear:        t.irsHeaderTaxYear,
+	irsHeaderMethod:         t.irsHeaderMethod,
+	irsHeaderPreparedBy:     t.irsHeaderPreparedBy,
+	irsHeaderPooledNote:     t.irsHeaderPooledNote,
+	boxNoteTemplate:         t.boxNoteTemplate,
+	totalsPrefix:            t.totalsPrefix,
+} }}>window.__f8i18n = f8i18n;</script>
+
+<script>
+// i18n strings injected by the inline define:vars block above.
+// English fallbacks ensure the script works if that block ever fails to run.
+interface F8I18n {
+	errLoadFailed: string; errNetwork: string;
+	ctxNoImports: string; ctxPipelineNotRun: string;
+	ctxCoinSingular: string; ctxCoinPlural: string;
+	ctxHasSingular: string; ctxHavePlural: string;
+	ctxTxSingular: string; ctxTxPlural: string;
+	ctxMustFix: string; ctxNone: string;
+	diagPipelineNotRunStrong: string; diagPipelineNotRunText: string;
+	diagNoBuyStrong: string; diagNoBuyConnector: string; diagNoBuyTail: string;
+	diagNoBasisStrong: string; diagNoBasisConnector: string; diagNoBasisTail: string;
+	diagNoDisposalsStrong: string; diagNoDisposalsTail: string;
+	diagNoFoundStrong: string; diagNoFoundTail: string;
+	importBtnLabel: string; pipelineAfterImport: string;
+	pipelineClassify: string; pipelineRerunMissing: string; pipelineRerunPrices: string;
+	reviewNoBuy: string; reviewNoBasis: string;
+	rowCountSingular: string; rowCountPlural: string;
+	chipNoBuy: string; chipNoPrice: string;
+	irsHeaderBadge: string; irsHeaderTitle: string; irsHeaderDesc: string;
+	irsHeaderDisclaimer: string; irsHeaderTaxYear: string;
+	irsHeaderMethod: string; irsHeaderPreparedBy: string; irsHeaderPooledNote: string;
+	boxNoteTemplate: string; totalsPrefix: string;
+}
+const I18N: F8I18n = (window as unknown as { __f8i18n?: F8I18n }).__f8i18n ?? {
+	errLoadFailed: 'Failed to load form data.', errNetwork: 'Network error — please try again.',
+	ctxNoImports: 'No transactions were found for {year}. Import transactions for your wallets or exchanges first, then re-run the pipeline.',
+	ctxPipelineNotRun: "AlmsTins found transactions for {year} but the classification pipeline hasn't run yet. Run the pipeline from the Tax Center to match buys and sells into taxable lots.",
+	ctxCoinSingular: ' coin', ctxCoinPlural: ' coins',
+	ctxHasSingular: 'has', ctxHavePlural: 'have',
+	ctxTxSingular: 'unresolved transaction', ctxTxPlural: 'unresolved transactions',
+	ctxMustFix: 'These must be fixed before this summary is complete.',
+	ctxNone: "The pipeline ran but found no taxable disposals for {year}. If you didn't sell any crypto this year that's expected — otherwise check your imports.",
+	diagPipelineNotRunStrong: 'Pipeline not run',
+	diagPipelineNotRunText: " — transactions exist for {year} but haven't been classified into taxable lots yet",
+	diagNoBuyStrong: '{n} sell{s} with no matching purchase record',
+	diagNoBuyConnector: ' — ',
+	diagNoBuyTail: " · the buy transaction is either missing from your imports or happened on a platform you haven't connected yet",
+	diagNoBasisStrong: '{n} lot{s} missing purchase price or date',
+	diagNoBasisConnector: ' — ',
+	diagNoBasisTail: " · the buy was found but its USD value at purchase time is unknown",
+	diagNoDisposalsStrong: 'No disposals in {year}',
+	diagNoDisposalsTail: ' — the pipeline ran successfully but found no sells, swaps, or trades to report',
+	diagNoFoundStrong: 'No transactions found for {year}',
+	diagNoFoundTail: ' — nothing has been imported for this year yet',
+	importBtnLabel: '📥 Import Transactions — add data for {year}',
+	pipelineAfterImport: '⚙️ Run Pipeline — after importing',
+	pipelineClassify: '⚙️ Run Pipeline — classify transactions for {year}',
+	pipelineRerunMissing: '⚙️ Re-run Pipeline — after adding missing records',
+	pipelineRerunPrices: '⚙️ Re-run Pipeline — after fixing missing prices',
+	reviewNoBuy: '🔍 Review Queue — find the missing buys for {n} sell{s}',
+	reviewNoBasis: '🔍 Review Queue — enter purchase prices for {n} lot{s}',
+	rowCountSingular: 'transaction', rowCountPlural: 'transactions · See Schedule D for totals',
+	chipNoBuy: '⚠ no purchase record', chipNoPrice: '⚠ missing price',
+	irsHeaderBadge: 'Informational summary — not for filing',
+	irsHeaderTitle: 'Capital Gains Summary',
+	irsHeaderDesc: 'Realized gains and losses, formatted to mirror IRS Form 8949 for reference',
+	irsHeaderDisclaimer: 'Not a tax filing or tax advice — confirm with your tax professional',
+	irsHeaderTaxYear: 'Tax Year:', irsHeaderMethod: 'Method:',
+	irsHeaderPreparedBy: 'Prepared by Almstins — not an IRS-issued form',
+	irsHeaderPooledNote: 'Cost basis pools the lots of each asset across all your wallets and accounts. For sales on or after January 1, 2025, US rules apply FIFO within each wallet or account unless specific units are identified, and this summary does not calculate that yet.',
+	boxNoteTemplate: 'Note: Crypto transactions are reported in Box {box} ("all other") because exchanges were not required to issue 1099-B for these transactions.',
+	totalsPrefix: 'Totals (Box {box})',
+};
+
+const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
+
+interface Form8949Row {
+	description: string;
+	dateAcquired: string;
+	dateSold: string;
+	proceeds: number;
+	costBasis: number;
+	codes: string;
+	adjustment: number;
+	gainLoss: number;
+	daysHeld: number;
+}
+interface Form8949Box {
+	box: string;
+	label: string;
+	part: 'I' | 'II';
+	term: string;
+	rows: Form8949Row[];
+	totals: { proceeds: number; basis: number; gainLoss: number };
+}
+
+let currentData: { year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } } | null = null;
+
+async function loadForm8949() {
+	const yearSel   = (document.getElementById('year-sel')   as HTMLSelectElement).value;
+	const methodSel = (document.getElementById('method-sel') as HTMLSelectElement).value;
+
+	const stLoading = document.getElementById('state-loading')!;
+	const stError   = document.getElementById('state-error')!;
+	const stEmpty   = document.getElementById('state-empty')!;
+	const formOut   = document.getElementById('form-output')!;
+
+	stLoading.classList.remove('hidden');
+	stError.classList.add('hidden');
+	stEmpty.classList.add('hidden');
+	formOut.classList.add('hidden');
+
+	// Update URL without reload
+	const url = new URL(window.location.href);
+	url.searchParams.set('year', yearSel);
+	url.searchParams.set('method', methodSel);
+	history.replaceState(null, '', url);
+
+	try {
+		const res = await fetch(`/api/yearEnd/form8949?year=${yearSel}&method=${methodSel}`);
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const data = await res.json() as { ok: boolean; error?: string; year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } };
+
+		stLoading.classList.add('hidden');
+
+		if (!data.ok) {
+			stError.textContent = data.error ?? I18N.errLoadFailed;
+			stError.classList.remove('hidden');
+			return;
+		}
+
+		// Check ALL boxes (A-F), not just C and F
+		const totalRows = Object.values(data.boxes ?? {}).reduce((sum, b) => sum + (b.rows?.length ?? 0), 0);
+		const hasData = totalRows > 0;
+
+		if (!hasData) {
+			stEmpty.classList.remove('hidden');
+			await populateDiagnostics(yearSel, methodSel, data.totals);
+			return;
+		}
+
+		currentData = data;
+		renderForm(data);
+		formOut.classList.remove('hidden');
+		document.getElementById('btn-csv')!.classList.remove('hidden');
+		document.getElementById('btn-turbotax')!.classList.remove('hidden');
+		document.getElementById('btn-print')!.classList.remove('hidden');
+
+	} catch (err) {
+		stLoading.classList.add('hidden');
+		stError.textContent = I18N.errNetwork;
+		stError.classList.remove('hidden');
+	}
+}
+
+function renderForm(data: NonNullable<typeof currentData>) {
+	// Summary
+	(document.getElementById('sum-proceeds') as HTMLElement).textContent = USD(data.totals.proceeds);
+	(document.getElementById('sum-basis')    as HTMLElement).textContent = USD(data.totals.basis);
+	const gainEl = document.getElementById('sum-gain')!;
+	gainEl.textContent  = fmtGain(data.totals.gainLoss);
+	gainEl.className    = `f8-card__value ${data.totals.gainLoss >= 0 ? 'f8-gain--positive' : 'f8-gain--negative'}`;
+
+	// BO warning — check all boxes
+	const allRows = Object.values(data.boxes ?? {}).flatMap(b => b.rows ?? []);
+	const hasBO = allRows.some(r => r.codes.includes('B') || r.codes.includes('BO'));
+	if (hasBO) document.getElementById('bo-warning')!.classList.remove('hidden');
+
+	// Render form pages — one page per Part (I = short-term, II = long-term)
+	const pagesEl = document.getElementById('form-pages')!;
+	pagesEl.innerHTML = '';
+
+	// Build parts from whichever boxes actually have rows
+	const shortTermBoxes = ['A', 'B', 'C'].filter(b => (data.boxes[b]?.rows?.length ?? 0) > 0);
+	const longTermBoxes  = ['D', 'E', 'F'].filter(b => (data.boxes[b]?.rows?.length ?? 0) > 0);
+
+	// Merge rows and totals across all populated boxes within each part
+	function mergeBoxes(boxes: string[]) {
+		const rows: Form8949Row[] = boxes.flatMap(b => data.boxes[b]?.rows ?? []);
+		const totals = boxes.reduce((acc, b) => {
+			const t = data.boxes[b]?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+			return { proceeds: acc.proceeds + t.proceeds, basis: acc.basis + t.basis, gainLoss: acc.gainLoss + t.gainLoss };
+		}, { proceeds: 0, basis: 0, gainLoss: 0 });
+		// Use the highest box letter as the "active" box label
+		const activeBox = boxes[boxes.length - 1] ?? '';
+		return { rows, totals, activeBox };
+	}
+
+	const parts: Array<{ part: 'I' | 'II'; label: string; activeBox: string; allBoxes: string[]; rows: Form8949Row[]; totals: { proceeds: number; basis: number; gainLoss: number } }> = [
+		{
+			part: 'I', label: 'Part I — Short-Term Capital Gains and Losses',
+			allBoxes: ['A', 'B', 'C'],
+			...mergeBoxes(shortTermBoxes.length > 0 ? shortTermBoxes : ['C']),
+		},
+		{
+			part: 'II', label: 'Part II — Long-Term Capital Gains and Losses',
+			allBoxes: ['D', 'E', 'F'],
+			...mergeBoxes(longTermBoxes.length > 0 ? longTermBoxes : ['F']),
+		},
+	];
+
+	const boxDescriptions: Record<string, string> = {
+		A: '(A) Basis reported to IRS on 1099-B',
+		B: '(B) Basis NOT reported to IRS on 1099-B',
+		C: '(C) Not reported to you on 1099-B or Form 1099-B not received',
+		D: '(D) Basis reported to IRS on 1099-B',
+		E: '(E) Basis NOT reported to IRS on 1099-B',
+		F: '(F) Not reported to you on 1099-B or Form 1099-B not received',
+	};
+
+	for (const p of parts) {
+		if (p.rows.length === 0) continue;
+
+		const page = document.createElement('div');
+		page.className = 'form-page';
+
+		// IRS header
+		const header = document.createElement('div');
+		header.className = 'irs-header';
+		header.innerHTML = `
+			<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1.5rem;">
+				<div>
+					<p style="font-size:0.7rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:#9ca3af; margin:0 0 4px;">${I18N.irsHeaderBadge}</p>
+					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">${I18N.irsHeaderTitle}</p>
+					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">${I18N.irsHeaderDesc}</p>
+					<p style="font-size:0.75rem; color:#6b7280; margin:0;">${I18N.irsHeaderDisclaimer}</p>
+					${Number(data.year) >= 2025 ? `<p style="font-size:0.75rem; color:#92400e; margin:4px 0 0; max-width:34rem;">${I18N.irsHeaderPooledNote}</p>` : ''}
+				</div>
+				<div style="text-align:right; font-size:0.8rem; color:#374151; white-space:nowrap;">
+					<p style="margin:0 0 3px;"><strong>${I18N.irsHeaderTaxYear}</strong> ${data.year}</p>
+					<p style="margin:0 0 6px;"><strong>${I18N.irsHeaderMethod}</strong> ${data.method.toUpperCase()}</p>
+					<p style="margin:0; font-size:0.7rem; color:#9ca3af;">${I18N.irsHeaderPreparedBy}</p>
+				</div>
+			</div>
+		`;
+		page.appendChild(header);
+
+		// Part label
+		const partLabel = document.createElement('p');
+		partLabel.className = 'part-label';
+		partLabel.textContent = p.label;
+		page.appendChild(partLabel);
+
+		// Box checkboxes
+		const boxRow = document.createElement('div');
+		boxRow.className = 'box-row';
+		for (const b of p.allBoxes) {
+			const checked = b === p.activeBox;
+			boxRow.innerHTML += `
+				<label>
+					<span class="checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>
+					${boxDescriptions[b]}
+				</label>
+			`;
+		}
+		page.appendChild(boxRow);
+
+		// Note about Box C/F for crypto
+		const note = document.createElement('p');
+		note.style.cssText = 'font-size:0.75rem; color:#6b7280; line-height:1.6; margin:0 0 1.5rem; padding:0.6rem 0.875rem; background:#f9fafb; border-left:3px solid #d1d5db; border-radius:0 4px 4px 0;';
+		note.textContent = I18N.boxNoteTemplate.replace('{box}', p.activeBox);
+		page.appendChild(note);
+
+		// Table
+		const table = document.createElement('table');
+		table.innerHTML = `
+			<thead>
+				<tr>
+					<th style="width:18%">(a) Description</th>
+					<th style="width:9%">(b) Date Acquired</th>
+					<th style="width:9%">(c) Date Sold</th>
+					<th style="width:10%; text-align:right">(d) Proceeds</th>
+					<th style="width:10%; text-align:right">(e) Cost Basis</th>
+					<th style="width:5%; text-align:center">(f) Codes</th>
+					<th style="width:8%; text-align:right">(g) Adjustment</th>
+					<th style="width:11%; text-align:right">(h) Gain / (Loss)</th>
+				</tr>
+			</thead>
+			<tbody id="tbody-${p.part}"></tbody>
+			<tfoot>
+				<tr class="totals-row">
+					<td colspan="3" style="font-weight:700">${I18N.totalsPrefix.replace('{box}', p.activeBox)}</td>
+					<td style="text-align:right">${USD(p.totals.proceeds)}</td>
+					<td style="text-align:right">${USD(p.totals.basis)}</td>
+					<td></td>
+					<td></td>
+					<td style="text-align:right">${fmtGain(p.totals.gainLoss)}</td>
+				</tr>
+			</tfoot>
+		`;
+		page.appendChild(table);
+
+		const tbody = table.querySelector(`#tbody-${p.part}`)!;
+		for (const row of p.rows) {
+			const tr = document.createElement('tr');
+			const gainClass = row.gainLoss < 0 ? 'color:#dc2626' : row.gainLoss > 0 ? 'color:#059669' : '';
+			tr.innerHTML = `
+				<td>${row.description}</td>
+				<td>${row.dateAcquired}</td>
+				<td>${row.dateSold}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums">${USD(row.proceeds)}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums">${USD(row.costBasis)}</td>
+				<td style="text-align:center; color:#92400e">${row.codes || ''}</td>
+				<td style="text-align:right">${row.adjustment !== 0 ? USD(row.adjustment) : '—'}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; ${gainClass}">${fmtGain(row.gainLoss)}</td>
+			`;
+			tbody.appendChild(tr);
+		}
+
+		// Row count note
+		const countNote = document.createElement('p');
+		countNote.style.cssText = 'font-size:0.75rem; color:#9ca3af; margin:10px 0 0; text-align:right; letter-spacing:0.01em;';
+		countNote.textContent = `${p.rows.length.toLocaleString()} ${p.rows.length !== 1 ? I18N.rowCountPlural : I18N.rowCountSingular}`;
+		page.appendChild(countNote);
+
+		pagesEl.appendChild(page);
+	}
+}
+
+// ── Diagnostic enrichment for empty state ────────────────────────────────────
+async function populateDiagnostics(year: string, method: string, _totals: { proceeds: number; basis: number; gainLoss: number }) {
+	const ctxEl         = document.getElementById('empty-context')!;
+	const diagPipeline  = document.getElementById('diag-pipeline')!;
+	const diagMissingBuy = document.getElementById('diag-missing-buy')!;
+	const diagNoData    = document.getElementById('diag-no-data')!;
+	const emptyTokens   = document.getElementById('empty-tokens')!;
+	const tokensList    = document.getElementById('empty-tokens-list')!;
+	const actionsEl     = document.querySelector('.empty-state__actions')!;
+
+	try {
+		const res = await fetch(`/api/yearEnd/summary?year=${year}&method=${method}`);
+		if (!res.ok) return;
+		const summary = await res.json() as {
+			ok: boolean;
+			gains?: { dataSource?: string };
+			disposals?: { count?: number };
+			lastPipelineRun?: { status?: string; completedAt?: string | null } | null;
+			missingBasis?: Array<{ asset: string; date: string; qty: number; proceeds: number | null; issue: 'no_cost_basis' | 'no_matching_buy' }>;
+		};
+		if (!summary.ok) return;
+
+		const missingBasis   = summary.missingBasis   ?? [];
+		const disposalCount  = summary.disposals?.count ?? 0;
+		const dataSource     = summary.gains?.dataSource ?? 'lifecycle';
+		const lastRun        = summary.lastPipelineRun ?? null;
+
+		const pipelineRan  = lastRun !== null && dataSource === 'pipeline';
+		const hasNoImports = disposalCount === 0 && missingBasis.length === 0;
+
+		// ── Group issues by asset ────────────────────────────────────────────
+		const assetIssues = new Map<string, { noBuy: number; noBasis: number }>();
+		for (const item of missingBasis) {
+			if (!assetIssues.has(item.asset)) assetIssues.set(item.asset, { noBuy: 0, noBasis: 0 });
+			const entry = assetIssues.get(item.asset)!;
+			if (item.issue === 'no_matching_buy') entry.noBuy++;
+			else entry.noBasis++;
+		}
+		const affectedAssets = Array.from(assetIssues.keys());
+		const totalMissing   = missingBasis.length;
+		const totalNoBuy     = missingBasis.filter(m => m.issue === 'no_matching_buy').length;
+		const totalNoBasis   = missingBasis.filter(m => m.issue === 'no_cost_basis').length;
+
+		// ── Update headline context ──────────────────────────────────────────
+		if (hasNoImports) {
+			ctxEl.textContent = I18N.ctxNoImports.replace('{year}', year);
+		} else if (!pipelineRan) {
+			ctxEl.textContent = I18N.ctxPipelineNotRun.replace('{year}', year);
+		} else if (affectedAssets.length > 0) {
+			const named = affectedAssets.slice(0, 4).join(', ') + (affectedAssets.length > 4 ? ` +${affectedAssets.length - 4} more` : '');
+			const coinWord  = affectedAssets.length === 1 ? I18N.ctxCoinSingular : I18N.ctxCoinPlural;
+			const haveWord  = affectedAssets.length === 1 ? I18N.ctxHasSingular  : I18N.ctxHavePlural;
+			const txWord    = totalMissing   === 1 ? I18N.ctxTxSingular    : I18N.ctxTxPlural;
+			ctxEl.textContent = `${affectedAssets.length}${coinWord} (${named}) ${haveWord} ${totalMissing} ${txWord}. ${I18N.ctxMustFix}`;
+		} else {
+			ctxEl.textContent = I18N.ctxNone.replace('{year}', year);
+		}
+
+		// ── Highlight the relevant diagnostic bullet, dim the others ────────
+		const dim  = (el: HTMLElement) => { el.style.opacity = '0.38'; el.style.textDecoration = 'none'; };
+		const show = (el: HTMLElement) => { el.style.opacity = '1'; };
+
+		if (hasNoImports) {
+			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
+			diagNoData.innerHTML = `<strong>${I18N.diagNoFoundStrong.replace('{year}', year)}</strong>${I18N.diagNoFoundTail}`;
+		} else if (!pipelineRan) {
+			show(diagPipeline); dim(diagMissingBuy); dim(diagNoData);
+			diagPipeline.innerHTML = `<strong>${I18N.diagPipelineNotRunStrong}</strong>${I18N.diagPipelineNotRunText.replace('{year}', year)}`;
+		} else if (totalNoBuy > 0) {
+			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
+			const coinList = affectedAssets.filter(a => (assetIssues.get(a)?.noBuy ?? 0) > 0).slice(0, 3).join(', ');
+			const strong = I18N.diagNoBuyStrong.replace('{n}', String(totalNoBuy)).replace('{s}', totalNoBuy === 1 ? '' : 's');
+			diagMissingBuy.innerHTML = `<strong>${strong}</strong>${I18N.diagNoBuyConnector}${coinList}${I18N.diagNoBuyTail}`;
+		} else if (totalNoBasis > 0) {
+			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
+			const coinList = affectedAssets.slice(0, 3).join(', ');
+			const strong = I18N.diagNoBasisStrong.replace('{n}', String(totalNoBasis)).replace('{s}', totalNoBasis === 1 ? '' : 's');
+			diagMissingBuy.innerHTML = `<strong>${strong}</strong>${I18N.diagNoBasisConnector}${coinList}${I18N.diagNoBasisTail}`;
+		} else {
+			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
+			diagNoData.innerHTML = `<strong>${I18N.diagNoDisposalsStrong.replace('{year}', year)}</strong>${I18N.diagNoDisposalsTail}`;
+		}
+
+		// ── Coin chips ───────────────────────────────────────────────────────
+		if (affectedAssets.length > 0) {
+			tokensList.innerHTML = '';
+			for (const asset of affectedAssets) {
+				const info     = assetIssues.get(asset)!;
+				const hasNoBuy = info.noBuy > 0;
+				const count    = info.noBuy + info.noBasis;
+				const chip     = document.createElement('span');
+				chip.className = `asset-chip asset-chip--${hasNoBuy ? 'no-buy' : 'no-basis'}`;
+				chip.innerHTML =
+					`<strong>${asset}</strong>` +
+					`<span class="chip-badge">${hasNoBuy ? I18N.chipNoBuy : I18N.chipNoPrice}</span>` +
+					(count > 1 ? `<span class="chip-count">×${count}</span>` : '');
+				tokensList.appendChild(chip);
+			}
+			emptyTokens.classList.remove('hidden');
+		}
+
+		// ── Action buttons — reorder and relabel based on what's actually wrong ─
+		const buttons  = Array.from(actionsEl.querySelectorAll<HTMLAnchorElement>('.es-btn'));
+		const [reviewBtn, importBtn, pipelineBtn] = buttons;
+
+		if (hasNoImports) {
+			if (importBtn)   { importBtn.innerHTML   = I18N.importBtnLabel.replace('{year}', year); importBtn.className   = 'es-btn es-btn--primary'; }
+			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineAfterImport; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+		} else if (!pipelineRan) {
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineClassify.replace('{year}', year); pipelineBtn.className = 'es-btn es-btn--primary'; }
+			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		} else if (totalNoBuy > 0) {
+			if (reviewBtn)   { reviewBtn.innerHTML   = I18N.reviewNoBuy.replace('{n}', String(totalNoBuy)).replace('{s}', totalNoBuy === 1 ? '' : 's'); reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineRerunMissing; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		} else if (totalNoBasis > 0) {
+			if (reviewBtn)   { reviewBtn.innerHTML   = I18N.reviewNoBasis.replace('{n}', String(totalNoBasis)).replace('{s}', totalNoBasis === 1 ? '' : 's'); reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineRerunPrices; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		}
+
+	} catch (e) {
+		console.warn('[form8949] populateDiagnostics failed:', e);
+	}
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+document.getElementById('btn-csv')?.addEventListener('click', () => {
+	if (!currentData) return;
+	const allRows: Array<{ box: string } & Form8949Row> = [];
+	for (const [box, b] of Object.entries(currentData.boxes)) {
+		for (const r of b.rows) allRows.push({ box, ...r });
+	}
+	const header = ['Box','Description','Date Acquired','Date Sold','Proceeds','Cost Basis','Codes','Adjustment','Gain/(Loss)','Days Held'];
+	const lines = [
+		header.join(','),
+		...allRows.map(r => [
+			r.box,
+			`"${r.description}"`,
+			r.dateAcquired,
+			r.dateSold,
+			r.proceeds.toFixed(2),
+			r.costBasis.toFixed(2),
+			r.codes,
+			r.adjustment.toFixed(2),
+			r.gainLoss.toFixed(2),
+			r.daysHeld,
+		].join(',')),
+	];
+	const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+	const a = document.createElement('a');
+	a.href = URL.createObjectURL(blob);
+	a.download = `form8949_${currentData.year}_${currentData.method}.csv`;
+	a.click();
+});
+
+// ── TurboTax CSV export ───────────────────────────────────────────────────────
+document.getElementById('btn-turbotax')?.addEventListener('click', () => {
+	if (!currentData) return;
+	const year = (document.getElementById('year-sel') as HTMLSelectElement).value;
+	const a = document.createElement('a');
+	a.href = `/api/yearEnd/breakdown-csv?section=turbotax&year=${year}`;
+	a.download = `turbotax-form8949-${year}.csv`;
+	a.click();
+});
+
+// ── Print ─────────────────────────────────────────────────────────────────────
+document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+
+// ── Load on demand ────────────────────────────────────────────────────────────
+document.getElementById('btn-load')?.addEventListener('click', loadForm8949);
+document.getElementById('year-sel')?.addEventListener('change', loadForm8949);
+document.getElementById('method-sel')?.addEventListener('change', loadForm8949);
+
+// Keep "Open Review Queue" link in sync with the selected year
+function syncReviewLink() {
+	const year = (document.getElementById('year-sel') as HTMLSelectElement)?.value;
+	const link = document.getElementById('btn-review-queue') as HTMLAnchorElement | null;
+	if (link && year) link.href = `/dashboard/yearEnd/review?year=${year}`;
+}
+document.getElementById('year-sel')?.addEventListener('change', syncReviewLink);
+syncReviewLink();
+
+// Auto-load on page open
+loadForm8949();
+</script>

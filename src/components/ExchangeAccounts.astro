@@ -1,0 +1,343 @@
+---
+import './ExchangeAccounts.css';
+import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
+import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
+import { computeHoldings, EARNED_SYMBOL_TITLES, type ImportRow, type Holding } from '@/lib/exchangeHoldings';
+import { loadOwnerIndex, ownerForAccount, type OwnerIndex } from '@/lib/walletIdentity';
+
+const CURRENT_YEAR = String(new Date().getFullYear());
+
+type AccountRow = { id: string; name: string };
+type AccountWithHoldings = AccountRow & { holdings: Holding[] };
+
+type DbRow = Record<string, unknown>;
+
+const toStr = (v: unknown) => (typeof v === 'string' ? v : '');
+const toStrOrNull = (v: unknown) => (typeof v === 'string' ? v : null);
+const toNumOrNull = (v: unknown) => (typeof v === 'number' ? v : null);
+
+const toAccountRow = (row: unknown): AccountRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return { id: toStr(r.id), name: toStr(r.name) };
+};
+
+const toImportRow = (row: unknown): ImportRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		timestamp_utc: toStr(r.timestamp_utc),
+		asset_symbol: toStrOrNull(r.asset_symbol),
+		direction: toStrOrNull(r.direction),
+		currency: toStrOrNull(r.currency),
+		amount: toNumOrNull(r.amount),
+		to_currency: toStrOrNull(r.to_currency),
+		to_amount: toNumOrNull(r.to_amount),
+		native_usd: toNumOrNull(r.native_usd),
+		kind: toStrOrNull(r.kind),
+		description: toStrOrNull(r.description),
+	};
+};
+
+const { source, title } = Astro.props as { source: string; title: string };
+
+let tinError: string | null = null;
+let accountsWithHoldings: AccountWithHoldings[] = [];
+let priceMap: Record<string, number> = {};
+let dataThrough: string | null = null;
+let lastImported: string | null = null;
+let owners: OwnerIndex = { byKey: new Map(), byAddress: new Map() };
+
+try {
+	const session = await requireTenantSession(Astro.request);
+	const tenantId = session?.tenantId ?? '';
+	if (!tenantId) throw new Error('No tenant session');
+
+	const accountsResult = await db.execute({
+		sql: `SELECT id, name FROM exchange_accounts WHERE tenant_id = ? AND source = ? ORDER BY created_at ASC`,
+		args: [tenantId, source],
+	});
+
+	const accounts = accountsResult.rows.map(toAccountRow).filter((r): r is AccountRow => r !== null);
+	const priceSymbols = new Set<string>();
+	// "Whose account is this?" for each card. A failure here shows empty fields, not an error tin.
+	if (accounts.length) {
+		owners = await loadOwnerIndex(tenantId).catch((err) => {
+			console.error(`[ExchangeAccounts] ${source} owner labels:`, err instanceof Error ? err.message : String(err));
+			return owners;
+		});
+	}
+
+	for (const account of accounts) {
+		const txResult = await db.execute({
+			sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+				FROM import_transactions
+				WHERE tenant_id = ? AND source = ? AND account_id = ?
+				ORDER BY timestamp_utc ASC`,
+			args: [tenantId, source, account.id],
+		});
+		const rows = txResult.rows.map(toImportRow).filter((r): r is ImportRow => r !== null);
+		const holdings = computeHoldings(rows);
+		holdings.forEach((h) => priceSymbols.add(h.symbol));
+		accountsWithHoldings.push({ ...account, holdings });
+	}
+
+	if (priceSymbols.size) {
+		const tickers = (await getTickersUSD()) as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+		const syms = new Set(sanitizeSymbols(Array.from(priceSymbols)));
+		for (const t of tickers) {
+			const sym = String(t.symbol ?? '').trim().toUpperCase();
+			// First-seen wins: Coinpaprika sorts by rank, so index 0 is the real BTC,
+			// not a later meme token that happens to share the same symbol.
+			if (syms.has(sym) && !(sym in priceMap) && typeof t.quotes?.USD?.price === 'number') {
+				priceMap[sym] = t.quotes.USD.price;
+			}
+		}
+	}
+
+	const freshnessResult = await db.execute({
+		sql: `SELECT MAX(timestamp_utc) as data_through, MAX(created_at) as last_imported
+		      FROM import_transactions WHERE tenant_id = ? AND source = ?`,
+		args: [tenantId, source],
+	});
+	const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+	dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+	lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+} catch (err) {
+	tinError = err instanceof Error ? err.message : String(err);
+	console.error(`[ExchangeAccounts] ${source} render error:`, err);
+}
+---
+
+<ExchangeTin title={title} class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
+	<button slot="header-actions" type="button" class="exchange-tin__add" data-exchange-add data-exchange-source={source}>
+		Add account
+	</button>
+
+	{tinError ? (
+		<p class="exchange-accounts__error">Temporarily unavailable — try refreshing</p>
+	) : accountsWithHoldings.length ? (
+		<div class="exchange-accounts__list">
+			{accountsWithHoldings.map((account, index) => {
+				const accountIndex = index + 1;
+				return (
+					<ExchangeAccountCard
+						accountId={account.id}
+						accountIndex={accountIndex}
+						name={account.name}
+						source={source}
+						ownerLabel={ownerForAccount(owners, source, account.id)}
+					>
+						{account.holdings.length ? (
+							<div slot="holdings">
+								{account.holdings.map((holding) => {
+									const price = priceMap[holding.symbol] ?? 0;
+									const totalCoins = holding.balance + holding.staked;
+								const usdValue = price > 0 ? totalCoins * price : null;
+									const pnl = price > 0 && holding.costBasis !== null ? usdValue! - holding.costBasis : null;
+									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
+									const daysHeld = (usdValue === null || usdValue > 1) ? formatDaysSince(holding.lastPurchaseAt) : null;
+									const isLongTerm = daysHeld !== null && daysHeld >= 365;
+									return (
+										<div class="exchange-holding">
+											<div class="exchange-holding__row">
+												<span class="exchange-holding__days">
+													{daysHeld === null ? '—' : daysHeld > 999 ? '999+' : `${daysHeld}d`}
+													{daysHeld !== null && (
+														<span class={`exchange-holding__term-badge exchange-holding__term-badge--${isLongTerm ? 'lt' : 'st'}`}>
+															{isLongTerm ? 'LT' : 'ST'}
+														</span>
+													)}
+												</span>
+												<span class="exchange-holding__ticker">
+													{holding.earnedSymbol ? (
+														<abbr class="exchange-holding__earned" title={EARNED_SYMBOL_TITLES[holding.earnedSymbol]}>
+															{holding.symbol} {holding.earnedSymbol}
+														</abbr>
+													) : holding.symbol}
+												</span>
+												<span class="exchange-holding__qty">{formatNumber(totalCoins, { maximumFractionDigits: 4 })} ea</span>
+												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
+												<span class="exchange-holding__usd usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
+												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>{pnl === null ? '—' : formatCurrency(pnl)}</span>
+											</div>
+											{(holding.staked > 0 || holding.stakingYtd > 0) && (
+												<div class="exchange-holding__row exchange-holding__row--staking">
+													{holding.staked > 0 && (
+														<div class="exchange-holding__field exchange-holding__field--numeric">
+															<span class="exchange-holding__label" title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">Staked</span>
+															<span class="exchange-holding__value">
+																{formatNumber(holding.staked, { maximumFractionDigits: 8 })}
+															</span>
+														</div>
+													)}
+													{holding.stakingYtd > 0 && (
+														<div class="exchange-holding__field exchange-holding__field--numeric">
+															<span class="exchange-holding__label" title="Staking rewards earned so far this year. Taxed as ordinary income when received.">⚡ Earned {CURRENT_YEAR}</span>
+															<span class="exchange-holding__value">
+																{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
+																{holding.stakingYtdUsd !== null && (
+																	<span class="exchange-holding__staking-usd"> ({formatCurrency(holding.stakingYtdUsd)})</span>
+																)}
+															</span>
+														</div>
+													)}
+												</div>
+											)}
+										</div>
+									);
+								})}
+							</div>
+						) : null}
+					</ExchangeAccountCard>
+				);
+			})}
+		</div>
+	) : (
+		<p class="exchange-accounts__empty">No accounts yet.</p>
+	)}
+
+	<div class="exchange-legend">
+		<p class="exchange-legend__line">
+			<abbr title="Days held since last purchase — hold 365+ days for the long-term capital gains tax rate">Days</abbr>
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['⚡']}>⚡</abbr> staking reward
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['🪂']}>🪂</abbr> airdrop
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['🎓']}>🎓</abbr> learning reward
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['∞']}>∞</abbr> no purchase on record
+		</p>
+		<p class="exchange-legend__line">
+			<abbr title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">Staked</abbr> = coins locked in staking
+			&nbsp;·&nbsp;
+			<abbr title="Staking rewards earned so far this year. Taxed as ordinary income in the year received.">⚡ Earned</abbr> = rewards received this year
+		</p>
+	</div>
+</ExchangeTin>
+
+<script>
+	if (document.documentElement.dataset.exchangeAccountsInit !== 'true') {
+		document.documentElement.dataset.exchangeAccountsInit = 'true';
+
+		document.addEventListener('click', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement)) return;
+
+			// ── Add account ───────────────────────────────────────────────
+			const addBtn = target.closest('[data-exchange-add]');
+			if (addBtn instanceof HTMLElement) {
+				const source = addBtn.dataset.exchangeSource ?? '';
+				if (!source) return;
+				try {
+					const response = await fetch(`/api/exchanges/${source}/accounts`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({}),
+					});
+					if (!response.ok) throw new Error('Failed to create account.');
+					window.location.reload();
+				} catch (error) {
+					console.error(error);
+				}
+				return;
+			}
+
+			// ── Delete account ────────────────────────────────────────────
+			const delBtn = target.closest('[data-exchange-delete]');
+			if (delBtn instanceof HTMLElement) {
+				const accountId = delBtn.dataset.accountId ?? '';
+				const source = delBtn.dataset.exchangeSource ?? '';
+				if (!accountId || !source) return;
+				if (!confirm('Delete this account and all its imported transactions? This cannot be undone.')) return;
+				try {
+					const response = await fetch(`/api/exchanges/${source}/accounts/delete`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ accountId }),
+					});
+					if (!response.ok) throw new Error('Failed to delete account.');
+					window.location.reload();
+				} catch (error) {
+					console.error(error);
+				}
+			}
+		});
+
+		document.addEventListener(
+			'blur',
+			async (event) => {
+				const target = event.target;
+				if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__input')) {
+					return;
+				}
+				const accountId = target.dataset.accountId ?? '';
+				const source = target.dataset.exchangeSource ?? '';
+				const name = target.value.trim();
+				if (!accountId || !name || !source) return;
+				try {
+					await fetch(`/api/exchanges/${source}/accounts/update`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ accountId, name }),
+					});
+				} catch (error) {
+					console.error(error);
+				}
+			},
+			true,
+		);
+
+		document.addEventListener('submit', async (event) => {
+			const form = event.target;
+			if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__actions')) {
+				return;
+			}
+			event.preventDefault();
+			const status = form.querySelector('.exchange-account__status');
+			const fileInput = form.querySelector('input[type="file"]');
+			const accountId = form.dataset.accountId ?? '';
+			const source = form.dataset.exchangeSource ?? '';
+
+			if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
+				if (status instanceof HTMLElement) status.textContent = 'Select a CSV file first.';
+				return;
+			}
+
+			if (status instanceof HTMLElement) status.textContent = 'Uploading...';
+			const data = new FormData();
+			data.append('file', fileInput.files[0]);
+			data.append('accountId', accountId);
+
+			try {
+				const response = await fetch(`/api/import/${source}`, {
+					method: 'POST',
+					body: data,
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload?.error || 'Upload failed.');
+				}
+				if (status instanceof HTMLElement) {
+					const msg = payload.insertedNormalized === 0
+						? `No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
+						: `✓ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+					status.textContent = msg;
+				}
+				setTimeout(() => window.location.reload(), 3000);
+			} catch (error) {
+				if (status instanceof HTMLElement) {
+					status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+				}
+			}
+		});
+	}
+</script>
+
+

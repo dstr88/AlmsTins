@@ -1,0 +1,73 @@
+---
+import './Tin2Wallet.css';
+import OnchainWalletTransactions from '@/components/dashboard/OnchainWalletTransactions.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
+
+const WALLET_ID = 'fa58b';
+const t = getWalletSyncTin(getLang(Astro.request));
+---
+
+<section class="tin2-wallet" data-wallet-id={WALLET_ID}>
+	<span class="tin2-wallet__status" aria-live="polite"></span>
+
+	<OnchainWalletTransactions walletId={WALLET_ID} title="Wallet — fa58b" />
+</section>
+
+<script is:inline define:vars={{ tin2SyncI18n: { syncingHistory: t.syncingHistory, syncedCount: t.syncedCountTemplate, syncFailed: t.syncFailed } }}>window.__tin2SyncI18n = tin2SyncI18n;</script>
+
+<script>
+	const status = document.querySelector('.tin2-wallet__status');
+	const walletSection = document.querySelector('.tin2-wallet');
+	const WALLET_ID = walletSection?.getAttribute('data-wallet-id');
+
+	const ensureAvalancheChain = async () => {
+		try {
+			if (!WALLET_ID) return;
+			const response = await fetch(`/api/wallets/${WALLET_ID}`);
+			if (!response.ok) return;
+			const wallet = await response.json();
+			const chains = Array.isArray(wallet?.chains) ? wallet.chains : ['ethereum'];
+			const nextChains = [...new Set([...chains, 'polygon', 'avalanche'])];
+			if (nextChains.length === chains.length) return wallet;
+			await fetch(`/api/wallets/${WALLET_ID}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ chains: nextChains }),
+			});
+			return wallet;
+		} catch (error) {
+			console.warn('Failed ensuring avalanche chain for wallet', error);
+		}
+	};
+
+	const autoSync = async () => {
+		if (!status || !WALLET_ID) return;
+		try {
+			const wallet = await ensureAvalancheChain();
+			status.textContent = (window as any).__tin2SyncI18n?.syncingHistory ?? 'Syncing wallet history...';
+			const response = await fetch(`/api/wallets/${WALLET_ID}/sync`, { method: 'POST' });
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(payload?.message || ((window as any).__tin2SyncI18n?.syncFailed ?? 'Sync failed.'));
+			}
+			const address = wallet?.address;
+			if (address) {
+				await fetch(`/api/aave/positions?address=${encodeURIComponent(address)}`);
+				await fetch(`/api/aave/health?address=${encodeURIComponent(address)}`);
+			}
+			status.textContent = ((window as any).__tin2SyncI18n?.syncedCount ?? 'Synced {n} transactions.').replace('{n}', String(payload.totalInserted ?? 0));
+		} catch (error) {
+			status.textContent = error instanceof Error ? error.message : ((window as any).__tin2SyncI18n?.syncFailed ?? 'Sync failed.');
+		}
+	};
+
+	if (document.readyState === 'loading') {
+		window.addEventListener('DOMContentLoaded', () => {
+			void autoSync();
+		}, { once: true });
+	} else {
+		void autoSync();
+	}
+</script>
+

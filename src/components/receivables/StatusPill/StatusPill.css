@@ -1,0 +1,23 @@
+/* StatusPill — presentation only.
+   Markup comes from statusPill.ts (statusPillHtml). Nothing here encodes logic: every state is
+   a class the helper renders. Tones are read from ../ui/tones.css, which fragments.css loads first. */
+
+/* Record pill: was registry .rag / .rag-* (registry.astro L106-119). */
+.rcv-pill.rcv-pill--record { display: inline-flex; align-items: center; gap: .5rem; font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: .34rem .78rem; border-radius: 999px; border: 1px solid var(--border-subtle); white-space: nowrap; }
+.rcv-pill--record .rcv-pill__dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.rcv-pill.rcv-pill--record.rcv-pill--open { color: var(--rcv-gain); background: var(--rcv-gain-bg); border-color: var(--rcv-gain-border); }
+.rcv-pill--open .rcv-pill__dot { background: var(--rcv-gain); box-shadow: 0 0 0 3px var(--rcv-gain-bg); }
+.rcv-pill.rcv-pill--record.rcv-pill--partial { color: var(--rcv-caution); background: var(--rcv-caution-bg); border-color: var(--rcv-caution-border); }
+.rcv-pill--partial .rcv-pill__dot { background: var(--rcv-caution); box-shadow: 0 0 0 3px var(--rcv-caution-bg); }
+.rcv-pill.rcv-pill--record.rcv-pill--full { color: var(--rcv-loss); background: var(--rcv-loss-bg); border-color: var(--rcv-loss-border); }
+.rcv-pill--full .rcv-pill__dot { background: var(--rcv-loss); box-shadow: 0 0 0 3px var(--rcv-loss-bg); }
+.rcv-pill.rcv-pill--record.rcv-pill--settled { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+.rcv-pill--settled .rcv-pill__dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.rcv-pill.rcv-pill--record.rcv-pill--disputed { color: var(--rcv-caution); background: var(--rcv-caution-bg); border-color: var(--rcv-caution-border); }
+.rcv-pill--disputed .rcv-pill__dot { background: var(--rcv-caution); box-shadow: 0 0 0 3px var(--rcv-caution-bg); }
+.rcv-pill.rcv-pill--record.rcv-pill--test { color: var(--rcv-caution); border-color: var(--rcv-caution-border); background: var(--rcv-caution-bg); }
+/* Deliberately no .rcv-pill--test dot rule: the dot keeps its slot and stays transparent, as .rag-test did. */
+
+/* Tag pill: was desk .tpill (desk.astro L221-225) and client .tpill (client.astro L135-139).
+   It sets no display, white-space, line-height or vertical-align, so it stays inline exactly as before. */
+.rcv-pill.rcv-pill--tag { font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--rcv-caution); border: 1px solid var(--rcv-caution-border); background: var(--rcv-caution-bg); border-radius: 99px; padding: .1rem .38rem; }

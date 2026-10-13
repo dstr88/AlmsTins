@@ -1,0 +1,233 @@
+---
+// Account menu for the Verify role desks.
+//
+// Mirrors the dropdown in Layout.astro so the desks feel like the same product: the same
+// pill trigger, the same card, the same identity block, meta rows and sign-out. The desks
+// are standalone pages outside the dashboard chrome, so the markup and the account-*
+// styles are reproduced here rather than inherited.
+//
+// It carries less than the main one by necessity — no avatar upload, alert email, plan or
+// last-login are in scope on these pages — and adds links to the other desks.
+//
+// The milestone desk is private: it is linked only for accounts that already have a project
+// there (checked server-side, per tenant), so nobody else ever receives the link in HTML.
+//
+// One deliberate divergence: the trigger shows the signed-in address rather than the word
+// "Account". On the dashboard you are always yourself, so the label is noise. Here three
+// parties each act from their own account, and which one is on screen is the point.
+import kingSolomon from '@/assets/KingSolomon.png';
+import minerva from '@/assets/Minerva.png';
+import { hasProjects } from '@/lib/cairnRegistry';
+import { DEMO_TENANT_ID } from '@/lib/demo';
+import LogoutButton from '@/components/LogoutButton.astro';
+
+interface Props {
+  tenantId: string;
+  email?: string | null;
+  /** Which desk is showing, so the menu links to the others ('landing' = the /receivables landing). */
+  current: 'client' | 'desk' | 'confirm' | 'project' | 'landing';
+}
+const { tenantId, email = null, current } = Astro.props;
+
+const avatars = [kingSolomon, minerva];
+const avatar = avatars[Math.floor(Math.random() * avatars.length)];
+
+const DESKS = [
+  { key: 'client',  href: '/verify/client',  label: 'Client Portal',  who: 'supplier' },
+  { key: 'desk',    href: '/verify/desk',    label: 'Financing Desk', who: 'financier' },
+  { key: 'confirm', href: '/verify/confirm', label: 'Confirm a debt', who: 'buyer' },
+  { key: 'project', href: '/verify/cairn',   label: 'Milestone Desk', who: 'financier' },
+];
+
+// Fail closed: if the check errors, the private desk is simply not linked. Never for the
+// public demo account.
+const showProjectDesk =
+  current !== 'project' &&
+  tenantId !== DEMO_TENANT_ID &&
+  (await hasProjects(tenantId).catch(() => false));
+const others = DESKS.filter(
+  (d) => d.key !== current && (d.key !== 'project' || showProjectDesk),
+);
+
+// Sign out returns to the sign-in page for the desk they were on.
+// From the public landing, sign-out simply returns to the landing.
+const currentHref = DESKS.find((d) => d.key === current)?.href ?? '/verify/desk';
+const backTo = current === 'landing' ? '/receivables' : `/verify/login?next=${currentHref}`;
+---
+
+<details class="account-menu">
+  <summary class="account-trigger">
+    <img class="account-avatar account-avatar--default" src={avatar.src} alt="Account" />
+    <span class="account-label">{email ?? 'Account'}</span>
+    <span class="account-caret" aria-hidden="true">▾</span>
+  </summary>
+
+  <div class="account-dropdown">
+    <div class="account-identity">
+      <img class="account-avatar account-avatar--lg account-avatar--default" src={avatar.src} alt="" />
+      <div class="account-info">
+        <p class="account-email">{email ?? '—'}</p>
+      </div>
+    </div>
+
+    <hr class="account-divider" />
+
+    <div class="account-meta-block">
+      <div class="account-meta-row">
+        <span class="account-meta-label">Account email</span>
+        <span class="account-meta-value account-meta-email">{email ?? '—'}</span>
+      </div>
+      <div class="account-meta-row">
+        <span class="account-meta-label">Account ID</span>
+        <span class="account-meta-value">
+          <code>{tenantId.slice(0, 8)}&hellip;</code>
+          <button class="copy-btn" type="button" data-copy={tenantId}
+            aria-label="Copy account ID" title="Copy account ID">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+        </span>
+      </div>
+    </div>
+
+    <hr class="account-divider" />
+
+    {others.map((d) => (
+      <a href={d.href} class="account-billing-link">{d.label} <span class="account-desk-who">{d.who}</span></a>
+    ))}
+    <a href="/verify/registry" class="account-billing-link">Public receivable check</a>
+    <a href="/verify/faq" class="account-billing-link">FAQ</a>
+
+    <hr class="account-divider" />
+
+    <LogoutButton class="account-logout" next={backTo}>Log out</LogoutButton>
+  </div>
+</details>
+
+<style>
+  /* Reproduced from Layout.css so the desks match the site chrome. */
+  .account-menu { position: relative; }
+  .account-menu > summary { list-style: none; }
+  .account-menu > summary::-webkit-details-marker { display: none; }
+
+  .account-trigger {
+    display: flex; align-items: center; gap: 0.45rem;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-bright);
+    color: var(--text-secondary);
+    padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+    border-radius: 999px;
+    cursor: pointer; font: inherit; font-size: 0.9rem;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    user-select: none;
+  }
+  .account-trigger:hover,
+  .account-menu[open] .account-trigger {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: var(--border-bright);
+    color: var(--text-primary);
+  }
+
+  .account-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+  .account-avatar--default { object-position: top center; border-radius: 50%; border: 1px solid var(--border-bright); }
+  .account-avatar--lg { width: 44px; height: 44px; flex-shrink: 0; }
+
+  /* The signed-in address is shown on the trigger, not hidden in the dropdown: on these
+     desks each party acts from their own account, and that has to be visible to someone
+     watching a screen rather than one click away. */
+  .account-label {
+    font-weight: 500;
+    max-width: 14rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .account-caret { font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
+  @media (max-width: 640px) { .account-label { max-width: 9rem; } }
+  @media (max-width: 400px) { .account-label { max-width: 6rem; } }
+  .account-menu[open] .account-caret { transform: rotate(180deg); }
+
+  .account-dropdown {
+    position: absolute; top: calc(100% + 0.6rem); right: 0;
+    min-width: 260px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(16px);
+    z-index: 100;
+    animation: dropdown-in 0.15s ease;
+  }
+  @keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .account-identity { display: flex; align-items: center; gap: 0.85rem; }
+  .account-info { min-width: 0; }
+  .account-email {
+    margin: 0; font-size: 0.78rem; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .account-divider { border: none; border-top: 1px solid var(--border-subtle); margin: 0.75rem 0; }
+
+  .account-meta-block { display: flex; flex-direction: column; gap: 0.35rem; }
+  .account-meta-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.5rem; font-size: 0.72rem;
+  }
+  .account-meta-label { color: var(--text-muted); white-space: nowrap; }
+  .account-meta-value {
+    color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem;
+    min-width: 0;
+  }
+  .account-meta-value code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }
+  .account-meta-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .copy-btn {
+    background: transparent; border: none; color: var(--text-muted);
+    cursor: pointer; padding: 0; display: inline-flex; align-items: center;
+  }
+  .copy-btn:hover { color: var(--accent); }
+
+  .account-billing-link {
+    display: flex; align-items: baseline; gap: 0.4rem;
+    padding: 0.4rem 0; font-size: 0.85rem;
+    color: var(--text-secondary); text-decoration: none;
+  }
+  .account-billing-link:hover { color: var(--accent); }
+  .account-desk-who {
+    font-size: 0.68rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  .account-logout {
+    display: block; width: 100%;
+    padding: 0.55rem 0.9rem;
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
+    border-radius: 8px;
+    font: inherit; font-size: 0.875rem; font-weight: 500;
+    cursor: pointer; text-align: center; text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
+</style>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const el = e.currentTarget as HTMLElement;
+      try {
+        await navigator.clipboard.writeText(el.dataset.copy ?? '');
+        el.style.color = 'var(--accent)';
+        setTimeout(() => { el.style.color = ''; }, 1200);
+      } catch { /* clipboard unavailable — the code stays selectable */ }
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('details.account-menu[open]').forEach((d) => {
+      if (!d.contains(e.target as Node)) (d as HTMLDetailsElement).open = false;
+    });
+  });
+</script>

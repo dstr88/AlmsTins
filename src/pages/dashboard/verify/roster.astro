@@ -1,0 +1,60 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import RosterEditor from '../../../components/verify/RosterEditor';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getVerifyRoster } from '@/i18n/dashboard/verifyRoster';
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/verify');
+
+const lang = getLang(Astro.request);
+const t = getVerifyRoster(lang);
+---
+
+<Layout title={t.pageTitle} noindex={true} logoutRedirect="/verify">
+  <div class="dash-page">
+    <header class="rp-topbar">
+      <span class="rp-topbar__brand">{t.brandLabel}</span>
+      <a class="rp-topbar__back" href="/dashboard/verify">{t.backLink}</a>
+    </header>
+
+    <div class="rp-page">
+      <section class="rp-hero">
+        <p class="rp-hero__kicker">{t.heroKicker}</p>
+        <h1 class="rp-hero__title">{t.heroTitle}</h1>
+      </section>
+    </div>
+
+    <RosterEditor client:load t={t} />
+  </div>
+</Layout>
+
+<style>
+  .rp-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; max-width: 36rem; margin: 0 auto; padding: 0 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .rp-topbar__brand {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .rp-topbar__back {
+    font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .rp-topbar__back:hover { color: var(--accent); }
+
+  .rp-page { max-width: 36rem; margin: 0 auto; padding: 3.5rem 1.25rem 0; }
+
+  .rp-hero { text-align: center; }
+  .rp-hero__kicker {
+    margin: 0; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .rp-hero__title {
+    margin: 0.6rem 0 0; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25;
+    font-size: clamp(1.6rem, 2vw + 1.2rem, 2.75rem); color: var(--text-primary);
+  }
+</style>

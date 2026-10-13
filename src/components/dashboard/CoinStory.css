@@ -1,0 +1,130 @@
+.coin-story {
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px solid salmon;
+	border-radius: 12px;
+	padding: var(--space-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+	width: 100%;
+	max-width: 100%;
+	min-height: 0;
+}
+
+.coin-story__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.coin-story__title {
+	margin: 0;
+	font-size: var(--font-lg);
+	line-height: var(--lh-tight);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.coin-story__body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.coin-story__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+	max-height: clamp(20rem, 50vh, 36rem);
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: var(--space-xs);
+}
+
+.tx-row {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: max-content minmax(5ch, 10ch) 11ch max-content max-content;
+	column-gap: clamp(0.5rem, 1vw, 0.9rem);
+	row-gap: 0.5rem;
+	align-items: center;
+	margin-left: 1rem;
+	width: calc(100% - 1rem);
+	padding: 0.65rem 0.85rem;
+	border-radius: 0.75rem;
+	background: rgba(0, 0, 0, 0.18);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	font-variant-numeric: tabular-nums;
+}
+
+.tx-date {
+	justify-self: start;
+	white-space: nowrap;
+}
+
+.tx-desc {
+	justify-self: start;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tx-amt {
+	justify-self: end;
+	display: inline-flex;
+	align-items: baseline;
+}
+
+.tx-amt-value {
+	max-width: 11ch;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.tx-usd {
+	justify-self: end;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.tx-usd-value {
+	text-align: right;
+	white-space: nowrap;
+}
+
+.tx-status {
+	justify-self: end;
+	display: inline-flex;
+	align-items: center;
+}
+
+.tx-status-icon {
+	display: block;
+	height: 1.8rem;
+	width: auto;
+	max-width: 2.4rem;
+	object-fit: contain;
+}
+
+.tx-status-loss {
+	color: var(--loss);
+	font-weight: 700;
+	font-size: 1.1rem;
+	line-height: 1;
+}
+
+.tx-notes {
+	grid-column: 1 / -1;
+	width: 100%;
+	min-height: 2.25rem;
+	resize: vertical;
+	padding: 0.5rem 0.6rem;
+	border-radius: 0.6rem;
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	color: var(--text-primary);
+}

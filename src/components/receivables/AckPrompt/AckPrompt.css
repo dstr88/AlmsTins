@@ -1,0 +1,38 @@
+/* AckPrompt — presentation only.
+   Markup lives in AckPrompt.astro, behavior in ackPrompt.client.ts.
+   Nothing here should encode logic: if a rule depends on state, the state is a
+   class the client script toggles, never a style the script writes inline.
+   The two variants copy each page's former inline prompt value for value. The root sets no
+   display, so [hidden] hides it. */
+@import '../ui/tones.css';
+
+/* Desk: was acceptDiligencePrompt drawn into #c-out with the desk .note metrics (desk L121). */
+.ack--desk .ack__panel { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; }
+/* The desk never defined .note-warn, so its diligence prompt has always drawn with no fill or
+   border. Kept as is (open question: switch to the caution tone later). */
+.ack--desk .ack__panel.ack__panel--loss { background: var(--rcv-loss-bg); border: 1px solid var(--rcv-loss-border); color: var(--text-primary); }
+.ack--desk .ack__row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .6rem; }
+.ack--desk .ack__row.ack__row--confirm { margin-top: .4rem; }
+.ack--desk .ack__method { flex: 0 1 14rem; }
+.ack--desk .ack__note { flex: 1 1 16rem; }
+.ack--desk .ack__fine { font-size: .92rem; line-height: 1.55; color: var(--text-muted); margin: .5rem 0 .9rem; }
+/* Desk buttons keep the page's bare button rule (accent fill). Ghost matches desk button.ghost (L82-83). */
+.ack--desk .ack__btn.ack__btn--ghost { background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+.ack--desk .ack__btn.ack__btn--ghost:hover { background: var(--surface-hover); filter: none; }
+
+/* Registry: was registerClaim drawn into #k-out (.out.show, .note, .field, .row, .btn; L61-102). */
+.ack.ack--registry { margin-top: 1rem; }
+.ack--registry .ack__panel { font-size: .82rem; padding: .7rem .85rem; border-radius: 9px; margin-top: .9rem; color: var(--text-secondary); }
+.ack--registry .ack__panel.ack__panel--caution { background: var(--rcv-caution-bg); border: 1px solid var(--rcv-caution-border); }
+.ack--registry .ack__panel.ack__panel--loss { background: var(--rcv-loss-bg); border: 1px solid var(--rcv-loss-border); }
+.ack--registry .ack__panel b { color: var(--text-primary); }
+.ack--registry .ack__field { margin-bottom: .85rem; }
+.ack--registry .ack__row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .3rem; }
+.ack--registry .ack__btn { appearance: none; border: 1px solid var(--border-bright); background: var(--surface-card-2); color: var(--text-primary); font: inherit; font-size: .9rem; font-weight: 600; padding: .6rem 1rem; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; transition: border-color .15s, background .15s; }
+.ack--registry .ack__btn:hover { border-color: var(--accent-glow); background: var(--surface-hover); }
+.ack--registry .ack__btn.ack__btn--primary { background: var(--accent); border-color: var(--accent); color: var(--surface-bg); }
+.ack--registry .ack__btn.ack__btn--primary:hover { background: var(--accent); border-color: var(--accent-glow); filter: brightness(1.07); }
+.ack--registry .ack__btn:disabled { opacity: .5; cursor: not-allowed; }
+.ack--registry .ack__btn.ack__btn--full { width: 100%; justify-content: center; }
+/* No .ack--registry .ack__fine rule on purpose: the old <p class="sub"> was not a direct child
+   of .card, so `.card > .sub` never matched it (body size, primary text, no margin). */

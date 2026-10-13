@@ -1,0 +1,229 @@
+.imported-files {
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px solid salmon;
+	border-radius: 12px;
+	padding: var(--space-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+	width: 100%;
+	max-width: 100%;
+	min-height: 0;
+}
+
+.imported-files__header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-sm);
+	flex-wrap: wrap;
+}
+
+.imported-files__title {
+	margin: 0;
+	font-size: var(--font-lg);
+	line-height: var(--lh-tight);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.imported-files__balances {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	justify-content: flex-end;
+}
+
+.imported-files__balances-label {
+	font-size: var(--font-sm);
+	text-transform: uppercase;
+	letter-spacing: 0.16em;
+	opacity: 0.7;
+	margin-right: 0.35rem;
+}
+
+.balance-pill {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.35rem;
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	background: rgba(0, 0, 0, 0.2);
+	font-variant-numeric: tabular-nums;
+}
+
+.balance-pill__symbol {
+	font-size: var(--font-sm);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.balance-pill__amount {
+	font-size: var(--font-sm);
+}
+
+.imported-files__body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.imported-files__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+	max-height: clamp(22rem, 55vh, 42rem);
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: var(--space-xs);
+}
+
+.tx-card {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: max-content max-content 11ch 12ch 28px;
+	column-gap: clamp(0.5rem, 1vw, 1rem);
+	row-gap: 0.5rem;
+	align-items: center;
+	padding: 0.65rem 0.85rem;
+	border-radius: 0.75rem;
+	background: rgba(0, 0, 0, 0.18);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	font-variant-numeric: tabular-nums;
+}
+
+.tx-year-divider {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.25rem 0.5rem;
+	opacity: 0.85;
+}
+
+.tx-year-divider__img {
+	height: 1.4rem;
+	width: auto;
+	flex-shrink: 0;
+}
+
+.tx-year-divider__label {
+	font-size: var(--font-sm);
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	opacity: 0.7;
+}
+
+.tx-date {
+	justify-self: start;
+	white-space: nowrap;
+}
+
+.tx-symbol {
+	justify-self: start;
+	white-space: nowrap;
+}
+
+.tx-amount,
+.tx-usd {
+	justify-self: end;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.tx-icon {
+	justify-self: end;
+	width: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.tx-icon-stack {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.35rem;
+}
+
+.tx-icon-img {
+	display: block;
+	height: 1.6rem;
+	width: auto;
+	max-width: 28px;
+	object-fit: contain;
+}
+
+.tx-icon-svg :global(svg) {
+	display: block;
+	height: 1.2rem;
+	width: 1.2rem;
+	fill: var(--loss);
+	stroke: var(--loss);
+}
+
+.tx-more {
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	opacity: 0.7;
+	cursor: pointer;
+	padding: 0;
+}
+
+.tx-details {
+	grid-column: 1 / -1;
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 0.6rem;
+	padding: 0.5rem 0.6rem;
+	font-size: var(--font-sm);
+	opacity: 0.75;
+}
+
+.tx-details-grid {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	column-gap: 0.75rem;
+	row-gap: 0.35rem;
+}
+
+.tx-detail-key {
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	opacity: 0.7;
+}
+
+.tx-detail-val {
+	overflow-wrap: anywhere;
+}
+
+.tx-notes {
+	grid-column: 1 / -1;
+	width: 100%;
+	max-width: 100%;
+	min-height: 2.25rem;
+	resize: vertical;
+	padding: 0.5rem 0.6rem;
+	border-radius: 0.6rem;
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	color: var(--text-primary);
+	white-space: pre-wrap;
+}
+
+.tx-saved {
+	grid-column: 1 / -1;
+	font-size: var(--font-sm);
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.tx-saved.is-visible {
+	opacity: 0.65;
+}

@@ -1,0 +1,170 @@
+.sui-wallet {
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px solid var(--accent);
+	border-radius: 12px;
+	padding: var(--space-md, 1rem);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm, 0.75rem);
+	width: 100%;
+}
+
+.sui-wallet__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.sui-wallet__title-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.sui-wallet__title {
+	margin: 0;
+	font-size: var(--font-lg, 1.1rem);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.sui-wallet__freshness {
+	font-size: 0.68rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	opacity: 0.45;
+}
+
+.sui-wallet__tag {
+	font-size: 0.65rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	padding: 0.2rem 0.5rem;
+	border-radius: 999px;
+	border: 1px solid var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--text-primary);
+}
+
+.sui-wallet__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm, 0.75rem);
+	max-height: clamp(22rem, 55vh, 42rem);
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: var(--space-xs, 0.35rem);
+}
+
+.sui-wallet__empty {
+	opacity: 0.5;
+	font-size: 0.9rem;
+	text-align: center;
+	padding: 1rem 0;
+}
+
+.tx-date-divider {
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	opacity: 0.45;
+	padding: 0.25rem 0;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tx-card {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.65rem 0.85rem;
+	border-radius: 0.75rem;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	font-variant-numeric: tabular-nums;
+}
+
+.txRow {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	width: 100%;
+}
+
+.txRow--amount {
+	justify-content: flex-end;
+}
+
+.txCol--date {
+	flex: 0 0 5.5rem;
+	white-space: nowrap;
+}
+
+.txCol--digest {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	font-family: ui-monospace, monospace;
+	font-size: 0.85rem;
+}
+
+.txCol--dir {
+	flex: 0 0 3.5rem;
+	display: inline-flex;
+	justify-content: flex-end;
+}
+
+.tx-icon-img {
+	display: block;
+	height: 1.6rem;
+	width: auto;
+	max-width: 28px;
+	object-fit: contain;
+}
+
+.txCol--amount {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.15rem;
+}
+
+.tx-label {
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-size: 0.6rem;
+	opacity: 0.7;
+}
+
+.tx-fee {
+	display: flex;
+	gap: 0.5rem;
+	align-items: baseline;
+	font-size: 0.8rem;
+	opacity: 0.6;
+}
+
+.tx-notes {
+	width: 100%;
+	max-width: 100%;
+	min-height: 2.25rem;
+	resize: vertical;
+	padding: 0.5rem 0.6rem;
+	border-radius: 0.6rem;
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	color: var(--text-primary);
+	white-space: pre-wrap;
+}
+
+.tx-saved {
+	font-size: var(--font-sm, 0.8rem);
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.tx-saved.is-visible {
+	opacity: 0.65;
+}

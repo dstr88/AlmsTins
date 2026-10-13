@@ -1,0 +1,75 @@
+---
+import './SolanaWalletTin.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
+type Props = {
+	walletId: string;
+	label: string;
+	address: string;
+};
+
+const { walletId, label, address } = Astro.props as Props;
+const t = getWalletSyncTin(getLang(Astro.request));
+---
+
+<section class="sol-tin" data-wallet-id={walletId} data-address={address}>
+	<div class="sol-tin__header">
+		<span class="sol-tin__label">{label}</span>
+		<span class="sol-tin__address">{address.slice(0, 6)}…{address.slice(-4)}</span>
+	</div>
+	<div class="sol-tin__balance" aria-live="polite">
+		<span class="sol-tin__balance-value" data-sol-balance>—</span>
+		<span class="sol-tin__balance-unit">SOL</span>
+	</div>
+	<div class="sol-tin__controls">
+		<span class="sol-tin__status" aria-live="polite"></span>
+		<button type="button" class="sol-tin__sync-btn">{t.sync}</button>
+	</div>
+</section>
+
+<script is:inline define:vars={{ solSyncI18n: { syncing: t.syncing, syncedNew: t.syncedNewTemplate, syncFailed: t.syncFailed } }}>window.__solSyncI18n = solSyncI18n;</script>
+
+<script>
+	document.querySelectorAll<HTMLElement>('.sol-tin').forEach((tin) => {
+		const walletId = tin.dataset.walletId;
+		const address  = tin.dataset.address;
+		const status   = tin.querySelector<HTMLElement>('.sol-tin__status');
+		const syncBtn  = tin.querySelector<HTMLButtonElement>('.sol-tin__sync-btn');
+		const balanceEl = tin.querySelector<HTMLElement>('[data-sol-balance]');
+
+		const setStatus = (msg: string) => { if (status) status.textContent = msg; };
+
+		const fetchBalance = async () => {
+			if (!address) return;
+			try {
+				const res = await fetch('/api/wallets/' + walletId + '/solana-balances');
+				if (!res.ok) return;
+				const data = await res.json() as { solBalance?: number };
+				if (balanceEl && data.solBalance != null) {
+					balanceEl.textContent = data.solBalance.toLocaleString(undefined, { maximumFractionDigits: 4 });
+				}
+			} catch {
+				// silent — balance is cosmetic
+			}
+		};
+
+		const doSync = async () => {
+			if (!walletId) return;
+			setStatus((window as any).__solSyncI18n?.syncing ?? 'Syncing…');
+			try {
+				const res  = await fetch(`/api/wallets/${walletId}/solana-sync`, { method: 'POST' });
+				const data = await res.json() as { inserted?: number; message?: string };
+				if (!res.ok) throw new Error(data?.message ?? ((window as any).__solSyncI18n?.syncFailed ?? 'Sync failed'));
+				setStatus(((window as any).__solSyncI18n?.syncedNew ?? 'Synced {n} new transactions.').replace('{n}', String(data.inserted ?? 0)));
+				await fetchBalance();
+				setTimeout(() => window.location.reload(), 800);
+			} catch (err) {
+				setStatus(err instanceof Error ? err.message : ((window as any).__solSyncI18n?.syncFailed ?? 'Sync failed.'));
+			}
+		};
+
+		syncBtn?.addEventListener('click', () => void doSync());
+		void fetchBalance();
+	});
+</script>
+

@@ -1,0 +1,85 @@
+.salmon-tin {
+	position: relative;
+	background: var(--surface-card);
+	color: var(--text-secondary);
+	border: 2px solid var(--accent);
+	border-radius: 12px;
+	padding: 2.5rem 1.25rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: visible;
+}
+
+.salmon-tin__label {
+	position: absolute;
+	top: -12px;
+	left: 1rem;
+	background: var(--accent);
+	color: var(--surface-bg);
+	font-weight: 700;
+	font-size: 1rem;
+	padding: 0.4rem 0.8rem;
+	border-radius: 8px;
+	z-index: 2;
+}
+
+.salmon-tin__summary {
+	margin-top: 0.2rem;
+	padding-bottom: 0.5rem;
+}
+
+.salmon-tin__body {
+	position: relative;
+	z-index: 1;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	padding: 0.75rem 0.5rem 1.25rem;
+	box-sizing: border-box;
+	-webkit-overflow-scrolling: touch;
+}
+
+.salmon-tin::before,
+.salmon-tin::after {
+	display: none !important;
+}
+
+/* ── Diver-down corner fold ─────────────────────────────────────── */
+.tin-flag {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 52px;
+	height: 52px;
+	overflow: hidden;
+	border-radius: 0 12px 0 0;
+	z-index: 3;
+	pointer-events: none;
+}
+
+.tin-flag::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 0 52px 52px 0;
+	border-color: transparent var(--flag-color, var(--text-muted)) transparent transparent;
+}
+
+.tin-flag__icon {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	font-size: 0.65rem;
+	color: var(--text-secondary);
+	z-index: 1;
+	line-height: 1;
+	user-select: none;
+}

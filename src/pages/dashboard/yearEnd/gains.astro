@@ -1,0 +1,1691 @@
+---
+/**
+ * /dashboard/yearEnd — Schedule D tax summary
+ *
+ * Shows a high-level breakdown of:
+ *   • Ordinary income   (Aave interest, rebasing rewards — Form 1040 Schedule 1)
+ *   • Disposal proceeds (capital events — Form 8949 / Schedule D)
+ *   • Forced liquidations
+ *   • Unpriced warning  (transactions that still need historical pricing)
+ *
+ * Exact FIFO per-lot gain/loss is computed client-side on the transactions page
+ * and downloaded from there as a Form 8949 CSV.  This page gives the tax-season
+ * overview at a glance.
+ */
+
+import Layout from '../../../layouts/Layout.astro';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getYearEndSummary, isValidSummaryYear, parseSummaryMethod } from '@/lib/yearEndSummary';
+import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getGains } from '@/i18n/dashboard/yearEnd/gains';
+
+// Tax documents are the owner's alone (src/lib/taxAuth.ts). Checked before anything else runs.
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+
+const lang = getLang(Astro.request);
+const t = getGains(lang);
+
+// ── Types ──────────────────────────────────────────────────────────────────
+type AssetIncome = { symbol: string; amount: number; count: number };
+
+type IncomeCategoryRow = {
+	type:    string;
+	label:   string;
+	irsLine: string;
+	count:   number;
+	total:   number;
+};
+
+type WashSaleItem = {
+	asset:             string;
+	disposedAt:        string;
+	lossAmount:        number;
+	triggerAcquiredAt: string;
+	disallowedLoss:    number;
+};
+
+type DefiTypeRow = { type: string; label: string; count: number; totalUsd: number };
+
+type TaxPayload = {
+	ok: boolean;
+	error?: string;
+	year?: number;
+	availableYears?: number[];
+	ordinaryIncome?: {
+		total: number;
+		count: number;
+		byAsset: AssetIncome[];
+		byCategory?: IncomeCategoryRow[];
+		incomeSource?: 'pipeline' | 'lifecycle';
+	};
+	disposals?: {
+		totalProceeds:    number;
+		count:            number;
+		unpricedCount:    number;
+		liquidationCount: number;
+	};
+	unpricedOnchain?: number;
+	gains?: {
+		shortTermGain:  number;
+		longTermGain:   number;
+		netGain:        number;
+		shortTermCount: number;
+		longTermCount:  number;
+		dataSource?:    'pipeline' | 'lifecycle';
+	};
+	byAssetGains?: {
+		asset:   string;
+		stGain:  number;
+		stLots:  number;
+		ltGain:  number;
+		ltLots:  number;
+		netGain: number;
+	}[];
+	lotDetails?: Record<string, Array<{
+		amount:      number;
+		buyDate:     string;
+		sellDate:    string;
+		costUsd:     number | null;
+		proceedsUsd: number | null;
+		gainLossUsd: number | null;
+		daysHeld:    number;
+		term:        'short' | 'long';
+	}>>;
+	harvestLosses?: {
+		asset:              string;
+		totalQty:           number;
+		totalCost:          number;
+		currentPrice:       number | null;
+		currentValue:       number | null;
+		unrealizedGainLoss: number | null;
+		shortTermQty:       number;
+		longTermQty:        number;
+		soonestLotDaysToLT: number | null;
+	}[];
+	missingBasis?: {
+		asset:    string;
+		date:     string;
+		qty:      number;
+		proceeds: number | null;
+		issue:    'no_cost_basis' | 'no_matching_buy';
+		daysHeld: number | null;
+		term:     'short' | 'long' | null;
+	}[];
+	carryLedger?: {
+		year:           number;
+		netGainLoss:    number;
+		deducted:       number;
+		absorbedByGain: number;
+		endingBalance:  number;
+	}[];
+	carryforwardAvailable?: number;
+	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
+	method?: 'fifo' | 'hifo' | 'lifo' | 'spec_id';
+	gainCrossCheck?: {
+		pipelineStGain:  number | null;
+		pipelineLtGain:  number | null;
+		pipelineNet:     number | null;
+		displayedStGain: number;
+		displayedLtGain: number;
+		displayedNet:    number;
+		/** Deprecated alias kept for backwards compat — same as displayedNet */
+		inMemoryNet?:    number;
+		netDiff:         number | null;
+		withinTolerance: boolean | null;
+		disposalCount:   number | null;
+		/** True when both sides read from the pipeline — check is an identity (always passes). */
+		sameSource?:     boolean;
+	};
+	washSaleShadow?: { totalDisallowed: number; items: WashSaleItem[] };
+	defiEvents?: { count: number; byType: DefiTypeRow[] };
+	incomeCrossCheck?: {
+		pipelineTotal:   number | null;
+		displayedTotal:  number;
+		/** Deprecated alias kept for backwards compat — same as displayedTotal */
+		inMemoryTotal?:  number;
+		diff:            number | null;
+		withinTolerance: boolean | null;
+		/** True when both sides read from the pipeline — check is an identity (always passes). */
+		sameSource?:     boolean;
+	};
+	lastPipelineRun?: {
+		startedAt:       string;
+		completedAt:     string | null;
+		status:          string;
+		errorMsg:        string | null;
+		totalClassified: number | null;
+		totalUnknown:    number | null;
+	} | null;
+	pipelineStale?: {
+		stale:           boolean;
+		lastRunAt:       string | null;
+		latestImportAt:  string | null;
+		staleSinceMs:    number | null;
+	} | null;
+};
+
+// ── Fetch data ─────────────────────────────────────────────────────────────
+
+const defaultYear = new Date().getFullYear() - 1; // prior tax year
+const yearParam   = Astro.url.searchParams.get('year');
+const year        = yearParam ? Number(yearParam) : defaultYear;
+const method      = parseSummaryMethod(Astro.url.searchParams.get('method'));
+
+// Built in-process with the session's tenant, the same function /api/yearEnd/summary serves.
+// Not a fetch of our own API: that carried no session cookie and threw on Render (empty 500).
+// Any failure renders the page's error banner instead of a 500.
+let data: TaxPayload = { ok: false };
+try {
+	const session = await requireTenantSession(Astro.request);
+	if (session && isValidSummaryYear(year)) {
+		data = ((await getYearEndSummary(session.tenantId, year, method)) as TaxPayload | null) ?? { ok: false };
+	}
+} catch (err) {
+	console.error('[yearEnd/gains] summary failed:', err);
+}
+
+const payload        = data.ok ? data : null;
+const availableYears = payload?.availableYears ?? [];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+const fmt = (n: number) =>
+	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+const fmtDate = (iso: string) => {
+	try { return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
+	catch { return iso; }
+};
+
+// Accounting notation: losses in parentheses, gains with + prefix
+const fmtGain = (n: number) => {
+	const abs = Math.abs(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+	if (n < 0) return `(${abs})`;
+	if (n > 0) return `+${abs}`;
+	return abs;
+};
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
+
+		<!-- Header + year picker -->
+		<div class="flex items-center justify-between flex-wrap gap-4">
+			<div>
+				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">{t.backLink}</a>
+				<h1 class="text-2xl font-bold">{t.heroTitle}</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					{t.heroSub(year)}
+					{t.heroSubDetail}
+					<a href="/dashboard/transactions" class="underline text-blue-600 hover:text-blue-800">
+						{t.heroSubLinkLabel}
+					</a>.
+				</p>
+			</div>
+
+			<div class="flex items-center flex-wrap gap-3">
+				<!-- Cost basis method toggle -->
+				<div class="flex rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+					<a
+						href={`?year=${year}&method=fifo`}
+						class={`px-3 py-1.5 transition-colors ${method === 'fifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title={t.fifoTitle}
+					>FIFO</a>
+					<a
+						href={`?year=${year}&method=hifo`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'hifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title={t.hifoTitle}
+					>HIFO</a>
+					<a
+						href={`?year=${year}&method=lifo`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'lifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title={t.lifoTitle}
+					>LIFO</a>
+					<a
+						href={`/dashboard/yearEnd/lots?year=${year}&method=${method}`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'spec_id' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title={t.specIdTitle}
+					>Spec ID</a>
+				</div>
+
+				{(method === 'hifo' || method === 'lifo' || method === 'spec_id') && (
+					<span class="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+						{method === 'hifo' ? t.hifoActive :
+						 method === 'lifo' ? t.lifoActive :
+						 t.specIdActive}
+					</span>
+				)}
+
+				{availableYears.length > 0 && (
+					<form id="gains-year-filter" method="get" class="flex items-center gap-2">
+						<input type="hidden" name="method" value={method} />
+						<label for="year-select" class="text-sm font-medium text-gray-700">{t.yearLabel}</label>
+						<select
+							id="year-select"
+							name="year"
+							onchange="this.form.submit()"
+							class="border border-gray-300 rounded-md px-3 py-1.5 text-sm shadow-sm
+							       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						>
+							{availableYears.map((y) => (
+								<option value={y} selected={y === year}>{y}</option>
+							))}
+						</select>
+					</form>
+				)}
+			</div>
+		</div>
+
+		<!-- Completeness compact banner -->
+		<CompletenessScore year={year} compact={true} />
+
+		<!-- API / data error -->
+		{!payload && (
+			<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+				{t.loadError(year)}
+			</div>
+		)}
+
+		{payload && (
+			<>
+				<!-- Unpriced transactions warning -->
+				{(payload.unpricedOnchain ?? 0) > 0 && (
+					<div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="text-sm">
+							<p class="font-semibold text-amber-800">
+								{t.unpricedHeading(payload.unpricedOnchain!)}
+							</p>
+							<p class="text-amber-700 mt-1">
+								{t.unpricedBody}
+								<a href="/dashboard/wallets" class="underline">{t.unpricedWalletsLink}</a>.
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- ST / LT gain cards -->
+				{payload.gains && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">{t.capitalGainsHeading}</h2>
+								<p class="text-xs text-gray-400 mt-0.5">
+									{t.capitalGainsSub(method === 'fifo' ? 'FIFO' : method === 'hifo' ? 'HIFO' : method === 'lifo' ? 'LIFO' : 'Spec ID')}
+								</p>
+							</div>
+							<!-- Data source badge: shows whether gains came from the pipeline or
+							     were re-computed in-memory from lifecycle events -->
+							{payload.gains.dataSource === 'pipeline'
+								? <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium px-2.5 py-1">
+										<span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
+										{t.pipelineBadge}
+									</span>
+								: <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 border border-gray-200 text-gray-500 text-xs font-medium px-2.5 py-1">
+										<span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
+										{t.inMemoryBadge}
+									</span>
+							}
+						</div>
+						<div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+
+							<!-- Short-term -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									{t.shortTermLabel} &nbsp;<span class="normal-case font-normal text-gray-400">{t.shortTermNote}</span>
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.shortTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{fmtGain(payload.gains.shortTermGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									{t.lotCount(payload.gains.shortTermCount)}
+									&nbsp;·&nbsp;{t.shortTermSub}
+								</p>
+							</div>
+
+							<!-- Long-term -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									{t.longTermLabel} &nbsp;<span class="normal-case font-normal text-gray-400">{t.longTermNote}</span>
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.longTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{fmtGain(payload.gains.longTermGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									{t.lotCount(payload.gains.longTermCount)}
+									&nbsp;·&nbsp;{t.longTermSub}
+								</p>
+							</div>
+
+							<!-- Net -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									{t.netRealizedLabel}
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.netGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{fmtGain(payload.gains.netGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									{t.netRealizedSub}
+								</p>
+							</div>
+
+						</div>
+					</div>
+				)}
+
+				<!-- Gain/loss cross-check warning (only shown when sources are different AND diverge) -->
+				{payload.gainCrossCheck?.withinTolerance === false && !payload.gainCrossCheck?.sameSource && (
+					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
+						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-orange-900">
+								{t.gainDivergeHeading}
+							</p>
+							<p class="text-xs text-orange-700">
+								{t.gainDivergeSub(
+									fmtGain(payload.gainCrossCheck.pipelineNet ?? 0),
+									fmtGain(payload.gainCrossCheck.displayedNet ?? payload.gainCrossCheck.inMemoryNet ?? 0),
+									fmtGain(payload.gainCrossCheck.netDiff ?? 0)
+								)}
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Income cross-check warning (only shown when sources differ AND diverge) -->
+				{payload.incomeCrossCheck?.withinTolerance === false && !payload.incomeCrossCheck?.sameSource && (
+					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
+						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-orange-900">
+								{t.incomeDivergeHeading}
+							</p>
+							<p class="text-xs text-orange-700">
+								{t.incomeDivergeSub(
+									fmt(payload.incomeCrossCheck.pipelineTotal ?? 0),
+									fmt(payload.incomeCrossCheck.displayedTotal ?? payload.incomeCrossCheck.inMemoryTotal ?? 0),
+									fmt(Math.abs(payload.incomeCrossCheck.diff ?? 0))
+								)}
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Pipeline run status bar -->
+				{payload.lastPipelineRun && (
+					<div class={`rounded-xl border shadow-sm p-3 flex items-center justify-between gap-3 text-xs ${
+						payload.lastPipelineRun.status === 'failed'
+							? 'border-red-300 bg-red-50 text-red-700'
+							: 'border-gray-200 bg-gray-50 text-gray-500'
+					}`}>
+						<div class="flex items-center gap-2 min-w-0">
+							{payload.lastPipelineRun.status === 'success' && <span class="text-green-600 font-bold">✓</span>}
+							{payload.lastPipelineRun.status === 'failed'  && <span class="text-red-500 font-bold">✗</span>}
+							{payload.lastPipelineRun.status === 'running' && <span class="text-yellow-500 font-bold">↻</span>}
+							<span>
+								{t.pipelineStatus(payload.lastPipelineRun.status)}&nbsp;·&nbsp;
+								{payload.lastPipelineRun.completedAt
+									? new Date(payload.lastPipelineRun.completedAt).toLocaleString(dateLocale)
+									: t.inProgress}
+								{payload.lastPipelineRun.totalClassified != null && (
+									<span class="ml-2 text-gray-400">
+										{t.classified(payload.lastPipelineRun.totalClassified)}
+										{(payload.lastPipelineRun.totalUnknown ?? 0) > 0 && ` · ${t.unknown(payload.lastPipelineRun.totalUnknown!)}`}
+									</span>
+								)}
+							</span>
+							{payload.lastPipelineRun.status === 'failed' && payload.lastPipelineRun.errorMsg && (
+								<span class="text-red-600 font-mono truncate max-w-xs" title={payload.lastPipelineRun.errorMsg}>
+									{payload.lastPipelineRun.errorMsg.slice(0, 80)}
+								</span>
+							)}
+						</div>
+						<button id="run-pipeline-btn-bar"
+						        class="pipeline-run-btn shrink-0 rounded border border-gray-300 hover:border-indigo-400
+						               hover:text-indigo-600 disabled:opacity-50 text-gray-500 text-xs font-medium
+						               px-2.5 py-1 transition-colors bg-white">
+							{t.rerunBtn}
+						</button>
+					</div>
+				)}
+
+				<!-- First-run prompt: pipeline has never run -->
+				{!payload.lastPipelineRun && payload.gains?.dataSource === 'lifecycle' && (
+					<div class="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm p-4 flex items-center justify-between gap-4">
+						<div>
+							<p class="text-sm font-semibold text-indigo-900">{t.firstRunHeading}</p>
+							<p class="text-xs text-indigo-700 mt-0.5">
+								{t.firstRunSub}
+							</p>
+						</div>
+						<button id="run-pipeline-btn-first"
+						        class="pipeline-run-btn shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60
+						               text-white text-sm font-semibold px-4 py-2 transition-colors">
+							{t.runPipelineBtn}
+						</button>
+					</div>
+				)}
+
+				<!-- Stale pipeline warning -->
+				<!-- Only shown when: pipeline has run (we're serving its data) AND
+				     new import data has arrived since the last successful run.      -->
+				{payload.pipelineStale?.stale && payload.gains?.dataSource === 'pipeline' && (
+					<div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex items-start gap-3">
+						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1 flex-1 min-w-0">
+							<p class="text-sm font-semibold text-amber-900">
+								{t.stalePipelineHeading}
+							</p>
+							<p class="text-xs text-amber-700">
+								{t.stalePipelineBody}
+								{payload.pipelineStale.staleSinceMs != null && (() => {
+									const ms   = payload.pipelineStale!.staleSinceMs!;
+									const days = Math.floor(ms / 86_400_000);
+									const hrs  = Math.floor(ms / 3_600_000);
+									return days >= 2 ? t.staleDays(days)
+									     : hrs  >= 1 ? t.staleHours(hrs)
+									     : t.staleRecent;
+								})()}
+								{t.staleAfterPipeline}
+							</p>
+							{payload.pipelineStale.lastRunAt && (
+								<p class="text-xs text-amber-600">
+									{t.staleLastRun} {new Date(payload.pipelineStale.lastRunAt).toLocaleString(dateLocale)}
+									{payload.pipelineStale.latestImportAt && (
+										<> {t.staleLatestImport} {new Date(payload.pipelineStale.latestImportAt).toLocaleString(dateLocale)}</>
+									)}
+								</p>
+							)}
+						</div>
+						<button id="run-pipeline-btn-stale"
+						        class="pipeline-run-btn shrink-0 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-60
+						               text-white text-xs font-semibold px-3 py-2 transition-colors">
+							{t.rerunPipelineBtn}
+						</button>
+					</div>
+				)}
+
+				<!-- Capital Loss Carryforward -->
+				{(payload.carryforwardAvailable ?? 0) > 0 && (
+					<div class="rounded-xl border border-emerald-200 bg-emerald-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-emerald-200 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-emerald-900">{t.carryforwardHeading}</h2>
+								<p class="text-xs text-emerald-700 mt-0.5">{t.carryforwardSub(year)}</p>
+							</div>
+							<div class="text-right">
+								<p class="text-xl font-bold text-emerald-800">{fmtGain(-(payload.carryforwardAvailable ?? 0))}</p>
+								<p class="text-xs text-emerald-600">{t.availableToApply}</p>
+							</div>
+						</div>
+
+						{(payload.carryLedger?.length ?? 0) > 0 && (
+							<table class="min-w-full text-sm">
+								<thead class="bg-emerald-100">
+									<tr>
+										<th class="px-5 py-2.5 text-left  text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColYear}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColNetGain}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColDeducted}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColAbsorbed}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColEnding}</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-emerald-100 bg-white">
+									{payload.carryLedger!.filter(r => r.netGainLoss < 0 || r.absorbedByGain > 0 || r.deducted > 0).map((row) => (
+										<tr class="hover:bg-emerald-50">
+											<td class="px-5 py-3 font-semibold text-gray-700">{row.year}</td>
+											<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.netGainLoss < 0 ? 'text-red-600' : 'text-green-700'}`}>
+												{fmtGain(row.netGainLoss)}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-600">
+												{row.deducted > 0 ? fmtGain(-row.deducted) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-600">
+												{row.absorbedByGain > 0 ? fmtGain(-row.absorbedByGain) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class={`px-5 py-3 text-right font-semibold tabular-nums ${row.endingBalance > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+												{row.endingBalance > 0 ? fmtGain(-row.endingBalance) : '$0'}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						)}
+
+						<div class="px-5 py-3 border-t border-emerald-200 bg-emerald-50">
+							<p class="text-xs text-emerald-700">
+								<strong>{t.carryHowTo(year)}</strong>
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- No carryforward — small note if there were prior loss years -->
+				{(payload.carryforwardAvailable ?? 0) === 0 && (payload.carryLedger?.some(r => r.netGainLoss < 0) ?? false) && (
+					<div class="rounded-lg border border-gray-200 bg-gray-50 px-5 py-3 flex items-center gap-3">
+						<span class="text-gray-400 text-lg">✓</span>
+						<p class="text-xs text-gray-500">
+							{t.noCarryforward(year)}
+						</p>
+					</div>
+				)}
+
+				<!-- Per-asset breakdown (expandable drill-down) -->
+				{(payload.byAssetGains?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">{t.byAssetHeading}</h2>
+								<p class="text-xs text-gray-400 mt-0.5">{t.byAssetSub}</p>
+							</div>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-8"></th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colAsset}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colStGain}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colStLots}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colLtGain}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colLtLots}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colNet}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.byAssetGains!.map((row) => {
+									const lots = payload.lotDetails?.[row.asset] ?? [];
+									const hasLots = lots.length > 0;
+									const rowId = `lots-${row.asset.replace(/[^a-zA-Z0-9]/g, '_')}`;
+									return (
+										<>
+											<!-- Summary row — clickable when lots exist -->
+											<tr class={`asset-summary-row ${hasLots ? 'cursor-pointer hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+											    data-target={rowId}
+											    data-asset={row.asset}>
+												<td class="px-4 py-3 text-center w-8">
+													{hasLots && (
+														<span class="expand-chevron text-gray-400 text-xs select-none transition-transform inline-block">▶</span>
+													)}
+												</td>
+												<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
+												<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.stGain < 0 ? 'text-red-600' : row.stGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+													{row.stLots > 0 ? fmtGain(row.stGain) : <span class="text-gray-300">—</span>}
+												</td>
+												<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
+													{row.stLots > 0 ? row.stLots : <span class="text-gray-300">—</span>}
+												</td>
+												<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.ltGain < 0 ? 'text-red-600' : row.ltGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+													{row.ltLots > 0 ? fmtGain(row.ltGain) : <span class="text-gray-300">—</span>}
+												</td>
+												<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
+													{row.ltLots > 0 ? row.ltLots : <span class="text-gray-300">—</span>}
+												</td>
+												<td class={`px-5 py-3 text-right font-semibold tabular-nums ${row.netGain < 0 ? 'text-red-600' : row.netGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+													{fmtGain(row.netGain)}
+												</td>
+											</tr>
+
+											<!-- Drill-down row (hidden by default) -->
+											{hasLots && (
+												<tr id={rowId} class="lot-detail-row hidden bg-indigo-50/40">
+													<td colspan={7} class="px-0 py-0">
+														<!-- Sub-table header + CSV export -->
+														<div class="flex items-center justify-between px-6 pt-3 pb-1.5">
+															<span class="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+																{t.assetDisposals(row.asset, lots.length)}
+															</span>
+															<button class="csv-export-btn text-xs text-indigo-500 hover:text-indigo-700 font-medium
+															               border border-indigo-200 hover:border-indigo-400 rounded px-2 py-0.5
+															               transition-colors"
+															        data-asset={row.asset}>
+																{t.csvBtn}
+															</button>
+														</div>
+														<!-- Individual lot table -->
+														<div class="overflow-x-auto">
+															<table class="min-w-full text-xs border-t border-indigo-100">
+																<thead>
+																	<tr class="bg-indigo-50 text-indigo-600">
+																		<th class="px-6 py-2 text-left font-medium uppercase tracking-wide">{t.lotColSold}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColQty}</th>
+																		<th class="px-4 py-2 text-left font-medium uppercase tracking-wide">{t.lotColAcquired}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColHeld}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColProceeds}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColCostBasis}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColGainLoss}</th>
+																		<th class="px-4 py-2 text-center font-medium uppercase tracking-wide">{t.lotColTerm}</th>
+																	</tr>
+																</thead>
+																<tbody class="divide-y divide-indigo-100/60">
+																	{lots.map((lot) => (
+																		<tr class="hover:bg-indigo-50/60">
+																			<td class="px-6 py-2 text-gray-700 whitespace-nowrap">{fmtDate(lot.sellDate)}</td>
+																			<td class="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
+																				{lot.amount.toLocaleString(dateLocale, { maximumFractionDigits: 8 })}
+																			</td>
+																			<td class="px-4 py-2 text-gray-500 whitespace-nowrap">{fmtDate(lot.buyDate)}</td>
+																			<td class="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{lot.daysHeld}d</td>
+																			<td class="px-4 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+																				{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : <span class="text-gray-300">—</span>}
+																			</td>
+																			<td class="px-4 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
+																				{lot.costUsd != null ? fmt(lot.costUsd) : <span class="text-gray-300">—</span>}
+																			</td>
+																			<td class={`px-4 py-2 text-right tabular-nums font-medium whitespace-nowrap ${
+																				lot.gainLossUsd == null ? 'text-gray-300' :
+																				lot.gainLossUsd < 0 ? 'text-red-600' : 'text-green-700'
+																			}`}>
+																				{lot.gainLossUsd != null ? fmtGain(lot.gainLossUsd) : '—'}
+																			</td>
+																			<td class="px-4 py-2 text-center whitespace-nowrap">
+																				<span class={`inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+																					lot.term === 'long'
+																						? 'bg-green-100 text-green-700'
+																						: 'bg-amber-100 text-amber-700'
+																				}`}>
+																					{lot.term === 'long' ? t.termLong : t.termShort}
+																				</span>
+																			</td>
+																		</tr>
+																	))}
+																</tbody>
+																<!-- Sub-total row -->
+																<tfoot>
+																	<tr class="bg-indigo-50 font-semibold border-t border-indigo-200">
+																		<td class="px-6 py-2 text-indigo-700">{t.lotSubtotal}</td>
+																		<td class="px-4 py-2"></td>
+																		<td class="px-4 py-2"></td>
+																		<td class="px-4 py-2"></td>
+																		<td class="px-4 py-2 text-right tabular-nums text-indigo-700">
+																			{fmt(lots.reduce((s, l) => s + (l.proceedsUsd ?? 0), 0))}
+																		</td>
+																		<td class="px-4 py-2 text-right tabular-nums text-indigo-700">
+																			{fmt(lots.reduce((s, l) => s + (l.costUsd ?? 0), 0))}
+																		</td>
+																		<td class={`px-4 py-2 text-right tabular-nums ${row.netGain < 0 ? 'text-red-600' : 'text-green-700'}`}>
+																			{fmtGain(row.netGain)}
+																		</td>
+																		<td class="px-4 py-2"></td>
+																	</tr>
+																</tfoot>
+															</table>
+														</div>
+														<div class="h-3"></div>
+													</td>
+												</tr>
+											)}
+										</>
+									);
+								})}
+								<!-- Totals row -->
+								<tr class="bg-gray-50 font-semibold border-t-2 border-gray-200">
+									<td class="px-4 py-3"></td>
+									<td class="px-5 py-3 text-gray-700">{t.colTotal}</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.shortTermGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.shortTermGain ?? 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-gray-500">{payload.gains?.shortTermCount}</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.longTermGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.longTermGain ?? 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-gray-500">{payload.gains?.longTermCount}</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.netGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.netGain ?? 0)}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				)}
+
+				<!-- Tax-loss harvesting -->
+				{(payload.harvestLosses?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-amber-200 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-amber-900">{t.harvestHeading}</h2>
+								<p class="text-xs text-amber-700 mt-0.5">{t.harvestSub}</p>
+							</div>
+							<span class="text-xs text-amber-600 font-medium">{t.harvestCount(payload.harvestLosses!.length)}</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-amber-100">
+								<tr>
+									<th class="px-5 py-2.5 text-left   text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColAsset}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColQty}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColCost}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColValue}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColLoss}</th>
+									<th class="px-5 py-2.5 text-center text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColTerm}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColDaysToLt}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-amber-100 bg-white">
+								{payload.harvestLosses!.map((row) => {
+									const termLabel = row.longTermQty > 0 && row.shortTermQty > 0
+										? t.termMixed
+										: row.longTermQty > 0 ? 'Long' : 'Short';
+									const termColor = termLabel === 'Long'
+										? 'text-green-700 bg-green-50'
+										: termLabel === 'Short'
+											? 'text-amber-700 bg-amber-50'
+											: 'text-purple-700 bg-purple-50';
+									return (
+										<tr class="hover:bg-amber-50">
+											<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
+											<td class="px-5 py-3 text-right text-gray-600 tabular-nums">
+												{row.totalQty.toLocaleString(dateLocale, { maximumFractionDigits: 6 })}
+											</td>
+											<td class="px-5 py-3 text-right text-gray-700 tabular-nums">{fmt(row.totalCost)}</td>
+											<td class="px-5 py-3 text-right text-gray-700 tabular-nums">
+												{row.currentValue !== null ? fmt(row.currentValue) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3 text-right font-semibold text-red-600 tabular-nums">
+												{row.unrealizedGainLoss !== null ? fmtGain(row.unrealizedGainLoss) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3 text-center">
+												<span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${termColor}`}>
+													{termLabel}
+												</span>
+											</td>
+											<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
+												{termLabel === 'Long'
+													? <span class="text-green-600 font-medium">{t.harvestLtCheck}</span>
+													: row.soonestLotDaysToLT !== null
+														? `${row.soonestLotDaysToLT}d`
+														: '—'
+												}
+											</td>
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 border-t border-amber-200 bg-amber-50">
+							<p class="text-xs text-amber-700">
+								{t.harvestNote}
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Missing cost basis report -->
+				{(payload.missingBasis?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-red-200 bg-red-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-red-200 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-red-900">{t.missingBasisHeading}</h2>
+								<p class="text-xs text-red-700 mt-0.5">{t.missingBasisSub}</p>
+							</div>
+							<span class="text-xs text-red-600 font-semibold bg-red-100 px-2 py-0.5 rounded-full">
+								{t.missingBasisCount(payload.missingBasis!.length)}
+							</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-red-100">
+								<tr>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColAsset}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColDisposed}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColQty}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColProceeds}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColTerm}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColProblem}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColFix}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-red-100 bg-white">
+								{payload.missingBasis!.map((row) => {
+									const isOrphan = row.issue === 'no_matching_buy';
+									return (
+										<tr class="hover:bg-red-50">
+											<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
+											<td class="px-5 py-3 text-gray-600">{fmtDate(row.date)}</td>
+											<td class="px-5 py-3 text-right text-gray-600 tabular-nums">
+												{row.qty.toLocaleString(dateLocale, { maximumFractionDigits: 6 })}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-700">
+												{row.proceeds !== null ? fmt(row.proceeds) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3">
+												{row.term
+													? <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${row.term === 'long' ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
+														{row.term === 'long' ? t.termLong : t.termShort}
+													</span>
+													: <span class="text-gray-300 text-xs">{t.termUnknown}</span>
+												}
+											</td>
+											<td class="px-5 py-3">
+												{isOrphan
+													? <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-100">{t.issueNoMatchingBuy}</span>
+													: <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-orange-700 bg-orange-50">{t.issueBuyNoPrice}</span>
+												}
+											</td>
+											<td class="px-5 py-3 text-xs text-gray-500">
+												{isOrphan
+													? <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">{t.fixFindBookkeeping}</a>
+													: <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">{t.fixEnterCost}</a>
+												}
+											</td>
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 border-t border-red-200 bg-red-50">
+							<p class="text-xs text-red-700">
+								{t.missingImpact}
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Estimated Tax Liability -->
+				<div
+					id="tax-estimator"
+					class="rounded-xl border border-indigo-200 bg-white shadow-sm overflow-hidden"
+					data-st-gain={payload.gains?.shortTermGain ?? 0}
+					data-lt-gain={payload.gains?.longTermGain ?? 0}
+					data-ordinary-income={payload.ordinaryIncome?.total ?? 0}
+					data-year={year}
+				>
+					<div class="px-5 py-3 border-b border-indigo-100 flex items-center justify-between">
+						<div>
+							<h2 class="text-sm font-semibold text-indigo-900">{t.estimatorHeading}</h2>
+							<p class="text-xs text-indigo-600 mt-0.5">
+								{t.estimatorSub(year, method.toUpperCase())}
+							</p>
+						</div>
+						<span class="text-xs text-indigo-400 font-medium">{t.estimatorDisclaimer}</span>
+					</div>
+
+					<!-- Inputs -->
+					<div class="px-5 py-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50">
+						<div>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">{t.labelFilingStatus}</label>
+							<select id="est-filing-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+								<option value="single">{t.optSingle}</option>
+								<option value="mfj">{t.optMfj}</option>
+								<option value="mfs">{t.optMfs}</option>
+								<option value="hoh">{t.optHoh}</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">
+								{t.labelOtherIncome}
+							</label>
+							<div class="relative">
+								<span class="absolute left-3 top-2 text-gray-400 text-sm">$</span>
+								<input
+									id="est-other-income"
+									type="number"
+									min="0"
+									step="1000"
+									value="0"
+									class="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+								/>
+							</div>
+						</div>
+						<div>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">{t.labelState}</label>
+							<select id="est-state" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+								<option value="none">No state income tax</option>
+								<option value="AL">Alabama (5.0%)</option>
+								<option value="AK">Alaska (0%)</option>
+								<option value="AZ">Arizona (2.5%)</option>
+								<option value="AR">Arkansas (4.4%)</option>
+								<option value="CA">California (13.3%)</option>
+								<option value="CO">Colorado (4.4%)</option>
+								<option value="CT">Connecticut (6.99%)</option>
+								<option value="DE">Delaware (6.6%)</option>
+								<option value="FL">Florida (0%)</option>
+								<option value="GA">Georgia (5.49%)</option>
+								<option value="HI">Hawaii (11.0%)</option>
+								<option value="ID">Idaho (5.8%)</option>
+								<option value="IL">Illinois (4.95%)</option>
+								<option value="IN">Indiana (3.05%)</option>
+								<option value="IA">Iowa (5.7%)</option>
+								<option value="KS">Kansas (5.7%)</option>
+								<option value="KY">Kentucky (4.5%)</option>
+								<option value="LA">Louisiana (6.0%)</option>
+								<option value="ME">Maine (7.15%)</option>
+								<option value="MD">Maryland (5.75%)</option>
+								<option value="MA">Massachusetts (5.0%)</option>
+								<option value="MI">Michigan (4.25%)</option>
+								<option value="MN">Minnesota (9.85%)</option>
+								<option value="MS">Mississippi (5.0%)</option>
+								<option value="MO">Missouri (4.8%)</option>
+								<option value="MT">Montana (6.75%)</option>
+								<option value="NE">Nebraska (6.64%)</option>
+								<option value="NV">Nevada (0%)</option>
+								<option value="NH">New Hampshire (0%)</option>
+								<option value="NJ">New Jersey (10.75%)</option>
+								<option value="NM">New Mexico (5.9%)</option>
+								<option value="NY">New York (10.9%)</option>
+								<option value="NC">North Carolina (4.75%)</option>
+								<option value="ND">North Dakota (2.9%)</option>
+								<option value="OH">Ohio (3.5%)</option>
+								<option value="OK">Oklahoma (4.75%)</option>
+								<option value="OR">Oregon (9.9%)</option>
+								<option value="PA">Pennsylvania (3.07%)</option>
+								<option value="RI">Rhode Island (5.99%)</option>
+								<option value="SC">South Carolina (6.4%)</option>
+								<option value="SD">South Dakota (0%)</option>
+								<option value="TN">Tennessee (0%)</option>
+								<option value="TX">Texas (0%)</option>
+								<option value="UT">Utah (4.65%)</option>
+								<option value="VT">Vermont (8.75%)</option>
+								<option value="VA">Virginia (5.75%)</option>
+								<option value="WA">Washington (7% on LT gains &gt;$262K)</option>
+								<option value="WV">West Virginia (6.5%)</option>
+								<option value="WI">Wisconsin (7.65%)</option>
+								<option value="WY">Wyoming (0%)</option>
+								<option value="DC">Washington DC (10.75%)</option>
+							</select>
+						</div>
+					</div>
+
+					<!-- Output -->
+					<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estStFederal}</p>
+							<p id="est-st-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p id="est-st-rate" class="text-xs text-gray-500">{t.estMarginalRate}</p>
+						</div>
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estLtFederal}</p>
+							<p id="est-lt-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p id="est-lt-rate" class="text-xs text-gray-500">{t.estCapGainsRate}</p>
+						</div>
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estCryptoIncome}</p>
+							<p id="est-income-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p class="text-xs text-gray-500">{t.estCryptoIncomeSub}</p>
+						</div>
+						<div id="est-niit-cell" class="p-5 space-y-1 hidden">
+							<p class="text-xs font-semibold uppercase tracking-wide text-orange-500">{t.estNiit}</p>
+							<p id="est-niit-tax" class="text-2xl font-bold text-orange-700">—</p>
+							<p class="text-xs text-orange-500">{t.estNiitSub}</p>
+						</div>
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-teal-600">{t.estStateTax}</p>
+							<p id="est-state-tax" class="text-2xl font-bold text-teal-700">—</p>
+							<p id="est-state-rate" class="text-xs text-teal-500">{t.estTopMarginal}</p>
+						</div>
+						<div class="p-5 space-y-1 bg-indigo-50">
+							<p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{t.estTotal}</p>
+							<p id="est-total-tax" class="text-2xl font-bold text-indigo-900">—</p>
+							<p class="text-xs text-indigo-500">{t.estTotalSub}</p>
+						</div>
+					</div>
+
+					<!-- NIIT warning banner — shown/hidden by JS -->
+					<div id="est-niit-banner" class="hidden px-5 py-3 border-t border-orange-200 bg-orange-50">
+						<p class="text-xs text-orange-800">
+							{t.niitBanner}
+						</p>
+					</div>
+
+					<div class="px-5 py-3 border-t border-gray-100 bg-gray-50">
+						<p class="text-xs text-gray-400">
+							{t.estimatorFootnote(year)}
+						</p>
+					</div>
+				</div>
+
+				<!-- Summary cards -->
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+					<!-- Ordinary Income -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							{t.ordinaryIncomeLabel}
+						</p>
+						<p class="text-2xl font-bold text-gray-900">
+							{fmt(payload.ordinaryIncome?.total ?? 0)}
+						</p>
+						<p class="text-xs text-gray-500">
+							{t.ordinaryIncomeSub(payload.ordinaryIncome?.count ?? 0)}
+						</p>
+					</div>
+
+					<!-- Disposal Proceeds -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							{t.disposalProceedsLabel}
+						</p>
+						<p class="text-2xl font-bold text-gray-900">
+							{fmt(payload.disposals?.totalProceeds ?? 0)}
+						</p>
+						<p class="text-xs text-gray-500">
+							{t.disposalsSub(payload.disposals?.count ?? 0)}
+						</p>
+					</div>
+
+					<!-- Forced Liquidations -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							{t.forcedLiquidationsLabel}
+						</p>
+						<p class={`text-2xl font-bold ${
+							(payload.disposals?.liquidationCount ?? 0) > 0
+								? 'text-red-600'
+								: 'text-gray-900'
+						}`}>
+							{payload.disposals?.liquidationCount ?? 0}
+						</p>
+						<p class="text-xs text-gray-500">
+							{t.forcedLiquidationsSub}
+						</p>
+					</div>
+
+				</div>
+
+				<!-- Ordinary Income breakdown — by income type (pipeline-powered) -->
+				{(payload.ordinaryIncome?.byCategory?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">{t.incomeByTypeHeading}</h2>
+								<p class="text-xs text-gray-400 mt-0.5">{t.incomeByTypeSub}</p>
+							</div>
+							<span class="text-xs text-gray-400">{t.incomeByTypeFormRef}</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColType}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColIrsLine}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColEvents}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColTotal}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.ordinaryIncome!.byCategory!.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-medium text-gray-800">{row.label}</td>
+										<td class="px-5 py-3 text-xs text-gray-500 font-mono">{row.irsLine}</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">{fmt(row.total)}</td>
+									</tr>
+								))}
+								<tr class="bg-gray-50 font-semibold">
+									<td class="px-5 py-3 text-gray-700" colspan="2">{t.colTotal}</td>
+									<td class="px-5 py-3 text-right text-gray-500">
+										{payload.ordinaryIncome!.byCategory!.reduce((s, r) => s + r.count, 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-green-700">
+										{fmt(payload.ordinaryIncome!.byCategory!.reduce((s, r) => s + r.total, 0))}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				)}
+
+				<!-- Ordinary Income breakdown by asset (fallback / supplemental) -->
+				{(payload.ordinaryIncome?.byAsset?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">
+									{t.incomeByAssetHeading}
+								</h2>
+								{(payload.ordinaryIncome as any)?.incomeSource === 'pipeline' ? (
+									<p class="text-xs text-indigo-500 mt-0.5">{t.incomeByAssetPipeline}</p>
+								) : (
+									<p class="text-xs text-gray-400 mt-0.5">{t.incomeByAssetLifecycle}</p>
+								)}
+							</div>
+							<span class="text-xs text-gray-400">{t.incomeByAssetFormRef}</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+										{t.incomeColAsset}
+									</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
+										{t.incomeColEvents}
+									</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
+										{t.incomeColTotal}
+									</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.ordinaryIncome!.byAsset.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-mono font-medium text-gray-800">
+											{row.symbol}
+										</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">
+											{fmt(row.amount)}
+										</td>
+									</tr>
+								))}
+								<tr class="bg-gray-50 font-semibold">
+									<td class="px-5 py-3 text-gray-700">{t.colTotal}</td>
+									<td class="px-5 py-3 text-right text-gray-500">
+										{payload.ordinaryIncome!.count}
+									</td>
+									<td class="px-5 py-3 text-right text-green-700">
+										{fmt(payload.ordinaryIncome!.total)}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				)}
+
+				<!-- Disposals missing prices warning -->
+				{(payload.disposals?.unpricedCount ?? 0) > 0 && (
+					<div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+						{payload.disposals!.unpricedCount !== 1
+							? t.unpricedDisposals(payload.disposals!.unpricedCount, year)
+							: t.unpricedDisposalsSingular(payload.disposals!.unpricedCount, year)}
+						<a href="/dashboard/transactions" class="underline font-medium">
+							{t.unpricedDisposalsLink}
+						</a>
+						and use the FIFO export to review and fill in missing cost basis manually.
+					</div>
+				)}
+
+				<!-- No taxable activity message -->
+				{(payload.ordinaryIncome?.total ?? 0) === 0 &&
+				 (payload.disposals?.count ?? 0) === 0 && (
+					<div class="rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 text-center">
+						{t.noTaxableEvents(year)}
+						{t.noTaxableEventsSub}
+					</div>
+				)}
+
+				<!-- Wash Sale Shadow Tracker -->
+				{(payload.washSaleShadow?.items?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-amber-200 flex items-start justify-between gap-4">
+							<div>
+								<h2 class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+									<span>{t.washSaleHeading}</span>
+									<span class="text-xs font-normal bg-amber-200 text-amber-800 rounded-full px-2 py-0.5">{t.washSaleShadowBadge}</span>
+								</h2>
+								<p class="text-xs text-amber-700 mt-0.5">
+									{t.washSaleSubheading}
+								</p>
+							</div>
+							<div class="text-right shrink-0">
+								<p class="text-lg font-bold text-amber-800">{fmt(payload.washSaleShadow!.totalDisallowed)}</p>
+								<p class="text-xs text-amber-600">{t.washSaleWouldBe}</p>
+							</div>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-amber-100/60">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColAsset}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColSaleDate}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColLoss}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColTrigger}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColWouldDisallow}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-amber-100">
+								{payload.washSaleShadow!.items.map((item) => (
+									<tr class="hover:bg-amber-50/80">
+										<td class="px-5 py-3 font-mono font-medium text-gray-800">{item.asset}</td>
+										<td class="px-5 py-3 text-gray-600">{fmtDate(item.disposedAt)}</td>
+										<td class="px-5 py-3 text-right text-red-700 font-semibold">{fmtGain(item.lossAmount)}</td>
+										<td class="px-5 py-3 text-gray-600">{fmtDate(item.triggerAcquiredAt)}</td>
+										<td class="px-5 py-3 text-right text-amber-800 font-semibold">{fmt(item.disallowedLoss)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">
+							{t.washFootnote}
+						</div>
+					</div>
+				)}
+
+				<!-- DeFi Events -->
+				{(payload.defiEvents?.count ?? 0) > 0 && (
+					<div class="rounded-xl border border-violet-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-violet-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-violet-900">{t.defiHeading}</h2>
+								<p class="text-xs text-gray-500 mt-0.5">
+									{t.defiSub}
+								</p>
+							</div>
+							<a href={`/dashboard/yearEnd/review?year=${year}`}
+							   class="text-xs text-violet-600 hover:text-violet-800 font-medium underline">
+								{t.defiReviewLink}
+							</a>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColType}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColEvents}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColTotal}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColTax}</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.defiEvents!.byType.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-medium text-gray-800">{row.label}</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">
+											{row.totalUsd > 0 ? fmt(row.totalUsd) : '—'}
+										</td>
+										<td class="px-5 py-3 text-xs text-gray-500">
+											{row.type === 'lp-deposit'    && t.defiLpDeposit}
+											{row.type === 'lp-withdrawal' && t.defiLpWithdrawal}
+											{row.type === 'rebase-income' && t.defiRebaseIncome}
+											{row.type === 'wrapped-swap'  && t.defiWrappedSwap}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
+							{t.defiFootnote}
+							<a href={`/dashboard/yearEnd/review?year=${year}`} class="underline">{t.defiReviewQueueLink}</a>
+							to confirm or override each transaction.
+						</div>
+					</div>
+				)}
+
+				<!-- Year-over-year chart -->
+				{(payload.yoyRows?.length ?? 0) > 1 && (() => {
+					const rows = payload.yoyRows!;
+					const maxAbs = Math.max(...rows.map(r => Math.abs(r.netGain)), 1);
+					const BAR_H = 28;
+					const LABEL_W = 48;
+					const VALUE_W = 88;
+					const CHART_W = 400;
+					const SVG_W = LABEL_W + CHART_W + VALUE_W;
+					const SVG_H = rows.length * (BAR_H + 6) + 24;
+					const midX = LABEL_W + CHART_W / 2;
+
+					return (
+						<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+							<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+								<h2 class="text-sm font-semibold text-gray-700">Year-over-Year Realized Gains</h2>
+								<span class="text-xs text-gray-400">ST + LT net · FIFO</span>
+							</div>
+							<div class="px-5 py-4 overflow-x-auto">
+								<svg
+									width={SVG_W}
+									height={SVG_H}
+									viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+									style="font-family: system-ui, sans-serif; display:block; max-width:100%;"
+								>
+									{/* centre line */}
+									<line x1={midX} y1={0} x2={midX} y2={SVG_H - 16} stroke="#e5e7eb" stroke-width="1" />
+
+									{rows.map((r, i) => {
+										const y = i * (BAR_H + 6) + 4;
+										const isGain = r.netGain >= 0;
+										const barW = Math.max(2, (Math.abs(r.netGain) / maxAbs) * (CHART_W / 2 - 4));
+										const barX = isGain ? midX : midX - barW;
+										const fill = isGain ? '#15803d' : '#b91c1c';
+										const valStr = r.netGain === 0 ? '$0'
+											: r.netGain > 0
+												? `+$${(r.netGain / 1000).toFixed(1)}k`
+												: `($${(Math.abs(r.netGain) / 1000).toFixed(1)}k)`;
+
+										return (
+											<g key={r.year}>
+												{/* year label */}
+												<text x={LABEL_W - 6} y={y + BAR_H / 2 + 5} text-anchor="end" font-size="12" fill="#6b7280">{r.year}</text>
+												{/* bar */}
+												<rect x={barX} y={y} width={barW} height={BAR_H} rx="3" fill={fill} opacity="0.85" />
+												{/* value */}
+												<text
+													x={isGain ? midX + barW + 6 : midX - barW - 6}
+													y={y + BAR_H / 2 + 5}
+													text-anchor={isGain ? 'start' : 'end'}
+													font-size="12"
+													font-weight="600"
+													fill={fill}
+												>{valStr}</text>
+											</g>
+										);
+									})}
+
+									{/* axis label */}
+									<text x={midX} y={SVG_H - 2} text-anchor="middle" font-size="10" fill="#9ca3af">{t.yoyAxisLabel}</text>
+								</svg>
+							</div>
+						</div>
+					);
+				})()}
+
+				<!-- Form 8949 CTA -->
+				<div class="rounded-xl border border-blue-100 bg-blue-50 p-5 flex items-center justify-between flex-wrap gap-4">
+					<div>
+						<p class="font-semibold text-blue-900">{t.exportCtaHeading}</p>
+						<p class="text-sm text-blue-700 mt-0.5">
+							{t.exportCtaBody}
+						</p>
+					</div>
+					<a
+						href="/dashboard/transactions"
+						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
+						       text-white text-sm font-medium px-4 py-2 transition-colors"
+					>
+						{t.exportCtaBtn}
+					</a>
+				</div>
+			</>
+		)}
+
+	</div>
+</Layout>
+
+<script is:inline define:vars={{ pipelineI18n: {
+	running: t.pipelineBtnRunning,
+	done: t.pipelineBtnDone,
+	rerun: t.pipelineBtnRerun,
+	networkError: t.pipelineNetworkError,
+} }}>window.__gainsI18n = pipelineI18n;</script>
+
+<script>
+// ── 2024 / 2025 IRS Tax Brackets ─────────────────────────────────────────────
+// Ordinary income brackets [threshold, rate]  (marginal, single top of range)
+const ORDINARY: Record<string, [number, number][]> = {
+  single: [
+    [11600,  0.10], [47150,  0.12], [100525, 0.22],
+    [191950, 0.24], [243725, 0.32], [609350, 0.35], [Infinity, 0.37],
+  ],
+  mfj: [
+    [23200,  0.10], [94300,  0.12], [201050, 0.22],
+    [383900, 0.24], [487450, 0.32], [731200, 0.35], [Infinity, 0.37],
+  ],
+  mfs: [
+    [11600,  0.10], [47150,  0.12], [100525, 0.22],
+    [191950, 0.24], [243725, 0.32], [365600, 0.35], [Infinity, 0.37],
+  ],
+  hoh: [
+    [16550,  0.10], [63100,  0.12], [100500, 0.22],
+    [191950, 0.24], [243700, 0.32], [609350, 0.35], [Infinity, 0.37],
+  ],
+};
+
+// Long-term capital gains rate thresholds [threshold, rate]
+const LT_RATES: Record<string, [number, number][]> = {
+  single: [[47025, 0.00], [518900, 0.15], [Infinity, 0.20]],
+  mfj:    [[94050, 0.00], [583750, 0.15], [Infinity, 0.20]],
+  mfs:    [[47025, 0.00], [291850, 0.15], [Infinity, 0.20]],
+  hoh:    [[63000, 0.00], [551350, 0.15], [Infinity, 0.20]],
+};
+
+// State income tax — top marginal rate applied to all crypto income and gains.
+// Most states tax LT capital gains as ordinary income (no preferential rate).
+// Rates current as of 2024-2025; WA rate applies only to LT gains above $262K.
+const STATE_RATES: Record<string, number> = {
+  none: 0,
+  AL: 0.050, AK: 0,     AZ: 0.025, AR: 0.044, CA: 0.133,
+  CO: 0.044, CT: 0.0699,DE: 0.066, FL: 0,     GA: 0.0549,
+  HI: 0.110, ID: 0.058, IL: 0.0495,IN: 0.0305,IA: 0.057,
+  KS: 0.057, KY: 0.045, LA: 0.060, ME: 0.0715,MD: 0.0575,
+  MA: 0.050, MI: 0.0425,MN: 0.0985,MS: 0.050, MO: 0.048,
+  MT: 0.0675,NE: 0.0664,NV: 0,     NH: 0,     NJ: 0.1075,
+  NM: 0.059, NY: 0.109, NC: 0.0475,ND: 0.029, OH: 0.035,
+  OK: 0.0475,OR: 0.099, PA: 0.0307,RI: 0.0599,SC: 0.064,
+  SD: 0,     TN: 0,     TX: 0,     UT: 0.0465,VT: 0.0875,
+  VA: 0.0575,WA: 0.07,  WV: 0.065, WI: 0.0765,WY: 0,
+  DC: 0.1075,
+};
+
+// Net Investment Income Tax — 3.8% on NII above MAGI threshold
+// NII includes crypto gains (ST + LT) and staking/interest income
+const NIIT_RATE = 0.038;
+const NIIT_THRESHOLD: Record<string, number> = {
+  single: 200_000,
+  mfj:    250_000,
+  mfs:    125_000,
+  hoh:    200_000,
+};
+
+function marginalRate(income: number, brackets: [number, number][]): number {
+  for (const [top, rate] of brackets) {
+    if (income <= top) return rate;
+  }
+  return brackets[brackets.length - 1][1];
+}
+
+// Compute tax owed on `amount` stacked on top of `base` income using marginal brackets.
+// Returns { tax, effectiveRate }.
+function taxOnAmount(base: number, amount: number, brackets: [number, number][]): { tax: number; rate: number } {
+  if (amount <= 0) return { tax: 0, rate: 0 };
+  let tax = 0;
+  let prev = 0;
+  let remaining = amount;
+  const totalTop = base + amount;
+
+  for (const [top, rate] of brackets) {
+    const sliceTop = Math.min(top, totalTop);
+    if (sliceTop <= base) { prev = sliceTop; continue; }
+    const sliceBottom = Math.max(prev, base);
+    const slice = Math.min(sliceTop - sliceBottom, remaining);
+    if (slice <= 0) { prev = sliceTop; continue; }
+    tax += slice * rate;
+    remaining -= slice;
+    prev = sliceTop;
+    if (remaining <= 0) break;
+  }
+  return { tax, rate: tax / amount };
+}
+
+function fmtUsd(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+function fmtPct(r: number): string {
+  return (r * 100).toFixed(1) + '%';
+}
+
+function recalculate() {
+  const el = document.getElementById('tax-estimator');
+  if (!el) return;
+
+  const stGain        = parseFloat(el.dataset.stGain  ?? '0') || 0;
+  const ltGain        = parseFloat(el.dataset.ltGain  ?? '0') || 0;
+  const cryptoIncome  = parseFloat(el.dataset.ordinaryIncome ?? '0') || 0;
+
+  const filingEl = document.getElementById('est-filing-status') as HTMLSelectElement | null;
+  const otherEl  = document.getElementById('est-other-income')  as HTMLInputElement  | null;
+  const stateEl  = document.getElementById('est-state')         as HTMLSelectElement | null;
+
+  const filing      = (filingEl?.value ?? 'single') as keyof typeof ORDINARY;
+  const otherIncome = Math.max(0, parseFloat(otherEl?.value ?? '0') || 0);
+  const stateKey    = stateEl?.value ?? 'none';
+  const stateRate   = STATE_RATES[stateKey] ?? 0;
+
+  const ordBrackets = ORDINARY[filing] ?? ORDINARY.single;
+  const ltBrackets  = LT_RATES[filing]  ?? LT_RATES.single;
+
+  // Base = other income
+  // ST gains stacked on top of base (ordinary income treatment)
+  // Crypto income stacked on top of base + ST gains
+  const stResult     = taxOnAmount(otherIncome,                          Math.max(0, stGain),       ordBrackets);
+  const incomeResult = taxOnAmount(otherIncome + Math.max(0, stGain),    Math.max(0, cryptoIncome), ordBrackets);
+
+  // LT gains: rate determined by total ordinary income stacked base
+  const ltOrdinaryBase = otherIncome + Math.max(0, stGain) + Math.max(0, cryptoIncome);
+  const ltRate = marginalRate(ltOrdinaryBase, ltBrackets);
+  const ltTax  = Math.max(0, ltGain) * ltRate;
+
+  // If gains are negative, they offset — show $0
+  const stTax     = stGain       < 0 ? 0 : stResult.tax;
+  const incomeTax = cryptoIncome < 0 ? 0 : incomeResult.tax;
+
+  // ── NIIT ────────────────────────────────────────────────────────────────
+  // MAGI approximation = other income + crypto gains + crypto income
+  const magi          = otherIncome + Math.max(0, stGain) + Math.max(0, ltGain) + Math.max(0, cryptoIncome);
+  const niitThreshold = NIIT_THRESHOLD[filing] ?? NIIT_THRESHOLD.single;
+  const niitApplies   = magi > niitThreshold;
+  // NIIT base = net investment income (gains + crypto income), capped at the
+  // amount that exceeds the threshold
+  const nii           = Math.max(0, stGain) + Math.max(0, ltGain) + Math.max(0, cryptoIncome);
+  const niitBase      = niitApplies ? Math.min(nii, magi - niitThreshold) : 0;
+  const niitTax       = niitBase * NIIT_RATE;
+
+  // ── State tax ────────────────────────────────────────────────────────────
+  // States generally tax LT gains as ordinary income (no preferential rate).
+  // Apply the top marginal rate to all crypto gains + income combined.
+  const cryptoTaxableState = Math.max(0, stGain) + Math.max(0, ltGain) + Math.max(0, cryptoIncome);
+  const stateTax = cryptoTaxableState * stateRate;
+
+  const totalTax = stTax + incomeTax + ltTax + niitTax + stateTax;
+
+  const setText = (id: string, val: string) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = val;
+  };
+  const setHidden = (id: string, hidden: boolean) => {
+    const node = document.getElementById(id);
+    if (node) node.classList.toggle('hidden', hidden);
+  };
+
+  setText('est-st-tax',     stGain       <= 0 ? '—' : fmtUsd(stTax));
+  setText('est-st-rate',    stGain       <= 0 ? 'no ST gain this year'  : `${fmtPct(stResult.rate)} effective rate`);
+  setText('est-lt-tax',     ltGain       <= 0 ? '—' : fmtUsd(ltTax));
+  setText('est-lt-rate',    ltGain       <= 0 ? 'no LT gain this year'  : `${fmtPct(ltRate)} capital gains rate`);
+  setText('est-income-tax', cryptoIncome <= 0 ? '—' : fmtUsd(incomeTax));
+  setText('est-niit-tax',   fmtUsd(niitTax));
+  setText('est-state-tax',  stateRate === 0 ? '—' : fmtUsd(stateTax));
+  setText('est-state-rate', stateRate === 0 ? 'no state income tax' : `${fmtPct(stateRate)} flat applied`);
+  setText('est-total-tax',  totalTax     <= 0 ? '$0' : fmtUsd(totalTax));
+
+  // Show NIIT cell + banner only when it applies
+  setHidden('est-niit-cell',   !niitApplies);
+  setHidden('est-niit-banner', !niitApplies);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('est-filing-status')?.addEventListener('change', recalculate);
+  document.getElementById('est-other-income')?.addEventListener('input', recalculate);
+  document.getElementById('est-state')?.addEventListener('change', recalculate);
+  recalculate();
+});
+
+// ── Per-asset lot drill-down ──────────────────────────────────────────────────
+// Clicking an asset summary row toggles the hidden detail row below it.
+// The CSV export button serialises that asset's lots to a downloadable file.
+
+(function () {
+  // Expand / collapse
+  document.querySelectorAll<HTMLTableRowElement>('.asset-summary-row[data-target]').forEach((summaryRow) => {
+    const targetId = summaryRow.dataset.target!;
+    const detailRow = document.getElementById(targetId);
+    if (!detailRow) return;
+
+    summaryRow.addEventListener('click', () => {
+      const isOpen = !detailRow.classList.contains('hidden');
+      detailRow.classList.toggle('hidden', isOpen);
+      const chevron = summaryRow.querySelector<HTMLSpanElement>('.expand-chevron');
+      if (chevron) {
+        chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
+      }
+    });
+  });
+
+  // CSV export per asset
+  document.querySelectorAll<HTMLButtonElement>('.csv-export-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't collapse the row
+      const asset = btn.dataset.asset ?? 'asset';
+      const detailRow = btn.closest<HTMLTableRowElement>('.lot-detail-row');
+      if (!detailRow) return;
+
+      const rows = detailRow.querySelectorAll<HTMLTableRowElement>('tbody tr');
+      const lines: string[] = [
+        'Asset,Sold Date,Qty,Acquired Date,Days Held,Proceeds USD,Cost Basis USD,Gain/Loss USD,Term',
+      ];
+      rows.forEach((tr) => {
+        const cells = Array.from(tr.querySelectorAll('td')).map((td) => {
+          const text = td.textContent?.trim().replace(/,/g, '') ?? '';
+          return `"${text}"`;
+        });
+        // cells: [sold, qty, acquired, held, proceeds, cost, gain, term]
+        if (cells.length >= 8) {
+          lines.push(`"${asset}",${cells.join(',')}`);
+        }
+      });
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${asset}-lots-${new URLSearchParams(window.location.search).get('year') ?? 'year'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+})();
+
+// ── Pipeline re-run button handler ────────────────────────────────────────────
+// All three buttons (.pipeline-run-btn) share this handler.
+// POST /api/yearEnd/classify → wait → show result → reload page.
+
+(function () {
+  const ENDPOINT = '/api/yearEnd/classify';
+  interface GainsI18n { running: string; done: string; rerun: string; networkError: string; }
+  const GAPI18N: GainsI18n = (window as unknown as { __gainsI18n?: GainsI18n }).__gainsI18n ?? {
+    running: '⏳ Running…', done: '✓ Done — reloading…',
+    rerun: 'Re-run Pipeline', networkError: 'Network error — could not reach the server. Please try again.',
+  };
+
+  function setAllBtns(disabled: boolean, label: string) {
+    document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+      btn.disabled = disabled;
+      btn.textContent = label;
+    });
+  }
+
+  async function runPipeline() {
+    setAllBtns(true, GAPI18N.running);
+
+    try {
+      const res  = await fetch(ENDPOINT, { method: 'POST' });
+      const data = await res.json() as { ok: boolean; stats?: Record<string, unknown>; error?: string };
+
+      if (data.ok) {
+        setAllBtns(true, GAPI18N.done);
+        // Brief pause so the user sees the success state, then reload with fresh data
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        const msg = data.error ?? 'Pipeline failed.';
+        setAllBtns(false, GAPI18N.rerun);
+        // Show error inline near whichever button was clicked
+        document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+          const err = document.createElement('span');
+          err.className = 'text-xs text-red-600 ml-2';
+          err.textContent = `❌ ${msg}`;
+          btn.insertAdjacentElement('afterend', err);
+          setTimeout(() => err.remove(), 6000);
+        });
+      }
+    } catch {
+      setAllBtns(false, GAPI18N.rerun);
+      alert(GAPI18N.networkError);
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+    btn.addEventListener('click', runPipeline);
+  });
+})();
+</script>

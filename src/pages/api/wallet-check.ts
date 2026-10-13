@@ -1,0 +1,110 @@
+/**
+ * POST /api/wallet-check
+ *
+ * Public endpoint — no auth required.
+ *
+ * Security layers:
+ *   1. maxlength enforced client-side (128 chars)
+ *   2. Server-side address format validation (SSRF prevention)
+ *   3. Per-IP rate limit: 10 req/min
+ *   4. In-memory result cache: 5-min TTL, 500 entry max
+ *   5. 8-second upstream timeouts
+ *   6. Sanitized error responses — no stack traces, no env var names
+ *   7. Checked addresses are NEVER written to the database
+ */
+
+import type { APIRoute } from 'astro';
+import { getClientIp } from '@/lib/analytics/ip';
+import { clientIpKey } from '@/lib/rateLimit';
+import {
+  isValidAddress,
+  checkRateLimit,
+  getCached,
+  setCache,
+  checkWallet,
+  detectChain,
+  type Chain,
+} from '@/lib/walletChecker';
+import { recordCheck } from '@/lib/checkLog';
+
+// Short chain labels for the check counter (check_log.chain). evm/btc/sol/unknown are the
+// labels already stored; the rest are new.
+const ANALYTICS_CHAIN: Record<Chain, string> = {
+  evm: 'evm', sui: 'sui', solana: 'sol', bitcoin: 'btc', litecoin: 'ltc', tron: 'trx', unknown: 'unknown',
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const POST: APIRoute = async ({ request, clientAddress }) => {
+  // ── Parse body ──────────────────────────────────────────────────────────────
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, error: 'Invalid request body' }, 400);
+  }
+
+  const raw = (body as any)?.address;
+  if (typeof raw !== 'string') {
+    return json({ ok: false, error: 'address is required' }, 400);
+  }
+
+  const address = raw.trim();
+
+  // ── Input validation (SSRF prevention — must pass before any fetch) ─────────
+  if (address.length > 128) {
+    return json({ ok: false, error: 'Address too long' }, 400);
+  }
+  if (!isValidAddress(address)) {
+    return json({ ok: false, error: 'Invalid wallet address format' }, 400);
+  }
+
+  // ── Rate limit ───────────────────────────────────────────────────────────────
+  // The limit keys on the Cloudflare-set client IP (an IPv6 client by its /64); `ip` below
+  // only feeds the anonymous visit counter.
+  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
+
+  if (!checkRateLimit(clientIpKey(request))) {
+    return json(
+      { ok: false, error: 'Too many requests. Please wait a minute and try again.' },
+      429,
+    );
+  }
+
+  // ── Detect chain (analytics label only) ──────────────────────────────────────
+  // Same detection as the scan itself, so legacy Litecoin and Tron are no longer logged
+  // as Solana. The short labels match the ones already stored.
+  const chain = ANALYTICS_CHAIN[detectChain(address)];
+
+  // ── Helper: log the check (fire-and-forget, never blocks the response) ───────
+  // Delegates to the shared safety-check counter (src/lib/checkLog.ts).
+  const logCheck = (cacheHit: boolean) =>
+    recordCheck({ kind: 'wallet', subject: address, request, fallbackIp: ip, chain, cacheHit });
+
+  // ── Cache hit ────────────────────────────────────────────────────────────────
+  const cached = getCached(address);
+  if (cached) {
+    logCheck(true);
+    return json({ ok: true, result: cached, cached: true });
+  }
+
+  // ── Check wallet ─────────────────────────────────────────────────────────────
+  try {
+    const result = await checkWallet(address);
+    setCache(address, result);
+    logCheck(false);
+    return json({ ok: true, result, cached: false });
+  } catch (err) {
+    // Sanitized — do not expose internal details
+    console.error('[wallet-check] unexpected error:', err instanceof Error ? err.message : err);
+    return json({ ok: false, error: 'Check failed. Please try again.' }, 500);
+  }
+};
+
+// Reject all other methods
+export const GET: APIRoute  = () => json({ ok: false, error: 'Method not allowed' }, 405);
+export const PUT: APIRoute  = () => json({ ok: false, error: 'Method not allowed' }, 405);

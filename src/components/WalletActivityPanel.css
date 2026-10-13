@@ -1,0 +1,90 @@
+/* Wallet checker Activity tab (see WalletActivityPanel.tsx). All colors via design tokens. */
+.wallet-activity__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.wallet-activity__stat {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.wallet-activity__stat-label {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.wallet-activity__stat-value {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.wallet-activity__stat-chain {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* A caution, not an alarm: amber, never the red used for confirmed hits. */
+.wallet-activity__note {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--warning);
+}
+
+.wallet-activity__unknown {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.wallet-activity__chains {
+  margin-top: 1rem;
+}
+.wallet-activity__heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.wallet-activity__chain-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wallet-activity__chain {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85rem;
+}
+.wallet-activity__chain-name {
+  font-weight: 600;
+}
+.wallet-activity__chain-detail {
+  color: var(--text-secondary);
+}
+
+.wallet-activity__not-checked {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.wallet-activity__source {
+  margin: 1rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

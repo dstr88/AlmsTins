@@ -1,0 +1,23 @@
+-- Foreign keys — apply AFTER data load.
+ALTER TABLE address_fraud_reports ADD CONSTRAINT fk_address_fraud_reports_1 FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+ALTER TABLE alert_preferences ADD CONSTRAINT fk_alert_preferences_1 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE alert_preferences ADD CONSTRAINT fk_alert_preferences_2 FOREIGN KEY (wallet_id) REFERENCES wallets(id)    ON DELETE CASCADE;
+ALTER TABLE auth_accounts ADD CONSTRAINT fk_auth_accounts_1 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE auth_credentials ADD CONSTRAINT fk_auth_credentials_1 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE auth_sessions ADD CONSTRAINT fk_auth_sessions_1 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE memberships ADD CONSTRAINT fk_memberships_1 FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+ALTER TABLE memberships ADD CONSTRAINT fk_memberships_2 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE protocol_events ADD CONSTRAINT fk_protocol_events_1 FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE;
+ALTER TABLE protocol_positions ADD CONSTRAINT fk_protocol_positions_1 FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE;
+ALTER TABLE subscriptions ADD CONSTRAINT fk_subscriptions_1 FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+ALTER TABLE support_messages ADD CONSTRAINT fk_support_messages_1 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE tax_1099_reconciliation ADD CONSTRAINT fk_tax_1099_reconciliation_1 FOREIGN KEY (upload_id) REFERENCES tax_1099_uploads(id) ON DELETE CASCADE;
+ALTER TABLE tenant_memberships ADD CONSTRAINT fk_tenant_memberships_1 FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
+ALTER TABLE tenant_memberships ADD CONSTRAINT fk_tenant_memberships_2 FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE;
+ALTER TABLE tradfi_loan_archives ADD CONSTRAINT fk_tradfi_loan_archives_1 FOREIGN KEY (loan_id) REFERENCES tradfi_loans(id);
+ALTER TABLE tradfi_loan_payments ADD CONSTRAINT fk_tradfi_loan_payments_1 FOREIGN KEY (loan_id) REFERENCES tradfi_loans(id);
+ALTER TABLE transaction_annotations ADD CONSTRAINT fk_transaction_annotations_1 FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE;
+ALTER TABLE transactions ADD CONSTRAINT fk_transactions_1 FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE;
+ALTER TABLE user_identities ADD CONSTRAINT fk_user_identities_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE wallet_snapshots ADD CONSTRAINT fk_wallet_snapshots_1 FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE;
+ALTER TABLE wallets ADD CONSTRAINT fk_wallets_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

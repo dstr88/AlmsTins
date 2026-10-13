@@ -1,0 +1,490 @@
+/**
+ * /dashboard/portfolio — Premium dark redesign
+ *
+ * All colors reference global design tokens from src/styles/tokens.css.
+ * No hardcoded colors — only var(--token-name) references.
+ * One portfolio-local var: --pf-mono (no global typography token).
+ */
+
+.portfolio-page {
+	--pf-mono: 'JetBrains Mono', 'Fira Code', monospace;
+	background: var(--surface-bg);
+	min-height: 100vh;
+	padding-bottom: 5rem;
+}
+
+
+/* ── Hero band ──────────────────────────────────────────────────────────── */
+.pf-hero {
+	position: relative;
+	overflow: hidden;
+	padding: clamp(2.5rem, 5vw, 3.75rem) clamp(1.5rem, 5vw, 3.5rem) 0;
+	background: linear-gradient(
+		160deg,
+		var(--surface-card-2) 0%,
+		var(--surface-card)   45%,
+		var(--surface-bg)    100%
+	);
+}
+
+/* Brushed-metal diagonal sheen */
+.pf-hero::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		108deg,
+		transparent 28%,
+		var(--accent-soft) 50%,
+		transparent 72%
+	);
+	opacity: 0.18;
+	pointer-events: none;
+}
+
+/* Subtle scanline texture */
+.pf-hero::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: repeating-linear-gradient(
+		0deg,
+		rgba(0, 0, 0, .10) 0px,
+		rgba(0, 0, 0, .10) 1px,
+		transparent 1px,
+		transparent 3px
+	);
+	pointer-events: none;
+	opacity: .35;
+}
+
+.pf-hero__inner {
+	position: relative;
+	z-index: 1;
+}
+
+.pf-hero__eyebrow {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	font-size: .65rem;
+	font-weight: 700;
+	letter-spacing: .2em;
+	text-transform: uppercase;
+	color: var(--accent);
+	margin-bottom: 1.75rem;
+}
+
+.pf-hero__eyebrow-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--accent);
+	box-shadow: 0 0 8px var(--accent-glow);
+	flex-shrink: 0;
+}
+
+.pf-hero__value-block {
+	margin-bottom: .9rem;
+}
+
+.pf-hero__value-label {
+	display: block;
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .18em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	margin-bottom: .5rem;
+}
+
+.pf-hero__value {
+	font-family: var(--pf-mono);
+	font-size: clamp(2.6rem, 6vw, 4.4rem);
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -.02em;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-primary);
+}
+
+.pf-hero__value--gain {
+	text-shadow:
+		0 0 28px var(--accent-glow),
+		0 0 56px var(--accent-soft);
+}
+
+.pf-hero__pnl-row {
+	display: flex;
+	align-items: baseline;
+	gap: .75rem 1.1rem;
+	flex-wrap: wrap;
+	margin-bottom: .55rem;
+}
+
+.pf-hero__pnl {
+	font-family: var(--pf-mono);
+	font-size: clamp(1.05rem, 2vw, 1.35rem);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+}
+.pf-hero__pnl--gain    { color: var(--gain); }
+.pf-hero__pnl--loss    { color: var(--loss); }
+.pf-hero__pnl--neutral { color: var(--text-secondary); }
+
+.pf-hero__sep {
+	color: var(--text-muted);
+	font-size: .8rem;
+	font-weight: 300;
+}
+
+.pf-hero__pct {
+	font-family: var(--pf-mono);
+	font-size: clamp(.9rem, 1.4vw, 1.1rem);
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+}
+.pf-hero__pct--gain    { color: var(--gain); }
+.pf-hero__pct--loss    { color: var(--loss); }
+.pf-hero__pct--neutral { color: var(--text-secondary); }
+
+.pf-hero__meta {
+	font-size: .76rem;
+	color: var(--text-muted);
+	margin-bottom: 2rem;
+}
+.pf-hero__meta strong {
+	color: var(--text-secondary);
+	font-weight: 500;
+}
+
+.pf-hero__unpriced-note {
+	font-size: .72rem;
+	color: var(--text-muted);
+	margin-top: -.25rem;
+	margin-bottom: 1.5rem;
+	padding: .3rem .65rem;
+	border: 1px solid var(--border-subtle);
+	border-radius: 6px;
+	display: inline-block;
+}
+
+/* ── Allocation bar ──────────────────────────────────────────────────────── */
+.pf-alloc-bar {
+	display: flex;
+	height: 3px;
+	width: 100%;
+	overflow: hidden;
+	gap: 1px;
+}
+
+.pf-alloc-bar__seg {
+	height: 100%;
+	transition: flex-grow .5s ease;
+	min-width: 2px;
+}
+
+
+/* ── Metric cards ────────────────────────────────────────────────────────── */
+.pf-metrics {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 0;
+	background: var(--border-subtle);
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.pf-metric {
+	background: var(--surface-card);
+	padding: 1.4rem clamp(1.5rem, 4vw, 2.5rem);
+	display: flex;
+	flex-direction: column;
+	gap: .5rem;
+	position: relative;
+}
+
+.pf-metric::after {
+	content: '';
+	position: absolute;
+	inset-x: 0;
+	bottom: 0;
+	height: 2px;
+	background: var(--accent);
+	transform: scaleX(0);
+	transition: transform .2s ease;
+}
+.pf-metric:hover::after { transform: scaleX(1); }
+
+.pf-metric__label {
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .16em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.pf-metric__value {
+	font-family: var(--pf-mono);
+	font-size: clamp(1.05rem, 1.8vw, 1.3rem);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-primary);
+	line-height: 1.1;
+}
+.pf-metric__value--gain { color: var(--gain); }
+.pf-metric__value--loss { color: var(--loss); }
+
+
+/* ── Positions section ───────────────────────────────────────────────────── */
+.pf-positions {
+	padding: 2.5rem clamp(1.5rem, 5vw, 3.5rem) 0;
+}
+
+.pf-positions__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1.1rem;
+}
+
+.pf-positions__title {
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .2em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.pf-positions__ts {
+	font-size: .7rem;
+	color: var(--text-muted);
+}
+
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.pf-table-wrap {
+	overflow-x: auto;
+	border-radius: 12px;
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	box-shadow: inset 0 1px 0 var(--border-bright);
+}
+
+.pf-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.pf-table thead {
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.pf-table thead th {
+	padding: .85rem 1rem;
+	text-align: right;
+	font-size: .6rem;
+	font-weight: 700;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	white-space: nowrap;
+	background: rgba(255, 255, 255, .018);
+}
+.pf-table thead th:first-child { text-align: left; }
+
+.pf-table tbody tr {
+	border-bottom: 1px solid var(--border-subtle);
+	transition: background .1s ease;
+}
+.pf-table tbody tr:last-child { border-bottom: none; }
+.pf-table tbody tr:hover      { background: var(--surface-hover); }
+
+.pf-table td {
+	padding: 1rem 1rem;
+	text-align: right;
+	font-family: var(--pf-mono);
+	font-size: .78rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+.pf-table td:first-child {
+	text-align: left;
+	font-family: inherit;
+	padding: .875rem 1rem;
+}
+
+/* Ticker cell */
+.pf-ticker {
+	display: flex;
+	align-items: center;
+	gap: .8rem;
+}
+
+.pf-ticker__badge {
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-soft);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: .58rem;
+	font-weight: 800;
+	letter-spacing: .04em;
+	color: var(--accent);
+	flex-shrink: 0;
+	font-family: inherit;
+	transition: background .15s, box-shadow .15s;
+}
+
+.pf-table tbody tr:hover .pf-ticker__badge {
+	background: var(--accent-dim);
+	box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.pf-ticker__info { min-width: 0; }
+
+.pf-ticker__name {
+	font-weight: 600;
+	color: var(--text-primary);
+	font-size: .85rem;
+}
+
+.pf-ticker__sub {
+	font-family: var(--pf-mono);
+	font-size: .65rem;
+	color: var(--text-muted);
+	margin-top: .1rem;
+}
+
+/* Collateral badge — shown when asset qty is (partly) locked in Aave */
+.pf-collateral-badge {
+	display: inline-block;
+	font-size: 0.52rem;
+	font-weight: 800;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	border-radius: 4px;
+	padding: 0.1rem 0.35rem;
+	margin-top: 0.25rem;
+	line-height: 1.4;
+}
+
+/* P&L pill */
+.pf-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: .22rem .6rem;
+	border-radius: 999px;
+	font-family: var(--pf-mono);
+	font-size: .72rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.pf-pill--gain    { background: var(--gain-bg);    border: 1px solid var(--gain-border);    color: var(--gain); }
+.pf-pill--loss    { background: var(--loss-bg);    border: 1px solid var(--loss-border);    color: var(--loss); }
+.pf-pill--neutral { background: var(--border-subtle); border: 1px solid var(--border-bright); color: var(--text-muted); }
+
+/* Footer totals */
+.pf-table tfoot tr {
+	background: rgba(255, 255, 255, .022);
+	border-top: 1px solid var(--border-bright);
+}
+
+.pf-table tfoot td {
+	padding: .95rem 1rem;
+	text-align: right;
+	font-family: var(--pf-mono);
+	font-variant-numeric: tabular-nums;
+	font-size: .78rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	white-space: nowrap;
+}
+.pf-table tfoot td:first-child {
+	text-align: left;
+	font-family: inherit;
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .16em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+
+/* ── Loading ─────────────────────────────────────────────────────────────── */
+.pf-loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: .9rem;
+	padding: clamp(4rem, 10vh, 7rem) 2rem;
+}
+
+.pf-spinner {
+	width: 28px;
+	height: 28px;
+	border: 2px solid var(--border-bright);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: pf-spin .7s linear infinite;
+}
+
+.pf-loading__label {
+	font-size: .72rem;
+	font-weight: 600;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+
+
+/* ── Error / empty states ─────────────────────────────────────────────────── */
+.pf-state {
+	border-radius: 12px;
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	padding: 3.5rem 2rem;
+	text-align: center;
+	margin: 2rem clamp(1.5rem, 5vw, 3.5rem);
+}
+
+.pf-state__icon  { font-size: 2.5rem; margin-bottom: .75rem; }
+.pf-state__title { font-size: .95rem; font-weight: 600; color: var(--text-primary); margin-bottom: .4rem; }
+.pf-state__sub   { font-size: .8rem; color: var(--text-muted); line-height: 1.6; }
+.pf-state--error .pf-state__title { color: var(--loss); }
+
+/* ── No-price note ──────────────────────────────────────────────────────── */
+.pf-note {
+	font-size: .7rem;
+	color: var(--text-muted);
+	margin-top: .8rem;
+}
+
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+	.pf-metrics { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 540px) {
+	.pf-table thead th,
+	.pf-table td,
+	.pf-table tfoot td { padding-left: .65rem; padding-right: .65rem; }
+
+	.pf-col--holdings,
+	.pf-col--avg-cost,
+	.pf-col--price-now { display: none; }
+}

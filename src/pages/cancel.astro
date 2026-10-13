@@ -1,0 +1,50 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getCancel } from '@/i18n/cancel';
+
+const lang = getLang(Astro.request);
+const t = getCancel(lang);
+---
+
+<Layout showHero={false} title={t.pageTitle} noindex={true} lang={lang}>
+  <main class="status-page">
+    <section class="status-card" aria-live="polite">
+      <h1>{t.heading}</h1>
+      <p>{t.body}</p>
+      <a class="status-link" href="/">{t.backHome}</a>
+    </section>
+  </main>
+
+  <style>
+    .status-page {
+      min-height: 60vh;
+      display: grid;
+      place-items: center;
+      padding: clamp(1.5rem, 4vw, 3rem);
+    }
+
+    .status-card {
+      width: min(680px, 92vw);
+      padding: clamp(1.5rem, 3vw, 2.25rem);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+
+    .status-card h1 {
+      margin: 0 0 0.75rem;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+    }
+
+    .status-link {
+      display: inline-block;
+      margin-top: 1.25rem;
+      font-weight: 700;
+      text-decoration: none;
+      border-bottom: 2px solid currentColor;
+    }
+  </style>
+</Layout>

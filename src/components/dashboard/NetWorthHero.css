@@ -1,0 +1,98 @@
+.hero {
+	position: relative;
+	display: block;
+	height: var(--hero-height-mobile);
+	min-height: var(--hero-height-mobile);
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+	isolation: isolate;
+}
+
+@media (min-width: 960px) {
+	.hero {
+		min-height: var(--hero-height-desktop);
+		height: var(--hero-height-desktop);
+	}
+}
+
+.hero-copy {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 2.5rem 2rem;
+	max-width: 760px;
+	color: var(--text-primary);
+	gap: 0.35rem;
+	pointer-events: none;
+	text-align: center;
+	margin: 0 auto;
+}
+
+.hero-kicker {
+	margin: 0;
+	font-size: 0.95rem;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--accent);
+	opacity: 1;
+}
+
+.hero-title {
+	margin: 0;
+	font-size: clamp(1.8rem, 3vw + 1rem, 2.8rem);
+	font-weight: 700;
+	line-height: 1.15;
+	text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.hero-subtitle {
+	margin: 0.25rem 0 0;
+	font-size: clamp(1rem, 1.2vw + 0.75rem, 1.25rem);
+	line-height: 1.5;
+	max-width: 640px;
+	color: var(--text-secondary);
+}
+
+.hero-img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center;
+	display: block;
+}
+
+.hero-overlay {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(180deg, rgba(10, 15, 25, 0.68), rgba(10, 15, 25, 0.25) 35%, rgba(6, 8, 14, 0.78));
+	pointer-events: none;
+}
+
+@media (max-width: 640px) {
+	.hero-copy {
+		padding: 1.75rem 1.25rem;
+		gap: 0.25rem;
+		text-align: center;
+	}
+
+	.hero-title {
+		font-size: clamp(1.5rem, 4vw + 1rem, 2.2rem);
+	}
+
+	.hero-subtitle {
+		font-size: 1rem;
+	}
+}
+
+@media (max-width: 768px) {
+	.hero {
+		height: var(--hero-height-mobile);
+		min-height: var(--hero-height-mobile);
+	}
+}

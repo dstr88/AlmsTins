@@ -1,0 +1,14 @@
+---
+// WithdrawnNote: the notice above a record its owner withdrew (S2 soft delete). Markup only:
+// withdrawnNote.client.ts fills it from the lookup answer and shows it while that record is on
+// screen. Every variant opens with the "withdrawn" tag pill: the record's own status pill keeps
+// its state (disputed, fully financed, ...), so this is where the withdrawal shows beside it.
+import './WithdrawnNote.css';
+
+interface Props { variant: 'desk' | 'registry' | 'client' }
+const { variant } = Astro.props;
+---
+<div class={`wdn wdn--${variant}`} data-rcv-root="withdrawn-record" role="status" hidden>
+	<span class="wdn__pill" data-wdn-pill></span>
+	<span class="wdn__text" data-wdn-text></span>
+</div>

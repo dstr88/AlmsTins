@@ -1,0 +1,315 @@
+---
+import './ExchangeAccountCard.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getOwnerLabel } from '@/i18n/components/ownerLabel';
+import { OWNER_LABEL_MAX } from '@/lib/walletOwnerLabel';
+type Props = {
+	accountId: string;
+	accountIndex: number;
+	name: string;
+	source: string;
+	/** "Whose account is this?": the saved owner label, free text the user typed. */
+	ownerLabel?: string | null;
+};
+
+const { accountId, accountIndex, name, source, ownerLabel = null } = Astro.props as Props;
+const hasHoldings = Astro.slots.has('holdings');
+const ot = getOwnerLabel(getLang(Astro.request));
+// Astro escapes every attribute value and text expression, so the typed owner label is
+// rendered as text, never as markup.
+const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '');
+---
+
+<div class="exchange-account" data-account-index={accountIndex}>
+	<div class="exchange-account__header">
+		<input
+			class="exchange-account__input"
+			type="text"
+			value={name}
+			data-account-id={accountId}
+			data-exchange-source={source}
+			placeholder={`Account #${accountIndex}`}
+		/>
+		<button
+			class="exchange-account__delete"
+			type="button"
+			data-exchange-delete
+			data-account-id={accountId}
+			data-exchange-source={source}
+			aria-label="Delete account"
+			title="Delete account"
+		>✕</button>
+	</div>
+	<div class="exchange-account__owner">
+		<label class="exchange-account__owner-label" for={ownerInputId}>{ot.fieldLabel}</label>
+		<input
+			id={ownerInputId}
+			class="exchange-account__owner-input"
+			type="text"
+			maxlength={OWNER_LABEL_MAX}
+			autocomplete="off"
+			value={ownerLabel ?? ''}
+			placeholder={ot.placeholder}
+			title={ot.hint}
+			data-owner-input
+			data-account-id={accountId}
+			data-exchange-source={source}
+			data-saved-value={ownerLabel ?? ''}
+			data-msg-saving={ot.saving}
+			data-msg-saved={ot.saved}
+			data-msg-error={ot.saveError}
+			data-msg-too-long={ot.tooLong}
+		/>
+		<span class="exchange-account__owner-status" aria-live="polite" data-owner-status></span>
+	</div>
+	<form
+		class="exchange-account__actions"
+		data-account-id={accountId}
+		data-account-index={accountIndex}
+		data-exchange-source={source}
+	>
+		<label class="exchange-account__file">
+			<input type="file" name="file" accept=".csv" required />
+			<span class="exchange-account__file-label">Choose CSV</span>
+		</label>
+		<button type="submit" class="exchange-account__button">Upload</button>
+		<button
+			type="button"
+			class="exchange-account__button exchange-account__batches-toggle"
+			data-batches-toggle
+			data-account-id={accountId}
+			data-exchange-source={source}
+		>Batches</button>
+		<span class="exchange-account__status" aria-live="polite"></span>
+	</form>
+
+	<div
+		class="exchange-batches"
+		data-batches-panel
+		data-account-id={accountId}
+		data-exchange-source={source}
+		hidden
+	>
+		<div class="exchange-batches__list" data-batches-list>
+			<span class="exchange-batches__loading">Loading…</span>
+		</div>
+	</div>
+	<div class="exchange-account__holdings">
+		<div class="exchange-account__totals">
+			<span class="exchange-account__totals-label">Total crypto holdings</span>
+			<span class="exchange-account__totals-value" data-holdings-total-usd>$0.00</span>
+		</div>
+		{hasHoldings ? (
+			<div class="exchange-account__holdings-list">
+				<div class="exchange-account__holdings-header">
+					<span>Days</span>
+					<span>Asset</span>
+					<span>Qty</span>
+					<span title="Current market price per coin">Mkt</span>
+					<span>USD</span>
+					<span>P/L</span>
+				</div>
+				<slot name="holdings" />
+			</div>
+		) : (
+			<div class="exchange-account__holdings-empty">No holdings yet.</div>
+		)}
+	</div>
+</div>
+
+<script>
+	// ── Batch management ─────────────────────────────────────────────────────
+	document.addEventListener('click', async (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+
+		// Toggle batches panel
+		const toggleBtn = target.closest('[data-batches-toggle]');
+		if (toggleBtn instanceof HTMLElement) {
+			const accountId = toggleBtn.dataset.accountId ?? '';
+			const source = toggleBtn.dataset.exchangeSource ?? '';
+			const panel = toggleBtn.closest('.exchange-account')?.querySelector('[data-batches-panel]');
+			if (!(panel instanceof HTMLElement)) return;
+			const isOpen = !panel.hidden;
+			panel.hidden = isOpen;
+			toggleBtn.textContent = isOpen ? 'Batches' : 'Hide batches';
+			if (!isOpen) await loadBatches(panel, accountId, source);
+			return;
+		}
+
+		// Delete a batch
+		const delBtn = target.closest('[data-batch-delete]');
+		if (delBtn instanceof HTMLElement) {
+			const batchId = delBtn.dataset.batchId ?? '';
+			const source = delBtn.dataset.exchangeSource ?? '';
+			const panel = delBtn.closest('[data-batches-panel]');
+			const accountId = panel instanceof HTMLElement ? (panel.dataset.accountId ?? '') : '';
+			if (!batchId || !source) return;
+			if (!confirm(`Delete this import batch (${delBtn.dataset.batchCount} rows)? This cannot be undone.`)) return;
+			delBtn.textContent = '…';
+			delBtn.setAttribute('disabled', '');
+			try {
+				const res = await fetch(
+					`/api/import/batches?batchId=${encodeURIComponent(batchId)}&source=${encodeURIComponent(source)}`,
+					{ method: 'DELETE' },
+				);
+				if (!res.ok) throw new Error('Delete failed');
+				if (panel instanceof HTMLElement) await loadBatches(panel, accountId, source);
+				setTimeout(() => window.location.reload(), 800);
+			} catch (err) {
+				delBtn.textContent = 'Error';
+			}
+		}
+	});
+
+	async function loadBatches(panel, accountId, source) {
+		const list = panel.querySelector('[data-batches-list]');
+		if (!list) return;
+		list.innerHTML = '<span class="exchange-batches__loading">Loading…</span>';
+		try {
+			const res = await fetch(
+				`/api/import/batches?accountId=${encodeURIComponent(accountId)}&source=${encodeURIComponent(source)}`,
+			);
+			const data = await res.json();
+			const batches = data.batches ?? [];
+			if (!batches.length) {
+				list.innerHTML = '<span class="exchange-batches__loading">No import batches yet.</span>';
+				return;
+			}
+			list.innerHTML = '';
+			for (const b of batches) {
+				const row = document.createElement('div');
+				row.className = 'exchange-batch-row';
+				const importedAt = b.importedAt ? new Date(b.importedAt).toLocaleDateString() : '—';
+				const earliest = b.earliestTx ? new Date(b.earliestTx).toLocaleDateString() : '—';
+				const latest = b.latestTx ? new Date(b.latestTx).toLocaleDateString() : '—';
+				row.innerHTML = `
+					<div class="exchange-batch-row__info">
+						<span class="exchange-batch-row__count">${b.rowCount} rows</span>
+						<span class="exchange-batch-row__range">${earliest} – ${latest}</span>
+						<span class="exchange-batch-row__imported">imported ${importedAt}</span>
+					</div>
+					<button
+						type="button"
+						class="exchange-account__delete exchange-batch-row__delete"
+						data-batch-delete
+						data-batch-id="${b.batchId}"
+						data-batch-count="${b.rowCount}"
+						data-exchange-source="${source}"
+						title="Delete this batch"
+					>✕</button>
+				`;
+				list.appendChild(row);
+			}
+		} catch {
+			list.innerHTML = '<span class="exchange-batches__loading">Failed to load batches.</span>';
+		}
+	}
+
+	// ── Whose account is this? ───────────────────────────────────────────────
+	// Saved when the value changes (on blur or Enter) through the account update route. The
+	// typed text is only ever set as an input value or textContent, never as HTML.
+	if (document.documentElement.dataset.exchangeOwnerInit !== 'true') {
+		document.documentElement.dataset.exchangeOwnerInit = 'true';
+
+		const showStatus = (input: HTMLInputElement, text: string) => {
+			const status = input.closest('.exchange-account__owner')?.querySelector('[data-owner-status]');
+			if (status instanceof HTMLElement) status.textContent = text;
+		};
+
+		document.addEventListener('keydown', (event) => {
+			const input = event.target;
+			if (input instanceof HTMLInputElement && input.hasAttribute('data-owner-input') && event.key === 'Enter') {
+				event.preventDefault();
+				input.blur();
+			}
+		});
+
+		document.addEventListener('change', async (event) => {
+			const input = event.target;
+			if (!(input instanceof HTMLInputElement) || !input.hasAttribute('data-owner-input')) return;
+			const accountId = input.dataset.accountId ?? '';
+			const source = input.dataset.exchangeSource ?? '';
+			if (!accountId || !source) return;
+			const ownerLabel = input.value.trim();
+			if (ownerLabel === (input.dataset.savedValue ?? '')) {
+				input.value = ownerLabel;
+				return;
+			}
+			showStatus(input, input.dataset.msgSaving ?? '');
+			try {
+				const res = await fetch(`/api/exchanges/${encodeURIComponent(source)}/accounts/update`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					credentials: 'include',
+					body: JSON.stringify({ accountId, ownerLabel }),
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					showStatus(input, data?.error === 'OWNER_LABEL_TOO_LONG' ? (input.dataset.msgTooLong ?? '') : (input.dataset.msgError ?? ''));
+					return;
+				}
+				const saved = typeof data?.ownerLabel === 'string' ? data.ownerLabel : '';
+				input.value = saved;
+				input.dataset.savedValue = saved;
+				showStatus(input, input.dataset.msgSaved ?? '');
+			} catch {
+				showStatus(input, input.dataset.msgError ?? '');
+			}
+		});
+	}
+
+	// Show selected filename in the Choose CSV label
+	document.addEventListener('change', (event) => {
+		const input = event.target;
+		if (!(input instanceof HTMLInputElement) || input.type !== 'file') return;
+		const label = input.closest('.exchange-account__file')?.querySelector('.exchange-account__file-label');
+		if (!(label instanceof HTMLElement)) return;
+		label.textContent = input.files?.[0]?.name ?? 'Choose CSV';
+	});
+
+	if (document.documentElement.dataset.exchangeHoldingsTotalsInit !== 'true') {
+		document.documentElement.dataset.exchangeHoldingsTotalsInit = 'true';
+
+		const parseUsd = (value) => {
+			if (!value) return 0;
+			const cleaned = value.replace(/[$,]/g, '').trim();
+			const num = Number.parseFloat(cleaned);
+			return Number.isFinite(num) ? num : 0;
+		};
+
+		const updateTotalForAccount = (accountEl) => {
+			const totalEl = accountEl.querySelector('[data-holdings-total-usd]');
+			if (!totalEl) return;
+			let total = 0;
+			let hasValue = false;
+			accountEl.querySelectorAll('.exchange-holding').forEach((row) => {
+				const usdSpan = row.querySelector('.usd-value');
+				if (!usdSpan) return;
+				const value = parseUsd(usdSpan.textContent ?? '');
+				if (value > 0) hasValue = true;
+				total += value;
+			});
+			totalEl.textContent = hasValue
+				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				: 'No funds yet';
+		};
+
+		const observeHoldings = () => {
+			document.querySelectorAll('.exchange-account').forEach((accountEl) => {
+				const holdings = accountEl.querySelector('.exchange-account__holdings');
+				if (!holdings) return;
+				updateTotalForAccount(accountEl);
+				const observer = new MutationObserver(() => updateTotalForAccount(accountEl));
+				observer.observe(holdings, { childList: true, subtree: true, characterData: true });
+			});
+		};
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', observeHoldings);
+		} else {
+			observeHoldings();
+		}
+	}
+</script>
+

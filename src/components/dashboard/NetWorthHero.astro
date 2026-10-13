@@ -1,0 +1,39 @@
+---
+import './NetWorthHero.css';
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import defaultHero from '../../assets/TradFiVSDfiImg.png';
+import { getLang } from '@/lib/i18n/locale';
+import { getNetWorthHero } from '@/i18n/components/netWorthHero';
+
+interface Props {
+	title?: string;
+	subtitle?: string;
+	imageSrc?: ImageMetadata;
+	heightMobile?: string;
+	heightDesktop?: string;
+}
+
+const tHero = getNetWorthHero(getLang(Astro.request));
+const {
+	title = tHero.title,
+	subtitle = tHero.subtitle,
+	imageSrc = defaultHero,
+	heightMobile = '45vh',
+	heightDesktop = '61.8vh',
+} = Astro.props;
+---
+
+<section
+	class="hero"
+	style={`--hero-height-mobile:${heightMobile}; --hero-height-desktop:${heightDesktop};`}
+>
+	<Image class="hero-img" src={imageSrc} alt={title} loading="eager" />
+	<div class="hero-overlay"></div>
+	<div class="hero-copy">
+		<p class="hero-kicker">TradFi x DeFi</p>
+		<h2 class="hero-title">{title}</h2>
+		<p class="hero-subtitle">{subtitle}</p>
+	</div>
+</section>
+

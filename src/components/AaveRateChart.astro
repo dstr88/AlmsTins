@@ -1,0 +1,140 @@
+---
+import './AaveRateChart.css';
+import chartScript from '../scripts/aaveChartClient.ts?url';
+const reserves = [
+	{
+		label: 'USDC · Ethereum (v3)',
+		reserveId: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+		poolId: 'mainnet_v3',
+		color: '#2d7cf7',
+	},
+	{
+		label: 'USDT · Ethereum (v3)',
+		reserveId: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+		poolId: 'mainnet_v3',
+		color: '#f5b431',
+	},
+	{
+		label: 'USDC · Polygon (v3)',
+		reserveId: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
+		poolId: 'polygon_v3',
+		color: '#8247e5',
+	},
+	{
+		label: 'USDT · Polygon (v3)',
+		reserveId: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
+		poolId: 'polygon_v3',
+		color: '#26a17b',
+	},
+];
+const defaultReserve = reserves[0];
+const DEFAULT_WINDOW_DAYS = 30;
+const windows = [
+	{ label: '7 days', value: 7 },
+	{ label: '30 days', value: 30 },
+	{ label: '90 days', value: 90 },
+];
+---
+
+<section class="page" data-default-window={DEFAULT_WINDOW_DAYS}>
+	<div class="panel">
+		<header class="panel__header">
+			<div>
+				<p class="eyebrow">Aave Protocol v3 · Live Rates</p>
+				<h1>Track supply & borrow yields</h1>
+				<p class="lede">
+					Pull historical APY data directly from the public Aave API and visualize how variable rates shift across
+					top reserves.
+				</p>
+			</div>
+			<div class="meta">
+				<p>
+					Latest sample:
+					<span data-updated>—</span>
+				</p>
+				<p class="note">Data is returned in RAY (1e27) and converted to APY % client-side.</p>
+			</div>
+		</header>
+
+		<div class="controls">
+			<label class="control">
+				<span>Market reserve</span>
+				<select id="reserve-select">
+					{reserves.map((reserve) => (
+						<option value={reserve.reserveId} selected={reserve.reserveId === defaultReserve.reserveId}>
+							{reserve.label}
+						</option>
+					))}
+				</select>
+			</label>
+
+			<label class="control">
+				<span>Lookback window</span>
+				<select id="window-select">
+					{windows.map((window) => (
+						<option value={window.value} selected={window.value === DEFAULT_WINDOW_DAYS}>{window.label}</option>
+					))}
+				</select>
+			</label>
+		</div>
+
+		<details class="custom">
+			<summary>Load any other market</summary>
+			<p class="custom__help">
+				Copy the pool identifier (e.g. <code>arbitrum_v3</code>) and reserve address from the
+				<a href="https://docs.aave.com/developers/deployed-contracts/deployed-contracts" target="_blank" rel="noreferrer">
+					Aave docs
+				</a>
+				or your own registry. Paste them below to fetch rates without editing code.
+			</p>
+			<div class="custom__grid">
+				<label class="control">
+					<span>Pool ID</span>
+					<input id="custom-pool" placeholder="e.g. polygon_v3" />
+				</label>
+				<label class="control">
+					<span>Reserve address</span>
+					<input id="custom-reserve" placeholder="0x…" />
+				</label>
+				<label class="control">
+					<span>Label (optional)</span>
+					<input id="custom-label" placeholder="USDC · Optimism" />
+				</label>
+				<button type="button" class="custom__button" id="custom-load">Load market</button>
+			</div>
+		</details>
+
+		<p class="status" data-status>Loading rates...</p>
+		<div class="chart-shell">
+			<canvas id="aave-rate-chart" width="600" height="360" aria-label="Interest rate chart" role="img"></canvas>
+		</div>
+		<ul class="legend">
+			<li>
+				<span class="dot supply"></span>
+				<div>
+					<p>Supply APY</p>
+					<small>Earned by depositors</small>
+				</div>
+			</li>
+			<li>
+				<span class="dot variable"></span>
+				<div>
+					<p>Variable borrow APY</p>
+					<small>Dynamic rate borrowers pay</small>
+				</div>
+			</li>
+			<li>
+				<span class="dot stable"></span>
+				<div>
+					<p>Stable borrow APY</p>
+					<small>Optional fixed-style rate</small>
+				</div>
+			</li>
+		</ul>
+	</div>
+
+	<script type="application/json" id="reserve-data" set:html={JSON.stringify(reserves)}></script>
+</section>
+
+<script type="module" src={chartScript}></script>
+

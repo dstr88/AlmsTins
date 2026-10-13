@@ -1,0 +1,116 @@
+---
+import './Footer.css';
+import type { Lang } from "@/lib/i18n/locale";
+import { getFooter } from "@/i18n/footer";
+import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
+import AlmstinsLogo from "../assets/logo.jpeg";
+import Faq from "./faq.astro";
+import Welcome from "./Welcome.astro";
+import PrivacyPolicy from "./privacy-policy.astro";
+import TermsOfService from "./terms-of-service.astro";
+
+const { lang = "en" } = Astro.props as { lang?: Lang };
+const t = getFooter(lang);
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <section class="footer-col footer-license">
+      <div class="license-media">
+        <img
+          src={DonnieSelfie.src}
+          alt="Donnie selfie"
+          class="license-photo"
+          width={120}
+          height={120}
+          loading="lazy"
+        />
+        <div class="license-copy">
+          <h3>{t.licenseHeading}</h3>
+          <p>{t.licenseLine}</p>
+          <p>© {year} Almstins LLC</p>
+        </div>
+      </div>
+      <a
+        href="https://almstins.com"
+        target="_blank"
+        rel="noreferrer"
+        class="license-logo-link"
+        aria-label="Almstins"
+      >
+        <img
+          src={AlmstinsLogo.src}
+          alt="Almstins"
+          class="license-logo"
+          width="960"
+          height="1104"
+          loading="lazy"
+        />
+      </a>
+    </section>
+
+    <section class="footer-col footer-faq">
+      <Faq lang={lang} />
+      <div class="footer-legal">
+        <a href={t.aboutHref} class="footer-legal-link">
+          {t.aboutLabel}
+        </a>
+        <a href={t.pricingHref} class="footer-legal-link">
+          {t.pricingLabel}
+        </a>
+        <button class="footer-legal-link" type="button" data-footer-modal="privacy-modal">
+          {t.privacyLabel}
+        </button>
+        <button class="footer-legal-link" type="button" data-footer-modal="terms-modal">
+          {t.termsLabel}
+        </button>
+      </div>
+    </section>
+
+    <section class="footer-col footer-welcome">
+      <Welcome compact lang={lang} />
+    </section>
+  </div>
+
+  <div class="footer-modal" id="privacy-modal" aria-hidden="true">
+    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.privacyAria}>
+      <button class="footer-modal-close" type="button" data-footer-close="privacy-modal">×</button>
+      <PrivacyPolicy variant="modal" lang={lang} />
+    </div>
+  </div>
+
+  <div class="footer-modal" id="terms-modal" aria-hidden="true">
+    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.termsAria}>
+      <button class="footer-modal-close" type="button" data-footer-close="terms-modal">×</button>
+      <TermsOfService variant="modal" lang={lang} />
+    </div>
+  </div>
+</footer>
+
+
+<script>
+  document.querySelectorAll("[data-footer-modal]").forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      const id = trigger.getAttribute("data-footer-modal");
+      if (!id) return;
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-footer-close]").forEach((closeButton) => {
+    closeButton.addEventListener("click", () => {
+      const id = closeButton.getAttribute("data-footer-close");
+      if (!id) return;
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+      }
+    });
+  });
+</script>

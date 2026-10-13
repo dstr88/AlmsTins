@@ -1,0 +1,564 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
+import { db } from '../../../lib/db';
+import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import { getLang } from '@/lib/i18n/locale';
+import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
+import './memory-lane.css';
+
+const lang = getLang(Astro.request);
+const t = getMemoryLane(lang);
+
+const defaultYear = new Date().getFullYear() - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const year        = yearParam ? Number(yearParam) : defaultYear;
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+const session = await requireTenantSession(Astro.request).catch(() => null);
+if (!session) return Astro.redirect('/login', 302);
+const { tenantId } = session;
+// Demo chrome from the SESSION, not the cookie — a logged-in user with a stale
+// demo cookie must never see the demo overlay on their real data.
+const isDemo = session.isDemo === true;
+
+let fetchError: string | null = null;
+let byAssetGains: any[]                 = [];
+let lotDetails:   Record<string, any[]> = {};
+let harvestLosses: any[]                = [];
+let availableYears: number[]            = [defaultYear];
+
+try {
+	// ── Available years ──────────────────────────────────────────────────────
+	// timestamp_utc is ISO-8601 UTC text, so its first 4 chars are the year.
+	const yearsRes = await db.execute({
+		sql: `SELECT DISTINCT substr(timestamp_utc, 1, 4) AS y
+		      FROM asset_lifecycle_events
+		      WHERE tenant_id = ?
+		      ORDER BY y DESC`,
+		args: [tenantId],
+	});
+	availableYears = yearsRes.rows
+		.map((r: any) => Number(r.y))
+		.filter((y: number) => y >= 2009 && y <= 2100);
+
+	// ── FIFO breakdown ────────────────────────────────────────────────────────
+	const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto');
+
+	// ── Per-asset gains ───────────────────────────────────────────────────────
+	type AssetRow = { asset: string; stGain: number; stLots: number; ltGain: number; ltLots: number; netGain: number };
+	const assetMap = new Map<string, AssetRow>();
+	const getRow = (asset: string): AssetRow => {
+		if (!assetMap.has(asset)) assetMap.set(asset, { asset, stGain: 0, stLots: 0, ltGain: 0, ltLots: 0, netGain: 0 });
+		return assetMap.get(asset)!;
+	};
+	for (const lot of bd.shortTerm) { const r = getRow(lot.asset); r.stGain += lot.gainLossUsd ?? 0; r.stLots++; }
+	for (const lot of bd.longTerm)  { const r = getRow(lot.asset); r.ltGain += lot.gainLossUsd ?? 0; r.ltLots++; }
+	byAssetGains = Array.from(assetMap.values())
+		.map((r) => ({ ...r, netGain: r.stGain + r.ltGain }))
+		.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain));
+
+	// ── Per-lot detail ─────────────────────────────────────────────────────────
+	for (const lot of bd.shortTerm) (lotDetails[lot.asset] ??= []).push({ ...lot, term: 'short' });
+	for (const lot of bd.longTerm)  (lotDetails[lot.asset] ??= []).push({ ...lot, term: 'long'  });
+	for (const lots of Object.values(lotDetails)) lots.sort((a: any, b: any) => a.sellDate.localeCompare(b.sellDate));
+
+	// ── Currently-held positions ───────────────────────────────────────────────
+	type HarvestRow = {
+		asset: string; totalQty: number; totalCost: number;
+		currentPrice: number | null; currentValue: number | null; unrealizedGainLoss: number | null;
+		shortTermQty: number; longTermQty: number; soonestLotDaysToLT: number | null;
+	};
+	const harvestMap = new Map<string, HarvestRow>();
+	for (const lot of bd.stillHolding) {
+		if (!harvestMap.has(lot.asset)) {
+			harvestMap.set(lot.asset, {
+				asset: lot.asset, totalQty: 0, totalCost: 0,
+				currentPrice: null, currentValue: null, unrealizedGainLoss: null,
+				shortTermQty: 0, longTermQty: 0, soonestLotDaysToLT: null,
+			});
+		}
+		const row = harvestMap.get(lot.asset)!;
+		row.totalQty  += lot.amount;
+		row.totalCost += lot.costUsd ?? 0;
+		if (lot.daysHeld >= 365) {
+			row.longTermQty += lot.amount;
+		} else {
+			row.shortTermQty += lot.amount;
+			const daysLeft = 365 - lot.daysHeld;
+			if (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT) row.soonestLotDaysToLT = daysLeft;
+		}
+	}
+	try {
+		const heldAssets = Array.from(harvestMap.keys());
+		if (heldAssets.length > 0) {
+			const tickers = await getTickersUSD() as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+			const priceMap = new Map<string, number>();
+			for (const t of tickers) {
+				const sym = String(t.symbol ?? '').toUpperCase();
+				const price = t.quotes?.USD?.price;
+				if (sym && typeof price === 'number' && price > 0) priceMap.set(sym, price);
+			}
+			for (const row of harvestMap.values()) {
+				const price = priceMap.get(row.asset) ?? null;
+				row.currentPrice = price;
+				if (price !== null) { row.currentValue = price * row.totalQty; row.unrealizedGainLoss = row.currentValue - row.totalCost; }
+			}
+		}
+		harvestLosses = Array.from(harvestMap.values())
+			.sort((a, b) => {
+				const aGl = a.unrealizedGainLoss ?? Infinity;
+				const bGl = b.unrealizedGainLoss ?? Infinity;
+				return aGl - bGl;
+			});
+	} catch (e) {
+		console.warn('[memory-lane] held-position price fetch failed', e);
+	}
+} catch (err: any) {
+	fetchError = String(err?.message ?? err);
+	console.error('[memory-lane] data load failed:', err);
+}
+
+// ── Coin classification ────────────────────────────────────────────────────────
+type CoinType = 'L1' | 'DeFi' | 'Wrapped' | 'Stable' | 'Other';
+function classifyCoin(symbol: string): CoinType {
+	const s = symbol.toUpperCase().split('.')[0];
+	const L1s     = new Set(['BTC','ETH','SOL','AVAX','SUI','LTC','MATIC','BNB','ADA','DOT','ATOM','NEAR','FTM','ALGO','RSK','RBTC','ONE','HBAR','APT']);
+	const wrapped = new Set(['WBTC','WETH','WAVAX','WRBTC','WMATIC','WBNB','WSOL','SAVAX']);
+	const stables = new Set(['USDC','USDT','DAI','BUSD','XUSD','DLLR','ZUSD','RUSDT','TUSD','FRAX','LUSD','USDD','GUSD','USDP']);
+	const defi    = new Set(['AAVE','UNI','COMP','SOV','MOC','FISH','BPRO','RIF','CRV','MKR','SNX','YFI','SUSHI','PYTH','GMX','GNS','LINK','GRT']);
+	if (wrapped.has(s)) return 'Wrapped';
+	if (L1s.has(s))     return 'L1';
+	if (stables.has(s)) return 'Stable';
+	if (defi.has(s))    return 'DeFi';
+	return 'Other';
+}
+
+// ── Per-asset lot stats ────────────────────────────────────────────────────────
+function getLotStats(asset: string) {
+	const lots = lotDetails[asset] ?? [];
+	let cost = 0, proceeds = 0, lastSell = '', firstBuy = '';
+	for (const lot of lots) {
+		cost     += lot.costUsd     ?? 0;
+		proceeds += lot.proceedsUsd ?? 0;
+		if (!lastSell || lot.sellDate > lastSell) lastSell = lot.sellDate;
+		if (!firstBuy  || lot.buyDate  < firstBuy) firstBuy = lot.buyDate;
+	}
+	const gainPct = cost > 0 ? ((proceeds - cost) / cost) * 100 : null;
+	return { cost, proceeds, lastSell, firstBuy, gainPct, lotCount: lots.length };
+}
+
+// ── Closed (fully sold) vs Open (currently held) ────────────────────────────────
+const heldSet      = new Set(harvestLosses.map((h: any) => h.asset));
+const closed       = byAssetGains.filter((a: any) => !heldSet.has(a.asset));
+const open         = harvestLosses;
+const gainsByAsset = new Map(byAssetGains.map((a: any) => [a.asset, a]));
+
+// ── Group by coin type ─────────────────────────────────────────────────────────
+function groupByType<T>(arr: T[], key: (item: T) => string): Record<CoinType, T[]> {
+	const out: Record<string, T[]> = { L1: [], DeFi: [], Wrapped: [], Stable: [], Other: [] };
+	for (const item of arr) {
+		out[classifyCoin(key(item))].push(item);
+	}
+	return out as Record<CoinType, T[]>;
+}
+const closedGroups = groupByType(closed, (a: any) => a.asset);
+const openGroups   = groupByType(open,   (h: any) => h.asset);
+
+const TYPE_ORDER: CoinType[] = ['L1', 'DeFi', 'Wrapped', 'Stable', 'Other'];
+const TYPE_LABEL: Record<CoinType, string> = {
+	L1:      t.typeL1,
+	DeFi:    'DeFi',
+	Wrapped: 'Wrapped',
+	Stable:  t.typeStable,
+	Other:   'Other',
+};
+
+// ── Totals ─────────────────────────────────────────────────────────────────────
+const totalRealized = closed.reduce((s: number, a: any) => s + a.netGain, 0);
+
+// ── Formatters ─────────────────────────────────────────────────────────────────
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+function fmt(n: number) {
+	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+function fmtDate(d: string) {
+	if (!d) return '—';
+	try {
+		const iso = d.length > 10 && d.includes('T') ? d : d.slice(0, 10) + 'T12:00:00Z';
+		return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
+	}
+	catch { return d.slice(0, 10); }
+}
+function fmtQty(n: number) {
+	return n.toLocaleString(dateLocale, { maximumFractionDigits: 8 });
+}
+function logoUrl(symbol: string) {
+	return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${symbol.toLowerCase().split('.')[0]}.svg`;
+}
+function timelineId(asset: string) {
+	return `tl-${asset.replace(/[^a-z0-9]/gi, '_')}`;
+}
+---
+
+<Layout title={t.pageTitle(year)} noindex={true}>
+<div class="ml-page">
+
+	<a href="/dashboard/vault" class="ml-back">{t.backLink}</a>
+
+	{fetchError && !isDemo && (
+		<div class="ml-error">
+			<strong>{t.errorHeading}</strong>
+			<p>{fetchError}</p>
+			<a href={`?year=${year}`}>{t.errorRetry}</a>
+		</div>
+	)}
+
+	{isDemo && (
+		<div class="ml-demo-note">
+			<p>
+				<strong>{t.demoHeading}</strong>
+				{t.demoBody}
+			</p>
+		</div>
+	)}
+
+	<!-- ── Header ──────────────────────────────────────────────────────────── -->
+	<header class="ml-hero">
+		<h1 class="ml-title">{t.heroTitle}</h1>
+		<p class="ml-sub">{t.heroSubtitle}</p>
+
+		<p class="ml-year-label">{t.yearLabel}</p>
+		<div class="ml-years">
+			{availableYears.map((y) => (
+				<a href={`?year=${y}`} class={`ml-year${y === year ? ' ml-year--active' : ''}`}>{y}</a>
+			))}
+		</div>
+	</header>
+
+	<!-- ── Summary stats ───────────────────────────────────────────────────── -->
+	{(closed.length > 0 || open.length > 0) && (
+		<div class="ml-stats">
+			<div class="ml-stat">
+				<span class="ml-stat__num">{closed.length}</span>
+				<span class="ml-stat__label">{t.statClosed}</span>
+			</div>
+			<div class="ml-stat">
+				<span class={`ml-stat__num ${totalRealized >= 0 ? 'is-gain' : 'is-loss'}`}>{fmt(totalRealized)}</span>
+				<span class="ml-stat__label">{t.statRealizedPnl(year)}</span>
+			</div>
+			<div class="ml-stat">
+				<span class="ml-stat__num">{open.length}</span>
+				<span class="ml-stat__label">{t.statOpen}</span>
+			</div>
+		</div>
+	)}
+
+	<!-- ══ CLOSED POSITIONS ══════════════════════════════════════════════════ -->
+	{closed.length > 0 && (
+		<section class="ml-section">
+			<div class="ml-section-head">
+				<div>
+					<h2 class="ml-section-title">{t.sectionClosedTitle}</h2>
+					<p class="ml-section-sub">{t.sectionClosedSub(year)}</p>
+				</div>
+				<span class="ml-section-count">{closed.length}</span>
+			</div>
+
+			{TYPE_ORDER.map((type) => {
+				const group = closedGroups[type];
+				if (!group?.length) return null;
+				return (
+					<div class="ml-group">
+						<div class="ml-group-label">{TYPE_LABEL[type]}</div>
+						<div class="ml-grid">
+							{group.map((asset: any) => {
+								const stats = getLotStats(asset.asset);
+								const lots  = lotDetails[asset.asset] ?? [];
+								const isWin = asset.netGain >= 0;
+								return (
+									<div class="pos-card" data-asset={asset.asset}>
+										<div class="pos-card__inner">
+
+											<div class="pos-card__head">
+												<div class="pos-card__logo">
+													<img class="pos-card__logo-img"
+													     src={logoUrl(asset.asset)}
+													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+													     alt={asset.asset} />
+													<div class="pos-card__logo-fallback" style="display:none">{asset.asset.slice(0, 3)}</div>
+												</div>
+												<span class="pos-card__ticker">{asset.asset}</span>
+												<span class="pos-card__tag">{t.tagClosed}</span>
+											</div>
+
+											<div class="pos-card__pnl">
+												<span class={`pos-card__pnl-num ${isWin ? 'is-gain' : 'is-loss'}`}>
+													{isWin ? '+' : ''}{fmt(asset.netGain)}
+												</span>
+												{stats.gainPct !== null && (
+													<span class={`pos-card__pnl-pct ${isWin ? 'is-gain' : 'is-loss'}`}>
+														{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
+													</span>
+												)}
+												<span class="pos-card__pnl-label">{t.labelRealized}</span>
+											</div>
+
+											<div class="pos-card__stats">
+												{lots.length > 0 && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLots}</span><span class="pos-card__stat-v">{lots.length}</span></div>
+												)}
+												{asset.stLots > 0 && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyShortTerm}</span><span class="pos-card__stat-v">{asset.stLots}</span></div>
+												)}
+												{asset.ltLots > 0 && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLongTerm}</span><span class="pos-card__stat-v">{asset.ltLots}</span></div>
+												)}
+												{stats.lastSell && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyClosed}</span><span class="pos-card__stat-v">{fmtDate(stats.lastSell)}</span></div>
+												)}
+											</div>
+
+											{lots.length > 0 && (
+												<button class="pos-card__cta" data-asset={asset.asset}>
+													{t.ctaViewTx}
+												</button>
+											)}
+										</div>
+
+										{lots.length > 0 && (
+											<div class="pos-card__timeline" id={timelineId(asset.asset)} hidden>
+												<div class="tl-head">
+													{t.tlHead(asset.asset, lots.length, year)}
+												</div>
+												<div class="tl-track">
+													{lots.map((lot: any) => {
+														const gain = lot.gainLossUsd ?? 0;
+														const isLotWin = gain >= 0;
+														return (
+															<div class="tl-pair">
+																<div class="tl-node">
+																	<div class="tl-dot tl-dot--buy"></div>
+																	<div class="tl-content">
+																		<span class="tl-action tl-action--buy">{t.tlBuy}</span>
+																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+																	</div>
+																</div>
+																<div class="tl-connector">
+																	<div class="tl-line"></div>
+																	<span class="tl-held">
+																		{t.tlHeld(lot.daysHeld)}
+																		<span class={lot.term === 'long' ? 'tl-term tl-term--long' : 'tl-term tl-term--short'}>
+																			{lot.term === 'long' ? t.tlTermLong : t.tlTermShort}
+																		</span>
+																	</span>
+																</div>
+																<div class="tl-node">
+																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'is-gain' : 'is-loss'}`}></div>
+																	<div class="tl-content">
+																		<span class="tl-action tl-action--sell">{t.tlSell}</span>
+																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																		{lot.gainLossUsd != null && (
+																			<span class={`tl-gain ${isLotWin ? 'is-gain' : 'is-loss'}`}>
+																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
+																			</span>
+																		)}
+																	</div>
+																</div>
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				);
+			})}
+		</section>
+	)}
+
+	<!-- ══ OPEN POSITIONS ════════════════════════════════════════════════════ -->
+	{open.length > 0 && (
+		<section class="ml-section">
+			<div class="ml-section-head">
+				<div>
+					<h2 class="ml-section-title">{t.sectionOpenTitle}</h2>
+					<p class="ml-section-sub">{t.sectionOpenSub}</p>
+				</div>
+				<span class="ml-section-count">{open.length}</span>
+			</div>
+
+			{TYPE_ORDER.map((type) => {
+				const group = openGroups[type];
+				if (!group?.length) return null;
+				return (
+					<div class="ml-group">
+						<div class="ml-group-label">{TYPE_LABEL[type]}</div>
+						<div class="ml-grid">
+							{group.map((h: any) => {
+								const soldGains = gainsByAsset.get(h.asset);
+								const lots      = lotDetails[h.asset] ?? [];
+								const isUp      = (h.unrealizedGainLoss ?? 0) >= 0;
+								return (
+									<div class="pos-card pos-card--open" data-asset={h.asset}>
+										<div class="pos-card__inner">
+
+											<div class="pos-card__head">
+												<div class="pos-card__logo">
+													<img class="pos-card__logo-img"
+													     src={logoUrl(h.asset)}
+													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+													     alt={h.asset} />
+													<div class="pos-card__logo-fallback" style="display:none">{h.asset.slice(0, 3)}</div>
+												</div>
+												<span class="pos-card__ticker">{h.asset}</span>
+												<span class="pos-card__tag pos-card__tag--open">{t.tagOpen}</span>
+											</div>
+
+											<div class="pos-card__pnl">
+												{h.unrealizedGainLoss != null ? (
+													<span class={`pos-card__pnl-num ${isUp ? 'is-gain' : 'is-loss'}`}>
+														{isUp ? '+' : ''}{fmt(h.unrealizedGainLoss)}
+													</span>
+												) : (
+													<span class="pos-card__pnl-num pos-card__pnl-num--muted">{t.labelUnpriced}</span>
+												)}
+												<span class="pos-card__pnl-label">{t.labelUnrealized}</span>
+											</div>
+
+											<div class="pos-card__stats">
+												<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyHeld}</span><span class="pos-card__stat-v">{fmtQty(h.totalQty)}</span></div>
+												{h.currentPrice != null && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyPrice}</span><span class="pos-card__stat-v">${h.currentPrice.toLocaleString(dateLocale, { maximumFractionDigits: 2 })}</span></div>
+												)}
+												{h.shortTermQty > 0 && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyShortTermQty}</span><span class="pos-card__stat-v">{fmtQty(h.shortTermQty)}</span></div>
+												)}
+												{h.longTermQty > 0 && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLongTermQty}</span><span class="pos-card__stat-v">{fmtQty(h.longTermQty)}</span></div>
+												)}
+												{h.soonestLotDaysToLT != null && (
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyToLongTerm}</span><span class="pos-card__stat-v">{h.soonestLotDaysToLT}d</span></div>
+												)}
+											</div>
+
+											{soldGains && (
+												<div class="pos-card__note">
+													{t.alsoSold(soldGains.stLots + soldGains.ltLots, year, fmt(soldGains.netGain))}
+												</div>
+											)}
+
+											{lots.length > 0 && (
+												<button class="pos-card__cta" data-asset={h.asset}>
+													{t.ctaViewLots}
+												</button>
+											)}
+										</div>
+
+										{lots.length > 0 && (
+											<div class="pos-card__timeline" id={timelineId(h.asset)} hidden>
+												<div class="tl-head">
+													{t.tlHead(h.asset, lots.length, year)}
+												</div>
+												<div class="tl-track">
+													{lots.map((lot: any) => {
+														const gain = lot.gainLossUsd ?? 0;
+														const isLotWin = gain >= 0;
+														return (
+															<div class="tl-pair">
+																<div class="tl-node">
+																	<div class="tl-dot tl-dot--buy"></div>
+																	<div class="tl-content">
+																		<span class="tl-action tl-action--buy">{t.tlBuy}</span>
+																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+																	</div>
+																</div>
+																<div class="tl-connector">
+																	<div class="tl-line"></div>
+																	<span class="tl-held">
+																		{t.tlHeld(lot.daysHeld)}
+																		<span class={lot.term === 'long' ? 'tl-term tl-term--long' : 'tl-term tl-term--short'}>
+																			{lot.term === 'long' ? t.tlTermLong : t.tlTermShort}
+																		</span>
+																	</span>
+																</div>
+																<div class="tl-node">
+																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'is-gain' : 'is-loss'}`}></div>
+																	<div class="tl-content">
+																		<span class="tl-action tl-action--sell">{t.tlSell}</span>
+																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																		{lot.gainLossUsd != null && (
+																			<span class={`tl-gain ${isLotWin ? 'is-gain' : 'is-loss'}`}>
+																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
+																			</span>
+																		)}
+																	</div>
+																</div>
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				);
+			})}
+		</section>
+	)}
+
+	<!-- ── Empty state ────────────────────────────────────────────────────── -->
+	{closed.length === 0 && open.length === 0 && (
+		<div class="ml-empty">
+			<p class="ml-empty-title">{t.emptyTitle(year)}</p>
+			<p class="ml-empty-sub">{t.emptySub}</p>
+		</div>
+	)}
+
+</div>
+</Layout>
+
+<script>
+// ── Timeline toggle ───────────────────────────────────────────────────────────
+function toggleTimeline(asset: string) {
+	const id       = 'tl-' + asset.replace(/[^a-z0-9]/gi, '_');
+	const timeline = document.getElementById(id);
+	if (!timeline) return;
+	const isOpen = !timeline.hidden;
+	timeline.hidden = isOpen;
+	document.querySelectorAll<HTMLButtonElement>(`[data-asset="${CSS.escape(asset)}"].pos-card__cta`)
+		.forEach(btn => btn.classList.toggle('open', !isOpen));
+}
+
+// CTA button clicks
+document.querySelectorAll<HTMLButtonElement>('.pos-card__cta').forEach(btn => {
+	btn.addEventListener('click', (e) => {
+		e.stopPropagation();
+		toggleTimeline(btn.dataset.asset!);
+	});
+});
+
+// Card click (anywhere) also toggles
+document.querySelectorAll<HTMLElement>('.pos-card').forEach(card => {
+	card.addEventListener('click', () => {
+		const asset = card.dataset.asset;
+		if (asset) toggleTimeline(asset);
+	});
+});
+</script>

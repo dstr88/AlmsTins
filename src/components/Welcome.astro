@@ -1,0 +1,30 @@
+---
+import './Welcome.css';
+import type { Lang } from "@/lib/i18n/locale";
+import { getWelcome } from "@/i18n/welcome";
+import DonnieLori2025 from "../assets/donnie&lori2025.jpeg";
+
+const { compact = false, lang = "en" } = Astro.props as { compact?: boolean; lang?: Lang };
+const t = getWelcome(lang);
+---
+
+<section class={`welcome ${compact ? "compact" : ""}`}>
+  <div class="hero-card">
+    <div class="hero-image">
+      <img src={DonnieLori2025.src} alt="Donnie Starkey" width="500" height="500" loading="lazy" />
+    </div>
+
+    <div class="hero-info">
+      <h2>Donnie Starkey</h2>
+      <p class="hero-role">{t.role}</p>
+
+      <div class="hero-links">
+        <a href="https://medium.com/@donnie.starkey" target="_blank" rel="noreferrer">Medium</a>
+        <a href="https://linkedin.com/in/donnie.starkey" target="_blank" rel="noreferrer">LinkedIn</a>
+        <a href="https://x.com/donnie.starkey" target="_blank" rel="noreferrer">X</a>
+        <a href="https://t.me/devdonnie" target="_blank" rel="noreferrer">Telegram</a>
+      </div>
+    </div>
+  </div>
+</section>
+

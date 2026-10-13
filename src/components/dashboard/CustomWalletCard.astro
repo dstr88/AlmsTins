@@ -1,0 +1,219 @@
+---
+import './CustomWalletCard.css';
+import type { Wallet } from '@/lib/wallets';
+import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getCustomWalletCard } from '@/i18n/components/customWalletCard';
+
+interface Props {
+	wallet: Wallet;
+}
+
+const lang = getLang(Astro.request);
+const t = getCustomWalletCard(lang);
+
+const { wallet } = Astro.props;
+
+const displayLabel = wallet.label?.trim() || wallet.address.slice(-5);
+const hasRealAddress = wallet.address && !wallet.address.startsWith('custom_');
+const shortAddress = hasRealAddress
+	? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+	: null;
+
+// Load transactions for this wallet
+type TxRow = { id: string; token_symbol: string | null; tx_type: string | null; timestamp: string | null; metadata_json: string | null };
+let transactions: TxRow[] = [];
+try {
+	const res = await db.execute({
+		sql: `SELECT id, token_symbol, tx_type, timestamp, metadata_json
+		      FROM transactions
+		      WHERE wallet_id = ?
+		        AND metadata_json LIKE '%"isCustomEntry":true%'
+		      ORDER BY timestamp DESC`,
+		args: [wallet.id],
+	});
+	transactions = res.rows as unknown as TxRow[];
+} catch { /* non-fatal */ }
+
+const fDate = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Date(iso).toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
+	catch { return iso; }
+};
+const fUsd = (v: number | null) => {
+	if (v == null || !Number.isFinite(v)) return null;
+	return `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const parseMeta = (raw: string | null) => {
+	try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+};
+---
+
+<div class="custom-wallet-card">
+	<div class="cwc-label-pill">{displayLabel}</div>
+
+	{shortAddress && (
+		<p class="cwc-address" title={wallet.address}>{shortAddress}</p>
+	)}
+
+	<div class="cwc-meta">
+		<span class="cwc-meta__item">
+			<span class="cwc-meta__dot"></span>
+			<span class="cwc-meta__text">{t.metaManual}</span>
+		</span>
+	</div>
+
+	<div class="cwc-actions">
+		<button
+			class="cwc-btn cwc-btn--add"
+			type="button"
+			data-custom-wallet-add
+			data-wallet-id={wallet.id}
+			data-wallet-label={displayLabel}
+		>
+			{t.btnAddTransaction}
+		</button>
+	</div>
+
+	<p class="cwc-tx-count">
+		<span class="cwc-tx-count__value">{transactions.length}</span>
+		<span class="cwc-tx-count__label">{transactions.length === 1 ? t.txSingular : t.txPlural}</span>
+	</p>
+
+	{transactions.length > 0 && (
+		<div class="cwc-tx-list">
+			{transactions.map((tx) => {
+				const meta = parseMeta(tx.metadata_json);
+				const isOut = meta.direction === 'out' || tx.tx_type === 'sell' || tx.tx_type === 'transfer';
+				const usd = fUsd(meta.usdValue ?? null);
+				return (
+					<div class={`cwc-tx-row ${isOut ? 'cwc-tx-row--out' : 'cwc-tx-row--in'}`}>
+						<span class="cwc-tx-row__dot"></span>
+						<span class="cwc-tx-row__kind">{tx.tx_type ?? '—'}</span>
+						<span class="cwc-tx-row__asset">{tx.token_symbol ?? '—'}</span>
+						<span class="cwc-tx-row__amount">{meta.amount ?? '—'}</span>
+						{usd && <span class="cwc-tx-row__usd">{usd}</span>}
+						<span class="cwc-tx-row__date">{fDate(tx.timestamp)}</span>
+					</div>
+				);
+			})}
+		</div>
+	)}
+
+	<!-- Delete area -->
+	<div class="cwc-delete-area">
+		<button
+			class="cwc-btn cwc-btn--delete"
+			type="button"
+			data-delete-trigger
+			data-wallet-id={wallet.id}
+			data-wallet-label={displayLabel}
+		>
+			{t.btnDeleteWallet}
+		</button>
+		<div class="cwc-confirm is-hidden" data-delete-confirm>
+			<p class="cwc-confirm__hint">{t.confirmHint}</p>
+			<input
+				class="cwc-confirm__input"
+				type="text"
+				placeholder={displayLabel}
+				data-delete-confirm-input
+				autocomplete="off"
+			/>
+			<div class="cwc-confirm__btns">
+				<button class="cwc-btn cwc-btn--confirm-yes" type="button" data-delete-yes disabled>{t.btnConfirmYes}</button>
+				<button class="cwc-btn cwc-btn--confirm-no" type="button" data-delete-no>{t.btnConfirmNo}</button>
+			</div>
+			<p class="cwc-confirm__message" data-delete-message aria-live="polite"></p>
+		</div>
+	</div>
+</div>
+
+<script define:vars={{
+	__customWalletI18n: {
+		defaultWalletLabel: t.scriptDefaultWalletLabel,
+		deleting:           t.scriptDeleting,
+		deleteFailed:       t.scriptDeleteFailed,
+		deleted:            t.scriptDeleted,
+		networkError:       t.scriptNetworkError,
+	}
+}}>
+	window.__customWalletI18n = __customWalletI18n;
+</script>
+
+<script>
+	const _cwI18n = (window as any).__customWalletI18n ?? {
+		defaultWalletLabel: 'Custom Wallet',
+		deleting:           'Deleting…',
+		deleteFailed:       'Delete failed.',
+		deleted:            'Deleted — reloading…',
+		networkError:       'Network error — try again.',
+	};
+
+	// ── Add Transaction ───────────────────────────────────────────────
+	document.querySelectorAll<HTMLButtonElement>('[data-custom-wallet-add]').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const walletId = btn.dataset.walletId ?? '';
+			const walletLabel = btn.dataset.walletLabel ?? _cwI18n.defaultWalletLabel;
+			document.dispatchEvent(new CustomEvent('open-add-tx', { detail: { walletId, walletLabel } }));
+		});
+	});
+
+	// ── Delete wallet ─────────────────────────────────────────────────
+	document.querySelectorAll<HTMLElement>('.cwc-delete-area').forEach((area) => {
+		const trigger = area.querySelector<HTMLButtonElement>('[data-delete-trigger]');
+		const confirm = area.querySelector<HTMLElement>('[data-delete-confirm]');
+		const input = area.querySelector<HTMLInputElement>('[data-delete-confirm-input]');
+		const yesBtn = area.querySelector<HTMLButtonElement>('[data-delete-yes]');
+		const noBtn = area.querySelector<HTMLButtonElement>('[data-delete-no]');
+		const msgEl = area.querySelector<HTMLElement>('[data-delete-message]');
+		const walletId = trigger?.dataset.walletId ?? '';
+		const walletLabel = (trigger?.dataset.walletLabel ?? '').trim().toLowerCase();
+
+		const setMsg = (text: string) => { if (msgEl) msgEl.textContent = text; };
+
+		// Show confirm panel
+		trigger?.addEventListener('click', () => {
+			trigger.classList.add('is-hidden');
+			confirm?.classList.remove('is-hidden');
+			input?.focus();
+		});
+
+		// Cancel
+		noBtn?.addEventListener('click', () => {
+			confirm?.classList.add('is-hidden');
+			trigger?.classList.remove('is-hidden');
+			if (input) input.value = '';
+			if (yesBtn) yesBtn.disabled = true;
+			setMsg('');
+		});
+
+		// Enable confirm button only when label matches
+		input?.addEventListener('input', () => {
+			const matches = input.value.trim().toLowerCase() === walletLabel;
+			if (yesBtn) yesBtn.disabled = !matches;
+		});
+
+		// Confirm delete
+		yesBtn?.addEventListener('click', async () => {
+			if (!walletId) return;
+			if (yesBtn) yesBtn.disabled = true;
+			setMsg(_cwI18n.deleting);
+
+			try {
+				const res = await fetch(`/api/wallets/${walletId}`, { method: 'DELETE' });
+				if (!res.ok && res.status !== 204) {
+					const data = await res.json().catch(() => ({}));
+					setMsg(data.message ?? _cwI18n.deleteFailed);
+					if (yesBtn) yesBtn.disabled = false;
+					return;
+				}
+				setMsg(_cwI18n.deleted);
+				window.location.reload();
+			} catch {
+				setMsg(_cwI18n.networkError);
+				if (yesBtn) yesBtn.disabled = false;
+			}
+		});
+	});
+</script>

@@ -1,0 +1,573 @@
+---
+import './transactions.css';
+import Layout from '../../layouts/Layout.astro';
+import { getAllActiveWallets } from '../../lib/wallets';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getTransactions } from '@/i18n/dashboard/transactions';
+
+const lang = getLang(Astro.request);
+const t = getTransactions(lang);
+
+const { tenantId } = await requireTenantSession(Astro.request);
+const wallets = await getAllActiveWallets(tenantId);
+const defaultWalletId = wallets[0]?.id ?? '';
+const walletPayload = JSON.stringify(wallets);
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section class="transactions-page" data-default-wallet={defaultWalletId}>
+		<header class="page-header">
+			<div>
+				<p class="eyebrow">{t.eyebrow}</p>
+				<h1>{t.heroTitle}</h1>
+				<p class="lede">{t.lede}</p>
+			</div>
+			<div class="actions">
+				<button type="button" id="refresh-selected">{t.syncSelected}</button>
+				<button type="button" id="refresh-all">{t.refreshAll}</button>
+			</div>
+		</header>
+
+		<form class="filters" id="filter-form">
+			<label>
+				<span>{t.filterWallet}</span>
+				<select name="walletId" id="wallet-select" required>
+					{wallets.map((wallet) => (
+						<option value={wallet.id} selected={wallet.id === defaultWalletId}>
+							{wallet.label ?? wallet.address}
+						</option>
+					))}
+				</select>
+			</label>
+			<label>
+				<span>{t.filterChain}</span>
+				<select name="chain" id="chain-select">
+					<option value="">{t.filterChainAll}</option>
+					<option value="bitcoin">Bitcoin</option>
+					<option value="ethereum">Ethereum</option>
+					<option value="polygon">Polygon</option>
+					<option value="avalanche">Avalanche</option>
+				</select>
+			</label>
+			<label>
+				<span>{t.filterFrom}</span>
+				<input type="date" name="from" id="from-date" />
+			</label>
+			<label>
+				<span>{t.filterTo}</span>
+				<input type="date" name="to" id="to-date" />
+			</label>
+			<button type="submit">{t.loadBtn}</button>
+		</form>
+
+		<p class=”status” data-tx-status>{t.statusInitial}</p>
+
+		<div class="table-shell">
+			<table>
+				<thead>
+					<tr>
+						<th>{t.thDate}</th>
+						<th>{t.thChain}</th>
+						<th>{t.thFrom}</th>
+						<th>{t.thTo}</th>
+						<th>{t.thToken}</th>
+						<th>{t.thAmount}</th>
+						<th>{t.thCategory}</th>
+						<th>{t.thNote}</th>
+						<th>{t.thShots}</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody data-transaction-rows>
+					<tr>
+						<td colspan="10" class="empty">{t.emptyInitial}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<!-- Screenshot modal -->
+	<div id="screenshot-modal" class="shot-modal" role="dialog" aria-modal="true" aria-labelledby="shot-modal-title">
+		<div class="shot-modal-box">
+			<div class="shot-modal-header">
+				<h2 id="shot-modal-title">{t.modalTitle}</h2>
+				<button type="button" id="shot-modal-close" class="ghost" aria-label={t.modalClose}>✕</button>
+			</div>
+			<div id="shot-grid" class="shot-grid"></div>
+			<p id="shot-status" class="shot-status"></p>
+			<div class="shot-actions">
+				<input id="shot-upload-input" type="file" accept="image/*" style="display:none" />
+				<button type="button" id="shot-upload-btn">
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+					{t.uploadImage}
+				</button>
+				<button type="button" id="shot-camera-btn" class="ghost">
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+					{t.takePhoto}
+				</button>
+				<button type="button" id="shot-parse-btn" class="ghost" style="margin-left:auto" disabled>
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v4h4"/></svg>
+					{t.parseImport}
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<script type="application/json" id="wallet-data" set:html={walletPayload}></script>
+
+	<script is:inline define:vars={{ i18n: {
+		syncingWallet: t.syncingWallet,
+		syncFailed: t.syncFailed,
+		syncingAll: t.syncingAll,
+		syncAllFailed: t.syncAllFailed,
+		selectWalletFirst: t.selectWalletFirst,
+		loadingTransactions: t.loadingTransactions,
+		failedToLoad: t.failedToLoad,
+		unableToLoad: t.unableToLoad,
+		noMatchFilters: t.noMatchFilters,
+		missingIds: t.missingIds,
+		failedToSave: t.failedToSave,
+		savedBtn: t.savedBtn,
+		saveBtn: t.saveBtn,
+		annotationSaved: t.annotationSaved,
+		failedToSaveAnnotation: t.failedToSaveAnnotation,
+		notePlaceholder: t.notePlaceholder,
+		shotsLoading: t.shotsLoading,
+		shotsFailed: t.shotsFailed,
+		shotsEmpty: t.shotsEmpty,
+		uploading: t.uploading,
+		uploaded: t.uploaded,
+		uploadFailed: t.uploadFailed,
+		deleteFailed: t.deleteFailed,
+		confirmDelete: t.confirmDelete,
+		parseFailed: t.parseFailed,
+		checkTins: t.checkTins,
+		// Interpolated strings: singular (n=1) and plural template (n=many, number replaced by "N")
+		syncedTransactions1: t.syncedTransactions(1),
+		syncedTransactionsN: t.syncedTransactions(2).replace('2', 'N'),
+		// syncedAll: separate templates for wallets and txns counts
+		syncedAll1w1t: t.syncedAll(1, 1),
+		syncedAllNw1t: t.syncedAll(2, 1).replace('2', 'W'),
+		syncedAll1wNt: t.syncedAll(1, 2).replace('2', 'T'),
+		syncedAllNwNt: t.syncedAll(22, 33).replace('22', 'W').replace('33', 'T'),
+		showingCount1: t.showingCount(1),
+		showingCountN: t.showingCount(2).replace('2', 'N'),
+		importedCount1: t.importedCount(1),
+		importedCountN: t.importedCount(2).replace('2', 'N'),
+		duplicatesSkipped1: t.duplicatesSkipped(1),
+		duplicatesSkippedN: t.duplicatesSkipped(2).replace('2', 'N'),
+		parsing1: t.parsing(1),
+		parsingN: t.parsing(2).replace('2', 'N'),
+	} }}>window.__txI18n = i18n;</script>
+
+	<script type="module">
+		const walletDataEl = document.getElementById('wallet-data');
+		const walletSelect = document.getElementById('wallet-select');
+		const chainSelect = document.getElementById('chain-select');
+		const fromDate = document.getElementById('from-date');
+		const toDate = document.getElementById('to-date');
+		const filterForm = document.getElementById('filter-form');
+		const statusEl = document.querySelector('[data-tx-status]');
+		const tableBody = document.querySelector('[data-transaction-rows]');
+		const refreshSelectedBtn = document.getElementById('refresh-selected');
+		const refreshAllBtn = document.getElementById('refresh-all');
+		const CATEGORY_OPTIONS = [
+			'income',
+			'expense',
+			'transfer',
+			'internal_transfer',
+			'investment',
+			'nft',
+			'reward',
+			'lost',
+			'other',
+		];
+		// i18n bootstrap — falls back to English if the inline script failed
+		const I18N = (window).__txI18n ?? {};
+		const _s = (key) => I18N[key] ?? key;
+		// Interpolate plural string: n=1 uses *1 key, n>1 uses *N key with 'N' replaced by n
+		const _p1 = (key, n) => n === 1 ? _s(key + '1') : _s(key + 'N').replace('N', String(n));
+		// Interpolate syncedAll (two vars: W wallets, T txns)
+		const _syncedAll = (w, t2) => {
+			const k = (w === 1 ? '1w' : 'Nw') + (t2 === 1 ? '1t' : 'Nt');
+			let s = _s('syncedAll' + k);
+			if (w !== 1) s = s.replace('W', String(w));
+			if (t2 !== 1) s = s.replace('T', String(t2));
+			return s;
+		};
+		let wallets = [];
+
+		if (walletDataEl?.textContent) {
+			try {
+				wallets = JSON.parse(walletDataEl.textContent);
+			} catch (error) {
+				console.error('Failed to parse wallet payload', error);
+			}
+		}
+
+		filterForm?.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			await loadTransactions();
+		});
+
+		refreshSelectedBtn?.addEventListener('click', async () => {
+			const walletId = walletSelect?.value;
+			if (!walletId) return;
+			setStatus(_s('syncingWallet'));
+			try {
+				const response = await fetch(`/api/wallets/${walletId}/sync`, {
+					method: 'POST',
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || _s('syncFailed'));
+				}
+				setStatus(_p1('syncedTransactions', payload.transactionsUpserted), 'success');
+				await loadTransactions();
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : _s('syncFailed'), 'error');
+			}
+		});
+
+		refreshAllBtn?.addEventListener('click', async () => {
+			setStatus(_s('syncingAll'));
+			try {
+				const response = await fetch('/api/wallets/sync-all', { method: 'POST' });
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || _s('syncAllFailed'));
+				}
+				setStatus(_syncedAll(payload.wallets, payload.totalTransactionsUpserted), 'success');
+				await loadTransactions();
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : _s('syncFailed'), 'error');
+			}
+		});
+
+		async function loadTransactions() {
+			if (!walletSelect?.value) {
+				setStatus(_s('selectWalletFirst'), 'error');
+				return;
+			}
+			const params = new URLSearchParams({
+				walletId: walletSelect.value,
+			});
+			if (chainSelect?.value) {
+				params.set('chain', chainSelect.value);
+			}
+			if (fromDate?.value) {
+				params.set('from', fromDate.value);
+			}
+			if (toDate?.value) {
+				params.set('to', toDate.value);
+			}
+			setStatus(_s('loadingTransactions'));
+			try {
+				const response = await fetch(`/api/transactions/list?${params.toString()}`);
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || _s('failedToLoad'));
+				}
+				renderRows(payload.transactions || []);
+				setStatus(_p1('showingCount', payload.count || 0), 'success');
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : _s('unableToLoad'), 'error');
+			}
+		}
+
+		function renderRows(transactions) {
+			if (!tableBody) return;
+			tableBody.innerHTML = '';
+			if (!transactions.length) {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<td colspan="10" class="empty">${_s("noMatchFilters")}</td>`;
+				tableBody.appendChild(tr);
+				return;
+			}
+			transactions.forEach((tx) => {
+				const tr = document.createElement('tr');
+				const category = tx.category || 'other';
+				tr.innerHTML = `
+          <td>${formatDate(tx.timestamp)}</td>
+          <td>${tx.chain}</td>
+          <td><code>${shorten(tx.from_address || tx.from)}</code></td>
+          <td><code>${shorten(tx.to_address || tx.to)}</code></td>
+          <td>${tx.token_symbol || 'native'}</td>
+          <td>${formatAmount(tx.value, tx.token_decimals)}</td>
+          <td>
+            <select data-annotation-category>
+              ${CATEGORY_OPTIONS.map(
+								(option) => `<option value="${option}" ${option === category ? 'selected' : ''}>${option}</option>`,
+							).join('')}
+            </select>
+          </td>
+          <td>
+            <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="${_s('notePlaceholder')}" />
+          </td>
+          <td>
+            <button type="button" class="ghost shot-btn" data-hash="${tx.hash}" data-chain="${tx.chain}" title="${_s('shotsTitle')}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              <span class="shot-count" data-shot-count></span>
+            </button>
+          </td>
+          <td>
+            <button type="button" class="ghost" data-save data-hash="${tx.hash}" data-chain="${tx.chain}" data-direction="${tx.tx_type || ''}">
+              ${_s('saveBtn')}
+            </button>
+          </td>
+        `;
+				tableBody.appendChild(tr);
+			});
+			tableBody.querySelectorAll('button[data-save]').forEach((button) => {
+				button.addEventListener('click', handleSaveAnnotation);
+			});
+			tableBody.querySelectorAll('button.shot-btn').forEach((button) => {
+				button.addEventListener('click', openScreenshotModal);
+			});
+		}
+
+		async function handleSaveAnnotation(event) {
+			const button = event.currentTarget;
+			const tr = button.closest('tr');
+			if (!tr) return;
+			const hash = button.dataset.hash;
+			const chain = button.dataset.chain;
+			const direction = button.dataset.direction;
+			const category = tr.querySelector('[data-annotation-category]')?.value;
+			const note = tr.querySelector('[data-annotation-note]')?.value;
+			if (!hash || !chain) {
+				setStatus(_s('missingIds'), 'error');
+				return;
+			}
+			try {
+				const response = await fetch('/api/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						txHash: hash,
+						chain,
+						direction,
+						category,
+						note,
+					}),
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || _s('failedToSave'));
+				}
+				button.textContent = _s('savedBtn');
+				button.classList.add('success');
+				setTimeout(() => {
+					button.textContent = _s('saveBtn');
+					button.classList.remove('success');
+				}, 1500);
+				setStatus(_s('annotationSaved'), 'success');
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : _s('failedToSaveAnnotation'), 'error');
+			}
+		}
+
+		function formatDate(input) {
+			try {
+				return new Date(input).toLocaleString();
+			} catch {
+				return input;
+			}
+		}
+
+		function shorten(value) {
+			if (!value) return '—';
+			return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+		}
+
+		function formatAmount(value, decimals = 18) {
+			if (!value) return '0';
+			try {
+				const amount = Number(value) / 10 ** decimals;
+				return amount.toLocaleString(undefined, { maximumFractionDigits: 4 });
+			} catch {
+				return value;
+			}
+		}
+
+		function setStatus(message, mode = 'info') {
+			if (!statusEl) return;
+			statusEl.textContent = message;
+			statusEl.dataset.mode = mode;
+		}
+
+		// ── Screenshot widget ─────────────────────────────────────────────────
+
+		let activeHash = null;
+		let activeChain = null;
+
+		const modal = document.getElementById('screenshot-modal');
+		const modalTitle = document.getElementById('shot-modal-title');
+		const shotGrid = document.getElementById('shot-grid');
+		const shotUploadInput = document.getElementById('shot-upload-input');
+		const shotUploadBtn = document.getElementById('shot-upload-btn');
+		const shotCameraBtn = document.getElementById('shot-camera-btn');
+		const shotParseBtn = document.getElementById('shot-parse-btn');
+		const shotCloseBtn = document.getElementById('shot-modal-close');
+		const shotStatus = document.getElementById('shot-status');
+		let currentScreenshots = [];
+
+		shotCloseBtn?.addEventListener('click', () => {
+			modal.classList.remove('open');
+			activeHash = null;
+			activeChain = null;
+		});
+
+		modal?.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.classList.remove('open');
+				activeHash = null;
+				activeChain = null;
+			}
+		});
+
+		shotUploadBtn?.addEventListener('click', () => shotUploadInput?.click());
+
+		shotCameraBtn?.addEventListener('click', () => {
+			shotUploadInput.setAttribute('capture', 'environment');
+			shotUploadInput.click();
+		});
+
+		shotUploadInput?.addEventListener('change', async () => {
+			const file = shotUploadInput.files?.[0];
+			if (!file || !activeHash || !activeChain) return;
+			await uploadScreenshot(file);
+			shotUploadInput.value = '';
+			shotUploadInput.removeAttribute('capture');
+		});
+
+		async function openScreenshotModal(event) {
+			const btn = event.currentTarget;
+			activeHash = btn.dataset.hash;
+			activeChain = btn.dataset.chain;
+			if (!activeHash || !activeChain) return;
+			modalTitle.textContent = `${_s("shotsTitle")} — ${shorten(activeHash)}`;
+			shotStatus.textContent = '';
+			shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsLoading")}</p>`;
+			modal.classList.add('open');
+			await refreshScreenshots();
+		}
+
+		async function refreshScreenshots() {
+			if (!activeHash || !activeChain) return;
+			try {
+				const res = await fetch(
+					`/api/transactions/screenshots?txHash=${encodeURIComponent(activeHash)}&chain=${encodeURIComponent(activeChain)}`,
+				);
+				const data = await res.json();
+				renderScreenshots(data.screenshots || []);
+				// update the count badge on the button
+				const btn = tableBody?.querySelector(
+					`button.shot-btn[data-hash="${activeHash}"][data-chain="${activeChain}"]`,
+				);
+				const badge = btn?.querySelector('[data-shot-count]');
+				if (badge) badge.textContent = data.screenshots?.length ? String(data.screenshots.length) : '';
+			} catch {
+				shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsFailed")}</p>`;
+			}
+		}
+
+		function renderScreenshots(screenshots) {
+			currentScreenshots = screenshots;
+			if (shotParseBtn) shotParseBtn.disabled = screenshots.length === 0;
+			if (!screenshots.length) {
+				shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsEmpty")}</p>`;
+				return;
+			}
+			shotGrid.innerHTML = '';
+			screenshots.forEach((shot) => {
+				const item = document.createElement('div');
+				item.className = 'shot-item';
+				item.innerHTML = `
+          <a href="${shot.dataUrl}" target="_blank" rel="noopener">
+            <img src="${shot.dataUrl}" alt="${shot.filename}" />
+          </a>
+          <div class="shot-meta">
+            <span>${shot.filename}</span>
+            <button type="button" class="shot-delete ghost" data-id="${shot.id}" title="${_s("deleteTitle")}">✕</button>
+          </div>
+        `;
+				item.querySelector('.shot-delete')?.addEventListener('click', () => deleteScreenshot(shot.id));
+				shotGrid.appendChild(item);
+			});
+		}
+
+		async function uploadScreenshot(file) {
+			setShotStatus(_s('uploading'));
+			const fd = new FormData();
+			fd.append('txHash', activeHash);
+			fd.append('chain', activeChain);
+			fd.append('file', file);
+			try {
+				const res = await fetch('/api/transactions/screenshots', { method: 'POST', body: fd });
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.error || _s('uploadFailed'));
+				setShotStatus(_s('uploaded'), 'success');
+				await refreshScreenshots();
+			} catch (err) {
+				setShotStatus(err instanceof Error ? err.message : _s('uploadFailed'), 'error');
+			}
+		}
+
+		async function deleteScreenshot(id) {
+			if (!confirm(_s('confirmDelete'))) return;
+			try {
+				const res = await fetch(`/api/transactions/screenshots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+				if (!res.ok) throw new Error(_s('deleteFailed'));
+				await refreshScreenshots();
+			} catch (err) {
+				setShotStatus(err instanceof Error ? err.message : _s('deleteFailed'), 'error');
+			}
+		}
+
+		shotParseBtn?.addEventListener('click', async () => {
+			if (!currentScreenshots.length) return;
+			const total = currentScreenshots.length;
+			let imported = 0;
+			let duplicates = 0;
+			shotParseBtn.disabled = true;
+			setShotStatus(_p1('parsing', total));
+			for (const shot of currentScreenshots) {
+				try {
+					const res = await fetch('/api/transactions/screenshots/parse', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ screenshotId: shot.id }),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || _s('parseFailed'));
+					if (data.duplicate) duplicates++;
+					else imported++;
+				} catch (err) {
+					setShotStatus(err instanceof Error ? err.message : _s('parseFailed'), 'error');
+					shotParseBtn.disabled = false;
+					return;
+				}
+			}
+			await refreshScreenshots();
+			const parts = [];
+			if (imported) parts.push(_p1('importedCount', imported));
+			if (duplicates) parts.push(_p1('duplicatesSkipped', duplicates));
+			setShotStatus(parts.join(', ') + '. ' + _s('checkTins'), 'success');
+		});
+
+		function setShotStatus(msg, mode = 'info') {
+			if (!shotStatus) return;
+			shotStatus.textContent = msg;
+			shotStatus.dataset.mode = mode;
+			if (mode !== 'error') setTimeout(() => (shotStatus.textContent = ''), 2500);
+		}
+	</script>
+</Layout>
+

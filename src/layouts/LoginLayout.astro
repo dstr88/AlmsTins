@@ -1,0 +1,94 @@
+---
+import Footer from "@/components/Footer.astro";
+import Analytics from "@/components/Analytics.astro";
+import { isLang } from "@/lib/i18n/locale";
+import '@/styles/tokens.css';
+
+export interface Props {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+  /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
+  lang?: string;
+  /** Canonical URL override. Defaults to the current path. */
+  canonical?: string;
+  /** Favicon URL. Defaults to the site-wide /favicon.webp; pass a per-page override (e.g. /verify). */
+  favicon?: string;
+}
+
+const {
+  title = 'Sign In | Almstins',
+  description = 'Sign in to your Almstins account to track your crypto portfolio, DeFi positions, and year-end summaries.',
+  noindex = true,
+  lang = 'en',
+  canonical,
+  favicon = '/favicon.webp',
+} = Astro.props;
+const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content={`https://almstins.com${Astro.url.pathname}`} />
+		<meta property="og:image" content="https://almstins.com/og-default.png" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content="https://almstins.com/og-default.png" />
+		<meta name="author" content="AlmsTins" />
+		<meta property="article:author" content="https://www.linkedin.com/company/almstins/" />
+		<link rel="canonical" href={canonicalHref} />
+		<slot name="head" />
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
+		<link rel="icon" href={favicon} />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+		<!-- Google Analytics: the one tag component -->
+		<Analytics />
+	</head>
+	<body>
+		<main>
+			<slot />
+		</main>
+		<Footer lang={isLang(lang) ? lang : "en"} />
+	</body>
+</html>
+
+<style>
+	:global(*) {
+		box-sizing: border-box;
+	}
+
+	body {
+		margin: 0;
+		background: radial-gradient(circle at top, #0c1224, #05070f 60%);
+		color: #f5f8ff;
+		min-height: 100vh;
+		font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+		font-size: 1.05rem;
+		line-height: 1.7;
+	}
+
+	main {
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+
+	:global(html),
+	:global(body) {
+		overflow-x: hidden;
+	}
+</style>

@@ -1,0 +1,1063 @@
+---
+import '../year-summary.css';
+/**
+ * /dashboard/annual-records
+ * International Annual Records Hub — owner-only, no tax-form references.
+ * Same data structure as year-summary.astro but with generic descriptive section names.
+ */
+import Layout from '../../layouts/Layout.astro';
+import WalletYearChangesWrapper from '../../components/WalletYearChangesWrapper';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getAnnualRecords } from '@/i18n/dashboard/annual-records';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+
+export const prerender = false;
+
+// Tax documents are the owner's alone (src/lib/taxAuth.ts): demo sessions never pass.
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login', 302);
+const { tenantId, isDemo = false } = sess;
+
+// Owner always has access
+const isAdmin = true;
+const canDownload = true;
+
+const currentYear = new Date().getFullYear();
+const priorYear   = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const selectedYear = yearParam ? Number(yearParam) : priorYear;
+
+// ── Parallel data fetch ──────────────────────────────────────────────────────
+const [bd, exchangeRes, walletRes, unclassRes, lastImportRes] = await Promise.all([
+  buildAnnualBreakdown(tenantId, selectedYear, 'fifo', undefined, 'auto' as AnnualBreakdownSource)
+    .catch(() => null),
+
+  db.execute({
+    sql: `SELECT id, source, name FROM exchange_accounts WHERE tenant_id = ? ORDER BY created_at ASC`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+
+  db.execute({
+    sql: `SELECT w.id, w.label, w.address, MAX(ws.captured_at) AS last_synced
+          FROM wallets w
+          LEFT JOIN wallet_snapshots ws ON ws.wallet_id = w.id AND ws.tenant_id = w.tenant_id
+          WHERE w.tenant_id = ?
+          GROUP BY w.id, w.label, w.address
+          ORDER BY w.label ASC`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+
+  db.execute({
+    sql: `SELECT COUNT(*) AS cnt FROM import_transactions
+          WHERE tenant_id = ? AND (kind IS NULL OR kind = '' OR kind = 'unknown')`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [{ cnt: 0 }] })),
+
+  db.execute({
+    sql: `SELECT account_id, MAX(timestamp_utc) AS last_import
+          FROM import_transactions WHERE tenant_id = ? GROUP BY account_id`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+]);
+
+// ── Process gains & losses ───────────────────────────────────────────────────
+type AssetTotal = { asset: string; total: number };
+
+const stGainTotal  = bd ? bd.shortTerm.reduce((s, l) => s + Math.max(0, l.gainLossUsd ?? 0), 0) : 0;
+const ltGainTotal  = bd ? bd.longTerm.reduce((s,  l) => s + Math.max(0, l.gainLossUsd ?? 0), 0) : 0;
+const incomeTotal  = bd ? bd.income.reduce((s, i) => s + (i.usdValue ?? 0), 0) : 0;
+const lossTotal    = bd ? [...bd.shortTerm, ...bd.longTerm].reduce((s, l) => s + Math.min(0, l.gainLossUsd ?? 0), 0) : 0;
+
+// Per-asset gains (only positive)
+const gainByAsset = new Map<string, number>();
+if (bd) {
+  for (const l of [...bd.shortTerm, ...bd.longTerm]) {
+    if ((l.gainLossUsd ?? 0) > 0) gainByAsset.set(l.asset, (gainByAsset.get(l.asset) ?? 0) + (l.gainLossUsd ?? 0));
+  }
+}
+const gainAssets: AssetTotal[] = [...gainByAsset.entries()]
+  .map(([asset, total]) => ({ asset, total }))
+  .sort((a, b) => b.total - a.total);
+
+// Per-asset losses (only negative, sorted worst first)
+const lossByAsset = new Map<string, number>();
+if (bd) {
+  for (const l of [...bd.shortTerm, ...bd.longTerm]) {
+    if ((l.gainLossUsd ?? 0) < 0) lossByAsset.set(l.asset, (lossByAsset.get(l.asset) ?? 0) + (l.gainLossUsd ?? 0));
+  }
+}
+const lossAssets: AssetTotal[] = [...lossByAsset.entries()]
+  .map(([asset, total]) => ({ asset, total }))
+  .sort((a, b) => a.total - b.total);
+
+// Missing cost basis
+const missingBasisCount = bd?.needsAttention?.length ?? 0;
+
+// Unclassified count
+const unclassCount = Number((unclassRes.rows[0] as { cnt: unknown })?.cnt ?? 0);
+
+// Exchange accounts with last import date
+type ExRow = { id: unknown; source: unknown; name: unknown };
+type ImportRow = { account_id: unknown; last_import: unknown };
+const lastImportMap = new Map<string, string>(
+  (lastImportRes.rows as ImportRow[]).map(r => [String(r.account_id), String(r.last_import ?? '')])
+);
+
+const EXCHANGE_LABELS: Record<string, string> = {
+  coinbase: 'Coinbase', coinbase_pro: 'Coinbase Advanced', kraken: 'Kraken',
+  binance: 'Binance', binanceus: 'Binance US', gemini: 'Gemini',
+  ftx: 'FTX', kucoin: 'KuCoin', crypto_com: 'Crypto.com',
+  avalanche_cchain: 'Avalanche C-Chain', ethereum: 'Ethereum',
+  solana: 'Solana', sui: 'Sui',
+};
+const FORM_TYPE: Record<string, string> = {
+  coinbase: '1099-DA', coinbase_pro: '1099-DA', kraken: '1099-DA',
+  binanceus: '1099-DA', gemini: '1099-DA', crypto_com: '1099-DA',
+};
+
+const exchanges = (exchangeRes.rows as ExRow[]).map(r => ({
+  id:        String(r.id),
+  source:    String(r.source),
+  name:      String(r.name ?? EXCHANGE_LABELS[String(r.source)] ?? r.source),
+  label:     EXCHANGE_LABELS[String(r.source)] ?? String(r.name ?? r.source),
+  formType:  FORM_TYPE[String(r.source)] ?? '1099-B',
+  lastImport: lastImportMap.get(String(r.id)) || null,
+}));
+
+// Wallets
+type WalRow = { id: unknown; label: unknown; address: unknown; last_synced: unknown };
+const wallets = (walletRes.rows as WalRow[]).map(r => ({
+  id:         String(r.id),
+  label:      String(r.label ?? ''),
+  address:    String(r.address ?? ''),
+  lastSynced: r.last_synced ? String(r.last_synced) : null,
+}));
+const syncedCount  = wallets.filter(w => w.lastSynced).length;
+const staleCutoff  = new Date(); staleCutoff.setDate(staleCutoff.getDate() - 60);
+const staleWallets = wallets.filter(w => !w.lastSynced || new Date(w.lastSynced) < staleCutoff);
+
+const availableYears = bd?.availableYears ?? [priorYear];
+
+const lang = getLang(Astro.request);
+const t = getAnnualRecords(lang);
+
+const localeDateLang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+// Locale-aware date helpers
+const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmtDate = (s: string | null) => {
+  if (!s) return t.never;
+  try { return new Date(s).toLocaleDateString(localeDateLang, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return s; }
+};
+---
+
+<Layout title={isAdmin ? t.pageTitleAdmin : t.pageTitleUser} noindex={true}>
+
+  <!-- ── Disclaimer modal (admin only) ───────────────────────────────────── -->
+  {isAdmin && (
+    <div id="disclaimer-modal" class="disc-backdrop" role="dialog" aria-modal="true" aria-labelledby="disc-title" hidden>
+      <div class="disc-box">
+        <div class="disc-icon">⚖️</div>
+        <h2 class="disc-title" id="disc-title">{t.disclaimerTitle}</h2>
+        <p class="disc-body" set:html={t.disclaimerBody1}></p>
+        <p class="disc-body" set:html={t.disclaimerBody2}></p>
+        <button id="disc-ok" class="disc-btn">{t.disclaimerOk}</button>
+      </div>
+    </div>
+  )}
+
+  <div class="year-summary">
+
+    <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+    <header class="tax-hero">
+      <div class="tax-hero__inner">
+        <div class="tax-hero__text">
+          <>
+            <h1 class="tax-hero__title">{t.heroTitle}</h1>
+            <p class="tax-hero__sub">{t.heroSub}</p>
+          </>
+          {unclassCount > 0 && (
+            <a href="/dashboard/yearEnd/review" class="review-warning">
+              {t.reviewWarning(unclassCount)}
+            </a>
+          )}
+        </div>
+
+        <!-- Year bar -->
+        <div class="year-bar">
+          <span class="year-bar__label">{t.yearBarLabel}</span>
+          <div class="year-bar__pills">
+            {availableYears.map(y => (
+              <a href={`/year-summary?year=${y}`} class={`year-pill${y === selectedYear ? ' year-pill--active' : ''}`}>{y}</a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </header>
+
+
+    <!-- ── Row 1 ──────────────────────────────────────────────────────────── -->
+    <div class="tax-row tax-row--1">
+
+      <!-- C1: Income & Records Checklist -->
+      {isAdmin ? (
+        <div class="tax-card tax-card--uploads">
+          <div class="card-header card-header--violet">
+            <span class="card-header__icon">📂</span>
+            <h2 class="card-header__title">{t.incomeRecordsTitle}</h2>
+          </div>
+
+          <div class="card-body">
+            <p class="card-section-label">{t.sectionTradIncome}</p>
+            <ul class="check-list" id="doc-checklist">
+              {[
+                { label: t.docEmployment,    type: 'w2'        },
+                { label: t.docInterest,      type: '1099-int'  },
+                { label: t.docDividend,      type: '1099-div'  },
+                { label: t.docDistribution,  type: '1099-r'    },
+                { label: t.docOtherIncome,   type: '1099-misc' },
+                { label: t.docSocialSecurity, type: 'ssa-1099'  },
+              ].map(doc => (
+                <li class="check-item" data-doc-type={doc.type}>
+                  <input type="checkbox" class="check-box" data-key={`doc_${doc.type}_${selectedYear}`} />
+                  <span class="check-label">{doc.label}</span>
+                  <span class="doc-attachments" data-doc-attachments={doc.type}></span>
+                  <label class="doc-upload-btn" title={`Upload ${doc.label}`}>
+                    📎
+                    <input
+                      type="file"
+                      class="doc-file-input"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      data-doc-type={doc.type}
+                      style="display:none"
+                    />
+                  </label>
+                </li>
+              ))}
+            </ul>
+
+            {exchanges.length > 0 && (
+              <>
+                <p class="card-section-label" style="margin-top:1.25rem">{t.sectionDigitalAssets}</p>
+                <ul class="check-list">
+                  {exchanges.map(ex => (
+                    <li class="check-item">
+                      <input type="checkbox" class="check-box" data-key={`ex_${ex.id}_${selectedYear}`} />
+                      <span class="check-label">
+                        {ex.label}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {wallets.length > 0 && (
+              <>
+                <p class="card-section-label" style="margin-top:1.25rem">{t.sectionSelfCustody}</p>
+                <ul class="check-list">
+                  {wallets.map(w => (
+                    <li class="check-item">
+                      <input type="checkbox" class="check-box" data-key={`wallet_${w.id}_${selectedYear}`} />
+                      <span class="check-label">
+                        {w.label ? `${w.label} · ${w.address.slice(0, 12)}...` : w.address.slice(0, 12) + '...'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <div class="upload-zone">
+              <p class="card-section-label" style="margin-bottom:.6rem">{t.sectionUploadCsv}</p>
+              <div class="upload-dropzone" id="upload-dropzone">
+                <span class="upload-icon">⬆️</span>
+                <span class="upload-text">{t.uploadDropText}<label for="csv-file-input" class="upload-browse">{t.uploadBrowse}</label></span>
+                <input id="csv-file-input" type="file" accept=".csv,.pdf,application/pdf" style="display:none" />
+              </div>
+              <div id="upload-status" class="upload-status" hidden></div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div class="tax-card tax-card--uploads">
+          <div class="card-header card-header--violet">
+            <span class="card-header__icon">🔍</span>
+            <h2 class="card-header__title">{t.dataHealthTitle}</h2>
+          </div>
+
+          <div class="card-body">
+            <p class="card-section-label">{t.sectionDataQuality}</p>
+            <ul class="check-list">
+              <li class="check-item">
+                <span class={`sync-dot ${wallets.length > 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                <span class="check-label">
+                  {wallets.length > 0 ? t.walletsConnected(wallets.length) : t.noWalletsConnected}
+                </span>
+              </li>
+              <li class="check-item">
+                <span class={`sync-dot ${staleWallets.length === 0 && wallets.length > 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                <span class="check-label">
+                  {staleWallets.length === 0 && wallets.length > 0
+                    ? t.walletsUpToDate
+                    : staleWallets.length > 0
+                      ? t.walletsNeedSyncing(staleWallets.length)
+                      : t.noWalletDataYet}
+                </span>
+              </li>
+              <li class="check-item">
+                <span class={`sync-dot ${exchanges.length > 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                <span class="check-label">
+                  {exchanges.length > 0 ? t.exchangesConnected(exchanges.length) : t.noExchangesConnected}
+                </span>
+              </li>
+              <li class="check-item">
+                <span class={`sync-dot ${unclassCount === 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                <span class="check-label">
+                  {unclassCount === 0 ? t.allTransactionsClassified : t.transactionsUnclassified(unclassCount)}
+                </span>
+                {unclassCount > 0 && <a href="/dashboard/yearEnd/review" class="doc-upload-btn" title="Review" style="font-size:.8rem;opacity:.7">→</a>}
+              </li>
+              <li class="check-item">
+                <span class={`sync-dot ${missingBasisCount === 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                <span class="check-label">
+                  {missingBasisCount === 0 ? t.costBasisComplete : t.lotsMissingBasis(missingBasisCount)}
+                </span>
+                {missingBasisCount > 0 && <a href="/dashboard/yearEnd/lots" class="doc-upload-btn" title="Fix" style="font-size:.8rem;opacity:.7">→</a>}
+              </li>
+            </ul>
+
+            <p class="card-section-label" style="margin-top:1.5rem">{t.sectionQuickLinks}</p>
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              <a href="/dashboard/wallets" class="dl-btn" style="font-size:.82rem">
+                <span class="dl-btn__icon">🔗</span>{t.manageWallets}
+              </a>
+              <a href="/dashboard/portfolio" class="dl-btn" style="font-size:.82rem">
+                <span class="dl-btn__icon">📊</span>{t.viewPortfolio}
+              </a>
+              <a href="/dashboard/yearEnd/memory-lane" class="dl-btn" style="font-size:.82rem">
+                <span class="dl-btn__icon">🎓</span>{t.yearInReview}
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <!-- C2 & C3: Sync Status -->
+      <div class="tax-card tax-card--sync">
+        <div class="card-header card-header--cyan">
+          <span class="card-header__icon">🔄</span>
+          <h2 class="card-header__title">{t.dataSyncTitle}</h2>
+          <button id="sync-all-btn" class="sync-btn">{t.syncAllBtn}</button>
+        </div>
+
+        <div class="card-body">
+          <!-- Progress bar -->
+          <div class="sync-progress-wrap">
+            <div class="sync-progress-label">
+              <span>{t.walletsSynced}</span>
+              <span>{syncedCount} / {wallets.length}</span>
+            </div>
+            <div class="sync-progress-track">
+              <div class="sync-progress-fill" style={`width:${wallets.length ? Math.round(syncedCount/wallets.length*100) : 0}%`}></div>
+            </div>
+          </div>
+
+          {staleWallets.length > 0 && (
+            <p class="sync-stale-note">
+              {t.staleNote(staleWallets.length)}
+            </p>
+          )}
+
+          <!-- Self-Custody Wallets -->
+          {wallets.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">{t.sectionSelfCustodyWallets}</p>
+              <ul class="sync-list" id="wallet-list">
+                {wallets.map(w => {
+                  const stale = !w.lastSynced || new Date(w.lastSynced) < staleCutoff;
+                  return (
+                    <li class="sync-item" data-wallet-id={w.id} style="cursor:pointer">
+                      <span class={`sync-dot ${stale ? 'sync-dot--stale' : 'sync-dot--ok'}`}></span>
+                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || w.address.slice(0,14) + '…'}</span>
+                      <span class="sync-date">{fmtDate(w.lastSynced)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          <!-- Exchange Accounts -->
+          {exchanges.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">{t.sectionExchangeAccounts}</p>
+              <ul class="sync-list" id="exchange-list">
+                {exchanges.map(ex => {
+                  const hasData = !!ex.lastImport;
+                  return (
+                    <li class="sync-item" data-account-id={ex.id}>
+                      <span class={`sync-dot ${hasData ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                      <span class="sync-name">{ex.label}</span>
+                      <span class="sync-date">{hasData ? fmtDate(ex.lastImport) : t.noData}</span>
+                      <button
+                        class="del-account-btn"
+                        data-account-id={ex.id}
+                        data-label={ex.label}
+                        title={`Remove ${ex.label}`}
+                        aria-label={`Remove ${ex.label}`}
+                      >✕</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          <!-- Exchange Imports (CSV) -->
+          {exchanges.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">{t.sectionExchangeImports}</p>
+              <ul class="sync-list">
+                {exchanges.map(ex => {
+                  const hasData = !!ex.lastImport;
+                  return (
+                    <li class="sync-item">
+                      <span class={`sync-dot ${hasData ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                      <span class="sync-name">{ex.label}</span>
+                      <span class="sync-date">{hasData ? fmtDate(ex.lastImport) : t.never}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Row 2 ──────────────────────────────────────────────────────────── -->
+    <div class="tax-row tax-row--2">
+
+      <!-- C1: Gains -->
+      <div class="tax-card tax-card--gains">
+        <div class="card-header card-header--emerald">
+          <span class="card-header__icon">📈</span>
+          <h2 class="card-header__title">{t.gainsTitle(selectedYear)}</h2>
+        </div>
+
+        <div class="card-body">
+          <div class="totals-stack">
+            <div class="total-row">
+              <span class="total-label">{t.labelShortTermGains}</span>
+              <span class="total-val total-val--gain">{fmt(stGainTotal)}</span>
+            </div>
+            <div class="total-row">
+              <span class="total-label">{t.labelLongTermGains}</span>
+              <span class="total-val total-val--gain">{fmt(ltGainTotal)}</span>
+            </div>
+            <div class="total-row total-row--divider">
+              <span class="total-label">{t.labelInterestIncome}</span>
+              <span class="total-val total-val--income">{fmt(incomeTotal)}</span>
+            </div>
+            <div class="total-row total-row--grand">
+              <span class="total-label">{isAdmin ? t.labelTotalTaxable : t.labelNetRealized}</span>
+              <span class="total-val total-val--gain">{fmt(stGainTotal + ltGainTotal + incomeTotal)}</span>
+            </div>
+          </div>
+
+          {gainAssets.length > 0 ? (
+            <div class="asset-scroll">
+              <p class="card-section-label">{t.sectionByAsset}</p>
+              <ul class="asset-list">
+                {gainAssets.map(a => (
+                  <li class="asset-row">
+                    <span class="asset-sym">{a.asset}</span>
+                    <span class="asset-amt asset-amt--gain">{fmt(a.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p class="empty-note">{t.noGainsNote(selectedYear)}</p>
+          )}
+        </div>
+      </div>
+
+      <!-- C2: Wailing Wall (losses) -->
+      <div class="tax-card tax-card--losses">
+        <div class="card-header card-header--rose">
+          <span class="card-header__icon">📉</span>
+          <h2 class="card-header__title">{t.lossesTitle}</h2>
+        </div>
+
+        <div class="card-body">
+          <div class="totals-stack">
+            <div class="total-row total-row--grand">
+              <span class="total-label">{t.labelTotalRealizedLosses}</span>
+              <span class="total-val total-val--loss">{fmt(lossTotal)}</span>
+            </div>
+          </div>
+
+          {lossAssets.length > 0 ? (
+            <div class="asset-scroll">
+              <p class="card-section-label">{t.sectionByAssetWorstFirst}</p>
+              <ul class="asset-list">
+                {lossAssets.map(a => (
+                  <li class="asset-row">
+                    <span class="asset-sym">{a.asset}</span>
+                    <span class="asset-amt asset-amt--loss">{fmt(a.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p class="empty-note" style="color:#34d399">{t.noLossesNote}</p>
+          )}
+        </div>
+      </div>
+
+      <!-- C3: Missing Cost Basis -->
+      <div class="tax-card tax-card--basis">
+        <div class="card-header card-header--slate">
+          <span class="card-header__icon">🎯</span>
+          <h2 class="card-header__title">{t.missingBasisTitle}</h2>
+        </div>
+
+        <div class="card-body">
+          {missingBasisCount === 0 ? (
+            <div class="basis-clear">
+              <p class="basis-clear__script">{t.basisClearScript}</p>
+              <p class="basis-clear__note">{t.basisClearNote}</p>
+            </div>
+          ) : (
+            <div class="basis-warning">
+              <p class="basis-warning__count">{missingBasisCount}</p>
+              <p class="basis-warning__label">{t.basisWarningLabel}</p>
+              <a href="/dashboard/yearEnd/lots" class="basis-warning__link">{t.basisWarningLink}</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Downloads ─────────────────────────────────────────────────────── -->
+    <section class="downloads">
+      <h2 class="downloads__title">{t.downloadsTitle}</h2>
+
+      <!-- Customer downloads — grayed for demo, paywalled for free users -->
+      <div class="downloads__group-label">{isAdmin ? t.downloadsGroupForPreparer : t.downloadsGroupExports}</div>
+      <div class="downloads__grid">
+        {isDemo ? (
+          <a href="/signup" class="dl-btn dl-btn--demo" title="Sign up free to export">
+            <span class="dl-btn__icon">📄</span>
+            <span>{t.downloadYearSummaryPdf}</span>
+            <span class="dl-btn__plan-badge">{t.signUp}</span>
+          </a>
+        ) : canDownload ? (
+          <a href={`/api/annual-records/report?year=${selectedYear}`} target="_blank" class="dl-btn">
+            <span class="dl-btn__icon">📄</span>
+            <span>{t.downloadAnnualPdf}</span>
+          </a>
+        ) : (
+          <a href="/dashboard/vault" class="dl-btn dl-btn--paywall" title="Owner only">
+            <span class="dl-btn__icon">📄</span>
+            <span>{t.downloadAnnualPdf}</span>
+          </a>
+        )}
+      </div>
+
+      <!-- Admin-only: additional reports -->
+      {isAdmin && (
+        <>
+          <div class="downloads__group-label downloads__group-label--admin">
+            {t.downloadsGroupAdditional}
+          </div>
+          <div class="downloads__grid">
+            <a href={`/dashboard/yearEnd/form8949?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">📝</span>
+              <span>{t.downloadCapitalDisposals}</span>
+            </a>
+            <a href={`/dashboard/yearEnd/schedule-d?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">🗂</span>
+              <span>{t.downloadRealizedGains}</span>
+            </a>
+            <a href={`/dashboard/yearEnd/1099?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">🧾</span>
+              <span>{t.downloadIncomeRecords}</span>
+            </a>
+          </div>
+        </>
+      )}
+    </section>
+
+    <!-- ── FAQ ───────────────────────────────────────────────────────────── -->
+    <section class="faq">
+      <h2 class="faq__title">{t.faqTitle}</h2>
+
+      {isAdmin ? (
+        <>
+          <div class="faq__group">
+            <h3 class="faq__group-label">{t.faqGroupUnderstanding}</h3>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_stVsLt}</summary>
+              <p class="faq__a" set:html={t.faqA_stVsLt}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_costBasis}</summary>
+              <p class="faq__a" set:html={t.faqA_costBasis}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_fifo}</summary>
+              <p class="faq__a" set:html={t.faqA_fifo}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_wailingWall}</summary>
+              <p class="faq__a" set:html={t.faqA_wailingWall}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_taxableIncome}</summary>
+              <p class="faq__a" set:html={t.faqA_taxableIncome}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_cardRebates}</summary>
+              <p class="faq__a" set:html={t.faqA_cardRebates}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_cryptoTrades}</summary>
+              <p class="faq__a" set:html={t.faqA_cryptoTrades}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_washSale}</summary>
+              <p class="faq__a" set:html={t.faqA_washSale}></p>
+            </details>
+          </div>
+
+          <div class="faq__group">
+            <h3 class="faq__group-label">{t.faqGroupDocsFiling}</h3>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_needEveryDoc}</summary>
+              <p class="faq__a" set:html={t.faqA_needEveryDoc}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_1099da}</summary>
+              <p class="faq__a" set:html={t.faqA_1099da}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_1099recon}</summary>
+              <p class="faq__a" set:html={t.faqA_1099recon}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_form8949}</summary>
+              <p class="faq__a" set:html={t.faqA_form8949}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_schedD}</summary>
+              <p class="faq__a" set:html={t.faqA_schedD}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_whatGiveCpa}</summary>
+              <p class="faq__a" set:html={t.faqA_whatGiveCpa}></p>
+            </details>
+          </div>
+
+          <div class="faq__group">
+            <h3 class="faq__group-label">{t.faqGroupHowAppWorks}</h3>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_syncDoes}</summary>
+              <p class="faq__a" set:html={t.faqA_syncDoes}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_reviewQueue}</summary>
+              <p class="faq__a" set:html={t.faqA_reviewQueue}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_accuracy}</summary>
+              <p class="faq__a" set:html={t.faqA_accuracy}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_yearMatters}</summary>
+              <p class="faq__a" set:html={t.faqA_yearMatters}></p>
+            </details>
+          </div>
+        </>
+      ) : (
+        <>
+          <div class="faq__group">
+            <h3 class="faq__group-label">{t.faqGroupUnderstandingNumbers}</h3>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_costBasisUser}</summary>
+              <p class="faq__a" set:html={t.faqA_costBasisUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_fifoUser}</summary>
+              <p class="faq__a" set:html={t.faqA_fifoUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_stVsLtUser}</summary>
+              <p class="faq__a" set:html={t.faqA_stVsLtUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_wailingWallUser}</summary>
+              <p class="faq__a" set:html={t.faqA_wailingWallUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_interestIncome}</summary>
+              <p class="faq__a" set:html={t.faqA_interestIncome}></p>
+            </details>
+          </div>
+
+          <div class="faq__group">
+            <h3 class="faq__group-label">{t.faqGroupHowAppWorksUser}</h3>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_syncAllUser}</summary>
+              <p class="faq__a" set:html={t.faqA_syncAllUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_reviewQueueUser}</summary>
+              <p class="faq__a" set:html={t.faqA_reviewQueueUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_accuracyUser}</summary>
+              <p class="faq__a" set:html={t.faqA_accuracyUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_yearMattersUser}</summary>
+              <p class="faq__a" set:html={t.faqA_yearMattersUser}></p>
+            </details>
+
+            <details class="faq__item">
+              <summary class="faq__q">{t.faqQ_addMore}</summary>
+              <p class="faq__a" set:html={t.faqA_addMore}></p>
+            </details>
+          </div>
+        </>
+      )}
+    </section>
+
+    <!-- ── Footer disclaimer (admin only) ───────────────────────────────── -->
+    {isAdmin && (
+      <div class="footer-disc">
+        <button id="disc-link-btn" class="disc-link">{t.footerDisclaimer}</button>
+      </div>
+    )}
+
+  </div>
+
+  <!-- Wallet Year Changes Modal Wrapper -->
+  <WalletYearChangesWrapper client:load selectedYear={selectedYear} />
+</Layout>
+
+
+<script is:inline define:vars={{ i18nAR: {
+  jsSyncing: t.jsSyncing,
+  jsSyncingWallets: t.jsSyncingWallets,
+  jsRebuilding: t.jsRebuilding,
+  jsSyncDone: t.jsSyncDone,
+  jsSyncNetworkError: t.jsSyncNetworkError,
+  jsCouldNotDelete: t.jsCouldNotDelete,
+  jsUploadNetworkError: t.jsUploadNetworkError,
+  jsConfirmRemoveAccountPrefix: lang === 'es' ? '¿Eliminar "' : lang === 'fr' ? 'Supprimer "' : 'Remove "',
+  jsConfirmRemoveAccountSuffix: lang === 'es' ? '" y todos sus datos importados?\n\nEsta acción no se puede deshacer.' : lang === 'fr' ? '" et toutes ses données importées ?\n\nCette action est irréversible.' : '" and all its imported data?\n\nThis cannot be undone.',
+  jsRemoveFilePrefix: lang === 'es' ? '¿Eliminar "' : lang === 'fr' ? 'Supprimer "' : 'Remove "',
+  jsRemoveFileSuffix: lang === 'es' ? '"?' : lang === 'fr' ? '" ?' : '"?',
+  jsUploadingPrefix: lang === 'es' ? 'Subiendo ' : lang === 'fr' ? 'Téléchargement de ' : 'Uploading ',
+  jsUploadingSuffix: '…',
+} }}>window.__arI18n = i18nAR;</script>
+
+<script>
+  // ── i18n strings (injected by inline define:vars above) ─────────────────────
+  interface ArI18n {
+    jsSyncing: string; jsSyncingWallets: string; jsRebuilding: string;
+    jsSyncDone: string; jsSyncNetworkError: string; jsCouldNotDelete: string;
+    jsUploadNetworkError: string;
+    jsConfirmRemoveAccountPrefix: string; jsConfirmRemoveAccountSuffix: string;
+    jsRemoveFilePrefix: string; jsRemoveFileSuffix: string;
+    jsUploadingPrefix: string; jsUploadingSuffix: string;
+  }
+  const I18N: ArI18n = (window as unknown as { __arI18n?: ArI18n }).__arI18n ?? {
+    jsSyncing: '⏳ Syncing…', jsSyncingWallets: '⏳ Syncing wallets…',
+    jsRebuilding: '⏳ Rebuilding…', jsSyncDone: '✓ Done',
+    jsSyncNetworkError: '✗ Network error', jsCouldNotDelete: 'Could not delete',
+    jsUploadNetworkError: '✗ Network error — please try again.',
+    jsConfirmRemoveAccountPrefix: 'Remove "',
+    jsConfirmRemoveAccountSuffix: '" and all its imported data?\n\nThis cannot be undone.',
+    jsRemoveFilePrefix: 'Remove "', jsRemoveFileSuffix: '"?',
+    jsUploadingPrefix: 'Uploading ', jsUploadingSuffix: '…',
+  };
+
+  // ── Demo tracking ─────────────────────────────────────────────────────────
+  const isDemo = document.cookie.split(';').some(c => c.trim() === 'almstins-demo=1');
+  if (isDemo && typeof window.gtag === 'function') {
+    window.gtag('event', 'demo_year_end', { event_category: 'demo' });
+  }
+
+  // ── Disclaimer modal — shows once per tax season (resets Feb 1) ────────────
+  const now = new Date();
+  // Feb 1 onwards = new filing season for the prior year
+  const seasonYear = now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1;
+  const discKey    = `tax_disclaimer_seen_${seasonYear}`;
+  const modal      = document.getElementById('disclaimer-modal') as HTMLElement;
+
+  if (!localStorage.getItem(discKey)) {
+    modal.hidden = false;
+  }
+  document.getElementById('disc-ok')?.addEventListener('click', () => {
+    localStorage.setItem(discKey, '1');
+    modal.hidden = true;
+  });
+  document.getElementById('disc-link-btn')?.addEventListener('click', () => {
+    modal.hidden = false;
+  });
+
+  // ── Restore checkbox state from localStorage ───────────────────────────────
+  document.querySelectorAll<HTMLInputElement>('.check-box[data-key]').forEach(cb => {
+    const key = cb.dataset.key!;
+    cb.checked = localStorage.getItem(key) === '1';
+    cb.addEventListener('change', () => {
+      if (cb.checked) localStorage.setItem(key, '1');
+      else localStorage.removeItem(key);
+    });
+  });
+
+  // ── Tax document uploads (W-2, 1099-INT, etc.) ────────────────────────────
+  const taxYear = new URLSearchParams(location.search).get('year') ?? String(new Date().getFullYear() - 1);
+
+  function renderDocChip(doc: { id: string; filename: string }, container: HTMLElement, cb: HTMLInputElement) {
+    const chip = document.createElement('a');
+    chip.href = `/api/yearEnd/documents/${doc.id}`;
+    chip.target = '_blank';
+    chip.rel = 'noopener';
+    chip.className = 'doc-chip';
+    chip.title = doc.filename;
+
+    const name = document.createElement('span');
+    name.textContent = doc.filename.length > 18 ? doc.filename.slice(0, 15) + '…' : doc.filename;
+    chip.appendChild(name);
+
+    const del = document.createElement('span');
+    del.className = 'doc-chip-del';
+    del.textContent = '✕';
+    del.title = 'Remove';
+    del.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm(`${I18N.jsRemoveFilePrefix}${doc.filename}${I18N.jsRemoveFileSuffix}`)) return;
+      const res = await fetch(`/api/yearEnd/documents/${doc.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        chip.remove();
+        // Uncheck the checkbox if no more docs for this type
+        if (container.childElementCount === 0) {
+          cb.checked = false;
+          localStorage.removeItem(cb.dataset.key!);
+        }
+      }
+    });
+    chip.appendChild(del);
+    container.appendChild(chip);
+  }
+
+  // Load existing documents and render chips
+  async function loadDocs() {
+    try {
+      const res = await fetch(`/api/yearEnd/documents?year=${taxYear}`);
+      if (!res.ok) return;
+      const { docs } = await res.json();
+      for (const doc of docs) {
+        const li = document.querySelector<HTMLElement>(`[data-doc-type="${doc.docType}"]`);
+        const container = li?.querySelector<HTMLElement>('[data-doc-attachments]');
+        const cb = li?.querySelector<HTMLInputElement>('.check-box');
+        if (!container || !cb) continue;
+        renderDocChip(doc, container, cb);
+        cb.checked = true;
+        localStorage.setItem(cb.dataset.key!, '1');
+      }
+    } catch { /* ignore */ }
+  }
+  loadDocs();
+
+  // Handle per-doc-type file uploads
+  document.querySelectorAll<HTMLInputElement>('.doc-file-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const docType = input.dataset.docType!;
+      const li = input.closest<HTMLElement>('[data-doc-type]');
+      const container = li?.querySelector<HTMLElement>('[data-doc-attachments]');
+      const cb = li?.querySelector<HTMLInputElement>('.check-box');
+      if (!container || !cb) return;
+
+      const label = input.closest<HTMLLabelElement>('.doc-upload-btn');
+      if (label) label.textContent = '⏳';
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('docType', docType);
+      fd.append('taxYear', taxYear);
+      try {
+        const res = await fetch('/api/yearEnd/documents', { method: 'POST', body: fd });
+        const json = await res.json();
+        if (json.ok) {
+          renderDocChip(json.doc, container, cb);
+          cb.checked = true;
+          localStorage.setItem(cb.dataset.key!, '1');
+        } else {
+          alert(`Upload failed: ${json.error ?? 'Unknown error'}`);
+        }
+      } catch {
+        alert(I18N.jsUploadNetworkError);
+      } finally {
+        if (label) label.textContent = '📎';
+        input.value = ''; // reset so same file can be re-picked
+      }
+    });
+  });
+
+  // ── Upload drop zone ───────────────────────────────────────────────────────
+  const dropzone  = document.getElementById('upload-dropzone') as HTMLElement;
+  const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+  const statusEl  = document.getElementById('upload-status') as HTMLElement;
+
+  dropzone?.addEventListener('click', () => fileInput?.click());
+  dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone?.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer?.files[0];
+    if (file) handleUpload(file);
+  });
+  fileInput?.addEventListener('change', () => {
+    if (fileInput.files?.[0]) handleUpload(fileInput.files[0]);
+  });
+
+  async function handleUpload(file: File) {
+    statusEl.hidden = false;
+    statusEl.className = 'upload-status';
+    statusEl.textContent = `${I18N.jsUploadingPrefix}${file.name}${I18N.jsUploadingSuffix}`;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('formType', '1099-da');
+    fd.append('taxYear', String(new URLSearchParams(location.search).get('year') ?? new Date().getFullYear() - 1));
+    try {
+      const r = await fetch('/api/yearEnd/1099/upload', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j.ok) {
+        statusEl.className = 'upload-status ok';
+        statusEl.textContent = `✓ ${j.rowCount} rows imported — ${j.reconciliation?.filter((x: {matchStatus:string}) => x.matchStatus === 'matched').length ?? 0} matched.`;
+      } else {
+        statusEl.className = 'upload-status err';
+        statusEl.textContent = `✗ ${j.error ?? 'Upload failed'}`;
+      }
+    } catch {
+      statusEl.className = 'upload-status err';
+      statusEl.textContent = I18N.jsUploadNetworkError;
+    }
+  }
+
+  // ── Delete exchange account ────────────────────────────────────────────────
+  document.getElementById('exchange-list')?.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.del-account-btn');
+    if (!btn) return;
+
+    const accountId = btn.dataset.accountId!;
+    const label     = btn.dataset.label ?? 'this account';
+
+    if (!confirm(`${I18N.jsConfirmRemoveAccountPrefix}${label}${I18N.jsConfirmRemoveAccountSuffix}`)) return;
+
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      const res  = await fetch(`/api/exchange-accounts/${accountId}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        // Fade out and remove the row
+        const row = btn.closest<HTMLLIElement>('.sync-item');
+        if (row) {
+          row.style.transition = 'opacity 0.3s';
+          row.style.opacity = '0';
+          setTimeout(() => row.remove(), 320);
+        }
+      } else {
+        alert(`${I18N.jsCouldNotDelete}: ${data.error ?? 'unknown error'}`);
+        btn.disabled = false;
+        btn.textContent = '✕';
+      }
+    } catch {
+      alert(I18N.jsUploadNetworkError);
+      btn.disabled = false;
+      btn.textContent = '✕';
+    }
+  });
+
+  // ── Sync All — exchange snapshot + lifecycle rebuild, stays on page ──────────
+  const syncBtn = document.getElementById('sync-all-btn') as HTMLButtonElement | null;
+  syncBtn?.addEventListener('click', async () => {
+    syncBtn.disabled = true;
+    syncBtn.textContent = I18N.jsSyncing;
+
+    try {
+      // Step 1: pull latest exchange snapshots (CEX accounts)
+      await fetch('/api/import/snapshot-all', { method: 'POST' });
+
+      // Step 2: sync on-chain wallet balances + write wallet_snapshots
+      // Long-running — race against a 90s timeout so we never block forever
+      syncBtn.textContent = I18N.jsSyncingWallets;
+      await Promise.race([
+        fetch('/api/wallets/value/sync-all', { method: 'POST' }).catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 90_000)),
+      ]);
+
+      // Step 3: rebuild FIFO lifecycle for this year
+      syncBtn.textContent = I18N.jsRebuilding;
+      await fetch('/api/lifecycle/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: selectedYear }),
+      });
+
+      syncBtn.textContent = I18N.jsSyncDone;
+      syncBtn.style.background = 'rgba(52,211,153,.25)';
+      syncBtn.style.borderColor = 'rgba(52,211,153,.5)';
+      syncBtn.style.color = '#6ee7b7';
+      // Reload after a short pause so status dots + progress bar refresh
+      setTimeout(() => window.location.reload(), 1200);
+    } catch {
+      syncBtn.textContent = I18N.jsSyncNetworkError;
+      syncBtn.disabled = false;
+    }
+  });
+</script>

@@ -1,0 +1,551 @@
+---
+import './OnchainWalletTransactions.css';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getOnchainWalletTransactions } from '@/i18n/components/onchainWalletTransactions';
+import walletIn from '@/assets/walletIn.webp';
+import walletOut from '@/assets/walletOut.webp';
+import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
+import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
+import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
+import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+
+type Props = {
+	walletId: string;
+	title: string;
+};
+
+type TxRow = {
+	id: string;
+	timestamp: string;
+	token_symbol: string | null;
+	value: string | null;
+	token_decimals: number | null;
+	tx_type: string | null;
+	chain: string | null;
+	hash: string | null;
+	fee_paid: string | null;
+	from_address: string | null;
+	to_address: string | null;
+	note: string | null;
+	category: string | null;
+};
+
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toTxRow = (row: unknown): TxRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		timestamp: toStringOrEmpty(r.timestamp),
+		token_symbol: toStringOrNull(r.token_symbol),
+		value: toStringOrNull(r.value),
+		token_decimals: toNumberOrNull(r.token_decimals),
+		tx_type: toStringOrNull(r.tx_type),
+		chain: toStringOrNull(r.chain),
+		hash: toStringOrNull(r.hash),
+		fee_paid: toStringOrNull(r.fee_paid),
+		from_address: toStringOrNull(r.from_address),
+		to_address: toStringOrNull(r.to_address),
+		note: toStringOrNull(r.note),
+		category: toStringOrNull(r.category),
+	};
+};
+
+const toTxRows = (rows: unknown): TxRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: TxRow[] = [];
+	for (const row of rows) {
+		const mapped = toTxRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const { walletId, title } = Astro.props as Props;
+const lang = getLang(Astro.request);
+const t = getOnchainWalletTransactions(lang);
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const walletResult = await db.execute({
+	sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+	args: [walletId, tenantId],
+});
+
+// Last sync timestamp — most recent run across all chains for this wallet
+const syncResult = await db.execute({
+	sql: `SELECT MAX(last_run_at) as last_synced, MAX(last_timestamp) as data_through
+	      FROM wallet_sync_state WHERE wallet_id = ?`,
+	args: [walletId],
+});
+const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
+const lastSynced = (syncRow?.last_synced as string | null) ?? null;
+const dataThroughRaw = (syncRow?.data_through as string | null) ?? null;
+
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+function fmtSyncDate(iso: string | null): string {
+	if (!iso) return '';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '';
+	return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const syncLabel = lastSynced ? `${t.syncedPrefix}${fmtSyncDate(lastSynced)}` : null;
+const dataThroughLabel = dataThroughRaw ? `${t.dataThroughPrefix}${fmtSyncDate(dataThroughRaw)}` : null;
+
+const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
+
+const result = await db.execute({
+	sql: `SELECT t.id, t.timestamp, t.token_symbol, t.value, t.token_decimals,
+		t.tx_type, t.chain, t.hash, t.fee_paid, t.from_address, t.to_address, a.note, a.category
+		FROM transactions t
+		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+		WHERE t.wallet_id = ? AND t.tenant_id = ?
+		ORDER BY t.timestamp DESC`,
+	args: [walletId, tenantId],
+});
+
+const rows = toTxRows(result.rows);
+
+const yearDividerAssets: Record<number, string> = {
+	2023: yearDivide2023.src,
+	2024: yearDivide2024.src,
+	2025: yearDivide2025.src,
+};
+
+const dividerForYear = (year: number) => yearDividerAssets[year] ?? yearDivideEarlier.src;
+
+const formatDate = (value: string) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const formatTokenAmount = (value: string | null, decimals = 18) => {
+	if (!value) return '0';
+	const safeDecimals = Number.isFinite(decimals) ? decimals : 18;
+	const padded = value.padStart(safeDecimals + 1, '0');
+	const whole = padded.slice(0, -safeDecimals);
+	const fractionRaw = padded.slice(-safeDecimals).replace(/0+$/, '');
+	const fraction = fractionRaw.length > 6 ? fractionRaw.slice(0, 6) : fractionRaw;
+	const formattedWhole = Number(whole).toLocaleString();
+	return fraction ? `${formattedWhole}.${fraction}` : formattedWhole;
+};
+
+const resolveNativeSymbol = (chain: string | null) => {
+	switch ((chain ?? '').toLowerCase()) {
+		case 'ethereum':
+			return 'ETH';
+		case 'polygon':
+			return 'POL';
+		case 'avalanche':
+			return 'AVAX';
+		default:
+			return 'NATIVE';
+	}
+};
+
+const resolveSymbol = (row: TxRow) => {
+	const raw = row.token_symbol ?? 'native';
+	if (raw.toLowerCase() === 'native') return resolveNativeSymbol(row.chain);
+	const upper = raw.toUpperCase();
+	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+	return upper;
+};
+
+const resolveAmountLabel = (row: TxRow) => (resolveDirection(row) === 'out' ? t.amountSold : t.amountBought);
+
+const resolveDirection = (row: TxRow) => {
+	const from = row.from_address?.toLowerCase() ?? '';
+	const to = row.to_address?.toLowerCase() ?? '';
+	if (walletAddress && from === walletAddress && to !== walletAddress) return 'out';
+	if (walletAddress && to === walletAddress && from !== walletAddress) return 'in';
+	const type = row.tx_type?.toLowerCase() ?? '';
+	return type.includes('out') ? 'out' : 'in';
+};
+
+const shortenHash = (value: string | null) => {
+	if (!value) return '—';
+	const trimmed = value.trim();
+	if (trimmed.length <= 5) return trimmed;
+	return `…${trimmed.slice(-5)}`;
+};
+
+const rowsWithDividers: Array<
+	| { type: 'divider'; year: number; asset: string }
+	| { type: 'row'; row: TxRow }
+> = [];
+let lastYear: number | null = null;
+
+for (const row of rows) {
+	const year = new Date(row.timestamp).getUTCFullYear();
+	if (!lastYear || lastYear !== year) {
+		rowsWithDividers.push({ type: 'divider', year, asset: dividerForYear(year) });
+		lastYear = year;
+	}
+	rowsWithDividers.push({ type: 'row', row });
+}
+---
+
+<article class="onchain-wallet">
+	<header class="onchain-wallet__header">
+		<div class="onchain-wallet__title-group">
+			<h3 class="onchain-wallet__title">{title}</h3>
+			{(dataThroughLabel || syncLabel) && (
+				<span class="onchain-wallet__freshness" title={syncLabel ?? ''}>
+					{dataThroughLabel ?? syncLabel}
+				</span>
+			)}
+		</div>
+		<span class="onchain-wallet__tag">v:linked-swap-usd</span>
+	</header>
+
+	<div class="onchain-wallet__list">
+		{rowsWithDividers.map((item) =>
+			item.type === 'divider' ? (
+				<div class="tx-year-divider" aria-hidden="true">
+					<img class="tx-year-divider__img" src={item.asset} alt={`${item.year} divider`} />
+					<span class="tx-year-divider__label">{item.year}</span>
+				</div>
+			) : (
+				<div
+					class="tx-card"
+					data-hash={item.row.hash ?? ''}
+					data-chain={item.row.chain ?? ''}
+					data-timestamp={item.row.timestamp}
+				>
+					<div class="txRow">
+						<span class="txCol--date">{formatDate(item.row.timestamp)}</span>
+						<span class="txCol--chain">
+							<span class="tx-label">{t.labelChain}</span>
+							<span class="tx-value">{item.row.chain || '—'}</span>
+						</span>
+						<span
+							class="txCol--hash"
+							data-full={item.row.hash || '—'}
+							title={item.row.hash || '—'}
+						>
+							<span class="tx-label">{t.labelHash}</span>
+							<span class="tx-value">{shortenHash(item.row.hash)}</span>
+						</span>
+						<span class="txCol--dir">
+							{resolveDirection(item.row) === 'out' ? (
+								<img class="tx-icon-img" src={walletOut.src} alt={t.altOutbound} />
+							) : (
+								<img class="tx-icon-img" src={walletIn.src} alt={t.altInbound} />
+							)}
+						</span>
+					</div>
+					<div class="txRow txRow--amount">
+						<span class="txCol--amount">
+							<span class="tx-label">{resolveAmountLabel(item.row)}</span>
+							<span class="tx-value">
+								{formatTokenAmount(item.row.value, item.row.token_decimals ?? 18)} {resolveSymbol(item.row)}
+							</span>
+						</span>
+					</div>
+					<div
+						class="tx-detail"
+						data-hash={item.row.hash ?? ''}
+						data-direction={resolveDirection(item.row)}
+						data-symbol={resolveSymbol(item.row)}
+						data-raw={item.row.value ?? ''}
+						data-decimals={item.row.token_decimals ?? 18}
+						data-fee={item.row.fee_paid ?? ''}
+						data-fee-symbol={resolveNativeSymbol(item.row.chain)}
+					>
+						<span class="tx-detail__item">
+							<span class="tx-detail__label">{t.labelUsd}</span>
+							<span class="tx-detail__value" data-role="usd">—</span>
+						</span>
+						<span class="tx-detail__item">
+							<span class="tx-detail__label">{t.labelFee}</span>
+							<span class="tx-detail__value" data-role="fee">—</span>
+						</span>
+						<span class="tx-detail__item">
+							<span class="tx-detail__label">{t.labelLoss}</span>
+							<span class="tx-detail__value" data-role="loss">—</span>
+						</span>
+					</div>
+					<textarea
+						class="tx-notes"
+						placeholder={t.notesPlaceholder}
+						data-id={item.row.id}
+						data-initial={item.row.note ?? ''}
+						data-category={item.row.category ?? ''}
+					>{item.row.note ?? ''}</textarea>
+					<span class="tx-saved" aria-live="polite">{t.savedText}</span>
+				</div>
+			)
+		)}
+	</div>
+</article>
+
+<script is:inline define:vars={{ onchainTxI18n: {
+	linkedSwapPrefix: t.linkedSwapPrefix,
+	savedText:        t.savedText,
+	saveFailedText:   t.saveFailedText,
+} }}>window.__onchainTxI18n = onchainTxI18n;</script>
+
+<script>
+	import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+
+	// Strings injected by the <script is:inline define:vars> island above.
+	const I = (window as any).__onchainTxI18n ?? {};
+
+	const container = document.querySelector('.onchain-wallet__list');
+	if (container) {
+		const PRICE_SYMBOL_OVERRIDES = {
+			APOLWETH: 'WETH',
+			APOLWMATIC: 'POL',
+			APOLUSDC: 'USDC',
+			APOLUSDT: 'USDT',
+			APOLDAI: 'DAI',
+		};
+
+		const normalizePriceSymbol = (symbol) => {
+			if (!symbol) return '';
+			const upper = String(symbol).toUpperCase();
+			return PRICE_SYMBOL_OVERRIDES[upper] || upper;
+		};
+
+		const formatUsd = (value) => {
+			if (!Number.isFinite(value) || value <= 0) return '—';
+			return `$${value.toLocaleString(undefined, {
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2,
+			})}`;
+		};
+
+		const formatToken = (value) => {
+			if (!Number.isFinite(value) || value <= 0) return '—';
+			return value.toLocaleString(undefined, { maximumFractionDigits: 8 });
+		};
+
+		const parseAmount = (raw, decimals) => {
+			if (!raw) return 0;
+			const safeDecimals = Number.isFinite(decimals) ? decimals : 18;
+			const padded = String(raw).padStart(safeDecimals + 1, '0');
+			const whole = padded.slice(0, -safeDecimals) || '0';
+			const fraction = padded.slice(-safeDecimals).replace(/0+$/, '');
+			const numeric = Number(fraction ? `${whole}.${fraction}` : whole);
+			return Number.isFinite(numeric) ? numeric : 0;
+		};
+
+		const hydrateTradeLabels = async () => {
+			const details = Array.from(container.querySelectorAll('.tx-detail'));
+			if (!details.length) return;
+			const symbols = new Set();
+			details.forEach((detail) => {
+				if (!(detail instanceof HTMLElement)) return;
+				const symbol = normalizePriceSymbol(detail.dataset.symbol);
+				const feeSymbol = normalizePriceSymbol(detail.dataset.feeSymbol);
+				if (symbol) symbols.add(symbol);
+				if (feeSymbol) symbols.add(feeSymbol);
+			});
+
+			let priceMap = {};
+			const sanitized = allowlistSymbols(Array.from(symbols));
+			if (sanitized.length) {
+				try {
+					const response = await fetch(
+						`/api/market/coingecko-prices?symbols=${encodeURIComponent(sanitized.join(','))}`,
+					);
+					if (response.ok) {
+						const payload = await response.json();
+						priceMap = payload.prices ?? {};
+					}
+				} catch {
+					priceMap = {};
+				}
+			}
+
+			const trades = new Map();
+			const entries = details.map((detail) => {
+				if (!(detail instanceof HTMLElement)) return null;
+				const symbol = detail.dataset.symbol || '';
+				const priceSymbol = normalizePriceSymbol(symbol);
+				const raw = detail.dataset.raw || '';
+				const decimals = Number(detail.dataset.decimals ?? 18);
+				const amount = parseAmount(raw, decimals);
+				const direction = detail.dataset.direction || '';
+				const hash = detail.dataset.hash || '';
+				const feeRaw = detail.dataset.fee || '';
+				const feeSymbol = detail.dataset.feeSymbol || '';
+				const feePriceSymbol = normalizePriceSymbol(feeSymbol);
+				const feeNative = parseAmount(feeRaw, 18);
+				const price = Number(priceMap[priceSymbol] ?? 0);
+				const feePrice = Number(priceMap[feePriceSymbol] ?? 0);
+				const usd = amount * (Number.isFinite(price) ? price : 0);
+				const feeUsd = feeNative * (Number.isFinite(feePrice) ? feePrice : 0);
+
+				if (hash) {
+					const entry = trades.get(hash) ?? { outUsd: 0, inUsd: 0, feeUsd: 0 };
+					if (direction === 'out') {
+						entry.outUsd += usd;
+					} else {
+						entry.inUsd += usd;
+					}
+					if (feeUsd > 0) {
+						entry.feeUsd += feeUsd;
+					}
+					trades.set(hash, entry);
+				}
+
+				return {
+					el: detail,
+					symbol,
+					amount,
+					usd,
+					feeNative,
+					feeSymbol,
+					feeUsd,
+					direction,
+					hash,
+				};
+			}).filter(Boolean);
+
+			entries.forEach((entry) => {
+				const usdEl = entry.el.querySelector('[data-role="usd"]');
+				if (usdEl) {
+					usdEl.textContent = entry.usd > 0 ? formatUsd(entry.usd) : '—';
+				}
+
+				const feeEl = entry.el.querySelector('[data-role="fee"]');
+				if (feeEl) {
+					if (entry.feeNative > 0) {
+						const feeText = `${formatToken(entry.feeNative)} ${entry.feeSymbol}`;
+						const feeUsdText = entry.feeUsd > 0 ? ` (${formatUsd(entry.feeUsd)})` : '';
+						feeEl.textContent = `${feeText}${feeUsdText}`;
+					} else {
+						feeEl.textContent = '—';
+					}
+				}
+
+				const lossEl = entry.el.querySelector('[data-role="loss"]');
+				if (lossEl && entry.hash) {
+					const trade = trades.get(entry.hash);
+					if (trade && trade.outUsd > 0 && trade.inUsd > 0 && entry.direction === 'out') {
+						const lossValue = trade.outUsd + trade.feeUsd - trade.inUsd;
+						lossEl.textContent = lossValue > 0 ? formatUsd(lossValue) : '—';
+						entry.el.dataset.tradeOutUsd = String(trade.outUsd);
+						entry.el.dataset.tradeInUsd = String(trade.inUsd);
+						entry.el.dataset.tradeFeeUsd = String(trade.feeUsd);
+					} else {
+						lossEl.textContent = '—';
+					}
+				}
+			});
+		};
+
+		const groupLinkedTransactions = () => {
+			const cards = Array.from(container.querySelectorAll('.tx-card'));
+			let i = 0;
+			while (i < cards.length) {
+				const card = cards[i];
+				if (!(card instanceof HTMLElement)) {
+					i += 1;
+					continue;
+				}
+				const hash = card.dataset.hash || '';
+				const chain = card.dataset.chain || '';
+				const timestamp = card.dataset.timestamp || '';
+				const baseTime = timestamp ? Date.parse(timestamp) : Number.NaN;
+				if (!hash) {
+					i += 1;
+					continue;
+				}
+
+				const group = [card];
+				let j = i + 1;
+				while (j < cards.length) {
+					const next = cards[j];
+					if (!(next instanceof HTMLElement)) break;
+					const nextHash = next.dataset.hash || '';
+					const nextChain = next.dataset.chain || '';
+					const nextTimestamp = next.dataset.timestamp || '';
+					const nextTime = nextTimestamp ? Date.parse(nextTimestamp) : Number.NaN;
+					const withinWindow =
+						Number.isFinite(baseTime) && Number.isFinite(nextTime)
+							? Math.abs(baseTime - nextTime) <= 5 * 60 * 1000
+							: nextTimestamp === timestamp;
+					if (nextHash !== hash || nextChain !== chain || !withinWindow) {
+						break;
+					}
+					group.push(next);
+					j += 1;
+				}
+
+				if (group.length > 1) {
+					const wrapper = document.createElement('div');
+					wrapper.className = 'tx-group';
+					const label = document.createElement('div');
+					label.className = 'tx-group__label';
+					const detail = group[0].querySelector('.tx-detail');
+					const outUsdRaw = detail instanceof HTMLElement ? Number(detail.dataset.tradeOutUsd ?? 0) : 0;
+					const usdText = outUsdRaw > 0 ? formatUsd(outUsdRaw) : '—';
+					label.textContent = `${I.linkedSwapPrefix ?? 'Linked swap • USD '}${usdText}`;
+					wrapper.appendChild(label);
+					card.parentElement?.insertBefore(wrapper, card);
+					group.forEach((node) => wrapper.appendChild(node));
+				}
+
+				i += group.length || 1;
+			}
+		};
+
+		const scheduleTradeLabels = () => {
+			if (typeof requestIdleCallback === 'function') {
+				requestIdleCallback(() => void hydrateTradeLabels(), { timeout: 1500 });
+			} else {
+				setTimeout(() => void hydrateTradeLabels(), 0);
+			}
+		};
+
+		scheduleTradeLabels();
+		groupLinkedTransactions();
+
+		container.addEventListener('blur', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLTextAreaElement) || !target.classList.contains('tx-notes')) return;
+			const id = target.dataset.id;
+			if (!id) return;
+			const initial = target.dataset.initial ?? '';
+			if (target.value === initial) return;
+			const saved = target.nextElementSibling;
+			try {
+				const response = await fetch('/api/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						transactionId: id,
+						note: target.value,
+						category: target.dataset.category || null,
+					}),
+				});
+				if (!response.ok) throw new Error('Failed to save.');
+				target.dataset.initial = target.value;
+				if (saved instanceof HTMLElement) {
+					saved.classList.add('is-visible');
+					setTimeout(() => saved.classList.remove('is-visible'), 1500);
+				}
+			} catch {
+				if (saved instanceof HTMLElement) {
+					saved.textContent = I.saveFailedText ?? 'Save failed';
+					saved.classList.add('is-visible');
+					setTimeout(() => {
+						saved.classList.remove('is-visible');
+						saved.textContent = I.savedText ?? 'Saved';
+					}, 2000);
+				}
+			}
+		}, true);
+	}
+</script>
+

@@ -1,0 +1,100 @@
+.domain-search {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  padding: 2.25rem 1rem;
+}
+
+.domain-search__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+
+.domain-search__form {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+}
+
+/* Centered pill that sizes to content */
+.domain-search__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  max-width: 92vw;
+}
+
+.domain-search__sld {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+
+  width: 10ch; /* JS will overwrite with px */
+  min-width: 6ch;
+  max-width: 60ch;
+}
+
+.domain-search__dot {
+  opacity: 0.7;
+  font-weight: 800;
+}
+
+.domain-search__tld {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domain-search__btn {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.domain-search__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.domain-search__btn--buy {
+  /* inherits base button styling; optional emphasis */
+}
+
+.domain-search__result {
+  min-height: 1.25rem;
+  font-size: 0.98rem;
+  text-align: center;
+  opacity: 0.95;
+}
+
+/* Hidden span used to measure text width */
+.domain-search__sizer {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: normal;
+}

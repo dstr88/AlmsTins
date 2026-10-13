@@ -1,0 +1,2145 @@
+---
+import Analytics from '@/components/Analytics.astro';
+// Almstins Verify — Financing Desk (financier-facing view).
+//
+// A role-scoped console over the same endpoints as /verify/registry. Where the registry
+// page is a workbench showing every tool at once, this presents one job: decide whether
+// to advance against a receivable, and record the claim if you do.
+//
+// The headline figure is the unencumbered headroom, because that is the number the
+// financing decision turns on. The debtor's acknowledgment is surfaced as its own
+// evidence row: it is the keystone a lender leans on, so its absence should be loud.
+//
+// Read-only against everything except this tenant's own claims. No tenant_id or identity
+// is ever rendered — only self-chosen financier labels. Signed-in only: unauthenticated
+// visitors are redirected to /login and returned here.
+import '@/styles/tokens.css';
+import '@/components/receivables/fragments.css';
+import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
+import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+import AccountMenu from '@/components/verify/AccountMenu.astro';
+import { TERMS } from '@/lib/verifyTerms';
+
+export const prerender = false;
+
+// Both role desks require a signed-in account. The no-account public check still lives
+// at /verify/registry; these are the working desks for named parties, so they sign in.
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/desk', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
+
+const prefillId = Astro.url.searchParams.get('id') ?? '';
+
+// Currency default follows the visitor (same as the cairn desk): Render's Cloudflare
+// front stamps cf-ipcountry, so a US financier lands on USDC while the African
+// corridors keep NGN first. A header, not a geolocation prompt — and only a default.
+const visitorCountry = Astro.request.headers.get('cf-ipcountry')?.toUpperCase() ?? '';
+const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Financing Desk — Almstins Verify</title>
+  <meta name="description" content="Check what is already claimed against a receivable before you advance against it." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2rem 1.1rem 5rem;
+    }
+    .wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+
+    header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .head-top { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; max-width: 40rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.15rem 1.3rem; }
+    .card h2 { font-size: 1.02rem; font-weight: 700; margin-bottom: .25rem; }
+    .card .hint { font-size: .92rem; line-height: 1.55; color: var(--text-muted); margin-bottom: .9rem; }
+
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+    input, select {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .9rem; font-family: inherit; min-width: 0;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); }
+    .grow { flex: 1 1 16rem; }
+    button {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .6rem 1.05rem; font-size: .88rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.ghost { background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+    button.ghost:hover { background: var(--surface-hover); filter: none; }
+    button.small { padding: .34rem .7rem; font-size: .78rem; }
+
+    /* ── Decision banner: the number the call turns on ── */
+    .verdict { border-radius: 13px; padding: 1.1rem 1.25rem; border: 1px solid; display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; justify-content: space-between; }
+    .verdict.clear { background: var(--gain-bg); border-color: var(--gain-border); }
+    .verdict.partial { background: var(--warn-bg, var(--accent-soft)); border-color: var(--warn-border, var(--accent-glow)); }
+    .verdict.blocked { background: var(--loss-bg); border-color: var(--loss-border); }
+    .verdict__label { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+    .verdict.clear .verdict__label { color: var(--gain); }
+    .verdict.partial .verdict__label { color: var(--warning, var(--accent)); }
+    .verdict.blocked .verdict__label { color: var(--loss); }
+    .verdict__num { font-size: clamp(1.5rem, 4vw, 2.05rem); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .verdict__sub { font-size: .84rem; color: var(--text-secondary); }
+
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .85rem 1.1rem; margin-top: 1rem; }
+    .fact__k { font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .fact__v { font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-word; }
+
+    /* Evidence rows — the debtor ack is the keystone, so absence is loud */
+    .evidence { margin-top: 1.05rem; display: flex; flex-direction: column; gap: .5rem; }
+    .ev { display: flex; gap: .7rem; align-items: flex-start; padding: .65rem .8rem; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--surface-card-2); }
+    .ev.good { border-color: var(--gain-border); background: var(--gain-bg); }
+    .ev.missing { border-color: var(--loss-border); background: var(--loss-bg); }
+    .ev__icon { flex: 0 0 auto; font-size: .95rem; line-height: 1.5; }
+    .ev__t { font-size: .88rem; font-weight: 700; }
+    .ev__d { font-size: .8rem; color: var(--text-secondary); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: .3rem; }
+    th { text-align: right; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); font-weight: 700; padding: .3rem .55rem; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+    th:first-child { text-align: left; }
+    td { padding: .5rem .55rem; border-bottom: 1px solid var(--border-subtle); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td:first-child { text-align: left; white-space: normal; }
+    tr.discharged td { opacity: .5; }
+    .tag { font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .1rem .45rem; border-radius: 99px; border: 1px solid; }
+    .tag.active { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .tag.off { color: var(--text-muted); border-color: var(--border-subtle); background: var(--surface-card); }
+
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--text-primary); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
+    .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
+    .muted { color: var(--text-muted); font-size: .8rem; }
+    button.term {
+      background: none; border: none; padding: 0; cursor: help; font: inherit;
+      color: var(--text-secondary); text-decoration: underline dotted; text-underline-offset: .18em;
+    }
+    button.term:hover { color: var(--accent); filter: none; }
+    .tw { display: inline; }
+    .termdef {
+      display: block; margin-top: .5rem; padding: .6rem .75rem; font-size: .82rem;
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+      border-left: 2px solid var(--accent); border-radius: 8px; color: var(--text-secondary);
+    }
+    .termdef b { color: var(--text-primary); }
+
+    /* Credit view */
+    #credit .lead { font-size: .96rem; color: var(--text-primary); margin-bottom: 1rem; }
+    .alloc { margin-bottom: 1.3rem; }
+    .alloc__bar { display: flex; height: .85rem; border-radius: 99px; overflow: hidden; background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .alloc__used { background: var(--loss); }
+    .alloc__free { background: var(--gain); }
+    .alloc__keys { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: .55rem; font-size: .82rem; color: var(--text-secondary); }
+    .alloc__keys b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .alloc__keys .used b { color: var(--loss); }
+    .alloc__keys .free b { color: var(--gain); }
+
+    .two-col { display: grid; grid-template-columns: 1fr; gap: 1.4rem; }
+    @media (min-width: 860px) { .two-col { grid-template-columns: 1.15fr 1fr; gap: 2rem; } }
+    .col-h { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--gain); margin-bottom: .7rem; }
+    .col-h--warn { color: var(--text-muted); }
+
+    .ck { display: flex; gap: .6rem; align-items: flex-start; padding: .45rem 0; }
+    .ck__i { flex: 0 0 auto; width: 1.15rem; height: 1.15rem; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; margin-top: .12rem; }
+    .ck__i.yes { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .ck__i.no  { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .ck__i.na  { color: var(--text-muted); background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .ck__l { font-size: .88rem; font-weight: 650; }
+    .ck__d { font-size: .8rem; color: var(--text-secondary); }
+
+    .nk { padding: .45rem 0; border-bottom: 1px solid var(--border-subtle); }
+    .nk:last-child { border-bottom: none; }
+    .nk__l { font-size: .85rem; font-weight: 650; color: var(--text-secondary); }
+    .nk__d { font-size: .78rem; color: var(--text-muted); }
+    select#cs-claim {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .55rem .7rem; font-size: .9rem; font-family: inherit;
+    }
+    select#cs-claim:focus { outline: none; border-color: var(--accent); }
+    /* The intake tin. Wider than the reading cards because it is a form, capped so it does
+       not stretch to 2000px on a desktop monitor. */
+    .card.tin { width: 100%; max-width: 80rem; padding: 1.7rem 2rem; border: 1px solid var(--accent-soft); box-shadow: 0 0 0 1px var(--accent-soft); }
+    @media (min-width: 1100px) { .card.tin { width: 92%; } }
+    /* The thin green line that divides the three steps of the intake. */
+    .gsep { height: 1px; background: var(--accent-dim); opacity: .6; margin: 1.75rem 0; }
+    /* Chosen contract files — a running list you add to, and a confirm list above Record. */
+    .filelist { display: flex; flex-direction: column; gap: .4rem; margin-top: .6rem; }
+    .filelist__row { display: flex; align-items: center; gap: .55rem; font-size: .95rem; color: var(--text-secondary); }
+    .filelist__ok { color: var(--gain); font-weight: 800; }
+    .filelist__x { margin-left: auto; background: transparent; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 1.05rem; line-height: 1; padding: 0 .25rem; }
+    .filelist__x:hover { color: var(--loss); }
+    .attach-sum { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.1rem; }
+    .attach-sum__h { font-size: .75rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
+
+    details.more { margin-top: .9rem; border-top: 1px solid var(--border-subtle); padding-top: .8rem; }
+    details.more > summary {
+      cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .8rem; font-weight: 650; color: var(--text-secondary); user-select: none;
+    }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary:hover { color: var(--accent); }
+    .more__i {
+      width: 1.25rem; height: 1.25rem; border-radius: 6px; display: inline-flex;
+      align-items: center; justify-content: center; font-weight: 700;
+      border: 1px solid var(--border-bright); color: var(--text-secondary); font-size: .9rem;
+    }
+    details.more[open] > summary .more__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    details.more[open] > summary .more__i::after { content: ''; }
+    .sep { border-top: 1px solid var(--border-subtle); margin: 1.1rem 0 .9rem; }
+    /* Practice mode. Amber is the app's warning token, not a new colour. */
+    .modes { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .mode { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
+    .mode input { accent-color: var(--accent); }
+    .mode--test input { accent-color: var(--warning); }
+    .modes__d { font-size: .8rem; color: var(--text-muted); }
+
+    .card.tin.is-test, #panel.is-test .card, #panel.is-test .verdict {
+      border-color: var(--warning-border);
+      box-shadow: inset 0 0 0 1px var(--warning-border);
+    }
+    .card.tin.is-test { background: var(--warning-bg); }
+    .card.tin.is-test > h2::after, #panel.is-test .card > h2::after {
+      content: 'TEST'; margin-left: .6rem; font-size: .58rem; font-weight: 800; letter-spacing: .12em;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
+      border-radius: 99px; padding: .12rem .4rem; vertical-align: middle;
+    }
+    /* Inbox: unseen updates read like unread mail — bold row, an accent dot, floated to
+       the top (the list arrives already sorted by last activity). */
+    .book-row--new td { font-weight: 700; }
+    .newdot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%;
+      background: var(--accent); margin-right: .45rem; vertical-align: middle; }
+    .updates-banner { display: none; align-items: center; justify-content: space-between; gap: 1rem;
+      margin-bottom: 1rem; padding: .6rem .9rem; border: 1px solid var(--accent-soft);
+      background: var(--accent-soft); border-radius: 10px; font-size: .9rem; }
+    .updates-banner.show { display: flex; }
+    .updates-banner b { color: var(--accent); }
+    .updates-banner .ub__x { background: transparent; border: none; color: var(--text-secondary);
+      cursor: pointer; font-size: 1.15rem; line-height: 1; padding: 0 .2rem; }
+    .chip { border: 1px solid var(--border-bright); background: transparent; color: var(--text-secondary);
+      border-radius: 99px; padding: .34rem .75rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+    .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+    /* The journey. Scrolls sideways on a narrow screen rather than wrapping into a
+       shape that stops reading as a sequence. */
+    .rail {
+      display: flex; align-items: center; gap: .35rem; margin-top: 1.15rem;
+      overflow-x: auto; padding-bottom: .3rem; -webkit-overflow-scrolling: touch;
+    }
+    .rl {
+      display: flex; align-items: center; gap: .45rem; flex: 0 0 auto; cursor: pointer;
+      background: transparent; border: 1px solid var(--border-subtle); border-radius: 99px;
+      padding: .32rem .7rem .32rem .35rem; font-family: inherit; white-space: nowrap;
+    }
+    .rl:disabled { cursor: default; }
+    .rl__n {
+      width: 1.3rem; height: 1.3rem; border-radius: 99px; display: flex;
+      align-items: center; justify-content: center; font-size: .68rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; flex: 0 0 auto;
+    }
+    .rl__l { font-size: .78rem; font-weight: 600; }
+    .rl__j { flex: 0 0 auto; width: .7rem; height: 1px; background: var(--border-subtle); }
+
+    .rl--done { border-color: var(--gain-border); }
+    .rl--done .rl__n { color: var(--gain); background: var(--gain-bg); }
+    .rl--done .rl__l { color: var(--text-secondary); }
+
+    .rl--now { border-color: var(--accent); background: var(--accent-soft); }
+    .rl--now .rl__n { color: var(--surface-bg); background: var(--accent); }
+    .rl--now .rl__l { color: var(--text-primary); font-weight: 700; }
+
+    .rl--todo { opacity: .55; }
+    .rl--todo .rl__n { color: var(--text-muted); background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .rl--todo .rl__l { color: var(--text-muted); }
+
+    .rl:hover:not(:disabled) { border-color: var(--border-bright); filter: none; }
+
+    /* Per-contract lifecycle timeline — vertical, dated, framed inside the contract. */
+    .tl-card { border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem 1.1rem;
+      margin-top: 1.15rem; background: var(--surface-card-2); }
+    .tl__h { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: .75rem; }
+    .tl { display: flex; flex-direction: column; }
+    .tl__row { display: flex; align-items: flex-start; gap: .75rem; position: relative;
+      background: transparent; border: none; text-align: left; cursor: pointer;
+      padding: .28rem 0; font-family: inherit; }
+    .tl__row:disabled { cursor: default; }
+    /* connector line joining the nodes */
+    .tl__row:not(:last-child)::before { content: ''; position: absolute; left: .69rem; top: 1.7rem;
+      bottom: -.28rem; width: 1px; background: var(--border-subtle); }
+    .tl__node { width: 1.4rem; height: 1.4rem; border-radius: 99px; display: flex; align-items: center;
+      justify-content: center; font-size: .7rem; font-weight: 800; font-variant-numeric: tabular-nums;
+      flex: 0 0 auto; position: relative; z-index: 1; }
+    .tl__body { display: flex; flex-direction: column; gap: .04rem; padding-top: .12rem; }
+    .tl__label { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+    .tl__date { font-size: .72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .tl__row--done .tl__node { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .tl__row--now .tl__node { color: var(--surface-bg); background: var(--accent); }
+    .tl__row--now .tl__label { color: var(--text-primary); font-weight: 700; }
+    .tl__row--todo { opacity: .6; }
+    .tl__row--todo .tl__node { color: var(--text-muted); background: var(--surface-card); border: 1px solid var(--border-subtle); }
+    .tl__row:hover:not(:disabled) .tl__label { color: var(--text-primary); }
+
+    /* First-run primer — deliberately large and airy, the opposite of the dense desk. */
+    .primer-open { font-size: .82rem; color: var(--accent); text-decoration: none; margin-left: .5rem; white-space: nowrap; }
+    .primer-open:hover { text-decoration: underline; }
+    .primer { position: fixed; inset: 0; z-index: 60; background: var(--surface-bg);
+      overflow-y: auto; display: none; padding: 2.2rem 1.1rem 3.5rem; }
+    .primer.show { display: block; }
+    .primer__box { max-width: 56rem; margin: 0 auto; }
+    .primer .step__t { font-size: 1.25rem; }
+    .primer .step__d { font-size: 1.06rem; line-height: 1.7; margin-top: .2rem; color: var(--text-secondary); }
+    .primer .step__n { width: 1.7rem; height: 1.7rem; font-size: .82rem; }
+    .primer__step { align-items: flex-start; gap: .85rem; }
+    .primer__h1 { font-size: 1.9rem; line-height: 1.25; margin: .35rem 0 .5rem; color: var(--text-primary); }
+    .primer__lede { font-size: 1.15rem; line-height: 1.75; color: var(--text-secondary); margin-bottom: 1.4rem; }
+    .primer__h2 { font-size: 1.15rem; line-height: 1.4; margin: 1.7rem 0 .55rem; color: var(--text-primary); }
+    .primer p, .primer li { font-size: 1.08rem; line-height: 1.75; color: var(--text-secondary); }
+    .primer__defs, .primer__list, .primer__flow { padding-left: 1.25rem; display: flex; flex-direction: column; gap: .55rem; margin: .3rem 0 0; }
+    .primer__defs b { color: var(--text-primary); }
+    .primer__list--warn li::marker { color: var(--warning); }
+    .primer__foot { display: flex; align-items: center; gap: 1.3rem; flex-wrap: wrap; margin-top: 2.2rem; }
+    .primer__go { background: var(--accent); color: var(--surface-bg); border: none; border-radius: 10px;
+      padding: .72rem 1.5rem; font-size: 1.05rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .primer__docs { color: var(--accent); font-size: 1.02rem; }
+
+    .next {
+      display: flex; gap: 1rem; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
+      background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    }
+    .next--warn { background: var(--loss-bg); border-color: var(--loss-border); }
+    .next__k { font-size: .62rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; color: var(--accent); }
+    .next--warn .next__k { color: var(--loss); }
+    .next__t { font-size: 1.02rem; font-weight: 700; margin-top: .1rem; }
+    .next__d { font-size: .85rem; color: var(--text-secondary); }
+    .next__go {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .55rem 1rem; font-size: .86rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .next--warn .next__go { background: var(--loss); color: var(--text-primary); }
+    @keyframes flash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 2px var(--accent-glow); } }
+    .flash { animation: flash 1.6s ease-in-out; }
+
+    #credit-fold > summary { cursor: pointer; list-style: none; display: flex; gap: .7rem; align-items: flex-start; }
+    #credit-fold > summary::-webkit-details-marker { display: none; }
+    .fold__i {
+      flex: 0 0 auto; width: 1.35rem; height: 1.35rem; border-radius: 7px; display: flex;
+      align-items: center; justify-content: center; font-weight: 700; font-size: .9rem;
+      border: 1px solid var(--border-bright); color: var(--text-secondary);
+    }
+    #credit-fold[open] .fold__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .fold__t { display: block; font-size: 1rem; font-weight: 700; }
+    .fold__d { display: block; font-size: .82rem; color: var(--text-muted); }
+
+    .step__h { display: flex; gap: .7rem; align-items: flex-start; }
+    .step__n {
+      flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 99px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums;
+      color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    }
+    .step__t { font-size: 1.12rem; font-weight: 700; }
+    .step__d { font-size: .95rem; line-height: 1.55; color: var(--text-secondary); }
+    .actnote { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 1.15rem 0 .5rem; }
+    .step--off { opacity: .5; }
+    .step--off .step__n { color: var(--text-muted); background: var(--surface-card); border-color: var(--border-subtle); }
+    .step input:disabled, .step button:disabled { cursor: not-allowed; }
+
+    /* A finished step dims and locks so the eye moves on, its number becoming a check.
+       Applied to the intake block once the contract is attached, and to the record block
+       once the deal is signed. The attach controls sit outside the intake block, so
+       "add another" and "cancel" stay live even while the form above them is done. */
+    .step--done { opacity: .5; pointer-events: none; }
+    .step--done .step__n { font-size: 0; color: var(--surface-bg); background: var(--accent); border-color: var(--accent); }
+    .step--done .step__n::after { content: '\2713'; font-size: .95rem; font-weight: 800; }
+
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
+    .fld {
+      display: flex; flex-direction: column; gap: .34rem;
+      font-size: .75rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted);
+    }
+    .fld input, .fld select {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 8px;
+      color: var(--text-primary); padding: .62rem .8rem; font-size: 1.02rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none; width: 100%;
+    }
+    .fld input:focus, .fld select:focus { outline: none; border-color: var(--accent); }
+    .req { color: var(--accent); font-size: .64rem; letter-spacing: .06em; }
+    .xrow { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+    .xrow input { flex: 1 1 0; min-width: 0; }
+    .xrow button {
+      background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted);
+      border-radius: 8px; padding: .4rem .6rem; font-size: .85rem; line-height: 1; cursor: pointer;
+    }
+    .ok { color: var(--gain); font-weight: 600; }
+    /* The book reads as an inbox: a scrolling pane with a sticky header, so twenty deals
+       do not push the rest of the desk off the screen. */
+    .inbox { max-height: 22rem; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 10px; }
+    .inbox table { margin-top: 0; }
+    .inbox thead th { position: sticky; top: 0; background: var(--surface-card); z-index: 1; padding: .5rem .55rem; }
+    .inbox td { padding: .45rem .55rem; }
+    tr.book-row { cursor: pointer; }
+    tr.book-row:hover td { background: var(--surface-hover); }
+    td.dt { color: var(--text-muted); font-size: .8rem; }
+    td.idcell { white-space: nowrap; text-align: right; }
+    button.idlink {
+      background: transparent; border: none; padding: 0 .3rem 0 0; cursor: pointer;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem;
+      color: var(--accent); font-weight: 600;
+    }
+    button.idlink:hover { text-decoration: underline; filter: none; }
+    button.idcopy {
+      background: transparent; border: 1px solid var(--border-subtle); border-radius: 6px;
+      color: var(--text-muted); cursor: pointer; font-size: .8rem; line-height: 1;
+      padding: .2rem .35rem;
+    }
+    button.idcopy:hover { color: var(--accent); border-color: var(--accent-glow); background: var(--surface-hover); filter: none; }
+    input[type=file] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-secondary); padding: .5rem .6rem; font-size: .85rem; font-family: inherit;
+    }
+    input[type=file]::file-selector-button {
+      background: transparent; border: 1px solid var(--border-bright); border-radius: 7px;
+      color: var(--text-secondary); padding: .3rem .6rem; margin-right: .6rem;
+      font-family: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+    }
+    .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+    .foot a { color: var(--accent); }
+    #panel { display: none; }
+    #panel.show { display: block; position: fixed; inset: 0; z-index: 70; overflow-y: auto;
+      background: rgba(0, 0, 0, .6); padding: 2.5rem 1rem; }
+    .panel__box { max-width: 60rem; margin: 0 auto; background: var(--surface-bg);
+      border: 1px solid var(--border-bright); border-radius: 14px; padding: 1.4rem 1.5rem; }
+    .panel__close { position: fixed; top: 1rem; right: 1.2rem; z-index: 71; background: var(--surface-card);
+      border: 1px solid var(--border-bright); color: var(--text-primary); border-radius: 99px;
+      width: 2.3rem; height: 2.3rem; font-size: 1.35rem; line-height: 1; cursor: pointer; }
+    .panel__close:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+	<Analytics />
+</head>
+<body>
+  <!-- First-run primer. Shows once (cookie-gated) instead of the desk, reopenable via
+       "How this works". Plain language, large type, the minimum a new financier needs;
+       the technical desk and the full guide carry the depth. Fails open: if the script
+       does not run it stays hidden and the desk shows. -->
+  <div id="primer" class="primer">
+    <div class="primer__box">
+      <div class="eyebrow">Almstins Verify</div>
+      <h1 class="primer__h1">Before you start</h1>
+      <p class="primer__lede">A one-minute read. This desk records a receivable, gathers the confirmations that make it trustworthy, and keeps a signed, timestamped record of who agreed to what. The three steps below are the same three you fill in on the desk. You can reopen this any time from “How this works”.</p>
+
+      <div class="step__h primer__step">
+        <span class="step__n">1</span>
+        <div>
+          <div class="step__t">Client intake form</div>
+          <div class="step__d">You record the deal your client brought in: who you are financing, who owes the money (the debtor), the invoice number and its face value, and you attach the paperwork. The record is signed and timestamped to Bitcoin the moment you save it, so its date can never be moved.</div>
+        </div>
+      </div>
+
+      <div class="gsep"></div>
+
+      <div class="step__h primer__step">
+        <span class="step__n">2</span>
+        <div>
+          <div class="step__t">Confirmation of income (debtor)</div>
+          <div class="step__d">You ask the debtor, the party who actually owes the money, to confirm the debt in writing. This is the one piece of evidence that does not come from your client, which is why a lender leans on it hardest. Until it arrives, you are trusting your client's paperwork alone.</div>
+        </div>
+      </div>
+
+      <div class="gsep"></div>
+
+      <div class="step__h primer__step">
+        <span class="step__n">3</span>
+        <div>
+          <div class="step__t">Client acceptance</div>
+          <div class="step__d">Once you have financed the deal, you ask your client to confirm the record is right and that your money reached them. That closes the loop and turns your claim from your own word into something both sides have signed.</div>
+        </div>
+      </div>
+
+      <div class="gsep"></div>
+
+      <h2 class="primer__h2">What it does not prove</h2>
+      <ul class="primer__list primer__list--warn">
+        <li>Who actually answered, or whether they had authority to.</li>
+        <li>That the goods were delivered.</li>
+        <li>Claims recorded outside this registry.</li>
+        <li>Legal priority — that is decided by law, not by us.</li>
+      </ul>
+
+      <div class="primer__foot">
+        <button id="primer-go" class="primer__go" type="button">Open the desk</button>
+        <a class="primer__docs" href="/verify/guide">Read the full guide</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <header>
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Almstins Verify</div>
+          <h1>Financing Desk</h1>
+        </div>
+        <AccountMenu tenantId={sess.tenantId} email={email} current="desk" />
+      </div>
+      <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.
+        <a id="primer-open" class="primer-open" href="#">How this works</a></p>
+    </header>
+
+    <div id="updates-banner" class="updates-banner"></div>
+
+    <div class="card" id="waiting-card" style="display:none">
+      <h2>Waiting on someone</h2>
+      <p class="hint">Requests nobody has answered yet, across every deal. Lapsed ones are recorded as unanswered on the record itself.</p>
+      <div id="waiting-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your book</h2>
+      <p class="hint">
+        Every deal you have recorded, newest first. Click a row to open it, click an ID to check
+        its status, or copy the ID to hand to another financier.
+      </p>
+      <div class="row" style="margin-bottom:.6rem">
+        <input id="book-q" class="grow" placeholder="Filter by client, debtor or invoice number" autocomplete="off" />
+        <button id="book-updated" class="chip" type="button" title="Show only contracts with unseen updates">Updated only</button>
+      </div>
+      <div id="book-list" class="inbox" data-rcv-root="book"></div>
+    </div>
+
+    <div class="card tin">
+      <h2>New client</h2>
+      <p class="hint">
+        He is across the desk with his paperwork. Three steps, all on this card. Only the four
+        marked fields are required; fill in whatever the contract in front of you says.
+      </p>
+
+      <div class="modes" id="modes">
+        <label class="mode"><input type="radio" name="dealmode" value="real" checked /><span>Real world</span></label>
+        <label class="mode mode--test"><input type="radio" name="dealmode" value="test" /><span>Test</span></label>
+        <span class="modes__d" id="mode-note">A real deal. Everything recorded counts.</span>
+      </div>
+
+      <div id="n-intake">
+      <div class="step__h" style="margin-bottom:1rem">
+        <span class="step__n">1</span>
+        <div>
+          <div class="step__t">Client intake form</div>
+          <div class="step__d">The deal itself. Signed and timestamped to Bitcoin the moment you record it.</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <label class="fld">Client <span class="req">required</span>
+          <input id="n-sup" placeholder="Who you are financing" autocomplete="off" />
+        </label>
+        <label class="fld">Debtor <span class="req">required</span>
+          <input id="n-buy" placeholder="Who owes him the money" autocomplete="off" />
+        </label>
+        <label class="fld">Invoice number <span class="req">required</span>
+          <input id="n-inv" placeholder="INV-2093" autocomplete="off" />
+        </label>
+        <label class="fld">Face value <span class="req">required</span>
+          <input id="n-face" type="number" step="0.01" min="0" placeholder="50000000" />
+        </label>
+        <label class="fld">Currency
+          <select id="n-ccy">
+            <option value="NGN" selected={defaultCcy === 'NGN'}>NGN</option>
+            <option value="USDC" selected={defaultCcy === 'USDC'}>USDC</option>
+            <option value="USD">USD</option>
+            <option value="GBP">GBP</option><option value="EUR">EUR</option>
+            <option value="GHS">GHS</option><option value="KES">KES</option>
+            <option value="ZAR">ZAR</option>
+          </select>
+        </label>
+      </div>
+
+      <details class="more">
+        <summary><span class="more__i">+</span> Add more contract details (optional)</summary>
+        <div class="grid2" style="margin-top:.8rem">
+        <label class="fld">Debtor's own reference
+          <input id="n-ref" placeholder="Their PO or contract no." autocomplete="off" />
+        </label>
+        <label class="fld">Invoice date<input id="n-idate" type="date" /></label>
+        <label class="fld">Delivery date<input id="n-ddate" type="date" /></label>
+        <label class="fld">Due date<input id="n-due" type="date" /></label>
+        <label class="fld">Terms
+          <select id="n-terms">
+            <option value="">not stated</option>
+            <option>Net 30</option><option>Net 45</option><option>Net 60</option>
+            <option>Net 90</option><option>Due on receipt</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="fld" style="margin-top:.7rem">Goods or services
+        <input id="n-goods" placeholder="What was supplied" autocomplete="off" />
+      </label>
+      <label class="fld" style="margin-top:.7rem">Payment instructions
+        <input id="n-pay" placeholder="Where the debtor is to pay" autocomplete="off" />
+      </label>
+
+        <div id="n-extra" style="margin-top:.9rem"></div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="small ghost" id="n-add" type="button">+ Add a field</button>
+        </div>
+      </details>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="fld">Attach the contract
+        <input id="n-file" type="file" multiple accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" hidden />
+      </div>
+      <div class="row" style="margin-top:.15rem; gap:.6rem; align-items:center">
+        <button class="small ghost" id="n-file-add" type="button">Choose the contract</button>
+        <span class="muted" style="font-size:.86rem">PDF or image. Add as many as you need.</span>
+      </div>
+      <div id="n-filelist" class="filelist"></div>
+      <p class="hint" style="margin:.5rem 0 0">
+        The contract or promissory note he brought in. Fingerprinted on upload, shown to whoever you
+        ask to confirm, then deleted once they answer. Files attach when you record the deal below.
+      </p>
+
+      <div class="gsep"></div>
+      <div id="n-step2">
+      <div class="step__h" style="margin-bottom:1rem">
+        <span class="step__n">2</span>
+        <div>
+          <div class="step__t">Confirmation of income (debtor)</div>
+          <div class="step__d">Ask the party who owes the money to confirm the debt. Their word, not your client's, is the evidence a lender leans on hardest. Recording below signs the deal and sends this request.</div>
+        </div>
+      </div>
+      <label class="fld" style="margin-top:.2rem">Email the debtor <span class="req">to confirm the debt</span>
+        <input id="n-demail" type="email" placeholder="accounts@their-company.com" autocomplete="off" />
+      </label>
+      <p class="hint" style="margin:.4rem 0 0">Leave it blank to skip. You can always send it later from the record.</p>
+
+      <div id="n-attach-sum" class="attach-sum"></div>
+      <div class="row" style="margin-top:1rem">
+        <button id="n-go">Record, sign &amp; send</button>
+      </div>
+      </div>
+      <div id="n-out" class="note"></div>
+      <div class="row" id="n-reset-row" hidden style="margin-top:.8rem">
+        <button class="small ghost" id="n-reset" type="button">Start another deal</button>
+      </div>
+
+      <!-- Always live: this is the banker's own tool, so client acceptance is never gated.
+           Recording auto-fills the ID for the deal just taken down; he can also paste any
+           receivable ID to send it for a deal recorded earlier, without opening it first. -->
+      <div class="gsep"></div>
+      <div id="n-client" class="step">
+        <div class="step__h">
+          <span class="step__n">3</span>
+          <div>
+            <div class="step__t">Client acceptance</div>
+            <div class="step__d" id="n-client-why">Your client confirms you recorded his deal correctly. The ID fills in when you record above; paste another to send it for an earlier deal. He needs no account.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.7rem">
+          <input id="n-crid" class="grow" placeholder="Receivable ID (fills in when you record)" spellcheck="false" autocomplete="off" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="n-cemail" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="n-csend">Create &amp; email</button>
+          <button id="n-clink" class="ghost">Create link only</button>
+        </div>
+        <div id="n-clist"></div>
+        <div id="n-cout" class="note"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Check a receivable</h2>
+      <p class="hint">Nothing here reveals who holds the record, only what stands against it.</p>
+      <div class="row">
+        <input id="q-id" class="grow" placeholder="Receivable ID" value={prefillId} spellcheck="false" autocomplete="off" />
+        <button id="q-go">Check</button>
+      </div>
+      <div id="q-out" class="note"></div>
+    </div>
+
+    <script type="application/json" id="terms-data" set:html={JSON.stringify(TERMS)}></script>
+
+    <div id="panel">
+      <button id="panel-close" class="panel__close" type="button" aria-label="Close">&times;</button>
+      <div class="panel__box">
+      <WithdrawnNote variant="desk" />
+      <div id="verdict"></div>
+
+      <div id="rail"></div>
+      <div id="next"></div>
+
+      <div class="card" id="credit" style="margin-top:1.15rem">
+        <details id="credit-fold">
+          <summary>
+            <span class="fold__i">+</span>
+            <span>
+              <span class="fold__t">Before you advance</span>
+              <span class="fold__d" id="credit-sum">Everything the decision turns on, and what none of it proves.</span>
+            </span>
+          </summary>
+          <p class="hint" style="margin-top:.9rem">
+            Any underlined word explains itself: <span class="tw" id="tw-head"></span>,
+            <span class="tw" id="tw-claim"></span>, <span class="tw" id="tw-conf"></span>.
+          </p>
+          <div id="credit-body"></div>
+        </details>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>The record</h2>
+        <p class="hint">What the parties have put their name to.</p>
+        <div id="facts" class="facts"></div>
+        <div id="evidence" class="evidence"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>Claims standing against it</h2>
+        <p class="hint">Every advance registered by any financier holding this ID.</p>
+        <div id="claims"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-paper">
+        <h2>The paperwork</h2>
+        <p class="hint">
+          The promissory note or contract your client brought in. PDF or photo, 5 MB each, as many as you need.
+          It is shown to whoever you ask to confirm, then removed once they have all replied. The fingerprint stays.
+        </p>
+        <div class="row">
+          <input id="d-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" class="grow" />
+          <button id="d-go">Attach</button>
+        </div>
+        <div id="d-list"></div>
+        <div id="d-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-debtor">
+        <h2>Ask the debtor to confirm</h2>
+        <p class="hint">
+          Each request is its own single-use link. Ask more than one person if the amount warrants it:
+          one reply from an address your client supplied proves less than two that agree, and two that
+          disagree is the most useful answer you can get. They need no account.
+        </p>
+        <div class="row">
+          <input id="k-email" class="grow" type="email" placeholder="accounts@feed-n-seed.com" autocomplete="off" />
+          <input id="k-label" placeholder="Who this is (optional)" style="flex:0 1 14rem" autocomplete="off" />
+          <button id="k-send">Create &amp; email</button>
+          <button id="k-go" class="ghost">Create link only</button>
+        </div>
+        <div id="k-list"></div>
+        <div id="k-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-accept">
+        <h2>Ask your client to accept the record</h2>
+        <p class="hint">
+          He confirms you recorded his deal correctly. Until he does, everything on the record is your
+          word for what he told you. This is the final step of taking a deal down, and you can send it
+          here any time after recording. He needs no account.
+        </p>
+        <div class="row">
+          <input id="mc-email" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="mc-send">Create &amp; email</button>
+          <button id="mc-go" class="ghost">Create link only</button>
+        </div>
+        <div id="mc-list"></div>
+        <div id="mc-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-offer">
+        <h2>Offer terms to your client</h2>
+        <p class="hint">
+          Sent once the debtor has confirmed. His acceptance is signed and timestamped before any
+          money moves, which is when his signature is worth most: he accepts because that is how he
+          gets funded. Nothing here moves money or stops you advancing when you judge it right.
+        </p>
+        <div class="row">
+          <input id="o-fin" class="grow" placeholder="Your firm" autocomplete="off" />
+          <input id="o-amt" type="number" step="0.01" min="0" placeholder="Amount he receives" style="flex:0 1 13rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-price" class="grow" placeholder="What it costs him, e.g. 3% of face deducted upfront" autocomplete="off" />
+          <select id="o-rec" style="flex:0 1 15rem">
+            <option value="recourse">With recourse — he repays if the debtor does not</option>
+            <option value="non_recourse">Non-recourse — you carry the loss</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-repay" class="grow" placeholder="How it is repaid, e.g. the debtor pays us direct on the due date" autocomplete="off" />
+          <input id="o-days" type="number" min="1" max="90" placeholder="Open for (days)" style="flex:0 1 11rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-email" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="o-send">Create &amp; email</button>
+          <button id="o-go" class="ghost">Create link only</button>
+        </div>
+        <div id="o-list"></div>
+        <div id="o-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-claim">
+        <h2>Register your claim</h2>
+        <p class="hint">{CLAIM_CARD_HINT_DESK}</p>
+        <div class="row">
+          <input id="c-fin" class="grow" placeholder="Your firm" autocomplete="off" />
+          <input id="c-amt" type="number" step="0.01" min="0" placeholder="Amount advanced" style="flex:0 1 12rem" />
+          <input id="c-date" type="date" style="flex:0 1 11rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button id="c-go">Sign, register &amp; timestamp</button>
+        </div>
+        <div id="c-out" class="note"></div>
+        <AckPrompt variant="desk" name="claim" />
+      </div>
+
+      <div class="card" id="cs-card" style="margin-top:1.15rem">
+        <h2>Ask your client to confirm receipt</h2>
+        <p class="hint">
+          Registering a claim is your own word that you advanced the money. Your client confirming he
+          received it is what makes it evidence, and it is what stops anyone registering an advance
+          they never made. He needs no account.
+        </p>
+        <p class="hint" id="cs-none" style="display:none">
+          Register your claim above first. This asks your client to confirm he received that money.
+        </p>
+        <div id="cs-controls" style="display:none">
+          <div class="row">
+            <select id="cs-claim" style="flex:1 1 14rem"></select>
+          </div>
+          <div class="row" style="margin-top:.6rem">
+            <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
+            <button id="cs-send">Create &amp; email</button>
+            <button id="cs-go" class="ghost">Create link only</button>
+          </div>
+          <div id="cs-list"></div>
+        </div>
+        <div id="cs-out" class="note"></div>
+      </div>
+      </div>
+    </div>
+
+    <p class="foot">
+      This desk records and proves. It does not confirm that goods shipped or money moved, and it never says who anyone is.
+      New here? Read the <a href="/verify/guide">user's guide</a>. See <a href="/verify/changelog">what changed</a>. Full workbench at <a href="/verify/registry">/verify/registry</a>.
+    </p>
+  </div>
+
+  <script>import '@/lib/receivables/client/pages/desk';</script>
+  <script>
+    import * as hostBridge from '@/lib/receivables/client/hostBridge';
+    import { submitClaim, type ClaimInput, type NoteTone } from '@/components/receivables/claimFlow.client';
+    import { CLAIM_COPY_DESK, CLAIM_CHECK_FIRST, CLAIM_NEED_FIRM, CLAIM_NEED_AMOUNT } from '@/lib/receivables/copy/claim';
+    import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
+    import { anchorChecklist, anchorEvidence } from '@/lib/receivables/anchorView';
+    import { anchorAfterWrite } from '@/lib/receivables/client/anchorAfterWrite';
+    import { bindCopyButtons, delegateCopyButtons } from '@/lib/receivables/client/copyText';
+    import { COPY_FAILED_LABEL } from '@/lib/receivables/copy/clipboard';
+    import { statusPillHtml } from '@/components/receivables/StatusPill/statusPill';
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const val = (id: string) => ($(id)?.value ?? '').trim();
+    function esc(s: unknown) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+      )[c]!);
+    }
+    function money(n: number, ccy: string) {
+      const v = Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${ccy} ${v}`;
+    }
+    function show(el: HTMLElement, html: string, cls = 'note-info') {
+      el.className = `note show ${cls}`; el.innerHTML = html;
+    }
+    function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
+
+    let current: any = null;
+    let book: any[] = [];
+    let updatedOnly = false;
+    let updatesDismissed = false;
+    let chosenFiles: File[] = [];
+
+    async function check(id?: string) {
+      const rid = (id ?? val('q-id')).trim();
+      const out = $('q-out') as unknown as HTMLElement;
+      const panel = document.getElementById('panel')!;
+      if (!rid) { show(out, 'Paste a receivable ID first.', 'note-loss'); return; }
+      show(out, 'Checking…');
+      try {
+        const r = await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rid));
+        const j = await r.json();
+        if (!j.ok || !j.found) {
+          hide(out); show(out, 'No receivable found for that ID. Check it with whoever sent it.', 'note-loss');
+          hostBridge.emitRecordLoaded(null);
+          panel.classList.remove('show'); document.body.style.overflow = ''; current = null; return;
+        }
+        hide(out);
+        current = j.receivable;
+        render(current);
+        panel.classList.add('show');
+        panel.scrollTop = 0;
+        document.body.style.overflow = 'hidden';
+        hostBridge.emitRecordLoaded(current);
+        loadDocs();
+        loadConfirms();
+        loadOffers();
+        loadClientRequests(current.id, 'mc-list', 'mc-out');
+        // Opening (or reopening after an action) counts as seeing it, so it stops being an
+        // unseen update. No-op when the id isn't one of the banker's own book rows.
+        if (book.some((b: any) => b.id === rid)) markSeen(rid);
+      } catch (e) {
+        show(out, 'Could not reach the registry. Try again.', 'note-loss');
+      }
+    }
+
+    function render(r: any) {
+      const ccy = r.currency || 'NGN';
+      const avail = Number(r.available || 0);
+      const claimed = Number(r.claimed || 0);
+
+      // ── Decision banner ──
+      let cls = 'clear', label = 'Unfinanced', sub = 'Nothing is claimed against this receivable.';
+      if (r.settled) { cls = 'blocked'; label = 'Settled'; sub = 'This receivable is closed.'; }
+      else if (r.status === 'over_financed') { cls = 'blocked'; label = 'Over-financed'; sub = 'Claims exceed the face value. Check before you advance.'; }
+      else if (avail <= 0) { cls = 'blocked'; label = 'Fully financed'; sub = 'No headroom remains. A further advance would be a duplicate.'; }
+      else if (claimed > 0) { cls = 'partial'; label = 'Partially financed'; sub = `${money(claimed, ccy)} is already claimed by another financier.`; }
+      document.getElementById('verdict')!.innerHTML = `
+        <div class="verdict ${cls}">
+          <div>
+            <div class="verdict__label">${esc(label)} &middot; unencumbered headroom</div>
+            <div class="verdict__num">${esc(money(Math.max(0, avail), ccy))}</div>
+            <div class="verdict__sub">${esc(sub)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="verdict__label">Face value</div>
+            <div class="verdict__num" style="font-size:1.15rem">${esc(money(r.face, ccy))}</div>
+          </div>
+        </div>`;
+
+      const tw = (id: string, key: string) => {
+        const el = document.getElementById(id);
+        if (el && !el.innerHTML) el.innerHTML = termSpan(key);
+      };
+      tw('tw-head', 'headroom');
+      tw('tw-claim', 'claim');
+      tw('tw-conf', 'receipt-confirmation');
+
+      document.getElementById('panel')!.classList.toggle('is-test', !!r.isTest);
+      renderRail(r);
+      renderNext(r, ccy);
+      renderCreditView(r, ccy, claimed, avail);
+
+      // ── Facts ──
+      const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
+      const det = r.details || {};
+      document.getElementById('facts')!.innerHTML =
+        f('Client', r.supplier) + f('Debtor', r.buyer) + f('Invoice', r.invoiceNo) +
+        (det.buyerRef ? f("Debtor's ref", det.buyerRef) : '') +
+        (det.invoiceDate ? f('Invoiced', det.invoiceDate) : '') +
+        (det.deliveryDate ? f('Delivered', det.deliveryDate) : '') +
+        f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
+        f('Recorded', String(r.createdAt || '').slice(0, 10)) +
+        (det.goods ? f('Goods or services', det.goods) : '') +
+        (det.paymentInstructions ? f('Payment instructions', det.paymentInstructions) : '') +
+        (Array.isArray(det.extra) ? det.extra.map((e: any) => f(e.label, e.value)).join('') : '');
+
+      // ── Evidence: the debtor's acknowledgment is the keystone ──
+      const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
+      const acked = !!buyerAck || !!r.acknowledgedAt;
+      const ackWhen = buyerAck?.date || r.acknowledgedAt || '';
+      const ev: string[] = [];
+      ev.push(acked
+        ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Debtor acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the client.</div></div></div>`
+        : `<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">No debtor acknowledgment</div><div class="ev__d">Nobody on the paying side has confirmed this debt. You are relying on the client's paperwork alone.</div></div></div>`);
+      // A dispute is filed under the 'other' role so it can never sit in the buyer slot.
+      // It still has to be the loudest thing on the page.
+      const disputes = (r.attestations || []).filter((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      disputes.forEach((d: any) => {
+        ev.push(`<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">Disputed by ${esc(d.label)}</div><div class="ev__d">${esc(d.statement)}</div></div></div>`);
+      });
+
+      const av = anchorEvidence(r);
+      ev.push(`<div class="ev${av.good ? ' good' : ''}"><div class="ev__icon">${esc(av.icon)}</div><div><div class="ev__t">${esc(av.title)}</div><div class="ev__d">${esc(av.detail)}</div></div></div>`);
+      document.getElementById('evidence')!.innerHTML = ev.join('');
+
+      // ── Claims ──
+      const claims = r.claims || [];
+      document.getElementById('claims')!.innerHTML = claims.length === 0
+        ? `<p class="muted">No claims registered. The full face value is unencumbered.</p>`
+        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>` +
+          claims.map((c: any) => {
+            // "Claimed" has never meant "funded". Until the client counter-signs, this
+            // row is one firm's word, and the desk says so rather than implying otherwise.
+            const receipt = c.affirmed
+              ? `<span class="ok">confirmed by ${esc(c.affirmedBy || 'the client')}</span>`
+              : `<span class="muted">not confirmed</span>`;
+            const ask = c.affirmed || c.status === 'discharged'
+              ? ''
+              : `<button class="small ghost" data-ask="${esc(c.id)}">Ask client</button>`;
+            return `
+            <tr class="${c.status === 'discharged' ? 'discharged' : ''}">
+              <td>${esc(c.financier)}${c.anchored ? ' <span class="muted">&#9939;</span>' : ''}</td>
+              <td>${esc(money(c.amount, c.currency || ccy))}</td>
+              <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
+              <td>${receipt}</td>
+              <td><span class="tag ${c.status === 'discharged' ? 'off' : 'active'}">${esc(c.status === 'discharged' ? 'discharged' : 'active')}</span></td>
+              <td>${ask}${c.status === 'discharged' ? '' : ` <button class="small ghost" data-discharge="${esc(c.id)}">Mark repaid</button>`}</td>
+            </tr>`;
+          }).join('') + `</tbody></table>`;
+
+      document.getElementById('claims')!.querySelectorAll('[data-discharge]').forEach((b) => {
+        b.addEventListener('click', () => discharge((b as HTMLElement).dataset.discharge as string));
+      });
+      document.getElementById('claims')!.querySelectorAll('[data-ask]').forEach((b) => {
+        b.addEventListener('click', () => askClient((b as HTMLElement).dataset.ask as string));
+      });
+      renderCountersignCard(claims, ccy);
+
+      // Prefill the claim amount with the remaining headroom
+      const amt = $('c-amt'); if (amt && !amt.value && avail > 0) amt.value = String(avail);
+      const d = $('c-date'); if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+    }
+
+    // Registering a claim: components/receivables/claimFlow.client.ts runs the claim, the
+    // duplicate-financing warning and the diligence prompt. The desk keeps its inputs, its
+    // note box and the refresh of the open record.
+    const claimOut = $('c-out') as unknown as HTMLElement;
+    const deskClaim = {
+      root: document.querySelector('[data-rcv-root="ack-claim"]') as HTMLElement,
+      copy: CLAIM_COPY_DESK,
+      anchor: { statusId: 'k-anchor', copy: ANCHOR_AFTER_WRITE.desk },
+      post: async (url: string, body: Record<string, unknown>) => {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        return { status: r.status, body: await r.json() };
+      },
+      host: {
+        read: (): ClaimInput => ({ receivableId: current?.id ?? '', financier: val('c-fin'), amount: Number(val('c-amt')), date: val('c-date') || undefined }),
+        invalid: (i: ClaimInput) => (!current ? CLAIM_CHECK_FIRST : !i.financier ? CLAIM_NEED_FIRM : !(i.amount > 0) ? CLAIM_NEED_AMOUNT : null),
+        note: (tone: NoteTone, nodes: Node[]) => { claimOut.className = `note show note-${tone}`; claimOut.replaceChildren(...nodes); },
+        clear: () => hide(claimOut),
+        formatAmount: (n: number) => money(n, current?.currency || 'NGN'),
+        formatHeadroom: (n: number) => money(n, current?.currency || 'NGN'),
+        setAmount: (v: string) => { $('c-amt').value = v; },
+        diligenceReceivableId: () => current?.id ?? '',
+        afterNotOk: () => (current ? check(current.id) : undefined),
+        afterSaved: () => (current ? check(current.id) : undefined),
+      },
+    };
+
+    // Releasing a claim once the debtor has paid frees the headroom again, so no phantom
+    // lien outlives the payment. Only the financier who registered it can discharge it —
+    // the API enforces that, since the public record never says whose claim is whose.
+    async function discharge(claimId: string) {
+      const out = $('c-out') as unknown as HTMLElement;
+      if (!confirm('Mark this claim repaid? That releases it and frees the headroom.')) return;
+      const reason = (prompt('Optional: add a note for your own record (e.g. "wire received Sept 28"). Leave blank to skip.') || '').trim();
+      show(out, 'Releasing…');
+      try {
+        const r = await fetch('/api/verify/receivables/discharge', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reason ? { claimId, reason } : { claimId }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
+        if (!j.ok) {
+          show(out, j.error === 'not_found'
+            ? 'That claim was registered by another financier, so only they can release it.'
+            : 'Could not release that claim: ' + esc(j.error || 'unknown error'), 'note-loss');
+          return;
+        }
+        show(out, `<b>Claim released.</b> ${esc(money(Math.max(0, Number(j.available || 0)), current?.currency || 'NGN'))} is unencumbered again.`, 'note-gain');
+        if (current) await check(current.id);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // ── Vocabulary, in place ────────────────────────────────────────────────
+    //
+    // The pilot financier had not read the guide and said they would not have. So the words
+    // explain themselves where they appear: a dotted term opens its definition underneath,
+    // from the same source the guide uses. Nobody has to leave the screen holding money.
+    const TERMS: Array<{ key: string; term: string; def: string }> =
+      JSON.parse(document.getElementById('terms-data')?.textContent || '[]');
+
+    function termSpan(key: string, text?: string) {
+      const t = TERMS.find((x) => x.key === key);
+      if (!t) return esc(text ?? key);
+      return `<button class="term" data-term="${esc(key)}" title="What this means">${esc(text ?? t.term)}</button>`;
+    }
+
+    document.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement)?.closest?.('button.term') as HTMLElement | null;
+      if (!b) return;
+      const t = TERMS.find((x) => x.key === b.dataset.term);
+      if (!t) return;
+      const existing = b.parentElement?.querySelector('.termdef');
+      if (existing) { existing.remove(); return; }
+      const d = document.createElement('div');
+      d.className = 'termdef';
+      d.innerHTML = `<b>${esc(t.term)}</b> ${esc(t.def)}`;
+      b.parentElement?.appendChild(d);
+    });
+
+    // ── What to do next ─────────────────────────────────────────────────────
+    //
+    // One action, named, at the top of the panel. The pilot review asked for a progress
+    // bar; this is the same thing without pretending the work is linear, because it is
+    // not: they can advance without a confirmation, ask two debtors, or never attach
+    // anything. Naming the next step is honest where a bar would have to lie.
+    // ── Where this deal has got to ──────────────────────────────────────────
+    //
+    // The map, not a percentage. The pilot review asked for a progress bar; a bar has to
+    // claim the work is linear, and it is not — a financier can advance without a
+    // confirmation, ask two debtors, or never attach anything. Marking each stage done,
+    // now, or not yet is honest about that and still answers "where am I".
+    //
+    // "Now" is whichever stage the next-step strip is pointing at, so the two never
+    // disagree: they read the same state.
+    function renderRail(r: any) {
+      const box = document.getElementById('rail')!;
+      const atts = r.attestations || [];
+      const claims = (r.claims || []).filter((c: any) => c.status !== 'discharged');
+      const allClaims = r.claims || [];
+      const acked = atts.some((a: any) => a.role === 'buyer') || !!r.acknowledgedAt;
+      const docs = Number(r.documentCount || 0);
+      const unconfirmed = claims.filter((c: any) => !c.affirmed);
+      const offerAccepted = atts.some((a: any) => String(a.statement || '').startsWith('Accepts financing'));
+      const discharged = allClaims.length > 0 && allClaims.every((c: any) => c.status === 'discharged');
+
+      // The date each stage happened, where the record carries one. A stage with no date
+      // yet simply shows none — honest about a step not reached.
+      const d = (s: any) => (s ? String(s).slice(0, 10) : '');
+      const buyerAck = atts.find((a: any) => a.role === 'buyer');
+      const acceptAtt = atts.find((a: any) => String(a.statement || '').startsWith('Accepts financing'));
+      const claimDates = claims.map((c: any) => d(c.registeredAt)).filter(Boolean).sort();
+      const affirmedClaim = claims.find((c: any) => c.affirmed);
+
+      type St = 'done' | 'now' | 'todo';
+      const stages: Array<{ n: string; label: string; st: St; go?: string; date?: string }> = [
+        { n: '1', label: 'Recorded', st: 'done', date: d(r.createdAt) },
+        { n: '2', label: 'Paperwork', st: docs > 0 ? 'done' : 'now', go: 'card-paper' },
+        { n: '3', label: 'Debtor confirmed', st: acked ? 'done' : docs > 0 ? 'now' : 'todo', go: 'card-debtor', date: d(buyerAck?.date || r.acknowledgedAt) },
+        { n: '4', label: 'Terms accepted', st: offerAccepted ? 'done' : acked ? 'now' : 'todo', go: 'card-offer', date: d(acceptAtt?.date) },
+        { n: '5', label: 'Advance registered', st: claims.length ? 'done' : offerAccepted ? 'now' : 'todo', go: 'card-claim', date: claimDates[0] || '' },
+        { n: '6', label: 'Receipt confirmed', st: claims.length && !unconfirmed.length ? 'done' : claims.length ? 'now' : 'todo', go: 'cs-card', date: d(affirmedClaim?.affirmedAt) },
+        { n: '7', label: r.settled ? 'Settled' : 'Repaid', st: (r.settled || discharged) ? 'done' : (claims.length && !unconfirmed.length) ? 'now' : 'todo', go: 'card-claim', date: d(r.settledAt || r.settled_at) },
+      ];
+
+      // Only the earliest 'now' is the live one; the rest are still ahead.
+      let seenNow = false;
+      for (const st of stages) {
+        if (st.st !== 'now') continue;
+        if (seenNow) st.st = 'todo'; else seenNow = true;
+      }
+
+      box.innerHTML = `<div class="card tl-card"><div class="tl__h">Lifecycle</div><div class="tl">`
+        + stages.map((x) => {
+          const node = x.st === 'done' ? '&#10003;' : esc(x.n);
+          const dt = x.date ? esc(x.date) : (x.st === 'now' ? 'in progress' : '');
+          return `<button class="tl__row tl__row--${x.st}" ${x.go ? `data-goto="${esc(x.go)}"` : ''} ${x.go ? '' : 'disabled'}>
+            <span class="tl__node">${node}</span>
+            <span class="tl__body"><span class="tl__label">${esc(x.label)}</span>${dt ? `<span class="tl__date">${dt}</span>` : ''}</span>
+          </button>`;
+        }).join('') + `</div></div>`;
+
+      box.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => goTo((b as HTMLElement).dataset.goto as string)));
+    }
+
+    function goTo(id: string) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (id === 'credit') (document.getElementById('credit-fold') as HTMLDetailsElement).open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 1600);
+    }
+
+    function renderNext(r: any, ccy: string) {
+      const box = document.getElementById('next')!;
+      const atts = r.attestations || [];
+      const claims = (r.claims || []).filter((c: any) => c.status !== 'discharged');
+      const acked = atts.some((a: any) => a.role === 'buyer') || !!r.acknowledgedAt;
+      const disputed = atts.some((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      const docs = Number(r.documentCount || 0);
+      const asked = Number(r.requestCount || 0);
+      const unconfirmed = claims.filter((c: any) => !c.affirmed);
+
+      let step: { t: string; d: string; go?: string; tone?: string } | null = null;
+      if (r.settled) step = null;
+      else if (disputed) step = { t: 'Read the dispute before you go further', d: 'Someone you asked has contradicted this record. It is in the evidence below.', go: 'credit', tone: 'warn' };
+      else if (docs === 0) step = { t: 'Attach the paperwork', d: 'The note or contract he brought in. Whoever you ask to confirm will be shown it.', go: 'card-paper' };
+      else if (asked === 0) step = { t: 'Ask the debtor to confirm the debt', d: 'The evidence that does not come from your client, and the one worth the most.', go: 'card-debtor' };
+      else if (!acked) step = { t: 'Waiting on the debtor', d: 'Nothing has come back yet. You can chase, or ask a second person there.', go: 'card-debtor' };
+      else if (!claims.length) step = { t: 'Offer terms to your client', d: 'The debtor has confirmed. His acceptance is signed before any money moves.', go: 'card-offer' };
+      else if (unconfirmed.length) step = { t: 'Ask your client to confirm the money arrived', d: 'Until he does, your claim is your own word that you paid him.', go: 'cs-card' };
+      else step = { t: 'Mark the claim repaid when the debtor pays', d: 'That frees the headroom, so no dead claim outlives the payment.', go: 'card-claim' };
+
+      if (!step) { box.innerHTML = ''; return; }
+      box.innerHTML = `
+        <div class="next ${step.tone === 'warn' ? 'next--warn' : ''}">
+          <div>
+            <div class="next__k">Next</div>
+            <div class="next__t">${esc(step.t)}</div>
+            <div class="next__d">${esc(step.d)}</div>
+          </div>
+          ${step.go ? `<button class="next__go" data-goto="${esc(step.go)}">Take me there</button>` : ''}
+        </div>`;
+      box.querySelector('[data-goto]')?.addEventListener('click', (e) =>
+        goTo((e.currentTarget as HTMLElement).dataset.goto as string));
+    }
+
+    // ── The credit view ─────────────────────────────────────────────────────
+    //
+    // One screen to decide from, per the pilot financier's review: the money split
+    // visually, every piece of evidence as present or absent, and an explicit list of what
+    // the platform does NOT prove sitting beside it. That last column is the point. A
+    // lender who discovers the limits themselves, after advancing, stops trusting the rest.
+    function renderCreditView(r: any, ccy: string, claimed: number, avail: number) {
+      const face = Number(r.face || 0);
+      const atts = r.attestations || [];
+      const claims = r.claims || [];
+
+      const ack = atts.find((a: any) => a.role === 'buyer') || null;
+      const acked = !!ack || !!r.acknowledgedAt;
+      const disputes = atts.filter((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      const active = claims.filter((c: any) => c.status !== 'discharged');
+      const unconfirmed = active.filter((c: any) => !c.affirmed);
+      const docs = Number(r.documentCount || 0);
+
+      const pct = (n: number) => face > 0 ? Math.max(0, Math.min(100, (n / face) * 100)) : 0;
+
+      // Plain English, not a label. "Headroom" means nothing to a first-time user.
+      const headline = r.settled
+        ? `This receivable is settled. Nothing further can be financed against it.`
+        : avail <= 0
+        ? `Nothing is available. The full ${money(face, ccy)} is already claimed, so a further advance would duplicate an existing one.`
+        : claimed > 0
+        ? `${money(avail, ccy)} is still available to finance. ${money(claimed, ccy)} is already claimed by a financier holding this ID.`
+        : `The full ${money(face, ccy)} is available to finance. Nobody has registered a claim against it.`;
+
+      // Three states, not two. Red is reserved for something that went wrong or is now
+      // overdue; a step nobody has reached yet reads neutral. Showing a warning five
+      // seconds after a record is created tells the banker they have failed at something they
+      // have not had the chance to do.
+      const row = (state: 'yes' | 'no' | 'na', label: string, detail: string) => `
+        <div class="ck">
+          <span class="ck__i ${state}">${state === 'yes' ? '&#10003;' : state === 'no' ? '&#9888;' : '&middot;'}</span>
+          <div><div class="ck__l">${esc(label)}</div><div class="ck__d">${esc(detail)}</div></div>
+        </div>`;
+
+      // "Overdue" means the step is now load-bearing: an advance has been registered, or
+      // somebody has been asked and the paperwork they were meant to read is missing.
+      const advanced = active.length > 0;
+      const askedAnyone = (r.requestCount ?? 0) > 0;
+
+      const ackState: 'yes' | 'no' | 'na' = acked ? 'yes' : advanced ? 'no' : 'na';
+      const ackLabel = acked ? 'Debtor acknowledged the debt'
+        : askedAnyone ? 'Waiting on the debtor'
+        : 'Debtor not asked yet';
+      const ackDetail = acked
+        ? `${ack ? ack.label : r.buyer} confirmed it${ack?.date ? ' on ' + String(ack.date).slice(0, 10) : ''}.`
+        : advanced ? 'An advance is registered and nobody on the paying side has confirmed the debt.'
+        : askedAnyone ? 'A request has gone out. Nothing has come back yet.'
+        : 'Ask them below. This is the evidence that does not come from your client.';
+
+      const diligence = atts.filter((a: any) => String(a.statement || '').startsWith('DILIGENCE'));
+      const anchorRow = anchorChecklist(r);
+      const proven = [
+        row(ackState, ackLabel, ackDetail),
+        row(acked ? 'na' : diligence.length ? 'no' : 'na',
+            acked ? 'Diligence acceptance not required'
+              : diligence.length ? `${diligence.length} financier diligence acceptance${diligence.length > 1 ? 's' : ''} on file` : 'No diligence acceptance on file',
+            acked ? 'The debtor already confirmed directly, so this step was not needed.'
+              : diligence.length ? 'A financier self-attested having verified this debtor. This is not a debtor confirmation — read it before relying on it.'
+              : 'Required before financing this receivable without a debtor confirmation.'),
+        row(disputes.length === 0 ? (askedAnyone ? 'yes' : 'na') : 'no',
+            disputes.length === 0 ? 'No disputes recorded' : `${disputes.length} dispute${disputes.length > 1 ? 's' : ''} recorded`,
+            disputes.length
+              ? 'Someone asked has contradicted this record. Read it before advancing.'
+              : askedAnyone ? 'Nobody asked has contradicted the record.' : 'Nobody has been asked yet.'),
+        row(advanced ? 'yes' : 'na',
+            advanced ? `${active.length} financing claim${active.length > 1 ? 's' : ''} registered` : 'No financing claims registered',
+            advanced ? `${money(claimed, ccy)} claimed of ${money(face, ccy)}.` : 'The full face value is unencumbered.'),
+        row(!advanced ? 'na' : unconfirmed.length === 0 ? 'yes' : 'no',
+            !advanced ? 'No advance to confirm yet'
+              : unconfirmed.length === 0 ? 'Every advance confirmed received'
+              : `${unconfirmed.length} advance${unconfirmed.length > 1 ? 's' : ''} not confirmed received`,
+            !advanced ? 'Nothing has been advanced against this yet.'
+              : unconfirmed.length === 0 ? 'The client has confirmed the money arrived.'
+              : 'A registered claim is one firm\u2019s word until the client confirms the money reached him.'),
+        row(anchorRow.state, anchorRow.label, anchorRow.detail),
+        row(docs > 0 ? 'yes' : askedAnyone ? 'no' : 'na',
+            docs > 0 ? `${docs} document${docs > 1 ? 's' : ''} on file` : 'No paperwork attached',
+            docs > 0 ? 'Fingerprinted, and named in any confirmation given while it was visible.'
+              : askedAnyone ? 'Somebody has been asked to confirm a deal with no paperwork to look at.'
+              : 'Attach the note or contract below before you ask anyone to confirm it.'),
+      ].join('');
+
+      // Stated as flatly as the evidence. These are the questions a lender must answer
+      // from outside this system, and pretending otherwise is how a registry gets trusted
+      // for something it never claimed.
+      const notProven = [
+        ['Who actually answered', 'A confirmation proves someone holding the link answered. It does not prove which officer of that company, or that they had authority to bind it.'],
+        ['That the goods were delivered', 'Nothing here inspects a warehouse. The debtor\u2019s acknowledgment is the closest evidence, and it is their word.'],
+        ['Claims made outside this registry', 'A prior assignment recorded elsewhere, or a floating charge over all receivables, is invisible here.'],
+        ['Legal priority', 'Priority is set by law, filing and notice. An anchored date is evidence in that contest, not the thing that decides it.'],
+        ['That the invoice is not a near-duplicate', 'Change any field and you get a separate record with separate headroom. Nothing yet matches two records describing one obligation.'],
+      ].map(([t, d]) => `<div class="nk"><div class="nk__l">${esc(t)}</div><div class="nk__d">${esc(d)}</div></div>`).join('');
+
+      // Open by default only when there is something to weigh. On a record created ten
+      // seconds ago every line says "not yet", which is a wall of text answering a question
+      // nobody asked.
+      const worthReading = acked || disputes.length > 0 || active.length > 0 || diligence.length > 0;
+      const fold = document.getElementById('credit-fold') as HTMLDetailsElement;
+      if (!fold.dataset.touched) fold.open = worthReading;
+      document.getElementById('credit-sum')!.textContent = worthReading
+        ? 'The evidence so far, and what none of it proves.'
+        : 'Nothing to weigh yet. Opens as evidence arrives.';
+
+      const reverifs = r.reverifications || [];
+      const historyRows = reverifs.map((rv: any) => {
+        const when = String(rv.date || '').replace('T', ' ').slice(0, 16);
+        const confirmed = rv.verdict === 'confirmed';
+        const bad = (rv.checks || []).filter((c: any) => c.state !== 'pass').map((c: any) => c.label);
+        return row(confirmed ? 'yes' : 'no',
+          `${confirmed ? 'Verified' : 'Needed attention'} · ${when} UTC`,
+          confirmed ? 'Every control re-confirmed at this moment.' : `Flagged: ${bad.join(', ')}.`);
+      }).join('');
+      const historyBlock = historyRows
+        ? `<div class="col-h" style="margin-top:1.2rem">Verification history</div>${historyRows}`
+        : '';
+
+      document.getElementById('credit-body')!.innerHTML = `
+        <p class="lead">${esc(headline)}</p>
+        <div class="alloc">
+          <div class="alloc__bar">
+            <span class="alloc__used" style="width:${pct(claimed)}%"></span>
+            <span class="alloc__free" style="width:${pct(Math.max(0, avail))}%"></span>
+          </div>
+          <div class="alloc__keys">
+            <span><b>${esc(money(face, ccy))}</b> face value</span>
+            <span class="used"><b>${esc(money(claimed, ccy))}</b> financed</span>
+            <span class="free"><b>${esc(money(Math.max(0, avail), ccy))}</b> available</span>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="col-h">What this platform proves</div>
+            ${proven}
+          </div>
+          <div>
+            <div class="col-h col-h--warn">What it does not prove</div>
+            ${notProven}
+          </div>
+        </div>
+        ${historyBlock}`;
+    }
+
+    // ── Intake: record a new deal ───────────────────────────────────────────
+    //
+    // The banker-led flow: the client is across the desk with their paperwork, so the record
+    // is created here rather than on a page written in the client's voice. On success it
+    // loads straight into the panel below, so attaching papers and asking the debtor are
+    // the next two clicks and nobody has to re-paste an ID.
+    function addExtraRow(label = '', value = '') {
+      const box = document.getElementById('n-extra')!;
+      const row = document.createElement('div');
+      row.className = 'xrow';
+      const l = document.createElement('input'); l.placeholder = 'Field name'; l.value = label;
+      const v = document.createElement('input'); v.placeholder = 'Value'; v.value = value;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '\u2715';
+      x.setAttribute('aria-label', 'Remove this field');
+      x.addEventListener('click', () => row.remove());
+      row.append(l, v, x);
+      box.appendChild(row);
+      l.focus();
+    }
+
+    function readExtras(): Array<{ label: string; value: string }> {
+      return Array.from(document.querySelectorAll('#n-extra .xrow')).map((r) => {
+        const [l, v] = Array.from(r.querySelectorAll('input')) as HTMLInputElement[];
+        return { label: (l?.value ?? '').trim(), value: (v?.value ?? '').trim() };
+      }).filter((e) => e.label && e.value);
+    }
+
+    async function createDeal() {
+      const out = $('n-out') as unknown as HTMLElement;
+      const supplier = val('n-sup'), buyer = val('n-buy'), invoiceNo = val('n-inv');
+      const face = Number(val('n-face'));
+      if (!supplier || !buyer || !invoiceNo) {
+        show(out, 'Client, debtor and invoice number are all needed.', 'note-loss'); return;
+      }
+      if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
+
+      show(out, 'Signing and recording…');
+      try {
+        const r = await fetch('/api/verify/receivables', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier, buyer, invoiceNo, face,
+            currency: val('n-ccy') || 'NGN',
+            isTest: (document.querySelector('input[name=dealmode]:checked') as HTMLInputElement)?.value === 'test',
+            terms: val('n-terms') || null,
+            dueDate: val('n-due') || null,
+            details: {
+              invoiceDate: val('n-idate') || null,
+              deliveryDate: val('n-ddate') || null,
+              buyerRef: val('n-ref') || null,
+              goods: val('n-goods') || null,
+              paymentInstructions: val('n-pay') || null,
+              extra: readExtras(),
+            },
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
+
+        show(out, 'Recording…', 'note-gain');
+
+        // Everything the banker has in the room, in one submission: the papers they just
+        // scanned and the two people they already know how to reach. Making them come back
+        // for those is how they quietly never happen.
+        const done: string[] = ['recorded and signed'];
+        const failed: string[] = [];
+
+        const files = chosenFiles;
+        if (files.length) {
+          for (const f of files) {
+            try {
+              const fd = new FormData();
+              fd.append('receivableId', j.id);
+              fd.append('file', f);
+              const dr = await (await fetch('/api/verify/receivables/document', { method: 'POST', body: fd })).json();
+              if (!dr.ok) failed.push(`could not attach ${f.name}`);
+            } catch { failed.push(`could not attach ${f.name}`); }
+          }
+          const n = files.length - failed.length;
+          if (n > 0) done.push(`${n} document${n > 1 ? 's' : ''} attached`);
+        }
+
+        // Both requests, minted then sent. Role decides which page the link opens.
+        const ask = async (role: string, email: string, label: string) => {
+          if (!email) return;
+          try {
+            const ir = await (await fetch('/api/verify/receivables/invite', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role, receivableId: j.id, email }),
+            })).json();
+            if (!ir.ok) { failed.push(`could not create the ${label} request`); return; }
+            const sr = await (await fetch('/api/verify/receivables/send', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: ir.token }),
+            })).json();
+            done.push(sr.ok ? `${label} emailed` : `${label} request created, but the email did not send`);
+            if (!sr.ok && sr.detail) failed.push(String(sr.detail));
+          } catch { failed.push(`could not send the ${label} request`); }
+        };
+        await ask('buyer', val('n-demail'), 'debtor');
+
+        show(out,
+          `<b>Done.</b> ${esc(done.join(', '))}.` +
+          (failed.length ? `<br><span class="muted">${esc(failed.join('; '))}</span>` : '') +
+          `<br><span id="n-anchor">&#9203; Timestamping to Bitcoin…</span>`,
+          failed.length ? 'note-loss' : 'note-gain');
+        void anchorAfterWrite('receivable', j.id, 'n-anchor', ANCHOR_AFTER_WRITE.desk);
+
+        // The deal is signed: lock the intake and record steps as done (kept on screen, with
+        // what they entered, so the record stays legible). Client acceptance stays live below.
+        // The entered data is not cleared here — "Start another deal" resets.
+        const intakeEl = document.getElementById('n-intake');
+        if (intakeEl) { intakeEl.dataset.locked = '1'; intakeEl.classList.add('step--done'); }
+        document.getElementById('n-step2')?.classList.add('step--done');
+        document.getElementById('n-reset-row')?.removeAttribute('hidden');
+
+        // Fill the client-acceptance ID with the deal just recorded, so sending it is one field
+        // and two clicks away, and load any request already sent for it.
+        prefillClientStep(j.id);
+
+        // Prefill Check for later, but do NOT open its modal now: that overlay used to cover the
+        // client step the banker needs next. They check the record on their own from the Check card.
+        ($('q-id') as HTMLInputElement).value = j.id;
+        loadBook();
+        const cs = document.getElementById('n-client');
+        cs?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => ($('n-cemail') as HTMLInputElement)?.focus(), 450);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.querySelector('details.more')?.addEventListener('toggle', (e) => {
+      const d = e.currentTarget as HTMLDetailsElement;
+      const i = d.querySelector('.more__i');
+      if (i) i.textContent = d.open ? '\u2212' : '+';
+    });
+
+    // Practice mode. The tin itself turns amber so there is no way to be halfway through
+    // a rehearsal and think it is real, and the flag travels with the record from there.
+    function syncMode() {
+      const test = (document.querySelector('input[name=dealmode]:checked') as HTMLInputElement)?.value === 'test';
+      document.querySelector('.card.tin')?.classList.toggle('is-test', test);
+      document.getElementById('mode-note')!.textContent = test
+        ? 'A practice run. Marked TEST on this desk, on the public check, and on every page you send.'
+        : 'A real deal. Everything recorded counts.';
+    }
+    document.querySelectorAll('input[name=dealmode]').forEach((r) => r.addEventListener('change', syncMode));
+    syncMode();
+
+    document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
+    // Step 3, client acceptance, is always live: it is the banker's own tool. Recording fills
+    // the ID for the deal just taken down; pasting another ID loads that deal's roster so a
+    // request sent earlier is visible. No enable/disable dance, nothing to unlock.
+    function prefillClientStep(receivableId: string) {
+      ($('n-crid') as HTMLInputElement).value = receivableId;
+      loadClientRequests(receivableId, 'n-clist', 'n-cout');
+    }
+    $('n-crid')?.addEventListener('change', () => loadClientRequests(val('n-crid'), 'n-clist', 'n-cout'));
+
+    // Clears everything back to a blank intake so the banker can record the next deal:
+    // reopens steps 1 and 2 and empties the fields, files and the client-step ID.
+    function resetIntake() {
+      const intakeEl = document.getElementById('n-intake');
+      if (intakeEl) { delete intakeEl.dataset.locked; intakeEl.classList.remove('step--done'); }
+      document.getElementById('n-step2')?.classList.remove('step--done');
+      document.getElementById('n-reset-row')?.setAttribute('hidden', '');
+      document.getElementById('n-clist')!.innerHTML = '';
+
+      ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail','n-crid']
+        .forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+      const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
+      chosenFiles = []; renderFileList();
+      hide($('n-out') as unknown as HTMLElement);
+      hide($('n-cout') as unknown as HTMLElement);
+      intakeEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    document.getElementById('n-reset')?.addEventListener('click', resetIntake);
+
+    // A clipboard write nobody asked for is a clipboard write nobody knows about, and it
+    // can fail silently on top of that. Offer the link as a button the banker clicks.
+    function copyButton(link: string, label = 'Copy the link') {
+      return `<button class="small ghost" data-copylink="${esc(link)}" style="margin-top:.5rem">${esc(label)}</button>`;
+    }
+    delegateCopyButtons(document, '[data-copylink]', (b) => b.dataset.copylink || '', { failedLabel: COPY_FAILED_LABEL });
+
+    // Client acceptance (role borrower) is sent from two places that share this logic: the
+    // create tin's step 3, right after recording, and the record view's own card, for a deal
+    // recorded earlier. The ctx names which fields and record each caller works against, so a
+    // banker who left and came back can still send it from the record instead of being stranded.
+    type ClientCtx = { rid: string | null; emailId: string; outId: string; listId: string };
+    async function createClientRequest(alsoEmail: boolean, ctx: ClientCtx) {
+      const out = $(ctx.outId) as unknown as HTMLElement;
+      const email = val(ctx.emailId);
+      if (!ctx.rid) { show(out, 'Record the deal first.', 'note-loss'); return; }
+      if (alsoEmail && !email) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
+      show(out, 'Creating…');
+      try {
+        const ir = await (await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: ctx.rid, email: email || null }),
+        })).json();
+        if (!ir.ok) { show(out, 'Could not create that request.', 'note-loss'); return; }
+
+        if (!alsoEmail) {
+          show(out, `<b>Request created.</b> It works once and expires in seven days. The link is in the list below, for email, WhatsApp or however you reach him.`, 'note-gain');
+          loadClientRequests(ctx.rid, ctx.listId, ctx.outId);
+          return;
+        }
+        if (await emailRequest(ir.token, out, 'your client')) {
+          ($(ctx.emailId) as HTMLInputElement).value = '';
+        } else {
+          // emailRequest already said why. Add the way out rather than replacing it.
+          out.innerHTML += `<br>The request exists. Copy its link from the list below and send it yourself.`;
+        }
+        loadClientRequests(ctx.rid, ctx.listId, ctx.outId);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // The roster is where the link lives permanently. A copy button inside a status
+    // message dies with the next action, and the banker may well be sending this over
+    // WhatsApp an hour later rather than by email now.
+    async function loadClientRequests(receivableId: string, listId = 'n-clist', outId = 'n-cout') {
+      const box = document.getElementById(listId)!;
+      if (!receivableId) { box.innerHTML = ''; return; }
+      try {
+        const j = await (await fetch('/api/verify/receivables/invite?recordFor=' + encodeURIComponent(receivableId))).json();
+        const rows = j.requests ?? [];
+        if (!j.ok || !rows.length) { box.innerHTML = ''; return; }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          rows.map((v: any) => {
+            const link = `${location.origin}/verify/attest?token=${encodeURIComponent(v.token)}`;
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">withdrawn</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const act = v.status === 'pending'
+              ? `<button class="small ghost" data-copylink="${esc(link)}">Copy link</button>`
+                + (v.sentTo ? ` <button class="small ghost" data-resend="${esc(v.token)}">Resend</button>` : '')
+              : '';
+            return `<tr><td>${esc(v.sentTo || 'link only')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${act}</td></tr>`;
+          }).join('') + '</tbody></table>';
+        box.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', () =>
+          emailRequest((b as HTMLElement).dataset.resend as string, $(outId) as unknown as HTMLElement, 'your client')));
+      } catch { box.innerHTML = ''; }
+    }
+
+    const createCardCtx = (): ClientCtx => ({ rid: val('n-crid') || null, emailId: 'n-cemail', outId: 'n-cout', listId: 'n-clist' });
+    document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true, createCardCtx()));
+    document.getElementById('n-clink')?.addEventListener('click', () => createClientRequest(false, createCardCtx()));
+
+    // The same step from the record view, for a deal recorded earlier. current.id is whatever
+    // receivable the banker has open, so this is never stranded the way the create tin's step 3 is.
+    const recordCardCtx = (): ClientCtx => ({ rid: current?.id ?? null, emailId: 'mc-email', outId: 'mc-out', listId: 'mc-list' });
+    document.getElementById('mc-send')?.addEventListener('click', () => createClientRequest(true, recordCardCtx()));
+    document.getElementById('mc-go')?.addEventListener('click', () => createClientRequest(false, recordCardCtx()));
+
+    document.getElementById('n-go')?.addEventListener('click', createDeal);
+
+    // ── Documents ───────────────────────────────────────────────────────────
+    async function loadDocs() {
+      const box = document.getElementById('d-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/document?receivableId=' + encodeURIComponent(current.id));
+        const j = await r.json();
+        const docs = j.documents ?? [];
+        if (!j.ok || !docs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Nothing attached yet.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>File</th><th>Size</th><th>Fingerprint</th><th>State</th></tr></thead><tbody>' +
+          docs.map((d: any) => `<tr>
+              <td>${esc(d.filename)}</td>
+              <td>${(Number(d.fileSize) / 1024).toFixed(0)} KB</td>
+              <td style="font-family:ui-monospace,Menlo,monospace;font-size:.66rem;word-break:break-all">${esc(String(d.sha256).slice(0, 24))}…</td>
+              <td>${d.purgedAt ? `<span class="muted">removed ${esc(d.purgedAt)}</span>` : 'held'}</td>
+            </tr>`).join('') +
+          '</tbody></table>';
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function uploadDoc() {
+      const out = $('d-out') as unknown as HTMLElement;
+      const input = $('d-file') as HTMLInputElement;
+      const file = input?.files?.[0];
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return; }
+      if (!file) { show(out, 'Choose a file first.', 'note-loss'); return; }
+      show(out, 'Attaching…');
+      try {
+        const fd = new FormData();
+        fd.append('receivableId', current.id);
+        fd.append('file', file);
+        const r = await fetch('/api/verify/receivables/document', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) {
+          const why = j.error === 'too_large' ? 'That file is over 5 MB.'
+            : j.error === 'unsupported_type' ? 'PDF or image only.'
+            : j.error === 'not_found' ? 'That receivable is not yours to attach to.'
+            : 'Could not attach that file.';
+          show(out, why, 'note-loss'); return;
+        }
+        input.value = '';
+        show(out, `Attached. Fingerprint ${esc(String(j.doc.sha256).slice(0, 16))}…`, 'note-gain');
+        loadDocs();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // ── Confirmation requests ───────────────────────────────────────────────
+    async function loadConfirms() {
+      const box = document.getElementById('k-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/invite?receivableId=' + encodeURIComponent(current.id));
+        const j = await r.json();
+        const reqs = j.requests ?? [];
+        if (!j.ok || !reqs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Nobody asked yet.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          reqs.map((v: any) => {
+            const link = `${location.origin}/verify/authenticate?token=${encodeURIComponent(v.token)}`;
+            const who = v.sentTo || v.label || 'no address recorded';
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">revoked</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const action = v.status === 'pending'
+              ? `<button class="ghost small" data-copylink="${esc(link)}">Copy link</button>`
+                + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
+              : '';
+            return `<tr>
+              <td>${esc(who)}${v.label && v.sentTo ? `<div class="muted" style="font-size:.72rem">${esc(v.label)}</div>` : ''}</td>
+              <td>${state}</td>
+              <td>${esc(v.answeredBy || '—')}</td>
+              <td>${action}</td>
+            </tr>`;
+          }).join('') +
+          '</tbody></table>';
+        box.querySelectorAll('button[data-resend]').forEach((b) => {
+          b.addEventListener('click', () =>
+            emailRequest((b as HTMLElement).dataset.resend as string, $('k-out') as unknown as HTMLElement, 'the debtor'));
+        });
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createConfirmRequest() {
+      const out = $('k-out') as unknown as HTMLElement;
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return; }
+      const email = val('k-email');
+      if (!email) { show(out, 'An address is what records where the answer came from. Add one.', 'note-loss'); return; }
+      show(out, 'Creating…');
+      try {
+        const r = await fetch('/api/verify/receivables/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'buyer', receivableId: current.id, email, label: val('k-label') || null }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
+        const link = `${location.origin}/verify/authenticate?token=${encodeURIComponent(j.token)}`;
+        ($('k-email') as HTMLInputElement).value = '';
+        ($('k-label') as HTMLInputElement).value = '';
+        show(out, `<b>Request created.</b> Send it to ${esc(email)}. It works once and expires in 7 days.<br>${copyButton(link)}`, 'note-gain');
+        loadConfirms();
+        return j.token as string;
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
+    }
+
+    // Sending is a separate, explicit act from minting the link. That keeps "resend the
+    // reminder" possible without issuing a second token, and keeps a financier who would
+    // rather send from their own mail client able to just copy.
+    async function emailRequest(token: string, out: HTMLElement, who: string) {
+      show(out, 'Sending\u2026');
+      try {
+        const r = await fetch('/api/verify/receivables/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          const why = j.error === 'rate_limited' ? 'Too many requests in the last hour. Try again shortly.'
+            : j.error === 'not_found' ? 'That request is not yours to send, or is no longer open. Requests can only be emailed from the account that created them.'
+            : j.error === 'email_not_configured' ? 'Email is not configured on this server. Use Create link only and send it yourself.'
+            : (j.error === 'email_unverified' || j.error === 'daily_limit' || j.error === 'quota_unavailable') && j.detail ? esc(j.detail)
+            : j.error === 'send_failed' ? `The mail server refused it. Copy the link and send it yourself.${j.detail ? `<br><span class="muted">${esc(j.code ? j.code + ': ' : '')}${esc(j.detail)}</span>` : ''}`
+            : 'Could not send that.';
+          show(out, why, 'note-loss'); return false;
+        }
+        show(out, `Sent to ${esc(j.sentTo)}. Replies come back to you, not to Almstins.`, 'note-gain');
+        return true;
+      } catch { show(out, 'Could not reach the registry. Copy the link and send it yourself.', 'note-loss'); return false; }
+    }
+
+    // ── Offers ──────────────────────────────────────────────────────────────
+    async function loadOffers() {
+      const box = document.getElementById('o-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const j = await (await fetch('/api/verify/receivables/offer?receivableId=' + encodeURIComponent(current.id))).json();
+        const rows = j.offers ?? [];
+        if (!j.ok || !rows.length) { box.innerHTML = '<p class="hint" style="margin-top:.7rem">No terms offered yet.</p>'; return; }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Offered</th><th>Amount</th><th>Terms</th><th>State</th></tr></thead><tbody>' +
+          rows.map((o: any) => {
+            const state = o.acceptedAt ? `<span class="ok">accepted ${esc(String(o.acceptedAt).slice(0, 10))} by ${esc(o.acceptedBy || '')}</span>`
+              : o.declinedAt ? `<span style="color:var(--loss)">declined ${esc(String(o.declinedAt).slice(0, 10))}</span>`
+              : String(o.expiresAt) < new Date().toISOString().replace('T', ' ').slice(0, 19) ? '<span class="muted">expired</span>'
+              : `<span>open until ${esc(String(o.expiresAt).slice(0, 10))}</span>`;
+            return `<tr>
+              <td>${esc(String(o.createdAt).slice(0, 10))}</td>
+              <td>${esc(money(Number(o.amount), o.currency || ccyOf()))}</td>
+              <td>${esc(o.recourse === 'non_recourse' ? 'non-recourse' : 'with recourse')}${o.price ? `<div class="muted" style="font-size:.74rem">${esc(o.price)}</div>` : ''}</td>
+              <td>${state}</td>
+            </tr>`;
+          }).join('') + '</tbody></table>';
+      } catch { box.innerHTML = ''; }
+    }
+    const ccyOf = () => current?.currency || 'NGN';
+
+    async function createOffer(): Promise<string | null> {
+      const out = $('o-out') as unknown as HTMLElement;
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return null; }
+      const financier = val('o-fin'), amount = Number(val('o-amt'));
+      if (!financier) { show(out, 'Enter your firm name.', 'note-loss'); return null; }
+      if (!amount || amount <= 0) { show(out, 'Enter the amount he receives.', 'note-loss'); return null; }
+      show(out, 'Signing…');
+      try {
+        const j = await (await fetch('/api/verify/receivables/offer', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receivableId: current.id, financier, amount,
+            price: val('o-price') || null,
+            recourse: val('o-rec') || 'recourse',
+            repayment: val('o-repay') || null,
+            validDays: val('o-days') ? Number(val('o-days')) : undefined,
+          }),
+        })).json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not create that offer.'), 'note-loss'); return null; }
+
+        const ir = await (await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: current.id, offerId: j.offerId, email: val('o-email') || null }),
+        })).json();
+        if (!ir.ok) { show(out, 'Offer signed, but the link could not be created.', 'note-loss'); return null; }
+
+        const link = `${location.origin}/verify/offer?token=${encodeURIComponent(ir.token)}`;
+        show(out, `<b>Offer signed.</b> He sees the amount, the charge, the recourse terms and how it is repaid.<br>${copyButton(link)}`, 'note-gain');
+        loadOffers();
+        return ir.token as string;
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
+    }
+
+    document.getElementById('o-go')?.addEventListener('click', createOffer);
+    document.getElementById('o-send')?.addEventListener('click', async () => {
+      const out = $('o-out') as unknown as HTMLElement;
+      if (!val('o-email')) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
+      const token = await createOffer();
+      if (token) await emailRequest(token, out, 'your client');
+    });
+
+    // ── Counter-signature ───────────────────────────────────────────────────
+    // The card only makes sense while an unconfirmed advance exists, so it is hidden
+    // otherwise. Its select lists exactly those, which also keeps the banker from asking
+    // about a claim their client has already answered.
+    function renderCountersignCard(claims: any[], ccy: string) {
+      const controls = document.getElementById('cs-controls')!;
+      const none = document.getElementById('cs-none')!;
+      const open = claims.filter((c: any) => !c.affirmed && c.status !== 'discharged');
+      // The card always shows. Only the controls come and go, so the step is visible
+      // before it is usable rather than appearing out of nowhere once a claim exists.
+      if (!open.length) {
+        controls.style.display = 'none';
+        none.style.display = 'block';
+        none.textContent = claims.length
+          ? 'Every advance on this receivable has been confirmed by your client.'
+          : 'Register your claim above first. This asks your client to confirm he received that money.';
+        return;
+      }
+      none.style.display = 'none';
+      controls.style.display = 'block';
+      const sel = $('cs-claim') as unknown as HTMLSelectElement;
+      const keep = sel.value;
+      sel.innerHTML = open.map((c: any) =>
+        `<option value="${esc(c.id)}">${esc(money(c.amount, c.currency || ccy))} to ${esc(c.financier)}, registered ${esc(String(c.registeredAt || '').slice(0, 10))}</option>`
+      ).join('');
+      if (keep && open.some((c: any) => c.id === keep)) sel.value = keep;
+      loadCountersigns();
+    }
+
+    async function loadCountersigns() {
+      const box = document.getElementById('cs-list')!;
+      const claimId = (($('cs-claim') as unknown as HTMLSelectElement)?.value ?? '').trim();
+      if (!claimId) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/invite?claimId=' + encodeURIComponent(claimId));
+        const j = await r.json();
+        const reqs = j.requests ?? [];
+        if (!j.ok || !reqs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Not asked yet for this advance.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          reqs.map((v: any) => {
+            const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(v.token)}`;
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">revoked</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const action = v.status === 'pending'
+              ? `<button class="ghost small" data-copylink="${esc(link)}">Copy link</button>`
+                + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
+              : '';
+            return `<tr><td>${esc(v.sentTo || 'no address recorded')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${action}</td></tr>`;
+          }).join('') + '</tbody></table>';
+        box.querySelectorAll('button[data-resend]').forEach((b) => {
+          b.addEventListener('click', () =>
+            emailRequest((b as HTMLElement).dataset.resend as string, $('cs-out') as unknown as HTMLElement, 'your client'));
+        });
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createCountersignRequest() {
+      const out = $('cs-out') as unknown as HTMLElement;
+      const claimId = (($('cs-claim') as unknown as HTMLSelectElement)?.value ?? '').trim();
+      const email = val('cs-email');
+      if (!claimId) { show(out, 'No unconfirmed advance to ask about.', 'note-loss'); return; }
+      if (!email) { show(out, 'An address is needed. It is what records where the answer came from.', 'note-loss'); return; }
+      show(out, 'Creating\u2026');
+      try {
+        const r = await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: current.id, claimId, email }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
+        const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(j.token)}`;
+        ($('cs-email') as HTMLInputElement).value = '';
+        show(out, `<b>Request created.</b> Send it to ${esc(email)} from your own email. The claim shows as confirmed once they answer.<br>${copyButton(link)}`, 'note-gain');
+        loadCountersigns();
+        return j.token as string;
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
+    }
+
+    // The row button is a shortcut into the card, not a second way of doing it.
+    function askClient(claimId: string) {
+      const card = document.getElementById('cs-card')!;
+      document.getElementById('cs-controls')!.style.display = 'block';
+      const sel = $('cs-claim') as unknown as HTMLSelectElement;
+      if (sel) { sel.value = claimId; loadCountersigns(); }
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      ($('cs-email') as HTMLInputElement)?.focus();
+    }
+
+    document.getElementById('cs-go')?.addEventListener('click', createCountersignRequest);
+    document.getElementById('cs-send')?.addEventListener('click', async () => {
+      const token = await createCountersignRequest();
+      if (token) await emailRequest(token, $('cs-out') as unknown as HTMLElement, 'your client');
+    });
+    $('cs-claim')?.addEventListener('change', loadCountersigns);
+    document.getElementById('credit-fold')?.addEventListener('toggle', (e) => {
+      const d = e.currentTarget as HTMLDetailsElement;
+      d.dataset.touched = '1';                       // once they decide, stop deciding for them
+      const i = d.querySelector('.fold__i');
+      if (i) i.textContent = d.open ? '\u2212' : '+';
+    });
+
+    document.getElementById('d-go')?.addEventListener('click', uploadDoc);
+    document.getElementById('k-go')?.addEventListener('click', createConfirmRequest);
+    document.getElementById('k-send')?.addEventListener('click', async () => {
+      const token = await createConfirmRequest();
+      if (token) await emailRequest(token, $('k-out') as unknown as HTMLElement, 'the debtor');
+    });
+
+    // A financier with twenty deals should not have to hoard 64-character IDs to reach their
+    // own records. "Check a receivable" stays, because it is how they open somebody else's.
+    async function loadBook() {
+      const box = document.getElementById('book-list')!;
+      try {
+        const r = await fetch('/api/verify/receivables');
+        const j = await r.json();
+        const rows = j.receivables ?? [];
+        if (!j.ok || !rows.length) {
+          box.innerHTML = '<p class="muted" style="margin-top:.6rem">Nothing recorded yet. Start with New deal above.</p>';
+          return;
+        }
+        book = rows;
+        renderBook();
+        hostBridge.emitBookLoaded(book);
+      } catch { box.innerHTML = ''; }
+    }
+
+    function renderBook() {
+      const box = document.getElementById('book-list')!;
+      const q = (val('book-q') || '').toLowerCase();
+      let rows = q ? book.filter((v: any) =>
+        [v.supplier, v.buyer, v.invoiceNo].some((f: any) => String(f || '').toLowerCase().includes(q))) : book;
+      if (updatedOnly) rows = rows.filter((v: any) => v.updated);
+
+      renderUpdatesBanner();
+
+      if (!rows.length) {
+        const why = updatedOnly ? 'No unseen updates.' : q ? 'Nothing matches that.' : 'Nothing recorded yet. Start with New deal above.';
+        box.innerHTML = `<p class="muted" style="margin-top:.6rem">${why}</p>`;
+        return;
+      }
+
+      box.innerHTML = '<table><thead><tr><th>Recorded</th><th>Client</th><th>Debtor</th><th>Invoice</th><th>Face</th><th>Receivable ID</th><th>State</th></tr></thead><tbody>' +
+        rows.map((v: any) => {
+          const id = String(v.id);
+          const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
+          return `<tr class="book-row${v.updated ? ' book-row--new' : ''}">
+            <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
+            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' ' + statusPillHtml({ kind: 'tag', tag: 'test' }) : ''}${v.mine === false ? ' ' + statusPillHtml({ kind: 'tag', tag: 'claimed_only' }) : ''}</td>
+            <td>${esc(v.buyer)}</td>
+            <td>${esc(v.invoiceNo)}</td>
+            <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
+            <td class="idcell">
+              <button class="idlink" data-open="${esc(id)}" title="Check this receivable">${esc(short)}</button>
+              <button class="idcopy" data-copyid="${esc(id)}" data-copied-label="&#10003;" title="Copy the full ID" aria-label="Copy receivable ID">&#10697;</button>
+            </td>
+            <td>${v.settled ? '<span class="muted">settled</span>' : '<span class="ok">open</span>'}</td>
+          </tr>`;
+        }).join('') + '</tbody></table>';
+
+      const open = (id: string) => {
+        ($('q-id') as HTMLInputElement).value = id;
+        check(id);
+        document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      box.querySelectorAll('[data-open]').forEach((b) =>
+        b.addEventListener('click', () => open((b as HTMLElement).dataset.open as string)));
+      box.querySelectorAll('.book-row').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('button')) return;
+          const id = tr.querySelector('[data-open]') as HTMLElement;
+          if (id) open(id.dataset.open as string);
+        });
+      });
+      bindCopyButtons(box, '[data-copyid]', (b) => b.dataset.copyid || '', { optimistic: true, restoreMs: 1200 });
+    }
+
+    function renderUpdatesBanner() {
+      const el = document.getElementById('updates-banner');
+      if (!el) return;
+      const n = book.filter((v: any) => v.updated).length;
+      if (!n || updatesDismissed) { el.classList.remove('show'); return; }
+      el.innerHTML = `<span><b>${n}</b> update${n > 1 ? 's' : ''} to your contracts. Bold rows are new since you last looked.</span>`
+        + `<button class="ub__x" id="ub-x" aria-label="Dismiss">&times;</button>`;
+      el.classList.add('show');
+      document.getElementById('ub-x')?.addEventListener('click', () => { updatesDismissed = true; el.classList.remove('show'); });
+    }
+
+    // Opening a contract (or acting on it) clears its unseen flag: locally at once so the
+    // row un-bolds instantly, then on the server so it sticks across reloads.
+    async function markSeen(id: string) {
+      const row = book.find((v: any) => v.id === id);
+      if (!row || !row.updated) return;
+      row.updated = false;
+      renderBook();
+      try {
+        await fetch('/api/verify/receivables/seen', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receivableId: id }),
+        });
+      } catch { /* non-fatal; the server reconciles on next load */ }
+    }
+
+    $('book-q')?.addEventListener('input', renderBook);
+    document.getElementById('book-updated')?.addEventListener('click', () => {
+      updatedOnly = !updatedOnly;
+      document.getElementById('book-updated')?.classList.toggle('on', updatedOnly);
+      renderBook();
+    });
+    loadBook();
+
+    // Nothing rots unseen: what is still outstanding, and what already lapsed.
+    async function loadWaiting() {
+      const card = document.getElementById('waiting-card')!;
+      const box = document.getElementById('waiting-list')!;
+      try {
+        const j = await (await fetch('/api/verify/receivables/invite?outstanding=1')).json();
+        const rows = j.outstanding ?? [];
+        if (!j.ok || !rows.length) { card.style.display = 'none'; return; }
+        card.style.display = 'block';
+        const who = (v: any) => v.role === 'buyer' ? 'Debtor' : v.claimId ? 'Client, receipt' : 'Client, record';
+        box.innerHTML = '<table style="margin-top:.6rem"><thead><tr><th>Waiting on</th><th>Deal</th><th>Sent to</th><th>State</th></tr></thead><tbody>' +
+          rows.map((v: any) => `<tr class="book-row" data-id="${esc(v.receivableId)}" style="cursor:pointer">
+              <td>${esc(who(v))}</td>
+              <td>${esc(v.supplier)} &rarr; ${esc(v.buyer)}<div class="muted" style="font-size:.74rem">${esc(v.invoiceNo)}</div></td>
+              <td>${esc(v.email || 'no address')}</td>
+              <td>${v.state === 'lapsed'
+                ? `<span style="color:var(--loss)">lapsed ${esc(String(v.expiresAt).slice(0, 10))}</span>`
+                : `<span class="muted">expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`}</td>
+            </tr>`).join('') + '</tbody></table>';
+        box.querySelectorAll('.book-row').forEach((tr) => tr.addEventListener('click', () => {
+          const id = (tr as HTMLElement).dataset.id as string;
+          ($('q-id') as HTMLInputElement).value = id;
+          check(id);
+          document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }));
+      } catch { card.style.display = 'none'; }
+    }
+    loadWaiting();
+
+    document.getElementById('q-go')?.addEventListener('click', () => check());
+    $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
+    document.getElementById('c-go')?.addEventListener('click', () => submitClaim(deskClaim));
+
+    // The result view opens as a modal over the desk. Close on the ×, on a click on the
+    // backdrop (but not inside the box), and on Escape, restoring the page scroll.
+    function closePanel() {
+      const p = document.getElementById('panel');
+      if (p) p.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+    document.getElementById('panel-close')?.addEventListener('click', closePanel);
+    document.getElementById('panel')?.addEventListener('click', (e: any) => {
+      if (e.target === e.currentTarget) closePanel();
+    });
+    document.addEventListener('keydown', (e: any) => {
+      if (e.key === 'Escape' && document.getElementById('panel')?.classList.contains('show')) closePanel();
+    });
+
+    if (val('q-id')) check();
+
+    // Attach the contract: files accumulate in chosenFiles across repeated picks (the native
+    // input replaces its selection each time, so we keep our own list). Shown as a removable
+    // list here and mirrored as a "ready to attach" checklist above Record. They upload only
+    // once the receivable exists — on Record, sign & send.
+    function renderFileList() {
+      const list = document.getElementById('n-filelist');
+      const sum = document.getElementById('n-attach-sum');
+      const addBtn = document.getElementById('n-file-add');
+      if (addBtn) addBtn.textContent = chosenFiles.length ? '＋ Add another file' : 'Choose the contract';
+      if (list) {
+        list.innerHTML = chosenFiles.map((f, i) =>
+          `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span>`
+          + `<button class="filelist__x" type="button" data-rmfile="${i}" aria-label="Remove">&times;</button></div>`).join('')
+          + (chosenFiles.length ? `<button class="small ghost" id="n-file-cancel" type="button" style="margin-top:.5rem">Cancel — remove all</button>` : '');
+        list.querySelectorAll('[data-rmfile]').forEach((b) => b.addEventListener('click', () => {
+          chosenFiles.splice(Number((b as HTMLElement).dataset.rmfile), 1); renderFileList();
+        }));
+        document.getElementById('n-file-cancel')?.addEventListener('click', () => {
+          chosenFiles = []; const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = ''; renderFileList();
+        });
+      }
+      // The first attached contract marks the intake done, dimming and locking the form
+      // above so the eye moves to the record step. Removing every file reopens it. The
+      // attach controls live outside #n-intake, so add-more and cancel stay usable.
+      const intake = document.getElementById('n-intake');
+      if (intake && !intake.dataset.locked) intake.classList.toggle('step--done', chosenFiles.length > 0);
+      if (sum) sum.innerHTML = chosenFiles.length
+        ? `<div class="attach-sum__h">Ready to attach when you record</div>`
+          + chosenFiles.map((f) => `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span></div>`).join('')
+        : '';
+    }
+    document.getElementById('n-file-add')?.addEventListener('click', () => ($('n-file') as HTMLInputElement)?.click());
+    ($('n-file') as HTMLInputElement)?.addEventListener('change', (e) => {
+      const inp = e.target as HTMLInputElement;
+      for (const f of Array.from(inp.files || [])) {
+        if (!chosenFiles.some((g) => g.name === f.name && g.size === f.size)) chosenFiles.push(f);
+      }
+      inp.value = '';  // let the same file be re-picked and more be added
+      renderFileList();
+    });
+
+    // First-run primer: shown until the banker clicks through once (cookie), reopenable
+    // from "How this works". Base CSS keeps it hidden, so if this never runs the desk is
+    // simply visible — fail-open.
+    (function primerInit() {
+      const primer = document.getElementById('primer');
+      if (!primer) return;
+      const seen = document.cookie.split('; ').some((c) => c.startsWith('desk_primer_seen='));
+      if (!seen) primer.classList.add('show');
+      document.getElementById('primer-go')?.addEventListener('click', () => {
+        document.cookie = 'desk_primer_seen=1; max-age=' + (60 * 60 * 24 * 365) + '; path=/; samesite=lax';
+        primer.classList.remove('show');
+      });
+      document.getElementById('primer-open')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        primer.classList.add('show');
+        primer.scrollTop = 0;
+      });
+    })();
+  </script>
+</body>
+</html>

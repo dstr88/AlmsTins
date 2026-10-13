@@ -1,0 +1,8 @@
+/* fragments.css — presentation only.
+   The styles of every receivables fragment helper (an .ts that returns HTML for the pages'
+   innerHTML builders), plus the shared ui/ primitives they read. Each receivables host page
+   imports this file once in its frontmatter, so the styles ship with the server-rendered page. */
+@import './ui/tones.css';
+@import './ui/controls.css';
+@import './StatusPill/StatusPill.css';
+@import './AnchorPill/AnchorPill.css';

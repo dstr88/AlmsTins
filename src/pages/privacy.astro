@@ -1,0 +1,21 @@
+---
+// Public, crawlable Privacy Policy page. Renders the SAME source as the footer
+// "privacy-policy" modal (src/i18n/privacyPolicy.ts via privacy-policy.astro) so
+// there is exactly one privacy document. Public via isPublicPath in middleware/auth.ts.
+import Layout from "../layouts/Layout.astro";
+import PrivacyPolicy from "../components/privacy-policy.astro";
+---
+
+<Layout title="Privacy Policy — Almstins">
+  <main class="privacy-page">
+    <PrivacyPolicy variant="modal" lang="en" />
+  </main>
+</Layout>
+
+<style>
+  .privacy-page {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+</style>

@@ -1,0 +1,25 @@
+---
+import './OrnatedTin.css';
+interface Props {
+  label: string;
+  class?: string;
+}
+
+const { label, class: className = "" } = Astro.props;
+const hasSummary = Astro.slots.has("summary");
+---
+
+<div class={`ornate-tin ${className}`}>
+  <span class="ornate-tin__label">{label}</span>
+
+  {hasSummary && (
+    <div class="ornate-tin__summary">
+      <slot name="summary" />
+    </div>
+  )}
+
+  <div class="ornate-tin__body">
+    <slot />
+  </div>
+</div>
+

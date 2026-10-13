@@ -1,0 +1,47 @@
+---
+import './SalmonTin.css';
+
+// Chain brand colors for the corner-flag — established per-chain identity hues.
+// Documented design-token exception (brand/series colors, like AaveRateChart):
+// chains must stay visually distinguishable, so these intentionally sit outside
+// the token palette.
+const CHAIN_COLORS: Record<string, string> = {
+  BTC:      '#F7931A',  // gold
+  'BTC/LTC': '#F7931A', // gold (combined cold storage)
+  RBTC:     '#F7931A',  // gold (Rootstock = BTC)
+  ETH:  '#9E9EA0',  // silver
+  SOL:  '#9945FF',  // Solana violet
+  AVAX: '#E84142',  // Avalanche red
+  POL:  '#8247E5',  // Polygon indigo
+  LTC:  '#B8BCC8',  // light steel (lighter silver than ETH)
+  SUI:  '#6FBCF0',  // Sui blue
+  ARB:  '#28A0F0',  // Arbitrum blue
+};
+
+interface Props {
+	label: string;
+	class?: string;
+	/** Optional key to color the corner flag (e.g. chain badge) when `label`
+	 *  is a custom name that wouldn't match CHAIN_COLORS. Defaults to `label`. */
+	flagKey?: string;
+}
+
+const { label, class: className = '', flagKey } = Astro.props;
+const hasSummary = Astro.slots.has('summary');
+const flagColor = CHAIN_COLORS[(flagKey ?? label).toUpperCase()] ?? 'var(--text-muted)';
+---
+
+<div class={`salmon-tin ${className}`}>
+	<span class="salmon-tin__label">{label}</span>
+	<!-- Corner fold — chain-color indicator -->
+	<div class="tin-flag" style={`--flag-color: ${flagColor}`} aria-hidden="true"></div>
+	{hasSummary && (
+		<div class="salmon-tin__summary">
+			<slot name="summary" />
+		</div>
+	)}
+	<div class="salmon-tin__body">
+		<slot />
+	</div>
+</div>
+

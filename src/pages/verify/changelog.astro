@@ -1,0 +1,283 @@
+---
+import Analytics from '@/components/Analytics.astro';
+import { receivablesPath } from '@/lib/receivables/paths';
+// What changed, dated, in public.
+//
+// Written for the financier, not for a repository. Every entry says what it does for them,
+// and the fixes say plainly what was broken rather than hiding behind "improvements".
+// A registry that asks people to trust its records should be willing to show its own.
+//
+// Branded Receivables, not Verify -- this file is still physically under src/pages/verify/
+// today (the "alias" phase of the /verify -> /receivables move documented in
+// src/middleware/legacyRedirects.ts), but /receivables/changelog is the address this page
+// is meant to be known by, so its own copy and footer links present it that way.
+import '@/styles/tokens.css';
+
+export const prerender = false;
+
+type Kind = 'new' | 'fix' | 'change';
+interface Entry { kind: Kind; what: string; why?: string }
+
+const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
+  {
+    date: '2026-10-12',
+    label: 'Monday',
+    entries: [
+      { kind: 'change', what: 'Deleting a receivable now withdraws it. Its record stays on file.',
+        why: 'Deleting used to remove the receivable along with your own claims and statements on it, so a financed receivable could vanish from the registry and be recorded again as if nothing stood against it. Now a withdrawn receivable leaves your list, but its record stays. While another party has a claim or a statement on it, the public check still answers for it, with every claim and statement as it was and a "withdrawn" mark beside its usual status, so a dispute or full financing still shows at a glance. It also stays in the book of any financier holding a claim on it. If nobody else has anything on it, the check answers as if it was never recorded. New claims, statements, requests, offers and files on a withdrawn receivable are not recorded. A financier can still mark an existing claim repaid, and a client can still answer a financier’s receipt link for an existing advance, confirming or disputing it. Your own open requests for it stop working, and attached files are kept only as fingerprints: the file list shows each one’s name, size and fingerprint, marked removed. Recording the same details again brings it back. If another account records identical details, it is told the record already exists, even after a withdrawal.' },
+      { kind: 'new', what: 'Verify now has a new check: whether another record at Almstins matches the same invoice.',
+        why: 'Two records match when they have the same debtor, the debtor’s own PO or contract number, amount and currency, or the same debtor, client, invoice number, amount and currency. Differences in how they were typed still match, such as "ACME Ltd" and "Acme Limited", or "INV-0042" and "inv 42". A match reads as a caution. For an account with a verified email, or one that signs in with Google or GitHub, it also says whether the other record is recorded as financed, and when only the debtor’s reference matched, that it may be another installment under the same order. Other accounts are told only that another record matches, and the saved result of each Verify now keeps only that. A receivable with no debtor reference also reads as a caution, because only the invoice number could be compared, so Verify now on most existing receivables now reads "attention" for that reason. The check never names the other record, whose it is, or who financed it, and practice records only ever match practice records. If the check cannot run, it says so and counts as unproven. When someone registers a claim on a receivable that matches one in your book, yours shows as updated. Nothing is held up by a match: the decision stays yours.' },
+      { kind: 'change', what: 'Recording a receivable whose exact details another account already recorded now says only that.',
+        why: 'The message used to suggest changing a field to record it separately. Recording the same invoice again under small changes is what the new duplicate check looks for, so the message now says a receivable with these exact details is already on record at Almstins under another account, and nothing more.' },
+    ],
+  },
+  {
+    date: '2026-10-11',
+    label: 'Sunday',
+    entries: [
+      { kind: 'fix', what: 'The site checker no longer shows green when one of its sources has reported the site.',
+        why: 'A site on MetaMask’s verified-safe list read green even when ScamSniffer, GoPlus or another source had flagged it. Any flag from any source now makes the result red. MetaMask’s safe list only overrides MetaMask’s own blocklist.' },
+      { kind: 'fix', what: 'A source that cannot be reached now keeps a site check from reading green.',
+        why: 'The yellow state for unreachable sources only switched on when every source failed, and the downloaded lists never fail, so a site could read green while GoPlus or URLScan.io was down. Now any unreachable source shows "Limited check: some sources could not be reached", the way the address checker already did.' },
+      { kind: 'fix', what: 'A sanctions lookup that fails now reads "Unavailable", never "Clear".',
+        why: 'If our copy of the OFAC sanctions list could not be read, or Chainalysis did not answer, the address still read as no sanctions match. The sanctions row now says "Unavailable" and the whole result becomes a limited check until the list can be read again.' },
+      { kind: 'change', what: 'A clean site check now reads "No flags found", not "Looks safe".',
+        why: 'A clean result means no source we checked has flagged the site yet, not that it is safe. Lists are incomplete and lag behind new scam sites. The site checker and the Verify scan page now say so under every clean result, as the address checker already did. The decision stays yours. The checker page’s title no longer asks "Is this address safe?"; it now reads "Check an Address or Link Before You Send", and the page no longer promises "a verdict": it shows what each listed source reports.' },
+      { kind: 'change', what: 'The checker now names only the sources that actually run.',
+        why: 'The sanctions card said "OFAC and international sanctions lists"; the check uses the U.S. Treasury OFAC SDN list, from a public copy we refresh every few hours, plus GoPlus Security’s sanctions flag. The Funding tab promised "detailed funding source tracing"; it shows one signal, whether the address is flagged for mixer use. Chainabuse is no longer listed as a source while it is switched off, and the privacy policy now says Chainabuse receives an address only while that lookup is switched on. The policy keeps its version number and effective date.' },
+      { kind: 'change', what: 'The site checker allows 10 checks a minute per visitor, like the address checker.',
+        why: 'Each site check asks several outside services, so it now has the same per-visitor limit. When one of those services fails, the result says so in plain words instead of passing along its raw error text.' },
+      { kind: 'change', what: 'The financing desk now lets you record a claim over the remaining headroom, after a warning.',
+        why: 'Until now the desk ended there, while the registry page already let you go ahead with an acknowledged over-claim. Both pages now work the same way: you see what is unencumbered and what is already claimed, and you choose to register only the available amount or record it anyway. On both pages, recording it anyway now signs that acknowledgment into your claim, so the record shows you saw the warning. Claims recorded before today are unchanged. The desk’s over-financed note now reads "Check before you advance." instead of "Do not advance.": the warning is ours to show, and the decision stays yours.' },
+    ],
+  },
+  {
+    date: '2026-10-10',
+    label: 'Saturday',
+    entries: [
+      { kind: 'new', what: 'Marking a claim repaid and settling a receivable now keep their signatures and get a Bitcoin time-stamp.',
+        why: 'Both were signed when they happened, but the signature was not kept, so nothing outside our records could later show when a claim was released or a receivable was paid. The signature and the exact time now stay with the record, and each one is stamped in Bitcoin the way the receivable itself is. If a stamp cannot be made right away, it is retried automatically, and each Verify now receipt is stamped the same way. Discharges and settlements recorded before today keep their recorded dates without a stamp.' },
+      { kind: 'fix', what: 'Verify now keeps passing after Almstins changes its signing key.',
+        why: 'The integrity check accepted only the key in use today, so changing the key would have marked every older record as signed by an unknown key. It now accepts any key Almstins has published, current or retired, and still fails a record signed by any other key.' },
+      { kind: 'fix', what: 'The public check now says "Disputed" when a debtor or client has disputed the record.',
+        why: 'The registry always had a Disputed status, but nothing ever switched it on, so a receivable the debtor said was not theirs, or one whose client said the money never arrived, still headed the check as "Available to finance" or "Partially encumbered". The dispute itself was listed further down; now the status at the top says it too, ahead of everything except the TEST marker.' },
+      { kind: 'fix', what: 'A typed statement can no longer pass for a dispute on the public check.',
+        why: 'Answers that come back through a request link open with a marker word: DISPUTED, DILIGENCE, UNANSWERED or DECLINED. Anyone holding the receivable ID could type a statement that opened the same way. Every new statement now records where it came from, and the public check decides whether a record is disputed from that, not from the opening word, so a typed statement stays a typed statement however it opens. A typed statement that opens with one of those four words in capitals, or with one of them followed by a dash, comes back with a note to start it another way. Statements already on file are read by their opening word, as before.' },
+      { kind: 'fix', what: 'A claim sent with a stray space around the receivable ID skipped the headroom check.',
+        why: 'The record was still found, but the claims already standing against it were looked up with the untrimmed ID, none were found, and the whole face value read as available. Existing claims are now always counted against the record itself.' },
+      { kind: 'change', what: 'The public check’s limit of 30 checks a minute now counts each visitor by the address our network edge vouches for.',
+        why: 'It used to count by an address the caller could supply, so the limit was easy to sidestep, and the list it kept never shrank. It now uses the visitor’s real address (an IPv6 network counts as one visitor per /64), the way sign-in counts attempts, and the answers are marked never to be cached, so every check reads the record as it stands now.' },
+    ],
+  },
+  {
+    date: '2026-09-28',
+    label: 'Monday',
+    entries: [
+      { kind: 'new', what: 'A reason on discharge, for your own record.',
+        why: 'Marking a claim repaid used to just close it out, nothing else. Now you can add a short note when you do it, "wire received Sept 28" for example, and it is signed into the same discharge record as the release itself. Optional: skip it and nothing changes. It stays yours — the public check never shows it, same as every other detail that would say who you are.' },
+    ],
+  },
+  {
+    date: '2026-09-23',
+    label: 'Wednesday',
+    entries: [
+      { kind: 'new', what: 'Every financing page now also answers at /receivables/<name>, alongside its existing /verify/ address.',
+        why: 'The registry, the desk, the client portal, confirm, offer, invite and the rest work from either address, so nothing already bookmarked or already sent to someone breaks. The public pages also lock down harder: no embedding in someone else’s page, no search-engine indexing, and a same-origin referrer policy, so leaving one of these pages for another site does not hand it your full page address.' },
+      { kind: 'new', what: 'The receivables landing knows whether you are signed in.',
+        why: 'Signed in, you get your account menu and "Open the desk", no sign-in links, no demos. Signed out, you get "Log in to get started" and the interactive demos instead. The demo link also stopped signing a real account out just to show the demo: it sends you on to the page you asked for, or your dashboard.' },
+    ],
+  },
+  {
+    date: '2026-09-20',
+    label: 'Sunday',
+    entries: [
+      { kind: 'new', what: '"Verify now" on any receivable: an on-demand, fail-closed re-check.',
+        why: 'A signature proves what was true when it was signed, not that it stayed true. Verify now re-runs every load-bearing check at the moment you rely on the record: the signature itself, the financing headroom, the debtor’s acknowledgment, whether claims are confirmed as funded, and the Bitcoin anchor. It fails closed, so anything that cannot be re-confirmed drops the verdict to "needs attention" rather than passing quietly, and every run leaves its own dated, signed receipt as evidence the check was made.' },
+      { kind: 'fix', what: 'Signed-out visitors were quietly throwing a console error on every visit to the public registry.',
+        why: 'The page always asked for your own receivables list in the background, and that request was blocked for anyone not signed in. It now returns an empty list for a visitor instead of an error, and your own list once you are signed in. Also fixed: Verify now’s numbers are grouped with commas like the rest of the page (50,000,000, not 50000000), and the "See how it works" demo link is back at the bottom of the registry now that the demo shows the Verify-now step accurately too.' },
+      { kind: 'new', what: 'A home of its own for the receivables tools: almstins.com/receivables.',
+        why: 'One tile links the three tools you can open directly, the Financing Desk, Check a receivable, and the Client Portal, beside a tile marking what is still coming. A two-column hero previews the product instead of only describing it, and the three trust points (read-only and no custody, organizes but never decides, provable not promised) open into the fuller explanation of why each one holds. The steps that only open from a link sent to one specific party (accepting an offer, acknowledging a debt, confirming an invoice, attesting a deal, confirming funds arrived, accepting an invitation) are named on the page but not linked as cards, since visiting one directly used to dead-end on "this link is not valid".' },
+    ],
+  },
+  {
+    date: '2026-09-19',
+    label: 'Saturday',
+    entries: [
+      { kind: 'new', what: 'A loud warning before you finance a receivable the debtor has never acknowledged.',
+        why: 'Registering a claim already blocks a double-pledge over the available headroom. Now financing a receivable with no buyer attestation on record throws a clear caution instead of allowing it silently: "Recorded" is not "Attested", and any claim rests on the supplier’s word alone until the debtor confirms. It is a caution, not a block, so you can ask the debtor to acknowledge first, or finance anyway with your eyes open. The same warning shows on the public check, and the attestation role list now reads "inspector / surveyor", since an inspector or surveyor attests to the goods the same way a buyer attests to the debt.' },
+    ],
+  },
+  {
+    date: '2026-09-14',
+    label: 'Monday',
+    entries: [
+      { kind: 'new', what: 'USDC as a currency option on the New-deal form, defaulted for US financiers.',
+        why: 'The form reads your country from the request and pre-selects USDC if you are financing from the US; everyone else still sees NGN first. It is only a default. Every currency on the list stays one click away.' },
+    ],
+  },
+  {
+    date: '2026-09-06',
+    label: 'Sunday',
+    entries: [
+      { kind: 'new', what: 'A practice-run toggle on the client (supplier) side, not just the financier desk.',
+        why: 'The desk, the public check, and the offer, attest and countersign pages already marked test records everywhere, but a supplier recording a deal at the Client Portal had no way to flag one as practice, so every receivable a supplier recorded was real. A "Practice run, record as a test" checkbox now does the same job there: a loud TEST treatment on the record, on the tracking panel, and on your own receivables list.' },
+      { kind: 'new', what: 'The New client tin became three numbered steps that track your progress through them.',
+        why: 'Client intake, debtor confirmation, and client acceptance are now three sections divided by a green rule, each numbered with a short note on what it is for. Attaching the first contract marks intake done and dims it; recording marks debtor confirmation done and lights up client acceptance as the next thing to do, scrolling to it and focusing the email field. Recording no longer throws the check result over the desk, which had been burying the very step you needed next, and a "Start another deal" button resets the tin for the next client.' },
+      { kind: 'new', what: '"Your book" now works like an inbox: unseen updates, not just a list.',
+        why: 'A debtor confirming, a client accepting, or another financier registering a competing claim on one of your deals now bolds that row with an accent dot and floats it to the top, with a banner counting how many contracts changed since you last looked. An "Updated only" filter chip sits next to the existing search, and opening a contract clears its own flag right away.' },
+      { kind: 'change', what: 'A contract’s progress became a dated timeline instead of a plain horizontal bar.',
+        why: 'Recorded, debtor confirmed, terms accepted, advance registered, receipt confirmed, repaid: each stage now shows the date it actually happened, inside its own bordered card. A stage not yet reached shows no date rather than a guess, and every stage still jumps to its matching card.' },
+      { kind: 'new', what: 'A one-minute, plain-language primer before a new financier sees the desk.',
+        why: 'What the desk is, the terms in plain English (available to finance, debtor confirmation, claim, receipt), what it proves, and, just as prominently, what it does NOT prove: who actually answered or whether they had authority to, that goods were delivered, claims recorded outside this registry, and legal priority, which is decided by law, not by Almstins. It shows once; "How this works" in the header reopens it any time.' },
+      { kind: 'new', what: 'Attaching the contract now shows you it worked, and accepts more than one file.',
+        why: 'Choosing a file used to give no sense it had actually attached. Each file you choose now joins a running, removable list, and a "ready to attach" checklist appears just above Record so you can see exactly what will go up before you submit. Files still upload only once the receivable exists, on Record.' },
+      { kind: 'fix', what: 'Client acceptance (step 3) could get stranded, greyed out with no way back in.',
+        why: 'It only unlocked in the same browser session right after you recorded a deal. Come back later, even to a deal the debtor had since confirmed, and it sat disabled with nothing to click. It is now always available as its own tool: recording a deal fills in its receivable ID automatically, or you can paste the ID of any earlier deal to send the request without opening it from your book first.' },
+      { kind: 'change', what: 'Clicking Check now opens the result as a centered overlay instead of expanding the page.',
+        why: 'Closes with an × button, a click on the backdrop, or Escape, and locks the page behind it from scrolling while it is open.' },
+      { kind: 'new', what: 'A thank-you page for anyone who just confirmed something.',
+        why: 'A debtor, a client, or a party answering an offer or a receipt request used to land on a bare success message with nowhere to go. All four now land on one thank-you page that confirms the answer is signed and timestamped, and points to the same three Almstins tools (Wallet Checker, Verify, Wallet Watcher) shown elsewhere.' },
+    ],
+  },
+  {
+    date: '2026-09-05',
+    label: 'Friday',
+    entries: [
+      { kind: 'new', what: 'A New client tin that does the whole intake.',
+        why: 'Record the deal, scan the papers in, and ask the debtor, in one submission. Then step two asks your client to confirm you took it down correctly. It was four cards and three trips down the page.' },
+      { kind: 'new', what: 'Offer terms, accepted before the money moves.',
+        why: 'The amount, the charge, whether it is recourse, and how it is repaid. Your client initials the recourse clause and accepts in his own name, signed and timestamped. His signature is worth most while he still wants something.' },
+      { kind: 'new', what: 'A test mode that says TEST everywhere.',
+        why: 'Practise without anyone mistaking it for real. The flag sits inside the signed record, so it shows on the public check and on every page you send, and a test record can never be quietly promoted into a real one.' },
+      { kind: 'new', what: 'Where a deal has got to, and what to do next.',
+        why: 'Seven stages across the top, each marked done, current or still ahead, and a line naming the single next action. Both are clickable and take you to the card that does the work.' },
+      { kind: 'new', what: 'Unanswered requests are written down.',
+        why: 'A client who goes quiet used to leave nothing behind, not even a record that you asked. Now the request and its silence are signed onto the receivable, and everything outstanding across your whole book sits in one panel.' },
+      { kind: 'fix', what: 'Accepting an offer without initialling used to destroy the link.',
+        why: 'The request was spent before the answer was checked, so a client who missed the initials box was locked out of an offer he never answered. A rejected answer now leaves the request exactly as it found it.' },
+      { kind: 'fix', what: 'Warnings no longer fire before anything is due.',
+        why: 'A record ten seconds old showed a red "no debtor acknowledgment". Nobody had confirmed because nobody had been asked. Red is now reserved for something overdue or gone wrong.' },
+      { kind: 'new', what: 'A credit view above the record.',
+        why: 'The financing position as a bar, every piece of evidence as present or absent, and beside it an explicit list of what none of it proves. From the first pilot review: decide from one screen, not by assembling four.' },
+      { kind: 'new', what: 'Your book, on the desk.',
+        why: 'Every deal you have recorded, newest first, with the receivable ID copyable or clickable. Before this the desk could only reach a record by pasted ID, and nobody can hoard twenty 64-character hashes.' },
+      { kind: 'new', what: 'Requests can be emailed, or the link copied for any channel.',
+        why: 'Create and email a request, and replies come back to your own address. Create link only copies it instead, and the link stays in the list afterwards, for email, WhatsApp, or however you reach them.' },
+      { kind: 'fix', what: 'Emailed links pointed at the wrong page, and before that at localhost.',
+        why: 'Two separate faults, both ours, both caught by a real person clicking a real link. Every link already sent now redirects itself to the right page rather than dead-ending.' },
+      { kind: 'fix', what: 'Confirmation records no longer publish the answerer’s email address.',
+        why: 'The public check promises no identities, and the statement included the address the request went to. The name stays, because an attestation exists to say who asserted something. The address does not.' },
+      { kind: 'fix', what: 'The client-confirmation step no longer hides itself.',
+        why: 'It appeared only once an advance existed, which taught people it had never been built. It now shows what it is for before you can use it.' },
+    ],
+  },
+  {
+    date: '2026-09-04',
+    label: 'Thursday',
+    entries: [
+      { kind: 'new', what: 'Deals are recorded from the financing desk.',
+        why: 'With the fields a real contract carries: invoice and delivery dates, goods, payment instructions, the debtor’s own reference, and free fields for anything else. You should never need a field and not have it.' },
+      { kind: 'new', what: 'The debtor confirms by link, with no account.',
+        why: 'They type their own reference from their own records, tick four separate statements, and can disagree as easily as agree. Asking a supplier to make his customer sign up for software is how the step quietly never happens.' },
+      { kind: 'new', what: 'The client counter-signs that your money arrived.',
+        why: 'Registering a claim costs nothing and anyone with the ID can do it. Until the man who was supposed to receive the money says he received it, a claim is one firm’s word.' },
+      { kind: 'new', what: 'Paperwork can be attached, and deletes itself.',
+        why: 'Fingerprinted on upload and named in any confirmation given while it was visible, so a swap afterwards is provable. The file is dropped once everyone asked has answered. We witness the paperwork; we never become its custodian.' },
+      { kind: 'new', what: 'A user’s guide, and a plain-English glossary.',
+        why: 'Including a section on what the platform does not prove, which is the part worth reading twice.' },
+      { kind: 'change', what: 'One name per party: client, debtor, financier.',
+        why: 'The same company had been called a supplier, a seller, a borrower and a client on one screen.' },
+    ],
+  },
+  {
+    date: '2026-09-03',
+    label: 'Wednesday',
+    entries: [
+      { kind: 'new', what: 'Invitations that bind a party to a role.',
+        why: 'So "who is my client" has an answer, without either side seeing into the other’s account.' },
+      { kind: 'new', what: 'Bitcoin timestamps confirm themselves.',
+        why: 'An hourly job records each confirmation as it lands, so a record’s date becomes permanent without anyone reopening the page.' },
+    ],
+  },
+];
+
+const KIND_LABEL: Record<Kind, string> = { new: 'New', fix: 'Fixed', change: 'Changed' };
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What changed — Almstins Receivables</title>
+  <meta name="description" content="Dated record of what changed in Almstins Receivables, including what was broken." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 44rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4.2vw, 2.1rem); line-height: 1.15; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: .97rem; margin-top: .5rem; }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.3rem; }
+    .day { display: flex; align-items: baseline; gap: .7rem; margin-bottom: 1rem; }
+    .day h2 { font-size: 1.02rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .day span { font-size: .8rem; color: var(--text-muted); }
+
+    .e { display: grid; grid-template-columns: 4.6rem 1fr; gap: .9rem; padding: .6rem 0; align-items: start; }
+    .e + .e { border-top: 1px solid var(--border-subtle); }
+    .k {
+      font-size: .6rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      padding: .18rem .45rem; border-radius: 99px; border: 1px solid; text-align: center; margin-top: .2rem;
+    }
+    .k.new { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .k.fix { color: var(--loss); border-color: var(--loss-border); background: var(--loss-bg); }
+    .k.change { color: var(--text-muted); border-color: var(--border-subtle); background: var(--surface-card); }
+    .e__w { font-size: .94rem; font-weight: 650; }
+    .e__y { font-size: .86rem; color: var(--text-secondary); margin-top: .12rem; }
+
+    .foot { border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; font-size: .8rem; color: var(--text-muted); }
+    .foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    @media print { body { background: #fff; color: #111; padding: 0; } section { break-inside: avoid; } }
+  </style>
+	<Analytics />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Receivables</div>
+      <h1>What changed</h1>
+      <p class="lede">
+        Dated, and including what was broken. A registry that asks people to trust its records
+        should be willing to show its own.
+      </p>
+    </header>
+
+    {DAYS.map((d) => (
+      <section>
+        <div class="day"><h2>{d.date}</h2><span>{d.label}</span></div>
+        {d.entries.map((e) => (
+          <div class="e">
+            <div class={`k ${e.kind}`}>{KIND_LABEL[e.kind]}</div>
+            <div>
+              <div class="e__w">{e.what}</div>
+              {e.why && <div class="e__y">{e.why}</div>}
+            </div>
+          </div>
+        ))}
+      </section>
+    ))}
+
+    <p class="foot">
+      Beta. <a href={receivablesPath('guide')}>User's guide</a> &middot; <a href={receivablesPath('desk')}>Financing desk</a> &middot;
+      <a href={receivablesPath('registry')}>Public check</a>.
+      Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+    </p>
+  </div>
+</body>
+</html>

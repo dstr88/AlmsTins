@@ -1,0 +1,232 @@
+---
+// Shared About page template (EN · ES · FR). Strings come from src/i18n/about.ts.
+// Wrappers: src/pages/about.astro (en), /about/es.astro (es), /about/fr.astro (fr).
+import Layout from "@/layouts/Layout.astro";
+import DonnieSelfie from "@/assets/DonnieSelfie.jpeg";
+import type { AboutContent } from "@/i18n/about";
+
+interface Props {
+  t: AboutContent;
+}
+const { t } = Astro.props;
+
+const langs = [
+  { code: "en", label: "EN", href: "/about" },
+  { code: "es", label: "ES", href: "/about/es" },
+  { code: "fr", label: "FR", href: "/about/fr" },
+] as const;
+---
+
+<Layout lang={t.lang} title={t.meta.title}>
+  <style>
+    .lang-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .lang-toggle a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .lang-toggle a:hover { color: var(--text-primary); }
+    .lang-toggle a[aria-current="true"] { color: var(--text-primary); font-weight: 700; }
+
+    .about-hero {
+      background: var(--surface-bg);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 4rem 2rem;
+    }
+
+    .hero-inner {
+      max-width: 48rem;
+      margin: 0 auto;
+      display: flex;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .hero-photo {
+      flex-shrink: 0;
+    }
+
+    .hero-photo img {
+      width: 200px;
+      height: 200px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .hero-copy h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+
+    .hero-copy p {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .about-content {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    .section ul {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section li {
+      margin-bottom: 0.75rem;
+    }
+
+    .mission-callout {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 4px;
+    }
+
+    .mission-callout p {
+      color: var(--text-primary);
+      margin: 0;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 600px) {
+      .hero-inner {
+        flex-direction: column;
+        gap: 2rem;
+      }
+
+      .hero-photo img {
+        width: 150px;
+        height: 150px;
+      }
+
+      .hero-copy h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+
+  <nav class="lang-toggle" aria-label="Language">
+    {langs.map((l) => (
+      <a href={l.href} aria-current={t.lang === l.code ? "true" : undefined}>{l.label}</a>
+    ))}
+  </nav>
+
+  <div class="about-hero">
+    <div class="hero-inner">
+      <div class="hero-photo">
+        <img
+          src={DonnieSelfie.src}
+          alt={t.hero.photoAlt}
+          width={200}
+          height={200}
+          loading="lazy"
+        />
+      </div>
+      <div class="hero-copy">
+        <h1>{t.hero.greeting}</h1>
+        <p>{t.hero.line1}</p>
+        <p>{t.hero.line2}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="about-content">
+    <div class="section">
+      <h2>{t.problem.heading}</h2>
+      <p>{t.problem.p1}</p>
+      <p>{t.problem.p2}</p>
+      <p>{t.problem.p3}</p>
+    </div>
+
+    <div class="mission-callout">
+      <p set:html={t.callout}></p>
+    </div>
+
+    <div class="section">
+      <h2>{t.why.heading}</h2>
+      <p set:html={t.why.p1}></p>
+      <p set:html={t.why.p2}></p>
+      <p set:html={t.why.p3}></p>
+      <p set:html={t.why.p4}></p>
+    </div>
+
+    <div class="section">
+      <h2>{t.believe.heading}</h2>
+      <p>{t.believe.intro}</p>
+      <ul>
+        {t.believe.items.map((item) => <li set:html={item}></li>)}
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>{t.matters.heading}</h2>
+      <p>{t.matters.p1}</p>
+      <p>{t.matters.p2}</p>
+      <p>{t.matters.p3}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.building.heading}</h2>
+      <p>{t.building.intro}</p>
+      <ul>
+        {t.building.items.map((item) => <li>{item}</li>)}
+      </ul>
+      <p>{t.building.outro}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.beta.heading}</h2>
+      <p>{t.beta.p1}</p>
+      <p>{t.beta.p2}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.reach.heading}</h2>
+      <p set:html={t.reach.body}></p>
+    </div>
+  </div>
+</Layout>

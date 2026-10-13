@@ -1,0 +1,80 @@
+---
+import TourEngine from '../TourEngine.astro';
+---
+
+<TourEngine
+	tourId="portfolio"
+	trigger="button"
+	btnLabel="?"
+	btnTitle="Tour the portfolio page"
+/>
+
+<script is:inline>
+(function () {
+	if (!window.TourEngine) return;
+
+	var stepsEn = [
+		{
+			selector: '.pf-hero',
+			title: 'Portfolio Value',
+			body: 'Your total current portfolio value and unrealized P&L — the difference between what you paid (cost basis) and what it\'s worth today. Syncs with every wallet and exchange import.',
+		},
+		{
+			selector: '.pf-metrics',
+			title: 'Key Metrics',
+			body: 'Cost basis is the total you\'ve invested. Current value is today\'s market price of all holdings. Unrealized P&L shows how much you\'re up or down — it only becomes taxable when you sell.',
+		},
+		{
+			selector: '.pf-table',
+			title: 'Holdings Table',
+			body: 'Each row is one token across all your wallets. You\'ll see the current price, quantity held, cost basis per coin, unrealized gain or loss, and any Aave collateral positions tagged separately.',
+			onShow: function () {
+				var el = document.querySelector('.pf-table');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: 'smooth' });
+			},
+		},
+		{
+			selector: '.recon-section',
+			title: 'Reconciliation Audit',
+			body: 'An independent check: does your transaction history agree with what your wallets actually hold? Discrepancies (shown in amber) mean something\'s missing from your import history — click History to investigate.',
+			onShow: function () {
+				var el = document.querySelector('.recon-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	var stepsEs = [
+		{
+			selector: '.pf-hero',
+			title: 'Valor del portafolio',
+			body: 'El valor total actual de tu portafolio y las ganancias o pérdidas no realizadas — la diferencia entre lo que pagaste (base de costo) y lo que vale hoy. Se sincroniza con cada billetera e importación de exchange.',
+		},
+		{
+			selector: '.pf-metrics',
+			title: 'Métricas clave',
+			body: 'La base de costo es el total que has invertido. El valor actual es el precio de mercado de hoy de todos tus activos. Las ganancias no realizadas muestran cuánto estás arriba o abajo — solo se vuelven gravables cuando vendes.',
+		},
+		{
+			selector: '.pf-table',
+			title: 'Tabla de posiciones',
+			body: 'Cada fila es un token en todas tus billeteras. Verás el precio actual, la cantidad en cartera, la base de costo por moneda, la ganancia o pérdida no realizada, y cualquier posición en Aave marcada por separado.',
+			onShow: function () {
+				var el = document.querySelector('.pf-table');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: 'smooth' });
+			},
+		},
+		{
+			selector: '.recon-section',
+			title: 'Auditoría de conciliación',
+			body: 'Una verificación independiente: ¿tu historial de transacciones coincide con lo que tus billeteras realmente tienen? Las discrepancias (en ámbar) significan que falta algo en tu historial de importaciones — haz clic en History para investigar.',
+			onShow: function () {
+				var el = document.querySelector('.recon-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	window.TourEngine.register('portfolio', { en: stepsEn, es: stepsEs }, null, {});
+})();
+</script>

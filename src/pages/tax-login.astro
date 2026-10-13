@@ -1,0 +1,14 @@
+---
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+/**
+ * /tax-login
+ *
+ * Kept only so old links land somewhere sensible. There is no passphrase: tax documents
+ * are the owner's alone, decided by the signed-in tenant (src/lib/taxAuth.ts). The owner
+ * goes to the Year Summary hub, everyone else to Bookkeeping. (Sending everyone to
+ * /year-summary used to bounce non-owners straight back here, a redirect loop.)
+ */
+export const prerender = false;
+
+return Astro.redirect((await hasTaxAccess(Astro.request)) ? '/year-summary' : TAX_DENIED_REDIRECT, 302);
+---

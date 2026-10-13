@@ -1,0 +1,11 @@
+---
+// Public guide: how to prove when you bought crypto after you transferred it (English first).
+// Copy: src/i18n/guides/holdingPeriodAfterTransfer.ts. Template: GuidePage.astro.
+// Rendered per request on purpose: a prerendered page would skip the request-time
+// middleware, including the sanctions geoblock.
+import { en } from '@/i18n/guides/holdingPeriodAfterTransfer';
+import GuidePage from '@/components/guides/GuidePage.astro';
+
+export const prerender = false;
+---
+<GuidePage t={en} />

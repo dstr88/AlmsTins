@@ -1,0 +1,6 @@
+---
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+// /tax: the owner goes to the Year Summary hub, everyone else to Bookkeeping
+// (tax documents are the owner's alone, src/lib/taxAuth.ts).
+return Astro.redirect((await hasTaxAccess(Astro.request)) ? '/year-summary' : TAX_DENIED_REDIRECT, 302);
+---
