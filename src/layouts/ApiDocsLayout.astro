@@ -1,0 +1,43 @@
+---
+// ApiDocsLayout: the document shell for a public API docs page (/verify/agents). It renders the
+// <html>, the head and the one Analytics tag, and puts the page's content in a single column.
+// Presentation lives in ApiDocsLayout.css; there is no style block here (plan convention 4).
+//
+// The page writes its own content literally, so source tests can read it. Head extras such as
+// the description meta go in the named head slot, as a <Fragment slot="head">, not as props:
+// tests/verify/agentDocs.test.ts reads the description meta straight from the page source. This
+// layout never emits a description of its own, so there is exactly one.
+//
+// The slot is the direct child of .apidocs__wrap, the flex column whose gap spaces the page's
+// header, nav and sections. Do not wrap the slot in another element.
+import Analytics from '@/components/Analytics.astro';
+import '@/styles/tokens.css';
+import './ApiDocsLayout.css';
+
+interface Props {
+  /** The document title. */
+  title: string;
+  /** HTML lang attribute. Defaults to "en". */
+  lang?: string;
+  /** Favicon URL. Defaults to the Verify icon. */
+  favicon?: string;
+}
+
+const { title, lang = 'en', favicon = '/favicon-verify.png' } = Astro.props;
+---
+<!doctype html>
+<html lang={lang}>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <slot name="head" />
+  <link rel="icon" href={favicon} />
+  <Analytics />
+</head>
+<body class="apidocs">
+  <div class="apidocs__wrap">
+    <slot />
+  </div>
+</body>
+</html>

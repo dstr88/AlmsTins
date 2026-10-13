@@ -46,7 +46,7 @@ describe('the snippet exists once', () => {
   it('no page renders both a layout that carries the tag and its own <Analytics />', () => {
     const doubled = trackedAstro.filter(f => {
       const text = read(f);
-      return /<Analytics\b/.test(text) && /<(Layout|LoginLayout|PetroTinsLayout|PetroTinsLegalLayout)\b/.test(text);
+      return /<Analytics\b/.test(text) && /<(Layout|LoginLayout|PetroTinsLayout|PetroTinsLegalLayout|ApiDocsLayout)\b/.test(text);
     });
     expect(doubled).toEqual([]);
   });

@@ -1,0 +1,15 @@
+---
+// DocsFaq: the container for a docs page's FAQ. Markup only; DocsFaq.css holds the look. The page
+// writes its own items as slot children, each a <details class="faq-item"> with a <summary> and a
+// <div class="a">, so the questions and answers stay literal in the page source.
+//
+// `size` picks the metrics: "regular" (the default) is the docs-page size, "compact" the
+// registry's smaller one. The container takes no margin: the host section keeps its own spacing.
+import './DocsFaq.css';
+
+interface Props { size?: 'regular' | 'compact' }
+const { size = 'regular' } = Astro.props;
+---
+<div class={size === 'compact' ? 'docs-faq docs-faq--compact' : 'docs-faq'}>
+  <slot />
+</div>
