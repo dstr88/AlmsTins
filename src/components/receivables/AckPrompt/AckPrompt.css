@@ -11,6 +11,8 @@
 /* The desk never defined .note-warn, so its diligence prompt has always drawn with no fill or
    border. Kept as is (open question: switch to the caution tone later). */
 .ack--desk .ack__panel.ack__panel--loss { background: var(--rcv-loss-bg); border: 1px solid var(--rcv-loss-border); color: var(--text-primary); }
+/* S4: the possible-duplicate prompt, in the caution tone the registry already uses. */
+.ack--desk .ack__panel.ack__panel--caution { background: var(--rcv-caution-bg); border: 1px solid var(--rcv-caution-border); color: var(--text-primary); }
 .ack--desk .ack__row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .6rem; }
 .ack--desk .ack__row.ack__row--confirm { margin-top: .4rem; }
 .ack--desk .ack__method { flex: 0 1 14rem; }

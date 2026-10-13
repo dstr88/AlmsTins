@@ -1,8 +1,10 @@
 ---
 // AckPrompt: the prompt shown before a financing claim is recorded when there is something to
-// read first (a duplicate-financing warning, or no debtor confirmation on record). Markup only:
-// one <template> per warning, cloned by ackPrompt.client.ts. `variant` keeps each page's prompt
-// exactly as it looked when it was written inline; `name` makes the root unique per use.
+// read first (a duplicate-financing warning, no debtor confirmation on record, or a possible
+// duplicate of another record at Almstins). Markup only: one <template> per warning, cloned by
+// ackPrompt.client.ts. `variant` keeps each page's prompt exactly as it looked when it was written
+// inline; `name` makes the root unique per use. role="status" makes the root a polite live region,
+// so a screen reader reads the prompt when it appears; its buttons are ordinary buttons.
 import './AckPrompt.css';
 import {
 	DILIGENCE_ACCEPT, DILIGENCE_BODY_DESK, DILIGENCE_BODY_REGISTRY, DILIGENCE_FINE_PRINT,
@@ -10,12 +12,13 @@ import {
 	DILIGENCE_NOTE_PLACEHOLDER_DESK, DILIGENCE_NOTE_PLACEHOLDER_REGISTRY,
 	DILIGENCE_TITLE, HEADROOM_RECORD_ANYWAY, HEADROOM_TITLE,
 } from '@/lib/receivables/copy/claim';
+import { CLAIM_DUPLICATE_NOT_NOW, CLAIM_DUPLICATE_RECORD_ANYWAY, DUPLICATE_FLAG_TITLE } from '@/lib/receivables/copy/duplicate';
 
 interface Props { variant: 'desk' | 'registry'; name: string }
 const { variant, name } = Astro.props;
 const fid = (s: string) => `ack-${name}-${s}`;
 ---
-<div class={`ack ack--${variant}`} data-rcv-root={`ack-${name}`} hidden>
+<div class={`ack ack--${variant}`} data-rcv-root={`ack-${name}`} role="status" hidden>
 	<div class="ack__body" data-ack-body></div>
 	{variant === 'desk' ? (
 		<template data-ack-template="diligence_required">
@@ -56,6 +59,25 @@ const fid = (s: string) => `ack-${name}-${s}`;
 			<div class="ack__row">
 				<button class="ack__btn" type="button" data-ack-choice="take_available" data-ack-slot="take-available"></button>
 				<button class="ack__btn" type="button" data-ack-choice="exceeds_headroom">{HEADROOM_RECORD_ANYWAY}</button>
+			</div>
+		</template>
+	)}
+	{variant === 'desk' ? (
+		<template data-ack-template="possible_duplicate">
+			<div class="ack__panel ack__panel--caution">
+				<b>{DUPLICATE_FLAG_TITLE}</b>{' '}<span data-ack-slot="duplicate-body"></span>
+				<div class="ack__row">
+					<button class="ack__btn" type="button" data-ack-choice="possible_duplicate">{CLAIM_DUPLICATE_RECORD_ANYWAY}</button>
+					<button class="ack__btn ack__btn--ghost" type="button" data-ack-choice="dismiss">{CLAIM_DUPLICATE_NOT_NOW}</button>
+				</div>
+			</div>
+		</template>
+	) : (
+		<template data-ack-template="possible_duplicate">
+			<div class="ack__panel ack__panel--caution"><b>{DUPLICATE_FLAG_TITLE}</b>{' '}<span data-ack-slot="duplicate-body"></span></div>
+			<div class="ack__row">
+				<button class="ack__btn" type="button" data-ack-choice="possible_duplicate">{CLAIM_DUPLICATE_RECORD_ANYWAY}</button>
+				<button class="ack__btn" type="button" data-ack-choice="dismiss">{CLAIM_DUPLICATE_NOT_NOW}</button>
 			</div>
 		</template>
 	)}

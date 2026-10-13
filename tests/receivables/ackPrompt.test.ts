@@ -77,12 +77,18 @@ function promptRoot(): El {
 			h('div', { class: 'ack__row' },
 				h('button', { class: 'ack__btn', 'data-ack-choice': 'take_available', 'data-ack-slot': 'take-available' }),
 				h('button', { class: 'ack__btn', 'data-ack-choice': 'exceeds_headroom' }))),
+		template('possible_duplicate',
+			h('div', { class: 'ack__panel ack__panel--caution' }, h('b'), h('span', { 'data-ack-slot': 'duplicate-body' })),
+			h('div', { class: 'ack__row' },
+				h('button', { class: 'ack__btn', 'data-ack-choice': 'possible_duplicate' }),
+				h('button', { class: 'ack__btn', 'data-ack-choice': 'dismiss' }))),
 	);
 }
 const asRoot = (el: El) => el as unknown as HTMLElement;
 const body = (root: El) => root.querySelector('[data-ack-body]')!;
 const choice = (root: El, c: string) => body(root).querySelector(`[data-ack-choice="${c}"]`)!;
 const OVER = { code: 'exceeds_headroom' as const, available: 'NGN 200.00', requested: 'NGN 500.00', claimed: 'NGN 800.00' };
+const DUP = { code: 'possible_duplicate' as const, lines: ['Another record at Almstins matches this invoice.', 'If you record your claim anyway, that acknowledgment is signed into it.'] };
 
 /** Settles on the next macrotask: 'pending' when the ask has not resolved yet. */
 async function state(p: Promise<string[] | null>): Promise<string[] | null | 'pending'> {
@@ -222,29 +228,68 @@ describe('AckPrompt.astro markup matches what the client looks for', () => {
 	const SRC = fs.readFileSync(fileURLToPath(new URL('../../src/components/receivables/AckPrompt/AckPrompt.astro', import.meta.url)), 'utf8');
 	const count = (s: string) => SRC.split(s).length - 1;
 
-	it('one hidden root with one body', () => {
-		expect(SRC).toMatch(/<div class=\{`ack ack--\$\{variant\}`\} data-rcv-root=\{`ack-\$\{name\}`\} hidden>/);
+	it('one hidden root, a polite live region (role="status"), with one body', () => {
+		expect(SRC).toMatch(/<div class=\{`ack ack--\$\{variant\}`\} data-rcv-root=\{`ack-\$\{name\}`\} role="status" hidden>/);
 		expect(count('data-ack-body')).toBe(1);
 	});
 
 	it('each variant has one template per warning code', () => {
 		expect(count('<template data-ack-template="diligence_required">')).toBe(2);
 		expect(count('<template data-ack-template="exceeds_headroom">')).toBe(2);
-		expect(count('<template ')).toBe(4);
+		expect(count('<template data-ack-template="possible_duplicate">')).toBe(2);
+		expect(count('<template ')).toBe(6);
 	});
 
-	it('each variant has the three choices, both headroom slots and both diligence fields', () => {
+	it('each variant has the five choices, the headroom and duplicate slots and both diligence fields', () => {
 		for (const s of [
 			'data-ack-choice="diligence_required"', 'data-ack-choice="exceeds_headroom"',
 			'data-ack-choice="take_available" data-ack-slot="take-available"', 'data-ack-slot="headroom-body"',
+			'data-ack-choice="possible_duplicate"', 'data-ack-choice="dismiss"', 'data-ack-slot="duplicate-body"',
 			'data-ack-field="method"', 'data-ack-field="note"',
 		]) expect(count(s), s).toBe(2);
-		expect(count('data-ack-choice=')).toBe(6);
+		expect(count('data-ack-choice=')).toBe(10);
 	});
 
 	it('every choice button is type="button"', () => {
 		const buttons = SRC.match(/<button\b[^>]*>/g) ?? [];
-		expect(buttons).toHaveLength(6);
+		expect(buttons).toHaveLength(10);
 		for (const b of buttons) expect(b).toContain('type="button"');
+	});
+
+	it('the duplicate prompt reads the S4 copy, in the caution tone on both variants', () => {
+		expect(SRC).toContain("import { CLAIM_DUPLICATE_NOT_NOW, CLAIM_DUPLICATE_RECORD_ANYWAY, DUPLICATE_FLAG_TITLE } from '@/lib/receivables/copy/duplicate';");
+		expect(count('{CLAIM_DUPLICATE_RECORD_ANYWAY}')).toBe(2);
+		expect(count('{CLAIM_DUPLICATE_NOT_NOW}')).toBe(2);
+		expect(SRC.match(/<template data-ack-template="possible_duplicate">\s*<div class="ack__panel ack__panel--caution">/g)).toHaveLength(2);
+	});
+});
+
+describe('the possible-duplicate prompt (S4)', () => {
+	it('fills the lines as text into the slot and shows the root', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [{ ...DUP, lines: ['<b>not markup</b>', 'second'] }]);
+		expect(root.hidden).toBe(false);
+		expect(body(root).querySelector('[data-ack-slot="duplicate-body"]')!.textContent).toBe('<b>not markup</b> second');
+		expect(await state(p)).toBe('pending');
+	});
+
+	it('"Record my claim anyway" answers [possible_duplicate]', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [DUP]);
+		choice(root, 'possible_duplicate').click();
+		expect(await p).toEqual(['possible_duplicate']);
+		expect(root.hidden).toBe(false);
+	});
+
+	it('"Not now" answers null and closes the prompt', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [DUP]);
+		const recordAnyway = choice(root, 'possible_duplicate');
+		choice(root, 'dismiss').click();
+		expect(await p).toBeNull();
+		expect(root.hidden).toBe(true);
+		expect(body(root).children).toEqual([]);
+		recordAnyway.click(); // detached, and already answered
+		expect(await p).toBeNull();
 	});
 });

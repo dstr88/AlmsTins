@@ -1,9 +1,11 @@
 /**
  * AckPrompt behavior. askToAcknowledge shows the first warning's template inside root and
  * resolves with what the person chose:
- *   [code]  go ahead, acknowledging it ("I accept responsibility", "Record it anyway");
+ *   [code]  go ahead, acknowledging it ("I accept responsibility", "Record it anyway",
+ *           "Record my claim anyway");
  *   []      go ahead without acknowledging ("Register only the available ...");
- *   null    the prompt was replaced or closed first.
+ *   null    the prompt was replaced or closed first, or the person chose "Not now", which also
+ *           closes it.
  * Each ask resolves once and posts nothing; the caller does the posting. The prompt stays on
  * screen until closeAck(). Text is set with textContent only.
  */
@@ -12,7 +14,9 @@ import { HEADROOM_BODY, HEADROOM_TAKE_AVAILABLE } from '@/lib/receivables/copy/c
 
 export type AckWarning =
 	| { code: 'diligence_required' }
-	| { code: 'exceeds_headroom'; available: string; requested: string; claimed: string };
+	| { code: 'exceeds_headroom'; available: string; requested: string; claimed: string }
+	/** S4: another record at Almstins matches; `lines` from duplicateView (claimDuplicateLines). */
+	| { code: 'possible_duplicate'; lines: readonly string[] };
 
 const waiting = new WeakMap<HTMLElement, (answer: string[] | null) => void>();
 
@@ -34,12 +38,16 @@ export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarnin
 		body.querySelectorAll<HTMLElement>('[data-ack-slot="headroom-body"]').forEach((el) => { el.textContent = fillCopy(HEADROOM_BODY, vars); });
 		body.querySelectorAll<HTMLElement>('[data-ack-slot="take-available"]').forEach((el) => { el.textContent = fillCopy(HEADROOM_TAKE_AVAILABLE, vars); });
 	}
+	if (w.code === 'possible_duplicate') {
+		body.querySelectorAll<HTMLElement>('[data-ack-slot="duplicate-body"]').forEach((el) => { el.textContent = w.lines.join(' '); });
+	}
 	root.hidden = false;
 	return new Promise((resolve) => {
 		waiting.set(root, resolve);
 		body.querySelectorAll<HTMLButtonElement>('[data-ack-choice]').forEach((btn) => btn.addEventListener('click', () => {
 			if (waiting.get(root) !== resolve) return;
 			const c = btn.dataset.ackChoice!;
+			if (c === 'dismiss') { closeAck(root); return; }
 			settle(root, c === 'take_available' ? [] : [c]);
 		}));
 	});
