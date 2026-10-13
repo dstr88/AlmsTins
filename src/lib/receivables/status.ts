@@ -19,10 +19,16 @@ export function claimedOf(claims: ReadonlyArray<{ status: string; amount: number
 	return claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
 }
 
+/** Claims are summed in floating point, so claims that add up to the face can land a hair above or
+ *  below it (0.1 + 0.2, or 699.70 + 200.20 + 100.10, depending on the order they are added). Within
+ *  one part in a billion of the face counts as equal: far below a cent, and it works for currencies
+ *  with no minor unit or three of them. */
+const FACE_TOLERANCE = 1e-9;
+
 export function financingStatusOf(claimed: number, face: number): FinancingStatus {
 	return claimed <= 0 ? 'unfinanced'
+		: Math.abs(claimed - face) <= FACE_TOLERANCE * Math.max(1, Math.abs(face)) ? 'fully_financed'
 		: claimed < face ? 'partially_financed'
-		: claimed === face ? 'fully_financed'
 		: 'over_financed';
 }
 
