@@ -20,6 +20,24 @@ interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
   {
+    date: '2026-10-13',
+    label: 'Tuesday',
+    entries: [
+      { kind: 'new', what: 'A live "possible duplicate" warning while you enter an invoice, before you save it.',
+        why: 'On the financing desk, the registry page and the Client Portal, the form now checks the invoice while you fill it in. Once the debtor, the amount, the currency and either the client and invoice number or the debtor’s own reference are in, and about half a second after you stop typing, it asks whether another record at Almstins matches. It waits for you to stop, so it does not ask on every keystroke, and the check itself saves nothing. If another record matches, a "Possible duplicate" note appears above the button. For an account with a verified email, or one that signs in with Google or GitHub, it says when the other record is recorded as financed ("This invoice may already be financed. Check with the debtor before you advance.") and lists your own records that match, each with a link to open it. Other accounts are told only that another record matches. The note never holds up the form: you can still record the invoice, and the decision is yours. After you save, the same place shows the check’s answer for the record you just made, including when the check could not run and, for a verified account, when it could compare only the invoice number because no debtor reference was given. It never names the other record or whose it is. On the Client Portal, where the client records his own invoice, the note says the match may be his financier’s own record of it.' },
+      { kind: 'change', what: 'The debtor’s own reference is on all three forms now, and no longer folded away on the desk.',
+        why: 'The debtor’s PO or contract number is the one detail the client does not control, so it is the strongest thing the duplicate check compares. The desk kept it under "Add more contract details"; it now sits with the main fields, still optional, with a line saying why it helps. The registry page and the Client Portal ask for it too and record it with the receivable. A receivable recorded without one gets the same receivable ID it always would have.' },
+      { kind: 'new', what: 'Registering a claim on a possible duplicate now asks first, and signs your answer into the claim.',
+        why: 'When the receivable matches another record at Almstins (for a verified account, one recorded as financed), the desk and the registry page show a "Possible duplicate" prompt before the claim is recorded. "Record my claim anyway" records it, with your acknowledgment signed into the claim; "Not now" records nothing. It comes after the debtor-confirmation and headroom prompts when those apply, and each answer carries through, so one claim can show up to three prompts. Until today these pages recorded such a claim without asking. If the duplicate check cannot run, the claim is recorded and the note says the check was not available.' },
+      { kind: 'new', what: 'Lists and open records now tag a possible duplicate.',
+        why: 'A row that another record at Almstins matches carries a "possible duplicate" tag in your book on the desk, in "Your receivables" on the registry page and on the Client Portal. An opened record shows the warning too, and the public check adds the tag beside the record’s status. The tag never says which record matched or whose it is. On the registry page, "claimed only" now uses the same tag as the desk.' },
+      { kind: 'fix', what: 'The desk’s "Before you advance" still said nothing matches two records of one invoice.',
+        why: 'That stopped being true when the duplicate check arrived. It now says what the check does not cover: it compares records at Almstins on the debtor’s reference or the invoice number, at the same amount and currency, so a record with a different amount, or one kept outside Almstins, is not compared. The user’s guide says the same, and its glossary adds "Debtor reference" and "Possible duplicate".' },
+      { kind: 'change', what: 'A shared receivables link now shows its own preview.',
+        why: 'Posting almstins.com/receivables on LinkedIn or X showed the site-wide wallet picture. It now shows a receivables card, and the receivables pages are titled with a middle dot, as in "Receivables · Almstins Verify". A preview LinkedIn or X has already saved can take a while to update.' },
+    ],
+  },
+  {
     date: '2026-10-12',
     label: 'Monday',
     entries: [
