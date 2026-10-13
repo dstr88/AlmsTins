@@ -859,6 +859,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     import { bindCopyButtons, delegateCopyButtons } from '@/lib/receivables/client/copyText';
     import { COPY_FAILED_LABEL } from '@/lib/receivables/copy/clipboard';
     import { statusPillHtml } from '@/components/receivables/StatusPill/statusPill';
+    import { NOT_PROVEN_DUPLICATE_TITLE, NOT_PROVEN_DUPLICATE_DETAIL } from '@/lib/receivables/copy/duplicate';
     const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
     const val = (id: string) => ($(id)?.value ?? '').trim();
     function esc(s: unknown) {
@@ -1304,7 +1305,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         ['That the goods were delivered', 'Nothing here inspects a warehouse. The debtor\u2019s acknowledgment is the closest evidence, and it is their word.'],
         ['Claims made outside this registry', 'A prior assignment recorded elsewhere, or a floating charge over all receivables, is invisible here.'],
         ['Legal priority', 'Priority is set by law, filing and notice. An anchored date is evidence in that contest, not the thing that decides it.'],
-        ['That the invoice is not a near-duplicate', 'Change any field and you get a separate record with separate headroom. Nothing yet matches two records describing one obligation.'],
+        [NOT_PROVEN_DUPLICATE_TITLE, NOT_PROVEN_DUPLICATE_DETAIL],
       ].map(([t, d]) => `<div class="nk"><div class="nk__l">${esc(t)}</div><div class="nk__d">${esc(d)}</div></div>`).join('');
 
       // Open by default only when there is something to weigh. On a record created ten
