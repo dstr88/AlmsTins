@@ -402,9 +402,9 @@ const syncRelative = !hasSync ? '' :
                   <span class="tin-row__qty">{fQty(pos.amount)}</span>
                   <span class="tin-row__date">{t.sinceDateLabel(fDate(pos.acquiredDate))}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
-                  <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
+                  <span class={`tin-row__term ${pos.longTerm ? 'term-long' : 'term-short'}`}>
                     {profile.splitByTerm
-                      ? `${pos.daysHeld >= 365 ? t.termLong : t.termShort} · ${pos.daysHeld}d`
+                      ? `${pos.longTerm ? t.termLong : t.termShort} · ${pos.daysHeld}d`
                       : `${pos.daysHeld}d`}
                   </span>
                   {(pos.costUsd == null || pos.costUsd > 5) && (
@@ -445,9 +445,9 @@ const syncRelative = !hasSync ? '' :
                   <span class="tin-row__qty">{fQty(pos.amount)}</span>
                   <span class="tin-row__date">{t.sinceDateLabel(fDate(pos.acquiredDate))}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
-                  <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
+                  <span class={`tin-row__term ${pos.longTerm ? 'term-long' : 'term-short'}`}>
                     {profile.splitByTerm
-                      ? `${pos.daysHeld >= 365 ? t.termLong : t.termShort} · ${pos.daysHeld}d`
+                      ? `${pos.longTerm ? t.termLong : t.termShort} · ${pos.daysHeld}d`
                       : `${pos.daysHeld}d`}
                   </span>
                 </div>

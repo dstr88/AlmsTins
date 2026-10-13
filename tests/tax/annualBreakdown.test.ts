@@ -8,7 +8,7 @@
  *
  * Key behaviors under test:
  *   1. FIFO lot matching — buy then sell
- *   2. Short-term (<365 days) vs long-term (≥365 days) classification
+ *   2. Short-term (one year or less) vs long-term (more than one year, by calendar date)
  *   3. Orphaned sells → needsAttention (only for in-year disposals)
  *   4. Non-taxable events (FIFO_NONTAXABLE) consume lots without gain/loss
  *   5. SKIP_CLASSES rows are silently dropped from FIFO
@@ -154,6 +154,30 @@ describe('Basic buy → sell FIFO', () => {
 		expect(lot.gainLossUsd).toBeCloseTo(10_000);
 	});
 
+	it('a sale on the one-year anniversary is short-term; the day after is long-term', async () => {
+		// 2023-01-01 to 2024-01-01 is 365 days and 2024-01-01 to 2025-01-01 is 366: both
+		// exactly one year, so short-term. The old 365-day count called both long-term.
+		for (const [buy, sell] of [['2023-01-01T00:00:00Z', '2024-01-01T00:00:00Z'], ['2024-01-01T00:00:00Z', '2025-01-01T20:00:00Z']]) {
+			vi.resetAllMocks();
+			setupMock({ eventRows: [
+				ev({ direction: 'in',  timestamp_utc: buy,  amount: 1, native_usd: 20_000 }),
+				ev({ direction: 'out', timestamp_utc: sell, amount: 1, native_usd: 30_000 }),
+			]});
+			const bd = await buildAnnualBreakdown(TENANT, Number(sell.slice(0, 4)));
+			expect(bd.shortTerm).toHaveLength(1);
+			expect(bd.longTerm).toHaveLength(0);
+		}
+
+		vi.resetAllMocks();
+		setupMock({ eventRows: [
+			ev({ direction: 'in',  timestamp_utc: '2024-01-01T00:00:00Z', amount: 1, native_usd: 20_000 }),
+			ev({ direction: 'out', timestamp_utc: '2025-01-02T00:00:00Z', amount: 1, native_usd: 30_000 }),
+		]});
+		const bd = await buildAnnualBreakdown(TENANT, 2025);
+		expect(bd.longTerm).toHaveLength(1);
+		expect(bd.shortTerm).toHaveLength(0);
+	});
+
 	it('gain/loss is proceeds minus cost', async () => {
 		setupMock({ eventRows: [
 			ev({ direction: 'in',  timestamp_utc: '2023-01-01T00:00:00Z', amount: 2, native_usd: 50_000 }),
@@ -191,7 +215,7 @@ describe('Basic buy → sell FIFO', () => {
 // 2. Short-term vs long-term threshold
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('Short-term vs long-term (365-day threshold)', () => {
+describe('Short-term vs long-term (more than one year, by calendar date)', () => {
 	beforeEach(() => vi.resetAllMocks());
 
 	it('held exactly 364 days → shortTerm', async () => {
@@ -207,29 +231,45 @@ describe('Short-term vs long-term (365-day threshold)', () => {
 		expect(bd.shortTerm[0].daysHeld).toBe(364);
 	});
 
-	it('held exactly 365 days → longTerm', async () => {
-		// 2023-01-01 → 2024-01-01 = 365 days (2023 is not a leap year)
+	it('held exactly 365 days, the one-year anniversary → shortTerm (needs MORE than one year)', async () => {
+		// 2023-01-01 → 2024-01-01 = 365 days (2023 is not a leap year): exactly one year.
 		setupMock({ eventRows: [
 			ev({ direction: 'in',  timestamp_utc: '2023-01-01T00:00:00Z' }),
 			ev({ direction: 'out', timestamp_utc: '2024-01-01T00:00:00Z' }),
 		]});
 
 		const bd = await buildAnnualBreakdown(TENANT, 2024);
-		expect(bd.longTerm).toHaveLength(1);
-		expect(bd.shortTerm).toHaveLength(0);
-		expect(bd.longTerm[0].daysHeld).toBe(365);
+		expect(bd.shortTerm).toHaveLength(1);
+		expect(bd.longTerm).toHaveLength(0);
+		expect(bd.shortTerm[0].daysHeld).toBe(365);
 	});
 
-	it('held 366 days (leap year 2024 buy → 2025 sell) → longTerm', async () => {
-		// 2024-01-01 → 2025-01-01 = 366 days (2024 IS a leap year)
+	it('held 366 days across Feb 29 (2024 buy → 2025 sell on the anniversary) → shortTerm', async () => {
+		// 2024-01-01 → 2025-01-01 = 366 days (2024 IS a leap year), still exactly one year.
 		setupMock({ eventRows: [
 			ev({ direction: 'in',  timestamp_utc: '2024-01-01T00:00:00Z' }),
 			ev({ direction: 'out', timestamp_utc: '2025-01-01T00:00:00Z' }),
 		]});
 
 		const bd = await buildAnnualBreakdown(TENANT, 2025);
-		expect(bd.longTerm).toHaveLength(1);
-		expect(bd.longTerm[0].daysHeld).toBe(366);
+		expect(bd.shortTerm).toHaveLength(1);
+		expect(bd.shortTerm[0].daysHeld).toBe(366);
+	});
+
+	it('a position still held says whether it is long-term yet, and how many days are left', async () => {
+		setupMock({ eventRows: [
+			ev({ direction: 'in', timestamp_utc: '2024-01-01T00:00:00Z' }),
+			ev({ direction: 'in', timestamp_utc: '2022-06-01T00:00:00Z', source_id: 'src2', group_id: 'g2' }),
+		]});
+		// A past year: positions are measured at Dec 31, 2024.
+		const bd = await buildAnnualBreakdown(TENANT, 2024);
+		const recent = bd.stillHolding.find((p) => p.acquiredDate.startsWith('2024'))!;
+		const older  = bd.stillHolding.find((p) => p.acquiredDate.startsWith('2022'))!;
+		expect(recent.daysHeld).toBe(365);        // a day count would have called this long-term
+		expect(recent.longTerm).toBe(false);
+		expect(recent.daysToLongTerm).toBe(2);    // long-term from Jan 2, 2025
+		expect(older.longTerm).toBe(true);
+		expect(older.daysToLongTerm).toBe(0);
 	});
 
 	it('daysHeld is reflected correctly on the settled lot', async () => {

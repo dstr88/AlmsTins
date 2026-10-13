@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
 import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 import { computeHoldings, EARNED_SYMBOL_TITLES, type ImportRow, type Holding } from '@/lib/exchangeHoldings';
 import { loadOwnerIndex, ownerForAccount, type OwnerIndex } from '@/lib/walletIdentity';
@@ -142,7 +143,7 @@ try {
 									const pnl = price > 0 && holding.costBasis !== null ? usdValue! - holding.costBasis : null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									const daysHeld = (usdValue === null || usdValue > 1) ? formatDaysSince(holding.lastPurchaseAt) : null;
-									const isLongTerm = daysHeld !== null && daysHeld >= 365;
+									const isLongTerm = daysHeld !== null && holding.lastPurchaseAt != null && isLongTermHold(holding.lastPurchaseAt, new Date().toISOString());
 									return (
 										<div class="exchange-holding">
 											<div class="exchange-holding__row">

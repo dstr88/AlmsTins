@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import './WalletSummary.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletSummary } from '@/i18n/components/walletSummary';
+import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
 
 console.log('[island.mount]', 'WalletSummary');
 
@@ -723,7 +724,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;
-										const isLongTerm = daysHeld !== null && daysHeld >= 365;
+										const isLongTerm = daysHeld !== null && isLongTermHold(new Date(effectiveMs).toISOString(), new Date().toISOString());
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =
@@ -901,7 +902,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;
-										const isLongTerm = daysHeld !== null && daysHeld >= 365;
+										const isLongTerm = daysHeld !== null && isLongTermHold(new Date(effectiveMs).toISOString(), new Date().toISOString());
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =

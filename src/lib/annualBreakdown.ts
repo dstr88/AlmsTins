@@ -7,8 +7,9 @@
  * Sections:
  *   1. needsAttention  – sells with no traceable buy (orphaned / problem children)
  *   2. stillHolding    – FIFO lots still open at year-end
- *   3. shortTerm       – settled lots held < 365 days  (sold in selected year)
- *   4. longTerm        – settled lots held ≥ 365 days  (sold in selected year)
+ *   3. shortTerm       – settled lots held one year or less (sold in selected year)
+ *   4. longTerm        – settled lots held more than one year (sold in selected year);
+ *                        calendar-date rule shared with the pipeline (yearEnd/holdingPeriod.ts)
  *   5. income          – interest, staking, rewards, cashback in selected year
  *
  * Data source options:
@@ -23,6 +24,7 @@
 import { db } from './db';
 import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
 import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
+import { daysUntilLongTerm, isLongTermHold } from './yearEnd/holdingPeriod';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -63,6 +65,10 @@ export type HeldPosition = {
   costUsd: number | null;
   /** days held as of Dec 31 of selected year (or today if current year) */
   daysHeld: number;
+  /** Held more than one year as of that same date (calendar rule, yearEnd/holdingPeriod.ts). */
+  longTerm: boolean;
+  /** Days from that date until it counts as long-term; 0 once it does, null if the date is unreadable. */
+  daysToLongTerm: number | null;
 };
 
 /**
@@ -314,6 +320,8 @@ export async function buildAnnualBreakdown(
         acquiredDate: acquiredAt,
         costUsd:      toNum(r.cost_basis_usd),
         daysHeld:     daysBetween(acquiredAt, refDate),
+        longTerm:     isLongTermHold(acquiredAt, refDate),
+        daysToLongTerm: daysUntilLongTerm(acquiredAt, refDate),
       });
     }
 
@@ -561,7 +569,7 @@ export async function buildAnnualBreakdown(
               ? `Estimated basis — ${manual.notes}`
               : `Estimated basis $${manual.pricePerToken.toLocaleString()}/${asset}, acquired ${buyDate.slice(0, 10)}`,
           };
-          if (days < 365) shortTerm.push(settled); else longTerm.push(settled);
+          if (isLongTermHold(buyDate, timestamp)) longTerm.push(settled); else shortTerm.push(settled);
           // Consume FIFO lots so remaining holdings don't double-count this disposal.
           const olots = lotsByAsset.get(asset) ?? [];
           let orem = amount;
@@ -641,8 +649,8 @@ export async function buildAnnualBreakdown(
                 ? `Acquired ${lot.timestamp.slice(0, 10)} (recorded cost basis)`
                 : `Acquired ${lot.timestamp.slice(0, 10)} — no recorded cost basis (treated as $0; verify origin)`,
             };
-            if (days < 365) shortTerm.push(settled);
-            else            longTerm.push(settled);
+            if (isLongTermHold(lot.timestamp, timestamp)) longTerm.push(settled);
+            else                                          shortTerm.push(settled);
           }
 
           // Reduce the lot's remaining cost basis proportionally so that
@@ -681,6 +689,8 @@ export async function buildAnnualBreakdown(
           acquiredDate: lot.timestamp,
           costUsd:     lot.costUsd,
           daysHeld:    daysBetween(lot.timestamp, refDate),
+          longTerm:    isLongTermHold(lot.timestamp, refDate),
+          daysToLongTerm: daysUntilLongTerm(lot.timestamp, refDate),
         });
       }
     }

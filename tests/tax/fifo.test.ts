@@ -261,6 +261,21 @@ describe('Short-term / long-term holding period', () => {
 		expect(disposals[0].isShortTerm).toBe(true);
 	});
 
+	it('a sale later in the day on the anniversary is still exactly one year: short-term', () => {
+		// The old timestamp compare called this long-term because 15:00 is after 10:00.
+		const rows = [
+			importTx({ id: 'buy1', timestamp_utc: '2024-01-01T10:00:00Z', amount: 1, native_usd: 40_000 }),
+			importTx({ id: 'sell1', timestamp_utc: '2025-01-01T15:00:00Z', amount: 1, native_usd: 50_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'sell1', 'sell'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+		expect(disposals[0].isShortTerm).toBe(true);
+	});
+
 	it('marks disposal as short-term when held EXACTLY 12 calendar months (IRS boundary)', () => {
 		// IRS rule: "more than 1 year" = long-term. Exactly 12 months = still short-term.
 		// Acquired Jan 1 2022, disposed Jan 1 2023 = exactly 12 months = SHORT-TERM.
