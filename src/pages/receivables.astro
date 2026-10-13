@@ -16,10 +16,14 @@ const sess = await requireTenantSession(Astro.request);
 const signedIn = !!sess && !sess.isDemo;
 const email = signedIn ? ((await getAuthSession(Astro.request))?.user?.email ?? null) : null;
 
-const title = 'Receivables — Almstins Verify';
+const title = 'Receivables · Almstins Verify';
 const description =
   'A shared, checkable record for any receivable: what is already financed against it, whether the debtor has acknowledged it, and dated proof that stands up later. Read-only. Almstins never holds or moves the asset.';
 const canonical = 'https://almstins.com/receivables';
+// The link preview (LinkedIn, X): the receivables card, not the site-wide wallet image.
+// Source: scripts/og/receivables-og.svg, rendered by scripts/render-og.mjs.
+const ogImage = 'https://almstins.com/og-receivables.png';
+const ogImageAlt = 'Almstins Verify. Receivables: see what is already financed against an invoice before you lend. almstins.com/receivables';
 
 // Every receivables service. The general Verify tools (safety scanner, publisher
 // attestation, the payment-agent API) live on /verify.
@@ -93,7 +97,7 @@ const trust = [
 ];
 ---
 
-<LoginLayout title={title} description={description} noindex={false} lang="en" canonical={canonical} favicon="/favicon-verify.png">
+<LoginLayout title={title} description={description} noindex={false} lang="en" canonical={canonical} favicon="/favicon-verify.png" image={ogImage} imageAlt={ogImageAlt}>
 
   <script type="application/ld+json" set:html={JSON.stringify({
     '@context': 'https://schema.org',

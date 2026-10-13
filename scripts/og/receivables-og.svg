@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- The receivables link preview (Open Graph / X card), 1200x630. Rendered to
+       public/og-receivables.png by scripts/render-og.mjs. Colors are the site tokens
+       (src/styles/tokens.css): surface #0a0f1a, text #f5f8ff and its 70% secondary, accent #2dd4a8. -->
+  <defs>
+    <radialGradient id="glow" cx="18%" cy="0%" r="95%">
+      <stop offset="0" stop-color="#0f1a2c"/>
+      <stop offset="0.65" stop-color="#0a0f1a"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0a0f1a"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="0" y="0" width="1200" height="8" fill="#2dd4a8"/>
+  <g font-family="'Helvetica Neue', Helvetica, Arial, sans-serif">
+    <text x="88" y="150" font-size="26" font-weight="700" letter-spacing="5" fill="#2dd4a8">ALMSTINS VERIFY</text>
+    <text x="82" y="288" font-size="116" font-weight="700" letter-spacing="-3" fill="#f5f8ff">Receivables</text>
+    <rect x="88" y="326" width="120" height="6" rx="3" fill="#2dd4a8"/>
+    <text x="88" y="410" font-size="46" fill="#f5f8ff" fill-opacity="0.7">See what is already financed against</text>
+    <text x="88" y="468" font-size="46" fill="#f5f8ff" fill-opacity="0.7">an invoice before you lend</text>
+    <text x="88" y="562" font-size="32" font-weight="700" fill="#2dd4a8">almstins.com/receivables</text>
+  </g>
+</svg>
