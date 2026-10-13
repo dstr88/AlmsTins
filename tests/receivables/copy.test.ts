@@ -285,12 +285,14 @@ describe('no page still says duplicates go undetected', () => {
 
 describe('the S4 changelog day', () => {
 	const src = readFileSync(fileURLToPath(new URL('../../src/pages/verify/changelog.astro', import.meta.url)), 'utf8');
-	const start = src.indexOf("date: '2026-10-13'");
-	const day = src.slice(start, src.indexOf("date: '2026-10-12'"));
+	// S4 ships on the same day as S2 and S3: its entries open the 2026-10-12 day, above S2's.
+	const start = src.indexOf("date: '2026-10-12'");
+	const day = src.slice(start, src.indexOf('Deleting a receivable now withdraws it'));
 
-	it('is the top day', () => {
+	it('is the top day, with the S4 entries first', () => {
 		expect(start).toBeGreaterThan(0);
 		expect(src.indexOf("date: '")).toBe(start);
+		expect(day).toContain('possible duplicate');
 	});
 
 	it('keeps to the bright lines, with no em dash and no accusation', () => {

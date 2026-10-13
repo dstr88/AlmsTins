@@ -20,8 +20,8 @@ interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
   {
-    date: '2026-10-13',
-    label: 'Tuesday',
+    date: '2026-10-12',
+    label: 'Monday',
     entries: [
       { kind: 'new', what: 'A live "possible duplicate" warning while you enter an invoice, before you save it.',
         why: 'On the financing desk, the registry page and the Client Portal, the form now checks the invoice while you fill it in. Once the debtor, the amount, the currency and either the client and invoice number or the debtor’s own reference are in, and about half a second after you stop typing, it asks whether another record at Almstins matches. It waits for you to stop, so it does not ask on every keystroke, and the check itself saves nothing. If another record matches, a "Possible duplicate" note appears above the button. For an account with a verified email, or one that signs in with Google or GitHub, it says when the other record is recorded as financed ("This invoice may already be financed. Check with the debtor before you advance.") and lists your own records that match, each with a link to open it. Other accounts are told only that another record matches. The note never holds up the form: you can still record the invoice, and the decision is yours. After you save, the same place shows the check’s answer for the record you just made, including when the check could not run and, for a verified account, when it could compare only the invoice number because no debtor reference was given. It never names the other record or whose it is. On the Client Portal, where the client records his own invoice, the note says the match may be his financier’s own record of it.' },
@@ -35,12 +35,6 @@ const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
         why: 'That stopped being true when the duplicate check arrived. It now says what the check does not cover: it compares records at Almstins on the debtor’s reference or the invoice number, at the same amount and currency, so a record with a different amount, or one kept outside Almstins, is not compared. The user’s guide says the same, and its glossary adds "Debtor reference" and "Possible duplicate".' },
       { kind: 'change', what: 'A shared receivables link now shows its own preview.',
         why: 'Posting almstins.com/receivables on LinkedIn or X showed the site-wide wallet picture. It now shows a receivables card, and the receivables pages are titled with a middle dot, as in "Receivables · Almstins Verify". A preview LinkedIn or X has already saved can take a while to update.' },
-    ],
-  },
-  {
-    date: '2026-10-12',
-    label: 'Monday',
-    entries: [
       { kind: 'change', what: 'Deleting a receivable now withdraws it. Its record stays on file.',
         why: 'Deleting used to remove the receivable along with your own claims and statements on it, so a financed receivable could vanish from the registry and be recorded again as if nothing stood against it. Now a withdrawn receivable leaves your list, but its record stays. While another party has a claim or a statement on it, the public check still answers for it, with every claim and statement as it was and a "withdrawn" mark beside its usual status, so a dispute or full financing still shows at a glance. It also stays in the book of any financier holding a claim on it. If nobody else has anything on it, the check answers as if it was never recorded. New claims, statements, requests, offers and files on a withdrawn receivable are not recorded. A financier can still mark an existing claim repaid, and a client can still answer a financier’s receipt link for an existing advance, confirming or disputing it. Your own open requests for it stop working, and attached files are kept only as fingerprints: the file list shows each one’s name, size and fingerprint, marked removed. Recording the same details again brings it back. If another account records identical details, it is told the record already exists, even after a withdrawal.' },
       { kind: 'new', what: 'Verify now has a new check: whether another record at Almstins matches the same invoice.',
