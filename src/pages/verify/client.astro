@@ -15,6 +15,8 @@ import Analytics from '@/components/Analytics.astro';
 import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import AccountMenu from '@/components/verify/AccountMenu.astro';
@@ -154,16 +156,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <p class="lede">Record what you are owed, hand the ID to your financier, and see exactly what gets claimed against it.</p>
     </header>
 
-    <div class="card" id="rec-card">
+    <div class="card" id="rec-card" data-rcv-root="create-form">
       <h2>Record a receivable</h2>
       <p class="hint">Your half of the record. Your financier fills in theirs.</p>
       <div class="grid">
-        <label>Your company<input id="f-sup" placeholder="Your company" autocomplete="off" /></label>
-        <label>Debtor (owes you)<input id="f-buy" placeholder="Their company" autocomplete="off" /></label>
-        <label>Invoice number<input id="f-inv" placeholder="INV-2093" autocomplete="off" /></label>
-        <label>Face value<input id="f-face" type="number" step="0.01" min="0" placeholder="50000000" /></label>
+        <label>Your company<input id="f-sup" data-rcv-field="supplier" placeholder="Your company" autocomplete="off" /></label>
+        <label>Debtor (owes you)<input id="f-buy" data-rcv-field="buyer" placeholder="Their company" autocomplete="off" /></label>
+        <label>Invoice number<input id="f-inv" data-rcv-field="invoiceNo" placeholder="INV-2093" autocomplete="off" /></label>
+        <BuyerRefField variant="client" id="f-ref" />
+        <label>Face value<input id="f-face" data-rcv-field="face" type="number" step="0.01" min="0" placeholder="50000000" /></label>
         <label>Currency
-          <select id="f-ccy">
+          <select id="f-ccy" data-rcv-field="currency">
             <option value="NGN">NGN</option><option value="USD">USD</option>
             <option value="EUR">EUR</option><option value="GBP">GBP</option>
             <option value="GHS">GHS</option><option value="KES">KES</option><option value="ZAR">ZAR</option>
@@ -179,9 +182,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <label>Due date<input id="f-due" type="date" /></label>
       </div>
       <label class="testrow">
-        <input id="f-test" type="checkbox" />
+        <input id="f-test" type="checkbox" data-rcv-field="test-mode" />
         <span>Practice run. Record this as a <b>test</b> so you can try the flow without a real deal. It is marked TEST everywhere it appears, including the public check and the debtor and financier links, and a test record can never be turned into a real one.</span>
       </label>
+      <DuplicateFlag variant="client" name="create" />
       <div class="row" style="margin-top:.85rem">
         <button id="f-go">Sign, record &amp; timestamp</button>
         <span class="muted">Signed with the Almstins key and hashed into an ID you control.</span>
@@ -218,6 +222,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="t-testbanner" class="testbanner">TEST RECORD — a practice run, not a real receivable. No money is implied.</div>
         <WithdrawnNote variant="client" />
         <div id="t-facts" class="facts"></div>
+        <DuplicateFlag variant="client" name="record" />
         <div style="margin-top:1rem">
           <div class="bar"><div id="t-bar" class="bar__fill" style="width:0%"></div></div>
           <div class="split"><span id="t-claimed"></span><span id="t-avail"></span></div>
@@ -283,12 +288,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             supplier, buyer, invoiceNo, face,
             currency: val('f-ccy') || 'NGN',
             terms: val('f-terms') || null,
-            dueDate: val('f-due') || null,
+            dueDate: val('f-due') || null, details: { buyerRef: val('f-ref') || null },
             isTest: (document.getElementById('f-test') as HTMLInputElement)?.checked === true,
           }),
         });
         const j = await r.json();
         if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/client" style="color:var(--accent)">Sign in again</a> to record it.', 'note-loss'); return; }
+        hostBridge.emitCreateResult(j);
         if (!j.ok) { show(out, esc(j.message || j.error || 'Could not record that.'), 'note-loss'); return; }
         hide(out);
         lastId = j.id;
