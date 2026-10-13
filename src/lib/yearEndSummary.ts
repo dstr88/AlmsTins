@@ -386,12 +386,12 @@ export async function getYearEndSummary(
 			const row = harvestMap.get(lot.asset)!;
 			row.totalQty  += lot.amount;
 			row.totalCost += lot.costUsd ?? 0;
-			if (lot.daysHeld >= 365) {
+			if (lot.longTerm) {
 				row.longTermQty += lot.amount;
 			} else {
 				row.shortTermQty += lot.amount;
-				const daysLeft = 365 - lot.daysHeld;
-				if (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT) {
+				const daysLeft = lot.daysToLongTerm;
+				if (daysLeft !== null && (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT)) {
 					row.soonestLotDaysToLT = daysLeft;
 				}
 			}
@@ -445,7 +445,12 @@ export async function getYearEndSummary(
 		const missingBasis: MissingBasisRow[] = [];
 
 		// Mode A — disposed lots with known proceeds but null cost basis
-		for (const lot of [...bd.shortTerm, ...bd.longTerm]) {
+		// The term is the list the engine put the lot in (calendar rule), never a day count.
+		const termedLots = [
+			...bd.shortTerm.map((lot) => ({ lot, term: 'short' as const })),
+			...bd.longTerm.map((lot) => ({ lot, term: 'long' as const })),
+		];
+		for (const { lot, term } of termedLots) {
 			if (lot.costUsd === null || lot.costUsd === 0) {
 				missingBasis.push({
 					asset:    lot.asset,
@@ -454,7 +459,7 @@ export async function getYearEndSummary(
 					proceeds: lot.proceedsUsd,
 					issue:    'no_cost_basis',
 					daysHeld: lot.daysHeld,
-					term:     lot.daysHeld >= 365 ? 'long' : 'short',
+					term,
 				});
 			}
 		}

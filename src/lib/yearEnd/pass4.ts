@@ -24,30 +24,11 @@
 
 import { randomUUID } from 'node:crypto';
 import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx } from './types';
+import { isShortTermHold } from './holdingPeriod';
 
 const taxYear = (ts: string) => new Date(ts).getUTCFullYear();
 
-/**
- * IRS-correct short-term/long-term determination.
- *
- * The IRS rule is "more than 1 year" (calendar months), NOT "more than 365 days".
- * A disposal that occurs exactly 12 calendar months after acquisition is still
- * short-term — you need to be one day past the 12-month mark for long-term.
- *
- * Examples:
- *   Acquired Jan 1 2023, disposed Jan 1 2024  → exactly 12 months → short-term
- *   Acquired Jan 1 2023, disposed Jan 2 2024  → more than 12 months → long-term
- *   Acquired Jan 1 2024 (leap year), disposed Jan 1 2025 → exactly 12 months → short-term
- *   Acquired Jan 1 2024, disposed Jan 2 2025  → more than 12 months → long-term
- */
-function isShortTermHold(acquiredAt: string, disposedAt: string): boolean {
-	const acq  = new Date(acquiredAt);
-	const disp = new Date(disposedAt);
-	const oneYearLater = new Date(acq);
-	oneYearLater.setUTCFullYear(acq.getUTCFullYear() + 1);
-	// Held exactly 12 months or less → short-term; strictly after → long-term
-	return disp <= oneYearLater;
-}
+// Short-term vs long-term comes from the shared calendar-date rule (holdingPeriod.ts).
 
 type AcquisitionTx = {
 	id: string;
@@ -327,7 +308,7 @@ export function runFifo(
 			const gainLoss =
 				proceedsSlice !== null && costSlice !== null ? proceedsSlice - costSlice : null;
 
-			// IRS calendar-month holding period (see isShortTermHold above).
+			// IRS holding period by calendar date (holdingPeriod.ts).
 			const isShortTerm = isShortTermHold(lot.acquiredAt, disp.timestamp);
 
 			allDisposals.push({

@@ -278,7 +278,7 @@ export const en: AnnualRecordsLocale = {
   faqGroupUnderstanding: 'Understanding Your Records',
   faqQ_stVsLt: 'What is the difference between short-term and long-term capital gains?',
   faqA_stVsLt:
-    'If you sold a crypto asset you held for <strong>365 days or less</strong>, the gain is short-term and taxed as ordinary income — the same rate as your salary. If you held it for <strong>more than 365 days</strong>, the gain is long-term and taxed at the preferential capital gains rate (0%, 15%, or 20% depending on your income). Holding longer before selling almost always results in a lower tax bill.',
+    'If you sold a crypto asset you held for <strong>one year or less</strong>, the gain is short-term and taxed as ordinary income — the same rate as your salary. If you held it for <strong>more than one year</strong>, the gain is long-term and taxed at the preferential capital gains rate (0%, 15%, or 20% depending on your income). Holding longer before selling almost always results in a lower tax bill.',
   faqQ_costBasis: 'What is cost basis and why does it matter?',
   faqA_costBasis:
     'Cost basis is what you originally paid for an asset — including fees. Your taxable gain or loss is the difference between what you received when you sold it and your cost basis. If the IRS cannot find a cost basis record for a disposal, they assume it is <strong>$0</strong>, making the entire sale proceeds taxable. This is why missing cost basis is treated as a critical issue.',
@@ -342,7 +342,7 @@ export const en: AnnualRecordsLocale = {
     'FIFO stands for <strong>First In, First Out</strong>. When you sell crypto, FIFO assumes you are selling the oldest coins you own first. It is the most widely accepted accounting method for crypto and is what the app uses by default to calculate your realized gains and losses.',
   faqQ_stVsLtUser: 'What is the difference between short-term and long-term gains?',
   faqA_stVsLtUser:
-    'If you sold an asset you held for <strong>365 days or less</strong>, the gain is short-term. If you held it for <strong>more than 365 days</strong>, it is long-term. The app tracks both separately because they have different financial implications depending on your situation.',
+    'If you sold an asset you held for <strong>one year or less</strong>, the gain is short-term. If you held it for <strong>more than one year</strong>, it is long-term. The app tracks both separately because they have different financial implications depending on your situation.',
   faqQ_wailingWallUser: 'What is the "Wailing Wall"?',
   faqA_wailingWallUser:
     'The Wailing Wall shows your <strong>realized losses</strong> for the year — positions you sold for less than you paid. Losses offset your realized gains, so understanding them is important for an accurate picture of your portfolio performance.',
@@ -485,7 +485,7 @@ export const es: AnnualRecordsLocale = {
   faqGroupUnderstanding: "Comprendiendo tus Registros",
   faqQ_stVsLt: "¿Cuál es la diferencia entre ganancias de capital a corto y largo plazo?",
   faqA_stVsLt:
-    "Si vendiste un activo cripto que mantuviste durante <strong>365 días o menos</strong>, la ganancia es a corto plazo y se grava como ingreso ordinario, a la misma tasa que tu salario. Si lo mantuviste por <strong>más de 365 días</strong>, la ganancia es a largo plazo y se grava a la tasa preferencial de ganancias de capital (0%, 15% o 20% según tus ingresos). Mantener el activo más tiempo antes de vender casi siempre resulta en una factura fiscal menor.",
+    "Si vendiste un activo cripto que mantuviste durante <strong>un año o menos</strong>, la ganancia es a corto plazo y se grava como ingreso ordinario, a la misma tasa que tu salario. Si lo mantuviste por <strong>más de un año</strong>, la ganancia es a largo plazo y se grava a la tasa preferencial de ganancias de capital (0%, 15% o 20% según tus ingresos). Mantener el activo más tiempo antes de vender casi siempre resulta en una factura fiscal menor.",
   faqQ_costBasis: "¿Qué es la base de coste y por qué importa?",
   faqA_costBasis:
     "La base de coste es lo que pagaste originalmente por un activo, incluidas las comisiones. Tu ganancia o pérdida imponible es la diferencia entre lo que recibiste al venderlo y tu base de coste. Si el IRS no puede encontrar un registro de base de coste para una disposición, asume que es <strong>$0</strong>, haciendo que todos los ingresos de la venta sean imponibles. Por eso la base de coste faltante se trata como un problema crítico.",
@@ -549,7 +549,7 @@ export const es: AnnualRecordsLocale = {
     "FIFO significa <strong>First In, First Out</strong> (primero en entrar, primero en salir). Al vender cripto, FIFO asume que vendes primero las monedas más antiguas. Es el método de contabilidad más aceptado para cripto y es el que usa la aplicación por defecto para calcular tus ganancias y pérdidas realizadas.",
   faqQ_stVsLtUser: "¿Cuál es la diferencia entre ganancias a corto y largo plazo?",
   faqA_stVsLtUser:
-    "Si vendiste un activo que mantuviste durante <strong>365 días o menos</strong>, la ganancia es a corto plazo. Si lo mantuviste por <strong>más de 365 días</strong>, es a largo plazo. La aplicación rastrea ambas por separado porque tienen diferentes implicaciones financieras según tu situación.",
+    "Si vendiste un activo que mantuviste durante <strong>un año o menos</strong>, la ganancia es a corto plazo. Si lo mantuviste por <strong>más de un año</strong>, es a largo plazo. La aplicación rastrea ambas por separado porque tienen diferentes implicaciones financieras según tu situación.",
   faqQ_wailingWallUser: "¿Qué es el \"Muro de las Pérdidas\"?",
   faqA_wailingWallUser:
     "El Muro de las Pérdidas muestra tus <strong>pérdidas realizadas</strong> del año — posiciones que vendiste por menos de lo que pagaste. Las pérdidas compensan tus ganancias realizadas, por lo que entenderlas es importante para tener una imagen precisa del rendimiento de tu portafolio.",
@@ -692,7 +692,7 @@ export const fr: AnnualRecordsLocale = {
   faqGroupUnderstanding: "Comprendre vos Registres",
   faqQ_stVsLt: "Quelle est la différence entre les gains en capital à court et à long terme ?",
   faqA_stVsLt:
-    "Si vous avez vendu un actif crypto détenu pendant <strong>365 jours ou moins</strong>, le gain est à court terme et imposé comme revenu ordinaire — au même taux que votre salaire. Si vous l'avez détenu pendant <strong>plus de 365 jours</strong>, le gain est à long terme et imposé au taux préférentiel des gains en capital (0%, 15% ou 20% selon vos revenus). Détenir plus longtemps avant de vendre entraîne presque toujours une facture fiscale moins élevée.",
+    "Si vous avez vendu un actif crypto détenu pendant <strong>un an ou moins</strong>, le gain est à court terme et imposé comme revenu ordinaire — au même taux que votre salaire. Si vous l'avez détenu pendant <strong>plus d'un an</strong>, le gain est à long terme et imposé au taux préférentiel des gains en capital (0%, 15% ou 20% selon vos revenus). Détenir plus longtemps avant de vendre entraîne presque toujours une facture fiscale moins élevée.",
   faqQ_costBasis: "Qu'est-ce que le coût de base et pourquoi est-il important ?",
   faqA_costBasis:
     "Le coût de base est ce que vous avez initialement payé pour un actif — frais inclus. Votre gain ou perte imposable est la différence entre ce que vous avez reçu lors de la vente et votre coût de base. Si l'IRS ne peut pas trouver de dossier de coût de base pour une cession, il suppose qu'il est de <strong>0 $</strong>, rendant la totalité du produit de la vente imposable. C'est pourquoi un coût de base manquant est traité comme un problème critique.",
@@ -756,7 +756,7 @@ export const fr: AnnualRecordsLocale = {
     "FIFO signifie <strong>First In, First Out</strong> (premier entré, premier sorti). Lorsque vous vendez des cryptos, FIFO suppose que vous vendez en premier les pièces les plus anciennes. C'est la méthode comptable la plus largement acceptée pour les cryptos et c'est celle que l'application utilise par défaut pour calculer vos gains et pertes réalisés.",
   faqQ_stVsLtUser: "Quelle est la différence entre les gains à court et à long terme ?",
   faqA_stVsLtUser:
-    "Si vous avez vendu un actif détenu pendant <strong>365 jours ou moins</strong>, le gain est à court terme. Si vous l'avez détenu pendant <strong>plus de 365 jours</strong>, il est à long terme. L'application suit les deux séparément car ils ont des implications financières différentes selon votre situation.",
+    "Si vous avez vendu un actif détenu pendant <strong>un an ou moins</strong>, le gain est à court terme. Si vous l'avez détenu pendant <strong>plus d'un an</strong>, il est à long terme. L'application suit les deux séparément car ils ont des implications financières différentes selon votre situation.",
   faqQ_wailingWallUser: "Qu'est-ce que le \"Mur des Pertes\" ?",
   faqA_wailingWallUser:
     "Le Mur des Pertes affiche vos <strong>pertes réalisées</strong> pour l'année — les positions vendues pour moins que ce que vous avez payé. Les pertes compensent vos gains réalisés, donc les comprendre est important pour avoir une image précise de la performance de votre portefeuille.",

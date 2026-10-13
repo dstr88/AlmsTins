@@ -7,6 +7,7 @@ import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
 import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 import { loadOwnerIndex, ownerForAccount, type OwnerIndex } from '@/lib/walletIdentity';
 
@@ -335,7 +336,7 @@ try {
 											: null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									const daysHeld = (usdValue === null || usdValue > 1) ? formatDaysSince(holding.lastPurchaseAt) : null;
-									const isLongTerm = daysHeld !== null && daysHeld >= 365;
+									const isLongTerm = daysHeld !== null && holding.lastPurchaseAt != null && isLongTermHold(holding.lastPurchaseAt, new Date().toISOString());
 									return (
 										<div class="exchange-holding">
 											<div class="exchange-holding__row">
