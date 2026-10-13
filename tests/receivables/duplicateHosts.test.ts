@@ -7,9 +7,10 @@ import { RECEIVABLES_HOSTS, entryModule } from '../helpers/receivablesHosts';
 /**
  * Source pins for the S4 duplicate UI in the three host pages. Reads files only (there is no DOM
  * test environment; the widgets themselves are tested in duplicateFlag, duplicatePrecheck and
- * duplicateView). These pin where each piece sits, that the create forms send the debtor
- * reference, and where each host announces its create answer. The once-per-root counts and the
- * inline-script budgets stay in withdrawnHosts.test.ts and componentSplit.test.ts.
+ * duplicateView, and the entry modules' wiring runs in entryModules.test.ts). These pin where each
+ * piece sits, that the create forms send the debtor reference, and where each host announces its
+ * create answer. The once-per-root counts and the inline-script budgets stay in
+ * withdrawnHosts.test.ts and componentSplit.test.ts.
  */
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
