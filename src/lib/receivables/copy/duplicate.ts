@@ -101,4 +101,4 @@ export const TAG_POSSIBLE_DUPLICATE_TITLE = 'Another record at Almstins matches 
 
 /** The desk's "Before you advance": what the duplicate check does not prove. */
 export const NOT_PROVEN_DUPLICATE_TITLE = 'That the invoice is not a duplicate';
-export const NOT_PROVEN_DUPLICATE_DETAIL = 'The duplicate check compares this invoice with other records at Almstins, on the debtor’s reference or the invoice number, at the same amount and currency. A record with a different amount, or one kept outside Almstins, is not compared.';
+export const NOT_PROVEN_DUPLICATE_DETAIL = 'The duplicate check compares this invoice with other records at Almstins: the same debtor and debtor’s reference, or the same debtor, client and invoice number, at the same amount and currency. Small differences in typing still match. A different amount or currency, or a debtor named differently, does not match. A client named differently, or a different invoice number, matches only through the same debtor reference. Records kept outside Almstins are not compared.';

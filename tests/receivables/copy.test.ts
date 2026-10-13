@@ -283,6 +283,31 @@ describe('no page still says duplicates go undetected', () => {
 	});
 });
 
+// S4 review: the limits named on the desk, in the guide and in the run sheet must be every gap the
+// keys leave (fingerprintNormalize.test.ts pins the keys), not just amount and records elsewhere.
+describe('the duplicate check\'s stated limits match its keys', () => {
+	const read = (p: string) => readFileSync(fileURLToPath(new URL(`../../${p}`, import.meta.url)), 'utf8');
+	const SOURCES: Array<[string, string]> = [
+		['NOT_PROVEN_DUPLICATE_DETAIL', duplicateCopy.NOT_PROVEN_DUPLICATE_DETAIL],
+		['guide', read('src/pages/verify/guide.astro')],
+		['run sheet', read('src/pages/verify/runsheet.astro')],
+		['changelog', read('src/pages/verify/changelog.astro')],
+	];
+	it.each(SOURCES)('%s names the debtor-name and reference gaps', (_name, text) => {
+		expect(text).toContain('or a debtor named differently, does not match');
+		expect(text).toMatch(/\ba client named differently, or a different invoice number, matches only through the same debtor reference/i);
+		expect(text).not.toContain('A record with a different amount, or one kept outside Almstins, is not compared.');
+	});
+
+	it('the glossary says when a claim asks about a match, so it never promises a signature that is not made', () => {
+		const def = TERMS.find((x) => x.key === 'possible-duplicate')!.def;
+		expect(def).toContain('on the debtor, your client and the invoice number');
+		expect(def).toContain('If registering a claim asks you about the match and you go ahead, that choice is signed into your claim.');
+		expect(def).toContain('For a verified account it asks only when the match is recorded as financed.');
+		expect(def).not.toContain('If you register a claim anyway');
+	});
+});
+
 describe('the S4 changelog day', () => {
 	const src = readFileSync(fileURLToPath(new URL('../../src/pages/verify/changelog.astro', import.meta.url)), 'utf8');
 	// S4 ships on the same day as S2 and S3: its entries open the 2026-10-12 day, above S2's.

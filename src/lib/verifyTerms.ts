@@ -32,7 +32,7 @@ const RAW: Array<[string, string]> = [
   ['Headroom, or available',
    'Face value minus every claim still standing. What is left to finance without duplicating an advance somebody else has already made. A claim over the remaining headroom is warned about first; if you record it anyway, that choice is signed into your claim.'],
   ['Possible duplicate',
-   'A warning, not a finding: another record at Almstins matches this invoice, on the debtor and the debtor reference, or on your client and the invoice number, at the same amount and currency. It may be the same invoice recorded twice, or another installment under one order. Check with the debtor before you advance. If you register a claim anyway, that choice is signed into your claim.'],
+   'A warning, not a finding: another record at Almstins matches this invoice, on the debtor and the debtor reference, or on the debtor, your client and the invoice number, at the same amount and currency. It may be the same invoice recorded twice, or another installment under one order. Check with the debtor before you advance. If registering a claim asks you about the match and you go ahead, that choice is signed into your claim. For a verified account it asks only when the match is recorded as financed.'],
   ['Debtor confirmation',
    'The paying company stating, in its own name, that the debt is real and the amount is right. This is the evidence that does not come from your client, which is what makes it worth the most.'],
   ['Receipt confirmation',

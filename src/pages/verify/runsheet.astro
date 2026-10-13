@@ -34,7 +34,7 @@ const STUBS = [
   ['Signing is the platform key, not each party.', 'A confirmation proves "someone holding this link asserted it", not "the debtor asserted it". Party-level keys are not built.'],
   ['Any signed-in account can look up any receivable by ID.', 'The ID is unguessable and never enumerable, but there is no authorized-financier list.'],
   ['An unconfirmed claim still consumes headroom.', 'So a lender could register an advance he never made and block others until someone notices. The desk now shows "not confirmed" — but the number does not move.'],
-  ['The duplicate check only sees records at Almstins, at the same amount.', 'It compares the debtor’s reference or the invoice number, with the same amount and currency, and warns while the invoice is entered and again before a claim. A record with a different amount, or one kept outside Almstins, is not compared. It warns; the lender decides.'],
+  ['The duplicate check only sees records at Almstins, at the same amount.', 'It compares the same debtor with the debtor’s reference, or with the client and invoice number, at the same amount and currency, and warns while the invoice is entered and again before a claim. A different amount or currency, or a debtor named differently, does not match. A client named differently, or a different invoice number, matches only through the same debtor reference. Records kept outside Almstins are not compared. It warns; the lender decides.'],
   ['The terms of the advance are not recorded.', 'The claim captures an amount, not the rate, fee, or what it costs the client.'],
   ['The registry only sees claims registered in it.', 'A prior undisclosed assignment, or a floating charge over all receivables, is invisible.'],
 ];

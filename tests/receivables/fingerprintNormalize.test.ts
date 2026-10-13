@@ -167,6 +167,25 @@ describe('fingerprintTuples', () => {
 		expect(fingerprintTuples({ ...base, currency: '' }).inv).toBe('v1|invoice|inv|r|bigco|acmesupplies|42|NGN|100000');
 	});
 
+	// The limits the pages state (NOT_PROVEN_DUPLICATE_DETAIL, the guide, the run sheet) follow
+	// from these keys: the debtor is in both, the client and the invoice number only in the fallback.
+	it('a debtor named differently matches on neither key', () => {
+		const t = fingerprintTuples(base);
+		const other = fingerprintTuples({ ...base, buyer: 'Bigco Holdings Plc' });
+		expect(other.ref).not.toBe(t.ref);
+		expect(other.inv).not.toBe(t.inv);
+	});
+
+	it('a client named differently, or a different invoice number, matches only through the debtor reference', () => {
+		const t = fingerprintTuples(base);
+		for (const changed of [{ supplier: 'Acme Trading Ltd' }, { invoiceNo: 'INV-0043' }]) {
+			const withRef = fingerprintTuples({ ...base, ...changed });
+			expect(withRef.inv).not.toBe(t.inv);
+			expect(withRef.ref).toBe(t.ref);
+			expect(fingerprintTuples({ ...base, ...changed, buyerRef: null }).ref).toBeNull();
+		}
+	});
+
 	it('every field is letters and digits, so the | join cannot be ambiguous', () => {
 		const t = fingerprintTuples({ ...base, supplier: 'A|B Ltd', buyer: 'C|D', invoiceNo: '4|2', buyerRef: '1|2', currency: 'U|S' });
 		expect(t.ref!.split('|')).toHaveLength(8);
