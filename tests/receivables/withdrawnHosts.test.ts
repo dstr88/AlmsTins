@@ -28,6 +28,8 @@ const HOSTS = Object.keys(RECEIVABLES_HOSTS) as ReceivablesHost[];
 const COMPONENT_ROOTS: Record<string, RegExp> = {
 	'ack-claim': /<AckPrompt\b[^>]*\bname="claim"[^>]*\/>/,
 	'withdrawn-record': /<WithdrawnNote\b[^>]*\/>/,
+	'dup-create': /<DuplicateFlag\b[^>]*\bname="create"[^>]*\/>/,
+	'dup-record': /<DuplicateFlag\b[^>]*\bname="record"[^>]*\/>/,
 };
 
 describe('entry-module roots appear exactly once in their host', () => {
@@ -85,8 +87,8 @@ describe('desk host: where the withdrawn marks land', () => {
 describe('registry host: withdraw, not delete', () => {
 	const registry = () => read(RECEIVABLES_HOSTS.registry);
 
-	it('the note sits between the check button and its answer', () => {
-		expect(registry()).toMatch(/id="q-btn"[^\n]*\n\s*<WithdrawnNote variant="registry" \/>\n\s*<div class="out" id="q-out"><\/div>/);
+	it('the note sits between the check button and its answer, with the S4 duplicate flag after it', () => {
+		expect(registry()).toMatch(/id="q-btn"[^\n]*\n\s*<WithdrawnNote variant="registry" \/>\n\s*<DuplicateFlag variant="registry" name="record" \/>\n\s*<div class="out" id="q-out"><\/div>/);
 	});
 
 	it('the list root is #mine-list, and rows keep data-mid and .mine-main', () => {

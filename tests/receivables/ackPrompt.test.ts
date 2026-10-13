@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { askToAcknowledge, ackInputs, closeAck, setAckBusy } from '../../src/components/receivables/AckPrompt/ackPrompt.client';
@@ -13,9 +13,20 @@ import { HEADROOM_BODY, HEADROOM_TAKE_AVAILABLE } from '../../src/lib/receivable
  *
  * Each ask resolves once (a double click on "Record it anyway" or "I accept responsibility"
  * cannot post twice), and a button left over from an earlier prompt never answers a later one.
+ *
+ * Focus (S4 review): the prompt is not a live region. Opening it moves focus to its title, and
+ * closing it while focus is inside sends focus back to the page's claim button (data-ack-return),
+ * so a keyboard user is never dropped at the top of the page.
  */
 
 // ---- A small fake DOM: attribute selectors only, template content kept out of the tree ----
+/** The fake document: which element has focus, and the IDs getElementById finds. */
+const doc = {
+	activeElement: null as El | null,
+	ids: new Map<string, El>(),
+	focusCalls: [] as Array<{ el: El; opts: unknown }>,
+	getElementById(id: string): El | null { return this.ids.get(id) ?? null; },
+};
 class El {
 	children: El[] = [];
 	listeners: (() => void)[] = [];
@@ -28,6 +39,9 @@ class El {
 		this.children = children;
 		if ('hidden' in attrs) this.hidden = true;
 	}
+	get ownerDocument() { return doc; }
+	focus(opts?: unknown) { doc.activeElement = this; doc.focusCalls.push({ el: this, opts }); }
+	contains(other: El | null): boolean { return !!other && (other === this || [...this.descendants()].includes(other)); }
 	get dataset(): Record<string, string> {
 		const out: Record<string, string> = {};
 		for (const [k, v] of Object.entries(this.attrs)) {
@@ -63,26 +77,43 @@ function template(code: string, ...children: El[]): El {
 }
 
 /** The registry variant of AckPrompt.astro, element for element (text left out). */
-function promptRoot(): El {
-	return h('div', { class: 'ack ack--registry', 'data-rcv-root': 'ack-claim', hidden: '' },
+const title = () => h('b', { class: 'ack__title', 'data-ack-title': '', tabindex: '-1' });
+function promptRoot(returnFocus: string | null = 'k-btn'): El {
+	return h('div', { class: 'ack ack--registry', 'data-rcv-root': 'ack-claim', ...(returnFocus ? { 'data-ack-return': returnFocus } : {}), hidden: '' },
 		h('div', { class: 'ack__body', 'data-ack-body': '' }),
 		template('diligence_required',
-			h('div', { class: 'ack__panel ack__panel--caution' }, h('b')),
+			h('div', { class: 'ack__panel ack__panel--caution' }, title()),
 			h('div', { class: 'ack__field' }, h('label'), h('select', { 'data-ack-field': 'method' })),
 			h('div', { class: 'ack__field' }, h('label'), h('input', { 'data-ack-field': 'note' })),
 			h('p', { class: 'ack__fine' }),
 			h('button', { class: 'ack__btn', 'data-ack-choice': 'diligence_required' })),
 		template('exceeds_headroom',
-			h('div', { class: 'ack__panel ack__panel--loss' }, h('b'), h('span', { 'data-ack-slot': 'headroom-body' })),
+			h('div', { class: 'ack__panel ack__panel--loss' }, title(), h('span', { 'data-ack-slot': 'headroom-body' })),
 			h('div', { class: 'ack__row' },
 				h('button', { class: 'ack__btn', 'data-ack-choice': 'take_available', 'data-ack-slot': 'take-available' }),
 				h('button', { class: 'ack__btn', 'data-ack-choice': 'exceeds_headroom' }))),
+		template('possible_duplicate',
+			h('div', { class: 'ack__panel ack__panel--caution' }, title(), h('span', { 'data-ack-slot': 'duplicate-body' })),
+			h('div', { class: 'ack__row' },
+				h('button', { class: 'ack__btn', 'data-ack-choice': 'possible_duplicate' }),
+				h('button', { class: 'ack__btn', 'data-ack-choice': 'dismiss' }))),
 	);
 }
 const asRoot = (el: El) => el as unknown as HTMLElement;
 const body = (root: El) => root.querySelector('[data-ack-body]')!;
 const choice = (root: El, c: string) => body(root).querySelector(`[data-ack-choice="${c}"]`)!;
 const OVER = { code: 'exceeds_headroom' as const, available: 'NGN 200.00', requested: 'NGN 500.00', claimed: 'NGN 800.00' };
+const DUP = { code: 'possible_duplicate' as const, lines: ['Another record at Almstins matches this invoice.', 'If you record your claim anyway, that acknowledgment is signed into it.'] };
+
+/** The page's claim button, which focus goes back to. */
+let claimButton: El;
+beforeEach(() => {
+	doc.activeElement = null;
+	doc.ids.clear();
+	doc.focusCalls = [];
+	claimButton = h('button', { id: 'k-btn' });
+	doc.ids.set('k-btn', claimButton);
+});
 
 /** Settles on the next macrotask: 'pending' when the ask has not resolved yet. */
 async function state(p: Promise<string[] | null>): Promise<string[] | null | 'pending'> {
@@ -222,29 +253,193 @@ describe('AckPrompt.astro markup matches what the client looks for', () => {
 	const SRC = fs.readFileSync(fileURLToPath(new URL('../../src/components/receivables/AckPrompt/AckPrompt.astro', import.meta.url)), 'utf8');
 	const count = (s: string) => SRC.split(s).length - 1;
 
-	it('one hidden root with one body', () => {
-		expect(SRC).toMatch(/<div class=\{`ack ack--\$\{variant\}`\} data-rcv-root=\{`ack-\$\{name\}`\} hidden>/);
+	it('one hidden root naming the control focus returns to, with one body; not a live region', () => {
+		expect(SRC).toMatch(/<div class=\{`ack ack--\$\{variant\}`\} data-rcv-root=\{`ack-\$\{name\}`\} data-ack-return=\{returnFocus\} hidden>/);
+		expect(SRC).toContain("interface Props { variant: 'desk' | 'registry'; name: string; returnFocus?: string }");
 		expect(count('data-ack-body')).toBe(1);
+		// The prompt takes focus instead: a live region shown together with its content (and holding
+		// a select, a text field and buttons) is often not announced, or read option by option.
+		expect(SRC).not.toMatch(/\brole=|aria-live|aria-atomic/);
+	});
+
+	it('every prompt opens with a focusable title (tabindex -1), the one title per template', () => {
+		expect(count('<b class="ack__title" data-ack-title tabindex="-1">')).toBe(6);
+		// Every <b> in the prompt is a title.
+		expect(SRC.match(/<b\b/g)).toHaveLength(6);
 	});
 
 	it('each variant has one template per warning code', () => {
 		expect(count('<template data-ack-template="diligence_required">')).toBe(2);
 		expect(count('<template data-ack-template="exceeds_headroom">')).toBe(2);
-		expect(count('<template ')).toBe(4);
+		expect(count('<template data-ack-template="possible_duplicate">')).toBe(2);
+		expect(count('<template ')).toBe(6);
 	});
 
-	it('each variant has the three choices, both headroom slots and both diligence fields', () => {
+	it('each variant has the five choices, the headroom and duplicate slots and both diligence fields', () => {
 		for (const s of [
 			'data-ack-choice="diligence_required"', 'data-ack-choice="exceeds_headroom"',
 			'data-ack-choice="take_available" data-ack-slot="take-available"', 'data-ack-slot="headroom-body"',
+			'data-ack-choice="possible_duplicate"', 'data-ack-choice="dismiss"', 'data-ack-slot="duplicate-body"',
 			'data-ack-field="method"', 'data-ack-field="note"',
 		]) expect(count(s), s).toBe(2);
-		expect(count('data-ack-choice=')).toBe(6);
+		expect(count('data-ack-choice=')).toBe(10);
 	});
 
 	it('every choice button is type="button"', () => {
 		const buttons = SRC.match(/<button\b[^>]*>/g) ?? [];
-		expect(buttons).toHaveLength(6);
+		expect(buttons).toHaveLength(10);
 		for (const b of buttons) expect(b).toContain('type="button"');
+	});
+
+	it('the duplicate prompt reads the S4 copy, in the caution tone on both variants', () => {
+		expect(SRC).toContain("import { CLAIM_DUPLICATE_NOT_NOW, CLAIM_DUPLICATE_RECORD_ANYWAY, DUPLICATE_FLAG_TITLE } from '@/lib/receivables/copy/duplicate';");
+		expect(count('{CLAIM_DUPLICATE_RECORD_ANYWAY}')).toBe(2);
+		expect(count('{CLAIM_DUPLICATE_NOT_NOW}')).toBe(2);
+		expect(SRC.match(/<template data-ack-template="possible_duplicate">\s*<div class="ack__panel ack__panel--caution">/g)).toHaveLength(2);
+	});
+});
+
+describe('the possible-duplicate prompt (S4)', () => {
+	it('fills the lines as text into the slot and shows the root', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [{ ...DUP, lines: ['<b>not markup</b>', 'second'] }]);
+		expect(root.hidden).toBe(false);
+		expect(body(root).querySelector('[data-ack-slot="duplicate-body"]')!.textContent).toBe('<b>not markup</b> second');
+		expect(await state(p)).toBe('pending');
+	});
+
+	it('"Record my claim anyway" answers [possible_duplicate]', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [DUP]);
+		choice(root, 'possible_duplicate').click();
+		expect(await p).toEqual(['possible_duplicate']);
+		expect(root.hidden).toBe(false);
+	});
+
+	it('"Not now" answers null and closes the prompt', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [DUP]);
+		const recordAnyway = choice(root, 'possible_duplicate');
+		choice(root, 'dismiss').click();
+		expect(await p).toBeNull();
+		expect(root.hidden).toBe(true);
+		expect(body(root).children).toEqual([]);
+		recordAnyway.click(); // detached, and already answered
+		expect(await p).toBeNull();
+	});
+});
+
+describe('focus (S4 review)', () => {
+	it('opening a prompt moves focus to its title', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [DUP]);
+		const t = body(root).querySelector('[data-ack-title]')!;
+		expect(doc.activeElement).toBe(t);
+		void askToAcknowledge(asRoot(root), [OVER]);
+		expect(doc.activeElement).toBe(body(root).querySelector('[data-ack-title]'));
+		expect(doc.activeElement).not.toBe(t);
+	});
+
+	it('"Not now": closes the prompt, puts focus back on the claim button, then calls onDismiss', async () => {
+		const root = promptRoot();
+		const seen: Array<{ hidden: boolean; active: El | null }> = [];
+		const onDismiss = vi.fn(() => { seen.push({ hidden: root.hidden, active: doc.activeElement }); });
+		const p = askToAcknowledge(asRoot(root), [DUP], { onDismiss });
+		const notNow = choice(root, 'dismiss');
+		notNow.focus();
+		notNow.click();
+		expect(await p).toBeNull();
+		expect(onDismiss).toHaveBeenCalledTimes(1);
+		expect(seen).toEqual([{ hidden: true, active: claimButton }]);
+		expect(doc.focusCalls.at(-1)).toEqual({ el: claimButton, opts: { preventScroll: true } });
+	});
+
+	it('onDismiss is not called for any other answer, or for a close', async () => {
+		const onDismiss = vi.fn();
+		const a = promptRoot();
+		const pa = askToAcknowledge(asRoot(a), [DUP], { onDismiss });
+		choice(a, 'possible_duplicate').click();
+		expect(await pa).toEqual(['possible_duplicate']);
+		const b = promptRoot();
+		const pb = askToAcknowledge(asRoot(b), [DUP], { onDismiss });
+		closeAck(asRoot(b));
+		expect(await pb).toBeNull();
+		expect(onDismiss).not.toHaveBeenCalled();
+	});
+
+	it('"Record my claim anyway" keeps focus on its button; the close after the claim returns it', async () => {
+		const root = promptRoot();
+		const p = askToAcknowledge(asRoot(root), [DUP]);
+		const anyway = choice(root, 'possible_duplicate');
+		anyway.focus();
+		anyway.click();
+		await p;
+		expect(doc.activeElement).toBe(anyway);
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBe(claimButton);
+	});
+
+	it('a close while focus is elsewhere (the desk opening another record) leaves focus alone', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [DUP]);
+		const search = h('input');
+		search.focus();
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBe(search);
+		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+	});
+
+	// A browser drops focus to the body when the focused button is disabled (setAckBusy while the
+	// diligence answer posts), so focusInside alone would no longer send focus back.
+	it('a prompt that held focus when it went busy still returns focus after the browser dropped it', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [{ code: 'diligence_required' }]);
+		choice(root, 'diligence_required').focus();
+		setAckBusy(asRoot(root), true);
+		doc.activeElement = null; // the browser's focus fixup for a disabled element
+		setAckBusy(asRoot(root), false);
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBe(claimButton);
+	});
+
+	it('going busy without focus inside, or focus moved elsewhere meanwhile, leaves focus alone', () => {
+		const a = promptRoot();
+		void askToAcknowledge(asRoot(a), [{ code: 'diligence_required' }]);
+		doc.activeElement = null;
+		setAckBusy(asRoot(a), true);
+		setAckBusy(asRoot(a), false);
+		closeAck(asRoot(a));
+		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+
+		const b = promptRoot();
+		void askToAcknowledge(asRoot(b), [{ code: 'diligence_required' }]);
+		choice(b, 'diligence_required').focus();
+		setAckBusy(asRoot(b), true);
+		const search = h('input');
+		search.focus();
+		closeAck(asRoot(b));
+		expect(doc.activeElement).toBe(search);
+		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+	});
+
+	it('a new prompt forgets that an earlier one held focus', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [{ code: 'diligence_required' }]);
+		choice(root, 'diligence_required').focus();
+		setAckBusy(asRoot(root), true);
+		void askToAcknowledge(asRoot(root), [DUP]);
+		doc.activeElement = null;
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBeNull();
+	});
+
+	it('no data-ack-return, or no such element: the prompt still closes and nothing throws', () => {
+		for (const ret of [null, 'missing']) {
+			const root = promptRoot(ret);
+			void askToAcknowledge(asRoot(root), [DUP]);
+			expect(() => closeAck(asRoot(root))).not.toThrow();
+			expect(root.hidden).toBe(true);
+			expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+		}
 	});
 });

@@ -17,6 +17,8 @@ import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
 <!doctype html>
@@ -24,7 +26,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Receivables registry — Almstins Verify</title>
+  <title>Receivables registry · Almstins Verify</title>
   <meta name="description" content="Check whether a receivable is already financed before you lend against it. Paste a receivable ID to see its financing status and every claim standing against it." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
@@ -194,6 +196,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="q-btn" type="button">Query the registry</button>
       <WithdrawnNote variant="registry" />
+      <DuplicateFlag variant="registry" name="record" />
       <div class="out" id="q-out"></div>
     </section>
 
@@ -212,25 +215,26 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     </section>
 
     <!-- 2. CREATE (authed) -->
-    <section class="card">
+    <section class="card" data-rcv-root="create-form">
       <h2><span class="badge-num">2</span> Create a receivable</h2>
       <p class="sub">Mints the receivable ID you share with financiers. Requires sign-in.</p>
       <div class="grid2">
-        <div class="field"><label for="c-supplier">Supplier</label><input id="c-supplier" type="text" placeholder="Lagos Foods Ltd" /></div>
-        <div class="field"><label for="c-buyer">Buyer (obligor)</label><input id="c-buyer" type="text" placeholder="MegaRetail Nigeria PLC" /></div>
+        <div class="field"><label for="c-supplier">Supplier</label><input id="c-supplier" type="text" data-rcv-field="supplier" placeholder="Lagos Foods Ltd" /></div>
+        <div class="field"><label for="c-buyer">Buyer (obligor)</label><input id="c-buyer" type="text" data-rcv-field="buyer" placeholder="MegaRetail Nigeria PLC" /></div>
       </div>
       <div class="grid3">
-        <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" placeholder="INV-4471" /></div>
-        <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
+        <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" data-rcv-field="invoiceNo" placeholder="INV-4471" /></div>
+        <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" data-rcv-field="face" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
         <div class="field"><label for="c-currency">Currency</label>
-          <select id="c-currency">
+          <select id="c-currency" data-rcv-field="currency">
             <option value="NGN">NGN</option><option value="USD">USD</option>
             <option value="EUR">EUR</option><option value="GBP">GBP</option>
             <option value="__other">Other…</option>
           </select>
-          <input id="c-currency-other" type="text" placeholder="Currency code" maxlength="8" style="display:none;margin-top:.4rem" />
+          <input id="c-currency-other" type="text" data-rcv-field="currency-other" placeholder="Currency code" maxlength="8" style="display:none;margin-top:.4rem" />
         </div>
       </div>
+      <BuyerRefField variant="registry" id="c-buyerref" />
       <div class="grid3">
         <div class="field"><label for="c-terms">Terms</label>
           <select id="c-terms">
@@ -258,6 +262,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </select>
         </div>
       </div>
+      <DuplicateFlag variant="registry" name="create" />
       <button class="btn btn-primary btn-full" id="c-btn" type="button">Create &amp; sign</button>
       <div class="out" id="c-out"></div>
     </section>
@@ -274,7 +279,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="k-btn" type="button">Sign, register &amp; timestamp</button>
       <div class="out" id="k-out"></div>
-      <AckPrompt variant="registry" name="claim" />
+      <AckPrompt variant="registry" name="claim" returnFocus="k-btn" />
     </section>
 
     <!-- 4. ATTEST (authed) — Stage 2 -->
@@ -355,7 +360,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { submitClaim, type ClaimInput, type NoteTone } from '@/components/receivables/claimFlow.client';
     import { CLAIM_COPY_REGISTRY, CLAIM_NEED_FIELDS } from '@/lib/receivables/copy/claim';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
-    import { statusPillHtml, recordPill } from '@/components/receivables/StatusPill/statusPill';
+    import { statusPillHtml, recordPill, duplicatePill } from '@/components/receivables/StatusPill/statusPill';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { WITHDRAW_BUTTON_TITLE, WITHDRAW_CONFIRM } from '@/lib/receivables/copy/withdrawn';
@@ -572,7 +577,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="status-head">
           <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
           <span class="status-head-right">
-            ${statusPillHtml(recordPill(rcv))}
+            ${statusPillHtml(recordPill(rcv))}${statusPillHtml(duplicatePill(rcv))}
             <button class="btn btn-xs" data-refresh="1" type="button" title="Re-check this receivable">⟳ Refresh</button>
             <button class="btn btn-xs btn-verify" data-verifynow="1" type="button" title="Re-run the load-bearing checks now and record a dated verification">✔ Verify now</button>
           </span>
@@ -711,10 +716,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const j = await authedPost('/api/verify/receivables', {
         supplier, buyer, invoiceNo, face, currency,
         terms: pick('c-terms', 'c-terms-other') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
-        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null,
+        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null, details: { buyerRef: val('c-buyerref') || null },
       }, out);
       btn.disabled = false;
       if (!j) return;
+      hostBridge.emitCreateResult(j);
       if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not create the receivable.')}</div>`); return; }
       show(out, `
         <div class="note note-gain"><b>Receivable created${j.signed ? ' and signed' : ' (unsigned — signing key not configured)'}.</b> Share this ID with the financiers who need to check status:</div>
@@ -794,8 +800,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
         const rows = j.receivables.map((rc: any) => `
           <div class="mine-row" data-mid="${esc(rc.id)}">
-            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.mine === false ? ' <span class="role" title="You hold a claim against this receivable, but did not create it">claimed only</span>' : ''}</div>
-            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.mine === false ? '' : `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="${esc(WITHDRAW_BUTTON_TITLE)}" aria-label="${esc(WITHDRAW_BUTTON_TITLE)}">✕</button>`}</div>
+            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.relation === 'claimant' ? ' ' + statusPillHtml({ kind: 'tag', tag: 'claimed_only' }) : ''}</div>
+            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.relation === 'owner' ? `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="${esc(WITHDRAW_BUTTON_TITLE)}" aria-label="${esc(WITHDRAW_BUTTON_TITLE)}">✕</button>` : ''}</div>
           </div>`).join('');
         $('mine-list').innerHTML = rows;
         $('mine-card').style.display = '';

@@ -34,7 +34,7 @@ const STUBS = [
   ['Signing is the platform key, not each party.', 'A confirmation proves "someone holding this link asserted it", not "the debtor asserted it". Party-level keys are not built.'],
   ['Any signed-in account can look up any receivable by ID.', 'The ID is unguessable and never enumerable, but there is no authorized-financier list.'],
   ['An unconfirmed claim still consumes headroom.', 'So a lender could register an advance he never made and block others until someone notices. The desk now shows "not confirmed" — but the number does not move.'],
-  ['Nothing detects two records describing the same invoice.', 'Change any field and you get a fresh record with fresh headroom. The debtor’s reference field now exists to fix this; nothing keys off it yet.'],
+  ['The duplicate check only sees records at Almstins, at the same amount.', 'It compares the same debtor with the debtor’s reference, or with the client and invoice number, at the same amount and currency, and warns while the invoice is entered and again before a claim. A different amount or currency, or a debtor named differently, does not match. A client named differently, or a different invoice number, matches only through the same debtor reference. Records kept outside Almstins are not compared. It warns; the lender decides.'],
   ['The terms of the advance are not recorded.', 'The claim captures an amount, not the rate, fee, or what it costs the client.'],
   ['The registry only sees claims registered in it.', 'A prior undisclosed assignment, or a floating charge over all receivables, is invisible.'],
 ];
@@ -57,7 +57,7 @@ const QUESTIONS = [
   ['Do you issue a written offer the client signs?', 'Or is the advance agreed in person and recorded after? This decides whether the desk needs an offer step, and where the interest and fees live. Right now the record holds an amount and nothing about what it costs your client.'],
   ['Do you take a director’s guarantee?', 'If a guarantee is what makes deals fundable, it belongs in the core evidence set, not as a bolt-on.'],
   ['Are your promissory notes witnessed as a matter of course?', 'If they already are, recording the witness is capturing a field you have, not a new feature.'],
-  ['Will debtors give you their own PO or contract number?', 'The desk now captures it. It is the only identifier your client does not control, so it is the only thing we could ever key duplicate detection off. Is it realistic to expect it on every deal?'],
+  ['Will debtors give you their own PO or contract number?', 'The desk now asks for it up front, and the duplicate check compares on it. It is the only identifier your client does not control, so it is the strongest match we have. Is it realistic to expect it on every deal?'],
   ['How long must you keep the paperwork?', 'We delete the contract within a day of the last person answering, and keep only its fingerprint. If your obligations require you to hold it longer, say so — that is our design, not a law.'],
   ['How do you protect against a prior undisclosed assignment today?', ''],
   ['How do you handle an adverse or disputed claim today?', ''],
@@ -71,7 +71,7 @@ const QUESTIONS = [
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Receivables pilot run sheet — Almstins Verify</title>
+  <title>Receivables pilot run sheet · Almstins Verify</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>

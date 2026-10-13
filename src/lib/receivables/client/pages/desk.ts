@@ -4,7 +4,7 @@
  *
  * New desk behavior lives here, never in the host's inline script. Each widget is mounted once
  * on its data-rcv-root element (never a global ID) and follows the inline script through
- * hostBridge (onRecordLoaded, onBookLoaded).
+ * hostBridge (onRecordLoaded, onBookLoaded, onCreateResult).
  *
  * The claim prompt (AckPrompt) belongs to the record that raised it. When the desk opens a
  * different record, or a lookup finds nothing, the open prompt closes, so a "Record it anyway"
@@ -14,12 +14,24 @@
  * and "Your book" adds a "withdrawn" tag to a withdrawn row's State cell, beside its open or
  * settled. The inline renderBook redraws the table on every search and filter without announcing
  * it, so the marks are put back after each redraw.
+ *
+ * Possible duplicates (S4):
+ *   - the New client card checks its fields while they are typed (duplicatePrecheck) and shows
+ *     the answer in the DuplicateFlag above the record step, then the create's own answer once the
+ *     deal is recorded. While the recorded intake is locked, nothing is checked (the mode radios
+ *     sit outside it and still change). "Start another deal" unlocks the intake (data-locked goes
+ *     away; its fields are emptied without input events), which clears the flag and starts over;
+ *   - an opened record shows the flag under the decision banner when another record matches it;
+ *   - "Your book" adds a "possible duplicate" tag to a matching row's State cell.
  */
-import { onBookLoaded, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
+import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { closeAck } from '@/components/receivables/AckPrompt/ackPrompt.client';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
-import { markDeskBook } from '@/lib/receivables/client/withdrawnRows';
+import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
+import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
+import { markDeskBook, markDeskBookDuplicates } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
+import { bookDuplicateIds } from '@/lib/receivables/duplicateView';
 
 const claimPrompt = document.querySelector<HTMLElement>('[data-rcv-root="ack-claim"]');
 let shownId: string | null | undefined;
@@ -38,10 +50,40 @@ if (withdrawnRecord) {
 	onRecordLoaded((rcv) => note.update(rcv));
 }
 
+const form = document.querySelector<HTMLElement>('[data-rcv-root="create-form"]');
+const createFlagRoot = document.querySelector<HTMLElement>('[data-rcv-root="dup-create"]');
+if (form && createFlagRoot) {
+	const flag = mountDuplicateFlag(createFlagRoot, { variant: 'desk' });
+	const lock = form.querySelector<HTMLElement>('[data-rcv-lock]');
+	const precheck = wirePrecheck({
+		root: form, read: () => readPrecheckFields(form), onResult: (a) => flag.update(a, 'precheck'),
+		paused: () => !!lock?.dataset.locked,
+	});
+	onCreateResult((answer) => {
+		if (!answer || !('duplicateCheck' in answer)) return;
+		precheck.suspend();
+		flag.update(answer, 'created');
+	});
+	if (lock) {
+		new MutationObserver(() => {
+			if (lock.dataset.locked) return;
+			precheck.reset();
+			flag.clear();
+		}).observe(lock, { attributes: true, attributeFilter: ['data-locked'] });
+	}
+}
+
+const recordFlagRoot = document.querySelector<HTMLElement>('[data-rcv-root="dup-record"]');
+if (recordFlagRoot) {
+	const flag = mountDuplicateFlag(recordFlagRoot, { variant: 'desk' });
+	onRecordLoaded((rcv) => flag.update(rcv, 'record'));
+}
+
 const book = document.querySelector<HTMLElement>('[data-rcv-root="book"]');
 if (book) {
 	let withdrawn: ReadonlySet<string> = new Set();
-	const mark = () => markDeskBook(book, withdrawn);
-	onBookLoaded((rows) => { withdrawn = bookWithdrawnIds(rows); mark(); });
+	let duplicates: ReadonlySet<string> = new Set();
+	const mark = () => { markDeskBook(book, withdrawn); markDeskBookDuplicates(book, duplicates); };
+	onBookLoaded((rows) => { withdrawn = bookWithdrawnIds(rows); duplicates = bookDuplicateIds(rows); mark(); });
 	new MutationObserver(mark).observe(book, { childList: true });
 }

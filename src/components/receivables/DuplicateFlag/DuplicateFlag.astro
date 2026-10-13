@@ -1,0 +1,23 @@
+---
+// DuplicateFlag: the possible-duplicate warning (S4). Markup only: duplicateFlag.client.ts fills it
+// from a duplicate-check answer and shows it. `name` picks where it serves: "create" above a create
+// form's submit button (the live warning while the invoice is entered, then the create's own
+// answer), "record" beside an opened record. `variant` keeps each page's note metrics.
+//
+// The root is the live region and is never hidden, so a screen reader announces the panel when it
+// appears inside it. The warning never holds up the form: it sits beside the button, not over it.
+import './DuplicateFlag.css';
+
+interface Props { variant: 'desk' | 'registry' | 'client'; name: 'create' | 'record' }
+const { variant, name } = Astro.props;
+---
+<div class={`dupf dupf--${variant} dupf--${name}`} data-rcv-root={`dup-${name}`} aria-live="polite">
+	<div class="dupf__panel" data-dupf-panel hidden>
+		<p class="dupf__head" data-dupf-pill></p>
+		<div class="dupf__body" data-dupf-body></div>
+		<div class="dupf__own" data-dupf-own hidden>
+			<p class="dupf__own-lead" data-dupf-own-lead></p>
+			<ul class="dupf__own-list" data-dupf-own-list></ul>
+		</div>
+	</div>
+</div>

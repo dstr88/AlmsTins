@@ -139,8 +139,9 @@ export interface ReceivableInput {
  *
  * `buyerRef` is the one to watch. It is the debtor's OWN reference for the obligation —
  * their PO or contract number — and it is the only candidate for a canonical key, because
- * it is the only identifier here that the supplier does not control. Nothing keys off it
- * yet; capturing it is the prerequisite for ever closing the near-duplicate hole.
+ * it is the only identifier here that the supplier does not control. Since S3 the duplicate
+ * check's strong key is built from it (src/lib/receivables/fingerprintNormalize.ts), and since
+ * S4 all three create forms ask for it (BuyerRefField).
  */
 export interface ReceivableDetails {
   invoiceDate?: string | null;

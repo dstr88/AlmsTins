@@ -1,0 +1,27 @@
+/* DuplicateFlag — presentation only.
+   Markup lives in DuplicateFlag.astro, behavior in duplicateFlag.client.ts. Nothing here encodes
+   logic: the client fills the text, toggles [hidden] and sets the tone class. The root and the
+   panel set no display, so [hidden] hides the panel while the root (the live region) stays.
+   Selectors are doubled-class, so the desk's bare button, td and p rules never reach inside. */
+@import '../ui/tones.css';
+
+.dupf .dupf__panel { border-radius: 10px; padding: .7rem .85rem; line-height: 1.55; color: var(--text-secondary); overflow-wrap: anywhere; }
+.dupf .dupf__panel.dupf__panel--caution { background: var(--rcv-caution-bg); border: 1px solid var(--rcv-caution-border); }
+.dupf .dupf__panel.dupf__panel--muted { background: var(--surface-hover); border: 1px solid var(--border-bright); }
+
+/* Per page, the metrics of that page's .note (desk L125, registry L76, client portal L132).
+   The registry's create flag sits above its button rather than under one. */
+.dupf.dupf--desk .dupf__panel { font-size: .86rem; margin-top: .9rem; }
+.dupf.dupf--registry .dupf__panel { font-size: .82rem; border-radius: 9px; margin-top: .9rem; }
+.dupf.dupf--registry.dupf--create .dupf__panel { margin: 0 0 .9rem; }
+.dupf.dupf--client .dupf__panel { font-size: .86rem; margin-top: .85rem; }
+
+.dupf .dupf__head { margin: 0 0 .1rem; }
+/* The head holds the tag pill; a muted note hides it ([hidden], so no display here). */
+.dupf .dupf__body .dupf__line { margin: .3rem 0 0; }
+.dupf .dupf__panel--muted .dupf__line:first-child { margin-top: 0; }
+.dupf .dupf__own { margin-top: .55rem; }
+.dupf .dupf__own .dupf__own-lead { margin: 0; color: var(--text-primary); }
+.dupf .dupf__own .dupf__own-list { list-style: none; margin: .25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.dupf .dupf__own .dupf__own-link { color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
+.dupf .dupf__own .dupf__own-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }

@@ -14,6 +14,12 @@ export interface Props {
   canonical?: string;
   /** Favicon URL. Defaults to the site-wide /favicon.webp; pass a per-page override (e.g. /verify). */
   favicon?: string;
+  /** Link-preview image (og:image, twitter:image), an absolute URL to a 1200x630 image. Defaults to
+   *  the site-wide /og-default.png. A page that passes its own also gets the image's size and alt
+   *  tags; every other page renders exactly as before. */
+  image?: string;
+  /** Alt text for a page's own preview image. */
+  imageAlt?: string;
 }
 
 const {
@@ -23,7 +29,10 @@ const {
   lang = 'en',
   canonical,
   favicon = '/favicon.webp',
+  image,
+  imageAlt,
 } = Astro.props;
+const ogImage = image ?? 'https://almstins.com/og-default.png';
 const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 ---
 
@@ -39,11 +48,15 @@ const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 		<meta property="og:description" content={description} />
 		<meta property="og:type" content="website" />
 		<meta property="og:url" content={`https://almstins.com${Astro.url.pathname}`} />
-		<meta property="og:image" content="https://almstins.com/og-default.png" />
+		<meta property="og:image" content={ogImage} />
+		{image && <meta property="og:image:width" content="1200" />}
+		{image && <meta property="og:image:height" content="630" />}
+		{image && imageAlt && <meta property="og:image:alt" content={imageAlt} />}
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content={title} />
 		<meta name="twitter:description" content={description} />
-		<meta name="twitter:image" content="https://almstins.com/og-default.png" />
+		<meta name="twitter:image" content={ogImage} />
+		{image && imageAlt && <meta name="twitter:image:alt" content={imageAlt} />}
 		<meta name="author" content="AlmsTins" />
 		<meta property="article:author" content="https://www.linkedin.com/company/almstins/" />
 		<link rel="canonical" href={canonicalHref} />

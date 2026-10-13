@@ -14,6 +14,7 @@ import {
 import { askToAcknowledge, ackInputs, closeAck, setAckBusy, type AckWarning } from '../../src/components/receivables/AckPrompt/ackPrompt.client';
 import { anchorAfterWrite } from '../../src/lib/receivables/client/anchorAfterWrite';
 import { CLAIM_COPY_DESK, CLAIM_COPY_REGISTRY } from '../../src/lib/receivables/copy/claim';
+import * as dupCopy from '../../src/lib/receivables/copy/duplicate';
 import { ANCHOR_AFTER_WRITE } from '../../src/lib/receivables/copy/anchor';
 
 /**
@@ -48,16 +49,20 @@ function describeNode(n: Node): string {
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 let log: string[];
-let asks: { warnings: readonly AckWarning[]; answer: (codes: string[] | null) => void }[];
+let asks: { warnings: readonly AckWarning[]; answer: (codes: string[] | null) => void; dismiss: () => void }[];
 
 beforeEach(() => {
 	log = [];
 	asks = [];
 	vi.stubGlobal('document', fakeDocument);
-	vi.mocked(askToAcknowledge).mockReset().mockImplementation((root, warnings) => {
+	vi.mocked(askToAcknowledge).mockReset().mockImplementation((root, warnings, opts) => {
 		expect(root).toBe(ROOT);
 		log.push(`ask:${warnings.map((w) => w.code).join(',')}`);
-		return new Promise((resolve) => { asks.push({ warnings, answer: resolve }); });
+		return new Promise((resolve) => {
+			// "Not now", as AckPrompt does it: close (answering null), then onDismiss.
+			const dismiss = () => { log.push('closeAck'); resolve(null); opts?.onDismiss?.(); };
+			asks.push({ warnings, answer: resolve, dismiss });
+		});
 	});
 	vi.mocked(closeAck).mockReset().mockImplementation((root) => { expect(root).toBe(ROOT); log.push('closeAck'); });
 	vi.mocked(setAckBusy).mockReset().mockImplementation((_root, busy) => { log.push(`ackBusy:${busy}`); });
@@ -137,7 +142,7 @@ describe('validation', () => {
 });
 
 describe('the claim post', () => {
-	it('desk: the sending note first, then the post with the old body key order', async () => {
+	it('desk: the sending note first, then the post with the old body key order plus acceptsWarnings (S4)', async () => {
 		const { post, calls } = poster(OK());
 		const { host, notes } = makeHost();
 		await submitClaim(options('desk', post, host));
@@ -145,8 +150,9 @@ describe('the claim post', () => {
 		expect(log.slice(0, 5)).toEqual(['closeAck', 'note:info', 'busy:true', 'post:claim', 'busy:false']);
 		expect(calls).toHaveLength(1);
 		expect(calls[0].url).toBe(CLAIM_URL);
-		expect(Object.keys(calls[0].body)).toEqual(['receivableId', 'financier', 'amount', 'date', 'force']);
-		expect(calls[0].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 500, date: '2026-10-11', force: false });
+		// No acknowledge key until the person acknowledged something.
+		expect(Object.keys(calls[0].body)).toEqual(['receivableId', 'financier', 'amount', 'date', 'force', 'acceptsWarnings']);
+		expect(calls[0].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 500, date: '2026-10-11', force: false, acceptsWarnings: true });
 	});
 
 	it('registry: no sending note', async () => {
@@ -160,7 +166,7 @@ describe('the claim post', () => {
 	it('passes force through, and keeps an empty date as undefined (JSON drops it, as before)', async () => {
 		const { post, calls } = poster(OK());
 		const { host } = makeHost({}, { date: undefined });
-		await submitClaim(options('registry', post, host), true);
+		await submitClaim(options('registry', post, host), { force: true });
 		expect(calls[0].body.force).toBe(true);
 		expect('date' in calls[0].body).toBe(true);
 		expect(calls[0].body.date).toBeUndefined();
@@ -266,7 +272,7 @@ describe('duplicate-financing warning (exceeds_headroom)', () => {
 		asks[0].answer(['exceeds_headroom']);
 		await flush();
 		expect(calls).toHaveLength(2);
-		expect(calls[1].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 500, date: '2026-10-11', force: true });
+		expect(calls[1].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 500, date: '2026-10-11', force: true, acceptsWarnings: true });
 		expect(host.setAmount).not.toHaveBeenCalled();
 		expect(host.afterSaved).toHaveBeenCalledTimes(1);
 	});
@@ -274,12 +280,12 @@ describe('duplicate-financing warning (exceeds_headroom)', () => {
 	it('"Register only the available" writes the amount, then resubmits without force', async () => {
 		const { post, calls } = poster(OVER, OK());
 		const { host } = makeHost();
-		await submitClaim(options('registry', post, host), false);
+		await submitClaim(options('registry', post, host), { force: false });
 		asks[0].answer([]);
 		await flush();
 		expect(log).toContain('setAmount:200');
 		expect(log.indexOf('setAmount:200')).toBeLessThan(log.lastIndexOf('post:claim'));
-		expect(calls[1].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 200, date: '2026-10-11', force: false });
+		expect(calls[1].body).toEqual({ receivableId: RID, financier: 'Sahel Capital', amount: 200, date: '2026-10-11', force: false, acceptsWarnings: true });
 	});
 
 	it('a closed or replaced prompt posts nothing more', async () => {
@@ -318,7 +324,7 @@ describe('diligence prompt (diligence_required)', () => {
 		const { post, calls } = poster(DILIGENCE, ACCEPTED, OK());
 		const diligenceReceivableId = vi.fn(() => OTHER_RID);
 		const { host } = makeHost({ diligenceReceivableId });
-		await submitClaim(options('desk', post, host), true);
+		await submitClaim(options('desk', post, host), { force: true });
 		asks[0].answer(['diligence_required']);
 		await flush();
 		expect(calls.map((c) => c.url)).toEqual([CLAIM_URL, DILIGENCE_URL, CLAIM_URL]);
@@ -576,5 +582,178 @@ describe('a withdrawn receivable (S2)', () => {
 		release();
 		await run;
 		expect(done).toBe(true);
+	});
+});
+
+// S4: every claim declares acceptsWarnings, so a match with another record at Almstins answers 409
+// possible_duplicate. The prompt shows only what the answer carries, "Record my claim anyway"
+// resubmits acknowledging it, and the acknowledgment rides along with what was answered before.
+describe('possible duplicate (S4)', () => {
+	const FULL = { state: 'possible_duplicate', basis: 'invoice_number', encumbered: true, anySettled: false, hasDebtorReference: true };
+	const DUP = (duplicateCheck: Record<string, unknown> = FULL): ClaimPostResult => ({
+		status: 409,
+		body: { ok: false, error: 'possible_duplicate', message: 'server text', warnings: ['possible_duplicate'], duplicateCheck },
+	});
+	const signedLine = dupCopy.CLAIM_DUPLICATE_SIGNED;
+
+	it('hides the note and asks with the verified answer\'s lines, without refreshing the page', async () => {
+		const { post } = poster(DUP());
+		const { host } = makeHost();
+		await submitClaim(options('desk', post, host));
+		expect(asks).toHaveLength(1);
+		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_FINANCED, signedLine] }]);
+		expect(log.slice(-2)).toEqual(['clear', 'ask:possible_duplicate']);
+		expect(host.afterNotOk).not.toHaveBeenCalled();
+		expect(host.afterSaved).not.toHaveBeenCalled();
+	});
+
+	it('an answer that is the state alone gets the plain match line, never the financed detail', async () => {
+		const { post } = poster(DUP({ state: 'possible_duplicate' }));
+		const { host } = makeHost();
+		await submitClaim(options('registry', post, host));
+		const [w] = asks[0].warnings as Array<{ lines: string[] }>;
+		expect(w.lines).toEqual([dupCopy.DUPLICATE_DETAIL_ANY_MATCH, signedLine]);
+		expect(w.lines.join(' ')).not.toMatch(/financ|installment|reference/i);
+	});
+
+	it('a missing or malformed duplicateCheck still asks, with the plain line', async () => {
+		const { post } = poster({ status: 409, body: { ok: false, error: 'possible_duplicate' } });
+		const { host } = makeHost();
+		await submitClaim(options('desk', post, host));
+		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_ANY_MATCH, signedLine] }]);
+	});
+
+	it('"Record my claim anyway" resubmits acknowledging it; the note says it is signed if the match still stood', async () => {
+		const { post, calls } = poster(DUP(), OK());
+		const { host, notes } = makeHost();
+		await submitClaim(options('desk', post, host));
+		asks[0].answer(['possible_duplicate']);
+		await flush();
+		await flush();
+		expect(calls).toHaveLength(2);
+		expect(Object.keys(calls[1].body)).toEqual(['receivableId', 'financier', 'amount', 'date', 'force', 'acceptsWarnings', 'acknowledge']);
+		expect(calls[1].body).toEqual({
+			receivableId: RID, financier: 'Sahel Capital', amount: 500, date: '2026-10-11', force: false, acceptsWarnings: true, acknowledge: ['possible_duplicate'],
+		});
+		expect(notes.at(-1)?.tone).toBe('gain');
+		expect(notes.at(-1)?.parts).toContain(' ' + dupCopy.CLAIM_NOTICE_ACKNOWLEDGED);
+		expect(host.afterSaved).toHaveBeenCalledTimes(1);
+	});
+
+	// Review finding (S4): the server signs possible_duplicate only when it was raised on the
+	// resubmit too, and its 200 does not say which codes it signed. The note must never claim a
+	// signature the manifest may not hold.
+	it('the acknowledgment line is conditional: the 200 does not say what was signed', () => {
+		expect(dupCopy.CLAIM_NOTICE_ACKNOWLEDGED).toBe('You acknowledged the possible duplicate. If the match was still there when your claim was recorded, your acknowledgment is signed into the claim.');
+		expect(dupCopy.CLAIM_NOTICE_ACKNOWLEDGED).not.toMatch(/is signed into this claim\.$/);
+	});
+
+	it('acknowledged, then the resubmit\'s check could not run: only the unavailable line, nothing about a signature', async () => {
+		const { post, calls } = poster(DUP(), OK({ notices: ['duplicate_check_unavailable'] }));
+		const { host, notes } = makeHost();
+		await submitClaim(options('registry', post, host));
+		asks[0].answer(['possible_duplicate']);
+		await flush();
+		await flush();
+		expect(calls[1].body).toMatchObject({ acknowledge: ['possible_duplicate'] });
+		expect(notes.at(-1)).toEqual({
+			tone: 'gain',
+			parts: ["b:Sahel Capital's claim registered and signed.", ' Now A700 claimed · A300 unencumbered.', ' ' + dupCopy.CLAIM_NOTICE_UNAVAILABLE, 'br', 'span#k-anchor-status:⏳ Timestamping to Bitcoin…'],
+		});
+		expect(notes.at(-1)?.parts.join('')).not.toMatch(/acknowledg/i);
+	});
+
+	it('"Not now": nothing more is posted, and the note says nothing was recorded', async () => {
+		for (const page of ['desk', 'registry'] as const) {
+			asks = [];
+			const { post } = poster(DUP());
+			const { host, notes } = makeHost();
+			await submitClaim(options(page, post, host));
+			asks[0].dismiss();
+			await flush();
+			expect(post).toHaveBeenCalledTimes(1);
+			expect(notes.at(-1)).toEqual({ tone: 'info', parts: [dupCopy.CLAIM_DUPLICATE_NOT_RECORDED] });
+			expect(dupCopy.CLAIM_DUPLICATE_NOT_RECORDED).toBe('Nothing was recorded.');
+			expect(log.slice(-2)).toEqual(['closeAck', 'note:info']);
+			expect(host.afterNotOk).not.toHaveBeenCalled();
+			expect(host.afterSaved).not.toHaveBeenCalled();
+		}
+	});
+
+	it('a prompt closed or replaced by the page posts nothing more and leaves no note', async () => {
+		const { post } = poster(DUP());
+		const { host, notes } = makeHost();
+		await submitClaim(options('registry', post, host));
+		asks[0].answer(null);
+		await flush();
+		expect(post).toHaveBeenCalledTimes(1);
+		expect(notes).toEqual([]);
+		expect(host.afterNotOk).not.toHaveBeenCalled();
+	});
+
+	it('an answer after the record changed closes the prompt and posts nothing', async () => {
+		const { post, calls } = poster(DUP());
+		const { host, state } = makeHost();
+		await submitClaim(options('desk', post, host));
+		state.receivableId = OTHER_RID;
+		asks[0].answer(['possible_duplicate']);
+		await flush();
+		expect(calls).toHaveLength(1);
+		expect(log.at(-1)).toBe('closeAck');
+	});
+
+	it('asked again after acknowledging: a plain note, no second prompt, then the refresh', async () => {
+		const { post } = poster(DUP(), DUP());
+		const { host, notes } = makeHost();
+		await submitClaim(options('desk', post, host));
+		asks[0].answer(['possible_duplicate']);
+		await flush();
+		await flush();
+		expect(asks).toHaveLength(1);
+		expect(notes.at(-1)).toEqual({ tone: 'loss', parts: [dupCopy.CLAIM_DUPLICATE_STILL] });
+		expect(host.afterNotOk).toHaveBeenCalledTimes(1);
+	});
+
+	it('every answer is carried forward: diligence, then headroom (force), then the duplicate, then recorded', async () => {
+		const { post, calls } = poster(DILIGENCE, ACCEPTED, OVER, DUP(), OK());
+		const { host, notes } = makeHost();
+		await submitClaim(options('registry', post, host));
+		asks[0].answer(['diligence_required']);
+		await flush(); await flush();
+		expect(asks.map((a) => a.warnings[0].code)).toEqual(['diligence_required', 'exceeds_headroom']);
+		asks[1].answer(['exceeds_headroom']);
+		await flush(); await flush();
+		expect(asks.map((a) => a.warnings[0].code)).toEqual(['diligence_required', 'exceeds_headroom', 'possible_duplicate']);
+		asks[2].answer(['possible_duplicate']);
+		await flush(); await flush();
+		expect(calls.map((c) => c.url)).toEqual([CLAIM_URL, DILIGENCE_URL, CLAIM_URL, CLAIM_URL, CLAIM_URL]);
+		expect(calls[2].body).toMatchObject({ force: false, acceptsWarnings: true });
+		expect(calls[3].body).toMatchObject({ force: true, acceptsWarnings: true });
+		expect('acknowledge' in calls[3].body).toBe(false);
+		expect(calls[4].body).toMatchObject({ force: true, acceptsWarnings: true, acknowledge: ['possible_duplicate'] });
+		expect(notes.at(-1)?.tone).toBe('gain');
+	});
+
+	it('an acknowledgment survives a later headroom prompt in the same claim', async () => {
+		const { post, calls } = poster(DUP(), OVER, OK());
+		const { host } = makeHost();
+		await submitClaim(options('desk', post, host));
+		asks[0].answer(['possible_duplicate']);
+		await flush(); await flush();
+		asks[1].answer(['exceeds_headroom']);
+		await flush(); await flush();
+		expect(calls[2].body).toMatchObject({ force: true, acknowledge: ['possible_duplicate'] });
+	});
+
+	it('notices on a 200: the check could not run, or a match was noticed without a prompt', async () => {
+		const { post } = poster(OK({ notices: ['duplicate_check_unavailable'] }), OK({ notices: ['possible_duplicate'] }), OK({ notices: 'junk' }));
+		const { host, notes } = makeHost();
+		await submitClaim(options('desk', post, host));
+		await submitClaim(options('desk', post, host));
+		await submitClaim(options('desk', post, host));
+		const gains = notes.filter((n) => n.tone === 'gain').map((n) => n.parts);
+		expect(gains[0]).toEqual(['b:Claim registered and signed.', ' Now A700 claimed, A300 unencumbered.', ' ' + dupCopy.CLAIM_NOTICE_UNAVAILABLE, 'br', 'span#k-anchor:⏳ Timestamping to Bitcoin…']);
+		expect(gains[1]).toContain(' ' + dupCopy.CLAIM_NOTICE_POSSIBLE_DUPLICATE);
+		expect(gains[2]).toEqual(['b:Claim registered and signed.', ' Now A700 claimed, A300 unencumbered.', 'br', 'span#k-anchor:⏳ Timestamping to Bitcoin…']);
 	});
 });

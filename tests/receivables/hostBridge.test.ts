@@ -99,6 +99,48 @@ describe('book channel', () => {
 	});
 });
 
+describe('create channel (S4)', () => {
+	it('subscribe-then-emit and emit-then-subscribe deliver the same answer, the last one replayed once', () => {
+		const a = { ok: true, duplicateCheck: { state: 'no_match' } };
+		const b = { ok: false, error: 'id_collision', duplicateCheck: { state: 'possible_duplicate' } };
+		const early = vi.fn();
+		bridge.onCreateResult(early);
+		bridge.emitCreateResult(a);
+		bridge.emitCreateResult(b);
+		expect(early.mock.calls.map((c) => c[0])).toEqual([a, b]);
+		expect(early.mock.calls[1][0]).toBe(b);
+
+		const late = vi.fn();
+		bridge.onCreateResult(late);
+		expect(late).toHaveBeenCalledTimes(1);
+		expect(late.mock.calls[0][0]).toBe(b);
+	});
+
+	it('nothing emitted yet: nothing replayed; unsubscribe stops delivery', () => {
+		const cb = vi.fn();
+		const off = bridge.onCreateResult(cb);
+		expect(cb).not.toHaveBeenCalled();
+		off();
+		bridge.emitCreateResult({ ok: true });
+		expect(cb).not.toHaveBeenCalled();
+	});
+
+	it('is independent of the record and book channels', () => {
+		const onRec = vi.fn();
+		const onBook = vi.fn();
+		const onCreate = vi.fn();
+		bridge.onRecordLoaded(onRec);
+		bridge.onBookLoaded(onBook);
+		bridge.onCreateResult(onCreate);
+		bridge.emitCreateResult({ ok: true });
+		expect(onRec).not.toHaveBeenCalled();
+		expect(onBook).not.toHaveBeenCalled();
+		bridge.emitRecordLoaded(rec('r'));
+		bridge.emitBookLoaded(rows('a'));
+		expect(onCreate).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe('channels and module copies', () => {
 	it('the record and book channels are independent', () => {
 		const onRec = vi.fn();
