@@ -360,7 +360,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { submitClaim, type ClaimInput, type NoteTone } from '@/components/receivables/claimFlow.client';
     import { CLAIM_COPY_REGISTRY, CLAIM_NEED_FIELDS } from '@/lib/receivables/copy/claim';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
-    import { statusPillHtml, recordPill } from '@/components/receivables/StatusPill/statusPill';
+    import { statusPillHtml, recordPill, duplicatePill } from '@/components/receivables/StatusPill/statusPill';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { WITHDRAW_BUTTON_TITLE, WITHDRAW_CONFIRM } from '@/lib/receivables/copy/withdrawn';
@@ -577,7 +577,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="status-head">
           <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
           <span class="status-head-right">
-            ${statusPillHtml(recordPill(rcv))}
+            ${statusPillHtml(recordPill(rcv))}${statusPillHtml(duplicatePill(rcv))}
             <button class="btn btn-xs" data-refresh="1" type="button" title="Re-check this receivable">⟳ Refresh</button>
             <button class="btn btn-xs btn-verify" data-verifynow="1" type="button" title="Re-run the load-bearing checks now and record a dated verification">✔ Verify now</button>
           </span>
@@ -800,8 +800,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
         const rows = j.receivables.map((rc: any) => `
           <div class="mine-row" data-mid="${esc(rc.id)}">
-            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.mine === false ? ' <span class="role" title="You hold a claim against this receivable, but did not create it">claimed only</span>' : ''}</div>
-            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.mine === false ? '' : `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="${esc(WITHDRAW_BUTTON_TITLE)}" aria-label="${esc(WITHDRAW_BUTTON_TITLE)}">✕</button>`}</div>
+            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}${rc.relation === 'claimant' ? ' ' + statusPillHtml({ kind: 'tag', tag: 'claimed_only' }) : ''}</div>
+            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span>${rc.relation === 'owner' ? `<button class="mine-del" data-del="${esc(rc.id)}" type="button" title="${esc(WITHDRAW_BUTTON_TITLE)}" aria-label="${esc(WITHDRAW_BUTTON_TITLE)}">✕</button>` : ''}</div>
           </div>`).join('');
         $('mine-list').innerHTML = rows;
         $('mine-card').style.display = '';

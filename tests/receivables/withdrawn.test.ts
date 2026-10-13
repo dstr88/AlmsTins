@@ -3,7 +3,9 @@ import {
 	bookWithdrawnIds, isWithdrawn, withdrawnDay, withdrawnNote, withdrawnWriteMessage,
 } from '../../src/lib/receivables/withdrawn';
 import { mountWithdrawnNote } from '../../src/components/receivables/WithdrawnNote/withdrawnNote.client';
-import { markDeskBook, markRegistryMine } from '../../src/lib/receivables/client/withdrawnRows';
+import {
+	markClientMineDuplicates, markDeskBook, markDeskBookDuplicates, markRegistryMine, markRegistryMineDuplicates,
+} from '../../src/lib/receivables/client/withdrawnRows';
 
 /**
  * S2 withdrawn view logic: the pure module (src/lib/receivables/withdrawn.ts), the WithdrawnNote
@@ -14,6 +16,17 @@ import { markDeskBook, markRegistryMine } from '../../src/lib/receivables/client
 const AT = '2026-10-12 09:30:00';
 const BODY = 'Everything already on file stays here, every claim and statement included. Almstins records nothing new against it, and a claim already on it can still be marked repaid.';
 const TAG = '<span class="rcv-pill rcv-pill--tag" title="Whoever recorded this receivable withdrew it. Your claim and the rest of its record stay on file.">withdrawn</span>';
+const DUP_TAG = '<span class="rcv-pill rcv-pill--tag" title="Another record at Almstins matches this invoice.">possible duplicate</span>';
+/** A cell that records appended nodes and answers a marker query from them, for any dataset key. */
+function fakeCell() {
+	const appended: unknown[] = [];
+	const has = (key: string) => appended.find((n: any) => n && n.dataset && key in n.dataset) ?? null;
+	return {
+		appended,
+		append: (...nodes: unknown[]) => { appended.push(...nodes); },
+		querySelector: (sel: string) => (sel === '[data-rcv-withdrawn]' ? has('rcvWithdrawn') : sel === '[data-rcv-dup]' ? has('rcvDup') : null),
+	};
+}
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -145,5 +158,47 @@ describe('markRegistryMine: a tag after the row title', () => {
 		markRegistryMine(root as unknown as ParentNode, new Set(['a']));
 		expect(a.main.appended).toEqual([' ', { dataset: { rcvWithdrawn: '' }, innerHTML: TAG }]);
 		expect(b.main.appended).toEqual([]);
+	});
+});
+
+describe('possible-duplicate marks (S4): one tag per row, beside any withdrawn tag, never twice', () => {
+	const stubDoc = () => vi.stubGlobal('document', { createElement: () => ({ dataset: {} as Record<string, string>, innerHTML: '' }) });
+
+	it('desk: the State cell gets both tags, each once, whatever order the passes run in', () => {
+		stubDoc();
+		const mk = (id: string) => { const cell = fakeCell(); return { cell, querySelector: (sel: string) => (sel === '[data-open]' ? { dataset: { open: id } } : null), lastElementChild: cell }; };
+		const a = mk('a'), b = mk('b');
+		const root = { querySelectorAll: (sel: string) => (sel === 'tr.book-row' ? [a, b] : []) };
+		for (let i = 0; i < 2; i++) {
+			markDeskBook(root as unknown as ParentNode, new Set(['a']));
+			markDeskBookDuplicates(root as unknown as ParentNode, new Set(['a', 'b']));
+		}
+		expect(a.cell.appended).toEqual([' ', { dataset: { rcvWithdrawn: '' }, innerHTML: TAG }, ' ', { dataset: { rcvDup: '' }, innerHTML: DUP_TAG }]);
+		expect(b.cell.appended).toEqual([' ', { dataset: { rcvDup: '' }, innerHTML: DUP_TAG }]);
+	});
+
+	it('registry: after the row title', () => {
+		stubDoc();
+		const main = fakeCell();
+		const row = { dataset: { mid: 'a' }, querySelector: (sel: string) => (sel === '.mine-main' ? main : null) };
+		const root = { querySelectorAll: (sel: string) => (sel === '[data-mid]' ? [row] : []) };
+		markRegistryMineDuplicates(root as unknown as ParentNode, new Set(['a']));
+		markRegistryMineDuplicates(root as unknown as ParentNode, new Set(['a']));
+		expect(main.appended).toEqual([' ', { dataset: { rcvDup: '' }, innerHTML: DUP_TAG }]);
+	});
+
+	it('client portal: after the row text, found through the Track button', () => {
+		stubDoc();
+		const text = fakeCell();
+		const other = fakeCell();
+		const btnA = { dataset: { track: 'a' }, previousElementSibling: text };
+		const btnB = { dataset: { track: 'b' }, previousElementSibling: other };
+		const root = { querySelectorAll: vi.fn((sel: string) => (sel === '[data-track]' ? [btnA, btnB] : [])) };
+		markClientMineDuplicates(root as unknown as ParentNode, new Set(['a']));
+		markClientMineDuplicates(root as unknown as ParentNode, new Set(['a']));
+		expect(text.appended).toEqual([' ', { dataset: { rcvDup: '' }, innerHTML: DUP_TAG }]);
+		expect(other.appended).toEqual([]);
+		markClientMineDuplicates(root as unknown as ParentNode, new Set());
+		expect(root.querySelectorAll).toHaveBeenCalledTimes(2);
 	});
 });

@@ -1971,7 +1971,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
           return `<tr class="book-row${v.updated ? ' book-row--new' : ''}">
             <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
-            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' ' + statusPillHtml({ kind: 'tag', tag: 'test' }) : ''}${v.mine === false ? ' ' + statusPillHtml({ kind: 'tag', tag: 'claimed_only' }) : ''}</td>
+            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' ' + statusPillHtml({ kind: 'tag', tag: 'test' }) : ''}${v.relation === 'claimant' ? ' ' + statusPillHtml({ kind: 'tag', tag: 'claimed_only' }) : ''}</td>
             <td>${esc(v.buyer)}</td>
             <td>${esc(v.invoiceNo)}</td>
             <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>

@@ -16,14 +16,17 @@
  *   - "Create a receivable" checks its fields while they are typed (duplicatePrecheck) and shows
  *     the answer in the DuplicateFlag above its button, then the create's own answer. A visitor who
  *     is not signed in gets one 401 and no further checks;
- *   - the check's answer shows the flag above it when another record matches.
+ *   - the check's answer shows the flag above it when another record matches, beside the
+ *     "possible duplicate" tag the status line adds next to the record pill;
+ *   - "Your receivables" tags a matching row.
  */
 import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
-import { markRegistryMine } from '@/lib/receivables/client/withdrawnRows';
+import { markRegistryMine, markRegistryMineDuplicates } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
+import { bookDuplicateIds } from '@/lib/receivables/duplicateView';
 
 const withdrawnRecord = document.querySelector<HTMLElement>('[data-rcv-root="withdrawn-record"]');
 if (withdrawnRecord) {
@@ -50,4 +53,9 @@ if (recordFlagRoot) {
 }
 
 const mine = document.querySelector<HTMLElement>('[data-rcv-root="mine"]');
-if (mine) onBookLoaded((rows) => markRegistryMine(mine, bookWithdrawnIds(rows)));
+if (mine) {
+	onBookLoaded((rows) => {
+		markRegistryMine(mine, bookWithdrawnIds(rows));
+		markRegistryMineDuplicates(mine, bookDuplicateIds(rows));
+	});
+}

@@ -14,12 +14,15 @@
  * Possible duplicates (S4): "Record a receivable" checks its fields while they are typed and shows
  * the answer above its button, then the create's own answer. The client records his own invoice,
  * so the wording (duplicateView, client variant) allows that the match may be his financier's own
- * record of it. "Where it stands" shows the flag when another record matches.
+ * record of it. "Where it stands" shows the flag when another record matches, and "Your
+ * receivables" tags a matching row.
  */
-import { onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
+import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
+import { markClientMineDuplicates } from '@/lib/receivables/client/withdrawnRows';
+import { bookDuplicateIds } from '@/lib/receivables/duplicateView';
 
 const withdrawnRecord = document.querySelector<HTMLElement>('[data-rcv-root="withdrawn-record"]');
 if (withdrawnRecord) {
@@ -44,3 +47,6 @@ if (recordFlagRoot) {
 	const flag = mountDuplicateFlag(recordFlagRoot, { variant: 'client' });
 	onRecordLoaded((rcv) => flag.update(rcv, 'record'));
 }
+
+const mine = document.querySelector<HTMLElement>('[data-rcv-root="mine"]');
+if (mine) onBookLoaded((rows) => markClientMineDuplicates(mine, bookDuplicateIds(rows)));
