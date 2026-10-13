@@ -713,7 +713,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										// 2. walletCreatedAt — when wallet was added to tracking (last resort)
 										// capturedAt (snapshot time) intentionally excluded — it updates on every
 										// sync so it always equals "today", producing a bogus 0d result.
-										// The 1-year (365d) threshold determines short-term vs long-term gains.
+										// Long-term once held more than one year, by calendar date (holdingPeriod.ts).
 										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
 										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
@@ -891,7 +891,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										// 2. walletCreatedAt — when wallet was added to tracking (last resort)
 										// capturedAt (snapshot time) intentionally excluded — it updates on every
 										// sync so it always equals "today", producing a bogus 0d result.
-										// The 1-year (365d) threshold determines short-term vs long-term gains.
+										// Long-term once held more than one year, by calendar date (holdingPeriod.ts).
 										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
 										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)

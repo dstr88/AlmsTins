@@ -75,13 +75,19 @@ describe('no day-count classification left in gain code', () => {
 		'src/components/ExchangeAccounts.astro',
 		'src/components/CryptoComAccounts.astro',
 		'src/components/dashboard/WalletSummary.tsx',
+		'src/pages/dashboard/yearEnd/lots.astro',
+		'src/pages/dashboard/yearEnd/memory-lane.astro',
+		'src/pages/api/yearEnd/breakdown-csv.ts',
+		'src/pages/api/year-summary/report.ts',
+		'src/pages/api/annual-records/report.ts',
 	])('%s', (p) => {
 		expect(read(p)).not.toMatch(/(daysHeld|days)\s*(>=|<|>|<=)\s*36[56]\b/);
 		expect(read(p)).not.toMatch(/36[56]\s*-\s*(lot\.)?daysHeld/);
 	});
 	it('the help text says one year, in every language', () => {
-		for (const p of ['src/i18n/dashboard/annual-records.ts', 'src/pages/year-summary.astro']) {
-			expect(read(p)).not.toMatch(/365 (days|días|jours)/);
+		for (const p of ['src/i18n/dashboard/annual-records.ts', 'src/pages/year-summary.astro', 'src/pages/api/year-summary/report.ts', 'src/pages/api/annual-records/report.ts', 'src/components/ExchangeAccounts.astro']) {
+			expect(read(p)).not.toMatch(/365\+? ?(days|días|jours)/);
+			expect(read(p)).not.toMatch(/Less than 1 year/);
 		}
 	});
 });

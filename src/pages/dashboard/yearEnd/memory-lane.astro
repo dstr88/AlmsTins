@@ -104,12 +104,12 @@ try {
 		const row = harvestMap.get(lot.asset)!;
 		row.totalQty  += lot.amount;
 		row.totalCost += lot.costUsd ?? 0;
-		if (lot.daysHeld >= 365) {
+		if (lot.longTerm) {
 			row.longTermQty += lot.amount;
 		} else {
 			row.shortTermQty += lot.amount;
-			const daysLeft = 365 - lot.daysHeld;
-			if (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT) row.soonestLotDaysToLT = daysLeft;
+			const daysLeft = lot.daysToLongTerm;
+			if (daysLeft !== null && (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT)) row.soonestLotDaysToLT = daysLeft;
 		}
 	}
 	try {

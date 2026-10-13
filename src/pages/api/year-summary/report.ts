@@ -269,7 +269,7 @@ function buildPdf(
     // ── PAGE 3+: Short-term disposals ─────────────────────────────────────────
     if (bd.shortTerm.length > 0) {
       newPage();
-      sectionTitle('Short-term disposals  (held < 365 days)');
+      sectionTitle('Short-term disposals  (held one year or less)');
 
       const cols = [
         { label: 'Asset',      width: 65  },
@@ -307,7 +307,7 @@ function buildPdf(
     // ── Long-term disposals ───────────────────────────────────────────────────
     if (bd.longTerm.length > 0) {
       newPage();
-      sectionTitle('Long-term disposals  (held ≥ 365 days)');
+      sectionTitle('Long-term disposals  (held more than one year)');
 
       const cols = [
         { label: 'Asset',      width: 65  },
@@ -393,7 +393,7 @@ function buildPdf(
       tableHeaders(cols);
 
       bd.stillHolding.forEach((lot, i) => {
-        const term = lot.daysHeld >= 365 ? 'Long' : 'Short';
+        const term = lot.longTerm ? 'Long' : 'Short';
         tableRow([
           { label: lot.asset,            width: cols[0].width },
           { label: fDate(lot.acquiredDate), width: cols[1].width },
