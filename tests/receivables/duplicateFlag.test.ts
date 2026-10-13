@@ -14,7 +14,7 @@ const RID = 'a'.repeat(64);
 const DUP_TAG = '<span class="rcv-pill rcv-pill--tag" title="Another record at Almstins matches this invoice.">possible duplicate</span>';
 
 interface FakeEl {
-	tag: string; className: string; textContent: string; href?: string; hidden: boolean; innerHTML: string;
+	tag: string; className: string; textContent: string; href?: string; target?: string; rel?: string; hidden: boolean; innerHTML: string;
 	children: Array<FakeEl | string>; classes: Set<string>;
 	append(...n: Array<FakeEl | string>): void;
 	replaceChildren(...n: Array<FakeEl | string>): void;
@@ -70,7 +70,7 @@ describe('mountDuplicateFlag', () => {
 		expect(f.own.hidden).toBe(true);
 	});
 
-	it('own matches become links to the same page with ?id=, the withdrawn one marked', () => {
+	it('own matches become links to the same page with ?id=, in a new tab, the withdrawn one marked', () => {
 		const f = fakeFlag();
 		const own = [{ id: RID, invoiceNo: '<img src=x onerror=1>', withdrawn: false }, { id: 'b'.repeat(64), invoiceNo: 'INV 42', withdrawn: true }];
 		mountDuplicateFlag(f.root as unknown as HTMLElement, { variant: 'registry' }).update({ duplicateCheck: FULL, ownMatches: own }, 'created');
@@ -80,6 +80,9 @@ describe('mountDuplicateFlag', () => {
 		expect(items).toHaveLength(2);
 		const a0 = items[0].children[0] as FakeEl;
 		expect(a0.href).toBe(`?id=${RID}`);
+		// A new tab, so a form still being filled in is not lost.
+		expect(a0.target).toBe('_blank');
+		expect(a0.rel).toBe('noopener');
 		expect(a0.className).toBe('dupf__own-link');
 		// Hostile text lands as text, never markup.
 		expect(text(a0)).toBe('<img src=x onerror=1> · aaaaaaaa…');

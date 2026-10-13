@@ -7,8 +7,9 @@
  * A possible duplicate opens with the "possible duplicate" tag (the WithdrawnNote pattern); a
  * muted note has none. Text goes in with textContent only; the tag comes from the StatusPill
  * fragment helper; each of the viewer's own matching records is a link built with createElement,
- * to the same page with ?id=, which opens that record. Showing the same view again changes nothing on the page, so the
- * live region does not repeat itself while the person keeps typing.
+ * to the same page with ?id=, which opens that record. It opens in a new tab, so a form still being
+ * filled in stays as it is. Showing the same view again changes nothing on the page, so the live
+ * region does not repeat itself while the person keeps typing.
  */
 import { statusPillHtml } from '../StatusPill/statusPill';
 import {
@@ -65,6 +66,8 @@ export function mountDuplicateFlag(root: HTMLElement, opts: DuplicateFlagOptions
 			const a = document.createElement('a');
 			a.className = 'dupf__own-link';
 			a.href = hrefFor(m.id);
+			a.target = '_blank';
+			a.rel = 'noopener';
 			a.textContent = `${m.invoiceNo} · `;
 			const id = document.createElement('span');
 			id.className = 'dupf__own-id';
