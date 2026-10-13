@@ -15,6 +15,7 @@ import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 import { isOwner } from '@/lib/owner';
 import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
+import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 
 export const prerender = false;
 
@@ -41,8 +42,9 @@ const yearParam   = Astro.url.searchParams.get('year');
 const selectedYear = yearParam ? Number(yearParam) : priorYear;
 
 // ── Parallel data fetch ──────────────────────────────────────────────────────
+const costMethod = await getCostBasisMethod(tenantId);
 const [bd, exchangeRes, walletRes, unclassRes, lastImportRes] = await Promise.all([
-  buildAnnualBreakdown(tenantId, selectedYear, 'fifo', undefined, 'auto' as AnnualBreakdownSource)
+  buildAnnualBreakdown(tenantId, selectedYear, costMethod, undefined, 'auto' as AnnualBreakdownSource)
     .catch(() => null),
 
   db.execute({

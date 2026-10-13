@@ -20,6 +20,7 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getActivePlan } from '../../../lib/subscriptions';
 import { requireTaxOwner } from '../../../lib/taxAuth';
+import { getCostBasisMethod } from '../../../lib/costBasisMethodSetting';
 
 const PAGE_SIZE = 50; // rows before repeating the page header
 
@@ -128,8 +129,10 @@ export const GET: APIRoute = async ({ request, url }) => {
       );
     }
 
-    // 'auto': prefer pipeline data when available (IRS calendar-month accurate)
-    const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
+    // 'auto': prefer pipeline data when available (IRS calendar-month accurate).
+    // Cost-basis method is the tenant's chosen default (FIFO unless changed in Settings).
+    const costMethod = await getCostBasisMethod(tenantId);
+    const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
 
     let csvContent = '';
     let filename   = `almstins-${year}-${section}.csv`;

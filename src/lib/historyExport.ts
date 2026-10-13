@@ -36,6 +36,7 @@ import {
 } from './walletIdentity';
 import type { Lang } from './i18n/locale';
 import { getHistoryExport, type HistoryFileStrings } from '@/i18n/historyExport';
+import { getCostBasisMethod } from './costBasisMethodSetting';
 
 // ── CSV cells ────────────────────────────────────────────────────────────────
 
@@ -190,10 +191,10 @@ export function walletCells(r: ResolvedRow, strings: HistoryFileStrings): string
 
 export function plainHeader(strings: HistoryFileStrings): string[] {
 	const c = strings.plainColumns;
-	return [c.date, c.source, c.owner, c.chain, c.direction, c.asset, c.amount, c.usdValue, c.fee, c.feeAsset, c.txHash, c.counterparty, c.category, c.notes];
+	return [c.date, c.source, c.owner, c.chain, c.direction, c.asset, c.amount, c.usdValue, c.fee, c.feeAsset, c.txHash, c.counterparty, c.category, c.notes, c.accountingMethod];
 }
 
-export function plainCells(row: HistoryRow, strings: HistoryFileStrings, ownerLabel: string | null = null): string[] {
+export function plainCells(row: HistoryRow, strings: HistoryFileStrings, ownerLabel: string | null = null, method = ''): string[] {
 	const source = row.origin === 'import' ? sourceDisplayName(row.source, strings) : chainDisplayName(row.chain, strings);
 	return [
 		row.date,
@@ -210,6 +211,7 @@ export function plainCells(row: HistoryRow, strings: HistoryFileStrings, ownerLa
 		row.counterparty,
 		row.category,
 		notesFor(row, strings),
+		method,
 	];
 }
 
@@ -227,8 +229,8 @@ export function rowOwners(rows: readonly HistoryRow[], dir: WalletDirectory, str
 }
 
 /** The plain CSV: every row in time order, with each row's owner (owners[i] for rows[i]). */
-export function buildPlainCsv(rows: readonly HistoryRow[], strings: HistoryFileStrings, owners: readonly (string | null)[] = []): string {
-	return csvDocument([csvLine(plainHeader(strings)), ...rows.map((r, i) => csvLine(plainCells(r, strings, owners[i] ?? null)))]);
+export function buildPlainCsv(rows: readonly HistoryRow[], strings: HistoryFileStrings, owners: readonly (string | null)[] = [], method = ''): string {
+	return csvDocument([csvLine(plainHeader(strings)), ...rows.map((r, i) => csvLine(plainCells(r, strings, owners[i] ?? null, method)))]);
 }
 
 // ── Grouping ─────────────────────────────────────────────────────────────────
@@ -389,9 +391,10 @@ export async function buildPlainHistory(
 			MAX_HISTORY_ROWS,
 		);
 		const dir = await loadWalletDirectory(tenantId);
+		const costMethod = (await getCostBasisMethod(tenantId)).toUpperCase();
 		const parts = ['almstins-transactions'];
 		if (opts.wallet) parts.push(fileSlug(opts.wallet.label));
 		if (opts.year !== undefined) parts.push(String(opts.year));
-		return { filename: `${parts.join('-')}.csv`, csv: buildPlainCsv(rows, strings, rowOwners(rows, dir, strings)) };
+		return { filename: `${parts.join('-')}.csv`, csv: buildPlainCsv(rows, strings, rowOwners(rows, dir, strings), costMethod) };
 	});
 }

@@ -46,6 +46,7 @@ export interface HistoryFileStrings {
 		counterparty: string;
 		category: string;
 		notes: string;
+		accountingMethod: string;
 	};
 	/** wallets.csv, the index. */
 	indexColumns: {
@@ -152,6 +153,7 @@ export const en: HistoryExportLocale = {
 			counterparty: 'Counterparty',
 			category: 'Category',
 			notes: 'Notes',
+			accountingMethod: 'Accounting method',
 		},
 		indexColumns: {
 			walletKey: 'Wallet key',
@@ -249,6 +251,7 @@ export const es: HistoryExportLocale = {
 			counterparty: 'Contraparte',
 			category: 'Categoría',
 			notes: 'Notas',
+			accountingMethod: 'Método contable',
 		},
 		indexColumns: {
 			walletKey: 'Clave de billetera',
@@ -347,6 +350,7 @@ export const fr: HistoryExportLocale = {
 			counterparty: 'Contrepartie',
 			category: 'Catégorie',
 			notes: 'Notes',
+			accountingMethod: 'Méthode comptable',
 		},
 		indexColumns: {
 			walletKey: 'Clé du portefeuille',

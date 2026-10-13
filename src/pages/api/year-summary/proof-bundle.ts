@@ -10,6 +10,7 @@ import { getActivePlan } from '@/lib/subscriptions';
 import { getStoredRecord, getLatestRecordId, getLatestRoot, persistRecordProof } from '@/lib/recordProof/store';
 import { buildRecordProof, PROOF_FORMAT, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 
 export const prerender = false;
 
@@ -37,7 +38,9 @@ export const GET: APIRoute = async ({ request }) => {
     recordId = await getLatestRecordId(tenantId, year);
     if (!recordId) {
       // Generate on demand so the bundle works even before the PDF is downloaded.
-      const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
+      // Match report.ts: use the tenant's chosen cost-basis method (FIFO default).
+      const costMethod = await getCostBasisMethod(tenantId);
+      const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
       const prevRoot = await getLatestRoot(tenantId, year).catch(() => null);
       const fresh = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
       await persistRecordProof(tenantId, fresh).catch((e) => console.error('[proof-bundle] persist failed', e));

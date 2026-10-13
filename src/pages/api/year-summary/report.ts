@@ -21,6 +21,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { getActivePlan } from '@/lib/subscriptions';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
+import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 
 export const prerender = false;
 
@@ -465,8 +466,11 @@ export const GET: APIRoute = async ({ request }) => {
 
     // ── Build data + PDF ──────────────────────────────────────────────────────
     // 'auto': use pipeline tables when available (IRS-accurate); fall back to
-    // lifecycle-events FIFO if the pipeline hasn't run for this year.
-    const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
+    // lifecycle-events matching if the pipeline hasn't run for this year.
+    // Cost-basis method is the tenant's chosen default (FIFO unless changed in Settings);
+    // the signed record below reflects whichever method produced these numbers.
+    const costMethod = await getCostBasisMethod(tenantId);
+    const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
     const tenantLabel = `almsTins Account`;
 
     // ── Verifiable record: hash the exact breakdown the PDF prints, sign + persist ──
