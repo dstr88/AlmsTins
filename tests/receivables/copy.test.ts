@@ -223,3 +223,30 @@ describe('no page still says an over-headroom claim is refused', () => {
 		expect(src).not.toMatch(OLD);
 	});
 });
+
+describe('S4 duplicate UI copy', () => {
+	// Almstins warns, never blocks, and never accuses anyone: "possible duplicate", not a verdict.
+	const S4_BAN = /\b(fraud\w*|block\w*|accus\w*|scam\w*|fake|forg(ed|ery))\b/i;
+	for (const [path, value] of stringsOf(['duplicate'])) {
+		it(`${path}: no accusation, no "blocked"`, () => {
+			expect(value.match(S4_BAN)?.[0] ?? null).toBeNull();
+		});
+	}
+
+	it('the live warning reads as Addendum A committed', () => {
+		expect(duplicateCopy.PRECHECK_FINANCED).toBe('This invoice may already be financed. Check with the debtor before you advance.');
+		expect(duplicateCopy.PRECHECK_PROCEED).toBe('You can still record it. The decision is yours.');
+		expect(duplicateCopy.DUPLICATE_FLAG_TITLE).toBe('Possible duplicate.');
+		expect(duplicateCopy.TAG_POSSIBLE_DUPLICATE).toBe('possible duplicate');
+	});
+
+	it('the Client Portal lines never give a lender\'s advice or the financed detail', () => {
+		for (const line of [duplicateCopy.CLIENT_MATCH, duplicateCopy.CLIENT_RECORD_MATCH]) expect(line).not.toMatch(/financed|before you advance/i);
+	});
+
+	it('the book tag and the claim notice say only that another record matches', () => {
+		for (const line of [duplicateCopy.TAG_POSSIBLE_DUPLICATE_TITLE, duplicateCopy.CLAIM_NOTICE_POSSIBLE_DUPLICATE]) {
+			expect(line).toBe('Another record at Almstins matches this invoice.');
+		}
+	});
+});

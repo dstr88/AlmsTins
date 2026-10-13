@@ -1,0 +1,33 @@
+---
+// BuyerRefField: the debtor's own reference (their PO or contract number) on a create form (S4).
+// Markup only, with no behavior of its own: the page sends the value as details.buyerRef, and the
+// live duplicate check reads it through data-rcv-field="buyerRef". It is the one identifier the
+// client does not control, so it is the strongest detail the duplicate check compares on.
+//
+// `variant` writes each page's own field markup (the desk's .fld label, the registry's .field with
+// a for= label, the Client Portal's bare label), so the field sits in that page's grid like its
+// neighbors. `id` is the input's page ID, which the host's create code reads.
+import './BuyerRefField.css';
+import { BUYER_REF_HINT, BUYER_REF_LABEL, BUYER_REF_PLACEHOLDER } from '@/lib/receivables/copy/duplicate';
+
+interface Props { id: string; variant: 'desk' | 'registry' | 'client' }
+const { id, variant } = Astro.props;
+const hintId = `${id}-hint`;
+---
+{variant === 'desk' ? (
+	<label class="fld brf brf--desk">{BUYER_REF_LABEL}
+		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-describedby={hintId} />
+		<span class="brf__hint" id={hintId}>{BUYER_REF_HINT}</span>
+	</label>
+) : variant === 'registry' ? (
+	<div class="field brf brf--registry">
+		<label for={id}>{BUYER_REF_LABEL}</label>
+		<input id={id} type="text" data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-describedby={hintId} />
+		<p class="brf__hint" id={hintId}>{BUYER_REF_HINT}</p>
+	</div>
+) : (
+	<label class="brf brf--client">{BUYER_REF_LABEL}
+		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-describedby={hintId} />
+		<span class="brf__hint" id={hintId}>{BUYER_REF_HINT}</span>
+	</label>
+)}

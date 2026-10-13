@@ -1,6 +1,8 @@
 /**
  * Copy for the duplicate check (S3): the Verify now row, the claim-time warning and the answer to
- * a create whose exact details are already on record under another account. Pure and import-free,
+ * a create whose exact details are already on record under another account. S4 adds the pages'
+ * words: the debtor reference field, the warning while the invoice is entered and after it is
+ * saved, the record view, the claim prompt and the book tag. Pure and import-free,
  * like every module under src/lib/receivables/copy/. Held to the bright-line rules by
  * tests/receivables/copy.test.ts.
  *
@@ -46,3 +48,53 @@ export const UNKNOWN_ACKNOWLEDGMENT_MESSAGE = 'One or more acknowledgment codes 
 
 /** The 409 id_collision answer: these exact details are already on record under another account. */
 export const ID_COLLISION_MESSAGE = 'A receivable with these exact details is already on record at Almstins under another account.';
+
+// ── S4: the create forms, the live warning, the record view, the claim prompt and the book ──
+
+/** The debtor reference field on the desk, registry and Client Portal create forms (BuyerRefField). */
+export const BUYER_REF_LABEL = 'Debtor’s own reference';
+export const BUYER_REF_PLACEHOLDER = 'Their PO or contract no.';
+export const BUYER_REF_HINT = 'Optional. With the debtor’s own PO or contract number, the duplicate check can compare this invoice on that number, not only on the invoice number.';
+
+/** The flag's title on every possible-duplicate answer: while typing, after saving, on the record and at claim time. */
+export const DUPLICATE_FLAG_TITLE = 'Possible duplicate.';
+
+/** While the invoice is being entered (Addendum A), for a verified account, when the matching record is recorded as financed. */
+export const PRECHECK_FINANCED = 'This invoice may already be financed. Check with the debtor before you advance.';
+
+/** While the invoice is being entered: the warning never holds up the form. */
+export const PRECHECK_PROCEED = 'You can still record it. The decision is yours.';
+
+/** Client Portal, while he enters it: the client records his own invoice, so a match is often his
+ *  financier’s own record of it. */
+export const CLIENT_MATCH = 'Another record at Almstins matches this invoice. If your financier already recorded it, you do not need to record it again.';
+
+/** Client Portal, once recorded (just saved, or opened in "Where it stands"). */
+export const CLIENT_RECORD_MATCH = 'Another record at Almstins matches this invoice. It may be your financier’s own record of it.';
+
+/** Lead line above the viewer's own matching records (a verified account only). */
+export const OWN_MATCHES_LEAD = 'Your own records that match:';
+
+/** After an own match that its owner withdrew. */
+export const OWN_MATCH_WITHDRAWN = '(withdrawn)';
+
+/** The claim prompt (AckPrompt), after the match line: what going ahead records. */
+export const CLAIM_DUPLICATE_SIGNED = 'If you record your claim anyway, that acknowledgment is signed into it.';
+export const CLAIM_DUPLICATE_RECORD_ANYWAY = 'Record my claim anyway (acknowledged possible duplicate)';
+export const CLAIM_DUPLICATE_NOT_NOW = 'Not now';
+
+/** Added to the note after a recorded claim. */
+export const CLAIM_NOTICE_ACKNOWLEDGED = 'Your acknowledgment of the possible duplicate is signed into this claim.';
+export const CLAIM_NOTICE_POSSIBLE_DUPLICATE = 'Another record at Almstins matches this invoice.';
+export const CLAIM_NOTICE_UNAVAILABLE = 'The duplicate check was not available, so this claim was recorded without it.';
+
+/** The claim answered possible_duplicate again after the acknowledgment was sent. */
+export const CLAIM_DUPLICATE_STILL = 'Your claim was not recorded: the duplicate check still asks for an acknowledgment. Reload the page and try again.';
+
+/** The book tag (StatusPill) beside a row that another record at Almstins matches, financed or not. */
+export const TAG_POSSIBLE_DUPLICATE = 'possible duplicate';
+export const TAG_POSSIBLE_DUPLICATE_TITLE = 'Another record at Almstins matches this invoice.';
+
+/** The desk's "Before you advance": what the duplicate check does not prove. */
+export const NOT_PROVEN_DUPLICATE_TITLE = 'That the invoice is not a duplicate';
+export const NOT_PROVEN_DUPLICATE_DETAIL = 'The duplicate check compares this invoice with other records at Almstins, on the debtor’s reference or the invoice number, at the same amount and currency. A record with a different amount, or one kept outside Almstins, is not compared.';

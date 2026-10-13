@@ -75,6 +75,8 @@ const STYLE_BUDGET: Record<ReceivablesHost, number> = { desk: 382, registry: 146
 const EMITS: Record<ReceivablesHost, { record: number; book: number }> = {
 	desk: { record: 2, book: 1 }, registry: { record: 2, book: 1 }, client: { record: 1, book: 1 },
 };
+/** Components with no behavior of their own: markup and CSS only, no .client.ts. */
+const MARKUP_ONLY = new Set(['BuyerRefField']);
 const ACK_ROOTS: Record<ReceivablesHost, string | null> = {
 	desk: '<AckPrompt variant="desk" name="claim" />', registry: '<AckPrompt variant="registry" name="claim" />', client: null,
 };
@@ -263,13 +265,16 @@ describe('new UI files', () => {
 			expect(frontmatter(s), f).toMatch(new RegExp(`^import '\\./${name}\\.css';$`, 'm'));
 		}
 	});
-	it('mounted widgets come as .astro + .css + .client.ts', () => {
+	it('mounted widgets come as .astro + .css + .client.ts (markup-only components: no .client.ts)', () => {
 		for (const f of COMPONENT_FILES.filter((x) => x.endsWith('.astro'))) {
 			const dir = path.posix.dirname(f);
 			const name = path.posix.basename(f, '.astro');
 			expect(exists(`${dir}/${name}.css`), `${dir}/${name}.css`).toBe(true);
-			expect(exists(`${dir}/${lcFirst(name)}.client.ts`), `${dir}/${lcFirst(name)}.client.ts`).toBe(true);
+			expect(exists(`${dir}/${lcFirst(name)}.client.ts`), `${dir}/${lcFirst(name)}.client.ts`).toBe(!MARKUP_ONLY.has(name));
 		}
+	});
+	it('a markup-only component renders no data-rcv-root (nothing mounts it)', () => {
+		for (const name of MARKUP_ONLY) expect(read(`src/components/receivables/${name}/${name}.astro`)).not.toContain('data-rcv-root');
 	});
 	it('every receivables .css is imported by its .astro, its .tsx, or fragments.css', () => {
 		const fragments = read('src/components/receivables/fragments.css');

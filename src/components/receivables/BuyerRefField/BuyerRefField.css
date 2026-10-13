@@ -1,0 +1,8 @@
+/* BuyerRefField — presentation only.
+   Markup lives in BuyerRefField.astro; it has no behavior of its own. The label and the input keep
+   each page's own field styles (desk .fld, registry .field and label, client portal label); this
+   file styles only the hint under the input, which must not inherit those labels' uppercase,
+   letter-spaced, bold text. */
+
+.brf .brf__hint { display: block; font-size: .78rem; font-weight: 400; letter-spacing: normal; text-transform: none; line-height: 1.45; color: var(--text-muted); }
+.brf.brf--registry .brf__hint { margin-top: .3rem; }

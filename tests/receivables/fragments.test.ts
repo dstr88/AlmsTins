@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { recordPill, statusPillHtml, type StatusPillView } from '../../src/components/receivables/StatusPill/statusPill';
+import { duplicatePill, recordPill, statusPillHtml, type StatusPillView } from '../../src/components/receivables/StatusPill/statusPill';
 import { anchorPillHtml, bindAnchorPills, type AnchorPillClick } from '../../src/components/receivables/AnchorPill/anchorPill';
 import type { PageAnchorKind } from '../../src/lib/receivables/anchorView';
 import { escapeHtml } from '../../src/lib/escapeHtml';
@@ -60,6 +60,24 @@ describe('statusPillHtml: tag pill goldens', () => {
 		);
 	});
 
+	it('possible-duplicate tag (S4), with its title', () => {
+		expect(statusPillHtml({ kind: 'tag', tag: 'possible_duplicate' })).toBe(
+			'<span class="rcv-pill rcv-pill--tag" title="Another record at Almstins matches this invoice.">possible duplicate</span>',
+		);
+	});
+
+	it('duplicatePill: the tag only for a possible_duplicate answer, else nothing', () => {
+		expect(duplicatePill({ duplicateCheck: { state: 'possible_duplicate', hasDebtorReference: false } })).toEqual({ kind: 'tag', tag: 'possible_duplicate' });
+		for (const rcv of [
+			{ duplicateCheck: { state: 'no_match', hasDebtorReference: true } }, { duplicateCheck: { state: 'unavailable' } },
+			{ duplicateCheck: { state: 'POSSIBLE_DUPLICATE' } }, { duplicateCheck: 'possible_duplicate' }, { duplicateCheck: null }, {}, null, undefined,
+			hostile({ duplicateCheck: { state: '"><img src=x onerror=1>' } }),
+		]) {
+			expect(duplicatePill(rcv as never), JSON.stringify(rcv)).toBeNull();
+			expect(statusPillHtml(duplicatePill(rcv as never))).toBe('');
+		}
+	});
+
 	it('claimed-only tag, with its title (ASCII double hyphen)', () => {
 		expect(statusPillHtml({ kind: 'tag', tag: 'claimed_only' })).toBe(
 			'<span class="rcv-pill rcv-pill--tag" title="You hold a claim against this receivable, but did not create it -- settle, invite and document actions belong to whoever did">claimed only</span>',
@@ -75,7 +93,7 @@ describe('statusPillHtml: hostile view input renders nothing', () => {
 	});
 
 	it('unknown or hostile tags', () => {
-		for (const tag of ['x"', '__proto__', 'constructor', 'claimed only', '', 'Withdrawn', 'withdrawn ']) {
+		for (const tag of ['x"', '__proto__', 'constructor', 'claimed only', '', 'Withdrawn', 'withdrawn ', 'possible duplicate', 'possible_duplicate"']) {
 			expect(statusPillHtml(hostile({ kind: 'tag', tag })), tag).toBe('');
 		}
 	});
@@ -92,6 +110,7 @@ describe('statusPillHtml: hostile view input renders nothing', () => {
 		const views: StatusPillView[] = [
 			...(['test', 'disputed', 'settled', 'partial', 'full', 'open'] as const).map((state) => ({ kind: 'record' as const, state })),
 			{ kind: 'tag', tag: 'test' }, { kind: 'tag', tag: 'claimed_only' }, { kind: 'tag', tag: 'withdrawn' },
+			{ kind: 'tag', tag: 'possible_duplicate' },
 		];
 		for (const v of views) expect(statusPillHtml(v)).not.toMatch(/style\s*=/);
 	});
