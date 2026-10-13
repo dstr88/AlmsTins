@@ -150,3 +150,24 @@ describe('the claim prompt gives focus back to the claim button (S4 review)', ()
 		});
 	}
 });
+
+// S4 review: where the label wraps the input (desk, client), its text content, hint included, would
+// be the input's name, so a screen reader read the hint twice (as name and as description).
+describe('the debtor reference is named by its label alone, and described by its hint', () => {
+	const src = read('src/components/receivables/BuyerRefField/BuyerRefField.astro');
+	it.each(['desk', 'client'])('%s: the label text has its own id, which names the input', (variant) => {
+		const block = src.slice(src.indexOf(`brf--${variant}`), src.indexOf('</label>', src.indexOf(`brf--${variant}`)));
+		expect(block).toContain('<span id={labelId}>{BUYER_REF_LABEL}</span>');
+		expect(block).toMatch(/<input id=\{id\}[^>]* aria-labelledby=\{labelId\} aria-describedby=\{hintId\} \/>/);
+		expect(block).toContain('<span class="brf__hint" id={hintId}>{BUYER_REF_HINT}</span>');
+	});
+	it('registry: a for= label outside the hint, so no aria-labelledby is needed', () => {
+		const block = src.slice(src.indexOf('brf--registry'), src.indexOf('</div>', src.indexOf('brf--registry')));
+		expect(block).toContain('<label for={id}>{BUYER_REF_LABEL}</label>');
+		expect(block).not.toContain('aria-labelledby');
+	});
+	it('label and hint ids are derived from the input id, so each page gets its own', () => {
+		expect(src).toContain('const hintId = `${id}-hint`;');
+		expect(src).toContain('const labelId = `${id}-label`;');
+	});
+});

@@ -14,7 +14,10 @@
  * screen reader reads and from which Tab reaches its fields and buttons. When it closes while focus
  * is inside it, focus goes back to the control named by the root's data-ack-return (the page's
  * claim button), so a keyboard user is never dropped at the top of the page. A close while focus is
- * elsewhere (the desk opening another record) leaves focus where it is.
+ * elsewhere (the desk opening another record) leaves focus where it is. setAckBusy disables the
+ * focused button while the diligence answer posts, and a browser then drops focus to the page body,
+ * so a prompt that held focus when it went busy also counts as holding it while focus is still on
+ * the body.
  */
 import { fillCopy } from '@/lib/receivables/fillCopy';
 import { HEADROOM_BODY, HEADROOM_TAKE_AVAILABLE } from '@/lib/receivables/copy/claim';
@@ -31,6 +34,8 @@ export interface AskOptions {
 }
 
 const waiting = new WeakMap<HTMLElement, (answer: string[] | null) => void>();
+/** Prompts that held focus when setAckBusy disabled their buttons. */
+const heldFocus = new WeakSet<HTMLElement>();
 
 function settle(root: HTMLElement, answer: string[] | null): void {
 	const done = waiting.get(root);
@@ -44,6 +49,13 @@ function focusInside(root: HTMLElement): boolean {
 	return !!active && active !== root && root.contains(active);
 }
 
+/** Whether focus is on nothing in particular: the page body, as after a focused button is disabled. */
+function focusLost(root: HTMLElement): boolean {
+	const d = root.ownerDocument;
+	const active = d?.activeElement ?? null;
+	return !active || active === d?.body || active === d?.documentElement;
+}
+
 /** The control focus goes back to when the prompt closes: the root's data-ack-return ID. */
 function returnTarget(root: HTMLElement): HTMLElement | null {
 	const id = root.dataset.ackReturn;
@@ -52,6 +64,7 @@ function returnTarget(root: HTMLElement): HTMLElement | null {
 
 export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarning[], opts: AskOptions = {}): Promise<string[] | null> {
 	settle(root, null);
+	heldFocus.delete(root);
 	const w = warnings[0];
 	const body = root.querySelector<HTMLElement>('[data-ack-body]');
 	const tpl = w ? root.querySelector<HTMLTemplateElement>(`template[data-ack-template="${w.code}"]`) : null;
@@ -87,11 +100,13 @@ export function ackInputs(root: HTMLElement): { method: string; note: string } {
 }
 
 export function setAckBusy(root: HTMLElement, busy: boolean): void {
+	if (busy && focusInside(root)) heldFocus.add(root);
 	root.querySelectorAll<HTMLButtonElement>('[data-ack-choice]').forEach((b) => { b.disabled = busy; });
 }
 
 export function closeAck(root: HTMLElement): void {
-	const refocus = focusInside(root);
+	const refocus = focusInside(root) || (heldFocus.has(root) && focusLost(root));
+	heldFocus.delete(root);
 	settle(root, null);
 	root.hidden = true;
 	root.querySelector('[data-ack-body]')?.replaceChildren();

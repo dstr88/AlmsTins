@@ -389,6 +389,50 @@ describe('focus (S4 review)', () => {
 		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
 	});
 
+	// A browser drops focus to the body when the focused button is disabled (setAckBusy while the
+	// diligence answer posts), so focusInside alone would no longer send focus back.
+	it('a prompt that held focus when it went busy still returns focus after the browser dropped it', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [{ code: 'diligence_required' }]);
+		choice(root, 'diligence_required').focus();
+		setAckBusy(asRoot(root), true);
+		doc.activeElement = null; // the browser's focus fixup for a disabled element
+		setAckBusy(asRoot(root), false);
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBe(claimButton);
+	});
+
+	it('going busy without focus inside, or focus moved elsewhere meanwhile, leaves focus alone', () => {
+		const a = promptRoot();
+		void askToAcknowledge(asRoot(a), [{ code: 'diligence_required' }]);
+		doc.activeElement = null;
+		setAckBusy(asRoot(a), true);
+		setAckBusy(asRoot(a), false);
+		closeAck(asRoot(a));
+		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+
+		const b = promptRoot();
+		void askToAcknowledge(asRoot(b), [{ code: 'diligence_required' }]);
+		choice(b, 'diligence_required').focus();
+		setAckBusy(asRoot(b), true);
+		const search = h('input');
+		search.focus();
+		closeAck(asRoot(b));
+		expect(doc.activeElement).toBe(search);
+		expect(doc.focusCalls.some((c) => c.el === claimButton)).toBe(false);
+	});
+
+	it('a new prompt forgets that an earlier one held focus', () => {
+		const root = promptRoot();
+		void askToAcknowledge(asRoot(root), [{ code: 'diligence_required' }]);
+		choice(root, 'diligence_required').focus();
+		setAckBusy(asRoot(root), true);
+		void askToAcknowledge(asRoot(root), [DUP]);
+		doc.activeElement = null;
+		closeAck(asRoot(root));
+		expect(doc.activeElement).toBeNull();
+	});
+
 	it('no data-ack-return, or no such element: the prompt still closes and nothing throws', () => {
 		for (const ret of [null, 'missing']) {
 			const root = promptRoot(ret);

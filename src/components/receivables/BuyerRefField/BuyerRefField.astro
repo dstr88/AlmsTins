@@ -6,17 +6,20 @@
 //
 // `variant` writes each page's own field markup (the desk's .fld label, the registry's .field with
 // a for= label, the Client Portal's bare label), so the field sits in that page's grid like its
-// neighbors. `id` is the input's page ID, which the host's create code reads.
+// neighbors. `id` is the input's page ID, which the host's create code reads. Where the label wraps
+// the input (desk, client), the input is named by the label text alone (aria-labelledby), so the
+// hint inside the label is read once, as its description, and not again as part of its name.
 import './BuyerRefField.css';
 import { BUYER_REF_HINT, BUYER_REF_LABEL, BUYER_REF_PLACEHOLDER } from '@/lib/receivables/copy/duplicate';
 
 interface Props { id: string; variant: 'desk' | 'registry' | 'client' }
 const { id, variant } = Astro.props;
 const hintId = `${id}-hint`;
+const labelId = `${id}-label`;
 ---
 {variant === 'desk' ? (
-	<label class="fld brf brf--desk">{BUYER_REF_LABEL}
-		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-describedby={hintId} />
+	<label class="fld brf brf--desk"><span id={labelId}>{BUYER_REF_LABEL}</span>
+		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-labelledby={labelId} aria-describedby={hintId} />
 		<span class="brf__hint" id={hintId}>{BUYER_REF_HINT}</span>
 	</label>
 ) : variant === 'registry' ? (
@@ -26,8 +29,8 @@ const hintId = `${id}-hint`;
 		<p class="brf__hint" id={hintId}>{BUYER_REF_HINT}</p>
 	</div>
 ) : (
-	<label class="brf brf--client">{BUYER_REF_LABEL}
-		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-describedby={hintId} />
+	<label class="brf brf--client"><span id={labelId}>{BUYER_REF_LABEL}</span>
+		<input id={id} data-rcv-field="buyerRef" placeholder={BUYER_REF_PLACEHOLDER} autocomplete="off" maxlength="80" aria-labelledby={labelId} aria-describedby={hintId} />
 		<span class="brf__hint" id={hintId}>{BUYER_REF_HINT}</span>
 	</label>
 )}
