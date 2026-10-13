@@ -1,0 +1,35 @@
+---
+// AnswerCards: one card per answer an API can give, each with its code, a title, what it means
+// and a sample response. Markup only; AnswerCards.css holds the look. The page keeps the items
+// as a literal array in its own frontmatter (source tests read the copy there) and passes it in.
+//
+// The wrapper is margin-free, so the cards sit exactly where they would without it; it only
+// scopes the doubled-class selectors.
+import './AnswerCards.css';
+
+interface AnswerItem {
+  /** The answer's code, shown as the card's chip. */
+  code: string;
+  /** The tone of the chip. */
+  cls: 'good' | 'bad' | 'warn';
+  /** The card's title. */
+  h: string;
+  /** What the answer means and what to do with it. */
+  p: string;
+  /** A sample response, shown under the text. */
+  sample?: string;
+}
+
+interface Props { items: readonly AnswerItem[] }
+const { items } = Astro.props;
+---
+<div class="answer-cards">
+  {items.map((x) => (
+    <div class={`answer-cards__card answer-cards__card--${x.cls}`}>
+      <code class="answer-cards__code">{x.code}</code>
+      <h3 class="answer-cards__title">{x.h}</h3>
+      <p class="answer-cards__text">{x.p}</p>
+      {x.sample && <pre class="answer-cards__sample">{x.sample}</pre>}
+    </div>
+  ))}
+</div>

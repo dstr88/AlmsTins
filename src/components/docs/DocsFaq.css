@@ -1,0 +1,27 @@
+/* DocsFaq.css — presentation only.
+   Markup lives in DocsFaq.astro; the <details class="faq-item"> items are the page's own slot
+   children. Same native details/summary accordion as the roster tool and the receivables
+   registry, for a consistent Verify-family pattern. Moved from the /verify/agents style block,
+   values unchanged, plus the registry's .a b and .a code rules (no-ops on /verify/agents, whose
+   answers hold neither). The container itself is never styled, so a host section that sets its
+   own margin keeps it exactly once. Every selector starts with .docs-faq plus a second class, so
+   each one is at least (0,2,0) and the registry's details.faq-item rules (0,1,1) cannot reach in. */
+
+.docs-faq .faq-item { border-top: 1px solid var(--border-subtle); }
+.docs-faq .faq-item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+.docs-faq .faq-item summary {
+  cursor: pointer; padding: .85rem 0; font-weight: 650; font-size: 1rem;
+  list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+}
+.docs-faq .faq-item summary::-webkit-details-marker { display: none; }
+.docs-faq .faq-item summary::after { content: '+'; color: var(--text-muted); font-size: 1.15rem; line-height: 1; flex: none; }
+.docs-faq .faq-item[open] summary::after { content: '\2212'; }
+.docs-faq .faq-item summary:hover { color: var(--accent); }
+.docs-faq .faq-item .a { padding: 0 0 1rem; font-size: .95rem; color: var(--text-secondary); line-height: 1.65; max-width: 62ch; }
+.docs-faq .faq-item .a b { color: var(--text-primary); }
+.docs-faq .faq-item .a code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; color: var(--accent); }
+
+/* size="compact": the registry's smaller metrics (its FAQ sits below a working desk, not on a
+   docs page). Everything else is shared. */
+.docs-faq.docs-faq--compact .faq-item summary { font-weight: 600; font-size: .9rem; }
+.docs-faq.docs-faq--compact .faq-item .a { font-size: .86rem; }

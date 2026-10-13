@@ -1,0 +1,25 @@
+/* AnswerCards.css — presentation only.
+   Markup lives in AnswerCards.astro. Moved from the /verify/agents style block (the .st cards),
+   values unchanged. Nothing here encodes logic: the tone is a class picked from the item's cls.
+   Every selector starts with .answer-cards plus a second class, so each one is at least (0,2,0)
+   and beats the layout's .apidocs pre (0,1,1) whatever order the CSS loads in. */
+
+.answer-cards .answer-cards__card { border-left: 2px solid var(--border-bright); padding-left: .95rem; margin-bottom: 1rem; }
+.answer-cards .answer-cards__code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: 1rem;
+  padding: .1rem .45rem; border-radius: 6px;
+}
+.answer-cards .answer-cards__card--good .answer-cards__code { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+.answer-cards .answer-cards__card--bad  .answer-cards__code { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+.answer-cards .answer-cards__card--warn .answer-cards__code { color: var(--text-primary); background: var(--surface-card-2); border: 1px solid var(--border-bright); }
+.answer-cards .answer-cards__title { font-size: 1.05rem; font-weight: 700; margin: .35rem 0 .1rem; }
+.answer-cards .answer-cards__text { font-size: .97rem; color: var(--text-secondary); }
+/* overflow-x and line-height used to come from the page's bare pre rule; they are stated here so
+   the sample looks the same on any page. max-width holds the box to its column, so a long sample
+   scrolls inside it instead of widening the page on a phone. */
+.answer-cards .answer-cards__sample {
+  display: inline-block; margin-top: .5rem; font-size: .82rem; padding: .5rem .7rem;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
+  background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 8px;
+  overflow-x: auto; line-height: 1.55; max-width: 100%;
+}
