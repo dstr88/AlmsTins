@@ -17,6 +17,8 @@ import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
 <!doctype html>
@@ -194,6 +196,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="q-btn" type="button">Query the registry</button>
       <WithdrawnNote variant="registry" />
+      <DuplicateFlag variant="registry" name="record" />
       <div class="out" id="q-out"></div>
     </section>
 
@@ -212,25 +215,26 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     </section>
 
     <!-- 2. CREATE (authed) -->
-    <section class="card">
+    <section class="card" data-rcv-root="create-form">
       <h2><span class="badge-num">2</span> Create a receivable</h2>
       <p class="sub">Mints the receivable ID you share with financiers. Requires sign-in.</p>
       <div class="grid2">
-        <div class="field"><label for="c-supplier">Supplier</label><input id="c-supplier" type="text" placeholder="Lagos Foods Ltd" /></div>
-        <div class="field"><label for="c-buyer">Buyer (obligor)</label><input id="c-buyer" type="text" placeholder="MegaRetail Nigeria PLC" /></div>
+        <div class="field"><label for="c-supplier">Supplier</label><input id="c-supplier" type="text" data-rcv-field="supplier" placeholder="Lagos Foods Ltd" /></div>
+        <div class="field"><label for="c-buyer">Buyer (obligor)</label><input id="c-buyer" type="text" data-rcv-field="buyer" placeholder="MegaRetail Nigeria PLC" /></div>
       </div>
       <div class="grid3">
-        <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" placeholder="INV-4471" /></div>
-        <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
+        <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" data-rcv-field="invoiceNo" placeholder="INV-4471" /></div>
+        <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" data-rcv-field="face" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
         <div class="field"><label for="c-currency">Currency</label>
-          <select id="c-currency">
+          <select id="c-currency" data-rcv-field="currency">
             <option value="NGN">NGN</option><option value="USD">USD</option>
             <option value="EUR">EUR</option><option value="GBP">GBP</option>
             <option value="__other">Other…</option>
           </select>
-          <input id="c-currency-other" type="text" placeholder="Currency code" maxlength="8" style="display:none;margin-top:.4rem" />
+          <input id="c-currency-other" type="text" data-rcv-field="currency-other" placeholder="Currency code" maxlength="8" style="display:none;margin-top:.4rem" />
         </div>
       </div>
+      <BuyerRefField variant="registry" id="c-buyerref" />
       <div class="grid3">
         <div class="field"><label for="c-terms">Terms</label>
           <select id="c-terms">
@@ -258,6 +262,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </select>
         </div>
       </div>
+      <DuplicateFlag variant="registry" name="create" />
       <button class="btn btn-primary btn-full" id="c-btn" type="button">Create &amp; sign</button>
       <div class="out" id="c-out"></div>
     </section>
@@ -711,10 +716,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const j = await authedPost('/api/verify/receivables', {
         supplier, buyer, invoiceNo, face, currency,
         terms: pick('c-terms', 'c-terms-other') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
-        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null,
+        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null, details: { buyerRef: val('c-buyerref') || null },
       }, out);
       btn.disabled = false;
       if (!j) return;
+      hostBridge.emitCreateResult(j);
       if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not create the receivable.')}</div>`); return; }
       show(out, `
         <div class="note note-gain"><b>Receivable created${j.signed ? ' and signed' : ' (unsigned — signing key not configured)'}.</b> Share this ID with the financiers who need to check status:</div>
