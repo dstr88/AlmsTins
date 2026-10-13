@@ -279,7 +279,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="k-btn" type="button">Sign, register &amp; timestamp</button>
       <div class="out" id="k-out"></div>
-      <AckPrompt variant="registry" name="claim" />
+      <AckPrompt variant="registry" name="claim" returnFocus="k-btn" />
     </section>
 
     <!-- 4. ATTEST (authed) — Stage 2 -->

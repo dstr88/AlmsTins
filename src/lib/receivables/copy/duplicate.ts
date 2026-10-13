@@ -83,8 +83,12 @@ export const CLAIM_DUPLICATE_SIGNED = 'If you record your claim anyway, that ack
 export const CLAIM_DUPLICATE_RECORD_ANYWAY = 'Record my claim anyway (acknowledged possible duplicate)';
 export const CLAIM_DUPLICATE_NOT_NOW = 'Not now';
 
-/** Added to the note after a recorded claim. */
-export const CLAIM_NOTICE_ACKNOWLEDGED = 'Your acknowledgment of the possible duplicate is signed into this claim.';
+/** The note after "Not now". */
+export const CLAIM_DUPLICATE_NOT_RECORDED = 'Nothing was recorded.';
+
+/** Added to the note after a recorded claim. The acknowledgment line is conditional on purpose: the
+ *  server signs it only when the match still stood on that pass, and its answer does not say which. */
+export const CLAIM_NOTICE_ACKNOWLEDGED = 'You acknowledged the possible duplicate. If the match was still there when your claim was recorded, your acknowledgment is signed into the claim.';
 export const CLAIM_NOTICE_POSSIBLE_DUPLICATE = 'Another record at Almstins matches this invoice.';
 export const CLAIM_NOTICE_UNAVAILABLE = 'The duplicate check was not available, so this claim was recorded without it.';
 

@@ -5,9 +5,16 @@
  *           "Record my claim anyway");
  *   []      go ahead without acknowledging ("Register only the available ...");
  *   null    the prompt was replaced or closed first, or the person chose "Not now", which also
- *           closes it.
+ *           closes it and then calls opts.onDismiss.
  * Each ask resolves once and posts nothing; the caller does the posting. The prompt stays on
  * screen until closeAck(). Text is set with textContent only.
+ *
+ * Focus (S4). The prompt holds controls that need an answer, so it takes focus instead of being a
+ * live region: when it opens, focus moves to its title ([data-ack-title], tabindex -1), which a
+ * screen reader reads and from which Tab reaches its fields and buttons. When it closes while focus
+ * is inside it, focus goes back to the control named by the root's data-ack-return (the page's
+ * claim button), so a keyboard user is never dropped at the top of the page. A close while focus is
+ * elsewhere (the desk opening another record) leaves focus where it is.
  */
 import { fillCopy } from '@/lib/receivables/fillCopy';
 import { HEADROOM_BODY, HEADROOM_TAKE_AVAILABLE } from '@/lib/receivables/copy/claim';
@@ -18,6 +25,11 @@ export type AckWarning =
 	/** S4: another record at Almstins matches; `lines` from duplicateView (claimDuplicateLines). */
 	| { code: 'possible_duplicate'; lines: readonly string[] };
 
+export interface AskOptions {
+	/** Called after "Not now" has closed the prompt (the ask has answered null). */
+	onDismiss?: () => void;
+}
+
 const waiting = new WeakMap<HTMLElement, (answer: string[] | null) => void>();
 
 function settle(root: HTMLElement, answer: string[] | null): void {
@@ -26,7 +38,19 @@ function settle(root: HTMLElement, answer: string[] | null): void {
 	done?.(answer);
 }
 
-export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarning[]): Promise<string[] | null> {
+/** Whether keyboard focus is on something inside the prompt. */
+function focusInside(root: HTMLElement): boolean {
+	const active = root.ownerDocument?.activeElement ?? null;
+	return !!active && active !== root && root.contains(active);
+}
+
+/** The control focus goes back to when the prompt closes: the root's data-ack-return ID. */
+function returnTarget(root: HTMLElement): HTMLElement | null {
+	const id = root.dataset.ackReturn;
+	return id ? root.ownerDocument?.getElementById(id) ?? null : null;
+}
+
+export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarning[], opts: AskOptions = {}): Promise<string[] | null> {
 	settle(root, null);
 	const w = warnings[0];
 	const body = root.querySelector<HTMLElement>('[data-ack-body]');
@@ -42,12 +66,13 @@ export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarnin
 		body.querySelectorAll<HTMLElement>('[data-ack-slot="duplicate-body"]').forEach((el) => { el.textContent = w.lines.join(' '); });
 	}
 	root.hidden = false;
+	body.querySelector<HTMLElement>('[data-ack-title]')?.focus();
 	return new Promise((resolve) => {
 		waiting.set(root, resolve);
 		body.querySelectorAll<HTMLButtonElement>('[data-ack-choice]').forEach((btn) => btn.addEventListener('click', () => {
 			if (waiting.get(root) !== resolve) return;
 			const c = btn.dataset.ackChoice!;
-			if (c === 'dismiss') { closeAck(root); return; }
+			if (c === 'dismiss') { closeAck(root); opts.onDismiss?.(); return; }
 			settle(root, c === 'take_available' ? [] : [c]);
 		}));
 	});
@@ -66,7 +91,9 @@ export function setAckBusy(root: HTMLElement, busy: boolean): void {
 }
 
 export function closeAck(root: HTMLElement): void {
+	const refocus = focusInside(root);
 	settle(root, null);
 	root.hidden = true;
 	root.querySelector('[data-ack-body]')?.replaceChildren();
+	if (refocus) returnTarget(root)?.focus({ preventScroll: true });
 }

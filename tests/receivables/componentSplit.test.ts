@@ -84,7 +84,7 @@ const S4_TAGS: Record<ReceivablesHost, readonly string[]> = {
 /** Components with no behavior of their own: markup and CSS only, no .client.ts. */
 const MARKUP_ONLY = new Set(['BuyerRefField']);
 const ACK_ROOTS: Record<ReceivablesHost, string | null> = {
-	desk: '<AckPrompt variant="desk" name="claim" />', registry: '<AckPrompt variant="registry" name="claim" />', client: null,
+	desk: '<AckPrompt variant="desk" name="claim" returnFocus="c-go" />', registry: '<AckPrompt variant="registry" name="claim" returnFocus="k-btn" />', client: null,
 };
 
 // Tokens

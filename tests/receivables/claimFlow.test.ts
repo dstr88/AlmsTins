@@ -49,16 +49,20 @@ function describeNode(n: Node): string {
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 let log: string[];
-let asks: { warnings: readonly AckWarning[]; answer: (codes: string[] | null) => void }[];
+let asks: { warnings: readonly AckWarning[]; answer: (codes: string[] | null) => void; dismiss: () => void }[];
 
 beforeEach(() => {
 	log = [];
 	asks = [];
 	vi.stubGlobal('document', fakeDocument);
-	vi.mocked(askToAcknowledge).mockReset().mockImplementation((root, warnings) => {
+	vi.mocked(askToAcknowledge).mockReset().mockImplementation((root, warnings, opts) => {
 		expect(root).toBe(ROOT);
 		log.push(`ask:${warnings.map((w) => w.code).join(',')}`);
-		return new Promise((resolve) => { asks.push({ warnings, answer: resolve }); });
+		return new Promise((resolve) => {
+			// "Not now", as AckPrompt does it: close (answering null), then onDismiss.
+			const dismiss = () => { log.push('closeAck'); resolve(null); opts?.onDismiss?.(); };
+			asks.push({ warnings, answer: resolve, dismiss });
+		});
 	});
 	vi.mocked(closeAck).mockReset().mockImplementation((root) => { expect(root).toBe(ROOT); log.push('closeAck'); });
 	vi.mocked(setAckBusy).mockReset().mockImplementation((_root, busy) => { log.push(`ackBusy:${busy}`); });
@@ -619,7 +623,7 @@ describe('possible duplicate (S4)', () => {
 		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_ANY_MATCH, signedLine] }]);
 	});
 
-	it('"Record my claim anyway" resubmits acknowledging it; the note says it was signed', async () => {
+	it('"Record my claim anyway" resubmits acknowledging it; the note says it is signed if the match still stood', async () => {
 		const { post, calls } = poster(DUP(), OK());
 		const { host, notes } = makeHost();
 		await submitClaim(options('desk', post, host));
@@ -636,13 +640,54 @@ describe('possible duplicate (S4)', () => {
 		expect(host.afterSaved).toHaveBeenCalledTimes(1);
 	});
 
-	it('"Not now" (or a closed prompt) posts nothing more', async () => {
+	// Review finding (S4): the server signs possible_duplicate only when it was raised on the
+	// resubmit too, and its 200 does not say which codes it signed. The note must never claim a
+	// signature the manifest may not hold.
+	it('the acknowledgment line is conditional: the 200 does not say what was signed', () => {
+		expect(dupCopy.CLAIM_NOTICE_ACKNOWLEDGED).toBe('You acknowledged the possible duplicate. If the match was still there when your claim was recorded, your acknowledgment is signed into the claim.');
+		expect(dupCopy.CLAIM_NOTICE_ACKNOWLEDGED).not.toMatch(/is signed into this claim\.$/);
+	});
+
+	it('acknowledged, then the resubmit\'s check could not run: only the unavailable line, nothing about a signature', async () => {
+		const { post, calls } = poster(DUP(), OK({ notices: ['duplicate_check_unavailable'] }));
+		const { host, notes } = makeHost();
+		await submitClaim(options('registry', post, host));
+		asks[0].answer(['possible_duplicate']);
+		await flush();
+		await flush();
+		expect(calls[1].body).toMatchObject({ acknowledge: ['possible_duplicate'] });
+		expect(notes.at(-1)).toEqual({
+			tone: 'gain',
+			parts: ["b:Sahel Capital's claim registered and signed.", ' Now A700 claimed · A300 unencumbered.', ' ' + dupCopy.CLAIM_NOTICE_UNAVAILABLE, 'br', 'span#k-anchor-status:⏳ Timestamping to Bitcoin…'],
+		});
+		expect(notes.at(-1)?.parts.join('')).not.toMatch(/acknowledg/i);
+	});
+
+	it('"Not now": nothing more is posted, and the note says nothing was recorded', async () => {
+		for (const page of ['desk', 'registry'] as const) {
+			asks = [];
+			const { post } = poster(DUP());
+			const { host, notes } = makeHost();
+			await submitClaim(options(page, post, host));
+			asks[0].dismiss();
+			await flush();
+			expect(post).toHaveBeenCalledTimes(1);
+			expect(notes.at(-1)).toEqual({ tone: 'info', parts: [dupCopy.CLAIM_DUPLICATE_NOT_RECORDED] });
+			expect(dupCopy.CLAIM_DUPLICATE_NOT_RECORDED).toBe('Nothing was recorded.');
+			expect(log.slice(-2)).toEqual(['closeAck', 'note:info']);
+			expect(host.afterNotOk).not.toHaveBeenCalled();
+			expect(host.afterSaved).not.toHaveBeenCalled();
+		}
+	});
+
+	it('a prompt closed or replaced by the page posts nothing more and leaves no note', async () => {
 		const { post } = poster(DUP());
-		const { host } = makeHost();
+		const { host, notes } = makeHost();
 		await submitClaim(options('registry', post, host));
 		asks[0].answer(null);
 		await flush();
 		expect(post).toHaveBeenCalledTimes(1);
+		expect(notes).toEqual([]);
 		expect(host.afterNotOk).not.toHaveBeenCalled();
 	});
 

@@ -6,6 +6,11 @@
    display, so [hidden] hides it. */
 @import '../ui/tones.css';
 
+/* S4: focus moves to the prompt's title when it opens (ackPrompt.client.ts). The title is not a
+   control, so it shows a ring only for keyboard focus. */
+.ack .ack__title:focus { outline: none; }
+.ack .ack__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
 /* Desk: was acceptDiligencePrompt drawn into #c-out with the desk .note metrics (desk L121). */
 .ack--desk .ack__panel { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; }
 /* The desk never defined .note-warn, so its diligence prompt has always drawn with no fill or

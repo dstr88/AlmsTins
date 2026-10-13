@@ -12,10 +12,16 @@
  * answers 409 possible_duplicate instead of recording the claim with a notice. The prompt shows
  * what the answer carries (duplicateView: the financed detail only for a verified account), and
  * "Record my claim anyway" sends the claim again with acknowledge: ['possible_duplicate'], which the
- * server signs into it. "Not now" closes the prompt and posts nothing. The server raises one
- * warning per answer, in its order (debtor confirmation, headroom, possible duplicate), so one
- * claim can take up to three prompts; each answer is carried into the next pass. A 200 that still
- * carries notices (the check could not run) says so in the note.
+ * server signs into it while the match still stands. "Not now" closes the prompt, posts nothing and
+ * says nothing was recorded. The server raises one warning per answer, in its order (debtor
+ * confirmation, headroom, possible duplicate), so one claim can take up to three prompts; each
+ * answer is carried into the next pass. A 200 that still carries notices (the check could not run)
+ * says so in the note.
+ *
+ * The success note never claims more than the server confirmed. The 200 does not say which codes
+ * were signed (the server signs a code only when it was raised on that pass and acknowledged), and
+ * the match can go away between the prompt and the resubmit, so the note says the acknowledgment is
+ * signed only while the match still stood, and drops the line when the check could not run.
  *
  * A receivable its owner withdrew (S2) answers 410 withdrawn to the claim, or to the diligence
  * acceptance if it was withdrawn while the prompt was open. That is said plainly (copy/withdrawn.ts),
@@ -31,7 +37,8 @@ import { ANCHOR_TIMESTAMPING, type AnchorAfterWriteCopy } from '@/lib/receivable
 import { UNKNOWN_ERROR, type ClaimHostCopy } from '@/lib/receivables/copy/claim';
 import { WITHDRAWN_CLAIM_NOTE } from '@/lib/receivables/copy/withdrawn';
 import {
-	CLAIM_DUPLICATE_STILL, CLAIM_NOTICE_ACKNOWLEDGED, CLAIM_NOTICE_POSSIBLE_DUPLICATE, CLAIM_NOTICE_UNAVAILABLE,
+	CLAIM_DUPLICATE_NOT_RECORDED, CLAIM_DUPLICATE_STILL, CLAIM_NOTICE_ACKNOWLEDGED, CLAIM_NOTICE_POSSIBLE_DUPLICATE,
+	CLAIM_NOTICE_UNAVAILABLE,
 } from '@/lib/receivables/copy/duplicate';
 import { claimDuplicateLines } from '@/lib/receivables/duplicateView';
 import type { AckCode } from '@/lib/receivables/acknowledgments';
@@ -172,7 +179,9 @@ export async function submitClaim(o: SubmitClaimOptions, acks: ClaimAcks = {}): 
 				return;
 			}
 			host.clear();
-			void askToAcknowledge(root, [{ code: 'possible_duplicate', lines: claimDuplicateLines(j.duplicateCheck) }]).then((codes) => {
+			void askToAcknowledge(root, [{ code: 'possible_duplicate', lines: claimDuplicateLines(j.duplicateCheck) }], {
+				onDismiss: () => host.note('info', [txt(CLAIM_DUPLICATE_NOT_RECORDED)]),
+			}).then((codes) => {
 				if (codes === null || !codes.includes('possible_duplicate')) return;
 				if (!sameRecord(host, input)) { closeAck(root); return; }
 				return submitClaim(o, { ...acks, acknowledge: [...acknowledge, 'possible_duplicate'] });
@@ -187,13 +196,18 @@ export async function submitClaim(o: SubmitClaimOptions, acks: ClaimAcks = {}): 
 	}
 }
 
-/** What the note adds about the duplicate check: the signed acknowledgment, then any notices. */
+/**
+ * What the note adds about the duplicate check: the acknowledgment, then any notices. `acknowledged`
+ * is what this claim sent, not what the server signed. When the check could not run, nothing was
+ * raised, so nothing was signed: only the unavailable line shows.
+ */
 function duplicateNotes(j: any, acknowledged: readonly AckCode[]): string[] {
 	const notices: unknown[] = Array.isArray(j.notices) ? j.notices : [];
+	const unavailable = notices.includes('duplicate_check_unavailable');
 	return [
-		...(acknowledged.includes('possible_duplicate') ? [CLAIM_NOTICE_ACKNOWLEDGED] : []),
+		...(acknowledged.includes('possible_duplicate') && !unavailable ? [CLAIM_NOTICE_ACKNOWLEDGED] : []),
 		...(notices.includes('possible_duplicate') ? [CLAIM_NOTICE_POSSIBLE_DUPLICATE] : []),
-		...(notices.includes('duplicate_check_unavailable') ? [CLAIM_NOTICE_UNAVAILABLE] : []),
+		...(unavailable ? [CLAIM_NOTICE_UNAVAILABLE] : []),
 	];
 }
 

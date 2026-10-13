@@ -137,3 +137,15 @@ describe('entry modules', () => {
 		});
 	}
 });
+
+describe('the claim prompt gives focus back to the claim button (S4 review)', () => {
+	const HOSTS = { desk: ['desk', 'c-go'], registry: ['registry', 'k-btn'] } as const;
+	for (const [h, [variant, id]] of Object.entries(HOSTS)) {
+		it(`${h}: returnFocus names its claim button, which sits right above the prompt`, () => {
+			const src = h === 'desk' ? desk() : registry();
+			expect(src).toContain(`<AckPrompt variant="${variant}" name="claim" returnFocus="${id}" />`);
+			expect(src.split(`id="${id}"`).length - 1).toBe(1);
+			expect(src.indexOf(`id="${id}"`)).toBeLessThan(src.indexOf('<AckPrompt '));
+		});
+	}
+});
