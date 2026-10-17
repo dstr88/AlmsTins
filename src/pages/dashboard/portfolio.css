@@ -443,6 +443,11 @@
 	padding: clamp(4rem, 10vh, 7rem) 2rem;
 }
 
+/* display:flex above would otherwise beat the hidden attribute, leaving the spinner on screen after the data loads. */
+.pf-loading[hidden] {
+	display: none;
+}
+
 .pf-spinner {
 	width: 28px;
 	height: 28px;
