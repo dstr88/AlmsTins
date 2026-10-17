@@ -31,7 +31,7 @@ beforeAll(() => {
 
 const controlClaim: ProofClaim = {
   kind: 'control',
-  subject: '0x39a21f6ca442b9f01108b52515b9aa508f3baaa6',
+  subject: '0x1234567890abcdef1234567890abcdef12345678',
   statement:
     'The holder proved control of this address via a self-send. This attests control only — not legal ownership of any underlying asset, and not that the address is safe.',
 };
