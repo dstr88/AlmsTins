@@ -238,11 +238,18 @@ if (needsLifetime.length > 0) {
 		// A needs-lifetime coin has, by definition, no disposal in the selected year, so
 		// that year contributes nothing to its total and can be skipped entirely.
 		const otherYears = availableYears.filter((y) => y !== year);
-		const breakdowns = await Promise.all(
-			otherYears.map((y) =>
-				buildAnnualBreakdown(tenantId, y, costMethod, undefined, 'auto' as AnnualBreakdownSource).catch(() => null),
-			),
-		);
+		// Run the engine a few years at a time, not all at once: a decade of history would
+		// otherwise fire a dozen full engine runs in parallel on a single SSR request.
+		const LIFETIME_CONCURRENCY = 3;
+		const breakdowns: Array<Awaited<ReturnType<typeof buildAnnualBreakdown>> | null> = [];
+		for (let i = 0; i < otherYears.length; i += LIFETIME_CONCURRENCY) {
+			const batch = await Promise.all(
+				otherYears.slice(i, i + LIFETIME_CONCURRENCY).map((y) =>
+					buildAnnualBreakdown(tenantId, y, costMethod, undefined, 'auto' as AnnualBreakdownSource).catch(() => null),
+				),
+			);
+			breakdowns.push(...batch);
+		}
 		const bump = (lot: any, term: 'short' | 'long') => {
 			const e = lifetimeByAsset.get(lot.asset) ?? { realized: 0, stLots: 0, ltLots: 0, lastSell: '' };
 			e.realized += lot.gainLossUsd ?? 0;
