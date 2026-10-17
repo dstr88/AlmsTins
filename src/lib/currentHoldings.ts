@@ -88,6 +88,53 @@ export function mergeAaveSupply(base: HeldNow, aave: Map<string, number>): HeldN
   return out;
 }
 
+/**
+ * What the Portfolio page prices Aave supply with: a wrapper that redeems 1:1 for its base coin is
+ * priced as that coin. Staking receipts and bridged copies are NOT here: they trade apart from their
+ * base coin, so they are priced only under their own symbol, if at all. Keep in sync with
+ * getAaveTotalsForWallet in src/lib/aave/client.ts.
+ */
+export const AAVE_PRICE_ALIAS: Record<string, string> = { WETH: 'ETH', WPOL: 'POL', WMATIC: 'POL', WAVAX: 'AVAX' };
+const AAVE_STABLES = new Set(['USDC', 'USDT', 'USDT0', 'USDC.E', 'USDT.E']);
+
+/**
+ * Pure. The USD price of an Aave-supplied symbol, the way the Portfolio page prices it, or null when it
+ * cannot be priced. tickerPrices maps UPPERCASE ticker symbols to USD prices.
+ */
+export function aaveSymbolPrice(symbol: string, tickerPrices: Map<string, number>): number | null {
+  const sym = String(symbol ?? '').trim().toUpperCase();
+  if (!sym) return null;
+  const base = AAVE_PRICE_ALIAS[sym] ?? sym;
+  if (AAVE_STABLES.has(base) || base.startsWith('USDC') || base.startsWith('USDT')) return 1;
+  const price = tickerPrices.get(base);
+  return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
+}
+
+/**
+ * Pure. An entry with no value (supplied to Aave and not in a wallet snapshot) is kept only when priceOf
+ * can price it and its value reaches floorUsd; it then carries that value. Entries that already have a
+ * value are left as they are. This mirrors the Portfolio page, which keeps an Aave position only when
+ * it is priced at $1 or more, so an unpriced or sub-dollar leftover does not show as held.
+ */
+export function settleAaveOnlyHoldings(
+  held: HeldNow,
+  priceOf: (symbol: string) => number | null,
+  floorUsd: number = MIN_HELD_VALUE_USD,
+): HeldNow {
+  const out: HeldNow = new Map();
+  for (const [sym, h] of held) {
+    if (h.valueUsd != null) {
+      out.set(sym, { ...h });
+      continue;
+    }
+    const price = priceOf(sym);
+    if (price == null || !Number.isFinite(price) || price <= 0) continue;
+    const value = price * h.qty;
+    if (Number.isFinite(value) && value >= floorUsd) out.set(sym, { qty: h.qty, valueUsd: value });
+  }
+  return out;
+}
+
 // ── I/O ────────────────────────────────────────────────────────────────────────
 
 // The Portfolio page's query: the latest snapshot per (wallet, chain), both tables scoped to the tenant.

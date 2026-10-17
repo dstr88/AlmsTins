@@ -6,7 +6,7 @@ import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 import { db } from '../../../lib/db';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
 import { classifyUniverse, buildSyntheticOpenCard, type RosterEntry, type OpenCard } from '@/lib/memoryLane';
-import { getHeldNow, type HeldNow } from '@/lib/currentHoldings';
+import { getHeldNow, settleAaveOnlyHoldings, aaveSymbolPrice, type HeldNow } from '@/lib/currentHoldings';
 import { getLang } from '@/lib/i18n/locale';
 import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
@@ -140,6 +140,9 @@ try {
 			const bGl = b.unrealizedGainLoss ?? Infinity;
 			return aGl - bGl;
 		});
+	// A coin only Aave knows has no snapshot value, so it counts as held only when it can be priced at the
+	// Portfolio's $1 floor, the way the Portfolio prices Aave supply. Unpriced or sub-dollar leftovers drop out.
+	heldNow = settleAaveOnlyHoldings(heldNow, (sym) => aaveSymbolPrice(sym, priceMap));
 
 	// ── Full lifetime roster — EVERY coin the tenant has ever tracked ──────────
 	// One row per asset_symbol from asset_lifecycle_groups (tenant-scoped), with net
