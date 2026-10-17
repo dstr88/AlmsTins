@@ -154,6 +154,7 @@ const USER_MARKET_STATES_QUERY = /* GraphQL */ `
   query UserMarketStates($chainIds: [ChainId!]!, $user: EvmAddress) {
     markets(request: { chainIds: $chainIds, user: $user }) {
       address
+      chain { chainId }
       userState {
         totalCollateralBase
         totalDebtBase
@@ -253,6 +254,14 @@ function toNumberOrNull(value: unknown): number | null {
  * when that lookup fails. It never rejects and never waits long: the figures only feed the sanity check in
  * completeAaveTotals, so a failure here switches the check off and nothing else.
  */
+/**
+ * The key under which a market's reported totals are kept. The Aave v3 pool has ONE address on Polygon and on
+ * Avalanche (and on other chains), so an address alone cannot tell two markets apart.
+ */
+function reportedKey(chainId: number, marketAddress: string): string {
+	return `${chainId}:${marketAddress.toLowerCase()}`;
+}
+
 async function fetchReportedTotals(user: string): Promise<Map<string, AaveReported> | null> {
 	try {
 		const response = await fetch(AAVE_V3_GRAPHQL_ENDPOINT, {
@@ -270,10 +279,12 @@ async function fetchReportedTotals(user: string): Promise<Map<string, AaveReport
 		const out = new Map<string, AaveReported>();
 		for (const market of Array.isArray(json?.data?.markets) ? json.data.markets : []) {
 			const address = String(market?.address ?? '').toLowerCase();
+			const chainId = Number(market?.chain?.chainId);
 			const totalCollateralUsd = toNumberOrNull(market?.userState?.totalCollateralBase);
 			const totalDebtUsd = toNumberOrNull(market?.userState?.totalDebtBase);
-			if (!address || (totalCollateralUsd === null && totalDebtUsd === null)) continue;
-			out.set(address, { totalCollateralUsd, totalDebtUsd });
+			// A market whose chain is unknown is left out: the check is skipped for it, never run against another chain's totals.
+			if (!address || !Number.isFinite(chainId) || (totalCollateralUsd === null && totalDebtUsd === null)) continue;
+			out.set(reportedKey(chainId, address), { totalCollateralUsd, totalDebtUsd });
 		}
 		return out;
 	} catch (err) {
@@ -536,9 +547,10 @@ export async function getAavePositionsForWallet(
 
 		const reported = reportedLookup ? await reportedLookup : null;
 		// Aave v4 is not covered by the v3 totals, so it carries none and is not checked.
+		const chainIdOf: Record<string, number> = { ethereum: ETHEREUM_CHAIN_ID, polygon: POLYGON_CHAIN_ID, avalanche: AVALANCHE_CHAIN_ID };
 		const withReported = (summary: AaveChainSummary): AaveChainSummary =>
 			reportedLookup && summary.market && summary.chain !== 'ethereum_v4'
-				? { ...summary, reported: reported?.get(summary.market.toLowerCase()) ?? null }
+				? { ...summary, reported: reported?.get(reportedKey(chainIdOf[summary.chain], summary.market)) ?? null }
 				: summary;
 
 		return {

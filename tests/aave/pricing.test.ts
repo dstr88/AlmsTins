@@ -261,8 +261,8 @@ const lookup = (chains: AaveChainSummary[], over: Partial<AavePositionsResponse>
 });
 
 describe('completeAaveTotals: the regression', () => {
-	// The incident: a healthy account whose collateral is WBTC, a bridged BTC and a staking token read as
-	// deeply negative because every one of them priced at $0 while the debt was counted in full.
+	// Regression: supplies the old lookup priced at $0 must count, or an account with sound collateral reads as
+	// deeply negative while its debt is counted in full.
 	const supplies = [
 		pos({ assetSymbol: 'WBTC', amount: 0.1, aaveUsd: 6100, isCollateral: true }),
 		pos({ assetSymbol: 'BTC.b', amount: 0.05, aaveUsd: 3050, isCollateral: true }),
@@ -271,7 +271,7 @@ describe('completeAaveTotals: the regression', () => {
 	];
 	const debt = pos({ side: 'borrow', assetSymbol: 'USDT', amount: 4000, aaveUsd: 4000 });
 
-	it('counts every supply Aave valued, so a healthy account nets positive', () => {
+	it('counts every supply Aave valued, so collateral is not dropped', () => {
 		const out = completeAaveTotals(lookup([chainOf('avalanche', [...supplies, debt])]), new Map());
 		expect(out.suppliedUsdTotal).toBe(13550);
 		expect(out.debtUsdTotal).toBe(4000);

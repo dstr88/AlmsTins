@@ -51,7 +51,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-// A healthy account: its collateral is WBTC, a bridged BTC and a bridged ETH, with a staking token on the side.
+// An account with collateral in several assets, a supply that is not collateral, and one stablecoin borrow.
 const healthyAvalanche: FakeAave['chains'][number] = {
 	supplies: [
 		{ symbol: 'WBTC', amount: '0.1', usd: '6100', usdPerToken: '61000', isCollateral: true },
@@ -62,6 +62,45 @@ const healthyAvalanche: FakeAave['chains'][number] = {
 	borrows: [{ symbol: 'USDt', amount: '4000', usd: '4000', usdPerToken: '1' }],
 	state: { totalCollateralBase: '12450', totalDebtBase: '4000' },
 };
+
+describe('a pool address that two chains share', () => {
+	// On the real network the same pool address serves Polygon and Avalanche. Aave's own totals must be matched to
+	// a market by chain AND address, or a position on one chain is compared with the other chain's totals.
+	it('does not report a gap for a position that sits on Avalanche only', async () => {
+		serve({ chains: { [AVALANCHE]: healthyAvalanche } });
+		const totals = await getAaveTotalsForWallet(ADDR);
+		expect(totals.coverage.gaps).toEqual([]);
+		expect(totals.coverage.partial).toBe(false);
+		expect(totals.chains.find((c) => c.chain === 'avalanche')?.reported?.totalCollateralUsd).toBe(12450);
+		expect(totals.chains.find((c) => c.chain === 'polygon')?.reported?.totalCollateralUsd).toBe(0);
+	});
+
+	it('does not report a gap for a position that sits on Polygon only', async () => {
+		serve({
+			chains: {
+				[POLYGON]: {
+					supplies: [{ symbol: 'WETH', amount: '2', usd: '4400', usdPerToken: '2200', isCollateral: true }],
+					borrows: [{ symbol: 'USDC', amount: '1000', usd: '1000', usdPerToken: '1' }],
+					state: { totalCollateralBase: '4400', totalDebtBase: '1000' },
+				},
+			},
+		});
+		const totals = await getAaveTotalsForWallet(ADDR);
+		expect(totals.coverage.gaps).toEqual([]);
+		expect(totals.coverage.partial).toBe(false);
+	});
+
+	it('still reports a real gap on one of the two chains', async () => {
+		serve({
+			chains: {
+				[AVALANCHE]: { ...healthyAvalanche, state: { totalCollateralBase: '30000', totalDebtBase: '4000' } },
+			},
+		});
+		const totals = await getAaveTotalsForWallet(ADDR);
+		expect(totals.coverage.partial).toBe(true);
+		expect(totals.coverage.gaps.map((g) => g.chain)).toEqual(['avalanche']);
+	});
+});
 
 describe('what the client asks Aave for', () => {
 	it('asks for Aave\'s own USD figure and the collateral flag, and for the state in every market in one request', async () => {
@@ -111,7 +150,7 @@ describe('getAavePositionsForWallet carries Aave\'s own valuation', () => {
 });
 
 describe('getAaveTotalsForWallet', () => {
-	it('prices WBTC, bridged BTC and ETH, and a staking token from Aave\'s own figures, so a healthy account nets positive', async () => {
+	it('prices each supply from Aave\'s own figures, so collateral across several assets nets against the borrow', async () => {
 		serve({ chains: { [AVALANCHE]: healthyAvalanche } });
 		const out = await getAaveTotalsForWallet(ADDR);
 		expect(out.suppliedUsdTotal).toBe(13550);

@@ -5,9 +5,9 @@ import { installFakeAaveApi, type FakeAave, type FakeAaveHandle } from '../helpe
  * The Vault's headline numbers: getLatestNetWorthSummary (src/lib/networth.ts) and GET /api/networth/summary,
  * which feed the Vault tile and the net worth page. They had no tests.
  *
- * The first block runs the REAL Aave client against a fake Aave API, so it covers the incident end to end:
- * a healthy account whose collateral is WBTC, a bridged BTC and a staking token used to read as deeply
- * negative, because those supplies priced at $0 while the debt was counted in full.
+ * The first block runs the REAL Aave client against a fake Aave API, so it covers the regression end to end:
+ * an account whose collateral priced at $0 used to read as deeply negative, because those supplies were
+ * dropped while the debt was counted in full.
  *
  * Hermetic: the session, the database, the cache, the price feed and Aave are stubs. Every symbol, amount,
  * address and price is invented.
@@ -64,7 +64,7 @@ const snapshot = (walletId: string, label: string, address: string, chain: strin
 	capturedAt: '2026-01-01T00:00:00.000Z',
 });
 
-// Wallet A: collateral in WBTC, a bridged BTC and a staking token (not collateral), against a stablecoin loan.
+// Wallet A: collateral in several assets plus one supply that is not collateral, against a stablecoin loan.
 const healthyA = {
 	supplies: [
 		{ symbol: 'WBTC', amount: '0.1', usd: '6100', usdPerToken: '61000', isCollateral: true },
@@ -114,8 +114,8 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe('getLatestNetWorthSummary: the incident, end to end', () => {
-	it('counts WBTC, bridged BTC and a staking token as assets, so a healthy account nets positive', async () => {
+describe('getLatestNetWorthSummary: unpriced collateral, end to end', () => {
+	it('counts every valued supply as an asset, so collateral nets against the loan', async () => {
 		serve({
 			chains: {},
 			users: {

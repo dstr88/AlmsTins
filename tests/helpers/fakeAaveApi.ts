@@ -48,7 +48,10 @@ export type FakeAaveHandle = {
 };
 
 const CHAIN_IDS = [1, 137, 43114];
-const marketOf = (chainId: number) => `0x${chainId.toString(16).padStart(40, '0')}`;
+// The Aave v3 pool has ONE address on Polygon and on Avalanche (and on other chains), so two markets can share an
+// address. Ethereum has its own. The fake mirrors that, because keying anything by address alone is a bug.
+const SHARED_POOL = `0x${'a'.repeat(40)}`;
+const marketOf = (chainId: number) => (chainId === 1 ? `0x${'b'.repeat(40)}` : SHARED_POOL);
 
 const json = (body: unknown, status = 200) =>
 	new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -80,6 +83,7 @@ export function installFakeAaveApi(fake: FakeAave): FakeAaveHandle {
 						const state = chains[chainId]?.state;
 						return {
 							address: marketOf(chainId),
+							chain: { chainId },
 							userState: state && state !== 'fail' ? state : { totalCollateralBase: '0', totalDebtBase: '0' },
 						};
 					}),
