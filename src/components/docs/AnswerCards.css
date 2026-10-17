@@ -1,5 +1,5 @@
 /* AnswerCards.css — presentation only.
-   Markup lives in AnswerCards.astro. Moved from the /verify/agents style block (the .st cards),
+   Markup lives in AnswerCards.astro. Moved from the /agentics style block (the .st cards),
    values unchanged. Nothing here encodes logic: the tone is a class picked from the item's cls.
    Every selector starts with .answer-cards plus a second class, so each one is at least (0,2,0)
    and beats the layout's .apidocs pre (0,1,1) whatever order the CSS loads in. */

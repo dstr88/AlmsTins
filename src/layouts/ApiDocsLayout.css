@@ -1,7 +1,7 @@
 /* ApiDocsLayout.css — presentation only.
    The look of a public API docs page: the eyebrow, title and lede, the hero tiles, the quick
    nav, prose sections, code samples, the terminal chrome, field lists and spec tables. Moved
-   rule by rule from the <style is:global> block /verify/agents used to carry, values unchanged.
+   rule by rule from the <style is:global> block /agentics used to carry, values unchanged.
 
    Two parts. First a small document-level reset (*, html, body), left unprefixed on purpose:
    html cannot sit under a class, and this file is only linked on pages that use the layout.

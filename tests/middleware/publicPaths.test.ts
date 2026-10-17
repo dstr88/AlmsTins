@@ -148,3 +148,26 @@ describe('the receivables "Seen before?" check is not public', () => {
 		}
 	});
 });
+
+describe('the Agentics docs page is public, and the old URL redirects to it', () => {
+	it('isPublicPath lists /agentics exactly, not as a prefix', () => {
+		expect(isPublicPath('/agentics')).toBe(true);
+		expect(isPublicPath('/agentics/')).toBe(true);
+		expect(isPublicPath('/agentics/anything')).toBe(false);
+	});
+
+	it('a signed-out GET reaches the page handler and never app.ts', async () => {
+		const { res, next } = await run('/agentics');
+		expect(next).toHaveBeenCalledTimes(1);
+		expect(res.status).toBe(200);
+		expect(appCalls.n).toBe(0);
+	});
+
+	it('the old /verify/agents URL answers 308 to /agentics, query kept, without reaching the page or app.ts', async () => {
+		const { res, next } = await run('/verify/agents?utm_source=linkedin');
+		expect(res.status).toBe(308);
+		expect(res.headers.get('Location')).toBe('/agentics?utm_source=linkedin');
+		expect(next).not.toHaveBeenCalled();
+		expect(appCalls.n).toBe(0);
+	});
+});

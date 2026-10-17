@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { routeLegacy, financingNext, PAIRS } from '../../src/middleware/legacyRedirects';
+import { routeLegacy, financingNext, PAIRS, RENAMED } from '../../src/middleware/legacyRedirects';
 
 const u = (pathAndQuery: string) => new URL(pathAndQuery, 'https://almstins.com');
 const MOVED = ['registry', 'desk', 'client', 'confirm', 'invite', 'offer', 'countersign', 'attest',
@@ -40,7 +40,7 @@ describe('alias phase (today)', () => {
   it('leaves /verify, the landing, and everything else alone', () => {
     for (const p of [
       '/verify/desk', '/verify/attest?token=x', '/verify/login', '/verify/scan?address=0xabc', '/verify',
-      '/verify/es', '/verify/agents', '/verify/agent-keys', '/verify-record', '/receivables', '/receivables/',
+      '/verify/es', '/verify/agent-keys', '/agentics', '/agentics/', '/verify-record', '/receivables', '/receivables/',
       '/receivables/unknown', '/receivables/milestones-demo', '/artifacts/cairn', '/artifacts/cairn/',
       // The private milestone pages have no alias yet (they answer like any unknown name).
       '/receivables/milestones', '/receivables/milestone-check?token=x',
@@ -98,5 +98,39 @@ describe('financingNext', () => {
     expect(financingNext('/dashboard/verify')).toBeNull();
     expect(financingNext('/\\evil.com')).toBeNull();
     expect(financingNext(null)).toBeNull();
+  });
+});
+
+describe('RENAMED: the agent docs moved from /verify/agents to /agentics', () => {
+  const MODES = ['alias', 'rewrite', 'redirect'] as const;
+
+  // The old URL is in public comments, PDFs and announcements; losing it breaks every one.
+  it('never loses a rename', () => {
+    expect(RENAMED).toEqual([['/verify/agents', '/agentics']]);
+  });
+
+  it('answers 308 to the new page in every mode, one optional trailing slash, query kept byte for byte', () => {
+    for (const mode of MODES) {
+      for (const [from, to] of [
+        ['/verify/agents', '/agentics'],
+        ['/verify/agents/', '/agentics'],
+        ['/verify/agents?utm_source=linkedin&a=1&a=2', '/agentics?utm_source=linkedin&a=1&a=2'],
+      ]) {
+        const r = routeLegacy(u(from), mode);
+        expect(r?.kind, `${mode} ${from}`).toBe('respond');
+        if (r?.kind === 'respond') {
+          expect(r.response.status, `${mode} ${from}`).toBe(308);
+          expect(r.response.headers.get('Location'), `${mode} ${from}`).toBe(to);
+        }
+      }
+    }
+  });
+
+  it('leaves the new page and lookalikes alone (no redirect loop, no prefix catch)', () => {
+    for (const mode of MODES) {
+      for (const p of ['/agentics', '/agentics/', '/verify/agents-x', '/verify/agentsx', '/verify/agents/extra', '/verify/Agents', '/verify/agent-keys']) {
+        expect(routeLegacy(u(p), mode), `${mode} ${p}`).toBeNull();
+      }
+    }
   });
 });

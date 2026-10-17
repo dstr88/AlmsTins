@@ -31,7 +31,7 @@ describe('public pages that get the headers', () => {
       '/verify/desk', '/verify/attest', '/verify/offer/', '/verify/cairn', '/verify/cairn-attest',
       '/verify/login', '/verify/agent-keys',
     ]) expect(needsPublicHeaders(p), p).toBe(true);
-    for (const p of ['/verify', '/verify/scan', '/verify/es', '/verify/agents', '/verify-record', '/', '/artifacts/proof']) {
+    for (const p of ['/verify', '/verify/scan', '/verify/es', '/verify/agents', '/agentics', '/verify-record', '/', '/artifacts/proof']) {
       expect(needsPublicHeaders(p), p).toBe(false);
     }
   });

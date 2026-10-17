@@ -121,11 +121,11 @@ Authorization: Bearer <your-key>
           <span class="vtool__title">{t.tools.levels[0].title}</span>
           <span class="vtool__body">{t.tools.levels[0].body}</span>
           <span class="vtool__price">{t.tools.levels[0].price}</span>
-          <a class="vtool__cta vtool__cta--ghost" href="/verify/agents">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
+          <a class="vtool__cta vtool__cta--ghost" href="/agentics">{t.tools.levels[0].cta} <span aria-hidden="true">→</span></a>
           <p class="vtool__key-hint">{t.tools.agentKeyLine}</p>
           <a class="vtool__cta" href="/verify/login?next=/verify/agent-keys">{t.tools.agentSigninBtn}</a>
           <div class="vdemo">
-            <a class="vdemo__btn vdemo__btn--link" href="/verify/agents">{t.tools.agentDemo.button}</a>
+            <a class="vdemo__btn vdemo__btn--link" href="/agentics">{t.tools.agentDemo.button}</a>
           </div>
         </article>
 
@@ -716,7 +716,7 @@ Authorization: Bearer <your-key>
 </style>
 
 <script>
-  // Agent tile demo replaced with a plain link to /verify/agents -- the inline
+  // Agent tile demo replaced with a plain link to /agentics -- the inline
   // checker (and later, its full-page port) got dropped: a random address almost
   // always answers "unknown," which read as broken rather than correct.
 

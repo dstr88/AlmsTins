@@ -14,7 +14,7 @@ const url = (path: string) => `https://almstins.com${path}`;
 
 describe('sitemap filter', () => {
   it('keeps the public Verify and Receivables landings', () => {
-    for (const p of ['/verify/', '/verify/es/', '/verify/fr/', '/verify/agents/', '/receivables/']) {
+    for (const p of ['/verify/', '/verify/es/', '/verify/fr/', '/agentics/', '/receivables/']) {
       expect(sitemapFilter(url(p))).toBe(true);
     }
     expect(sitemapFilter(url('/verify'))).toBe(true);
@@ -26,7 +26,7 @@ describe('sitemap filter', () => {
       '/verify/desk/', '/verify/client/', '/verify/registry/', '/verify/login/', '/verify/scan/',
       '/verify/attest/', '/verify/authenticate/', '/verify/countersign/', '/verify/offer/',
       '/verify/invite/', '/verify/confirm/', '/verify/cairn/', '/verify/cairn-attest/',
-      '/verify/agent-keys/', '/verify/runsheet/', '/verify/guide/', '/verify/changelog/',
+      '/verify/agent-keys/', '/verify/agents/', '/verify/runsheet/', '/verify/guide/', '/verify/changelog/',
       '/verify/thanks/', '/receivables/desk/', '/receivables/anything-new/',
     ]) {
       expect(sitemapFilter(url(p)), p).toBe(false);

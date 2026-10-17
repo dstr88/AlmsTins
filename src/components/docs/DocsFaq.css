@@ -1,8 +1,8 @@
 /* DocsFaq.css — presentation only.
    Markup lives in DocsFaq.astro; the <details class="faq-item"> items are the page's own slot
    children. Same native details/summary accordion as the roster tool and the receivables
-   registry, for a consistent Verify-family pattern. Moved from the /verify/agents style block,
-   values unchanged, plus the registry's .a b and .a code rules (no-ops on /verify/agents, whose
+   registry, for a consistent Verify-family pattern. Moved from the /agentics style block,
+   values unchanged, plus the registry's .a b and .a code rules (no-ops on /agentics, whose
    answers hold neither). The container itself is never styled, so a host section that sets its
    own margin keeps it exactly once. Every selector starts with .docs-faq plus a second class, so
    each one is at least (0,2,0) and the registry's details.faq-item rules (0,1,1) cannot reach in. */

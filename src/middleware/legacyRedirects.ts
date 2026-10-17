@@ -12,6 +12,10 @@
  * printed run sheets, chat threads and magic links depend on these. Exact paths only, with one
  * optional trailing slash: never a /verify prefix (it would catch /verify-record), and never a
  * /verify/cairn prefix (it would catch cairn-attest).
+ *
+ * RENAMED, below PAIRS, holds plain one-page renames that are not part of the financing move and
+ * apply in every mode (today: the agent docs, /verify/agents to /agentics). Same rules: exact
+ * path, one optional trailing slash, query kept, never removed.
  */
 import { safeNextPath } from '../lib/safeNext';
 
@@ -27,6 +31,15 @@ export const PAIRS: ReadonlyArray<readonly [string, string]> = [
   // Takes effect only once the static demo file is replaced by a page (redirect phase).
   ['/artifacts/cairn', '/receivables/milestones-demo'],
 ];
+
+/**
+ * One-page renames outside the financing move, answered 308 in every mode. NEVER REMOVE ONE: the
+ * old URLs sit in public comments, PDFs and announcements.
+ */
+export const RENAMED: ReadonlyArray<readonly [string, string]> = [
+  ['/verify/agents', '/agentics'],
+];
+const RENAMED_MAP = new Map<string, string>(RENAMED);
 
 export type RouteMode = 'alias' | 'rewrite' | 'redirect';
 export const ROUTE_MODE: RouteMode = 'alias';
@@ -71,6 +84,8 @@ export function routeLegacy(
   forward: boolean = FORWARD_FINANCING_LOGIN,
 ): LegacyAction {
   const p = strip(url.pathname);
+  const renamed = RENAMED_MAP.get(p);
+  if (renamed) return { kind: 'respond', response: respond(308, renamed + url.search) };
   if (!(p.startsWith('/verify/') || p.startsWith('/receivables/') || p === '/artifacts/cairn')) return null;
 
   if (mode === 'alias') {

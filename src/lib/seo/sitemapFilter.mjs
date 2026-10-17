@@ -22,11 +22,12 @@
 
 import { PETRO_TINS_PUBLIC } from '../petroTinsFlag.mjs';
 
+// The agent docs moved to /agentics/, which sits outside these prefixes and is public by the
+// default rule below. The old /verify/agents/ is a redirect now, so it stays out of the sitemap.
 const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 	'/verify/',
 	'/verify/es/',
 	'/verify/fr/',
-	'/verify/agents/',
 	'/verify/seen-before/',
 	'/receivables/',
 ]);
