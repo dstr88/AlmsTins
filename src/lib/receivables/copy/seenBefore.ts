@@ -42,3 +42,76 @@ export const SEEN_BEFORE_INVALID_BUYER_REF = 'The debtor’s own reference (buye
 
 /** A name or the invoice number has no letter or digit left once punctuation is set aside. */
 export const SEEN_BEFORE_INVALID_NAMES = 'The supplier, the debtor and the invoice number each need at least one letter or number.';
+
+/** 429: too many checks in a short time. */
+export const SEEN_BEFORE_RATE_LIMITED = 'Too many checks in a short time. Wait a minute and try again.';
+
+// ── Result lines (the form's rendered answer; S6) ──
+// Assembled by src/lib/receivables/seenBeforeView.ts. Only neutral values (a count, a date) are
+// ever interpolated around these, so every sensitive phrase lives here where
+// tests/receivables/copy.test.ts holds it to the bright line. A match is "on record", never a
+// lien, a rank or a legal status; "not found" is never a clean bill. The check warns; the person
+// decides.
+
+/** Heading: a match exists but carries no active financing claim. */
+export const SEEN_BEFORE_ON_RECORD = 'This invoice is already on record at Almstins.';
+
+/** Heading: some matching record is recorded as financed. */
+export const SEEN_BEFORE_FINANCED = 'This invoice is recorded as financed at Almstins.';
+
+/** Heading: a match is settled, and none is financed. */
+export const SEEN_BEFORE_SETTLED = 'This invoice is on record at Almstins and recorded as settled.';
+
+/** The caution every match carries: a warning, not a clearance and not a legal status. */
+export const SEEN_BEFORE_MATCH_CAVEAT = 'This is a warning that a record exists, not a clean bill and not a legal status. Almstins keeps the record; it does not rank claims or decide anything. You decide how to proceed.';
+
+/** One matching record. */
+export const SEEN_BEFORE_MATCHES_ONE = 'One matching record is on file.';
+
+/** 2 to 4 matching records: shown as "<n> matching records are on file." */
+export const SEEN_BEFORE_MATCHES_FEW = 'matching records are on file.';
+
+/** 5 or more matching records. */
+export const SEEN_BEFORE_MATCHES_MANY = 'Five or more matching records are on file.';
+
+/** financing = partial. */
+export const SEEN_BEFORE_FIN_PARTIAL = 'A financing claim covers part of its face value.';
+
+/** financing = full. */
+export const SEEN_BEFORE_FIN_FULL = 'A financing claim covers its full face value.';
+
+/** financing = over. */
+export const SEEN_BEFORE_FIN_OVER = 'Financing claims on record add up to more than its face value.';
+
+/** claimsAffirmed = all. */
+export const SEEN_BEFORE_AFFIRMED_ALL = 'The financing client confirms the advance arrived.';
+
+/** claimsAffirmed = some. */
+export const SEEN_BEFORE_AFFIRMED_SOME = 'Some financing on it is confirmed received, some is not.';
+
+/** claimsAffirmed = none, with a claim present. */
+export const SEEN_BEFORE_AFFIRMED_NONE = 'No financing client has confirmed an advance yet.';
+
+/** debtor = confirmed. */
+export const SEEN_BEFORE_DEBTOR_CONFIRMED = 'The debtor confirmed this debt through a request link.';
+
+/** debtor = disputed. */
+export const SEEN_BEFORE_DEBTOR_DISPUTED = 'The debtor disputed this record (not theirs, or the amount is wrong).';
+
+/** A matching record was withdrawn by its owner (S2). */
+export const SEEN_BEFORE_WITHDRAWN = 'A matching record was withdrawn by its owner. Its evidence stays answerable, but it is no longer active.';
+
+/** refChecked and the reference matched too. */
+export const SEEN_BEFORE_REF_MATCH = 'The debtor’s reference matched as well.';
+
+/** refChecked but the reference differed: perhaps a separate item under one order. */
+export const SEEN_BEFORE_REF_DIFF = 'The invoice matched, but the debtor’s reference differed. It may be a separate item under the same order.';
+
+/** Prefix for the first-seen date; a plain YYYY-MM-DD follows. */
+export const SEEN_BEFORE_FIRST_SEEN_PREFIX = 'First recorded at Almstins on ';
+
+/** Shown to a signed-in account that is not verified, beneath a found or not-found answer. */
+export const SEEN_BEFORE_VERIFY_FOR_MORE = 'Verify your email, or sign in with Google or GitHub, to see financing status, the debtor’s confirmation and when it was first recorded.';
+
+/** The sign-in link's label (401). */
+export const SEEN_BEFORE_SIGN_IN_CTA = 'Sign in to check';

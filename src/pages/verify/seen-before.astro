@@ -1,0 +1,165 @@
+---
+// "Seen before?" explained, for a lender about to advance against an invoice who holds no
+// receivable ID (S6). Public and indexable — this page is the plain-language home the registry
+// and desk link to, and the one reference for anyone scripting the check.
+//
+// Honest by construction: a match is a warning to look closer, never a clean bill and never a
+// legal status; "not found" covers only records kept at Almstins; a 503 is never read as "not
+// found". The check needs a free sign-in, and a verified account sees more than a found/not-found.
+// The check warns; the person decides. The shell and look come from the docs kit (ApiDocsLayout,
+// DocsFaq), the same as /verify/agents.
+import ApiDocsLayout from '@/layouts/ApiDocsLayout.astro';
+import DocsFaq from '@/components/docs/DocsFaq.astro';
+
+export const prerender = false;
+
+const TOC = [
+  ['what', 'What it answers'],
+  ['use', 'How to use it'],
+  ['read', 'Reading the answer'],
+  ['call', 'The call'],
+  ['never', 'What it never does'],
+  ['faq', 'FAQ'],
+];
+
+const READ = [
+  ['On record.', 'A matching invoice is already recorded at Almstins. That is a reason to look closer, not a verdict: confirm with your counterparty through a channel you already trust before you advance.'],
+  ['Recorded as financed.', 'A financing claim already stands against a matching invoice. This is the loudest signal the check gives: someone may have advanced against the same invoice already. A verified account also sees whether the claim covers part or all of the face value, and whether the financing client has confirmed the advance arrived.'],
+  ['The debtor confirmed, or disputed.', 'A verified account sees when the debtor confirmed the debt through a request link, or disputed it (not theirs, or the amount is wrong). A dispute is worth a pause.'],
+  ['Not found.', 'No exact record of this invoice is on record at Almstins. That is not a clean bill: it covers only records kept at Almstins with the same supplier, debtor, invoice number, amount and currency. A fresh fraud nobody has recorded yet looks exactly like this.'],
+  ['Could not run.', 'When the check itself is unavailable, it says so and returns no answer about the invoice. Treat that as not-proven and try again, never as "not found".'],
+];
+
+const NEVER = [
+  ['It never ranks claims or sets an order.', 'The registry is a voluntary record, not a collateral registry. A record on it creates no security interest and no legal effect. It shows what is recorded; it does not decide who is owed first.'],
+  ['It never moves or holds money.', 'Almstins reads and records. It holds no keys, connects no wallet, and is never in the path of any payment.'],
+  ['It never reveals who owns an account.', 'The answer carries no account, no receivable ID, no invoice text, no amount and no hash. It tells you whether a matching invoice is on record, and for a verified account, its financing state, nothing that identifies another party.'],
+  ['A match is a warning, not a decision.', 'It tells you to look closer. You make the financing decision, and you own it.'],
+];
+
+const FAQ = [
+  ['Who is this for?', "A lender, factor or buyer about to advance against an invoice who wasn't handed a receivable ID. If you have an ID, use the registry's Check a receivable instead, which shows the full record."],
+  ['Why do I have to sign in?', "Confirming whether a specific invoice exists is sensitive: a sole trader's invoice can be personal data, and sequential invoice numbers could be enumerated. So the check is signed-in only. A signed-out request gets a sign-in prompt, never a found or not-found."],
+  ['What does a verified account see that others do not?', 'A verified account (a verified email, or a Google or GitHub sign-in) sees the financing status, the debtor\'s confirmation and when the invoice was first recorded. Any other signed-in account sees only whether a matching invoice is already on record.'],
+  ['Does checking notify the supplier or the other lender?', 'No. The check reads recorded state and tells no one you looked. It writes nothing about the invoice you typed, and it logs none of its fields.'],
+  ['Is "not found" a green light?', 'No. It means no matching record is kept at Almstins. It cannot see an invoice nobody recorded, so it is never a clearance. Read it as "nothing on record here," and still do your own diligence.'],
+  ['How does the match work?', 'On the invoice itself: the supplier, the debtor, the invoice number, the amount and the currency. A match on the debtor\'s reference alone is not a match here, since that may be a separate item under the same order. When you send a reference and the invoice matches, a verified answer also says whether the reference matched too.'],
+];
+---
+<ApiDocsLayout title="Seen before? Check an invoice before you advance — Almstins Receivables">
+  <Fragment slot="head">
+    <meta name="description" content="Before you advance against an invoice, check whether it is already on record or already financed at Almstins. A match is a warning to look closer, never a clean bill. Free sign-in; Almstins never moves money." />
+    <link rel="canonical" href="https://almstins.com/verify/seen-before" />
+  </Fragment>
+
+  <header>
+    <div class="eyebrow">Almstins · Receivables</div>
+    <h1>Seen before?</h1>
+    <p class="lede">
+      Before you advance against an invoice, ask the one question your own books cannot answer:
+      <b>is this invoice already on record, or already financed, somewhere else?</b> You do not
+      need a receivable ID. Check by the invoice details, and a match is a warning to look closer,
+      never a clean bill and never a legal status.
+    </p>
+  </header>
+
+  <nav class="toc" aria-label="Page sections">
+    {TOC.map(([id, label]) => (<a href={`#${id}`}>{label}</a>))}
+  </nav>
+
+  <section id="what">
+    <h2>What it answers</h2>
+    <p class="body">
+      Duplicate financing happens when a second lender never sees that a first already advanced
+      against the same invoice. The registry's main check needs a receivable ID. This one does not:
+      it matches on the invoice itself, so a lender who was handed only an invoice can still ask
+      whether it is already on record at Almstins, and whether a financing claim already stands
+      against it. The answer is a prompt to confirm with your counterparty, not a decision.
+    </p>
+  </section>
+
+  <section id="use">
+    <h2>How to use it</h2>
+    <ul class="pr">
+      <li><b>Sign in</b> (free). The check is signed-in only; a signed-out request returns a sign-in prompt, never an answer.</li>
+      <li><b>Enter the invoice details</b> on the registry: supplier, debtor, invoice number, face value and currency, and the debtor's reference if you have it.</li>
+      <li><b>Read the answer</b> as a warning, then confirm anything it flags with your counterparty through a channel you already trust.</li>
+    </ul>
+    <p class="note">A <b>verified</b> account (a verified email, or a Google or GitHub sign-in) sees the financing status, the debtor's confirmation and when the invoice was first recorded. Any other signed-in account sees only whether a matching invoice is already on record.</p>
+  </section>
+
+  <section id="read">
+    <h2>Reading the answer</h2>
+    <ul class="pr">
+      {READ.map(([b, p]) => (<li><b>{b}</b> {p}</li>))}
+    </ul>
+  </section>
+
+  <section id="call">
+    <h2>The call</h2>
+    <p class="body">
+      The form posts a small JSON body to the check endpoint. You can call it yourself from a
+      signed-in session; it is not an anonymous API.
+    </p>
+    <pre><b>POST</b> https://almstins.com/api/verify/receivables/check</pre>
+    <div class="term">
+      <div class="term__bar">
+        <span class="term__dot"></span><span class="term__dot"></span><span class="term__dot"></span>
+        <span class="term__title">POST /api/verify/receivables/check</span>
+      </div>
+      <pre>{`// request
+{ "invoice": {
+    "supplier": "Acme Mills",
+    "buyer": "Globex Foods",        // the debtor
+    "invoiceNo": "INV-4471",
+    "face": 25000,                  // a JSON number
+    "currency": "USD",
+    "buyerRef": "PO-88123"          // optional
+} }
+
+// verified account (abridged)
+{ "v": 1, "found": true, "status": "financed",
+  "financing": "full", "debtor": "confirmed",
+  "firstSeen": "2026-09-30", "checkedAt": "2026-10-16T14:30:00Z" }
+
+// any other signed-in account
+{ "v": 1, "found": true, "checkedAt": "2026-10-16T14:30:00Z" }`}</pre>
+    </div>
+    <ul class="pr">
+      <li><b>401</b> no session: a sign-in prompt, never found or not-found.</li>
+      <li><b>400</b> a field problem, named in the body.</li>
+      <li><b>429</b> too many checks: 60 a minute per account. Wait and retry.</li>
+      <li><b>503</b> the check could not run. Not an answer about the invoice, and never "not found".</li>
+    </ul>
+  </section>
+
+  <section id="never">
+    <h2>What it never does</h2>
+    <ul class="pr">
+      {NEVER.map(([b, p]) => (<li><b>{b}</b> {p}</li>))}
+    </ul>
+  </section>
+
+  <section id="faq">
+    <h2>FAQ</h2>
+    <DocsFaq>
+      {FAQ.map(([q, a]) => (
+        <details class="faq-item">
+          <summary>{q}</summary>
+          <div class="a">{a}</div>
+        </details>
+      ))}
+    </DocsFaq>
+  </section>
+
+  <section>
+    <h2>If it is your invoice on record</h2>
+    <p class="body">
+      A record at Almstins is a voluntary self-disclosure: a supplier or a financier shows their own
+      receivable or their own claim, the way a wallet holder shows their own wallet. If you recorded
+      an invoice and no longer want it active, you can withdraw it from your dashboard; its evidence
+      stays answerable to the parties who relied on it, but it reads as withdrawn.
+      <a href="/receivables">Start at the receivables registry</a>.
+    </p>
+  </section>
+</ApiDocsLayout>

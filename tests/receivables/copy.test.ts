@@ -334,10 +334,14 @@ describe('the S4 changelog day', () => {
 	const start = src.indexOf("date: '2026-10-12'");
 	const day = src.slice(start, src.indexOf('Deleting a receivable now withdraws it'));
 
-	it('is the top day, with the S4 entries first', () => {
+	it('opens the 2026-10-12 day with the S4 entries, above S2 and S3', () => {
 		expect(start).toBeGreaterThan(0);
-		expect(src.indexOf("date: '")).toBe(start);
+		// The S4 live possible-duplicate entry is the first of the 2026-10-12 day. A newer day
+		// (e.g. the S6 "Seen before?" entry) may sit above the whole 2026-10-12 block.
 		expect(day).toContain('possible duplicate');
+		const s4 = day.indexOf('A live "possible duplicate" warning');
+		expect(s4).toBeGreaterThan(0);
+		expect(s4).toBeLessThan(day.indexOf('The debtor’s own reference is on all three forms'));
 	});
 
 	it('keeps to the bright lines, with no em dash and no accusation', () => {

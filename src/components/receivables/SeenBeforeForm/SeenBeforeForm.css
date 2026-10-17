@@ -1,0 +1,36 @@
+/* SeenBeforeForm — presentation only. Markup in SeenBeforeForm.astro, behavior in
+   seenBeforeForm.client.ts: the client fills the text, toggles [hidden] and sets the tone class.
+   Doubled-class selectors so a host's bare input/button/p rules never reach inside. The panel sets
+   no display, so [hidden] hides it while the result wrapper (the live region) stays. */
+@import '../ui/tones.css';
+
+.sbf .sbf__grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem .8rem; }
+.sbf .sbf__field { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.sbf .sbf__label { font-size: .8rem; color: var(--text-secondary); }
+.sbf .sbf__opt { color: var(--text-muted); }
+.sbf .sbf__input {
+	width: 100%; box-sizing: border-box; padding: .5rem .6rem; border-radius: 8px; font: inherit;
+	background: var(--surface-card-2); color: var(--text-primary); border: 1px solid var(--border-bright);
+}
+.sbf .sbf__input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.sbf .sbf__actions { margin-top: .8rem; }
+.sbf .sbf__submit {
+	padding: .5rem 1.1rem; border-radius: 8px; border: 0; cursor: pointer; font: inherit; font-weight: 600;
+	background: var(--accent); color: var(--surface-bg);
+}
+.sbf .sbf__submit:disabled { opacity: .6; cursor: default; }
+
+.sbf .sbf__result { margin-top: .9rem; }
+.sbf .sbf__panel { border-radius: 10px; padding: .7rem .85rem; line-height: 1.55; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sbf .sbf__panel.sbf__panel--caution { background: var(--rcv-caution-bg); border: 1px solid var(--rcv-caution-border); }
+.sbf .sbf__panel.sbf__panel--muted { background: var(--surface-hover); border: 1px solid var(--border-bright); }
+.sbf .sbf__panel.sbf__panel--info { background: var(--surface-hover); border: 1px solid var(--border-bright); }
+.sbf .sbf__panel.sbf__panel--error { background: var(--rcv-loss-bg); border: 1px solid var(--rcv-loss-border); }
+.sbf .sbf__panel.sbf__panel--signin { background: var(--accent-soft); border: 1px solid var(--accent-glow); }
+
+.sbf .sbf__body .sbf__line { margin: .3rem 0 0; }
+.sbf .sbf__body .sbf__line:first-child { margin-top: 0; font-weight: 600; color: var(--text-primary); }
+.sbf .sbf__signin { display: inline-block; margin-top: .55rem; color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
+
+@media (max-width: 560px) { .sbf .sbf__grid { grid-template-columns: 1fr; } }

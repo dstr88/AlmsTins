@@ -27,6 +27,7 @@ const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 	'/verify/es/',
 	'/verify/fr/',
 	'/verify/agents/',
+	'/verify/seen-before/',
 	'/receivables/',
 ]);
 
