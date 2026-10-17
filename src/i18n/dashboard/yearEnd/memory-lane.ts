@@ -34,8 +34,8 @@ export interface MemoryLaneLocale {
 
   // ── Section headings ────────────────────────────────────────────────────────
   sectionClosedTitle: string;
-  /** "Assets you fully sold in {year}" */
-  sectionClosedSub: (year: number) => string;
+  /** Sub for the Closed section — the full set of assets no longer held (year-neutral). */
+  sectionClosedSub: string;
   sectionOpenTitle: string;
   sectionOpenSub: string;
 
@@ -79,6 +79,14 @@ export interface MemoryLaneLocale {
   /** "Also sold {n} lot{s} in {year} · {fmtGain} realized" */
   alsoSold: (n: number, year: number, fmtGain: string) => string;
 
+  // ── Lifetime / full-roster cards ─────────────────────────────────────────────
+  /** P&L label when a closed card shows LIFETIME (not single-year) realized figures. */
+  labelRealizedLifetime: string;
+  /** Stat key for the last-activity date on a lifetime closed card. */
+  statKeyLastActivity: string;
+  /** Note shown when a card has no events in the selected year: "No activity in {year} · …". */
+  noActivityInYear: (year: number) => string;
+
   // ── Empty state ──────────────────────────────────────────────────────────────
   emptyTitle: (year: number) => string;
   emptySub: string;
@@ -104,7 +112,7 @@ export const en: MemoryLaneLocale = {
   statOpen: 'Open positions',
 
   sectionClosedTitle: 'Closed Positions',
-  sectionClosedSub: (year) => `Assets you fully sold in ${year}`,
+  sectionClosedSub: 'Assets you no longer hold',
   sectionOpenTitle: 'Open Positions',
   sectionOpenSub: 'Assets you currently hold',
 
@@ -140,6 +148,10 @@ export const en: MemoryLaneLocale = {
   alsoSold: (n, year, fmtGain) =>
     `Also sold ${n} lot${n !== 1 ? 's' : ''} in ${year} · ${fmtGain} realized`,
 
+  labelRealizedLifetime: 'lifetime realized',
+  statKeyLastActivity: 'Last activity',
+  noActivityInYear: (year) => `No activity in ${year} · lifetime totals shown`,
+
   emptyTitle: (year) => `No history for ${year}`,
   emptySub: 'Select a different year above, or make sure your transactions are synced.',
 };
@@ -164,7 +176,7 @@ export const es: MemoryLaneLocale = {
   statOpen: 'Posiciones abiertas',
 
   sectionClosedTitle: 'Posiciones cerradas',
-  sectionClosedSub: (year) => `Activos que vendiste completamente en ${year}`,
+  sectionClosedSub: 'Activos que ya no tienes',
   sectionOpenTitle: 'Posiciones abiertas',
   sectionOpenSub: 'Activos que tienes actualmente',
 
@@ -200,6 +212,10 @@ export const es: MemoryLaneLocale = {
   alsoSold: (n, year, fmtGain) =>
     `También vendiste ${n} lote${n !== 1 ? 's' : ''} en ${year} · ${fmtGain} realizado`,
 
+  labelRealizedLifetime: 'realizado histórico',
+  statKeyLastActivity: 'Última actividad',
+  noActivityInYear: (year) => `Sin actividad en ${year} · totales históricos`,
+
   emptyTitle: (year) => `Sin historial para ${year}`,
   emptySub: 'Selecciona un año diferente arriba, o asegúrate de que tus transacciones estén sincronizadas.',
 };
@@ -224,7 +240,7 @@ export const fr: MemoryLaneLocale = {
   statOpen: 'Positions ouvertes',
 
   sectionClosedTitle: 'Positions fermées',
-  sectionClosedSub: (year) => `Actifs entièrement vendus en ${year}`,
+  sectionClosedSub: 'Actifs que vous ne détenez plus',
   sectionOpenTitle: 'Positions ouvertes',
   sectionOpenSub: 'Actifs que vous détenez actuellement',
 
@@ -259,6 +275,10 @@ export const fr: MemoryLaneLocale = {
 
   alsoSold: (n, year, fmtGain) =>
     `Également vendu ${n} lot${n !== 1 ? 's' : ''} en ${year} · ${fmtGain} réalisé`,
+
+  labelRealizedLifetime: 'réalisé cumulé',
+  statKeyLastActivity: 'Dernière activité',
+  noActivityInYear: (year) => `Aucune activité en ${year} · totaux cumulés`,
 
   emptyTitle: (year) => `Aucun historique pour ${year}`,
   emptySub: 'Sélectionnez une autre année ci-dessus, ou vérifiez que vos transactions sont bien synchronisées.',
