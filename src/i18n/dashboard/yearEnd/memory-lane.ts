@@ -51,6 +51,8 @@ export interface MemoryLaneLocale {
   labelRealized: string;
   labelUnrealized: string;
   labelUnpriced: string;
+  /** Shown in the unrealized slot when a held coin has a current value but no known cost basis. */
+  labelNoBasis: string;
 
   // ── Card stat keys ──────────────────────────────────────────────────────────
   statKeyLots: string;
@@ -125,6 +127,7 @@ export const en: MemoryLaneLocale = {
   labelRealized: 'realized',
   labelUnrealized: 'unrealized',
   labelUnpriced: 'Unpriced',
+  labelNoBasis: 'No cost basis',
 
   statKeyLots: 'Lots',
   statKeyShortTerm: 'Short-term',
@@ -189,6 +192,7 @@ export const es: MemoryLaneLocale = {
   labelRealized: 'realizado',
   labelUnrealized: 'no realizado',
   labelUnpriced: 'Sin precio',
+  labelNoBasis: 'Sin base de costo',
 
   statKeyLots: 'Lotes',
   statKeyShortTerm: 'Corto plazo',
@@ -253,6 +257,7 @@ export const fr: MemoryLaneLocale = {
   labelRealized: 'réalisé',
   labelUnrealized: 'non réalisé',
   labelUnpriced: 'Sans prix',
+  labelNoBasis: 'Sans coût de base',
 
   statKeyLots: 'Lots',
   statKeyShortTerm: 'Court terme',

@@ -5,7 +5,8 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource, type CostBasisMethod 
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 import { db } from '../../../lib/db';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
-import { classifyUniverse, type RosterEntry } from '@/lib/memoryLane';
+import { classifyUniverse, buildSyntheticOpenCard, type RosterEntry, type OpenCard } from '@/lib/memoryLane';
+import { getHeldNow, type HeldNow } from '@/lib/currentHoldings';
 import { getLang } from '@/lib/i18n/locale';
 import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
@@ -37,8 +38,18 @@ let priceMap: Map<string, number>       = new Map();
 // data load; module-scope so the template-prep section can read it. Empty on failure,
 // which falls back to the original breakdown-only behavior.
 let rosterMap: Map<string, RosterEntry> = new Map();
+// What the wallets hold right now (latest snapshots at or above $1, plus Aave supply): the same set
+// the Portfolio page shows. Empty on failure, which falls back to the lifecycle-only behavior.
+let heldNow: HeldNow = new Map();
 
 try {
+	// ── Wallet holdings now ──────────────────────────────────────────────────
+	// Started first so it overlaps the slower work below; never waits on Aave for more than a moment.
+	const heldNowP = getHeldNow(tenantId, { includeAave: !isDemo }).catch((e) => {
+		console.warn('[memory-lane] held-now lookup failed', e);
+		return new Map() as HeldNow;
+	});
+
 	// ── Available years ──────────────────────────────────────────────────────
 	// timestamp_utc is ISO-8601 UTC text, so its first 4 chars are the year.
 	const yearsRes = await db.execute({
@@ -55,6 +66,7 @@ try {
 	// ── Breakdown (per-tenant cost-basis method, same wiring as year-summary.astro) ──
 	costMethod = await getCostBasisMethod(tenantId);
 	const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
+	heldNow = await heldNowP;
 
 	// ── Per-asset gains ───────────────────────────────────────────────────────
 	type AssetRow = { asset: string; stGain: number; stLots: number; ltGain: number; ltLots: number; netGain: number };
@@ -102,7 +114,8 @@ try {
 	}
 	try {
 		const heldAssets = Array.from(harvestMap.keys());
-		if (heldAssets.length > 0) {
+		// Coins held only in the wallets need prices too, for their Open cards below.
+		if (heldAssets.length > 0 || heldNow.size > 0) {
 			const tickers = await getTickersUSD() as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
 			priceMap = new Map<string, number>();
 			for (const t of tickers) {
@@ -116,15 +129,17 @@ try {
 				if (price !== null) { row.currentValue = price * row.totalQty; row.unrealizedGainLoss = row.currentValue - row.totalCost; }
 			}
 		}
-		harvestLosses = Array.from(harvestMap.values())
-			.sort((a, b) => {
-				const aGl = a.unrealizedGainLoss ?? Infinity;
-				const bGl = b.unrealizedGainLoss ?? Infinity;
-				return aGl - bGl;
-			});
 	} catch (e) {
 		console.warn('[memory-lane] held-position price fetch failed', e);
 	}
+	// Set after the price block whether or not it worked: the lot-based Open cards must not depend
+	// on a price fetch (their unrealized figure simply stays blank without prices).
+	harvestLosses = Array.from(harvestMap.values())
+		.sort((a, b) => {
+			const aGl = a.unrealizedGainLoss ?? Infinity;
+			const bGl = b.unrealizedGainLoss ?? Infinity;
+			return aGl - bGl;
+		});
 
 	// ── Full lifetime roster — EVERY coin the tenant has ever tracked ──────────
 	// One row per asset_symbol from asset_lifecycle_groups (tenant-scoped), with net
@@ -209,10 +224,10 @@ function getLotStats(asset: string) {
 
 // ── Closed (no longer held) vs Open (currently held) ─────────────────────────────
 // The coin LIST is the full lifetime roster plus any breakdown-only symbols (Sui, manual
-// entries with no lifecycle group), minus airdrop spam. "Held" is decided in classifyUniverse
-// (src/lib/memoryLane.ts): lots still open at the selected year-end OR a positive lifecycle
-// quantity, never the lifecycle quantity alone, which drifts from real balances wherever
-// transactions are missing.
+// entries with no lifecycle group) plus whatever the wallets hold now, minus airdrop spam.
+// "Held" is decided in classifyUniverse (src/lib/memoryLane.ts): lots still open at the
+// selected year-end, a positive lifecycle quantity, OR held in the wallets right now, never
+// the lifecycle quantity alone, which drifts from real balances wherever transactions are missing.
 const gainsByAsset   = new Map(byAssetGains.map((a: any) => [a.asset, a]));
 const harvestByAsset = new Map(harvestLosses.map((h: any) => [h.asset, h]));
 
@@ -220,33 +235,23 @@ const { symbols: allSymbols, held: heldSet, hiddenSpam } = classifyUniverse({
 	roster: rosterMap,
 	withYearGains: new Set<string>(gainsByAsset.keys()),
 	stillHolding: new Set<string>(harvestByAsset.keys()),
+	heldNow: new Set<string>(heldNow.keys()),
 });
 
 // ── Open cards (currently held) ──────────────────────────────────────────────────
-type OpenItem = {
-	asset: string; totalQty: number; totalCost: number;
-	currentPrice: number | null; currentValue: number | null; unrealizedGainLoss: number | null;
-	shortTermQty: number; longTermQty: number; soonestLotDaysToLT: number | null;
-	noYearActivity?: boolean;
-};
-const open: OpenItem[] = [];
+const open: OpenCard[] = [];
 for (const sym of heldSet) {
 	const h = harvestByAsset.get(sym);
-	if (h) { open.push(h as OpenItem); continue; }   // selected-year holdings (as before)
-	// Held now, but no still-holding lot at the selected year-end (e.g. acquired after
-	// that year). Synthesize a minimal card from the roster so coverage stays complete.
-	const r     = rosterMap.get(sym);
-	const qty   = r ? r.netQty : 0;
-	const price = priceMap.get(sym) ?? null;
-	const value = price != null ? price * qty : null;
-	const basis = r ? r.weightedAvgCost * qty : 0;
-	open.push({
-		asset: sym, totalQty: qty, totalCost: basis,
-		currentPrice: price, currentValue: value,
-		unrealizedGainLoss: value != null ? value - basis : null,
-		shortTermQty: 0, longTermQty: 0, soonestLotDaysToLT: null,
-		noYearActivity: true,
-	});
+	if (h) { open.push(h as OpenCard); continue; }   // selected-year holdings (as before)
+	// Held now, but no still-holding lot at the selected year-end (acquired after that year,
+	// or held with no lifecycle lots at all). The card takes its quantity from the wallets,
+	// falling back to the roster, so coverage stays complete.
+	open.push(buildSyntheticOpenCard({
+		symbol: sym,
+		roster: rosterMap.get(sym),
+		held: heldNow.get(sym),
+		price: priceMap.get(sym) ?? null,
+	}));
 }
 open.sort((a, b) => (a.unrealizedGainLoss ?? Infinity) - (b.unrealizedGainLoss ?? Infinity));
 
@@ -562,7 +567,7 @@ function timelineId(asset: string) {
 														{isUp ? '+' : ''}{fmt(h.unrealizedGainLoss)}
 													</span>
 												) : (
-													<span class="pos-card__pnl-num pos-card__pnl-num--muted">{t.labelUnpriced}</span>
+													<span class="pos-card__pnl-num pos-card__pnl-num--muted">{h.currentValue != null ? t.labelNoBasis : t.labelUnpriced}</span>
 												)}
 												<span class="pos-card__pnl-label">{t.labelUnrealized}</span>
 											</div>

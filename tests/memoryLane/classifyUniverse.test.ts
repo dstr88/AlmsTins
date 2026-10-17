@@ -97,3 +97,47 @@ describe('classifyUniverse: which coins are listed', () => {
     expect(classifyUniverse({ roster: new Map(), withYearGains: none, stillHolding: set(weird) }).symbols).toContain(weird);
   });
 });
+
+describe('classifyUniverse: what the wallets hold now (heldNow)', () => {
+  it('a coin only the wallets know (no lifecycle group, no gains, no lots) is listed and held', () => {
+    const u = classifyUniverse({ roster: new Map([['BTC', entry(1)]]), withYearGains: none, stillHolding: none, heldNow: set('DOT') });
+    expect(u.symbols).toContain('DOT');
+    expect(u.held.has('DOT')).toBe(true);
+  });
+
+  // The regression this guards: a collateral deposit or a token with no matching buy leaves the
+  // lifecycle quantity at zero while the wallets still hold it.
+  it('a coin the lifecycle calls closed is held when the wallets hold it now', () => {
+    const roster = new Map([['ADA', entry(0)]]);
+    expect(classifyUniverse({ roster, withYearGains: none, stillHolding: none }).held.has('ADA')).toBe(false);
+    expect(classifyUniverse({ roster, withYearGains: none, stillHolding: none, heldNow: set('ADA') }).held.has('ADA')).toBe(true);
+  });
+
+  it('a spam-looking symbol the wallets hold is not hidden (so this page agrees with the Portfolio page)', () => {
+    for (const odd of ['UЅDT' /* Cyrillic S inside USDT */, 'CLAIMNOW.COM']) {
+      expect(isSpamSymbol(odd), odd).toBe(true); // precondition: it would be hidden without heldNow
+      const roster = new Map([[odd, entry(0)]]);
+      expect(classifyUniverse({ roster, withYearGains: none, stillHolding: none }).hiddenSpam).toEqual([odd]);
+      const u = classifyUniverse({ roster, withYearGains: none, stillHolding: none, heldNow: set(odd) });
+      expect(u.hiddenSpam, odd).toEqual([]);
+      expect(u.symbols, odd).toContain(odd);
+      expect(u.held.has(odd), odd).toBe(true);
+    }
+  });
+
+  it('heldNow omitted, or empty, behaves exactly as before', () => {
+    const input = () => ({
+      roster: new Map<string, RosterEntry>([
+        ['BTC', entry(1)], ['XRP', entry(0)], ['DOGE', entry(4e-9)], ['LTC', entry(-3)], ['CLAIMNOW.COM', entry(1000)],
+      ]),
+      withYearGains: set('SUI', 'XRP'),
+      stillHolding: set('XMR', 'LTC'),
+    });
+    const before = classifyUniverse(input());
+    expect(before.symbols).toEqual(['BTC', 'XRP', 'DOGE', 'LTC', 'SUI', 'XMR']);
+    expect([...before.held].sort()).toEqual(['BTC', 'LTC', 'XMR']);
+    expect(before.hiddenSpam).toEqual(['CLAIMNOW.COM']);
+    expect(classifyUniverse({ ...input(), heldNow: new Set<string>() })).toEqual(before);
+    expect(classifyUniverse({ ...input(), heldNow: undefined })).toEqual(before);
+  });
+});
