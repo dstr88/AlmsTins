@@ -18,9 +18,9 @@ import {
   aaveSymbolPrice,
   settleAaveOnlyHoldings,
   mergeAaveSupply,
-  AAVE_PRICE_ALIAS,
   type HeldNow,
 } from '../../src/lib/currentHoldings';
+import { aaveSymbolUsdPrice, AAVE_BASE_COIN } from '../../src/lib/aave/pricing';
 
 // Invented prices. ZED is an invented coin: it is priced, but nothing derived from its name is.
 const prices = new Map<string, number>([
@@ -59,8 +59,28 @@ describe('aaveSymbolPrice', () => {
     }
   });
 
-  it('keeps the alias list to the four true 1:1 wrappers', () => {
-    expect(Object.keys(AAVE_PRICE_ALIAS).sort()).toEqual(['WAVAX', 'WETH', 'WMATIC', 'WPOL']);
+  it('prices the two bridged 1:1 copies as their base coin', () => {
+    expect(aaveSymbolPrice('BTC.b', prices)).toBe(60000);
+    expect(aaveSymbolPrice('WETH.e', prices)).toBe(2000);
+  });
+
+  it('prices a staking token from its own ticker, and as unpriced when that ticker is missing', () => {
+    const staked = new Map([...prices, ['SAVAX', 25], ['STETH', 2100], ['WSTETH', 2500]]);
+    expect(aaveSymbolPrice('sAVAX', staked)).toBe(25);
+    expect(aaveSymbolPrice('stETH', staked)).toBe(2100);
+    expect(aaveSymbolPrice('wstETH', staked)).toBe(2500);
+    // The base coins are priced, but a staking token is not its base coin.
+    expect(aaveSymbolPrice('sAVAX', prices)).toBeNull();
+    expect(aaveSymbolPrice('stETH', prices)).toBeNull();
+    expect(aaveSymbolPrice('wstETH', prices)).toBeNull();
+  });
+
+  it('keeps the base-coin list to the four 1:1 wrappers and the two bridged copies', () => {
+    expect([...AAVE_BASE_COIN.keys()].sort()).toEqual(['BTC.B', 'WAVAX', 'WETH', 'WETH.E', 'WMATIC', 'WPOL']);
+  });
+
+  it('is the same rule the Aave client falls back on (one shared function)', () => {
+    expect(aaveSymbolPrice).toBe(aaveSymbolUsdPrice);
   });
 
   it('is tolerant of case and spaces, and returns null for no price, a zero price or a bad price', () => {

@@ -1,6 +1,13 @@
 // src/lib/aave/client.ts
 
 import { AaveV3Avalanche, AaveV3Ethereum, AaveV3Polygon } from '@bgd-labs/aave-address-book';
+import {
+	buildTickerPriceMap,
+	completeAaveTotals,
+	readAaveUsd,
+	type AavePriceSource,
+	type AaveTotals,
+} from './pricing';
 
 // ── Aave v3 ───────────────────────────────────────────────────────────────────
 const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
@@ -44,7 +51,23 @@ export type AavePosition = {
 	assetSymbol: string;
 	amount: number;   // raw token amount
 	apy: number;      // decimal, e.g. 0.05 = 5%
-	usdValue: number; // computed by getAaveTotalsForWallet (0 until priced)
+	/**
+	 * USD value of the position. Aave's own figure when it gave one; otherwise 0 until
+	 * getAaveTotalsForWallet prices it (and still 0, with priceSource 'none', when nothing can).
+	 */
+	usdValue: number;
+	/** Supply only: whether Aave counts the supply as collateral. Absent when the API did not say. */
+	isCollateral?: boolean;
+	/** Aave's own USD valuation of the position; null when the API gave none we can use. */
+	aaveUsd?: number | null;
+	/** Where usdValue came from. Set by getAaveTotalsForWallet. 'none' means no price source could value it. */
+	priceSource?: AavePriceSource;
+};
+
+/** The totals Aave itself reports for the user in one market (userMarketState), in USD. */
+export type AaveReported = {
+	totalCollateralUsd: number | null;
+	totalDebtUsd: number | null;
 };
 
 export type AaveChainSummary = {
@@ -56,6 +79,8 @@ export type AaveChainSummary = {
 	positions: AavePosition[];
 	ok: boolean;
 	market?: string | null;
+	/** Aave's own collateral and debt totals for this market; null when that lookup failed. */
+	reported?: AaveReported | null;
 	status?: string;
 	message?: string;
 	reason?: string;
@@ -65,15 +90,22 @@ export type AaveChainSummary = {
 
 export type AavePositionsResponse = {
 	ok: boolean;
-	address: string;
+	/** Absent when the input is not an EVM address (nothing to look up). */
+	address?: string;
 	chains: AaveChainSummary[];
 	error?: string;
 };
 
 // --- GraphQL query we already proved works in the playground ---
 
-function buildUserPositionsQuery(marketAddress: string, chainId: number) {
+function buildUserPositionsQuery(marketAddress: string, chainId: number, withUsd: boolean = true) {
 	// NOTE: This matches the query that returned WBTC, USDC, WETH, WPOL supplies and USDC/USDT0 borrows.
+	// withUsd adds Aave's own USD valuation of each position (and whether a supply is collateral). The plain
+	// form is the fallback for an API that rejects those fields: positions must never be lost over them.
+	const supplyBalance = withUsd
+		? 'balance { amount { value } usd usdPerToken }\n      isCollateral'
+		: 'balance { amount { value } }';
+	const borrowDebt = withUsd ? 'debt { amount { value } usd usdPerToken }' : 'debt { amount { value } }';
 	return /* GraphQL */ `
   query UserPositions($user: EvmAddress!) {
     userSupplies(
@@ -91,7 +123,7 @@ function buildUserPositionsQuery(marketAddress: string, chainId: number) {
     ) {
       market { name }
       currency { symbol }
-      balance { amount { value } }
+      ${supplyBalance}
       apy { value }
     }
 
@@ -109,12 +141,29 @@ function buildUserPositionsQuery(marketAddress: string, chainId: number) {
     ) {
       market { name }
       currency { symbol }
-      debt { amount { value } }
+      ${borrowDebt}
       apy { value }
     }
   }
 `;
 }
+
+// Aave's own collateral and debt totals for the user in every market, in one request. Asked separately from the
+// positions, so a failure here can only switch off the sanity check, never cost the positions themselves.
+const USER_MARKET_STATES_QUERY = /* GraphQL */ `
+  query UserMarketStates($chainIds: [ChainId!]!, $user: EvmAddress) {
+    markets(request: { chainIds: $chainIds, user: $user }) {
+      address
+      userState {
+        totalCollateralBase
+        totalDebtBase
+      }
+    }
+  }
+`;
+
+// The sanity check is a bonus: it never holds up the positions for longer than this.
+const REPORTED_TOTALS_TIMEOUT_MS = 8000;
 
 const MARKETS_QUERY = /* GraphQL */ `
 	query Markets {
@@ -192,6 +241,70 @@ function toNumber(value: unknown): number {
 
 // --- Core: fetch polygon user positions from Aave v3 ---
 
+/** A finite number from whatever the payload carried, else null (toNumber turns "missing" into 0). */
+function toNumberOrNull(value: unknown): number | null {
+	if (value === null || value === undefined || value === '') return null;
+	const n = typeof value === 'number' ? value : Number(value);
+	return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The collateral and debt totals Aave itself reports for the user, keyed by lowercase market address, or null
+ * when that lookup fails. It never rejects and never waits long: the figures only feed the sanity check in
+ * completeAaveTotals, so a failure here switches the check off and nothing else.
+ */
+async function fetchReportedTotals(user: string): Promise<Map<string, AaveReported> | null> {
+	try {
+		const response = await fetch(AAVE_V3_GRAPHQL_ENDPOINT, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				query: USER_MARKET_STATES_QUERY,
+				variables: { chainIds: [ETHEREUM_CHAIN_ID, POLYGON_CHAIN_ID, AVALANCHE_CHAIN_ID], user },
+			}),
+			signal: AbortSignal.timeout(REPORTED_TOTALS_TIMEOUT_MS),
+		});
+		if (!response.ok) return null;
+		const json = await response.json();
+		if (json?.errors?.length) return null;
+		const out = new Map<string, AaveReported>();
+		for (const market of Array.isArray(json?.data?.markets) ? json.data.markets : []) {
+			const address = String(market?.address ?? '').toLowerCase();
+			const totalCollateralUsd = toNumberOrNull(market?.userState?.totalCollateralBase);
+			const totalDebtUsd = toNumberOrNull(market?.userState?.totalDebtBase);
+			if (!address || (totalCollateralUsd === null && totalDebtUsd === null)) continue;
+			out.set(address, { totalCollateralUsd, totalDebtUsd });
+		}
+		return out;
+	} catch (err) {
+		console.warn('[aave] market-state lookup failed; sanity check skipped', err);
+		return null;
+	}
+}
+
+/** One positions request. The caller decides what a rejection means. */
+async function requestPositions(
+	apiEndpoint: string,
+	user: string,
+	marketAddress: string,
+	chainId: number,
+	withUsd: boolean,
+): Promise<{ ok: true; json: any } | { ok: false; status: number; text: string }> {
+	const response = await fetch(apiEndpoint, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			query: buildUserPositionsQuery(marketAddress, chainId, withUsd),
+			variables: { user },
+		}),
+	});
+	if (!response.ok) {
+		const text = await response.text().catch(() => '');
+		return { ok: false, status: response.status, text };
+	}
+	return { ok: true, json: await response.json() };
+}
+
 async function fetchUserPositionsForMarket(
 	userAddress: string,
 	marketAddress: string,
@@ -202,18 +315,17 @@ async function fetchUserPositionsForMarket(
 	const user = userAddress.toLowerCase();
 
 	try {
-		const response = await fetch(apiEndpoint, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				query: buildUserPositionsQuery(marketAddress, chainId),
-				variables: { user },
-			}),
-		});
+		let reply = await requestPositions(apiEndpoint, user, marketAddress, chainId, true);
+		// A 400 or GraphQL errors can mean the API rejects the USD fields: ask again for the plain positions.
+		const rejected =
+			(!reply.ok && reply.status === 400) || (reply.ok && Array.isArray(reply.json?.errors) && reply.json.errors.length > 0);
+		if (rejected) {
+			console.warn(`[AAVE ${chain}] position query with USD fields was rejected; retrying without them`);
+			reply = await requestPositions(apiEndpoint, user, marketAddress, chainId, false);
+		}
 
-		if (!response.ok) {
-			const text = await response.text().catch(() => '');
-			console.error(`[AAVE ${chain}] HTTP error`, response.status, text);
+		if (!reply.ok) {
+			console.error(`[AAVE ${chain}] HTTP error`, reply.status, reply.text);
 			return {
 				chain,
 				suppliedUsd: 0,
@@ -222,11 +334,11 @@ async function fetchUserPositionsForMarket(
 				debtUsdTotal: 0,
 				positions: [],
 				ok: false,
-				error: `HTTP ${response.status}`,
+				error: `HTTP ${reply.status}`,
 			};
 		}
 
-		const json = await response.json();
+		const json = reply.json;
 		console.log(`[AAVE ${chain} raw]`, JSON.stringify(json));
 
 		if (json.errors && json.errors.length) {
@@ -255,14 +367,18 @@ async function fetchUserPositionsForMarket(
 			const symbol = s.currency?.symbol ?? 'UNKNOWN';
 			const amount = toNumber(s.balance?.amount?.value);
 			const apy = toNumber(s.apy?.value);
+			const safeAmount = Number.isFinite(amount) ? amount : 0;
+			const aaveUsd = readAaveUsd(s.balance, safeAmount);
 
 			positions.push({
 				side: 'supply',
 				marketName,
 				assetSymbol: symbol,
-				amount: Number.isFinite(amount) ? amount : 0,
+				amount: safeAmount,
 				apy: Number.isFinite(apy) ? apy : 0,
-				usdValue: 0, // priced in getAaveTotalsForWallet
+				usdValue: aaveUsd ?? 0, // Aave's own figure; getAaveTotalsForWallet prices any position without one
+				aaveUsd,
+				...(typeof s.isCollateral === 'boolean' ? { isCollateral: s.isCollateral } : {}),
 			});
 		}
 
@@ -272,24 +388,29 @@ async function fetchUserPositionsForMarket(
 			const symbol = b.currency?.symbol ?? 'UNKNOWN';
 			const amount = toNumber(b.debt?.amount?.value);
 			const apy = toNumber(b.apy?.value);
+			const safeAmount = Number.isFinite(amount) ? amount : 0;
+			const aaveUsd = readAaveUsd(b.debt, safeAmount);
 
 			positions.push({
 				side: 'borrow',
 				marketName,
 				assetSymbol: symbol,
-				amount: Number.isFinite(amount) ? amount : 0,
+				amount: safeAmount,
 				apy: Number.isFinite(apy) ? apy : 0,
-				usdValue: 0, // priced in getAaveTotalsForWallet
+				usdValue: aaveUsd ?? 0, // Aave's own figure; getAaveTotalsForWallet prices any position without one
+				aaveUsd,
 			});
 		}
 
-		// Right now we are *not* computing USD from Aave; keep USD fields at 0.
+		// What Aave itself valued. getAaveTotalsForWallet completes any position Aave did not value.
+		const suppliedUsd = positions.reduce((sum, p) => (p.side === 'supply' ? sum + p.usdValue : sum), 0);
+		const debtUsd = positions.reduce((sum, p) => (p.side === 'borrow' ? sum + p.usdValue : sum), 0);
 		return {
 			chain,
-			suppliedUsd: 0,
-			debtUsd: 0,
-			suppliedUsdTotal: 0,
-			debtUsdTotal: 0,
+			suppliedUsd,
+			debtUsd,
+			suppliedUsdTotal: suppliedUsd,
+			debtUsdTotal: debtUsd,
 			positions,
 			ok: true,
 			market: marketAddress,
@@ -334,12 +455,24 @@ function buildMissingMarketSummary(
 
 const EVM_ADDRESS_RE = /^0x[0-9a-f]{40}$/i;
 
-export async function getAavePositionsForWallet(address: string): Promise<AavePositionsResponse> {
+/**
+ * Every Aave v3 position the wallet has on Ethereum, Polygon and Avalanche (and v4 when configured), each with
+ * Aave's own USD figure when the API gave one. withReported also asks Aave for its own collateral and debt
+ * totals (one extra request), which getAaveTotalsForWallet checks its sums against.
+ */
+export async function getAavePositionsForWallet(
+	address: string,
+	options: { withReported?: boolean } = {},
+): Promise<AavePositionsResponse> {
 	if (!EVM_ADDRESS_RE.test(address)) {
 		return { chains: [], ok: true };
 	}
 
 	const normalized = address.toLowerCase();
+
+	// Aave's own collateral and debt totals, for the sanity check. One extra request, started now so it runs while
+	// the chains are read, and only when asked for: callers that just need amounts (Memory Lane) do not pay for it.
+	const reportedLookup = options.withReported ? fetchReportedTotals(normalized) : null;
 
 	try {
 		const ethereumMarket = await resolveMarketAddress(ETHEREUM_CHAIN_ID, {
@@ -401,10 +534,17 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 			);
 		}
 
+		const reported = reportedLookup ? await reportedLookup : null;
+		// Aave v4 is not covered by the v3 totals, so it carries none and is not checked.
+		const withReported = (summary: AaveChainSummary): AaveChainSummary =>
+			reportedLookup && summary.market && summary.chain !== 'ethereum_v4'
+				? { ...summary, reported: reported?.get(summary.market.toLowerCase()) ?? null }
+				: summary;
+
 		return {
 			ok: true,
 			address: normalized,
-			chains: [ethereum, polygon, avalanche, ethereumV4],
+			chains: [ethereum, polygon, avalanche, ethereumV4].map(withReported),
 		};
 	} catch (err: any) {
 		console.error('[AAVE] getAavePositionsForWallet failed', err);
@@ -417,92 +557,52 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 	}
 }
 
-// Optional: keep this if something else imports it.
-// For now, we don’t have price data from Aave, so totals stay 0.
-export async function getAaveTotalsForWallet(address: string) {
-	const { getTickersUSD } = await import('@/lib/coinpaprikaProvider');
-	const { allowlistSymbols } = await import('@/lib/prices/sanitizeSymbols');
+/**
+ * Every position of the wallet, priced, with totals per chain and overall, and a coverage report of what the
+ * totals leave out. Aave's own USD figure prices a position when it gave one; market tickers price the rest
+ * (see src/lib/aave/pricing.ts); a position neither can price is counted as unpriced and the totals are
+ * marked partial, never silently worth $0. A price feed outage cannot make this throw: it only leaves the
+ * positions Aave did not value unpriced.
+ */
+export async function getAaveTotalsForWallet(address: string): Promise<AaveTotals> {
+	const result = await getAavePositionsForWallet(address, { withReported: true });
 
-	const result = await getAavePositionsForWallet(address);
-	const allPositions = result.chains.flatMap((chain) => chain.positions);
-
-	const NORMALIZE_MAP: Record<string, string> = {
-		WETH: 'ETH',
-		WBTC: 'WBTC',
-		WPOL: 'POL',
-		WMATIC: 'POL',
-		WAVAX: 'AVAX',
-	};
-	const STABLES = new Set(['USDC', 'USDT', 'USDT0', 'USDC.E', 'USDT.E']);
-
-	const normalizeSymbol = (symbol: string) => {
-		const upper = symbol.trim().toUpperCase();
-		return NORMALIZE_MAP[upper] ?? upper;
-	};
-
-	const uniqueSymbols = allowlistSymbols(allPositions.map((pos) => normalizeSymbol(pos.assetSymbol)));
-	let priceMap: Record<string, number> = {};
-	let pricedCount = 0;
-	let missingCount = 0;
-
-	if (uniqueSymbols.length) {
-		const tickers = (await getTickersUSD()) as Array<{
-			symbol?: string;
-			quotes?: { USD?: { price?: number } };
-		}>;
-		for (const ticker of tickers) {
-			const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
-			if (!symbol || !uniqueSymbols.includes(symbol)) continue;
-			const price = ticker.quotes?.USD?.price;
-			if (typeof price === 'number') {
-				priceMap[symbol] = price;
-			}
+	// Market tickers are needed only for a position Aave did not value itself.
+	const needsMarketPrices = result.chains.some((chain) =>
+		chain.positions.some((pos) => pos.amount > 0 && pos.aaveUsd == null),
+	);
+	let tickerPrices = new Map<string, number>();
+	if (needsMarketPrices) {
+		try {
+			const { getTickersUSD } = await import('@/lib/coinpaprikaProvider');
+			tickerPrices = buildTickerPriceMap(await getTickersUSD());
+		} catch (err) {
+			console.warn('[aave] market prices unavailable; positions Aave did not value stay unpriced', err);
 		}
 	}
 
-	const chains = result.chains.map((chain) => {
-		let suppliedUsdTotal = 0;
-		let debtUsdTotal = 0;
-		const pricedPositions = chain.positions.map((pos) => {
-			const normalized = normalizeSymbol(pos.assetSymbol);
-			const price =
-				STABLES.has(normalized) || normalized.startsWith('USDC') || normalized.startsWith('USDT')
-					? 1
-					: priceMap[normalized] ?? 0;
-			if (price > 0) {
-				pricedCount += 1;
-			} else {
-				missingCount += 1;
-			}
-			const usdValue = Number.isFinite(pos.amount) ? pos.amount * price : 0;
-			if (pos.side === 'supply') {
-				suppliedUsdTotal += usdValue;
-			} else {
-				debtUsdTotal += usdValue;
-			}
-			return { ...pos, usdValue };
+	const totals = completeAaveTotals(result, tickerPrices);
+	logCoverage(totals);
+	return totals;
+}
+
+function logCoverage(totals: AaveTotals) {
+	const { coverage } = totals;
+	const bySource = { aave: 0, market: 0, none: 0 };
+	for (const chain of totals.chains) {
+		for (const pos of chain.positions) bySource[pos.priceSource ?? 'none'] += 1;
+	}
+	console.log('[aave] pricing', { fromAave: bySource.aave, fromMarket: bySource.market, unpriced: coverage.unpricedCount });
+	if (coverage.unpricedCount > 0) {
+		console.warn('[aave] unpriced positions are left out of the totals', {
+			count: coverage.unpricedCount,
+			symbols: [...new Set(coverage.unpriced.map((p) => p.symbol))],
 		});
-		return {
-			...chain,
-			positions: pricedPositions,
-			suppliedUsdTotal,
-			debtUsdTotal,
-			suppliedUsd: suppliedUsdTotal,
-			debtUsd: debtUsdTotal,
-		};
-	});
-
-	const suppliedUsdTotal = chains.reduce((sum, chain) => sum + (chain.suppliedUsdTotal ?? 0), 0);
-	const debtUsdTotal = chains.reduce((sum, chain) => sum + (chain.debtUsdTotal ?? 0), 0);
-
-	console.log('[aave] pricing', { pricedCount, missingCount });
-
-	return {
-		...result,
-		chains,
-		suppliedUsdTotal,
-		debtUsdTotal,
-		suppliedUsd: suppliedUsdTotal,
-		debtUsd: debtUsdTotal,
-	};
+	}
+	for (const gap of coverage.gaps) {
+		console.warn('[aave] priced figures disagree with the totals Aave itself reports', gap);
+	}
+	if (coverage.unavailableChains.length > 0) {
+		console.warn('[aave] lookup failed for', coverage.unavailableChains);
+	}
 }

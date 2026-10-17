@@ -14,6 +14,7 @@
  */
 import { db } from '@/lib/db';
 import { getAavePositionsForWallet, type AaveChainSummary, type AavePositionsResponse } from '@/lib/aave/client';
+import { aaveSymbolUsdPrice } from '@/lib/aave/pricing';
 import { isSpamToken } from './knownContracts';
 
 export type HeldQty = { qty: number; valueUsd: number | null };
@@ -89,26 +90,12 @@ export function mergeAaveSupply(base: HeldNow, aave: Map<string, number>): HeldN
 }
 
 /**
- * What the Portfolio page prices Aave supply with: a wrapper that redeems 1:1 for its base coin is
- * priced as that coin. Staking receipts and bridged copies are NOT here: they trade apart from their
- * base coin, so they are priced only under their own symbol, if at all. Keep in sync with
- * getAaveTotalsForWallet in src/lib/aave/client.ts.
+ * Pure. The USD price of an Aave-supplied symbol from market tickers, or null when it cannot be priced.
+ * tickerPrices maps UPPERCASE ticker symbols to USD prices. This is the one shared rule in
+ * src/lib/aave/pricing.ts, the same one the Vault and Portfolio fall back on, under the name this module's
+ * callers know.
  */
-export const AAVE_PRICE_ALIAS: Record<string, string> = { WETH: 'ETH', WPOL: 'POL', WMATIC: 'POL', WAVAX: 'AVAX' };
-const AAVE_STABLES = new Set(['USDC', 'USDT', 'USDT0', 'USDC.E', 'USDT.E']);
-
-/**
- * Pure. The USD price of an Aave-supplied symbol, the way the Portfolio page prices it, or null when it
- * cannot be priced. tickerPrices maps UPPERCASE ticker symbols to USD prices.
- */
-export function aaveSymbolPrice(symbol: string, tickerPrices: Map<string, number>): number | null {
-  const sym = String(symbol ?? '').trim().toUpperCase();
-  if (!sym) return null;
-  const base = AAVE_PRICE_ALIAS[sym] ?? sym;
-  if (AAVE_STABLES.has(base) || base.startsWith('USDC') || base.startsWith('USDT')) return 1;
-  const price = tickerPrices.get(base);
-  return typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null;
-}
+export const aaveSymbolPrice = aaveSymbolUsdPrice;
 
 /**
  * Pure. An entry with no value (supplied to Aave and not in a wallet snapshot) is kept only when priceOf
