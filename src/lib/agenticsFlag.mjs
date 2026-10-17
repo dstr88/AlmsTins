@@ -1,0 +1,17 @@
+// Agent Vault visibility switch. The one line to change to open the Agent Vault to every account.
+//
+// false: the Agent Vault is owner-only. Every /dashboard/agentics and /api/agentics path answers
+// a plain 404 to anyone but the owner (signed out, demo, another account), and the Vault page or
+// endpoint never runs (see src/lib/agenticsAccess.ts).
+// true: any signed-in, non-demo account may use it. It is still never a signed-out surface: the
+// Vault paths stay out of isPublicPath, so a signed-out request is refused like any other tenant
+// path (401 for an API call, a sign-in redirect for a page).
+//
+// Not part of the Vault, so not affected by this switch: the public docs page /agentics and the
+// pre-send destination check /api/verify/check (both live, both public).
+//
+// A plain .mjs with no imports so a build-time file (the sitemap filter, once the Vault has pages)
+// can load it natively; TypeScript files import it through agenticsAccess.ts.
+
+/** @type {boolean} */
+export const AGENTICS_VAULT_PUBLIC = false;

@@ -8,11 +8,12 @@
  *
  *   PetroTins path, not the owner? → Astro's 404 page, as for a path that does not exist
  *                                    (petroTinsAccess; owner-only while private)
+ *   Agent Vault path, not the owner? → the same 404 page (agenticsAccess; owner-only while private)
  *   /receivables/<name>? → rewrite to its /verify page (legacyRedirects, alias phase)
  *   isPublicPath?  → next()                    (route handler only)
  *   else           → dynamic import(app.ts)()  (session, tenant, headers)
  *
- * Every 404 leaves no-store and noindex; the owner's PetroTins responses leave private.
+ * Every 404 leaves no-store and noindex; the owner's PetroTins and Agent Vault responses leave private.
  */
 
 import { defineMiddleware } from 'astro/middleware';
@@ -31,6 +32,12 @@ import {
 	withPetroTinsOwnerHeaders,
 	withoutRerouteMarker,
 } from './lib/petroTinsAccess';
+import {
+	agenticsGate,
+	agenticsRefusal,
+	withAgenticsOwnerHeaders,
+	type AgenticsGate,
+} from './lib/agenticsAccess';
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = new URL(context.request.url);
@@ -65,6 +72,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// visitor skips it, so never gets a sign-in redirect. The session is only resolved for
 	// PetroTins paths.
 	const petro = await petroTinsGate(context.request, pathname, context.routePattern);
+	// The Agent Vault (src/lib/agenticsAccess.ts) is gated the same way, on its own paths only
+	// (/dashboard/agentics and /api/agentics; never the public /agentics docs page). Its paths
+	// and PetroTins' never overlap, so it only gets a say when the PetroTins gate had none.
+	const agentics: AgenticsGate =
+		petro.kind === 'open' ? await agenticsGate(context.request, pathname, context.routePattern) : { kind: 'open' };
 	let res: Response;
 	if (petro.kind === 'hidden') {
 		const refuse = async () => petroTinsRefusal(context.request, petro.hasSession);
@@ -72,12 +84,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	} else if (petro.kind === 'not-found-page') {
 		res = petro.hasSession ? await runApp(context, next) : applySecurityHeaders(await next());
 		res = withoutRerouteMarker(res);
+	} else if (agentics.kind === 'hidden') {
+		const refuse = async () => agenticsRefusal(context.request, agentics.hasSession);
+		res = agentics.hasSession ? await runApp(context, refuse) : applySecurityHeaders(await refuse());
+	} else if (agentics.kind === 'not-found-page') {
+		res = agentics.hasSession ? await runApp(context, next) : applySecurityHeaders(await next());
+		res = withoutRerouteMarker(res);
 	} else {
 		res = await route(context, next, pathname);
 	}
 
 	if (res.status === 404) res = withNotFoundHeaders(res);
 	if (petro.kind === 'owner') res = withPetroTinsOwnerHeaders(res);
+	if (agentics.kind === 'owner') res = withAgenticsOwnerHeaders(res);
 	return res;
 });
 
