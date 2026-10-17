@@ -136,7 +136,7 @@ describe('GET /api/portfolio/reconciliation', () => {
 		const { body } = await call('?threshold=0');
 		expect(body.items.map((i: any) => i.symbol).sort()).toEqual(['ZED', 'ZEE', 'ZEF']);
 		const stored = state.written[0];
-		expect(stored.key).toMatch(/:portfolio:reconciliation:v3$/);
+		expect(stored.key).toMatch(/:portfolio:reconciliation:v4$/);
 		expect(stored.payload.partial).toBe(true);
 		expect(stored.payload.items.find((i: any) => i.symbol === 'ZEF').valueUnpriced).toBe(true);
 	});

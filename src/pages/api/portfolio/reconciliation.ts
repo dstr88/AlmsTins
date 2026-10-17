@@ -79,7 +79,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const url       = new URL(request.url);
 		const threshold = Number(url.searchParams.get('threshold') ?? DEFAULT_THRESHOLD_USD);
 
-		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v3`;
+		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v4`;
 		const cached   = await getCache<ReconciliationPayload>(cacheKey, {
 			allowStale:        true,
 			staleMaxAgeSeconds: STALE_MAX_AGE_SECONDS,

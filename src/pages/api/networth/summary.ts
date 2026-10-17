@@ -84,7 +84,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			});
 		}
 
-		const cacheKey = `t:${tenantId}:networth:summary:v4`;
+		const cacheKey = `t:${tenantId}:networth:summary:v5`;
 		const lockKey = `lock:${cacheKey}`;
 		const memKey  = `networth:${tenantId}`;
 

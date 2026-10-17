@@ -148,17 +148,15 @@ function buildUserPositionsQuery(marketAddress: string, chainId: number, withUsd
 `;
 }
 
-// Aave's own collateral and debt totals for the user in every market, in one request. Asked separately from the
-// positions, so a failure here can only switch off the sanity check, never cost the positions themselves.
-const USER_MARKET_STATES_QUERY = /* GraphQL */ `
-  query UserMarketStates($chainIds: [ChainId!]!, $user: EvmAddress) {
-    markets(request: { chainIds: $chainIds, user: $user }) {
-      address
-      chain { chainId }
-      userState {
-        totalCollateralBase
-        totalDebtBase
-      }
+// Aave's own collateral and debt totals for the user in ONE market. Asked separately from the positions, so a failure
+// here can only switch off the sanity check for that chain, never cost the positions themselves. It is asked per
+// market on purpose: the market-list form (markets(user) { userState }) returned zeros for Avalanche, whose pool
+// shares its address with Polygon, while this dedicated query returned the right figures.
+const USER_MARKET_STATE_QUERY = /* GraphQL */ `
+  query UserMarketState($request: UserMarketStateRequest!) {
+    userMarketState(request: $request) {
+      totalCollateralBase
+      totalDebtBase
     }
   }
 `;
@@ -250,11 +248,6 @@ function toNumberOrNull(value: unknown): number | null {
 }
 
 /**
- * The collateral and debt totals Aave itself reports for the user, keyed by lowercase market address, or null
- * when that lookup fails. It never rejects and never waits long: the figures only feed the sanity check in
- * completeAaveTotals, so a failure here switches the check off and nothing else.
- */
-/**
  * The key under which a market's reported totals are kept. The Aave v3 pool has ONE address on Polygon and on
  * Avalanche (and on other chains), so an address alone cannot tell two markets apart.
  */
@@ -262,35 +255,42 @@ function reportedKey(chainId: number, marketAddress: string): string {
 	return `${chainId}:${marketAddress.toLowerCase()}`;
 }
 
-async function fetchReportedTotals(user: string): Promise<Map<string, AaveReported> | null> {
-	try {
-		const response = await fetch(AAVE_V3_GRAPHQL_ENDPOINT, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				query: USER_MARKET_STATES_QUERY,
-				variables: { chainIds: [ETHEREUM_CHAIN_ID, POLYGON_CHAIN_ID, AVALANCHE_CHAIN_ID], user },
-			}),
-			signal: AbortSignal.timeout(REPORTED_TOTALS_TIMEOUT_MS),
-		});
-		if (!response.ok) return null;
-		const json = await response.json();
-		if (json?.errors?.length) return null;
-		const out = new Map<string, AaveReported>();
-		for (const market of Array.isArray(json?.data?.markets) ? json.data.markets : []) {
-			const address = String(market?.address ?? '').toLowerCase();
-			const chainId = Number(market?.chain?.chainId);
-			const totalCollateralUsd = toNumberOrNull(market?.userState?.totalCollateralBase);
-			const totalDebtUsd = toNumberOrNull(market?.userState?.totalDebtBase);
-			// A market whose chain is unknown is left out: the check is skipped for it, never run against another chain's totals.
-			if (!address || !Number.isFinite(chainId) || (totalCollateralUsd === null && totalDebtUsd === null)) continue;
-			out.set(reportedKey(chainId, address), { totalCollateralUsd, totalDebtUsd });
-		}
-		return out;
-	} catch (err) {
-		console.warn('[aave] market-state lookup failed; sanity check skipped', err);
-		return null;
-	}
+/**
+ * The collateral and debt totals Aave itself reports for the user, one request per market, keyed by chain id and
+ * market address. It never rejects and never waits long: the figures only feed the sanity check in
+ * completeAaveTotals, so a market whose request fails is simply left out and the check is skipped for it.
+ */
+async function fetchReportedTotals(
+	user: string,
+	markets: ReadonlyArray<{ chainId: number; address: string }>,
+): Promise<Map<string, AaveReported>> {
+	const out = new Map<string, AaveReported>();
+	await Promise.all(
+		markets.map(async ({ chainId, address }) => {
+			try {
+				const response = await fetch(AAVE_V3_GRAPHQL_ENDPOINT, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						query: USER_MARKET_STATE_QUERY,
+						variables: { request: { chainId, market: address, user } },
+					}),
+					signal: AbortSignal.timeout(REPORTED_TOTALS_TIMEOUT_MS),
+				});
+				if (!response.ok) return;
+				const json = await response.json();
+				if (json?.errors?.length) return;
+				const state = json?.data?.userMarketState;
+				const totalCollateralUsd = toNumberOrNull(state?.totalCollateralBase);
+				const totalDebtUsd = toNumberOrNull(state?.totalDebtBase);
+				if (totalCollateralUsd === null && totalDebtUsd === null) return;
+				out.set(reportedKey(chainId, address), { totalCollateralUsd, totalDebtUsd });
+			} catch (err) {
+				console.warn('[aave] market-state lookup failed for chain', chainId, '; sanity check skipped for it', err);
+			}
+		}),
+	);
+	return out;
 }
 
 /** One positions request. The caller decides what a rejection means. */
@@ -469,7 +469,7 @@ const EVM_ADDRESS_RE = /^0x[0-9a-f]{40}$/i;
 /**
  * Every Aave v3 position the wallet has on Ethereum, Polygon and Avalanche (and v4 when configured), each with
  * Aave's own USD figure when the API gave one. withReported also asks Aave for its own collateral and debt
- * totals (one extra request), which getAaveTotalsForWallet checks its sums against.
+ * totals (one extra request per market), which getAaveTotalsForWallet checks its sums against.
  */
 export async function getAavePositionsForWallet(
 	address: string,
@@ -481,10 +481,6 @@ export async function getAavePositionsForWallet(
 
 	const normalized = address.toLowerCase();
 
-	// Aave's own collateral and debt totals, for the sanity check. One extra request, started now so it runs while
-	// the chains are read, and only when asked for: callers that just need amounts (Memory Lane) do not pay for it.
-	const reportedLookup = options.withReported ? fetchReportedTotals(normalized) : null;
-
 	try {
 		const ethereumMarket = await resolveMarketAddress(ETHEREUM_CHAIN_ID, {
 			fallback: ETHEREUM_MARKET_ADDRESS,
@@ -495,6 +491,19 @@ export async function getAavePositionsForWallet(
 		const avalancheMarket = await resolveMarketAddress(AVALANCHE_CHAIN_ID, {
 			fallback: AVALANCHE_MARKET_ADDRESS,
 		});
+
+		// Aave's own collateral and debt totals, for the sanity check: one request per market, started now so they run
+		// while the chains are read, and only when asked for (callers that just need amounts, like Memory Lane, do not pay).
+		const reportedLookup = options.withReported
+			? fetchReportedTotals(
+					normalized,
+					[
+						{ chainId: ETHEREUM_CHAIN_ID, address: ethereumMarket.address },
+						{ chainId: POLYGON_CHAIN_ID, address: polygonMarket.address },
+						{ chainId: AVALANCHE_CHAIN_ID, address: avalancheMarket.address },
+					].filter((m): m is { chainId: number; address: string } => Boolean(m.address)),
+				)
+			: null;
 
 		const ethereum = ethereumMarket.address
 			? await fetchUserPositionsForMarket(

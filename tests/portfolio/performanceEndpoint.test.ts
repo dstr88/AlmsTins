@@ -191,6 +191,6 @@ describe('GET /api/portfolio/performance', () => {
 		state.aave.mockResolvedValue(totalsWith([]));
 		await call();
 		expect(state.cachedKeys).toHaveLength(1);
-		expect(state.cachedKeys[0]).toMatch(/:portfolio:performance:v7$/);
+		expect(state.cachedKeys[0]).toMatch(/:portfolio:performance:v8$/);
 	});
 });

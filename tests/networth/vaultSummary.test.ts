@@ -207,7 +207,7 @@ describe('GET /api/networth/summary', () => {
 		serve({ chains: {} });
 		await fetchSummary();
 		expect(state.written).toHaveLength(1);
-		expect(state.written[0].key).toMatch(/:networth:summary:v4$/);
+		expect(state.written[0].key).toMatch(/:networth:summary:v5$/);
 		expect(state.written[0].payload.summary.partial).toBe(false);
 	});
 

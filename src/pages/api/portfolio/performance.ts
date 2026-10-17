@@ -74,7 +74,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
 
-		const cacheKey = `t:${tenantId}:portfolio:performance:v7`;
+		const cacheKey = `t:${tenantId}:portfolio:performance:v8`;
 		const memKey   = `portfolio:${tenantId}`;
 
 		// L1 — in-memory, zero-latency

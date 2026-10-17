@@ -119,8 +119,8 @@ describe('every screen that shows a total carries the note', () => {
 	});
 
 	it('the Vault and Portfolio endpoints cache under keys that never serve a payload from before this existed', () => {
-		expect(read('src/pages/api/networth/summary.ts')).toContain(':networth:summary:v4`');
-		expect(read('src/pages/api/portfolio/performance.ts')).toContain(':portfolio:performance:v7`');
-		expect(read('src/pages/api/portfolio/reconciliation.ts')).toContain(':portfolio:reconciliation:v3`');
+		expect(read('src/pages/api/networth/summary.ts')).toContain(':networth:summary:v5`');
+		expect(read('src/pages/api/portfolio/performance.ts')).toContain(':portfolio:performance:v8`');
+		expect(read('src/pages/api/portfolio/reconciliation.ts')).toContain(':portfolio:reconciliation:v4`');
 	});
 });

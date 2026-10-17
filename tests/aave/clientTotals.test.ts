@@ -103,7 +103,7 @@ describe('a pool address that two chains share', () => {
 });
 
 describe('what the client asks Aave for', () => {
-	it('asks for Aave\'s own USD figure and the collateral flag, and for the state in every market in one request', async () => {
+	it('asks for Aave\'s own USD figure and the collateral flag, and for the state of each market in its own request', async () => {
 		serve({ chains: { [AVALANCHE]: healthyAvalanche } });
 		await getAaveTotalsForWallet(ADDR);
 		const positionQueries = api.positionQueries();
@@ -112,7 +112,18 @@ describe('what the client asks Aave for', () => {
 			expect(q).toContain('usdPerToken');
 			expect(q).toContain('isCollateral');
 		}
-		expect(api.stateQueries()).toBe(1);
+		expect(api.stateQueries()).toBe(3);
+	});
+
+	it('names the chain and the market in every market-state request, so two chains with one pool address are told apart', async () => {
+		serve({ chains: { [AVALANCHE]: healthyAvalanche } });
+		await getAaveTotalsForWallet(ADDR);
+		const requests = api.stateRequests().sort((a, b) => a.chainId - b.chainId);
+		expect(requests.map((r) => r.chainId)).toEqual([ETHEREUM, POLYGON, AVALANCHE]);
+		expect(requests.every((r) => r.user === ADDR)).toBe(true);
+		// The fake gives Polygon and Avalanche the same pool address, as the real network does.
+		expect(requests[1].market).toBe(requests[2].market);
+		expect(requests[0].market).not.toBe(requests[1].market);
 	});
 
 	it('does not ask for the market state when the caller only wants amounts (Memory Lane)', async () => {
@@ -206,14 +217,32 @@ describe('getAaveTotalsForWallet', () => {
 		expect(out.coverage.partial).toBe(false);
 	});
 
-	it('loses nothing when the market-state lookup fails: only the sanity check is off', async () => {
+	it('loses nothing when a market-state lookup fails: only that market\'s sanity check is off', async () => {
 		serve({ chains: { [AVALANCHE]: { ...healthyAvalanche, state: 'fail' } } });
 		const out = await getAaveTotalsForWallet(ADDR);
-		// One request covers every market, so a failure switches the check off for all of them.
-		expect(out.chains.filter((c) => c.market).every((c) => c.reported === null)).toBe(true);
+		// Each market is asked for on its own, so a failure switches the check off for that market only.
+		expect(out.chains.find((c) => c.chain === 'avalanche')?.reported).toBeNull();
+		expect(out.chains.find((c) => c.chain === 'polygon')?.reported).toMatchObject({ totalCollateralUsd: 0, totalDebtUsd: 0 });
+		expect(out.chains.find((c) => c.chain === 'ethereum')?.reported).toMatchObject({ totalCollateralUsd: 0, totalDebtUsd: 0 });
 		expect(out.suppliedUsdTotal).toBe(13550);
 		expect(out.coverage.gaps).toEqual([]);
 		expect(out.coverage.partial).toBe(false);
+	});
+
+	it('still checks the other markets when one market-state request is refused outright', async () => {
+		serve({
+			chains: {
+				[POLYGON]: {
+					supplies: [{ symbol: 'ZED', amount: '1', usd: '8200', usdPerToken: '8200', isCollateral: true }],
+					state: { totalCollateralBase: '31400', totalDebtBase: '0' },
+				},
+				[AVALANCHE]: { ...healthyAvalanche, state: 'fail' },
+			},
+		});
+		const out = await getAaveTotalsForWallet(ADDR);
+		// Avalanche's check is off; Polygon's still catches that Aave counts far more collateral than we priced.
+		expect(out.coverage.gaps.map((g) => g.chain)).toEqual(['polygon']);
+		expect(out.coverage.partial).toBe(true);
 	});
 
 	it('flags a large gap between priced collateral and Aave\'s totalCollateralBase, and logs it', async () => {

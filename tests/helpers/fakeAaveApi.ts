@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 /**
  * A stand-in for Aave's GraphQL API, installed over the global fetch, so tests can run the real Aave client
  * (src/lib/aave/client.ts) with no network. It answers the three queries the client sends: the markets list,
- * a user's positions in one market, and the user's state in every market (Aave's own collateral and debt totals).
+ * a user's positions in one market, and the user's state in one market (Aave's own collateral and debt totals).
  *
  * Every symbol, amount and price a test hands it is invented.
  */
@@ -22,8 +22,8 @@ export type FakeChain = {
 	supplies?: FakeSupply[];
 	borrows?: FakeBorrow[];
 	/**
-	 * Aave's own totals for the user in this market. 'fail' makes the user's state lookup return an error (it is
-	 * one request for every market, so the whole lookup fails).
+	 * Aave's own totals for the user in this market. 'fail' makes this market's state lookup return an error, so
+	 * the sanity check is skipped for this chain only (it is one request per market).
 	 */
 	state?: { totalCollateralBase: string; totalDebtBase: string } | 'fail';
 	/** Answer every positions request for this chain with this HTTP status (a chain outage). */
@@ -44,6 +44,8 @@ export type FakeAaveHandle = {
 	queries: string[];
 	positionQueries: () => string[];
 	stateQueries: () => number;
+	/** The variables of every market-state request, in the order they arrived. */
+	stateRequests: () => Array<{ chainId: number; market: string; user: string }>;
 	restore: () => void;
 };
 
@@ -58,6 +60,7 @@ const json = (body: unknown, status = 200) =>
 
 export function installFakeAaveApi(fake: FakeAave): FakeAaveHandle {
 	const queries: string[] = [];
+	const stateRequests: Array<{ chainId: number; market: string; user: string }> = [];
 
 	const handler = async (_url: unknown, init?: { body?: unknown }) => {
 		const body = JSON.parse(String(init?.body ?? '{}')) as { query?: string; variables?: any };
@@ -72,22 +75,13 @@ export function installFakeAaveApi(fake: FakeAave): FakeAaveHandle {
 
 		const chainsOf = (user: unknown) => fake.users?.[String(user ?? '').toLowerCase()] ?? fake.chains;
 
-		if (query.includes('userState')) {
-			const chains = chainsOf(body.variables?.user);
-			if (Object.values(chains).some((c) => c.state === 'fail')) {
-				return json({ errors: [{ message: 'state lookup failed' }] });
-			}
+		if (query.includes('userMarketState')) {
+			const request = body.variables?.request ?? {};
+			stateRequests.push({ chainId: Number(request.chainId), market: String(request.market), user: String(request.user) });
+			const state = chainsOf(request.user)[Number(request.chainId)]?.state;
+			if (state === 'fail') return json({ errors: [{ message: 'state lookup failed' }] });
 			return json({
-				data: {
-					markets: CHAIN_IDS.map((chainId) => {
-						const state = chains[chainId]?.state;
-						return {
-							address: marketOf(chainId),
-							chain: { chainId },
-							userState: state && state !== 'fail' ? state : { totalCollateralBase: '0', totalDebtBase: '0' },
-						};
-					}),
-				},
+				data: { userMarketState: state ?? { totalCollateralBase: '0', totalDebtBase: '0' } },
 			});
 		}
 
@@ -134,7 +128,8 @@ export function installFakeAaveApi(fake: FakeAave): FakeAaveHandle {
 	return {
 		queries,
 		positionQueries: () => queries.filter((q) => q.includes('userSupplies')),
-		stateQueries: () => queries.filter((q) => q.includes('userState')).length,
+		stateQueries: () => queries.filter((q) => q.includes('userMarketState')).length,
+		stateRequests: () => [...stateRequests],
 		restore: () => vi.unstubAllGlobals(),
 	};
 }
