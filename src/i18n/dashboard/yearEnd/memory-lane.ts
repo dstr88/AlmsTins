@@ -36,6 +36,8 @@ export interface MemoryLaneLocale {
   sectionClosedTitle: string;
   /** Sub for the Closed section — the full set of assets no longer held (year-neutral). */
   sectionClosedSub: string;
+  /** Under the Closed section: how many airdrop spam tokens were left out of the list. */
+  spamHidden: (n: number) => string;
   sectionOpenTitle: string;
   sectionOpenSub: string;
 
@@ -79,12 +81,10 @@ export interface MemoryLaneLocale {
   /** "Also sold {n} lot{s} in {year} · {fmtGain} realized" */
   alsoSold: (n: number, year: number, fmtGain: string) => string;
 
-  // ── Lifetime / full-roster cards ─────────────────────────────────────────────
-  /** P&L label when a closed card shows LIFETIME (not single-year) realized figures. */
-  labelRealizedLifetime: string;
-  /** Stat key for the last-activity date on a lifetime closed card. */
+  // ── Cards for coins with no activity in the selected year ─────────────────────────────────────────────
+  /** Stat key for the last-activity date on a closed card with no activity in the selected year. */
   statKeyLastActivity: string;
-  /** Note shown when a card has no events in the selected year: "No activity in {year} · …". */
+  /** Note shown when a card has no events in the selected year: "No activity in {year}". */
   noActivityInYear: (year: number) => string;
 
   // ── Empty state ──────────────────────────────────────────────────────────────
@@ -113,6 +113,7 @@ export const en: MemoryLaneLocale = {
 
   sectionClosedTitle: 'Closed Positions',
   sectionClosedSub: 'Assets you no longer hold',
+  spamHidden: (n) => `${n} airdrop spam token${n !== 1 ? 's' : ''} hidden`,
   sectionOpenTitle: 'Open Positions',
   sectionOpenSub: 'Assets you currently hold',
 
@@ -148,9 +149,8 @@ export const en: MemoryLaneLocale = {
   alsoSold: (n, year, fmtGain) =>
     `Also sold ${n} lot${n !== 1 ? 's' : ''} in ${year} · ${fmtGain} realized`,
 
-  labelRealizedLifetime: 'lifetime realized',
   statKeyLastActivity: 'Last activity',
-  noActivityInYear: (year) => `No activity in ${year} · lifetime totals shown`,
+  noActivityInYear: (year) => `No activity in ${year}`,
 
   emptyTitle: (year) => `No history for ${year}`,
   emptySub: 'Select a different year above, or make sure your transactions are synced.',
@@ -177,6 +177,7 @@ export const es: MemoryLaneLocale = {
 
   sectionClosedTitle: 'Posiciones cerradas',
   sectionClosedSub: 'Activos que ya no tienes',
+  spamHidden: (n) => `${n} token${n !== 1 ? 's' : ''} de airdrop spam oculto${n !== 1 ? 's' : ''}`,
   sectionOpenTitle: 'Posiciones abiertas',
   sectionOpenSub: 'Activos que tienes actualmente',
 
@@ -212,9 +213,8 @@ export const es: MemoryLaneLocale = {
   alsoSold: (n, year, fmtGain) =>
     `También vendiste ${n} lote${n !== 1 ? 's' : ''} en ${year} · ${fmtGain} realizado`,
 
-  labelRealizedLifetime: 'realizado histórico',
   statKeyLastActivity: 'Última actividad',
-  noActivityInYear: (year) => `Sin actividad en ${year} · totales históricos`,
+  noActivityInYear: (year) => `Sin actividad en ${year}`,
 
   emptyTitle: (year) => `Sin historial para ${year}`,
   emptySub: 'Selecciona un año diferente arriba, o asegúrate de que tus transacciones estén sincronizadas.',
@@ -241,6 +241,7 @@ export const fr: MemoryLaneLocale = {
 
   sectionClosedTitle: 'Positions fermées',
   sectionClosedSub: 'Actifs que vous ne détenez plus',
+  spamHidden: (n) => `${n} jeton${n !== 1 ? 's' : ''} de spam (airdrop) masqué${n !== 1 ? 's' : ''}`,
   sectionOpenTitle: 'Positions ouvertes',
   sectionOpenSub: 'Actifs que vous détenez actuellement',
 
@@ -276,9 +277,8 @@ export const fr: MemoryLaneLocale = {
   alsoSold: (n, year, fmtGain) =>
     `Également vendu ${n} lot${n !== 1 ? 's' : ''} en ${year} · ${fmtGain} réalisé`,
 
-  labelRealizedLifetime: 'réalisé cumulé',
   statKeyLastActivity: 'Dernière activité',
-  noActivityInYear: (year) => `Aucune activité en ${year} · totaux cumulés`,
+  noActivityInYear: (year) => `Aucune activité en ${year}`,
 
   emptyTitle: (year) => `Aucun historique pour ${year}`,
   emptySub: 'Sélectionnez une autre année ci-dessus, ou vérifiez que vos transactions sont bien synchronisées.',

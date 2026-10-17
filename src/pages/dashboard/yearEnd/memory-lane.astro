@@ -5,6 +5,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource, type CostBasisMethod 
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 import { db } from '../../../lib/db';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import { classifyUniverse, type RosterEntry } from '@/lib/memoryLane';
 import { getLang } from '@/lib/i18n/locale';
 import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
@@ -32,12 +33,10 @@ let availableYears: number[]            = [defaultYear];
 let costMethod: CostBasisMethod         = 'fifo';
 // Hoisted so the Open-card synth fallback (below, outside the try) can reuse prices.
 let priceMap: Map<string, number>       = new Map();
-// Full lifetime roster — EVERY coin the tenant has ever tracked — plus lifetime
-// realized P&L. Populated inside/after the data load; module-scope so the
-// template-prep section can read them. Empty on failure ⇒ graceful fallback to
-// the original breakdown-only behavior.
-let rosterMap: Map<string, { netQty: number; weightedAvgCost: number; latestAcquiredAt: string }> = new Map();
-let lifetimeByAsset: Map<string, { realized: number; stLots: number; ltLots: number; lastSell: string }> = new Map();
+// Full lifetime roster: EVERY coin the tenant has ever tracked. Populated inside the
+// data load; module-scope so the template-prep section can read it. Empty on failure,
+// which falls back to the original breakdown-only behavior.
+let rosterMap: Map<string, RosterEntry> = new Map();
 
 try {
 	// ── Available years ──────────────────────────────────────────────────────
@@ -147,7 +146,8 @@ try {
 			                              WHEN ale.direction = 'out' THEN -ABS(COALESCE(ale.amount, 0))
 			                              ELSE 0 END
 			                    ELSE 0 END
-			             ), 0) AS net_qty
+			             ), 0) AS net_qty,
+			             MAX(ale.timestamp_utc) AS last_event_at
 			      FROM asset_lifecycle_groups alg
 			      LEFT JOIN asset_lifecycle_events ale
 			        ON ale.group_id  = alg.id
@@ -160,10 +160,14 @@ try {
 			const sym = String(r.asset_symbol ?? '').toUpperCase();
 			if (!sym) continue;
 			const prev = rosterMap.get(sym);
+			// Several groups can map to one symbol: keep the most recent event across them.
+			const prevLastEvent = prev?.lastEventAt ?? '';
+			const lastEvent     = r.last_event_at ? String(r.last_event_at) : '';
 			rosterMap.set(sym, {
 				netQty: Number(r.net_qty ?? 0) + (prev?.netQty ?? 0),
 				weightedAvgCost: Number(r.weighted_avg_cost_usd ?? 0) || (prev?.weightedAvgCost ?? 0),
 				latestAcquiredAt: r.latest_acquired_at ? String(r.latest_acquired_at) : (prev?.latestAcquiredAt ?? ''),
+				lastEventAt: lastEvent > prevLastEvent ? lastEvent : prevLastEvent,
 			});
 		}
 	} catch (e) {
@@ -203,69 +207,20 @@ function getLotStats(asset: string) {
 	return { cost, proceeds, lastSell, firstBuy, gainPct, lotCount: lots.length };
 }
 
-// ── Closed (fully sold) vs Open (currently held) ────────────────────────────────
-// The coin LIST is the full lifetime roster (plus any breakdown-only symbols such as
-// Sui / manual entries that have no lifecycle group, so nothing that showed before is
-// dropped). Classification is driven by lifetime net qty (as of now), NOT the selected
-// year — so a coin's section is stable as you change years. Open = still holding
-// (> 0 after 8-dp rounding, the same tolerance the reconciliation code uses);
-// Closed = fully disposed (net qty ≈ 0). Roster-less symbols fall back to the
-// selected-year still-holding signal (original behavior).
-const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
+// ── Closed (no longer held) vs Open (currently held) ─────────────────────────────
+// The coin LIST is the full lifetime roster plus any breakdown-only symbols (Sui, manual
+// entries with no lifecycle group), minus airdrop spam. "Held" is decided in classifyUniverse
+// (src/lib/memoryLane.ts): lots still open at the selected year-end OR a positive lifecycle
+// quantity, never the lifecycle quantity alone, which drifts from real balances wherever
+// transactions are missing.
 const gainsByAsset   = new Map(byAssetGains.map((a: any) => [a.asset, a]));
 const harvestByAsset = new Map(harvestLosses.map((h: any) => [h.asset, h]));
 
-const allSymbols = new Set<string>([
-	...rosterMap.keys(),
-	...byAssetGains.map((a: any) => a.asset as string),
-	...harvestLosses.map((h: any) => h.asset as string),
-]);
-
-const heldSet = new Set<string>();
-for (const sym of allSymbols) {
-	const r = rosterMap.get(sym);
-	const held = r ? round8(r.netQty) > 0 : harvestByAsset.has(sym);
-	if (held) heldSet.add(sym);
-}
-
-// Closed coins with no disposal in the selected year need LIFETIME figures so their
-// card isn't blank. Lifetime realized P&L is summed from buildAnnualBreakdown across
-// every available year (the exact tax engine → numbers stay consistent with the rest
-// of the app). Computed only when at least one such coin exists.
-const needsLifetime = [...allSymbols].filter((s) => !heldSet.has(s) && !gainsByAsset.has(s));
-if (needsLifetime.length > 0) {
-	try {
-		// A needs-lifetime coin has, by definition, no disposal in the selected year, so
-		// that year contributes nothing to its total and can be skipped entirely.
-		const otherYears = availableYears.filter((y) => y !== year);
-		// Run the engine a few years at a time, not all at once: a decade of history would
-		// otherwise fire a dozen full engine runs in parallel on a single SSR request.
-		const LIFETIME_CONCURRENCY = 3;
-		const breakdowns: Array<Awaited<ReturnType<typeof buildAnnualBreakdown>> | null> = [];
-		for (let i = 0; i < otherYears.length; i += LIFETIME_CONCURRENCY) {
-			const batch = await Promise.all(
-				otherYears.slice(i, i + LIFETIME_CONCURRENCY).map((y) =>
-					buildAnnualBreakdown(tenantId, y, costMethod, undefined, 'auto' as AnnualBreakdownSource).catch(() => null),
-				),
-			);
-			breakdowns.push(...batch);
-		}
-		const bump = (lot: any, term: 'short' | 'long') => {
-			const e = lifetimeByAsset.get(lot.asset) ?? { realized: 0, stLots: 0, ltLots: 0, lastSell: '' };
-			e.realized += lot.gainLossUsd ?? 0;
-			if (term === 'short') e.stLots++; else e.ltLots++;
-			if (lot.sellDate && lot.sellDate > e.lastSell) e.lastSell = lot.sellDate;
-			lifetimeByAsset.set(lot.asset, e);
-		};
-		for (const ybd of breakdowns) {
-			if (!ybd) continue;
-			for (const lot of ybd.shortTerm) bump(lot, 'short');
-			for (const lot of ybd.longTerm)  bump(lot, 'long');
-		}
-	} catch (e) {
-		console.warn('[memory-lane] lifetime breakdown failed', e);
-	}
-}
+const { symbols: allSymbols, held: heldSet, hiddenSpam } = classifyUniverse({
+	roster: rosterMap,
+	withYearGains: new Set<string>(gainsByAsset.keys()),
+	stillHolding: new Set<string>(harvestByAsset.keys()),
+});
 
 // ── Open cards (currently held) ──────────────────────────────────────────────────
 type OpenItem = {
@@ -297,9 +252,8 @@ open.sort((a, b) => (a.unrealizedGainLoss ?? Infinity) - (b.unrealizedGainLoss ?
 
 // ── Closed cards (no longer held) ────────────────────────────────────────────────
 type ClosedItem = {
-	asset: string; scope: 'year' | 'lifetime';
-	netGain: number; stLots: number; ltLots: number;
-	lifetimeRealized: number; lastActivity: string;
+	asset: string; scope: 'year' | 'prior';
+	netGain: number; stLots: number; ltLots: number; lastActivity: string;
 };
 const closed: ClosedItem[] = [];
 for (const sym of allSymbols) {
@@ -307,21 +261,19 @@ for (const sym of allSymbols) {
 	const g = gainsByAsset.get(sym);
 	if (g) {
 		// Sold in the selected year → show that year's figures, exactly as before.
-		closed.push({ asset: sym, scope: 'year', netGain: g.netGain, stLots: g.stLots, ltLots: g.ltLots, lifetimeRealized: 0, lastActivity: '' });
+		closed.push({ asset: sym, scope: 'year', netGain: g.netGain, stLots: g.stLots, ltLots: g.ltLots, lastActivity: '' });
 	} else {
-		// Fully disposed, but not in the selected year → lifetime summary.
-		const lt = lifetimeByAsset.get(sym);
-		const r  = rosterMap.get(sym);
-		closed.push({
-			asset: sym, scope: 'lifetime', netGain: 0,
-			stLots: lt?.stLots ?? 0, ltLots: lt?.ltLots ?? 0,
-			lifetimeRealized: lt?.realized ?? 0,
-			lastActivity: (lt?.lastSell) || (r?.latestAcquiredAt ?? ''),
-		});
+		// Fully disposed, but not in the selected year: no figures for this year, only when it was last active.
+		const r = rosterMap.get(sym);
+		closed.push({ asset: sym, scope: 'prior', netGain: 0, stLots: 0, ltLots: 0, lastActivity: r?.lastEventAt || r?.latestAcquiredAt || '' });
 	}
 }
-const closedPnl = (a: ClosedItem) => a.scope === 'lifetime' ? a.lifetimeRealized : a.netGain;
-closed.sort((a, b) => Math.abs(closedPnl(b)) - Math.abs(closedPnl(a)));
+// Coins with figures this year first, biggest movers on top (even one sold at exactly $0); coins with
+// nothing this year follow, most recently active first.
+closed.sort((a, b) =>
+	(a.scope === b.scope ? 0 : a.scope === 'year' ? -1 : 1)
+	|| (Math.abs(b.netGain) - Math.abs(a.netGain))
+	|| b.lastActivity.localeCompare(a.lastActivity));
 
 // ── Group by coin type ─────────────────────────────────────────────────────────
 function groupByType<T>(arr: T[], key: (item: T) => string): Record<CoinType, T[]> {
@@ -430,6 +382,7 @@ function timelineId(asset: string) {
 				<div>
 					<h2 class="ml-section-title">{t.sectionClosedTitle}</h2>
 					<p class="ml-section-sub">{t.sectionClosedSub}</p>
+					{hiddenSpam.length > 0 && (<p class="ml-section-sub">{t.spamHidden(hiddenSpam.length)}</p>)}
 				</div>
 				<span class="ml-section-count">{closed.length}</span>
 			</div>
@@ -442,10 +395,10 @@ function timelineId(asset: string) {
 						<div class="ml-group-label">{TYPE_LABEL[type]}</div>
 						<div class="ml-grid">
 							{group.map((asset: any) => {
-								const isLifetime = asset.scope === 'lifetime';
+								const isPrior = asset.scope === 'prior';
 								const stats = getLotStats(asset.asset);
-								const lots  = isLifetime ? [] : (lotDetails[asset.asset] ?? []);
-								const pnl   = isLifetime ? asset.lifetimeRealized : asset.netGain;
+								const lots  = isPrior ? [] : (lotDetails[asset.asset] ?? []);
+								const pnl   = asset.netGain;
 								const isWin = pnl >= 0;
 								return (
 									<div class="pos-card" data-asset={asset.asset}>
@@ -463,17 +416,19 @@ function timelineId(asset: string) {
 												<span class="pos-card__tag">{t.tagClosed}</span>
 											</div>
 
-											<div class="pos-card__pnl">
-												<span class={`pos-card__pnl-num ${isWin ? 'is-gain' : 'is-loss'}`}>
-													{isWin ? '+' : ''}{fmt(pnl)}
-												</span>
-												{stats.gainPct !== null && (
-													<span class={`pos-card__pnl-pct ${isWin ? 'is-gain' : 'is-loss'}`}>
-														{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
+											{!isPrior && (
+												<div class="pos-card__pnl">
+													<span class={`pos-card__pnl-num ${isWin ? 'is-gain' : 'is-loss'}`}>
+														{isWin ? '+' : ''}{fmt(pnl)}
 													</span>
-												)}
-												<span class="pos-card__pnl-label">{isLifetime ? t.labelRealizedLifetime : t.labelRealized}</span>
-											</div>
+													{stats.gainPct !== null && (
+														<span class={`pos-card__pnl-pct ${isWin ? 'is-gain' : 'is-loss'}`}>
+															{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
+														</span>
+													)}
+													<span class="pos-card__pnl-label">{t.labelRealized}</span>
+												</div>
+											)}
 
 											<div class="pos-card__stats">
 												{lots.length > 0 && (
@@ -488,12 +443,12 @@ function timelineId(asset: string) {
 												{stats.lastSell && (
 													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyClosed}</span><span class="pos-card__stat-v">{fmtDate(stats.lastSell)}</span></div>
 												)}
-												{isLifetime && asset.lastActivity && (
+												{isPrior && asset.lastActivity && (
 													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLastActivity}</span><span class="pos-card__stat-v">{fmtDate(asset.lastActivity)}</span></div>
 												)}
 											</div>
 
-											{isLifetime && (
+											{isPrior && (
 												<div class="pos-card__note">{t.noActivityInYear(year)}</div>
 											)}
 
