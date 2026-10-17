@@ -23,6 +23,7 @@
 import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
+import { mountSeenBeforeForm } from '@/components/receivables/SeenBeforeForm/seenBeforeForm.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
 import { markRegistryMine, markRegistryMineDuplicates } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
@@ -59,3 +60,7 @@ if (mine) {
 		markRegistryMineDuplicates(mine, bookDuplicateIds(rows));
 	});
 }
+
+// "Seen before?" (S6): the invoice-details check for a lender who holds no receivable ID.
+const seenBefore = document.querySelector<HTMLFormElement>('form[data-rcv-root="seen-before"]');
+if (seenBefore) mountSeenBeforeForm(seenBefore);

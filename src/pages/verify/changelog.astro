@@ -20,6 +20,14 @@ interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
   {
+    date: '2026-10-16',
+    label: 'Friday',
+    entries: [
+      { kind: 'new', what: 'You can now check an invoice by its details, without a receivable ID, before you advance.',
+        why: 'A new "Seen before?" check sits on the registry and the financing desk, for a lender about to advance who was handed only an invoice, not a receivable ID. Enter the supplier, the debtor, the invoice number, the amount and the currency, and it says whether a matching invoice is already on record at Almstins. It needs a free sign-in; a signed-out visitor gets a sign-in prompt, never an answer. An account with a verified email, or one that signs in with Google or GitHub, also sees whether the invoice is recorded as financed, whether the debtor has confirmed or disputed it, and when it was first recorded; any other signed-in account sees only whether a match exists. The match is on the invoice itself, not on the debtor’s reference alone. A match is a warning to look closer, never a clean bill and never a legal status, and "not found" covers only records kept at Almstins. When the check cannot run it says so, and that is never read as "not found". The check writes nothing about the invoice you type and tells no one you looked. A plain-language page at almstins.com/verify/seen-before explains it.' },
+    ],
+  },
+  {
     date: '2026-10-12',
     label: 'Monday',
     entries: [

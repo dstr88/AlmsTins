@@ -18,6 +18,7 @@ import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -679,6 +680,12 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <button id="q-go">Check</button>
       </div>
       <div id="q-out" class="note"></div>
+    </div>
+
+    <div class="card">
+      <h2>Seen before?</h2>
+      <p class="hint">No receivable ID? Check by the invoice details before you advance. <a href="/verify/seen-before">How this works</a>.</p>
+      <SeenBeforeForm variant="desk" />
     </div>
 
     <script type="application/json" id="terms-data" set:html={JSON.stringify(TERMS)}></script>

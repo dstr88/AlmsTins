@@ -30,6 +30,7 @@ const COMPONENT_ROOTS: Record<string, RegExp> = {
 	'withdrawn-record': /<WithdrawnNote\b[^>]*\/>/,
 	'dup-create': /<DuplicateFlag\b[^>]*\bname="create"[^>]*\/>/,
 	'dup-record': /<DuplicateFlag\b[^>]*\bname="record"[^>]*\/>/,
+	'seen-before': /<SeenBeforeForm\b[^>]*\/>/,
 };
 
 describe('entry-module roots appear exactly once in their host', () => {

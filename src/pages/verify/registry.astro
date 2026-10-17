@@ -18,6 +18,7 @@ import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
+import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
@@ -200,6 +201,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="out" id="q-out"></div>
     </section>
 
+    <!-- 1b. SEEN BEFORE? (authed check by invoice details; no receivable ID needed) -->
+    <section class="card">
+      <h2>Seen before?</h2>
+      <p class="sub">About to advance against an invoice but weren't handed a receivable ID? Check by the invoice details instead. Sign-in required; verify your email (or sign in with Google or GitHub) to see financing status. <a href="/verify/seen-before">How this works</a>.</p>
+      <SeenBeforeForm variant="registry" />
+    </section>
+
     <!-- Watchlist (client-side; saved in this browser) -->
     <section class="card" id="watch-card" style="display:none">
       <h2>Watchlist</h2>
@@ -315,6 +323,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <details class="faq-item">
         <summary>How do I check a receivable?</summary>
         <div class="a">Paste the <b>receivable ID</b> (a 64-character code the counterparty gives you) into <b>Check a receivable</b> and press Query. No account needed. You'll see the face value, how much is already financed, what's still unencumbered, and every claim standing against it.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>I wasn't given a receivable ID. Can I still check?</summary>
+        <div class="a">Use <b>Seen before?</b> It checks by the invoice details (supplier, debtor, invoice number, amount and currency) instead of an ID, for a lender about to advance who holds no ID. It needs a free sign-in; a verified account sees financing status, any other account only whether the invoice is already on record. A match is a warning to look closer, never a clean bill and never a legal status.</div>
       </details>
 
       <details class="faq-item">

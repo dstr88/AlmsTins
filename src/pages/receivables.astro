@@ -27,10 +27,11 @@ const ogImageAlt = 'Almstins Verify. Receivables: see what is already financed a
 
 // Every receivables service. The general Verify tools (safety scanner, publisher
 // attestation, the payment-agent API) live on /verify.
-// The three invoice-financing tools, shown together in one tile.
+// The invoice-financing tools, shown together in one tile.
 const tools = [
   { href: receivablesPath('desk'), title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
   { href: receivablesPath('registry'), title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
+  { href: '/verify/seen-before', title: 'Seen before?', body: 'No receivable ID? Check an invoice by its details before you advance. Sign in to see if it is already on record or financed.' },
   { href: receivablesPath('client'), title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
 ];
 

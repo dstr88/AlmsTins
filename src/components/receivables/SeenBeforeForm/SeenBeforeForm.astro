@@ -1,0 +1,33 @@
+---
+// SeenBeforeForm (S6): the "Seen before?" check for someone about to advance against an invoice who
+// holds no receivable ID. Markup only; seenBeforeForm.client.ts posts the fields to
+// POST /api/verify/receivables/check and renders the tiered answer (seenBeforeView) into the live
+// region. The page entry module mounts it once on its data-rcv-root element. `variant` keeps each
+// host's look.
+//
+// The result wrapper is the live region and is never hidden, so a screen reader announces the panel
+// when it appears inside it. Field labels are neutral and inline; every sensitive word the answer
+// shows lives in copy/seenBefore.ts. The check warns; the person decides.
+import './SeenBeforeForm.css';
+interface Props { variant: 'desk' | 'registry' }
+const { variant } = Astro.props;
+---
+<form class={`sbf sbf--${variant}`} data-rcv-root="seen-before" novalidate>
+	<div class="sbf__grid">
+		<label class="sbf__field"><span class="sbf__label">Supplier</span><input class="sbf__input" name="supplier" type="text" autocomplete="off" required /></label>
+		<label class="sbf__field"><span class="sbf__label">Debtor (buyer)</span><input class="sbf__input" name="buyer" type="text" autocomplete="off" required /></label>
+		<label class="sbf__field"><span class="sbf__label">Invoice number</span><input class="sbf__input" name="invoiceNo" type="text" autocomplete="off" required /></label>
+		<label class="sbf__field"><span class="sbf__label">Face value</span><input class="sbf__input" name="face" type="number" inputmode="decimal" min="0" step="any" required /></label>
+		<label class="sbf__field"><span class="sbf__label">Currency</span><input class="sbf__input" name="currency" type="text" autocomplete="off" maxlength="12" placeholder="USD" required /></label>
+		<label class="sbf__field"><span class="sbf__label">Debtor reference <span class="sbf__opt">(optional)</span></span><input class="sbf__input" name="buyerRef" type="text" autocomplete="off" /></label>
+	</div>
+	<div class="sbf__actions">
+		<button class="sbf__submit" type="submit" data-sbf-submit>Check</button>
+	</div>
+	<div class="sbf__result" data-sbf-result aria-live="polite">
+		<div class="sbf__panel" data-sbf-panel hidden>
+			<div class="sbf__body" data-sbf-body></div>
+			<a class="sbf__signin" data-sbf-signin hidden></a>
+		</div>
+	</div>
+</form>
