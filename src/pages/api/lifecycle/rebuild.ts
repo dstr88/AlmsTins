@@ -12,15 +12,9 @@ export const POST: APIRoute = async ({ request }) => {
 		const { tenantId } = session;
 		const start = Date.now();
 
-		let year: number | undefined;
-		try {
-			const body = await request.json() as { year?: number };
-			year = body.year;
-		} catch {
-			// No body or invalid JSON — full rebuild
-		}
-
-		await rebuildAssetLifecycles(tenantId, { year });
+		// Always a whole rebuild. The Sync buttons on Year Summary and Annual Records still send a year;
+		// it is ignored, because a year-scoped rebuild left only that year's history behind.
+		await rebuildAssetLifecycles(tenantId);
 
 		// Mark lifecycle cache fresh
 		const cacheKey = `lifecycle:${tenantId}`;
