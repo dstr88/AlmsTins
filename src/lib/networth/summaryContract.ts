@@ -32,10 +32,19 @@ export type NetWorthSummary = {
     debtUsd: number;
     netUsd: number;
     aaveIncluded?: boolean;
+    /** This tin's Aave side may be understated (an Aave position was unpriced, or a lookup fell short). */
+    partial?: boolean;
+    /** Aave positions in this tin that no price source could value, left out of its totals. */
+    unpricedCount?: number;
   }>;
 
   /** Total count of all tins: on-chain wallets + exchange accounts + custom wallets */
   tinCount?: number;
+
+  /** True when any total may be understated. Show it as a partial total, never as a clean figure. */
+  partial?: boolean;
+  /** Aave positions, across all tins, that no price source could value and the totals leave out. */
+  unpricedCount?: number;
 };
 
 // --- helpers: do NOT coerce null/"" -> 0, and never return NaN ---
@@ -68,6 +77,12 @@ const toStringOrNull = (value: unknown): string | null => {
 const toNonEmptyString = (value: unknown): string => {
   const s = String(value ?? '').trim();
   return s;
+};
+
+/** A count from the payload: a finite number of at least 0, else 0. Fractions are cut off. */
+const toCount = (value: unknown): number => {
+  const n = toFiniteNumberOrUndef(value);
+  return n !== undefined && n > 0 ? Math.floor(n) : 0;
 };
 
 export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
@@ -166,6 +181,8 @@ export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
           debtUsd: debt,
           netUsd: net,
           aaveIncluded: typeof t.aaveIncluded === 'boolean' ? t.aaveIncluded : undefined,
+          partial: t.partial === true,
+          unpricedCount: toCount(t.unpricedCount),
         };
       })
     : [];
@@ -182,5 +199,7 @@ export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
     byChain,
     tins,
     tinCount,
+    partial: s.partial === true,
+    unpricedCount: toCount(s.unpricedCount),
   };
 }

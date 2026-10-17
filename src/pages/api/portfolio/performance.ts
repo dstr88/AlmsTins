@@ -14,9 +14,13 @@
  * {
  *   ok: true,
  *   updatedAt: ISO string,
- *   summary: { totalCostBasis, totalCurrentValue, totalUnrealizedPnl, pnlPercent },
+ *   summary: { totalCostBasis, totalCurrentValue, totalUnrealizedPnl, pnlPercent, partial, unpricedCount },
  *   assets: AssetRow[],
+ *   unpricedAave: Aave positions no price source could value (left out of every figure above),
  * }
+ *
+ * summary.partial is true when the Aave side may be understated: a position was unpriced, or the Aave
+ * lookup fell short. Genuine dust (priced under $1) stays hidden; an unpriced position never does.
  */
 
 import type { APIRoute } from 'astro';
@@ -24,6 +28,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
+import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { isSpamToken } from '@/lib/knownContracts';
 
 export const prerender = false;
@@ -69,7 +74,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
 
-		const cacheKey = `t:${tenantId}:portfolio:performance:v6`;
+		const cacheKey = `t:${tenantId}:portfolio:performance:v7`;
 		const memKey   = `portfolio:${tenantId}`;
 
 		// L1 — in-memory, zero-latency
@@ -153,6 +158,8 @@ export const GET: APIRoute = async ({ request }) => {
 		//
 		// Non-fatal: if Aave is unreachable the rest of the portfolio still loads.
 		const aaveCollateralSymbols = new Set<string>();
+		const aaveCoverage: AaveCoverage[] = [];
+		let aaveFailed = false;
 		try {
 			const walletsResult = await db.execute({
 				sql: `SELECT DISTINCT address FROM wallets
@@ -166,11 +173,14 @@ export const GET: APIRoute = async ({ request }) => {
 				if (!address) continue;
 
 				const aaveTotals = await getAaveTotalsForWallet(address);
+				if (aaveTotals.coverage) aaveCoverage.push(aaveTotals.coverage);
 
 				for (const chain of aaveTotals.chains) {
 					for (const pos of chain.positions) {
 						if (pos.side !== 'supply') continue;
 						if (!Number.isFinite(pos.amount) || pos.amount <= 0) continue;
+						// No price source could value it: reported below, never hidden as dust.
+						if (pos.priceSource === 'none') continue;
 						if (pos.usdValue < MIN_VALUE_USD) continue;
 
 						const rawSym = pos.assetSymbol.trim().toUpperCase();
@@ -189,14 +199,29 @@ export const GET: APIRoute = async ({ request }) => {
 				}
 			}
 		} catch (aaveErr) {
+			aaveFailed = true;
 			console.error('[portfolio/performance] Aave fetch failed (non-fatal)', aaveErr);
 		}
+
+		// What the Aave side leaves out: positions no price source could value, or a lookup that fell short.
+		const coverage = mergeCoverage(aaveCoverage);
+		const partial = coverage.partial || aaveFailed;
+		const unpricedAave = coverage.unpriced;
 
 		if (bySymbol.size === 0) {
 			const empty = {
 				updatedAt: new Date().toISOString(),
-				summary: { totalCostBasis: 0, pricedCostBasis: 0, totalCurrentValue: 0, totalUnrealizedPnl: 0, pnlPercent: null },
+				summary: {
+					totalCostBasis: 0,
+					pricedCostBasis: 0,
+					totalCurrentValue: 0,
+					totalUnrealizedPnl: 0,
+					pnlPercent: null,
+					partial,
+					unpricedCount: coverage.unpricedCount,
+				},
 				assets: [],
+				unpricedAave,
 			};
 			return json({ ok: true, ...empty, cached: false });
 		}
@@ -282,8 +307,11 @@ export const GET: APIRoute = async ({ request }) => {
 				totalCurrentValue,
 				totalUnrealizedPnl,
 				pnlPercent: summaryPnlPercent,
+				partial,
+				unpricedCount: coverage.unpricedCount,
 			},
 			assets,
+			unpricedAave,
 		};
 
 		await setCache(cacheKey, payload, CACHE_TTL);

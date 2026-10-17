@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthTable } from '@/i18n/components/netWorthTable';
+import PartialTotalNote from './PartialTotalNote';
 
 type ChainBreakdown = { chain: string; totalUsd: number };
 
@@ -32,6 +33,9 @@ type NetWorthSummary = {
 	byChain: ChainBreakdown[];
 	tins?: TinBreakdown[];
 	tinCount?: number;
+	/** The totals may leave something out (an Aave position no price source could value). */
+	partial?: boolean;
+	unpricedCount?: number;
 };
 
 type NetWorthResponse = { ok: boolean; summary?: NetWorthSummary };
@@ -118,6 +122,7 @@ export default function NetWorthTable() {
 					<div className="space-y-2">
 						<p className="text-xs uppercase tracking-wide text-muted-foreground">{t.aggregateLabel}</p>
 						<p className="text-3xl font-semibold">${formatUsd(totalUsd)}</p>
+						<PartialTotalNote partial={summary.partial} unpricedCount={summary.unpricedCount} />
 						<p className="text-sm text-muted-foreground">
 							{t.tinCountDescription(tinCount)}
 						</p>

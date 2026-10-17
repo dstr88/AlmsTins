@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTotalsTin } from '@/i18n/components/totalsTin';
+import PartialTotalNote from './PartialTotalNote';
 
 type WalletRow = {
 	walletId: string;
@@ -15,6 +16,9 @@ type SummaryPayload = {
 	totalAssetsUsd: number;
 	totalFreeAssetsUsd: number;
 	totalDebtUsd: number;
+	/** The totals may leave something out (an Aave position no price source could value). */
+	partial?: boolean;
+	unpricedCount?: number;
 	byWallet: WalletRow[];
 	byChain?: Array<{
 		chain: string;
@@ -59,6 +63,8 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 					totalAssetsUsd: normalized.totalAssetsUsd,
 					totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 					totalDebtUsd: normalized.totalDebtUsd,
+					partial: normalized.partial,
+					unpricedCount: normalized.unpricedCount,
 					byWallet: normalized.tins.map((t) => ({
 						walletId: t.tinId,
 						walletLabel: t.tinName ?? null,
@@ -144,6 +150,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 					<Row label={t.totalFreeAssets} value={formatUsd(summary.totalFreeAssetsUsd)} muted />
 					<Row label={t.totalDebt} value={formatUsd(summary.totalDebtUsd)} accent="red" />
 				</div>
+				<PartialTotalNote partial={summary.partial} unpricedCount={summary.unpricedCount} />
 
 				<div
 					style={{

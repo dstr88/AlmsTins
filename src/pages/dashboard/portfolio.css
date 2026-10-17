@@ -160,6 +160,18 @@
 	font-weight: 500;
 }
 
+/* Aave positions no price source could value: the figures below leave them out. */
+.pf-partial-note {
+	margin: 0 clamp(1.5rem, 5vw, 3.5rem) 1rem;
+	padding: .4rem .75rem;
+	border: 1px solid var(--warning-border);
+	border-radius: 8px;
+	background: var(--warning-bg);
+	color: var(--warning);
+	font-size: .78rem;
+	line-height: 1.35;
+}
+
 .pf-hero__unpriced-note {
 	font-size: .72rem;
 	color: var(--text-muted);

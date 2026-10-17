@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import type { SupportedChain } from '@/lib/constants';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
+import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 
 export type NetWorthRow = {
@@ -56,8 +57,16 @@ export type LatestNetWorthSummary = {
 		freeAssetsUsd: number;
 		debtUsd: number;
 		netUsd: number;
+		/** True when this tin's Aave side may be understated: a position was unpriced or a lookup fell short. */
+		partial?: boolean;
+		/** Aave positions in this tin that no price source could value (left out of its totals). */
+		unpricedCount?: number;
 	}>;
 	aaveIncluded?: boolean;
+	/** True when any total here may be understated (see AaveCoverage). Never silently a clean total. */
+	partial?: boolean;
+	/** Aave positions across all tins that no price source could value (left out of the totals). */
+	unpricedCount?: number;
 };
 
 type DbRow = Record<string, unknown>;
@@ -366,6 +375,9 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		address: w.walletAddress,
 	})));
 
+	// What each wallet's Aave totals leave out, keyed by wallet id (written inside the concurrent map below).
+	const coverageByWallet = new Map<string, AaveCoverage>();
+
 	const byWalletTotals = await Promise.all(
 		Array.from(walletMap.values()).map(async (wallet) => {
 			console.log('[networth.summary] computing wallet', {
@@ -377,6 +389,7 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 			console.log('[networth] Wallet', wallet.walletId, wallet.walletLabel, 'onchainAssetsUsd=', snapshotAssetsUsd);
 
 			const aaveTotals = await getAaveTotalsForWallet(wallet.walletAddress);
+			if (aaveTotals.coverage) coverageByWallet.set(wallet.walletId, aaveTotals.coverage);
 			console.log('[networth] Aave positions result', {
 				walletId: wallet.walletId,
 				suppliedUsdTotal: (aaveTotals as any).suppliedUsdTotal ?? aaveTotals.suppliedUsd,
@@ -481,14 +494,20 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		aaveIncluded: aaveIncluded,
 	});
 
-	const tins = byWalletTotals.map((wallet) => ({
-		tinId: wallet.walletId,
-		tinName: wallet.walletLabel,
-		assetsUsd: wallet.assetsUsd,
-		freeAssetsUsd: wallet.freeAssetsUsd,
-		debtUsd: wallet.debtUsd,
-		netUsd: wallet.assetsUsd - wallet.debtUsd,
-	}));
+	const tins = byWalletTotals.map((wallet) => {
+		const walletCoverage = coverageByWallet.get(wallet.walletId);
+		return {
+			tinId: wallet.walletId,
+			tinName: wallet.walletLabel,
+			assetsUsd: wallet.assetsUsd,
+			freeAssetsUsd: wallet.freeAssetsUsd,
+			debtUsd: wallet.debtUsd,
+			netUsd: wallet.assetsUsd - wallet.debtUsd,
+			partial: walletCoverage?.partial ?? false,
+			unpricedCount: walletCoverage?.unpricedCount ?? 0,
+		};
+	});
+	const coverage = mergeCoverage([...coverageByWallet.values()]);
 
 	// Count all tins: on-chain wallets + custom wallets + exchange accounts
 	const [walletCountResult, exchangeCountResult] = await Promise.all([
@@ -509,6 +528,8 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		tins,
 		tinCount,
 		aaveIncluded,
+		partial: coverage.partial,
+		unpricedCount: coverage.unpricedCount,
 	};
 }
 

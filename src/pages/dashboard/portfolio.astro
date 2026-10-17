@@ -52,6 +52,9 @@ if (!_authSess) return Astro.redirect('/login');
 		<p class="pf-state__sub">{t.emptySub}</p>
 	</div>
 
+	<!-- ── Partial figures: Aave positions no price source could value ───── -->
+	<p id="pf-partial-note" class="pf-partial-note" role="note" hidden></p>
+
 	<!-- ── Main content (hidden until data loads) ───────────────────────── -->
 	<div id="pf-content" hidden>
 
@@ -164,6 +167,9 @@ if (!_authSess) return Astro.redirect('/login');
 } }}>window.__pfI18n = pfI18n;</script>
 
 <script>
+import { partialTotalMessage } from '@/i18n/components/partialTotalNote';
+import type { Lang } from '@/lib/i18n/locale';
+
 // ── Formatters ──────────────────────────────────────────────────────────── //
 const USD = new Intl.NumberFormat('en-US', {
 	style: 'currency', currency: 'USD',
@@ -284,6 +290,22 @@ function buildAllocBar(
 	}
 }
 
+// ── Partial figures ─────────────────────────────────────────────────────── //
+// An Aave position no price source could value is in none of the figures on this page. Say so, with the
+// symbols, instead of letting the figures pass as complete. Text only (textContent): symbols come from outside.
+function showPartialNote(
+	summary: { partial?: boolean; unpricedCount?: number } | undefined,
+	unpriced: Array<{ symbol: string }> | undefined,
+) {
+	const el = document.getElementById('pf-partial-note');
+	if (!el) return;
+	const message = partialTotalMessage(lang as Lang, summary?.partial, summary?.unpricedCount);
+	if (!message) { el.hidden = true; return; }
+	const symbols = [...new Set((unpriced ?? []).map((p) => String(p.symbol)))].slice(0, 5);
+	el.textContent = symbols.length ? `${message} (${symbols.join(', ')})` : message;
+	el.hidden = false;
+}
+
 // ── Main load ───────────────────────────────────────────────────────────── //
 async function loadPortfolio() {
 	const elLoading  = document.getElementById('pf-loading')!;
@@ -304,7 +326,10 @@ async function loadPortfolio() {
 				totalCurrentValue:    number;
 				totalUnrealizedPnl:   number;
 				pnlPercent:           number | null;
+				partial?:             boolean;   // the Aave side may be understated
+				unpricedCount?:       number;    // Aave positions no price source could value
 			};
+			unpricedAave?: Array<{ symbol: string }>;
 			assets: Array<{
 				symbol:           string;
 				quantity:         number;
@@ -323,6 +348,7 @@ async function loadPortfolio() {
 		elLoading.hidden = true;
 
 		if (!data.ok) throw new Error('API returned ok:false');
+		showPartialNote(data.summary, data.unpricedAave);
 		if (!data.assets || data.assets.length === 0) {
 			elEmpty.hidden = false;
 			return;

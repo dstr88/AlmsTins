@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import './reconciliation.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getReconciliationSnapshot } from '@/i18n/components/reconciliationSnapshot';
+import PartialTotalNote from './PartialTotalNote';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -21,6 +22,8 @@ interface ReconciliationItem {
 	snapValueUsd: number;
 	match:        boolean;
 	delta:        number;
+	/** Part of this token is Aave supply no price source could value, so snapValueUsd understates it. */
+	valueUnpriced?: boolean;
 }
 
 const USD = new Intl.NumberFormat('en-US', {
@@ -47,6 +50,9 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 	const [items, setItems]         = useState<ReconciliationItem[] | null>(null);
 	const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 	const [error, setError]         = useState(false);
+	// The Aave side may be understated: an unpriced position is in no dollar figure here.
+	const [partial, setPartial]             = useState(false);
+	const [unpricedCount, setUnpricedCount] = useState(0);
 
 	useEffect(() => {
 		fetch(`/api/portfolio/reconciliation?threshold=${threshold}`)
@@ -55,6 +61,8 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 				if (!data.ok) { setError(true); return; }
 				setItems(data.items ?? []);
 				setUpdatedAt(data.updatedAt ?? null);
+				setPartial(data.partial === true);
+				setUnpricedCount(Number(data.unpricedCount ?? 0));
 			})
 			.catch(() => setError(true));
 	}, [threshold]);
@@ -68,6 +76,12 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 
 			{error && (
 				<div className="recon-state">{t.errorState}</div>
+			)}
+
+			{!error && items !== null && partial && (
+				<div className="recon-partial">
+					<PartialTotalNote partial={partial} unpricedCount={unpricedCount} />
+				</div>
 			)}
 
 			{!error && items === null && (
@@ -94,6 +108,9 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 										<div className="recon-symbol__name">{item.symbol}</div>
 										{item.snapValueUsd > 0 && (
 											<div className="recon-qty__usd">{USD.format(item.snapValueUsd)}</div>
+										)}
+										{item.valueUnpriced && (
+											<div className="recon-qty__usd">{t.valueUnpriced}</div>
 										)}
 									</div>
 								</div>

@@ -7,7 +7,9 @@
  *   2. wallet_snapshots payload_json                     — "from snapshot"
  *      Net qty = sum of token amounts across all latest wallet snapshots.
  *
- * Tokens whose snapshot value is below `threshold` (default $50) are hidden.
+ * Tokens whose snapshot value is below `threshold` (default $50) are hidden, except a token whose Aave
+ * supply no price source could value: its value is unknown, not small, so it stays visible and is marked
+ * valueUnpriced. The response also says `partial` when the Aave side may be understated.
  * A discrepancy is any non-zero delta after rounding to 8 decimal places.
  *
  * Query params:
@@ -19,6 +21,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
+import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { isSpamToken } from '@/lib/knownContracts';
 
 // Keep WBTC/WETH as-is (they match on-chain snapshot symbols).
@@ -42,7 +45,21 @@ export interface ReconciliationItem {
 	snapValueUsd: number;   // current market value (for display + threshold)
 	match:        boolean;  // true when txQty === snapQty (8 d.p.)
 	delta:        number;   // snapQty − txQty  (positive = snapshot has more)
+	/** Part of this token is Aave supply no price source could value, so snapValueUsd understates it. */
+	valueUnpriced?: boolean;
 }
+
+type ReconciliationPayload = {
+	items:           ReconciliationItem[];
+	updatedAt:       string;
+	/** The Aave side may be understated (see AaveCoverage). */
+	partial?:        boolean;
+	unpricedCount?:  number;
+};
+
+/** The threshold hides small holdings, never a holding whose value is unknown. */
+const isVisible = (item: ReconciliationItem, threshold: number) =>
+	item.snapValueUsd >= threshold || item.valueUnpriced === true;
 
 function json(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), {
@@ -62,14 +79,18 @@ export const GET: APIRoute = async ({ request }) => {
 		const url       = new URL(request.url);
 		const threshold = Number(url.searchParams.get('threshold') ?? DEFAULT_THRESHOLD_USD);
 
-		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v2`;
-		const cached   = await getCache<{ items: ReconciliationItem[]; updatedAt: string }>(cacheKey, {
+		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v3`;
+		const cached   = await getCache<ReconciliationPayload>(cacheKey, {
 			allowStale:        true,
 			staleMaxAgeSeconds: STALE_MAX_AGE_SECONDS,
 		});
 		if (cached.value) {
-			const visible = cached.value.items.filter(i => i.snapValueUsd >= threshold);
-			return json({ ok: true, items: visible, updatedAt: cached.value.updatedAt, cached: true, stale: cached.isStale, threshold });
+			const visible = cached.value.items.filter(i => isVisible(i, threshold));
+			return json({
+				ok: true, items: visible, updatedAt: cached.value.updatedAt,
+				partial: cached.value.partial === true, unpricedCount: cached.value.unpricedCount ?? 0,
+				cached: true, stale: cached.isStale, threshold,
+			});
 		}
 
 		// ── 1. Lifecycle net quantities ────────────────────────────────────────
@@ -169,6 +190,9 @@ export const GET: APIRoute = async ({ request }) => {
 		// contract — Alchemy never sees them in payload_json.  We fetch them here
 		// so the snapshot side shows the full picture, and the threshold filter
 		// can work correctly.  Non-fatal: if Aave is unreachable, skip silently.
+		const aaveCoverage: AaveCoverage[] = [];
+		const unpricedSymbols = new Set<string>();
+		let aaveFailed = false;
 		try {
 			const walletsResult = await db.execute({
 				sql: `SELECT DISTINCT address FROM wallets
@@ -182,6 +206,7 @@ export const GET: APIRoute = async ({ request }) => {
 				if (!address) continue;
 
 				const aaveTotals = await getAaveTotalsForWallet(address);
+				if (aaveTotals.coverage) aaveCoverage.push(aaveTotals.coverage);
 
 				for (const chain of aaveTotals.chains) {
 					for (const pos of chain.positions) {
@@ -194,13 +219,18 @@ export const GET: APIRoute = async ({ request }) => {
 						const e = snapMap.get(sym) ?? { qty: 0, valueUsd: 0 };
 						e.qty      += pos.amount;
 						e.valueUsd += pos.usdValue;
+						if (pos.priceSource === 'none') unpricedSymbols.add(sym);
 						snapMap.set(sym, e);
 					}
 				}
 			}
 		} catch (aaveErr) {
+			aaveFailed = true;
 			console.error('[portfolio/reconciliation] Aave fetch failed (non-fatal)', aaveErr);
 		}
+
+		const coverage = mergeCoverage(aaveCoverage);
+		const partial  = coverage.partial || aaveFailed;
 
 		// ── 3. Build items (all symbols — threshold applied at read time) ──────
 		const allSymbols = new Set([...txQtyMap.keys(), ...snapMap.keys()]);
@@ -213,7 +243,10 @@ export const GET: APIRoute = async ({ request }) => {
 			const snapQty      = round8(snap?.qty ?? 0);
 			const delta        = round8(snapQty - txQty);
 
-			allItems.push({ symbol, txQty, snapQty, snapValueUsd, match: delta === 0, delta });
+			allItems.push({
+				symbol, txQty, snapQty, snapValueUsd, match: delta === 0, delta,
+				...(unpricedSymbols.has(symbol) ? { valueUnpriced: true } : {}),
+			});
 		}
 
 		// Sort: discrepancies first, then by snapshot value descending
@@ -223,11 +256,17 @@ export const GET: APIRoute = async ({ request }) => {
 			return b.snapValueUsd - a.snapValueUsd;
 		});
 
-		const payload = { items: allItems, updatedAt: new Date().toISOString() };
+		const payload: ReconciliationPayload = {
+			items: allItems, updatedAt: new Date().toISOString(), partial, unpricedCount: coverage.unpricedCount,
+		};
 		await setCache(cacheKey, payload, CACHE_TTL_SECONDS);
 
-		const visible = allItems.filter(i => i.snapValueUsd >= threshold);
-		return json({ ok: true, items: visible, updatedAt: payload.updatedAt, cached: false, stale: false, threshold });
+		const visible = allItems.filter(i => isVisible(i, threshold));
+		return json({
+			ok: true, items: visible, updatedAt: payload.updatedAt,
+			partial, unpricedCount: coverage.unpricedCount,
+			cached: false, stale: false, threshold,
+		});
 
 	} catch (err) {
 		console.error('[portfolio/reconciliation]', err);

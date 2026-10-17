@@ -17,6 +17,8 @@ export interface ReconciliationSnapshotLocale {
   investigateTitle: (symbol: string) => string;
   historyLink: string;
   footerAs: (time: string) => string;
+  /** Under a token whose Aave supply no price source could value: its dollar value is unknown, not zero */
+  valueUnpriced: string;
 }
 
 export const en: ReconciliationSnapshotLocale = {
@@ -29,6 +31,7 @@ export const en: ReconciliationSnapshotLocale = {
   investigateTitle: (symbol) => `Investigate ${symbol} in Memory Lane`,
   historyLink: 'Memory Lane →',
   footerAs: (time) => `Snapshot as of ${time}`,
+  valueUnpriced: 'Aave supply unpriced',
 };
 
 export const es: ReconciliationSnapshotLocale = {
@@ -41,6 +44,7 @@ export const es: ReconciliationSnapshotLocale = {
   investigateTitle: (symbol) => `Investigar ${symbol} en Memory Lane`,
   historyLink: 'Memory Lane →',
   footerAs: (time) => `Instantánea al ${time}`,
+  valueUnpriced: 'Suministro en Aave sin precio',
 };
 
 export const fr: ReconciliationSnapshotLocale = {
@@ -53,6 +57,7 @@ export const fr: ReconciliationSnapshotLocale = {
   investigateTitle: (symbol) => `Explorer ${symbol} dans Memory Lane`,
   historyLink: 'Memory Lane →',
   footerAs: (time) => `Snapshot au ${time}`,
+  valueUnpriced: 'Dépôt Aave sans prix',
 };
 
 const MAP: Record<Lang, ReconciliationSnapshotLocale> = { en, es, fr };

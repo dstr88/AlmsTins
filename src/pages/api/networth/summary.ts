@@ -14,6 +14,13 @@ const REFRESH_LOCK_SECONDS = 20;
 
 const memCache = new Map<string, { data: object; expiresAt: number }>();
 
+// What a total may leave out (an Aave position no price source could value). The page shows a partial total
+// as partial instead of a clean figure.
+const coverageOf = (normalized: { partial?: boolean; unpricedCount?: number }) => ({
+	partial: normalized.partial === true,
+	unpricedCount: normalized.unpricedCount ?? 0,
+});
+
 export const GET: APIRoute = async ({ request, locals }) => {
 	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	const requestId = (locals as Record<string, any>)?.requestId;
@@ -66,6 +73,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				totalAssetsUsd: normalized.totalAssetsUsd,
 				totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 				totalDebtUsd: normalized.totalDebtUsd,
+				...coverageOf(normalized),
 				byChain: preCaptured.map((r) => ({ ...r, capturedAt: r.capturedAt ?? overallCapturedAt })),
 				tins: normalized.tins,
 				capturedAt: overallCapturedAt,
@@ -76,7 +84,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			});
 		}
 
-		const cacheKey = `t:${tenantId}:networth:summary:v3`;
+		const cacheKey = `t:${tenantId}:networth:summary:v4`;
 		const lockKey = `lock:${cacheKey}`;
 		const memKey  = `networth:${tenantId}`;
 
@@ -133,6 +141,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 							totalAssetsUsd: normalized.totalAssetsUsd,
 							totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 							totalDebtUsd: normalized.totalDebtUsd,
+							...coverageOf(normalized),
 							byChain: byChainWithCapturedAt,
 							tins: normalized.tins,
 							capturedAt: overallCapturedAt,
@@ -187,6 +196,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			totalAssetsUsd: normalized.totalAssetsUsd,
 			totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 			totalDebtUsd: normalized.totalDebtUsd,
+			...coverageOf(normalized),
 			byChain: byChainWithCapturedAt,
 			tins: normalized.tins,
 			capturedAt: overallCapturedAt,

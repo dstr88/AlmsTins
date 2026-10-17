@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getPortfolioTile } from '@/i18n/components/portfolioTile';
+import PartialTotalNote from './PartialTotalNote';
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -196,17 +197,20 @@ export default function PortfolioTile() {
 					const pnl = costBasis != null ? assetsTotal - costBasis : null;
 					const pnlColor = pnl == null ? undefined : pnl >= 0 ? 'var(--gain)' : 'var(--loss)';
 					return (
-						<div className="pt-hero">
-							<span className="pt-hero__label">{t.marketValue}</span>
-							<div className="pt-hero__row">
-								<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
-								{pnl != null && (
-									<span className="pt-hero__pnl" style={{ color: pnlColor }}>
-										{fmtPnl.format(pnl)}
-									</span>
-								)}
+						<>
+							<div className="pt-hero">
+								<span className="pt-hero__label">{t.marketValue}</span>
+								<div className="pt-hero__row">
+									<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
+									{pnl != null && (
+										<span className="pt-hero__pnl" style={{ color: pnlColor }}>
+											{fmtPnl.format(pnl)}
+										</span>
+									)}
+								</div>
 							</div>
-						</div>
+							<PartialTotalNote partial={summary.partial} unpricedCount={summary.unpricedCount} />
+						</>
 					);
 				})()
 			}
