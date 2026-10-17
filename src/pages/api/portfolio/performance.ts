@@ -80,7 +80,8 @@ export const GET: APIRoute = async ({ request }) => {
 		// L1 — in-memory, zero-latency
 		const mem = memCache.get(memKey);
 		if (mem && mem.expiresAt > Date.now()) {
-			return json({ ...mem.data, cached: true });
+			// The stored payload has no `ok`; the page reads a missing one as a failed load.
+			return json({ ok: true, ...mem.data, cached: true });
 		}
 
 		const cached = await getCache<unknown>(cacheKey, {

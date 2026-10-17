@@ -193,4 +193,17 @@ describe('GET /api/portfolio/performance', () => {
 		expect(state.cachedKeys).toHaveLength(1);
 		expect(state.cachedKeys[0]).toMatch(/:portfolio:performance:v8$/);
 	});
+
+	it('still says ok on a repeat request answered from memory, because the page reads a missing ok as a failed load', async () => {
+		state.aave.mockResolvedValue(totalsWith([supply('WBTC', 0.5, 30000)]));
+		state.session = { tenantId: 'tenant-repeat' }; // the same tenant twice, so the second answer comes from the in-memory cache
+		const ask = async () => (await (GET as any)({ request: new Request('https://almstins.test/api/portfolio/performance') })).json();
+		const first = await ask();
+		const second = await ask();
+		expect(first).toMatchObject({ ok: true, cached: false });
+		expect(second).toMatchObject({ ok: true, cached: true });
+		expect(second.summary).toEqual(first.summary);
+		expect(second.assets).toEqual(first.assets);
+		expect(state.aave).toHaveBeenCalledTimes(1); // the repeat did not recompute
+	});
 });
