@@ -3,11 +3,12 @@
 // English text (getAgentReportEmail never returns anything else).
 //
 // What these emails carry, and do not. The SUBJECT leads with whether anything needs a person:
-// "2 need your attention", or a quiet "All clear, 1,284 verified". The BODY is counts and a link to
-// the Reports page, behind the sign-in. It never carries a wallet address, a label (an address's or
-// an agent's) or an amount of money: an email is less private than the dashboard, and the detail
-// is sensitive. tests/agentics/digest.test.ts renders every state with addresses, labels and
-// amounts in the report and checks none of them comes out.
+// "2 need your attention", or a quiet "No flags, 1,284 checks". It never says "verified": a check
+// that came back consistent with history has not been verified, only not flagged. The BODY is
+// counts and a link to the Reports page, behind the sign-in. It never carries a wallet address, a
+// label (an address's or an agent's) or an amount of money: an email is less private than the
+// dashboard, and the detail is sensitive. tests/agentics/digest.test.ts renders every state with
+// addresses, labels and amounts in the report and checks none of them comes out.
 //
 // Almstins verifies, flags and records. These words never say it stops or holds anything, and
 // never call an address safe. Same pattern as the other email templates: render(args) -> { subject, text }.
@@ -60,7 +61,7 @@ const attentionLead = (n: number): string => `${formatCount(n)} ${n === 1 ? 'nee
 export function digestLead(a: Pick<DigestEmailArgs, 'issues' | 'notConfirmed' | 'clearChecks'>): string {
   const attention = a.issues + a.notConfirmed;
   if (attention > 0) return attentionLead(attention);
-  if (a.clearChecks > 0) return `All clear, ${formatCount(a.clearChecks)} verified`;
+  if (a.clearChecks > 0) return `No flags, ${formatCount(a.clearChecks)} ${a.clearChecks === 1 ? 'check' : 'checks'}`;
   return 'Nothing needs your attention';
 }
 

@@ -110,9 +110,25 @@ describe('the subject leads with whether action is needed', () => {
     expect(lead({ issues: 1200, notConfirmed: 34 })).toBe('1,234 need your attention');
   });
 
-  it('is a quiet all-clear with the number of checks that were verified when nothing needs attention', () => {
-    expect(lead({ clearChecks: 1284 })).toBe('All clear, 1,284 verified');
-    expect(lead({ clearChecks: 1 })).toBe('All clear, 1 verified');
+  it('says "no flags" and how many checks when nothing needs attention', () => {
+    expect(lead({ clearChecks: 1284 })).toBe('No flags, 1,284 checks');
+    expect(lead({ clearChecks: 1 })).toBe('No flags, 1 check');
+    expect(lead({ clearChecks: 2 })).toBe('No flags, 2 checks');
+  });
+
+  it('never calls a check verified or a day all clear: consistent with history is not verified', () => {
+    const states = [
+      counts({}), counts({ new: 4 }), counts({ noIssuesChecks: 1 }), counts({ noIssuesChecks: 1284, noIssues: 9 }), counts({ issues: 1, noIssuesChecks: 12 }),
+      counts({ notConfirmed: 3, noIssuesChecks: 12 }), counts({ agents: 2, issues: 5, notConfirmed: 2, new: 1, noIssues: 8, noIssuesChecks: 300 }),
+    ];
+    for (const kind of ['day', 'week'] as const) {
+      for (const c of states) {
+        const m = composeDigest(kind === 'day' ? { kind, from: DAY, to: DAY } : { kind, from: '2026-10-11', to: DAY }, c, APP);
+        expect(`${m.subject}\n${m.text}`, JSON.stringify(c)).not.toMatch(/\bverified\b|\ball clear\b/i);
+      }
+    }
+    const alert = getAgentReportEmail('en').alert({ appBase: APP });
+    expect(`${alert.subject}\n${alert.text}`).not.toMatch(/\bverified\b|\ball clear\b/i);
   });
 
   it('says nothing needs attention when there is nothing to call clear either', () => {
@@ -123,13 +139,13 @@ describe('the subject leads with whether action is needed', () => {
     const day = composeDigest({ kind: 'day', from: '2026-10-17', to: '2026-10-17' }, counts({ issues: 2, notConfirmed: 1 }), APP);
     expect(day.subject).toBe('3 need your attention · Agent report, Oct 17, 2026');
     const quiet = composeDigest({ kind: 'day', from: '2026-10-17', to: '2026-10-17' }, counts({ noIssuesChecks: 1284 }), APP);
-    expect(quiet.subject).toBe('All clear, 1,284 verified · Agent report, Oct 17, 2026');
+    expect(quiet.subject).toBe('No flags, 1,284 checks · Agent report, Oct 17, 2026');
     const week = composeDigest({ kind: 'week', from: '2026-10-12', to: '2026-10-18' }, counts({ notConfirmed: 1 }), APP);
     expect(week.subject).toBe('1 needs your attention · Agent report, Oct 12 to Oct 18, 2026');
     const none = composeDigest({ kind: 'day', from: '2026-10-17', to: '2026-10-17' }, counts({ new: 4 }), APP);
     expect(none.subject).toBe('Nothing needs your attention · Agent report, Oct 17, 2026');
     // The first words of every subject are the answer to "do I need to do something?"
-    for (const m of [day, quiet, week, none]) expect(m.subject).toMatch(/^(\d[\d,]* needs? your attention|All clear, [\d,]+ verified|Nothing needs your attention) · /);
+    for (const m of [day, quiet, week, none]) expect(m.subject).toMatch(/^(\d[\d,]* needs? your attention|No flags, [\d,]+ checks?|Nothing needs your attention) · /);
   });
 });
 

@@ -182,9 +182,29 @@ describe('a signed report as a PDF', () => {
   it('a day with nothing in it is still a report, and says nothing needs a look', async () => {
     const content = makeContent({ events: [] });
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
-    expect(text).toContain('Nothing here needs a person to look at it.');
-    expect(text).toContain('No transfers');
+    expect(flow(text)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
+    expect(text).not.toContain('Nothing here needs');
+    expect(text.match(/No transfers with registered destinations/g)).toHaveLength(2); // bought and sold
+    expect(text).not.toMatch(/No transfers(?! with registered destinations)/);
     expect(flow(text)).toContain('No check came back proven or consistent with history in this period.');
+  });
+
+  it('says an all-clear is about what the Vault recorded: a transfer to an address that was never registered is not recorded', async () => {
+    const content = makeContent({ events: [check(addr(5), 'domain_proof', 'proven', at(11))] });
+    const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
+    expect(flow(text)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
+    expect(flow(text)).toContain('A transfer to an address that was never registered is not recorded here.');
+  });
+
+  it('says what the signature covers: the report data embedded in the file, not the printed pages, and to compare the pages with the attachment', async () => {
+    const content = makeContent();
+    const bundle = makeBundle(content);
+    const { text } = await readPdf(await buildReportPdf({ content, bundle }));
+    expect(flow(text)).toContain('The signature covers the report data embedded in this file, not the printed pages.');
+    expect(flow(text)).toContain('Compare the pages with that attachment: what is printed here should say what the attachment says.');
+    // It sits with the instructions for checking the attachment, on the verification page.
+    expect(flow(text).indexOf('The signature covers the report data')).toBeGreaterThan(flow(text).indexOf('How anyone can verify this report'));
+    expect(flow(text).indexOf('The signature covers the report data')).toBeGreaterThan(flow(text).indexOf(bundleFileName(bundle.manifest)));
   });
 
   it('lists every address across as many pages as it takes, with the table head again on each', async () => {

@@ -20,7 +20,7 @@ import PDFDocument from 'pdfkit';
 import { LISTED_BUCKETS, MAX_LISTED_PER_BUCKET, type ListedBucketName, type ReportAddress, type ReportBucket, type ReportContent } from './report';
 import { bundleFileName, type AgentReportBundle } from './reportProof';
 import { formatClock, formatCount, formatDayLong, formatUsd, formatUtc, plural } from './reportFormat';
-import { BUCKET_MEANING, BUCKET_TITLE, VERIFY_STATUS_TITLE, reasonText } from './reportText';
+import { BUCKET_MEANING, BUCKET_TITLE, NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON, VERIFY_STATUS_TITLE, reasonText } from './reportText';
 
 /** The token values this PDF uses, keyed by token name. tests/agentics/reportPdf.test.ts checks every one against tokens.css. */
 export const PDF_COLORS = {
@@ -217,7 +217,7 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
       write(formatUsd(s.usd), x + 12, y + 20, { size: 17, font: 'Helvetica-Bold', width: half - 24, lineBreak: false });
       const sub =
         s.count === 0
-          ? 'No transfers'
+          ? NO_TRANSFERS
           : `${plural(s.count, 'transfer', 'transfers')}${s.unpricedCount ? `, ${s.unpricedCount} without a USD value (not in the total)` : ''}`;
       write(sub, x + 12, y + 42, { size: 7, alpha: PDF_ALPHA['--text-secondary'], width: half - 20, lineBreak: false });
     };
@@ -312,12 +312,12 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     doc.rect(MARGIN.left, y, 3, 34).fillColor(PDF_COLORS['--gain'], 1).fill();
     const clear = content.buckets.no_issues;
     const attention = content.buckets.issues.addresses + content.buckets.not_confirmed.addresses;
-    const lead = attention === 0 ? 'Nothing here needs a person to look at it.' : `${plural(attention, 'address calls', 'addresses call')} for a look (the groups above).`;
+    const lead = attention === 0 ? NOTHING_NEEDS_A_PERSON : `${plural(attention, 'address calls', 'addresses call')} for a look (the groups above).`;
     write(lead, MARGIN.left + 12, y, { size: 9.5, font: 'Helvetica-Bold', width: CONTENT_W - 12 });
     const clearText =
       clear.checks === 0
         ? 'No check came back proven or consistent with history in this period.'
-        : `${plural(clear.checks, 'check', 'checks')} came back proven or consistent with history. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate.`;
+        : `${plural(clear.checks, 'check', 'checks')} came back proven or consistent with history. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`;
     y += 14;
     para(clearText, { size: 8, alpha: PDF_ALPHA['--text-secondary'], x: MARGIN.left + 12, after: 18 });
 
@@ -348,7 +348,8 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     const how =
       `This PDF carries its own proof bundle as an attachment named ${bundleFileName(manifest)} (the same file the Reports page offers). ` +
       `To check it, upload that file at ${manifest.verify_url}, or run the standalone verifier from the Almstins repository: node scripts/verify-record.mjs <file> --well-known <site>/.well-known/almstins-signing-key.json. ` +
-      'The check runs in your browser or offline and needs no account. A match shows that the lines of this report are unaltered and were signed by the key named above.';
+      'The check runs in your browser or offline and needs no account. A match shows that the lines of this report are unaltered and were signed by the key named above. ' +
+      'The signature covers the report data embedded in this file, not the printed pages. Compare the pages with that attachment: what is printed here should say what the attachment says.';
     ensure(heightOf(how, CONTENT_W, 8) + 30);
     write('How anyone can verify this report', MARGIN.left, y, { size: 9, font: 'Helvetica-Bold', lineBreak: false });
     y += 14;

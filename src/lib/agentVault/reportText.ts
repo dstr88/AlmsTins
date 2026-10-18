@@ -46,3 +46,13 @@ export const VERIFY_STATUS_TITLE: Record<string, string> = {
   flagged: 'Flagged',
   unknown: 'Unknown',
 };
+
+/**
+ * What a report can and cannot say it saw. The Vault records the checks an agent asks for and the
+ * transfers between the agent's wallets and the destinations on its registry. A transfer to an
+ * address that was never registered is not visible to it, so an all-clear is about what was
+ * recorded, never about everything the agent did.
+ */
+export const NO_TRANSFERS = 'No transfers with registered destinations';
+export const NOTHING_NEEDS_A_PERSON = 'Nothing recorded for your registered destinations needs a person to look at it.';
+export const NOT_REGISTERED_NOTE = 'A transfer to an address that was never registered is not recorded here.';

@@ -16,7 +16,7 @@
 -- Both are removed with the account (src/lib/accountDeleteTables.ts). Also created lazily at
 -- runtime (ensureAgentDeliveryTables in src/lib/agentVault/deliveryStore.ts); this file is the
 -- durable mirror, and tests/agentics/guards.test.ts keeps the two identical.
--- Safe to run more than once.
+-- Idempotent: running it again changes nothing.
 CREATE TABLE IF NOT EXISTS agent_report_settings (
   tenant_id       TEXT NOT NULL PRIMARY KEY,
   cadence         TEXT NOT NULL DEFAULT 'off' CHECK (cadence IN ('off', 'daily', 'weekly', 'issues')),

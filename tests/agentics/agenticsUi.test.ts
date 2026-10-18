@@ -157,7 +157,7 @@ describe('the Reports page', () => {
     const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 't', label: 'Quiet', since: '2026-10-01', reports: [item(empty)] }] }) }));
     expect((html.match(/ag-count--zero/g) ?? []).length).toBe(4);
     expect(html).not.toMatch(/ag-count--issues|ag-count--confirm/);
-    expect(textOf(html)).toContain('No transfers');
+    expect(textOf(html)).toContain('No transfers with registered destinations');
   });
 
   it('says plainly when there are no agents, and when an agent has no reports', () => {
@@ -305,9 +305,29 @@ describe('one report', () => {
     const partial = render(React.createElement(ReportView, { report: detail(content({ partial: true })), signing: { available: true } }));
     expect(textOf(partial)).toContain('Partial day. This report was made at 2026-10-18 09:10:00 UTC');
     const quiet = render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } }));
-    expect(textOf(quiet)).toContain('Nothing here needs a person to look at it.');
+    expect(textOf(quiet)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
     expect(textOf(quiet)).toContain('No check came back proven or consistent with history in this period.');
     expect(textOf(quiet)).not.toContain('Partial day');
+  });
+
+  it('an all-clear is about what was recorded: it names the registered destinations and says a transfer to an unregistered address is not seen', () => {
+    const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
+    expect(quiet).toContain('A transfer to an address that was never registered is not recorded here.');
+    expect(quiet).not.toMatch(/Nothing here needs/);
+    // The strip says the same about "no transfers" on both sides, on the page and in the list.
+    expect(quiet.match(/No transfers with registered destinations/g)).toHaveLength(2);
+    expect(quiet).not.toMatch(/No transfers(?! with registered destinations)/);
+  });
+
+  it('the page and the PDF use one set of words for what was and was not recorded', async () => {
+    const text = await import('../../src/lib/agentVault/reportText');
+    expect(copy.strip.none).toBe(text.NO_TRANSFERS);
+    expect(copy.view.nothingNeeds).toBe(text.NOTHING_NEEDS_A_PERSON);
+    expect(copy.view.clearNote).toContain(text.NOT_REGISTERED_NOTE);
+    // And neither file keeps an older, unscoped line of its own.
+    for (const file of ['src/components/agentics/copy.ts', 'src/lib/agentVault/reportPdf.ts', 'src/components/agentics/ReportView.tsx', 'src/components/agentics/ReportsPage.tsx']) {
+      expect(read(file), file).not.toMatch(/Nothing here needs|'No transfers'|"No transfers"/);
+    }
   });
 
   it('says how many addresses a group left out', () => {

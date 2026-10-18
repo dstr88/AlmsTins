@@ -6,6 +6,8 @@
  * anything and never call an address safe. They stay with what was asked, what was answered and
  * the raw value that moved.
  */
+import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib/agentVault/reportText';
+
 export const copy = {
   brand: 'Agentics',
   nav: { reports: 'Reports' },
@@ -42,7 +44,7 @@ export const copy = {
   strip: {
     bought: 'Bought',
     sold: 'Sold',
-    none: 'No transfers',
+    none: NO_TRANSFERS,
     withoutValue: (n: number) => `${n} without a USD value (not in the total)`,
     note: 'Raw value in (bought) and out (sold) between the agent\'s wallets and registered destinations, priced at the time of each transfer. The two sides are not compared.',
     statuses: 'Transfers by the verify-status they inherited from the check before them',
@@ -56,8 +58,8 @@ export const copy = {
     partialNote: (at: string) => `Partial day. This report was made at ${at}, before the day ended, so it covers the day up to that moment.`,
     snapshotNote: 'This report is a snapshot. It holds every event the Vault had recorded up to the time it was generated. A transfer is recorded after the chain confirms it, so a later version of this day may list one that this version does not.',
     needsAttention: 'Needs a look',
-    nothingNeeds: 'Nothing here needs a person to look at it.',
-    clearNote: 'A clear result means the checks that ran came back without a flag. It is not a statement that an address is safe or legitimate.',
+    nothingNeeds: NOTHING_NEEDS_A_PERSON,
+    clearNote: `A clear result means the checks that ran came back without a flag. It is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`,
     listedNote: 'Each address is listed once, in the most severe group any of its checks fell in. The checks in each group are counted by their own answer.',
     omitted: (n: number) => `${n} more counted above but not listed.`,
     noIssuesLine: (checks: string, addresses: string) => `${checks} came back proven or consistent with history. ${addresses} had only such checks and are not listed.`,

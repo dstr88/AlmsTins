@@ -8,6 +8,8 @@ export interface DescribableManifest {
   record_type?: unknown;
   leaf_count?: unknown;
   counts?: unknown;
+  version?: unknown;
+  partial?: unknown;
 }
 
 /** The kind of record, in words: `Year Summary`, `Agent Vault report`, or the manifest's own tag. */
@@ -30,4 +32,25 @@ export function entriesLine(m: DescribableManifest): string {
     return `${n} (had issues ${num(c.issues)} · not confirmed ${num(c.not_confirmed)} · new ${num(c.new)} · no issues ${num(c.no_issues)} addresses)`;
   }
   return n;
+}
+
+/**
+ * Which version of its day an Agent Vault report is, and whether it was made before the day ended,
+ * in one line: "Version 3, partial: made before the day ended". A signature that checks out says the
+ * file is genuine and unaltered. It does not say this is the last word on its day: a report is a
+ * snapshot, and a later version of the same day can be the newest one. So the page says which
+ * version this is. Null for any other kind of record, which is described as it always was.
+ */
+export function versionLine(m: DescribableManifest): string | null {
+  if (m.record_type !== 'agent_report') return null;
+  const v = m.version;
+  const parts = [typeof v === 'number' && Number.isInteger(v) && v >= 1 ? `Version ${v}` : 'Version not stated'];
+  if (m.partial === true) parts.push('partial: made before the day ended');
+  return parts.join(', ');
+}
+
+/** What goes with it: this check reads one file and cannot see a later version. Null for any other kind of record. */
+export function supersededNote(m: DescribableManifest): string | null {
+  if (m.record_type !== 'agent_report') return null;
+  return 'A report is a snapshot. A later version of the same day may have replaced this one as the newest; this check reads only this file and cannot see one.';
 }

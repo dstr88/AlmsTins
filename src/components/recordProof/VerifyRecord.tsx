@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { verifyBundle, type VerifyOutcome, type PublishedKey } from '@/lib/recordProof/verify';
 import type { ProofBundle } from '@/lib/recordProof/buildProof';
-import { entriesLine, recordKindLabel } from '@/lib/recordProof/manifestText';
+import { entriesLine, recordKindLabel, supersededNote, versionLine } from '@/lib/recordProof/manifestText';
 import './VerifyRecord.css';
 
 const WELL_KNOWN = '/.well-known/almstins-signing-key.json';
@@ -109,9 +109,12 @@ export default function VerifyRecord() {
   );
 }
 
-function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; outcome: VerifyOutcome; keySource: string }) {
+export function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; outcome: VerifyOutcome; keySource: string }) {
   const v = VERDICT_COPY[outcome.verdict];
   const m = bundle.manifest;
+  // An Agent Vault report says which version of its day it is and whether the day was over; any other record says nothing more.
+  const version = versionLine(m);
+  const superseded = supersededNote(m);
   const [showCommit, setShowCommit] = useState(false);
   return (
     <div className="vr__out">
@@ -120,6 +123,11 @@ function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; outcome: 
         <div>
           <div className="vr__result-title">{v.title}</div>
           <div className="vr__result-detail">{CODE_DETAIL[outcome.code]}</div>
+          {version && (
+            <div className="vr__result-detail">
+              <strong>{version}.</strong> {superseded}
+            </div>
+          )}
         </div>
       </div>
 

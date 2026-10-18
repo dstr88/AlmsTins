@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entriesLine, recordKindLabel } from '../../src/lib/recordProof/manifestText';
+import { entriesLine, recordKindLabel, supersededNote, versionLine } from '../../src/lib/recordProof/manifestText';
 
 /**
  * How /verify-record describes a manifest. The page used to read a Year Summary's counts
@@ -42,5 +42,43 @@ describe('entriesLine', () => {
     for (const line of [entriesLine({ record_type: 'agent_report' }), entriesLine({ record_type: 'year_summary' }), entriesLine({ record_type: 'x' })]) {
       expect(line).not.toMatch(/undefined|NaN|null/);
     }
+  });
+});
+
+describe('versionLine', () => {
+  it('says which version of its day an Agent Vault report is, and that a mid-day one was made before the day ended', () => {
+    expect(versionLine({ record_type: 'agent_report', version: 3, partial: true })).toBe('Version 3, partial: made before the day ended');
+    expect(versionLine({ record_type: 'agent_report', version: 1, partial: false })).toBe('Version 1');
+    expect(versionLine({ record_type: 'agent_report', version: 12 })).toBe('Version 12');
+  });
+
+  it('says so when a report bundle does not state its version, and never prints undefined', () => {
+    expect(versionLine({ record_type: 'agent_report' })).toBe('Version not stated');
+    expect(versionLine({ record_type: 'agent_report', partial: true })).toBe('Version not stated, partial: made before the day ended');
+    for (const version of ['3', 0, -1, 1.5, Number.NaN, null, {}, [3]]) {
+      expect(versionLine({ record_type: 'agent_report', version }), String(version)).toBe('Version not stated');
+    }
+    // Only a real true marks a day partial.
+    for (const partial of ['true', 1, 'yes', null]) expect(versionLine({ record_type: 'agent_report', version: 2, partial }), String(partial)).toBe('Version 2');
+  });
+
+  it('is nothing at all for any other kind of record, so a Year Summary reads as it always did', () => {
+    expect(versionLine({ record_type: 'year_summary', version: 3, partial: true })).toBeNull();
+    expect(versionLine({ record_type: 'receivable_set', version: 2 })).toBeNull();
+    expect(versionLine({})).toBeNull();
+    expect(versionLine({ record_type: 7 })).toBeNull();
+  });
+});
+
+describe('supersededNote', () => {
+  it('tells the reader a later version of the day may be the newest, and that this check cannot see it', () => {
+    const note = supersededNote({ record_type: 'agent_report', version: 1 });
+    expect(note).toMatch(/later version of the same day/);
+    expect(note).toMatch(/cannot see one/);
+  });
+
+  it('is nothing for any other kind of record', () => {
+    expect(supersededNote({ record_type: 'year_summary' })).toBeNull();
+    expect(supersededNote({})).toBeNull();
   });
 });

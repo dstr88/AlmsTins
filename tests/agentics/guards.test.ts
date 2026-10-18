@@ -274,6 +274,14 @@ describe('the delivery schema file and the code create the same tables', () => {
   });
 });
 
+describe('the report migrations say what they mean about running twice', () => {
+  it.each(['migrations-pg/0053_agent_reports.sql', 'migrations-pg/0054_agent_report_delivery.sql'])('%s says it is idempotent, in those words, and does not call itself safe', (file) => {
+    const src = read(file);
+    expect(src).toContain('-- Idempotent: running it again changes nothing.');
+    expect(src).not.toMatch(/\bsafe\b/i);
+  });
+});
+
 describe('reports are append-only', () => {
   const srcFiles = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|tsx|astro|mjs|js)$/.test(f));
 

@@ -15,7 +15,7 @@
 --
 -- Also created lazily at runtime (ensureAgentReportsTable in src/lib/agentVault/reportStore.ts);
 -- this file is the durable mirror, and tests/agentics/guards.test.ts keeps the two identical.
--- Safe to run more than once.
+-- Idempotent: running it again changes nothing.
 CREATE TABLE IF NOT EXISTS agent_reports (
   id             TEXT NOT NULL PRIMARY KEY,
   tenant_id      TEXT NOT NULL,

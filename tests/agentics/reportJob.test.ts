@@ -495,12 +495,12 @@ describe('the digest goes only to an account that asked for it', () => {
     expect(sent[0].subject).toBe('1 needs your attention · Agent report, Oct 17, 2026');
   });
 
-  it('a quiet day with checks is a quiet all-clear subject', async () => {
+  it('a quiet day with checks is a quiet "no flags" subject, not a claim that anything was verified', async () => {
     const a = await newTin(A);
     for (let i = 0; i < 12; i++) await put(A, a.id, 'domain_proof', 'proven', addr(5), `2026-10-17T10:${String(i).padStart(2, '0')}:00.000Z`);
     await opt(A, 'daily');
     await job.runAgentReports(deps(SUNDAY));
-    expect(sent[0].subject).toBe('All clear, 12 verified · Agent report, Oct 17, 2026');
+    expect(sent[0].subject).toBe('No flags, 12 checks · Agent report, Oct 17, 2026');
   });
 
   it('no email carries an address, a label, an agent\'s name or an amount', async () => {

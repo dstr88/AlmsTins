@@ -37,6 +37,8 @@
 .vr__result-icon { font-size: 1.4rem; line-height: 1.2; flex-shrink: 0; }
 .vr__result-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.2rem; }
 .vr__result-detail { font-size: 0.84rem; line-height: 1.55; color: var(--text-secondary); }
+.vr__result-detail + .vr__result-detail { margin-top: 0.35rem; }
+.vr__result-detail strong { color: var(--text-primary); font-weight: 600; }
 .vr__result--ok   { background: var(--gain-bg);    border-color: var(--gain-border); }
 .vr__result--ok   .vr__result-title { color: var(--gain); }
 .vr__result--warn { background: var(--warning-bg); border-color: var(--warning-border); }
