@@ -33,6 +33,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'src/lib/agenticsAccess.ts'),
   path.join(ROOT, 'src/lib/agenticsFlag.mjs'),
   path.join(ROOT, 'migrations-pg/0050_agent_vault.sql'),
+  path.join(ROOT, 'migrations-pg/0051_agent_events.sql'),
 ].map(rel).sort();
 
 /** SQL comments out, whitespace collapsed, spaces inside parentheses and before commas dropped. */
@@ -52,8 +53,13 @@ describe('the schema file and the code create the same tables', () => {
   it('is the next migration after 0049, and the only 0050', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0050'))).toEqual(['0050_agent_vault.sql']);
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 50)).toEqual([]);
     expect(files).toContain('0049_wallet_identity.sql');
+  });
+
+  it('the ledger is the next one after that, and the only 0051; nothing numbered higher is part of this work', () => {
+    const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
+    expect(files.filter((f) => f.startsWith('0051'))).toEqual(['0051_agent_events.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 51)).toEqual([]);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -87,12 +93,80 @@ describe('the schema file and the code create the same tables', () => {
   });
 });
 
+describe('the ledger schema file and the code create the same table', () => {
+  it('migrations-pg/0051_agent_events.sql holds exactly the statements ensureAgentEventsTable runs, in order', async () => {
+    const { AGENT_EVENTS_DDL } = await import('../../src/lib/agentVault/events');
+    const statements = squash(read('migrations-pg/0051_agent_events.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_EVENTS_DDL.map(squash));
+  });
+
+  it('is keyed by tenant_id, is never soft-deleted (it is append-only), and has the columns the design names', async () => {
+    const { AGENT_EVENTS_DDL } = await import('../../src/lib/agentVault/events');
+    const table = AGENT_EVENTS_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    expect(table).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
+    expect(table).not.toMatch(/\bdeleted_at\b/);
+    expect(table).toMatch(/\boccurred_at\s+TEXT NOT NULL\b/);
+    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]);
+    expect(cols).toEqual([
+      'id', 'tenant_id', 'tin_id', 'kind', 'address', 'chain', 'answer', 'registry', 'status', 'key_id', 'source_ip', 'detail_json', 'occurred_at', 'created_at',
+    ]);
+  });
+
+  it('limits kind, answer and registry to the words the code uses, in the table itself', async () => {
+    const { AGENT_EVENTS_DDL, EVENT_KINDS, VAULT_ANSWERS, REGISTRY_VERDICTS } = await import('../../src/lib/agentVault/events');
+    const table = AGENT_EVENTS_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    const listed = (col: string) =>
+      [...(table.match(new RegExp(`CHECK \\(${col} IN \\(([^)]*)\\)\\)`))?.[1] ?? '').matchAll(/'([\w-]+)'/g)].map((m) => m[1]);
+    expect(listed('kind').sort()).toEqual([...EVENT_KINDS].sort());
+    expect(listed('answer').sort()).toEqual([...VAULT_ANSWERS].sort());
+    expect(listed('registry').sort()).toEqual([...REGISTRY_VERDICTS].sort());
+  });
+
+  it('the four verify-statuses are the four the design names', async () => {
+    const { VAULT_ANSWERS } = await import('../../src/lib/agentVault/events');
+    expect([...VAULT_ANSWERS]).toEqual(['proven', 'consistent-with-history', 'flagged', 'unknown']);
+  });
+});
+
+describe('the ledger is append-only', () => {
+  const srcFiles = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|tsx|astro|mjs|js)$/.test(f));
+
+  it('no file in src updates or removes a row of agent_events', () => {
+    expect(srcFiles.length).toBeGreaterThan(100);
+    for (const file of srcFiles) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, rel(file)).not.toMatch(/\bUPDATE\s+agent_events\b/i);
+      expect(src, rel(file)).not.toMatch(/\bDELETE\s+FROM\s+agent_events\b/i);
+      expect(src, rel(file)).not.toMatch(/\bTRUNCATE\b[^;]*\bagent_events\b/i);
+    }
+  });
+
+  it('the only statement that writes it is one INSERT, in events.ts', () => {
+    const writers = srcFiles.filter((f) => /\bINSERT\s+INTO\s+agent_events\b/i.test(readFileSync(f, 'utf8'))).map(rel);
+    expect(writers).toEqual(['src/lib/agentVault/events.ts']);
+    expect(read('src/lib/agentVault/events.ts').match(/\bINSERT\s+INTO\s+agent_events\b/gi)).toHaveLength(1);
+  });
+
+  it('is removed with the account, children before the tin', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    expect(at('agent_events')).toBeGreaterThanOrEqual(0);
+    expect(at('agent_events')).toBeLessThan(at('agent_tins'));
+  });
+});
+
 describe('the Vault keeps to the bright lines', () => {
   it('finds the Vault files', () => {
     expect(VAULT_FILES).toEqual([
       'migrations-pg/0050_agent_vault.sql',
+      'migrations-pg/0051_agent_events.sql',
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/api.ts',
+      'src/lib/agentVault/checkLog.ts',
+      'src/lib/agentVault/events.ts',
       'src/lib/agentVault/store.ts',
       'src/lib/agentVault/trustChecks.ts',
       'src/lib/agentVault/trustPolicy.ts',
@@ -101,6 +175,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agenticsFlag.mjs',
       'src/pages/api/agentics/destinations.ts',
       'src/pages/api/agentics/destinations/trust.ts',
+      'src/pages/api/agentics/events.ts',
       'src/pages/api/agentics/tins.ts',
       'src/pages/api/agentics/wallets.ts',
     ]);

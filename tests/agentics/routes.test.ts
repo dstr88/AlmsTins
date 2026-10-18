@@ -54,6 +54,7 @@ let tins: typeof import('../../src/pages/api/agentics/tins');
 let wallets: typeof import('../../src/pages/api/agentics/wallets');
 let destinations: typeof import('../../src/pages/api/agentics/destinations');
 let trust: typeof import('../../src/pages/api/agentics/destinations/trust');
+let events: typeof import('../../src/pages/api/agentics/events');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -72,6 +73,7 @@ beforeEach(async () => {
   wallets = await import('../../src/pages/api/agentics/wallets');
   destinations = await import('../../src/pages/api/agentics/destinations');
   trust = await import('../../src/pages/api/agentics/destinations/trust');
+  events = await import('../../src/pages/api/agentics/events');
 });
 
 afterEach(() => {
@@ -104,6 +106,7 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['destinations POST', () => destinations.POST, '/api/agentics/destinations', 'POST', { tinId: 'x', text: addr(1) }],
   ['destinations DELETE', () => destinations.DELETE, '/api/agentics/destinations?id=x', 'DELETE'],
   ['trust POST', () => trust.POST, '/api/agentics/destinations/trust', 'POST', { tinId: 'x' }],
+  ['events GET', () => events.GET, '/api/agentics/events?tinId=x', 'GET'],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -352,17 +355,18 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the four endpoint files', () => {
+  it('finds the five endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'tins.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'tins.ts', 'wallets.ts',
     ]);
   });
 
-  it('read only an id from the URL: an address goes in the body, never in a query string', () => {
+  it('read only an id from the URL (and, for the ledger, a page size and a cursor): an address goes in the body, never in a query string', () => {
     for (const file of files) {
       const src = readFileSync(file, 'utf8');
+      const allowed = file.endsWith('events.ts') ? ['tinId', 'limit', 'before'] : ['id', 'tinId'];
       const keys = [...src.matchAll(/searchParams\.get\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
-      for (const key of keys) expect(['id', 'tinId'], `${file}: ${key}`).toContain(key);
+      for (const key of keys) expect(allowed, `${file}: ${key}`).toContain(key);
     }
   });
 
@@ -374,5 +378,58 @@ describe('the endpoint files', () => {
       for (const [, method, rest] of handlers) expect(rest, `${file} ${method}`).toMatch(/^vaultRoute\(/);
       expect(src, file).toMatch(/export const prerender = false;/);
     }
+  });
+});
+
+describe('the owner: read a tin\'s ledger', () => {
+  const put = async (tinId: string, i: number, over: Record<string, unknown> = {}) => {
+    const ledger = await import('../../src/lib/agentVault/events');
+    return ledger.insertCheckedEvent(OWNER_TENANT_ID, {
+      tinId, address: addr(i), chain: null, answer: 'unknown', registry: 'none', status: 'unknown',
+      keyId: KEY, sourceIp: null, detail: { basis: 'not_in_registry' }, at: new Date(Date.UTC(2026, 9, 18, 12, 0, 0, i)).toISOString(),
+      ...over,
+    });
+  };
+  const newTin = async () => (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Agent', agentKeyId: KEY })).json.tin.id as string;
+
+  it('answers JSON, newest first, with a cursor for the older page, and carries no account id', async () => {
+    const tinId = await newTin();
+    for (const i of [1, 2, 3]) await put(tinId, i);
+    const first = await call(events.GET, `/api/agentics/events?tinId=${tinId}&limit=2`, 'GET');
+    expect(first.res.status).toBe(200);
+    expect(first.res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(first.json.events.map((e: any) => e.address)).toEqual([addr(3), addr(2)]);
+    expect(first.json.events[0]).toMatchObject({ kind: 'checked', answer: 'unknown', registry: 'none', keyId: KEY, keyStatus: 'active' });
+    expect(first.json.next).toEqual(expect.any(String));
+    expect(first.raw).not.toMatch(/tenant/i);
+
+    const second = await call(events.GET, `/api/agentics/events?tinId=${tinId}&limit=2&before=${encodeURIComponent(first.json.next)}`, 'GET');
+    expect(second.json.events.map((e: any) => e.address)).toEqual([addr(1)]);
+    expect(second.json.next).toBeNull();
+  });
+
+  it('answers codes, not raw errors, for a missing tin, an unknown tin and a bad cursor', async () => {
+    const tinId = await newTin();
+    expect((await call(events.GET, '/api/agentics/events', 'GET')).json).toEqual({ ok: false, error: 'invalid_id' });
+    const unknown = await call(events.GET, '/api/agentics/events?tinId=no-such-tin', 'GET');
+    expect(unknown.res.status).toBe(404);
+    expect(unknown.json).toEqual({ ok: false, error: 'tin_not_found' });
+    const bad = await call(events.GET, `/api/agentics/events?tinId=${tinId}&before=nope`, 'GET');
+    expect(bad.res.status).toBe(400);
+    expect(bad.json).toEqual({ ok: false, error: 'invalid_cursor' });
+  });
+
+  it('has no way to change or remove an event: only GET exists', async () => {
+    expect(Object.keys(events).filter((k) => /^(POST|PUT|PATCH|DELETE)$/.test(k))).toEqual([]);
+  });
+
+  it('a database failure is a plain 500 with no database text', async () => {
+    const tinId = await newTin();
+    holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { res, raw, json } = await call(events.GET, `/api/agentics/events?tinId=${tinId}`, 'GET');
+    expect(res.status).toBe(500);
+    expect(json).toEqual({ ok: false, error: 'server_error' });
+    expect(raw).not.toMatch(/secret_table|exploded/);
   });
 });

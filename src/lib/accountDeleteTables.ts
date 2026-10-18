@@ -16,8 +16,8 @@ export const TENANT_TABLES = [
   'petro_subscriptions', 'petro_visits', 'dirty_tin_entries', 'dirty_tins',
   // Agentics signups (where the account came in, and whether its welcome letter went out)
   'agentics_signups',
-  // Agent Vault (the owner's own records: destinations, then wallets, then tins)
-  'agent_destinations', 'agent_wallets', 'agent_tins',
+  // Agent Vault (the owner's own records: the ledger, then destinations, then wallets, then tins)
+  'agent_events', 'agent_destinations', 'agent_wallets', 'agent_tins',
   // Transactions, imports and wallets
   'transaction_annotations', 'transaction_screenshots', 'transfer_matches', 'transactions', 'sui_transactions',
   'import_raw_rows', 'import_transactions', 'exchange_accounts', 'manual_cost_basis', 'protocol_positions',

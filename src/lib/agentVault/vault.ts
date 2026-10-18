@@ -40,6 +40,7 @@ import {
   type Destination,
   type Tin,
 } from './store';
+import { listEvents, parseCursor, type LedgerEvent } from './events';
 import { defaultTrustDeps, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
 
@@ -57,7 +58,7 @@ export type VaultError =
   | 'invalid_label' | 'invalid_chain' | 'invalid_address' | 'invalid_id'
   | 'tin_not_found' | 'wallet_not_found' | 'destination_not_found'
   | 'key_not_found' | 'key_not_active' | 'key_in_use'
-  | 'nothing_to_add' | 'too_many' | 'text_too_long';
+  | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor';
 
 export type Failure = { ok: false; error: VaultError; max?: number };
 const fail = (error: VaultError, max?: number): Failure => (max === undefined ? { ok: false, error } : { ok: false, error, max });
@@ -401,4 +402,47 @@ export async function removeDestination(tenantId: string, id: unknown): Promise<
   const destinationId = idOf(id);
   if (!destinationId) return fail('invalid_id');
   return (await softDeleteDestination(tenantId, destinationId, nowUtc())) ? { ok: true } : fail('destination_not_found');
+}
+
+// ── The ledger ───────────────────────────────────────────────────────────────
+
+export const DEFAULT_EVENT_PAGE = 50;
+export const MAX_EVENT_PAGE = 200;
+
+/** An event as the endpoint answers it: the ledger row, and whether the key that asked is still active. */
+export interface EventView extends LedgerEvent {
+  keyStatus: 'active' | 'pending' | 'revoked' | 'unknown' | null;
+}
+
+export type EventPage = { ok: true; events: EventView[]; next: string | null };
+
+/**
+ * A tin's ledger, newest first. `limit` and `before` come straight from a query string, so both
+ * are checked here: a limit that is not a positive integer falls back to the default and is
+ * capped, and a cursor that is not one this code made is refused.
+ */
+export async function listTinEvents(
+  tenantId: string,
+  tinId: unknown,
+  opts: { limit?: unknown; before?: unknown } = {},
+): Promise<EventPage | Failure> {
+  const id = idOf(tinId);
+  if (!id) return fail('invalid_id');
+  const tin = await getTin(tenantId, id);
+  if (!tin) return fail('tin_not_found');
+  const asked = Number(opts.limit);
+  const limit = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_EVENT_PAGE) : DEFAULT_EVENT_PAGE;
+  let before: { at: string; id: string } | null = null;
+  if (opts.before != null && opts.before !== '') {
+    before = parseCursor(opts.before);
+    if (!before) return fail('invalid_cursor');
+  }
+  const page = await listEvents(tenantId, tin.id, { limit, before });
+  // A rotated key stays on the events it made, marked: the ledger never forgets who asked.
+  const statuses = new Map((await listAgentKeys(tenantId)).map((k) => [k.id, k.status]));
+  return {
+    ok: true,
+    events: page.events.map((e) => ({ ...e, keyStatus: e.keyId ? (statuses.get(e.keyId) ?? 'unknown') : null })),
+    next: page.next,
+  };
 }

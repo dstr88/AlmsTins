@@ -337,6 +337,19 @@ export async function listDestinations(tenantId: string, tinId: string): Promise
   return r.rows.map(destinationFrom);
 }
 
+/**
+ * Every live destination of one tin with this normalized address, on any chain (an EVM address is
+ * the same wallet on each EVM chain, so the owner may have listed it on more than one).
+ */
+export async function listDestinationsByAddress(tenantId: string, tinId: string, address: string): Promise<Destination[]> {
+  await ensureAgentVaultTables();
+  const r = await db.execute({
+    sql: `SELECT ${DESTINATION_COLUMNS} FROM agent_destinations WHERE tenant_id = ? AND tin_id = ? AND address = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC`,
+    args: [tenantId, tinId, address],
+  });
+  return r.rows.map(destinationFrom);
+}
+
 /** The live destinations of one tin among `ids`. An id that is not this tenant's, or not this tin's, simply is not returned. */
 export async function getDestinations(tenantId: string, tinId: string, ids: readonly string[]): Promise<Destination[]> {
   if (!ids.length) return [];

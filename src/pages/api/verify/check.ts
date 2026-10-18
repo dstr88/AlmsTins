@@ -39,6 +39,11 @@
  * bumps only on a breaking change — a new `status` value is additive (an agent that reads
  * status verbatim without an exhaustive switch already treats anything but `proven` as a
  * hold, per /agentics/docs).
+ *
+ * A KEYED call whose key is linked to one of the owner's Agent Vault tins is also written to that
+ * tin's ledger, and its answer gains one more field, `vault` (cleared, answer, registry, history,
+ * eventId, logged): see src/lib/agentVault/checkLog.ts. Nothing above changes, anonymous calls
+ * never get the field and are never recorded, and a failure there never changes the answer.
  */
 import type { APIRoute } from 'astro';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
@@ -47,6 +52,7 @@ import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { displayableName } from '@/lib/verifyPublicCard';
 import { isEmvPayload } from '@/lib/paymentQr';
 import { authenticateAgentKey } from '@/lib/agentKeys';
+import type { VaultBlock } from '@/lib/agentVault/checkLog';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -151,6 +157,33 @@ export const GET: APIRoute = async ({ request, url }) => {
   // rule verifyPublicCard.ts uses for the wallet-checker and /verify/scan cards.
   const label = anchored && provingDomain ? displayableName(hit?.label ?? null, provingDomain) : null;
 
+  const checkedAt = new Date();
+
+  // A keyed call whose key is linked to one of the owner's Agent Vault tins is also written to that
+  // tin's ledger, and the answer gains one `vault` field. Everything else is unchanged, and a
+  // failure here never changes the answer (src/lib/agentVault/checkLog.ts). Anonymous calls and
+  // payment links or QR payloads never get one. The module loads only on this path. The field is
+  // not on the public /agentics/docs page yet: it exists only for the owner's own dark tins, and goes
+  // on the page, with its test, when the Vault opens.
+  let vault: VaultBlock | null = null;
+  if (keyId && !isQrValue) {
+    try {
+      const { recordKeyedCheck } = await import('@/lib/agentVault/checkLog');
+      vault = await recordKeyedCheck({
+        keyId,
+        value: raw,
+        status,
+        level: hit?.level ?? null,
+        domain: anchored ? provingDomain : null,
+        proofAgeDays,
+        sourceIp: clientIpKey(request).replace(/^ip:/, ''),
+        now: checkedAt,
+      });
+    } catch {
+      // The Vault is optional: the check's own answer stands.
+    }
+  }
+
   return json({
     v: 1,
     status,
@@ -160,7 +193,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     chain: hit?.chain ?? null,
     since,
     proofAgeDays,
-    checkedAt: new Date().toISOString(),
+    checkedAt: checkedAt.toISOString(),
+    ...(vault ? { vault } : {}),
   });
 };
 
