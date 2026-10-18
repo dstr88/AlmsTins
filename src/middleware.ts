@@ -8,7 +8,8 @@
  *
  *   PetroTins path, not the owner? → Astro's 404 page, as for a path that does not exist
  *                                    (petroTinsAccess; owner-only while private)
- *   Agent Vault path, not the owner? → the same 404 page (agenticsAccess; owner-only while private)
+ *   Agent Vault path, not the owner? → the same 404 page (agenticsAccess; owner-only while private;
+ *                                    the exact /dashboard/agentics, the door's letter, is not a Vault path)
  *   /receivables/<name>? → rewrite to its /verify page (legacyRedirects, alias phase)
  *   isPublicPath?  → next()                    (route handler only)
  *   else           → dynamic import(app.ts)()  (session, tenant, headers)
@@ -73,8 +74,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// PetroTins paths.
 	const petro = await petroTinsGate(context.request, pathname, context.routePattern);
 	// The Agent Vault (src/lib/agenticsAccess.ts) is gated the same way, on its own paths only
-	// (/dashboard/agentics and /api/agentics; never the public /agentics docs page). Its paths
-	// and PetroTins' never overlap, so it only gets a say when the PetroTins gate had none.
+	// (everything under /dashboard/agentics/ and /api/agentics; never the public /agentics pages,
+	// and never the exact /dashboard/agentics, the free-signup door's welcome letter, which goes
+	// through the chain below like any dashboard page). Its paths and PetroTins' never overlap, so
+	// it only gets a say when the PetroTins gate had none.
 	const agentics: AgenticsGate =
 		petro.kind === 'open' ? await agenticsGate(context.request, pathname, context.routePattern) : { kind: 'open' };
 	let res: Response;

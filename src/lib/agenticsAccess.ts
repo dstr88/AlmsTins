@@ -3,14 +3,22 @@
  *
  * The Agent Vault is the owner-private side of Agentics: one tin per agent, the destinations that
  * agent may send to, and (in later slices) the log of what it sent. Until the flag is flipped,
- * every Vault surface (the /dashboard/agentics pages and every /api/agentics endpoint) answers
- * anyone but the owner the way the app answers a path that does not exist: the 404 page, with no
- * redirect to a sign-in page and no hint that the page exists. Demo sessions, other signed-in
- * accounts and signed-out visitors are all refused.
+ * every Vault surface (every page under /dashboard/agentics/ and every /api/agentics endpoint)
+ * answers anyone but the owner the way the app answers a path that does not exist: the 404 page,
+ * with no redirect to a sign-in page and no hint that the page exists. Demo sessions, other
+ * signed-in accounts and signed-out visitors are all refused.
  *
- * Deliberately NOT gated, because they are live and public: the docs page /agentics and the
- * pre-send check /api/verify/check. /agentics is why the prefix list below holds the two Vault
- * prefixes only, never the bare word.
+ * One path under that prefix is NOT the Vault: the exact path /dashboard/agentics, the free-signup
+ * door's welcome letter (src/pages/dashboard/agentics/index.astro), which every signed-in,
+ * non-demo account lands on after /agentics/login. It is exempt (isAgenticsDoorPath), so it goes
+ * through the normal middleware chain exactly as it did before the Vault existed: a signed-out
+ * visitor is sent to the Agentics sign-in, a demo session to the same sign-in by the page itself,
+ * everyone else gets the letter. The exemption is the exact path, decided on the normalized path
+ * (below) and never a prefix, so /dashboard/agentics/<anything> stays hidden.
+ *
+ * Deliberately NOT gated, because they are live and public: the Agentics landing /agentics, its
+ * docs /agentics/docs and its sign-in /agentics/login, and the pre-send check /api/verify/check.
+ * /agentics is why the prefix list below holds the two Vault prefixes only, never the bare word.
  *
  * This is the same gate as PetroTins (./petroTinsAccess.ts), kept as its own module so the two
  * products can be opened, closed or removed independently. src/middleware.ts calls
@@ -34,19 +42,27 @@ export { AGENTICS_VAULT_PUBLIC };
 
 const AGENTICS_VAULT_PREFIXES = ['/dashboard/agentics', '/api/agentics'] as const;
 
+/**
+ * The door's welcome letter: the one exact path under a Vault prefix that is not the Vault. Never a
+ * prefix: nothing below it is exempt.
+ */
+const AGENTICS_DOOR_PATH = '/dashboard/agentics';
+
 /** Everything before the first `?` or `#`. */
 const pathOnly = (s: string) => s.split(/[?#]/, 1)[0];
 
 /**
- * True for any path Astro could route to a Vault page or endpoint.
+ * The path as the gate compares it, for the Vault and the door alike.
  *
  * The middleware sees the raw request path, but Astro's router decodes it once (decodeURI) and
  * drops one leading slash before matching. This normalizes more than Astro does: it decodes up
  * to three times, turns backslashes into slashes, collapses every run of slashes, lowercases,
  * and ignores trailing slashes and any query or hash. Every variant Astro routes is therefore
- * covered, and gating a variant that routes nowhere costs nothing.
+ * covered, and gating a variant that routes nowhere costs nothing. Dot segments are not
+ * resolved: the URL parser has already resolved them (a literal or %2e dot segment) by the time
+ * the middleware reads a pathname, and any text left after /dashboard/agentics/ stays gated.
  */
-export function isAgenticsVaultPath(pathname: string): boolean {
+export function normalizeAgenticsPath(pathname: string): string {
 	let p = pathOnly(String(pathname ?? ''));
 	for (let i = 0; i < 3; i++) {
 		let decoded: string;
@@ -58,11 +74,30 @@ export function isAgenticsVaultPath(pathname: string): boolean {
 		if (decoded === p) break;
 		p = decoded;
 	}
-	p = pathOnly(p)
+	return pathOnly(p)
 		.replace(/\\/g, '/')
 		.replace(/\/{2,}/g, '/')
 		.toLowerCase()
 		.replace(/\/+$/, '');
+}
+
+/**
+ * True for the door's welcome letter and nothing else: the normalized path is exactly
+ * /dashboard/agentics (so /dashboard/agentics/ and a query or hash on it count, every spelling
+ * Astro routes to that page counts, and anything after it does not).
+ */
+export function isAgenticsDoorPath(pathname: string): boolean {
+	return normalizeAgenticsPath(pathname) === AGENTICS_DOOR_PATH;
+}
+
+/**
+ * True for any path Astro could route to a Vault page or endpoint, in any spelling
+ * (normalizeAgenticsPath), except the door's welcome letter (isAgenticsDoorPath). The exemption is
+ * decided after normalizing, so no spelling of a Vault path can pass as the door.
+ */
+export function isAgenticsVaultPath(pathname: string): boolean {
+	const p = normalizeAgenticsPath(pathname);
+	if (p === AGENTICS_DOOR_PATH) return false;
 	return AGENTICS_VAULT_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
 }
 
@@ -94,7 +129,8 @@ export async function resolveAgenticsViewer(request: Request): Promise<AgenticsV
 
 /**
  * The gate's decision:
- *   open:   not a Vault path, or the Vault is open to every account. Nothing to do.
+ *   open:   not a Vault path (this includes the door's welcome letter, isAgenticsDoorPath), or the
+ *           Vault is open to every account. Nothing to do.
  *   owner:  the owner on a Vault path. Let through, with private headers.
  *   hidden: anyone else on a Vault path. Refuse (agenticsRefusal); nothing in the Vault runs.
  *           `hasSession` is true for a signed-in or demo viewer, who goes through app.ts like

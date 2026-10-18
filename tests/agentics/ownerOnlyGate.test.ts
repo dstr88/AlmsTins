@@ -6,8 +6,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * not exist gets: the 404 page, no redirect to a sign-in page, nothing that says it exists, and
  * the Vault page or endpoint never runs. That holds for every spelling of the path that Astro
  * routes to the Vault, and the gate must not touch any other path, above all the live public ones:
- * the docs page /agentics and the pre-send check /api/verify/check. The owner's Vault responses
- * must never be cached or indexed.
+ * the Agentics pages (/agentics, /agentics/docs, /agentics/login) and the pre-send check
+ * /api/verify/check. The owner's Vault responses must never be cached or indexed.
+ *
+ * One path under the Vault prefix is not the Vault: the exact /dashboard/agentics, the free-signup
+ * door's welcome letter. It goes through the normal chain for every viewer, and nothing below it
+ * does (see "the door's welcome letter" below, and its table of attempts to pass a Vault path off
+ * as the door).
  *
  * This runs the real src/middleware.ts, the way tests/middleware/petroTinsGate.test.ts does for
  * PetroTins. The flag is pinned to owner-only so these cases hold whatever the committed switch
@@ -58,7 +63,9 @@ import {
   agenticsGate,
   agenticsRefusal,
   canAccessAgenticsVault,
+  isAgenticsDoorPath,
   isAgenticsVaultPath,
+  normalizeAgenticsPath,
   withAgenticsOwnerHeaders,
 } from '../../src/lib/agenticsAccess';
 import { OWNER_TENANT_ID } from '../../src/lib/owner';
@@ -109,7 +116,6 @@ const run = async (path: string, init: RequestInit = {}) => {
 
 /** Every Vault page and endpoint, as the slices will have them. */
 const VAULT_PATHS: Array<[string, RequestInit?]> = [
-  ['/dashboard/agentics'],
   ['/dashboard/agentics/reports'],
   ['/api/agentics/tins'],
   ['/api/agentics/tins?id=abc'],
@@ -133,18 +139,23 @@ const VAULT_PATHS: Array<[string, RequestInit?]> = [
 ];
 
 // Spellings that reach the Vault in Astro (trailing slash, a doubled leading slash, one level of
-// percent-encoding) plus ones that route nowhere but are refused anyway.
+// percent-encoding) plus ones that route nowhere but are refused anyway. The dashboard ones are
+// spellings of /dashboard/agentics/reports: the bare /dashboard/agentics is the door's letter.
 const VARIANTS = [
-  '/dashboard/agentics/',
-  '/dashboard//agentics',
-  '//dashboard/agentics',
-  '/dashboard/agentics?next=/x',
-  '/dashboard/Agentics',
-  '/DASHBOARD/AGENTICS',
-  '/dashboard/%61gentics',
-  '/dashboard/agentic%73',
-  '/dashboard%2Fagentics',
+  '/dashboard/agentics/reports/',
+  '/dashboard/agentics//reports',
+  '/dashboard//agentics/reports',
+  '//dashboard/agentics/reports',
+  '/dashboard/agentics/reports?next=/x',
+  '/dashboard/Agentics/reports',
+  '/DASHBOARD/AGENTICS/REPORTS',
+  '/dashboard/%61gentics/reports',
+  '/dashboard/agentic%73/reports',
+  '/dashboard/agentics/%72eports',
+  '/dashboard%2Fagentics%2Freports',
+  '/dashboard/agentics%2Freports',
   '/dashboard/agentics%252Freports',
+  '/api/agentics',
   '/api/agentics/',
   '//api/agentics/tins',
   '///api///agentics//tins',
@@ -217,7 +228,7 @@ describe('Agent Vault gate: everyone but the owner gets what an unknown path get
     it(`${who}: a Vault path is indistinguishable from a path that does not exist`, async () => {
       state.session = session;
       for (const [method, vaultPath, unknown] of [
-        ['GET', '/dashboard/agentics', '/dashboard/nope'],
+        ['GET', '/dashboard/agentics/reports', '/dashboard/nope'],
         ['GET', '/api/agentics/tins', '/api/nope'],
         ['POST', '/api/agentics/destinations', '/api/nope'],
         ['DELETE', '/api/agentics/wallets', '/api/nope'],
@@ -233,7 +244,7 @@ describe('Agent Vault gate: everyone but the owner gets what an unknown path get
   it('signed out: every path variant Astro could route to the Vault is hidden', async () => {
     for (const path of VARIANTS) await expectHidden(path);
     // A backslash is a slash to the URL parser.
-    await expectHidden('/\\dashboard\\agentics');
+    await expectHidden('/\\dashboard\\agentics\\reports');
     expect(state.appCalls).toBe(0);
   });
 
@@ -246,12 +257,12 @@ describe('Agent Vault gate: everyone but the owner gets what an unknown path get
 
   it('fails closed: if the session cannot be resolved, the answer is the 404 page', async () => {
     state.throwOnSession = true;
-    await expectHidden('/dashboard/agentics');
+    await expectHidden('/dashboard/agentics/reports');
     await expectHidden('/api/agentics/tins');
   });
 
   it('the 404 does not redirect a signed-out visitor to sign in', async () => {
-    const { res } = await run('/dashboard/agentics');
+    const { res } = await run('/dashboard/agentics/reports');
     expect(res.status).toBe(404);
     expect(res.headers.get('Location')).toBeNull();
   });
@@ -284,10 +295,287 @@ describe('Agent Vault gate: the owner keeps full access', () => {
 
   it('owner: the routable variants go through as well', async () => {
     state.session = { tenantId: OWNER_TENANT_ID };
-    for (const path of ['/dashboard/agentics/', '//api/agentics/tins', '/api/agentics/tins/', '/dashboard/%61gentics']) {
+    for (const path of ['/dashboard/agentics/reports/', '//api/agentics/tins', '/api/agentics/tins/', '/dashboard/%61gentics/reports']) {
       const { res } = await run(path);
       expect(res.status, path).toBe(200);
       expect(res.headers.get('Cache-Control'), path).toBe('private, no-store');
+    }
+  });
+});
+
+describe("the door's welcome letter: the exact /dashboard/agentics is not the Vault", () => {
+  const everyone: Array<[string, null | { tenantId: string; isDemo?: boolean }]> = [
+    ['signed out', null],
+    ['a demo session', { tenantId: DEMO_TENANT_ID, isDemo: true }],
+    ['another account', { tenantId: OTHER_TENANT_ID }],
+    ['the owner', { tenantId: OWNER_TENANT_ID }],
+    ['the owner tenant flagged as demo', { tenantId: OWNER_TENANT_ID, isDemo: true }],
+  ];
+
+  for (const [who, session] of everyone) {
+    it(`${who}: the gate lets it through to app.ts and the page, resolves no session and adds no header`, async () => {
+      state.session = session;
+      const { res, rendered } = await run('/dashboard/agentics');
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('handler');
+      expect(rendered).toEqual(['route']);
+      // Like any other dashboard path, app.ts decides what this visitor gets (the Agentics sign-in
+      // for a signed-out one, the page's own check for a demo one); the gate never looked.
+      expect(state.appCalls).toBe(1);
+      expect(state.sessionCalls).toBe(0);
+      // Not a Vault response: none of the owner treatment. The page sets its own cache header.
+      expect(res.headers.get('Cache-Control')).toBeNull();
+      expect(res.headers.get('X-Robots-Tag')).toBeNull();
+      expect(res.headers.get('Vary')).toBeNull();
+    });
+  }
+
+  it('a signed-in account that is not the owner reads the letter and, in the same session, is refused the Reports page', async () => {
+    state.session = { tenantId: OTHER_TENANT_ID };
+    const letter = await run('/dashboard/agentics');
+    expect(letter.res.status).toBe(200);
+    expect(letter.rendered).toEqual(['route']);
+    await expectHidden('/dashboard/agentics/reports');
+    await expectHidden('/dashboard/agentics/reports/abc');
+    await expectHidden('/dashboard/agentics/anything-else');
+  });
+
+  it('the owner reads the letter at the bare path and the Reports page below it', async () => {
+    state.session = { tenantId: OWNER_TENANT_ID };
+    const letter = await run('/dashboard/agentics');
+    expect(letter.res.status).toBe(200);
+    expect(letter.rendered).toEqual(['route']);
+    const reports = await run('/dashboard/agentics/reports');
+    expect(reports.res.status).toBe(200);
+    expect(reports.rendered).toEqual(['route']);
+    expect(reports.res.headers.get('Cache-Control')).toBe('private, no-store');
+  });
+
+  // Every spelling Astro routes to the letter, and a query or hash on it. Several of these differ from
+  // the bare path as a string, so only a decision made after normalizing lets them through.
+  const DOOR_SPELLINGS = [
+    '/dashboard/agentics/',
+    '/dashboard/agentics///',
+    '//dashboard/agentics',
+    '/dashboard/%61gentics',
+    '/dashboard/agentic%73/',
+    '/dashboard/agentics?src=linkedin',
+    '/dashboard/agentics/?src=linkedin',
+    '/dashboard/agentics?next=/dashboard/agentics/reports',
+    '/dashboard/agentics#top',
+  ];
+  // Spellings Astro does not route anywhere (case, a backslash, a slash in the middle). They are
+  // decided on the same normalized form, so they behave exactly as they did before the Vault: the
+  // router's own 404 for them, never a Vault page.
+  const DOOR_SPELLINGS_THAT_ROUTE_NOWHERE = [
+    '/DASHBOARD/AGENTICS',
+    '/Dashboard/Agentics/',
+    '/dashboard//agentics',
+    '/dashboard%2Fagentics',
+    '/dashboard/agentics%2F',
+  ];
+
+  it('every spelling of the letter is the letter: through to the page for another account, no session resolved', async () => {
+    state.session = { tenantId: OTHER_TENANT_ID };
+    for (const path of [...DOOR_SPELLINGS, ...DOOR_SPELLINGS_THAT_ROUTE_NOWHERE]) {
+      const { res, rendered } = await run(path);
+      expect(res.status, path).toBe(200);
+      expect(rendered, path).toEqual(['route']);
+    }
+    expect(state.sessionCalls).toBe(0);
+  });
+
+  it('isAgenticsDoorPath is true for exactly those spellings, and isAgenticsVaultPath is false for them', () => {
+    for (const path of [...DOOR_SPELLINGS, ...DOOR_SPELLINGS_THAT_ROUTE_NOWHERE, '\\dashboard\\agentics', '/dashboard/agentics']) {
+      expect(isAgenticsDoorPath(path), path).toBe(true);
+      expect(isAgenticsVaultPath(path), path).toBe(false);
+      expect(normalizeAgenticsPath(path), path).toBe('/dashboard/agentics');
+    }
+  });
+
+  it('the gate decision for the letter is open for everyone, the owner included, and never reads a session', async () => {
+    for (const session of [null, { tenantId: OTHER_TENANT_ID }, { tenantId: OWNER_TENANT_ID }, { tenantId: DEMO_TENANT_ID, isDemo: true }]) {
+      state.session = session;
+      for (const path of ['/dashboard/agentics', '/dashboard/agentics/', '//dashboard/agentics', '/dashboard/%61gentics']) {
+        expect(await agenticsGate(new Request('https://almstins.com/dashboard/agentics'), path), path).toEqual({ kind: 'open' });
+      }
+    }
+    expect(state.sessionCalls).toBe(0);
+  });
+
+  it('the letter is not a public path: it still needs a session, and app.ts sends a signed-out visitor to sign in', () => {
+    expect(isPublicPath('/dashboard/agentics')).toBe(false);
+    expect(isPublicPath('/dashboard/agentics/')).toBe(false);
+  });
+});
+
+describe('the exemption is the exact path: nothing below the letter and no spelling of a Vault path passes as the letter', () => {
+  // Each is a way to try to pass the Reports page or an endpoint off as the letter. Every one must be
+  // hidden from everyone but the owner, and none may be treated as the letter.
+  const ATTEMPTS: Array<[string, string[]]> = [
+    ['double slashes', [
+      '/dashboard/agentics//reports',
+      '/dashboard//agentics//reports',
+      '//dashboard//agentics//reports//',
+      '/dashboard/agentics///reports/abc',
+      '/api/agentics//tins',
+      '//api//agentics//tins',
+    ]],
+    ['trailing dots and dot segments', [
+      '/dashboard/agentics/reports.',
+      '/dashboard/agentics/reports/.',
+      '/dashboard/agentics/./reports',
+      '/dashboard/agentics/../agentics/reports',
+      '/dashboard/agentics/%2e/reports',
+      '/dashboard/agentics/%2E%2E/agentics/reports',
+      '/dashboard/agentics/.%2e/agentics/reports',
+      '/api/agentics/./tins',
+      '/api/agentics/../agentics/tins',
+    ]],
+    ['percent-encoded slashes and dots', [
+      '/dashboard/agentics%2Freports',
+      '/dashboard/agentics%2freports',
+      '/dashboard%2Fagentics%2Freports',
+      '/dashboard/agentics%252Freports',
+      '/dashboard/agentics%25252Freports',
+      '/dashboard/agentics/reports%2F',
+      '/dashboard/agentics%2F%2e%2e%2Fagentics%2Freports',
+      '/dashboard/agentics%2F.%2Freports',
+      '/dashboard/agentics/%2e%2e%2freports',
+      '/dashboard/agentics/%2Ereports',
+      '/api/agentics%2Ftins',
+      '/api/agentics%2F%2e%2e%2Fagentics%2Ftins',
+    ]],
+    ['case changes', [
+      '/DASHBOARD/AGENTICS/reports',
+      '/Dashboard/Agentics/Reports/ABC',
+      '/dashboard/AGENTICS/REPORTS',
+      '/API/AGENTICS/TINS',
+      '/Api/Agentics',
+    ]],
+    ['a query string or a fragment', [
+      '/dashboard/agentics/reports?x=1',
+      '/dashboard/agentics/reports?next=/dashboard/agentics',
+      '/api/agentics/tins?next=/dashboard/agentics',
+      '/api/agentics/tins?next=%2Fdashboard%2Fagentics',
+      '/dashboard/agentics/reports#/dashboard/agentics',
+      '/dashboard/agentics/reports%3Fx',
+      '/dashboard/agentics/reports%23x',
+    ]],
+    ['the page file name', [
+      '/dashboard/agentics/index.astro',
+      '/dashboard/agentics/index',
+      '/dashboard/agentics/index.html',
+      '/dashboard/agentics/index/',
+    ]],
+    ['another Vault prefix', [
+      '/api/agentics',
+      '/api/agentics/',
+      '/api/agentics/tins',
+    ]],
+  ];
+
+  for (const [what, paths] of ATTEMPTS) {
+    it(`${what}: hidden from signed-out, demo and other accounts, through the real middleware`, async () => {
+      for (const session of [null, { tenantId: DEMO_TENANT_ID, isDemo: true }, { tenantId: OTHER_TENANT_ID }]) {
+        state.session = session;
+        for (const path of paths) await expectHidden(path);
+      }
+    });
+
+    it(`${what}: a Vault path, never the letter, and open to the owner`, async () => {
+      for (const path of paths) {
+        expect(isAgenticsVaultPath(path), path).toBe(true);
+        expect(isAgenticsDoorPath(path), path).toBe(false);
+      }
+      state.session = { tenantId: OWNER_TENANT_ID };
+      for (const path of paths) {
+        const { res, rendered } = await run(path);
+        expect(res.status, path).toBe(200);
+        expect(rendered, path).toEqual(['route']);
+        expect(res.headers.get('Cache-Control'), path).toBe('private, no-store');
+      }
+    });
+  }
+
+  // A dot segment before the prefix is resolved by the URL parser (a literal one or %2e) before the
+  // middleware reads a pathname, so the gate only ever sees the Vault path it resolves to. The
+  // text-only functions do not resolve dot segments; they never need to for the exemption, which
+  // admits nothing but the normalized bare path.
+  it('a dot segment before the prefix is resolved by the URL parser and the Vault path it names is hidden', async () => {
+    for (const session of [null, { tenantId: DEMO_TENANT_ID, isDemo: true }, { tenantId: OTHER_TENANT_ID }]) {
+      state.session = session;
+      for (const path of [
+        '/dashboard/./agentics/reports',
+        '/dashboard/%2e/agentics/reports',
+        '/dashboard/x/../agentics/reports',
+        '/dashboard/agentics/../../dashboard/agentics/reports',
+        '/api/./agentics/tins',
+        '/api/%2E/agentics/tins',
+      ]) {
+        await expectHidden(path);
+      }
+    }
+  });
+
+  // Dot segments as the gate may be handed them as raw text (the URL parser resolves them before the
+  // middleware reads a pathname, but the exemption must not lean on that): still a Vault path.
+  it('raw dot segments and dot-dot segments below the letter stay Vault paths', async () => {
+    for (const path of [
+      '/dashboard/agentics/.',
+      '/dashboard/agentics/..',
+      '/dashboard/agentics/./reports',
+      '/dashboard/agentics/../agentics/reports',
+      '/dashboard/agentics/%2e',
+      '/dashboard/agentics/%2e%2e/agentics/reports',
+      '/dashboard/agentics/.%2e/agentics/reports',
+    ]) {
+      expect(isAgenticsVaultPath(path), path).toBe(true);
+      expect(isAgenticsDoorPath(path), path).toBe(false);
+      state.session = { tenantId: OTHER_TENANT_ID };
+      expect(await agenticsGate(new Request('https://almstins.com/x'), path), path).toEqual({ kind: 'hidden', hasSession: true });
+    }
+  });
+
+  // A path that only starts with the prefix is a different path: not the letter and not a Vault path
+  // (nothing is routed there), so decided exactly as before the exemption existed.
+  it('look-alikes that merely start with the prefix are neither the letter nor a Vault path, and are untouched', async () => {
+    const lookAlikes = [
+      '/dashboard/agenticsX',
+      '/dashboard/agenticsx/reports',
+      '/dashboard/agentics-reports',
+      '/dashboard/agentics_',
+      '/dashboard/agentics.',
+      '/dashboard/agentics%20',
+      '/dashboard/agentic',
+      '/dashboard/x/agentics',
+      '/x/dashboard/agentics',
+      '/api/agenticsX',
+    ];
+    state.session = { tenantId: OTHER_TENANT_ID };
+    for (const path of lookAlikes) {
+      expect(isAgenticsDoorPath(path), path).toBe(false);
+      expect(isAgenticsVaultPath(path), path).toBe(false);
+      const { res, rendered } = await run(path);
+      expect(res.status, path).toBe(200);
+      expect(rendered, path).toEqual(['route']);
+    }
+    expect(state.sessionCalls).toBe(0);
+  });
+
+  it('the exemption does not reach the other Vault prefix, bare or with a slash', () => {
+    for (const path of ['/api/agentics', '/api/agentics/', '//api//agentics//', '/API/AGENTICS', '/api%2Fagentics']) {
+      expect(isAgenticsVaultPath(path), path).toBe(true);
+      expect(isAgenticsDoorPath(path), path).toBe(false);
+    }
+  });
+
+  it('isAgenticsDoorPath is false for the Vault, the other Agentics pages and unrelated paths', () => {
+    for (const path of [
+      '/dashboard/agentics/reports', '/dashboard/agentics/reports/abc', '/dashboard/agentics/index.astro', '/api/agentics/tins',
+      '/agentics', '/agentics/', '/agentics/docs', '/agentics/login', '/dashboard', '/dashboard/', '/dashboard/vault', '/', '',
+    ]) {
+      expect(isAgenticsDoorPath(path), path).toBe(false);
     }
   });
 });
@@ -297,6 +585,8 @@ describe('Agent Vault gate: other paths are untouched, above all the live public
     for (const path of [
       '/agentics',
       '/agentics/',
+      '/agentics/docs',
+      '/agentics/login',
       '/agentic',
       '/agenticsx',
       '/api/agentic',
@@ -321,8 +611,8 @@ describe('Agent Vault gate: other paths are untouched, above all the live public
     expect(state.sessionCalls).toBe(0);
   });
 
-  it('/agentics (the docs) and /api/verify/check stay public and skip app.ts', async () => {
-    for (const path of ['/agentics', '/agentics/', '/api/verify/check']) {
+  it('the Agentics pages (landing, docs, sign-in) and /api/verify/check stay public and skip app.ts', async () => {
+    for (const path of ['/agentics', '/agentics/', '/agentics/docs', '/agentics/login', '/api/verify/check']) {
       expect(isPublicPath(path), path).toBe(true);
       const { res, rendered } = await run(path);
       expect(res.status, path).toBe(200);
@@ -352,11 +642,11 @@ describe('Agent Vault gate next to PetroTins', () => {
     state.session = { tenantId: OTHER_TENANT_ID };
     await expectHidden('/dashboard/petro-tins');
     await expectHidden('/api/petro-tins');
-    await expectHidden('/dashboard/agentics');
+    await expectHidden('/dashboard/agentics/reports');
     await expectHidden('/api/agentics/tins');
 
     state.session = { tenantId: OWNER_TENANT_ID };
-    for (const path of ['/dashboard/petro-tins', '/api/petro-tins', '/dashboard/agentics', '/api/agentics/tins']) {
+    for (const path of ['/dashboard/petro-tins', '/api/petro-tins', '/dashboard/agentics/reports', '/api/agentics/tins']) {
       const { res, rendered } = await run(path);
       expect(res.status, path).toBe(200);
       expect(rendered, path).toEqual(['route']);
@@ -388,14 +678,15 @@ describe('isAgenticsVaultPath', () => {
   it('matches both Vault prefixes in every spelling', () => {
     for (const [path] of VAULT_PATHS) expect(isAgenticsVaultPath(path), path).toBe(true);
     for (const path of VARIANTS) expect(isAgenticsVaultPath(path), path).toBe(true);
-    expect(isAgenticsVaultPath('/dashboard/agentics#x')).toBe(true);
-    expect(isAgenticsVaultPath('\\dashboard\\agentics')).toBe(true);
+    expect(isAgenticsVaultPath('/dashboard/agentics/reports#x')).toBe(true);
+    expect(isAgenticsVaultPath('\\dashboard\\agentics\\reports')).toBe(true);
     expect(isAgenticsVaultPath('/api/agentics/%')).toBe(true);
+    expect(isAgenticsVaultPath('/dashboard/agentics/%')).toBe(true);
   });
 
   it('does not match look-alikes, the docs page, or unrelated paths', () => {
     for (const path of [
-      '/agentics', '/agentics/', '/agentics/anything', '/agentic', '/dashboard/agentic', '/dashboard/agenticsx', '/api/agenticsx',
+      '/agentics', '/agentics/', '/agentics/docs', '/agentics/login', '/agentics/anything', '/agentic', '/dashboard/agentic', '/dashboard/agenticsx', '/api/agenticsx',
       '/api/agentic', '/xapi/agentics', '/x/dashboard/agentics', '/api/verify/check', '/api/verify/agent-keys', '/dashboard/vault',
       '/verify/agents', '/', '', '/api', '/dashboard',
     ]) {
@@ -426,7 +717,7 @@ describe('canAccessAgenticsVault', () => {
 });
 
 describe("the 404 page pass is only ever Astro's 404 route for a request the gate refused", () => {
-  const path = '/dashboard/agentics';
+  const path = '/dashboard/agentics/reports';
   const HIDDEN_SIGNED_OUT = { kind: 'hidden', hasSession: false };
 
   it('a refused request, rendered as the 404 route, is the 404 page pass; any other render is refused again', async () => {
