@@ -124,6 +124,8 @@ type Expr =
 	| { kind: 'isnull'; not: boolean; operand: Operand }
 	| { kind: 'like'; not: boolean; left: Operand; right: Operand }
 	| { kind: 'in'; left: Operand; items: Operand[] }
+	/** NOT EXISTS (...) or NOT ( ... ): the negation of a whole condition. */
+	| { kind: 'not'; inner: Expr }
 	/** EXISTS (SELECT 1 FROM table alias WHERE ...): `where` may name the outer query's columns. */
 	| { kind: 'exists'; table: string; alias: string; where: Expr };
 
@@ -182,6 +184,13 @@ class ExprParser {
 	}
 	private primary(): Expr {
 		const t = this.toks[this.pos];
+		if (this.peekWord('NOT')) {
+			const next = this.toks[this.pos + 1];
+			if (next && ((next.t === 'word' && next.v.toUpperCase() === 'EXISTS') || (next.t === 'punct' && next.v === '('))) {
+				this.pos++;
+				return { kind: 'not', inner: this.primary() };
+			}
+		}
 		if (this.peekWord('EXISTS')) { this.pos++; return this.exists(); }
 		if (t && t.t === 'punct' && t.v === '(') {
 			this.pos++;
@@ -240,6 +249,7 @@ function exprColumns(e: Expr, out: string[] = []): string[] {
 	const op = (o: Operand) => { if (o.kind === 'col') out.push(o.name); };
 	switch (e.kind) {
 		case 'and': case 'or': exprColumns(e.left, out); exprColumns(e.right, out); break;
+		case 'not': exprColumns(e.inner, out); break;
 		case 'isnull': op(e.operand); break;
 		case 'cmp': case 'like': op(e.left); op(e.right); break;
 		case 'in': op(e.left); e.items.forEach(op); break;
@@ -251,6 +261,7 @@ function exprColumns(e: Expr, out: string[] = []): string[] {
 /** The EXISTS subqueries in an expression, so their columns can be checked up front. */
 function existsNodes(e: Expr, out: Array<Extract<Expr, { kind: 'exists' }>> = []): Array<Extract<Expr, { kind: 'exists' }>> {
 	if (e.kind === 'and' || e.kind === 'or') { existsNodes(e.left, out); existsNodes(e.right, out); }
+	if (e.kind === 'not') existsNodes(e.inner, out);
 	if (e.kind === 'exists') out.push(e);
 	return out;
 }
@@ -294,6 +305,7 @@ function evalExpr(e: Expr, get: (col: string) => unknown, args: unknown[], env?:
 	switch (e.kind) {
 		case 'and': return evalExpr(e.left, get, args, env) && evalExpr(e.right, get, args, env);
 		case 'or': return evalExpr(e.left, get, args, env) || evalExpr(e.right, get, args, env);
+		case 'not': return !evalExpr(e.inner, get, args, env);
 		case 'exists': {
 			if (!env) throw new Error('fake db: EXISTS is supported only in SELECT');
 			return subqueryRows(e, get, args, env).length > 0;
@@ -636,17 +648,20 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 			if (owners.length > 1) throw new Error(`column reference "${ref}" is ambiguous`);
 			return { alias: owners[0].alias, col: ref };
 		};
-		// An EXISTS names its own table's columns (by its alias, or bare) and the outer query's.
-		const checkExists = (nodes: Array<Extract<Expr, { kind: 'exists' }>>) => {
+		// An EXISTS names its own table's columns (by its alias, or bare), then those of any EXISTS it
+		// sits inside (innermost first), then the outer query's: the order the rows are read in below.
+		const checkExists = (nodes: Array<Extract<Expr, { kind: 'exists' }>>, enclosing: Array<Extract<Expr, { kind: 'exists' }>> = []) => {
 			for (const n of nodes) {
 				const inner = requireTable(n.table);
+				const chain = [n, ...enclosing];
 				for (const ref of exprColumns(n.where)) {
 					if (ref.includes('.')) {
 						const [a, c] = ref.split('.');
-						if (a === n.alias) requireColumn(n.table, c); else resolve(ref);
-					} else if (!inner.has(ref)) resolve(ref);
+						const scope = chain.find((s) => s.alias === a);
+						if (scope) requireColumn(scope.table, c); else resolve(ref);
+					} else if (!inner.has(ref) && !enclosing.some((s) => requireTable(s.table).has(ref))) resolve(ref);
 				}
-				checkExists(existsNodes(n.where));
+				checkExists(existsNodes(n.where), chain);
 			}
 		};
 		const getter = (pair: Record<string, Row>) => (ref: string): unknown => {

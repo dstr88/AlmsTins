@@ -20,6 +20,7 @@ import { onboardingLocales } from '@/i18n/emails/onboarding';
 import { businessLocales } from '@/i18n/emails/business';
 import { ensureReceivablesTables } from '@/lib/receivablesRegistry';
 import { ensureCairnTables } from '@/lib/cairnRegistry';
+import { ensureAgenticsSignupsTable } from '@/lib/agenticsSignup';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -117,10 +118,29 @@ const financingOnlyUser = (userCol: string) => `
       )
   )`;
 
-/** The financing tables are created lazily; make sure they exist before the filter reads them. */
-async function ensureFinancingTables(): Promise<void> {
+/**
+ * Agentics-only accounts: the user owns a tenant that came in through the Agentics door
+ * (agentics_signups, src/lib/agenticsSignup.ts) and has no wallets. The onboarding campaign is about
+ * wallets and crypto taxes, the wrong message for them, and the Agentics welcome letter promises one
+ * more email (when the vault opens) and no newsletter. So they are skipped at enrollment and again at
+ * send time, like financing-only accounts; an account that later adds a wallet is a tracker user and
+ * becomes eligible. The signup row is written the first time the account opens its welcome page, which
+ * follows sign-in at once, and the send-time check covers the moment in between. `userCol` is a
+ * trusted column reference, never user input. Every subquery is scoped by the owned tenant.
+ */
+export const agenticsOnlyUser = (userCol: string): string => `
+  EXISTS (
+    SELECT 1 FROM tenant_memberships tm
+    WHERE tm.user_id = ${userCol} AND tm.role = 'owner'
+      AND NOT EXISTS (SELECT 1 FROM wallets w WHERE w.tenant_id = tm.tenant_id)
+      AND EXISTS (SELECT 1 FROM agentics_signups s WHERE s.tenant_id = tm.tenant_id)
+  )`;
+
+/** The tables the exclusion filters read are created lazily; make sure they exist before the filters run. */
+async function ensureExclusionTables(): Promise<void> {
   await ensureReceivablesTables();
   await ensureCairnTables();
+  await ensureAgenticsSignupsTable();
 }
 
 /**
@@ -133,9 +153,9 @@ const reachableUser = (alias: string) => `(
     OR EXISTS (SELECT 1 FROM auth_accounts a WHERE a.user_id = ${alias}.id)
   )`;
 
-/** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only accounts. */
+/** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only and Agentics-only accounts. */
 async function enrollOnboarding(): Promise<number> {
-  await ensureFinancingTables();
+  await ensureExclusionTables();
   const res = await db.execute({
     sql: `SELECT au.id, au.email, au.lang, au.created_at
           FROM auth_users au
@@ -144,7 +164,8 @@ async function enrollOnboarding(): Promise<number> {
             AND substr(au.created_at, 1, 10) >= ?
             AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'onboarding')
             AND ${reachableUser('au')}
-            AND NOT ${financingOnlyUser('au.id')}`,
+            AND NOT ${financingOnlyUser('au.id')}
+            AND NOT ${agenticsOnlyUser('au.id')}`,
     args: [CAMPAIGN_START_DATE],
   });
   return insertEnrollments('onboarding', res.rows as any[], (r) => String(r.created_at));
@@ -179,21 +200,22 @@ export async function enrollForCampaign(campaign: Campaign): Promise<number> {
  * Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due, and
  * whose account still exists: a deleted account's enrollment never sends, even if its
  * campaign_drip row outlived the delete.
- * Onboarding also re-checks the financing-only rule at send time: an account enrolled at signup
- * that has since turned out to be financing-only gets no further tracker emails. If that check
- * errors, the whole call throws and the cron sends nothing this run (no email beats a wrong one).
+ * Onboarding also re-checks the financing-only and Agentics-only rules at send time: an account enrolled
+ * at signup that has since turned out to be financing-only or Agentics-only gets no further tracker
+ * emails. If that check errors, the whole call throws and the cron sends nothing this run (no email
+ * beats a wrong one).
  */
 export async function getDueDrips(campaign: Campaign, limit = 200): Promise<DueDrip[]> {
   await ensureDripTable();
   const cadence = CAMPAIGNS[campaign].cadence;
   const skipFinancingOnly = campaign === 'onboarding';
-  if (skipFinancingOnly) await ensureFinancingTables();
+  if (skipFinancingOnly) await ensureExclusionTables();
   const res = await db.execute({
     sql: `SELECT user_id, email, lang, enrolled_at, last_step, unsub_token
           FROM campaign_drip
           WHERE campaign = ? AND unsubscribed = 0 AND last_step < ?
             AND EXISTS (SELECT 1 FROM auth_users au WHERE au.id = campaign_drip.user_id)
-            ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')}` : ''}
+            ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')} AND NOT ${agenticsOnlyUser('campaign_drip.user_id')}` : ''}
           ORDER BY enrolled_at ASC
           LIMIT ?`,
     args: [campaign, cadence.length, limit],

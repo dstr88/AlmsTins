@@ -90,6 +90,7 @@ export const en: PrivacyLocale = {
   <li>Check links and wallet addresses that appear in email sent to or from our own inboxes against phishing, sanctions, and mixer lists we hold ourselves. Nothing from those messages is sent to an outside service for this.</li>
   <li>Answer public checks on Verify Destinations you have proven (Section 5), and show a receivables record to anyone holding its ID (Section 3.1).</li>
   <li>Send you a short series of getting-started emails after you sign up, and a series about Almstins Verify after you register your first Verify Destination. They describe features, including our paid plans. Accounts that use only our financing desks do not get the first series. Each email has an unsubscribe link that stops the rest of that series.</li>
+  <li>Send you a welcome email when you create an Almstins Agentics account, and one email when the Almstins Agentics vault opens. Accounts that use only Almstins Agentics do not get the getting-started series.</li>
   <li>Operate community safety features, if offered, in anonymized, aggregated form (Section 6).</li>
   <li>Respond to your support requests.</li>
   <li>Improve the Service through analytics (Sections 3.2 and 9).</li>
@@ -265,6 +266,7 @@ export const es: PrivacyLocale = {
   <li>Comprobar los enlaces y las direcciones de wallet que aparecen en los correos enviados a nuestros propios buzones o desde ellos, contrastándolos con listas de phishing, de sanciones y de mezcladores (mixers) que conservamos nosotros mismos. Para ello, nada de esos mensajes se envía a un servicio externo.</li>
   <li>Responder a las consultas públicas sobre los Destinos de Verify que usted ha demostrado (Sección 5) y mostrar un registro de cuentas por cobrar a cualquier persona que tenga su ID (Sección 3.1).</li>
   <li>Enviarle una breve serie de correos de introducción después de registrarse, y una serie sobre Almstins Verify después de registrar su primer Destino en Verify. Describen funciones, incluidos nuestros planes de pago. Las cuentas que solo usan nuestras mesas de financiación no reciben la primera serie. Cada correo incluye un enlace para darse de baja que detiene el resto de esa serie.</li>
+  <li>Enviarle un correo de bienvenida cuando cree una cuenta de Almstins Agentics, y un correo cuando se abra el Vault de Almstins Agentics. Las cuentas que solo usan Almstins Agentics no reciben la serie de correos de introducción.</li>
   <li>Operar las funciones de seguridad comunitaria, si se ofrecen, de forma anónima y agregada (Sección 6).</li>
   <li>Responder a sus solicitudes de soporte.</li>
   <li>Mejorar el Servicio mediante analíticas (Secciones 3.2 y 9).</li>
@@ -440,6 +442,7 @@ export const fr: PrivacyLocale = {
   <li>Comparer les liens et les adresses de wallet qui figurent dans les e-mails envoyés à nos propres boîtes de réception ou depuis celles-ci avec des listes d'hameçonnage, de sanctions et de mixeurs que nous conservons nous-mêmes. Pour cela, rien de ces messages n'est transmis à un service extérieur.</li>
   <li>Répondre aux vérifications publiques portant sur les Destinations Verify dont vous avez prouvé le contrôle (Section 5), et montrer une fiche de créance à toute personne détenant son identifiant (Section 3.1).</li>
   <li>Vous envoyer une courte série d'e-mails de prise en main après votre inscription, et une série consacrée à Almstins Verify après l'enregistrement de votre première Destination Verify. Ils présentent des fonctionnalités, y compris nos abonnements payants. Les comptes qui n'utilisent que nos bureaux de financement ne reçoivent pas la première série. Chaque e-mail contient un lien de désabonnement qui arrête le reste de cette série.</li>
+  <li>Vous envoyer un e-mail de bienvenue lorsque vous créez un compte Almstins Agentics, et un e-mail à l'ouverture du Vault Almstins Agentics. Les comptes qui n'utilisent qu'Almstins Agentics ne reçoivent pas la série d'e-mails de prise en main.</li>
   <li>Faire fonctionner les fonctionnalités de sécurité communautaire, si elles sont proposées, de manière anonymisée et agrégée (Section 6).</li>
   <li>Répondre à vos demandes de support.</li>
   <li>Améliorer le Service grâce à l'analytique (Sections 3.2 et 9).</li>
