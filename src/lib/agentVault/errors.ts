@@ -12,11 +12,23 @@ export type VaultError =
   | 'key_not_found' | 'key_not_active' | 'key_in_use'
   | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor' | 'refresh_in_progress'
   | 'invalid_period' | 'report_not_found' | 'not_signed' | 'report_altered' | 'signing_unavailable' | 'invalid_settings'
-  | 'rate_limited' | 'version_limit';
+  | 'rate_limited' | 'version_limit'
+  | 'plan_limit';
 
-export type Failure = { ok: false; error: VaultError; max?: number };
+/** Which of an account's caps a refused create ran into: its agents, its registered addresses, or one agent's own wallets. */
+export type PlanCap = 'bots' | 'addresses' | 'wallets';
+
+/**
+ * A refusal. `max` is the most a request may carry (too_many, text_too_long) or the most versions
+ * a day may have (version_limit). `plan_limit` also says which cap (`cap`), what it is (`limit`) and
+ * how much of it the account uses now (`used`), so a screen can say it in words.
+ */
+export type Failure = { ok: false; error: VaultError; max?: number; cap?: PlanCap; limit?: number; used?: number };
 
 export const fail = (error: VaultError, max?: number): Failure => (max === undefined ? { ok: false, error } : { ok: false, error, max });
+
+/** A create refused because the account is at its cap (HTTP 409 plan_limit). */
+export const failLimit = (cap: PlanCap, limit: number, used: number): Failure => ({ ok: false, error: 'plan_limit', cap, limit, used });
 
 /** An id from a client: a non-empty string of at most 64 characters (trimmed), or null. */
 export const idOf = (raw: unknown): string | null => {

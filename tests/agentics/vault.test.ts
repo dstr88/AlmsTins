@@ -22,7 +22,12 @@ vi.mock('@/lib/db', () => ({
       holder.intercept?.(sql.replace(/\s+/g, ' ').trim(), typeof s === 'string' ? [] : s.args ?? []);
       return holder.db.execute(s);
     },
-    batch: (s: any, m?: any) => holder.db.batch(s, m),
+    // Each statement of a batch goes through the same intercept as a lone one, so a test can play a
+    // database error (or a request that won a race) on the capped inserts, which run as a batch.
+    batch: (s: any, m?: any) => {
+      for (const st of s) holder.intercept?.((typeof st === 'string' ? st : st.sql).replace(/\s+/g, ' ').trim(), typeof st === 'string' ? [] : st.args ?? []);
+      return holder.db.batch(s, m);
+    },
   },
 }));
 const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>> }));

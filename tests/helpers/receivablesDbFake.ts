@@ -9,7 +9,11 @@
  * (EXISTS (...)) AS x) or a correlated sum ((SELECT COALESCE(SUM(c.col), 0) FROM t c WHERE ...)
  * AS x), ordered by one or more columns, COALESCE terms or parenthesized
  * expressions with ASC / DESC and NULLS FIRST / LAST) and evaluates it against
- * plain row objects. db.batch runs its statements in order as one transaction: when one throws,
+ * plain row objects. It also runs the Agent Vault's capped insert, INSERT INTO t (cols) SELECT ?, ... WHERE
+ * (SELECT COUNT(*) FROM u WHERE ...) < ? (a row goes in only while the count is under the cap), and
+ * accepts SELECT pg_advisory_xact_lock(<n>, hashtext(?)) as a lock that does nothing: with no
+ * concurrency here, the real race is proved on a real Postgres, not in this stand-in.
+ * db.batch runs its statements in order as one transaction: when one throws,
  * every table is put back the way it was before the batch. SET LOCAL lock_timeout is accepted and
  * does nothing (there are no locks here). Because the registry's real WHERE clauses run here, a dropped
  * `AND tenant_id = ?` shows up as a wrong answer in a test, not only in review.
@@ -428,6 +432,19 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 	}
 
 	function insert(sql: string, args: unknown[]) {
+		// INSERT INTO t (cols) SELECT ?, ... WHERE (SELECT COUNT(*) FROM u WHERE <expr>) < ?
+		// The row goes in only while the count is under the cap; otherwise nothing is written.
+		const capped = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) SELECT (.*?) WHERE \(SELECT COUNT\(\*\) FROM (\w+) WHERE (.*)\) < \?$/i);
+		if (capped) {
+			const [, table, colList, valList, countTable, countWhere] = capped;
+			const placeholders = splitTopLevel(valList);
+			const where = new ExprParser(tokenize(countWhere), { next: placeholders.length }).parse();
+			exprColumns(where).forEach((c) => requireColumn(countTable, c));
+			const used = rowsOf(countTable).filter((row) => evalExpr(where, (c) => row[c], args)).length;
+			const cap = Number(args[args.length - 1]);
+			if (!(used < cap)) return { rows: [], rowsAffected: 0 };
+			return insert(`INSERT INTO ${table} (${colList}) VALUES (${valList})`, args.slice(0, placeholders.length));
+		}
 		const m = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) VALUES \((.*?)\)(?: ON CONFLICT \(([^)]*)\) DO (NOTHING|UPDATE SET (.*)))?$/i);
 		if (!m) throw new Error(`fake db: unsupported INSERT: ${sql}`);
 		const [, table, colList, valList, conflictCols, , updateSet] = m;
@@ -774,6 +791,9 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 		if (options.failDml?.(sql, args)) throw new Error(`fake db: statement failed on purpose: ${sql.slice(0, 80)}`);
 		if (head.startsWith('INSERT ')) return { entry, result: insert(sql, args) };
 		if (head.startsWith('UPDATE ')) return { entry, result: update(sql, args) };
+		if (/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/i.test(sql)) {
+			return { entry, result: { rows: [{ pg_advisory_xact_lock: '' }], rowsAffected: 0 } };
+		}
 		if (head.startsWith('SELECT ')) return { entry, result: select(sql, args) };
 		if (head.startsWith('DELETE ')) return { entry, result: del(sql, args) };
 		throw new Error(`fake db: unsupported statement: ${sql}`);

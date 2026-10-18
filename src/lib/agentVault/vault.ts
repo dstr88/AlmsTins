@@ -5,6 +5,11 @@
  * Every operation takes the tenant first and passes it to every query. Nothing here ever
  * returns, or accepts, a tenant id from a client.
  *
+ * A plan's caps (./entitlements.ts) are enforced here: creating an agent, listing an own wallet and
+ * registering an address each stop at the account's limit, atomically (the capped inserts in
+ * ./store.ts), with `plan_limit` and the cap, its limit and the account's use. A removed row frees
+ * its slot.
+ *
  * Add + Trust: pasted destinations are stored as pending, then checked in one batch, and a
  * result is written only from a stored readout. A destination that fails a check becomes
  * "flagged", is kept and listed (never silently dropped), and stays flagged. A check that could
@@ -20,12 +25,19 @@ import {
   type VaultChain,
 } from './addresses';
 import {
+  countLiveDestinations,
+  countLiveTins,
+  countLiveWallets,
+  findLiveDestination,
   findLiveTinByKey,
   getDestinations,
   getTin,
   insertDestination,
+  insertDestinationWithinCap,
   insertTin,
+  insertTinWithinCap,
   insertWallet,
+  insertWalletWithinCap,
   isUniqueViolation,
   listDestinations,
   listTins,
@@ -40,7 +52,8 @@ import {
   type Destination,
   type Tin,
 } from './store';
-import { fail, idOf, type Failure, type VaultError } from './errors';
+import { getEntitlements } from './entitlements';
+import { fail, failLimit, idOf, type Failure, type VaultError } from './errors';
 import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type TinTotals } from './events';
 import { defaultTrustDeps, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
@@ -102,8 +115,12 @@ export async function createTin(
     const refused = await checkKeyLinkable(tenantId, key.id, null);
     if (refused) return refused;
   }
+  const { limits } = await getEntitlements(tenantId);
   try {
-    return { ok: true, tin: await insertTin(tenantId, { label, agentKeyId: key.id, at: nowUtc() }) };
+    if (limits.bots === null) return { ok: true, tin: await insertTin(tenantId, { label, agentKeyId: key.id, at: nowUtc() }) };
+    const made = await insertTinWithinCap(tenantId, { label, agentKeyId: key.id, at: nowUtc() }, limits.bots);
+    if (made.kind === 'over_limit') return failLimit('bots', limits.bots, await countLiveTins(tenantId));
+    return { ok: true, tin: made.tin };
   } catch (e) {
     if (isUniqueViolation(e)) return fail('key_in_use');
     throw e;
@@ -181,7 +198,13 @@ export async function addWallet(
   const address = normalizeAddress(chain, input.address);
   if (!address) return fail('invalid_address');
   if (!(await getTin(tenantId, tinId))) return fail('tin_not_found');
-  const r = await insertWallet(tenantId, { tinId, chain, address, at: nowUtc() });
+  const { limits } = await getEntitlements(tenantId);
+  if (limits.walletsPerBot === null) {
+    const r = await insertWallet(tenantId, { tinId, chain, address, at: nowUtc() });
+    return { ok: true, added: r.kind === 'inserted', wallet: r.wallet };
+  }
+  const r = await insertWalletWithinCap(tenantId, { tinId, chain, address, at: nowUtc() }, limits.walletsPerBot);
+  if (r.kind === 'over_limit') return failLimit('wallets', limits.walletsPerBot, await countLiveWallets(tenantId, tinId));
   return { ok: true, added: r.kind === 'inserted', wallet: r.wallet };
 }
 
@@ -197,7 +220,8 @@ export interface SkippedLine {
   line: number;
   chain: VaultChain;
   address: string;
-  reason: 'already_registered' | 'repeated_in_paste';
+  /** `over_limit`: the account's plan has no slot left for it (nothing was stored). */
+  reason: 'already_registered' | 'repeated_in_paste' | 'over_limit';
   /** The destination that already holds the slot, for already_registered. */
   id?: string;
   trustStatus?: TrustStatus;
@@ -224,6 +248,9 @@ const storedTime = (iso: string): string => iso.slice(0, 19).replace('T', ' ');
  *
  *   - A line that is not an address is reported in `rejected` with a reason.
  *   - An address the tin already holds live, or repeats in the paste, is reported in `skipped`.
+ *   - An address the account's plan has no slot left for is reported in `skipped` as `over_limit`
+ *     and stores nothing. A paste that is longer than the slots left adds what fits and reports
+ *     the rest this way. When not one address fits, the whole request is refused: `plan_limit`.
  *   - Every other address is stored as pending, checked in one bounded batch, and then marked:
  *     trusted (every check we ran came back without a hit), flagged (one did), or left pending
  *     (a check could not run, so nothing is claimed).
@@ -251,10 +278,26 @@ export async function addDestinations(
   const skipped: SkippedLine[] = repeated.map((r) => ({ ...r, reason: 'repeated_in_paste' as const }));
   let added: Destination[] = [];
   const at = nowUtc();
+  const { limits } = await getEntitlements(tenantId);
+  // Once the plan has no slot left, no later address of this paste can take one, so it is not tried:
+  // it is reported over the limit, and an address that is already registered is still reported as that.
+  let full = false;
   for (const entry of unique) {
-    const r = await insertDestination(tenantId, { tinId, chain: entry.chain, address: entry.address, label: entry.label, at });
+    const row = { tinId, chain: entry.chain, address: entry.address, label: entry.label, at };
+    let r: Awaited<ReturnType<typeof insertDestinationWithinCap>>;
+    if (limits.addresses === null) {
+      r = await insertDestination(tenantId, row);
+    } else if (full) {
+      const held = await findLiveDestination(tenantId, tinId, entry.chain, entry.address);
+      r = held ? { kind: 'duplicate', destination: held } : { kind: 'over_limit' };
+    } else {
+      r = await insertDestinationWithinCap(tenantId, row, limits.addresses);
+    }
     if (r.kind === 'inserted') {
       added.push(r.destination);
+    } else if (r.kind === 'over_limit') {
+      full = true;
+      skipped.push({ line: entry.line, chain: entry.chain, address: entry.address, reason: 'over_limit' });
     } else {
       skipped.push({
         line: entry.line,
@@ -265,6 +308,10 @@ export async function addDestinations(
         trustStatus: r.destination.trustStatus,
       });
     }
+  }
+  // Nothing could be added because the plan is full: that is a refusal, not a paste that went through.
+  if (limits.addresses !== null && !added.length && skipped.some((x) => x.reason === 'over_limit')) {
+    return failLimit('addresses', limits.addresses, await countLiveDestinations(tenantId));
   }
 
   const checked = input.trust !== false && added.length > 0;

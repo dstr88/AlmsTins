@@ -2,7 +2,9 @@
  * The agent's OWN wallets, the ones it sends from and receives to. Owner only; not public.
  * The address goes in the body, never in the URL.
  *
- * POST   {tinId, chain, address}  -> register a wallet on a tin (adding one that is already there is a 200, added: false)
+ * POST   {tinId, chain, address}  -> register a wallet on a tin (adding one that is already there is a 200, added: false).
+ *          409 `plan_limit` (cap `wallets`, with `limit` and `used`) when the agent already lists as many
+ *          own wallets as its plan allows; removing a wallet frees its place.
  * DELETE ?id=                     -> remove a wallet from the tin (the row stays as history)
  *
  * Wallets are listed with their tin: GET /api/agentics/tins?id=.

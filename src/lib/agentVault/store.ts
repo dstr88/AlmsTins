@@ -15,6 +15,11 @@
  * same transaction. A hard delete happens only when the whole account is deleted
  * (src/lib/accountDeleteTables.ts).
  *
+ * A plan's caps (./entitlements.ts) are enforced here, in the statement, not only in the code that
+ * calls it: the *WithinCap inserts count the account's live rows and insert in one transaction
+ * that first takes an advisory lock for the account, so any number of requests at once can never
+ * fill more slots than the plan has. Rows that were removed (deleted_at set) do not count.
+ *
  * Schema is created lazily by ensureAgentVaultTables, the house pattern, and mirrored in
  * migrations-pg/0050_agent_vault.sql (tests/agentics/guards.test.ts keeps the two equal).
  */
@@ -150,6 +155,44 @@ function destinationFrom(r: any): Destination {
   };
 }
 
+// ── Plan caps ────────────────────────────────────────────────────────────────
+
+/** The first key of the advisory locks taken here ("AGVL"), so they never meet another feature's. */
+const CAP_LOCK_CLASS = 0x4147564c;
+
+/**
+ * The statement that opens a capped insert: an advisory lock for this account, held until the
+ * transaction ends. Two requests for one account take turns, so the second one counts the rows the
+ * first one wrote. Other accounts do not wait for each other (the second key is a hash of the
+ * account id). A hash collision only makes two accounts take turns, never share a count.
+ */
+const capLock = (tenantId: string): { sql: string; args: string[] } => ({
+  sql: `SELECT pg_advisory_xact_lock(${CAP_LOCK_CLASS}, hashtext(?))`,
+  args: [tenantId],
+});
+
+const count = (r: { rows: unknown[] }): number => Number((r.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+
+/** How many live agents the account has. */
+export async function countLiveTins(tenantId: string): Promise<number> {
+  await ensureAgentVaultTables();
+  return count(await db.execute({ sql: `SELECT COUNT(*) AS n FROM agent_tins WHERE tenant_id = ? AND deleted_at IS NULL`, args: [tenantId] }));
+}
+
+/** How many live registered destinations the account has, over all its agents. */
+export async function countLiveDestinations(tenantId: string): Promise<number> {
+  await ensureAgentVaultTables();
+  return count(await db.execute({ sql: `SELECT COUNT(*) AS n FROM agent_destinations WHERE tenant_id = ? AND deleted_at IS NULL`, args: [tenantId] }));
+}
+
+/** How many live own wallets one agent has. */
+export async function countLiveWallets(tenantId: string, tinId: string): Promise<number> {
+  await ensureAgentVaultTables();
+  return count(
+    await db.execute({ sql: `SELECT COUNT(*) AS n FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL`, args: [tenantId, tinId] }),
+  );
+}
+
 // ── Tins ─────────────────────────────────────────────────────────────────────
 
 const TIN_COLUMNS = `id, label, agent_key_id, created_at`;
@@ -162,6 +205,34 @@ export async function insertTin(tenantId: string, input: { label: string; agentK
     args: [id, tenantId, input.label, input.agentKeyId, input.at],
   });
   return { id, label: input.label, agentKeyId: input.agentKeyId, createdAt: input.at };
+}
+
+/**
+ * Adds a tin only while the account has fewer than `cap` live tins. The count and the insert run in
+ * one transaction, behind the account's lock (see capLock), so twenty requests at once for the
+ * last slot add one tin and refuse nineteen. `over_limit` writes nothing.
+ */
+export async function insertTinWithinCap(
+  tenantId: string,
+  input: { label: string; agentKeyId: string | null; at: string },
+  cap: number,
+): Promise<{ kind: 'inserted'; tin: Tin } | { kind: 'over_limit' }> {
+  await ensureAgentVaultTables();
+  const id = randomUUID();
+  const results = await db.batch(
+    [
+      capLock(tenantId),
+      {
+        sql: `INSERT INTO agent_tins (id, tenant_id, label, agent_key_id, created_at)
+              SELECT ?, ?, ?, ?, ?
+              WHERE (SELECT COUNT(*) FROM agent_tins WHERE tenant_id = ? AND deleted_at IS NULL) < ?`,
+        args: [id, tenantId, input.label, input.agentKeyId, input.at, tenantId, cap],
+      },
+    ],
+    'write',
+  );
+  if ((results[1]?.rowsAffected ?? 0) === 0) return { kind: 'over_limit' };
+  return { kind: 'inserted', tin: { id, label: input.label, agentKeyId: input.agentKeyId, createdAt: input.at } };
 }
 
 export async function listTins(tenantId: string): Promise<Tin[]> {
@@ -256,6 +327,43 @@ export async function insertWallet(
   return { kind: 'inserted', wallet: { id, tinId: input.tinId, chain: input.chain, address: input.address, createdAt: input.at } };
 }
 
+/**
+ * Adds a wallet unless the tin already has this one live, and only while the tin has fewer than
+ * `cap` live wallets (counted and inserted in one transaction, behind the account's lock). A wallet
+ * the tin already holds is a duplicate whatever the cap says: it takes no new slot.
+ */
+export async function insertWalletWithinCap(
+  tenantId: string,
+  input: { tinId: string; chain: VaultChain; address: string; at: string },
+  cap: number,
+): Promise<{ kind: 'inserted'; wallet: AgentWallet } | { kind: 'duplicate'; wallet: AgentWallet } | { kind: 'over_limit' }> {
+  const existing = await findLiveWallet(tenantId, input.tinId, input.chain, input.address);
+  if (existing) return { kind: 'duplicate', wallet: existing };
+  const id = randomUUID();
+  try {
+    const results = await db.batch(
+      [
+        capLock(tenantId),
+        {
+          sql: `INSERT INTO agent_wallets (id, tenant_id, tin_id, chain, address, created_at)
+                SELECT ?, ?, ?, ?, ?, ?
+                WHERE (SELECT COUNT(*) FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL) < ?`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.at, tenantId, input.tinId, cap],
+        },
+      ],
+      'write',
+    );
+    if ((results[1]?.rowsAffected ?? 0) === 0) return { kind: 'over_limit' };
+  } catch (e) {
+    // A concurrent add won the race for the live slot.
+    if (!isUniqueViolation(e)) throw e;
+    const raced = await findLiveWallet(tenantId, input.tinId, input.chain, input.address);
+    if (raced) return { kind: 'duplicate', wallet: raced };
+    throw e;
+  }
+  return { kind: 'inserted', wallet: { id, tinId: input.tinId, chain: input.chain, address: input.address, createdAt: input.at } };
+}
+
 export async function listWallets(tenantId: string, tinId: string): Promise<AgentWallet[]> {
   await ensureAgentVaultTables();
   const r = await db.execute({
@@ -305,6 +413,57 @@ export async function insertDestination(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at],
     });
+  } catch (e) {
+    // A concurrent add won the race for the live slot.
+    if (!isUniqueViolation(e)) throw e;
+    const raced = await findLiveDestination(tenantId, input.tinId, input.chain, input.address);
+    if (raced) return { kind: 'duplicate', destination: raced };
+    throw e;
+  }
+  return {
+    kind: 'inserted',
+    destination: {
+      id,
+      tinId: input.tinId,
+      chain: input.chain,
+      address: input.address,
+      label: input.label,
+      trustStatus: 'pending',
+      trustCheckedAt: null,
+      trust: null,
+      createdAt: input.at,
+    },
+  };
+}
+
+/**
+ * Adds a destination as pending, like insertDestination, and only while the account has fewer than
+ * `cap` live destinations over all its tins (counted and inserted in one transaction, behind the
+ * account's lock). An address the tin already holds live is a duplicate whatever the cap says: it
+ * takes no new slot.
+ */
+export async function insertDestinationWithinCap(
+  tenantId: string,
+  input: { tinId: string; chain: VaultChain; address: string; label: string | null; at: string },
+  cap: number,
+): Promise<{ kind: 'inserted'; destination: Destination } | { kind: 'duplicate'; destination: Destination } | { kind: 'over_limit' }> {
+  const existing = await findLiveDestination(tenantId, input.tinId, input.chain, input.address);
+  if (existing) return { kind: 'duplicate', destination: existing };
+  const id = randomUUID();
+  try {
+    const results = await db.batch(
+      [
+        capLock(tenantId),
+        {
+          sql: `INSERT INTO agent_destinations (id, tenant_id, tin_id, chain, address, label, trust_status, trust_checked_at, trust_detail_json, created_at)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE (SELECT COUNT(*) FROM agent_destinations WHERE tenant_id = ? AND deleted_at IS NULL) < ?`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at, tenantId, cap],
+        },
+      ],
+      'write',
+    );
+    if ((results[1]?.rowsAffected ?? 0) === 0) return { kind: 'over_limit' };
   } catch (e) {
     // A concurrent add won the race for the live slot.
     if (!isUniqueViolation(e)) throw e;

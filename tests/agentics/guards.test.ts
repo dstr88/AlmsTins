@@ -360,6 +360,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/delivery.ts',
       'src/lib/agentVault/deliveryStore.ts',
       'src/lib/agentVault/digest.ts',
+      'src/lib/agentVault/entitlements.ts',
       'src/lib/agentVault/errors.ts',
       'src/lib/agentVault/events.ts',
       'src/lib/agentVault/explorer.ts',
@@ -388,6 +389,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/destinations.ts',
       'src/pages/api/agentics/destinations/trust.ts',
       'src/pages/api/agentics/events.ts',
+      'src/pages/api/agentics/plan.ts',
       'src/pages/api/agentics/refresh.ts',
       'src/pages/api/agentics/report-settings.ts',
       'src/pages/api/agentics/reports.ts',
@@ -450,6 +452,11 @@ describe('the Vault keeps to the bright lines', () => {
     for (const file of slice4) {
       expect(read(file), file).not.toMatch(/@\/lib\/owner|OWNER_TENANT_ID|\bisOwner\b|titaniumhut|donnie@|ADMIN_(EMAIL|TENANT)/);
     }
+  });
+
+  it('only the plan and the gate know who the owner is: no other Vault file names the owner', () => {
+    const knows = VAULT_FILES.filter((f) => /@\/lib\/owner|\.\/owner'|OWNER_TENANT_ID|\bisOwner\b|titaniumhut|donnie@/.test(read(f))).sort();
+    expect(knows).toEqual(['src/lib/agentVault/entitlements.ts', 'src/lib/agenticsAccess.ts']);
   });
 
   it('never accepts a tenant id from a client', () => {

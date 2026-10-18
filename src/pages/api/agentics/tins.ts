@@ -3,7 +3,9 @@
  *
  * GET              -> the tenant's tins
  * GET    ?id=      -> one tin with its own wallets and its destinations
- * POST   {label, agentKeyId?}        -> create a tin (agentKeyId: an active key from /api/verify/agent-keys)
+ * POST   {label, agentKeyId?}        -> create a tin (agentKeyId: an active key from /api/verify/agent-keys).
+ *          409 `plan_limit` (cap `bots`, with `limit` and `used`) when the account already has as many
+ *          agents as its plan allows; removing an agent frees its place. See GET /api/agentics/plan.
  * PATCH  {id, label?, agentKeyId?}   -> rename, or link, relink or unlink (null) the agent key
  * DELETE ?id=      -> remove the tin; its wallets and destinations go with it, as history
  */

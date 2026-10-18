@@ -9,6 +9,10 @@
  *          sanctions, security screening, the Verify registry), and ends up trusted, flagged or
  *          pending. `trust: false` adds without checking. Answers
  *          "N added, M flagged": every line is in destinations, skipped or rejected.
+ *          An address the account's plan has no place left for is skipped with the reason
+ *          `over_limit` and stores nothing; a paste of which not one address fits is refused as a
+ *          whole, 409 `plan_limit` (cap `addresses`, with `limit` and `used`). The limit is for all
+ *          the account's agents together. Removing an address frees its place.
  * DELETE ?id=                          -> remove from the watched set; the row stays as history
  *
  * "Pass" means the address cleared the checks we ran. It never means the address is safe.

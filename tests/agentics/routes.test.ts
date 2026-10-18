@@ -61,6 +61,7 @@ let reportsRoute: typeof import('../../src/pages/api/agentics/reports');
 let pdfRoute: typeof import('../../src/pages/api/agentics/reports/pdf');
 let bundleRoute: typeof import('../../src/pages/api/agentics/reports/bundle');
 let settingsRoute: typeof import('../../src/pages/api/agentics/report-settings');
+let planRoute: typeof import('../../src/pages/api/agentics/plan');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -86,6 +87,7 @@ beforeEach(async () => {
   pdfRoute = await import('../../src/pages/api/agentics/reports/pdf');
   bundleRoute = await import('../../src/pages/api/agentics/reports/bundle');
   settingsRoute = await import('../../src/pages/api/agentics/report-settings');
+  planRoute = await import('../../src/pages/api/agentics/plan');
 });
 
 afterEach(() => {
@@ -128,6 +130,7 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['reports bundle GET', () => bundleRoute.GET, '/api/agentics/reports/bundle?id=x', 'GET'],
   ['report-settings GET', () => settingsRoute.GET, '/api/agentics/report-settings', 'GET'],
   ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', alerts: true }],
+  ['plan GET', () => planRoute.GET, '/api/agentics/plan', 'GET'],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -376,9 +379,9 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the eleven endpoint files', () => {
+  it('finds the twelve endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'plan.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 

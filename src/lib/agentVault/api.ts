@@ -51,6 +51,7 @@ const STATUS: Record<VaultError, number> = {
   invalid_settings: 400,
   rate_limited: 429,
   version_limit: 409,
+  plan_limit: 409,
 };
 
 /** A vault operation's failure as a response: its code, and its HTTP status (a throttled caller also gets a Retry-After). */
