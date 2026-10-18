@@ -1,9 +1,10 @@
 name: Agent Reports
 
-# Daily: the Agent Vault makes yesterday's operator report for every agent that did anything, and
-# emails the accounts that turned a digest on. Runs after the chain watcher (Sync Agent Wallets,
-# 08:10 UTC, which stops starting new reads after nine minutes) so a transfer is in the ledger
-# before the day's report is made.
+# Daily: the Agent Vault makes the operator reports of the last three days for every agent that did
+# anything, and emails the accounts that turned a digest on the digest of yesterday. Runs after the
+# chain watcher (Sync Agent Wallets, 08:10 UTC, which stops starting new reads after nine minutes)
+# so a transfer is in the ledger before the day's report is made. The job goes red when the run
+# reports a failed report, a failed send or a truncated run.
 on:
   schedule:
     - cron: '10 9 * * *'
@@ -38,3 +39,10 @@ jobs:
             -H "x-cron-secret: $CRON_SECRET"
           # Print only numbers and true/false fields (counts, ok). This repo's Actions logs are public.
           jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"
+          # Go red when the run says something went wrong: a report that could not be made, an email
+          # that could not be sent, or a run the deadline cut short. Prints no value, only this line.
+          # An answer that is not JSON, or not ok, is red too.
+          if ! jq -e '.ok == true and (.failedReports // 0) == 0 and (.failedSends // 0) == 0 and (.truncated // false) == false' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
+            echo "Agent Reports finished with a problem: failed reports, failed sends or a truncated run. See the counts above."
+            exit 1
+          fi

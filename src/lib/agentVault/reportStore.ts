@@ -163,14 +163,34 @@ export async function insertReportVersion(tenantId: string, row: NewReportRow): 
   return (r.rowsAffected ?? 0) > 0;
 }
 
+/**
+ * The newest stored version of a tin's report for one period, as a writer needs it: the number,
+ * the time and the Merkle root come from the row's own columns, so they are known even when the
+ * words of the row cannot be read.
+ */
+export interface NewestVersion {
+  version: number;
+  generatedAt: string;
+  merkleRoot: string | null;
+  /** The version's words, or null when they cannot be read (its number is still taken). */
+  report: StoredReport | null;
+}
+
 /** The newest version of a tin's report for one period, or null when there is none. */
-export async function getLatestReport(tenantId: string, tinId: string, periodStart: string): Promise<StoredReport | null> {
+export async function getNewestVersion(tenantId: string, tinId: string, periodStart: string): Promise<NewestVersion | null> {
   await ensureAgentReportsTable();
   const r = await db.execute({
     sql: `SELECT ${COLUMNS} FROM agent_reports WHERE tenant_id = ? AND tin_id = ? AND period_start = ? ORDER BY version DESC LIMIT 1`,
     args: [tenantId, tinId, periodStart],
   });
-  return r.rows.length ? reportFrom(r.rows[0]) : null;
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  return { version: Number(row.version), generatedAt: String(row.generated_at), merkleRoot: text(row.merkle_root), report: reportFrom(row) };
+}
+
+/** The newest readable version of a tin's report for one period, or null when there is none (or its words cannot be read). */
+export async function getLatestReport(tenantId: string, tinId: string, periodStart: string): Promise<StoredReport | null> {
+  return (await getNewestVersion(tenantId, tinId, periodStart))?.report ?? null;
 }
 
 /** One stored version by its id, or null. */
@@ -195,8 +215,10 @@ export async function listReportVersions(tenantId: string, tinId: string, period
 
 /**
  * The newest version of each period a tin has reports for, newest period first, at most `limit`
- * periods, older than `beforeStart` when given. Two reads and no GROUP BY: the ids first (the
- * first row of each period in this order is its newest version), then the rows themselves.
+ * periods, older than `beforeStart` when given. One statement: a version is the newest of its
+ * period when no higher version of the same period exists, so however many versions a period
+ * has, `limit` periods are what comes back (a period that piled up versions never crowds out an
+ * older one). A period whose newest version cannot be read is left out, not half shown.
  */
 export async function listLatestReports(
   tenantId: string,
@@ -207,35 +229,18 @@ export async function listLatestReports(
   const args: Array<string | number> = [tenantId, tinId];
   let before = '';
   if (opts.beforeStart) {
-    before = ` AND period_start < ?`;
+    before = ` AND r.period_start < ?`;
     args.push(opts.beforeStart);
   }
-  // Versions of one period sit together, so a generous bound on rows still reaches `limit` periods.
-  args.push(opts.limit * 20);
-  const light = await db.execute({
-    sql: `SELECT id, period_start, version FROM agent_reports WHERE tenant_id = ? AND tin_id = ?${before} ORDER BY period_start DESC, version DESC LIMIT ?`,
+  args.push(opts.limit);
+  const r = await db.execute({
+    sql: `SELECT ${COLUMNS.split(', ').map((c) => `r.${c}`).join(', ')} FROM agent_reports r
+          WHERE r.tenant_id = ? AND r.tin_id = ?${before}
+            AND NOT EXISTS (SELECT 1 FROM agent_reports n WHERE n.tenant_id = r.tenant_id AND n.tin_id = r.tin_id AND n.period_start = r.period_start AND n.version > r.version)
+          ORDER BY r.period_start DESC LIMIT ?`,
     args,
   });
-  const newest: string[] = [];
-  let lastPeriod = '';
-  for (const row of light.rows as any[]) {
-    const period = String(row.period_start);
-    if (period === lastPeriod) continue;
-    lastPeriod = period;
-    newest.push(String(row.id));
-    if (newest.length >= opts.limit) break;
-  }
-  if (!newest.length) return [];
-  const full = await db.execute({
-    sql: `SELECT ${COLUMNS} FROM agent_reports WHERE tenant_id = ? AND tin_id = ? AND id IN (${newest.map(() => '?').join(', ')})`,
-    args: [tenantId, tinId, ...newest],
-  });
-  const byId = new Map<string, StoredReport>();
-  for (const row of full.rows as any[]) {
-    const report = reportFrom(row);
-    if (report) byId.set(report.id, report);
-  }
-  return newest.map((id) => byId.get(id)).filter((x): x is StoredReport => x !== undefined);
+  return (r.rows as any[]).map(reportFrom).filter((x): x is StoredReport => x !== null);
 }
 
 /** The newest version of each tin's report for one period, across the account's tins (what a digest reads). */

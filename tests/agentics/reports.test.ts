@@ -12,14 +12,14 @@ import { txHash } from '../helpers/fakeExplorer';
  */
 const holder = vi.hoisted(() => ({
   db: null as any,
-  /** Runs before each statement; may throw to play a database error. */
-  intercept: null as null | ((sql: string, args: unknown[]) => void),
+  /** Runs before each statement; may throw to play a database error, or return a promise to park the statement. */
+  intercept: null as null | ((sql: string, args: unknown[]) => void | Promise<void>),
 }));
 vi.mock('@/lib/db', () => ({
   db: {
     execute: async (s: any) => {
       const sql = typeof s === 'string' ? s : s.sql;
-      holder.intercept?.(sql.replace(/\s+/g, ' ').trim(), typeof s === 'string' ? [] : s.args ?? []);
+      await holder.intercept?.(sql.replace(/\s+/g, ' ').trim(), typeof s === 'string' ? [] : s.args ?? []);
       return holder.db.execute(s);
     },
     batch: (s: any, m?: any) => holder.db.batch(s, m),
@@ -68,6 +68,11 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
+
+const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
+  if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r)}`);
+  return r as Extract<T, { ok: true }>;
+};
 
 const newTin = (tenant = A, label = 'Treasury agent', createdAt = '2026-10-01 00:00:00') =>
   store.insertTin(tenant, { label, agentKeyId: null, at: createdAt });
@@ -148,7 +153,7 @@ describe('making a report', () => {
   });
 });
 
-describe('making it again is safe', () => {
+describe('making it again changes nothing', () => {
   it('when nothing has changed it hands back the version it has and writes nothing', async () => {
     const tin = await newTin();
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
@@ -207,13 +212,13 @@ describe('making it again is safe', () => {
   it('two writers with different content take different version numbers, never the same one', async () => {
     const tin = await newTin();
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
-    // The second writer reads the ledger after a new event has landed.
+    // The second writer reads the ledger after a new event has landed, a moment later.
     let releaseSecond!: () => void;
     const gate = new Promise<void>((r) => { releaseSecond = r; });
     const first = reports.generateReport(A, tin, DAY, deps());
     const second = (async () => {
       await gate;
-      return reports.generateReport(A, tin, DAY, deps());
+      return reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 1_000)));
     })();
     await first;
     await putTransfer(A, tin.id, 'in', 10, at(9));
@@ -244,6 +249,136 @@ describe('making it again is safe', () => {
   });
 });
 
+describe('a snapshot is only a newer version if it is a newer snapshot', () => {
+  it('an older snapshot that was slow to write is handed back as the newer one that got there first, and stores nothing', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    // A reads the ledger (one event) at 10:30, then waits at its check of the newest version.
+    let release!: () => void;
+    const opened = new Promise<void>((r) => { release = r; });
+    let parked = false;
+    holder.intercept = async (sql) => {
+      if (!parked && /FROM agent_reports/.test(sql)) {
+        parked = true;
+        await opened;
+      }
+    };
+    const slow = reports.generateReport(A, tin, DAY, deps(new Date('2026-10-18T10:30:00.000Z')));
+    await vi.waitFor(() => expect(parked).toBe(true));
+    // Meanwhile another event lands and a later snapshot (11:00, two events) becomes version 1.
+    await put(A, tin.id, 'not_in_registry', 'unknown', addr(2), at(9));
+    const fast = await reports.generateReport(A, tin, DAY, deps(new Date('2026-10-18T11:00:00.000Z')));
+    expect(fast).toMatchObject({ created: true, report: { version: 1 } });
+    expect(fast.report.content.events.checked).toBe(2);
+
+    release();
+    const late = await slow;
+    expect(late.created).toBe(false);
+    expect(late.report.id).toBe(fast.report.id);
+    expect(late.report.content.events.checked).toBe(2); // what it hands back is the fuller snapshot
+    expect(fake.rows('agent_reports')).toHaveLength(1);
+    const listed = ok(await reports.listTinReports(A, tin.id));
+    expect(listed.reports.map((r) => [r.version, r.headline.checks, r.generatedAt])).toEqual([[1, 2, '2026-10-18T11:00:00.000Z']]);
+  });
+
+  it('a snapshot taken at the very moment of the newest version is the newest version, not a copy after it', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const first = await reports.generateReport(A, tin, DAY, deps());
+    await putTransfer(A, tin.id, 'in', 5, at(9));
+    const same = await reports.generateReport(A, tin, DAY, deps()); // the same instant, different words
+    expect(same).toMatchObject({ created: false });
+    expect(same.report.id).toBe(first.report.id);
+    expect(fake.rows('agent_reports')).toHaveLength(1);
+  });
+
+  it('a later snapshot with different words is still a new version, and its time is never earlier than the version before it', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const times = ['2026-10-18T09:00:00.000Z', '2026-10-18T10:00:00.000Z', '2026-10-18T09:30:00.000Z', '2026-10-18T11:00:00.000Z'];
+    for (const [i, t] of times.entries()) {
+      await putTransfer(A, tin.id, 'in', i + 1, at(10 + i));
+      await reports.generateReport(A, tin, DAY, deps(new Date(t)));
+    }
+    const stored = fake.rows('agent_reports').sort((x, y) => x.version - y.version).map((r) => r.generated_at);
+    expect(stored).toEqual(['2026-10-18T09:00:00.000Z', '2026-10-18T10:00:00.000Z', '2026-10-18T11:00:00.000Z']); // the 09:30 snapshot was older than version 2
+    expect([...stored].sort()).toEqual(stored);
+  });
+});
+
+describe('numbering a version from the newest row, and paging by period', () => {
+  it('a newest version whose words cannot be read still has its number taken: the next version is the number after it', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const first = (await reports.generateReport(A, tin, DAY, deps())).report;
+    // A later release wrote a format this code does not know, in the newest row.
+    fake.rows('agent_reports')[0].summary_json = JSON.stringify({ v: 2, tin: {}, period: {}, buckets: {}, strip: {}, events: {} });
+    await putTransfer(A, tin.id, 'in', 5, at(9));
+    const made = await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 1_000)));
+    expect(made.created).toBe(true);
+    expect(made.report.version).toBe(2);
+    expect(made.report.manifest!.prev_root).toBe(first.merkleRoot); // chained to the root in the unreadable row's own column
+    expect(fake.rows('agent_reports').map((r) => r.version).sort()).toEqual([1, 2]);
+    expect((await reportStore.getNewestVersion(A, tin.id, made.report.periodStart))).toMatchObject({ version: 2, report: { id: made.report.id } });
+  });
+
+  it('knows the newest version of a period without reading its words', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const made = (await reports.generateReport(A, tin, DAY, deps())).report;
+    fake.rows('agent_reports')[0].summary_json = '{not json';
+    expect(await reportStore.getNewestVersion(A, tin.id, made.periodStart)).toEqual({ version: 1, generatedAt: NOW.toISOString(), merkleRoot: made.merkleRoot, report: null });
+    expect(await reportStore.getLatestReport(A, tin.id, made.periodStart)).toBeNull();
+    expect(await reportStore.getNewestVersion(A, tin.id, '2026-01-01T00:00:00.000Z')).toBeNull();
+    expect(await reportStore.getNewestVersion(B, tin.id, made.periodStart)).toBeNull(); // another account reaches nothing
+  });
+
+  it('a page is `limit` days even when the newest days have piled up many versions', async () => {
+    const tin = await newTin();
+    const days = ['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17'];
+    let t = 0;
+    for (const day of days) {
+      for (let v = 1; v <= 45; v++) {
+        await put(A, tin.id, 'not_in_registry', 'unknown', addr(Number(day.slice(-2)) * 100 + v), `${day}T10:${String(v).padStart(2, '0')}:00.000Z`);
+        await reports.generateReport(A, tin, day, deps(new Date(Date.UTC(2026, 9, 18, 0, 0, 0) + (t += 1_000))));
+      }
+    }
+    expect(fake.rows('agent_reports')).toHaveLength(180);
+    const first = ok(await reports.listTinReports(A, tin.id, { limit: 2 }));
+    expect(first.reports.map((r) => [r.day, r.version])).toEqual([['2026-10-17', 45], ['2026-10-16', 45]]);
+    expect(first.next).toBe('2026-10-16');
+    const second = ok(await reports.listTinReports(A, tin.id, { limit: 2, before: first.next }));
+    expect(second.reports.map((r) => [r.day, r.version])).toEqual([['2026-10-15', 45], ['2026-10-14', 45]]);
+    expect(second.next).toBe('2026-10-14');
+    const last = ok(await reports.listTinReports(A, tin.id, { limit: 2, before: second.next }));
+    expect(last.reports).toEqual([]);
+    expect(last.next).toBeNull();
+    const all = ok(await reports.listTinReports(A, tin.id, { limit: 90 }));
+    expect(all.reports.map((r) => r.day)).toEqual([...days].reverse());
+  });
+
+  it('picks the highest version of each day whatever order the rows are in, and does it in one statement', async () => {
+    const tin = await newTin();
+    const row = (version: number, day: string, id: string) => ({
+      id, tenant_id: A, tin_id: tin.id, period_start: `${day}T00:00:00.000Z`, period_end: `${day}T23:59:59.999Z`, version, generated_at: NOW.toISOString(),
+      content_hash: `h${id}`, summary_json: JSON.stringify({ v: 1, tin: { id: tin.id, label: 'x' }, period: { start: '', end: '', partial: false }, events: { checked: 0, transaction: 0 }, addresses: 0, buckets: {}, strip: {} }),
+      merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
+    });
+    await reportStore.ensureAgentReportsTable();
+    for (const r of [row(2, '2026-10-16', 'b2'), row(1, '2026-10-17', 'a1'), row(3, '2026-10-16', 'b3'), row(1, '2026-10-16', 'b1'), row(2, '2026-10-17', 'a2')]) fake.seed('agent_reports', r);
+    const before = fake.log.length;
+    const got = await reportStore.listLatestReports(A, tin.id, { limit: 5 });
+    expect(got.map((r) => [r.id, r.version])).toEqual([['a2', 2], ['b3', 3]]);
+    const mine = fake.log.slice(before).filter((s) => /agent_reports/.test(s.sql));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].sql).toMatch(/\bNOT EXISTS\b/);
+    expect(mine[0].sql).toMatch(/\bLIMIT \?$/);
+    expect(mine[0].args).toEqual([A, tin.id, 5]);
+    expect(await reportStore.listLatestReports(B, tin.id, { limit: 5 })).toEqual([]);
+    expect((await reportStore.listLatestReports(A, tin.id, { limit: 5, beforeStart: '2026-10-17T00:00:00.000Z' })).map((r) => r.id)).toEqual(['b3']);
+  });
+});
+
 describe('signing', () => {
   it('a report made with no signing key is stored unsigned, and says so; it is never presented as signed', async () => {
     useKey(null);
@@ -263,13 +398,13 @@ describe('signing', () => {
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
     const unsigned = (await reports.generateReport(A, tin, DAY, deps())).report;
     useKey(seed());
-    const signed = await reports.generateReport(A, tin, DAY, deps());
+    const signed = await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 1_000))); // a newer snapshot of the same words
     expect(signed.created).toBe(true);
     expect(signed.report.version).toBe(2);
     expect(signed.report.contentHash).toBe(unsigned.contentHash);
     expect(signed.report.signature).not.toBeNull();
     expect(reports.verifyStoredReport(signed.report)).toBe('verified');
-    const again = await reports.generateReport(A, tin, DAY, deps());
+    const again = await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 2_000)));
     expect(again.created).toBe(false);
     expect(again.report.id).toBe(signed.report.id);
   });
@@ -365,11 +500,6 @@ describe('a stored report that no longer matches what was signed reads as altere
 });
 
 describe('asking for a report', () => {
-  const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
-    if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r)}`);
-    return r as Extract<T, { ok: true }>;
-  };
-
   it('makes the report for a day, says whether it is new, and returns it with its versions', async () => {
     const tin = await newTin();
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
@@ -409,7 +539,7 @@ describe('asking for a report', () => {
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
     await reports.generateReport(A, tin, DAY, deps());
     await putTransfer(A, tin.id, 'in', 5, at(9));
-    await reports.generateReport(A, tin, DAY, deps()); // version 2 of the 17th
+    await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 1_000))); // version 2 of the 17th
     await reports.generateReport(A, tin, '2026-10-16', deps());
     await reports.generateReport(A, tin, '2026-10-15', deps());
     const listed = ok(await reports.listTinReports(A, tin.id));
@@ -440,7 +570,7 @@ describe('asking for a report', () => {
     await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
     const v1 = (await reports.generateReport(A, tin, DAY, deps())).report;
     await putTransfer(A, tin.id, 'in', 5, at(9));
-    const v2 = (await reports.generateReport(A, tin, DAY, deps())).report;
+    const v2 = (await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + 1_000)))).report;
     const detail = ok(await reports.getReportDetail(A, v1.id));
     expect(detail.report.id).toBe(v1.id);
     expect(detail.report.versions.map((v) => [v.id, v.version])).toEqual([[v2.id, 2], [v1.id, 1]]);

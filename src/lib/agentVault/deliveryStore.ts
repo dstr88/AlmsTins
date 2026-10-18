@@ -12,7 +12,8 @@
  *                          last digest sent, which is what stops the same digest going out twice.
  *   agent_alert_claims     one row per (account, tin, address): when it was last alerted about.
  *                          A claim is one atomic step, so a burst of flagged checks on one address
- *                          sends one email an hour, however many processes see them at once.
+ *                          sends one email an hour, however many processes see them at once. A
+ *                          send that fails gives its claim back, like a digest does.
  *
  * Settings are configuration, not evidence, so they are updated in place; the ledger and the
  * reports stay append-only. Both tables are removed with the account
@@ -133,12 +134,16 @@ export async function listOptedIn(limit: number): Promise<OptedIn[]> {
  * Claims the right to send the digest named `key` to one account: true only for the one caller
  * whose statement changed the row, so two runs of the job (a manual re-run, two instances) cannot
  * both send it. The claim is made before the email goes out and given back if the send fails.
+ *
+ * `cadence` is the cadence the job read when it chose this account. The claim holds only while the
+ * account still has it, so an owner who turns the digest off, or picks another cadence, while a run
+ * is under way is sent nothing under the old setting.
  */
-export async function claimDigest(tenantId: string, key: string): Promise<boolean> {
+export async function claimDigest(tenantId: string, key: string, cadence: Exclude<Cadence, 'off'>): Promise<boolean> {
   await ensureAgentDeliveryTables();
   const r = await db.execute({
-    sql: `UPDATE agent_report_settings SET last_digest_key = ? WHERE tenant_id = ? AND (last_digest_key IS NULL OR last_digest_key <> ?)`,
-    args: [key, tenantId, key],
+    sql: `UPDATE agent_report_settings SET last_digest_key = ? WHERE tenant_id = ? AND cadence = ? AND (last_digest_key IS NULL OR last_digest_key <> ?)`,
+    args: [key, tenantId, cadence, key],
   });
   return (r.rowsAffected ?? 0) > 0;
 }
@@ -152,12 +157,16 @@ export async function releaseDigest(tenantId: string, key: string, previous: str
   });
 }
 
+/** What an address whose alert did not go out is put back to: long before any cutoff, so the next check can claim it. */
+export const NEVER_ALERTED = '1970-01-01T00:00:00.000Z';
+
 /**
  * Claims the right to send a flagged-check alert about one address on one agent: at most one an
  * hour. Two statements, each atomic in Postgres, which together cannot let two callers both win:
  * the first INSERT wins a new address (a conflict is skipped), and otherwise the UPDATE wins only
  * if the last alert is older than the cutoff, and a second caller's UPDATE then reads the time
- * the first one just wrote and changes nothing.
+ * the first one just wrote and changes nothing. The claim is made before the email goes out and
+ * given back (releaseAlert) if the send fails.
  */
 export async function claimAlert(tenantId: string, tinId: string, address: string, nowIso: string, cutoffIso: string): Promise<boolean> {
   await ensureAgentDeliveryTables();
@@ -171,4 +180,20 @@ export async function claimAlert(tenantId: string, tinId: string, address: strin
     args: [nowIso, tenantId, tinId, address, cutoffIso],
   });
   return (updated.rowsAffected ?? 0) > 0;
+}
+
+/**
+ * Gives an alert claim back after a failed send, so the next flagged check on the address can try
+ * again instead of waiting out an hour for an email that never went. Only if the claim is still
+ * ours (the row still holds the time we wrote). The row goes back to NEVER_ALERTED, not to the time
+ * it held before: a claim is only ever won over a time older than an hour, which no later claim is
+ * held back by, so the two are the same to the limit, and no stale read can bring a failed alert's
+ * hour back to life.
+ */
+export async function releaseAlert(tenantId: string, tinId: string, address: string, claimedIso: string): Promise<void> {
+  await ensureAgentDeliveryTables();
+  await db.execute({
+    sql: `UPDATE agent_alert_claims SET last_sent_at = ? WHERE tenant_id = ? AND tin_id = ? AND address = ? AND last_sent_at = ?`,
+    args: [NEVER_ALERTED, tenantId, tinId, address, claimedIso],
+  });
 }

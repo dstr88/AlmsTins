@@ -8,7 +8,9 @@
  * back the version it already has and writes nothing. When something has (a transfer the chain confirmed late, a
  * label), it writes a NEW version, and the older versions stay. A version also differs from the
  * one before it when that one was made with no signing key and a key is configured now, so a
- * signed copy can be had without waiting for the ledger to change.
+ * signed copy can be had without waiting for the ledger to change. A snapshot is only ever a newer
+ * version if it is a newer snapshot: one taken no later than the newest version is handed back as
+ * that version, never stored after it.
  *
  * Every operation takes the tenant first and passes it to every query. Days are UTC days.
  */
@@ -19,7 +21,7 @@ import { readEventsInRange } from './events';
 import { addDays, dayBounds, headlineOf, parseDay, ReportBuilder, utcDay, type ReportContent, type ReportHeadline } from './report';
 import { buildReportBundle, bundleFromStored, contentHashOf, verifyReportBundle, type AgentReportBundle } from './reportProof';
 import {
-  getLatestReport,
+  getNewestVersion,
   getReportById,
   insertReportVersion,
   listLatestReports,
@@ -78,15 +80,24 @@ export async function generateReport(tenantId: string, tin: Tin, day: string, de
   const canSign = getSigningKey() !== null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const latest = await getLatestReport(tenantId, tin.id, start);
-    // Nothing to say that the newest version does not: keep it. The one exception is an unsigned
-    // version when a key is configured now, which is worth a signed copy of the same words.
-    if (latest && latest.contentHash === contentHash && (latest.signature !== null || !canSign)) {
-      return { report: latest, created: false };
+    // The number and the chain come from the newest row's own columns, so a newest version whose
+    // words cannot be read (a format this code does not know) still has its number taken.
+    const newest = await getNewestVersion(tenantId, tin.id, start);
+    const latest = newest?.report ?? null;
+    if (latest) {
+      // A snapshot taken no later than the newest version is not a newer version: another writer
+      // got there with the later (and so fuller) one while this one was being made. Keep that one,
+      // so the newest version is never an older snapshot than the one before it.
+      if (latest.generatedAt >= generatedAt) return { report: latest, created: false };
+      // Nothing to say that the newest version does not: keep it. The one exception is an unsigned
+      // version when a key is configured now, which is worth a signed copy of the same words.
+      if (latest.contentHash === contentHash && (latest.signature !== null || !canSign)) {
+        return { report: latest, created: false };
+      }
     }
-    const version = latest ? latest.version + 1 : 1;
+    const version = newest ? newest.version + 1 : 1;
     const id = deps.newId();
-    const bundle = buildReportBundle({ tenantId, reportId: id, version, generatedAt, content, prevRoot: latest?.merkleRoot ?? null });
+    const bundle = buildReportBundle({ tenantId, reportId: id, version, generatedAt, content, prevRoot: newest?.merkleRoot ?? null });
     const written = await insertReportVersion(tenantId, {
       id,
       tinId: tin.id,

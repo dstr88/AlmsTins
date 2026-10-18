@@ -265,9 +265,12 @@ describe('the delivery schema file and the code create the same tables', () => {
     }
   });
 
-  it('nothing is ever sent from the Vault without an account having turned it on: no email call outside the three delivery files', () => {
-    const senders = VAULT_FILES.filter((f) => /@\/lib\/email'|sendMail\(/.test(read(f))).sort();
-    expect(senders).toEqual(['src/lib/agentVault/alerts.ts', 'src/lib/agentVault/reportJob.ts']);
+  it('nothing is ever sent from the Vault without an account having turned it on: one place touches the mailer, and only the two delivery files use that place', () => {
+    // The shared mailer is reached through the Vault's own sender, which fails when nothing could be sent.
+    const touchesSharedMailer = VAULT_FILES.filter((f) => /@\/lib\/email'|\bsendMail\(/.test(read(f))).sort();
+    expect(touchesSharedMailer).toEqual(['src/lib/agentVault/mailer.ts']);
+    const usesVaultSender = VAULT_FILES.filter((f) => f !== 'src/lib/agentVault/mailer.ts' && /\bsendVaultMail\b|\.\/mailer'/.test(read(f))).sort();
+    expect(usesVaultSender).toEqual(['src/lib/agentVault/alerts.ts', 'src/lib/agentVault/reportJob.ts']);
   });
 });
 
@@ -352,6 +355,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/events.ts',
       'src/lib/agentVault/explorer.ts',
       'src/lib/agentVault/link.ts',
+      'src/lib/agentVault/mailer.ts',
       'src/lib/agentVault/money.ts',
       'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/report.ts',

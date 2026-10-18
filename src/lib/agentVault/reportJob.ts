@@ -1,42 +1,52 @@
 /**
- * The daily report job: make yesterday's report for every agent that did anything, then send each
- * account that asked for one its digest. Run once a day, after the chain watcher
- * (.github/workflows/agent-reports.yml, GET /api/cron/agent-reports), because a transfer is only in
- * the ledger once the watcher has recorded it.
+ * The daily report job: make the report of each of the last three days for every agent that did
+ * anything, then send each account that asked for one its digest of yesterday. Run once a day,
+ * after the chain watcher (.github/workflows/agent-reports.yml, GET /api/cron/agent-reports),
+ * because a transfer is only in the ledger once the watcher has recorded it.
  *
- *   1. Reports. For each live tin that had any event yesterday, make its report (./reports.ts).
+ *   1. Reports. For each live tin, and for each of the last three UTC days (yesterday and the two
+ *      before) on which it had any event, make its report (./reports.ts). Three days, so one run
+ *      that never happened, or one that was cut short, does not lose a day: the next run makes it.
  *      Making a report can be repeated as often as you like: when nothing changed it writes
- *      nothing, so a manual re-run, or two runs at once, leave one version. Reports are made for EVERY account,
- *      whatever its email settings: the Reports page is the record, and email is only a pointer.
+ *      nothing, so a manual re-run, or two runs at once, leave one version. Reports are made for
+ *      EVERY account, whatever its email settings: the Reports page is the record, and email is
+ *      only a pointer.
  *   2. Digests. For each account that turned a digest on, work out the period for its cadence,
  *      the numbers, and whether it is worth sending (./digest.ts); then the verified operator
  *      email (resolveAlertRecipient), a claim that this digest has not gone out already, and the
- *      send. An account that never opted in is never read for this and never sent anything. A
+ *      send. An account that never opted in is never read for this and never sent anything. The
+ *      digest is for yesterday (or the week before) only, whatever the reports were made for. A
  *      send that fails gives its claim back, so a re-run the same day tries again.
  *
  * It stops starting new work when its deadline passes and says so (`truncated`), and picks up the
  * next day. A failure on one agent or one account never stops the rest. The summary is numbers
  * and true/false only: the workflow prints it in a public log, so it names no account or agent.
+ * The workflow goes red when the summary reports a failed report, a failed send or a truncated run.
  *
- * Runs one account after another, tin after tin, always in the same order. That is right for a few
- * dozen accounts (a day with no activity costs one indexed read per tin). With hundreds, run the
- * tins in small parallel batches, and start each day at a different place so a deadline that cuts
- * the run short never starves the same accounts every day.
+ * Runs one account after another, tin after tin. The accounts are taken in an order that changes
+ * every day (sha256 of the day and the account id), so a deadline that cuts the run short does
+ * not starve the same accounts every day. That is right for a few dozen accounts (a day with no
+ * activity costs one indexed read per tin per day). With hundreds, run the tins in small parallel
+ * batches.
  */
-import { sendMail } from '@/lib/email';
+import { createHash } from 'node:crypto';
 import { defaultAppBase } from '@/i18n/emails/agentReport';
 import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
 import { claimDigest, listOptedIn, releaseDigest } from './deliveryStore';
 import { hasEventsInRange, readEventsInRange } from './events';
+import { sendVaultMail } from './mailer';
 import { addDays, dayBounds, ReportBuilder, utcDay, type ReportContent } from './report';
 import { composeDigest, countsOf, digestPeriod, shouldSend, type DigestCounts, type DigestPeriod } from './digest';
 import { defaultReportDeps, generateReport, type ReportDeps } from './reports';
 import { listLatestReportsForPeriod } from './reportStore';
-import { getTin, listAllTins, listTins } from './store';
+import { getTin, listAllTins, listTins, type Tin, type WatchTarget } from './store';
 
 /** The most tins and accounts one run reads. */
 export const MAX_JOB_TINS = 5_000;
 export const MAX_JOB_ACCOUNTS = 5_000;
+
+/** How many UTC days a run makes reports for: yesterday and the days before it. */
+export const REPORT_DAYS = 3;
 
 export interface JobDeps {
   reports: ReportDeps;
@@ -50,15 +60,16 @@ export interface JobDeps {
 export const defaultJobDeps = (): JobDeps => ({
   reports: defaultReportDeps,
   recipient: async (tenantId) => (await resolveAlertRecipient(tenantId)).email,
-  send: (mail) => sendMail(mail),
+  send: sendVaultMail,
   appBase: defaultAppBase(),
 });
 
 export interface JobSummary {
-  /** Tins visited, and how many had activity yesterday. */
+  /** Tins visited. */
   tins: number;
+  /** Reports looked at, one per tin and day (the last three days of each tin) on which the tin had any event. */
   active: number;
-  /** Reports newly written, and ones that already said the same. */
+  /** Of those, newly written, and ones that already said the same. */
   created: number;
   unchanged: number;
   failedReports: number;
@@ -68,7 +79,7 @@ export interface JobSummary {
   /** Nothing to say, or nothing that needs a look (for `issues`). */
   notNeeded: number;
   noRecipient: number;
-  /** A digest for this period had already gone out. */
+  /** A digest for this period had already gone out, or the account changed its settings while the run was under way. */
   alreadySent: number;
   failedSends: number;
   /** True when the deadline ended the run before every tin and account was visited. */
@@ -84,6 +95,25 @@ function logFailure(stage: string, err: unknown): void {
   console.error('[agent-reports] step failed', { stage, name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
 }
 
+/**
+ * The tins in the order this run takes them: accounts by the sha256 of the run's day and the
+ * account id, so the order changes every day and is the same for every run of one day. The tins
+ * of one account stay together, in the order they came in. A deadline that ends a run early then
+ * leaves a different account unvisited each day, not the same tail every day.
+ */
+export function orderForDay<T extends Pick<WatchTarget, 'tenantId'>>(targets: readonly T[], day: string): T[] {
+  const ranks = new Map<string, string>();
+  const rankOf = (tenantId: string): string => {
+    let rank = ranks.get(tenantId);
+    if (rank === undefined) ranks.set(tenantId, (rank = createHash('sha256').update(day + tenantId).digest('hex')));
+    return rank;
+  };
+  return targets
+    .map((target, index) => ({ target, index, rank: rankOf(target.tenantId) }))
+    .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.index - b.index))
+    .map((x) => x.target);
+}
+
 /** The numbers of an account's weekly digest: the seven days, read from the ledger, one agent at a time. */
 async function weeklyCounts(tenantId: string, period: DigestPeriod): Promise<DigestCounts> {
   const range = { fromIso: dayBounds(period.from).start, toIso: dayBounds(period.to).end };
@@ -96,10 +126,15 @@ async function weeklyCounts(tenantId: string, period: DigestPeriod): Promise<Dig
   return countsOf(contents);
 }
 
-/** The numbers of an account's daily or issues digest: the day's newest report of each agent. */
+/**
+ * The numbers of an account's daily or issues digest: the day's newest report of each agent. Only
+ * the agents the account still has, like the weekly digest: a removed agent's report stays on file
+ * but is no longer the account's to be told about.
+ */
 async function dayCounts(tenantId: string, period: DigestPeriod): Promise<DigestCounts> {
+  const live = new Set((await listTins(tenantId)).map((tin) => tin.id));
   const stored = await listLatestReportsForPeriod(tenantId, dayBounds(period.from).start);
-  return countsOf(stored.map((r) => r.content));
+  return countsOf(stored.filter((r) => live.has(r.tinId)).map((r) => r.content));
 }
 
 export async function runAgentReports(deps: JobDeps = defaultJobDeps(), opts: { deadlineAt?: number } = {}): Promise<JobSummary> {
@@ -108,26 +143,40 @@ export async function runAgentReports(deps: JobDeps = defaultJobDeps(), opts: { 
   const out = () => deps.reports.now().getTime() >= deadlineAt;
   const today = utcDay(deps.reports.now());
   const reportDay = addDays(today, -1);
-  const bounds = dayBounds(reportDay);
+  const reportDays = Array.from({ length: REPORT_DAYS }, (_, i) => addDays(reportDay, -i)); // newest first
 
-  // ── 1. Yesterday's report for every agent that did anything ────────────────
-  for (const target of await listAllTins(MAX_JOB_TINS)) {
+  // ── 1. The last three days' reports for every agent that did anything ──────
+  reports: for (const target of orderForDay(await listAllTins(MAX_JOB_TINS), today)) {
     if (out()) {
       summary.truncated = true;
       break;
     }
+    let tin: Tin | null;
     try {
-      const tin = await getTin(target.tenantId, target.tinId);
-      if (!tin) continue;
-      summary.tins += 1;
-      if (!(await hasEventsInRange(target.tenantId, tin.id, { fromIso: bounds.start, toIso: bounds.end }))) continue;
-      summary.active += 1;
-      const made = await generateReport(target.tenantId, tin, reportDay, deps.reports);
-      if (made.created) summary.created += 1;
-      else summary.unchanged += 1;
+      tin = await getTin(target.tenantId, target.tinId);
     } catch (err) {
       logFailure('report', err);
       summary.failedReports += 1;
+      continue;
+    }
+    if (!tin) continue;
+    summary.tins += 1;
+    for (const day of reportDays) {
+      if (out()) {
+        summary.truncated = true;
+        break reports;
+      }
+      try {
+        const bounds = dayBounds(day);
+        if (!(await hasEventsInRange(target.tenantId, tin.id, { fromIso: bounds.start, toIso: bounds.end }))) continue;
+        summary.active += 1;
+        const made = await generateReport(target.tenantId, tin, day, deps.reports);
+        if (made.created) summary.created += 1;
+        else summary.unchanged += 1;
+      } catch (err) {
+        logFailure('report', err);
+        summary.failedReports += 1;
+      }
     }
   }
 
@@ -154,7 +203,7 @@ export async function runAgentReports(deps: JobDeps = defaultJobDeps(), opts: { 
         summary.noRecipient += 1;
         continue;
       }
-      if (!(await claimDigest(account.tenantId, period.key))) {
+      if (!(await claimDigest(account.tenantId, period.key, account.cadence))) {
         summary.alreadySent += 1;
         continue;
       }

@@ -3,6 +3,7 @@ name: Sync Agent Wallets
 # Daily: the Agent Vault reads the chain for each tin's trusted destinations and records the
 # movements of funds between the agent's own wallets and those destinations. Only registered,
 # trusted destinations are watched. Runs after the weekly wallet syncs so it never shares their hour.
+# The job goes red when the run reports a failed wallet or a truncated run.
 on:
   schedule:
     - cron: '10 8 * * *'
@@ -37,3 +38,11 @@ jobs:
             -H "x-cron-secret: $CRON_SECRET"
           # Print only numbers and true/false fields (counts, ok). This repo's Actions logs are public.
           jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"
+          # Go red when the ledger could not be written for a wallet (failed), or the deadline cut the
+          # run short (truncated). A wallet the explorer could not answer for (unavailable) or only
+          # read part of the way (partial) is picked up from its cursor tomorrow and is not red.
+          # Prints no value, only this line. An answer that is not JSON, or not ok, is red too.
+          if ! jq -e '.ok == true and (.failed // 0) == 0 and (.truncated // false) == false' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
+            echo "Sync Agent Wallets finished with a problem: failed wallets or a truncated run. See the counts above."
+            exit 1
+          fi

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr } from '../helpers/agentVault';
 import { txHash } from '../helpers/fakeExplorer';
@@ -25,6 +25,9 @@ vi.mock('@/lib/db', () => ({
     batch: (s: any, m?: any) => holder.db.batch(s, m),
   },
 }));
+// The shared mailer, for the tests that run the job with the Vault's own default sender.
+const sharedMail = vi.hoisted(() => ({ sendMail: vi.fn() }));
+vi.mock('@/lib/email', () => sharedMail);
 
 const A = 'tenant-a';
 const B = 'tenant-b';
@@ -69,6 +72,7 @@ beforeEach(async () => {
   sendFails = false;
   recipientCalls = [];
   inboxes = { [A]: 'operator-a@example.test', [B]: 'operator-b@example.test', [C]: 'operator-c@example.test' };
+  sharedMail.sendMail.mockReset().mockResolvedValue(undefined);
   vi.stubEnv('ALMSTINS_SIGNING_KEY', randomBytes(32).toString('hex'));
   vi.stubEnv('ALMSTINS_SIGNING_PUBKEY', '');
   vi.stubEnv('ALMSTINS_SIGNING_RETIRED_PUBKEYS', '');
@@ -101,7 +105,7 @@ describe('the reports', () => {
     const quiet = await newTin(A, 'Quiet agent');
     await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
     await put(B, b.id, 'not_in_registry', 'unknown', addr(3), '2026-10-17T11:00:00.000Z');
-    await put(A, quiet.id, 'not_in_registry', 'unknown', addr(4), '2026-10-16T11:00:00.000Z'); // the day before: nothing yesterday
+    await put(A, quiet.id, 'not_in_registry', 'unknown', addr(4), '2026-10-14T11:00:00.000Z'); // older than the three days the job looks back over
 
     const summary = await job.runAgentReports(deps(SUNDAY));
     expect(summary).toMatchObject({ tins: 3, active: 2, created: 2, unchanged: 0, failedReports: 0, truncated: false });
@@ -157,6 +161,162 @@ describe('the reports', () => {
     const summary = await job.runAgentReports(deps(SUNDAY), { deadlineAt: SUNDAY.getTime() });
     expect(summary).toMatchObject({ tins: 0, created: 0, optedIn: 0, sent: 0, truncated: true });
     expect(reportRows()).toEqual([]);
+  });
+});
+
+describe('the last three days', () => {
+  const WEDNESDAY = new Date('2026-10-21T09:10:00.000Z'); // yesterday is Tuesday the 20th; the window is the 18th to the 20th
+  const periods = () => reportRows().map((r) => `${r.tenant_id}:${String(r.period_start).slice(0, 10)}:v${r.version}`).sort();
+
+  it('makes the report of yesterday and of the two days before it, each for the agents that did anything that day', async () => {
+    const a = await newTin(A);
+    for (const day of ['2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20']) await put(A, a.id, 'registry_flagged', 'flagged', addr(1), `${day}T10:00:00.000Z`);
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(periods()).toEqual([`${A}:2026-10-18:v1`, `${A}:2026-10-19:v1`, `${A}:2026-10-20:v1`]); // the 17th is a fourth day back
+    expect(summary).toMatchObject({ tins: 1, active: 3, created: 3, unchanged: 0, failedReports: 0, truncated: false });
+  });
+
+  it('a run that never happened does not lose its day: the next run makes it', async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-19T10:00:00.000Z');
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(2), '2026-10-20T10:00:00.000Z');
+    // The run that should have made the 19th's report did not run. Two days later this one does.
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(periods()).toEqual([`${A}:2026-10-19:v1`, `${A}:2026-10-20:v1`]);
+    expect(summary).toMatchObject({ active: 2, created: 2 });
+  });
+
+  it('a second run changes nothing: a day that already says the same writes nothing', async () => {
+    const a = await newTin(A);
+    for (const day of ['2026-10-18', '2026-10-19', '2026-10-20']) await put(A, a.id, 'registry_flagged', 'flagged', addr(1), `${day}T10:00:00.000Z`);
+    await job.runAgentReports(deps(WEDNESDAY));
+    const before = fake.statements(/^INSERT INTO agent_reports/).length;
+    const again = await job.runAgentReports(deps(new Date('2026-10-21T09:40:00.000Z')));
+    expect(again).toMatchObject({ active: 3, created: 0, unchanged: 3, failedReports: 0 });
+    expect(fake.statements(/^INSERT INTO agent_reports/)).toHaveLength(before);
+    expect(periods()).toHaveLength(3);
+  });
+
+  it('a transfer the watcher records late for the day before yesterday gives that day a new version', async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-19T10:00:00.000Z');
+    await job.runAgentReports(deps(new Date('2026-10-20T09:10:00.000Z')));
+    expect(periods()).toEqual([`${A}:2026-10-19:v1`]);
+    await putTransfer(A, a.id, 75, '2026-10-19T23:58:00.000Z'); // recorded after the first run, for a day that is now two days back
+    const next = await job.runAgentReports(deps(WEDNESDAY));
+    expect(next).toMatchObject({ created: 1, unchanged: 0 });
+    expect(periods()).toEqual([`${A}:2026-10-19:v1`, `${A}:2026-10-19:v2`]);
+  });
+
+  it('the digest is still for yesterday only, with its own key, whatever the other days hold', async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-19T10:00:00.000Z'); // two days back, flagged
+    await opt(A, 'daily');
+    const quietYesterday = await job.runAgentReports(deps(WEDNESDAY));
+    expect(periods()).toEqual([`${A}:2026-10-19:v1`]); // the report was made
+    expect(quietYesterday).toMatchObject({ optedIn: 1, sent: 0, notNeeded: 1 }); // but yesterday had nothing to say
+    expect(sent).toEqual([]);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(2), '2026-10-20T10:00:00.000Z');
+    const withYesterday = await job.runAgentReports(deps(new Date('2026-10-21T09:30:00.000Z')));
+    expect(withYesterday).toMatchObject({ sent: 1 });
+    expect(sent[0].subject).toBe('1 needs your attention · Agent report, Oct 20, 2026'); // yesterday's address only
+    expect(fake.rows('agent_report_settings')[0].last_digest_key).toBe('daily:2026-10-20');
+  });
+
+  it('a failure on one day never skips the tin\'s other days, and each failure is counted', async () => {
+    const a = await newTin(A);
+    for (const day of ['2026-10-18', '2026-10-19', '2026-10-20']) await put(A, a.id, 'registry_flagged', 'flagged', addr(1), `${day}T10:00:00.000Z`);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    holder.intercept = (sql, args) => {
+      // The read of the 19th (its first moment is the third argument); the 18th's read only ends there.
+      if (/FROM agent_events/.test(sql) && args[1] === a.id && args[2] === '2026-10-19T00:00:00.000Z' && /AND \(/.test(sql)) throw Object.assign(new Error('disk full'), { name: 'DatabaseError', code: '53100' });
+    };
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(summary).toMatchObject({ tins: 1, active: 3, created: 2, failedReports: 1 });
+    expect(periods()).toEqual([`${A}:2026-10-18:v1`, `${A}:2026-10-20:v1`]);
+  });
+
+  it('stops between a tin\'s days when the deadline passes, and says so', async () => {
+    const a = await newTin(A);
+    for (const day of ['2026-10-18', '2026-10-19', '2026-10-20']) await put(A, a.id, 'registry_flagged', 'flagged', addr(1), `${day}T10:00:00.000Z`);
+    const base = deps(WEDNESDAY);
+    let elapsed = 0;
+    // Ten milliseconds pass each time the job asks whether a tin had anything on a day.
+    holder.intercept = (sql) => { if (/^SELECT id FROM agent_events WHERE tenant_id = \? AND tin_id = \?/.test(sql)) elapsed += 10; };
+    const summary = await job.runAgentReports(
+      { ...base, reports: { ...base.reports, now: () => new Date(WEDNESDAY.getTime() + elapsed) } },
+      { deadlineAt: WEDNESDAY.getTime() + 15 },
+    );
+    expect(summary).toMatchObject({ tins: 1, active: 2, created: 2, truncated: true }); // two of the three days, then out of time
+    expect(periods()).toEqual([`${A}:2026-10-19:v1`, `${A}:2026-10-20:v1`]);
+  });
+});
+
+describe('the tins are taken in an order that changes every day', () => {
+  const TENANTS = Array.from({ length: 12 }, (_, i) => `tenant-${String.fromCharCode(97 + i)}`);
+  const rank = (day: string, tenant: string) => createHash('sha256').update(day + tenant).digest('hex');
+  const expectedOrder = (day: string, tenants: readonly string[]) => [...tenants].sort((x, y) => (rank(day, x) < rank(day, y) ? -1 : 1));
+
+  /** The tenants in the order the job first read each one's events. */
+  const visitOrder = () => {
+    const seen: string[] = [];
+    holder.intercept = (sql, args) => {
+      if (/^SELECT id FROM agent_events WHERE tenant_id = \? AND tin_id = \?/.test(sql) && !seen.includes(String(args[0]))) seen.push(String(args[0]));
+    };
+    return seen;
+  };
+
+  it('orderForDay puts the accounts by the sha256 of the day and the account id, keeps one account\'s tins together in their order, and is the same every time', () => {
+    const targets = TENANTS.flatMap((tenantId) => [{ tenantId, tinId: `${tenantId}-1` }, { tenantId, tinId: `${tenantId}-2` }]);
+    const day1 = job.orderForDay(targets, '2026-10-18');
+    expect([...new Set(day1.map((t) => t.tenantId))]).toEqual(expectedOrder('2026-10-18', TENANTS));
+    expect(day1).toHaveLength(targets.length);
+    for (const tenantId of TENANTS) {
+      const mine = day1.filter((t) => t.tenantId === tenantId).map((t) => t.tinId);
+      expect(mine).toEqual([`${tenantId}-1`, `${tenantId}-2`]); // in the order they came
+      const at = day1.findIndex((t) => t.tenantId === tenantId);
+      expect(day1[at + 1].tenantId).toBe(tenantId); // and together
+    }
+    expect(job.orderForDay(targets, '2026-10-18')).toEqual(day1);
+    expect(job.orderForDay(targets, '2026-10-19').map((t) => t.tenantId)).not.toEqual(day1.map((t) => t.tenantId));
+    expect(targets.map((t) => t.tinId)).toEqual(TENANTS.flatMap((t) => [`${t}-1`, `${t}-2`])); // the input is left as it was
+  });
+
+  it('the job visits the accounts in that order, and a different one the next day', async () => {
+    for (const tenant of TENANTS) {
+      const tin = await newTin(tenant);
+      await put(tenant, tin.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+      await put(tenant, tin.id, 'registry_flagged', 'flagged', addr(1), '2026-10-18T10:00:00.000Z');
+    }
+    const first = visitOrder();
+    await job.runAgentReports(deps(SUNDAY)); // today is the 18th
+    expect(first).toEqual(expectedOrder('2026-10-18', TENANTS));
+    const second = visitOrder();
+    await job.runAgentReports(deps(MONDAY)); // today is the 19th
+    expect(second).toEqual(expectedOrder('2026-10-19', TENANTS));
+    expect(second).not.toEqual(first);
+    const again = visitOrder();
+    await job.runAgentReports(deps(new Date('2026-10-19T09:40:00.000Z'))); // a second run on the same day
+    expect(again).toEqual(second);
+  });
+
+  it('a deadline that cuts a run short leaves a different tail unvisited on a different day', async () => {
+    for (const tenant of TENANTS) await put(tenant, (await newTin(tenant)).id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+    const reached = async (now: Date) => {
+      fake.rows('agent_reports').splice(0);
+      const base = deps(now);
+      let elapsed = 0;
+      holder.intercept = (sql) => { if (/^SELECT id FROM agent_events WHERE tenant_id = \? AND tin_id = \?/.test(sql)) elapsed += 10; };
+      // Each tin is asked about three days, so a tin costs thirty milliseconds: about five tins fit in the budget.
+      const summary = await job.runAgentReports({ ...base, reports: { ...base.reports, now: () => new Date(now.getTime() + elapsed) } }, { deadlineAt: now.getTime() + 150 });
+      expect(summary.truncated).toBe(true);
+      return new Set(reportRows().map((r) => r.tenant_id));
+    };
+    const onSunday = await reached(SUNDAY);
+    const onMonday = await reached(new Date('2026-10-19T09:10:00.000Z'));
+    expect(onSunday.size).toBeGreaterThan(0);
+    expect(onSunday.size).toBeLessThan(TENANTS.length);
+    expect([...onSunday].sort()).not.toEqual([...onMonday].sort());
   });
 });
 
@@ -295,6 +455,168 @@ describe('the digest goes only to an account that asked for it', () => {
     const summary = await job.runAgentReports(deps(SUNDAY));
     for (const [key, value] of Object.entries(summary)) expect(['number', 'boolean'], key).toContain(typeof value);
     expect(JSON.stringify(summary)).not.toMatch(/tenant|operator|@|0x/);
+  });
+});
+
+describe('the email is really sent, or the digest is not counted as sent', () => {
+  const setup = async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+    await opt(A, 'daily');
+    return a;
+  };
+  /** The job's own default sender and mail lookup, with the clock and the recipient replaced. */
+  const withDefaultSender = (now: Date, recipient: (tenantId: string) => Promise<string | null> = async (t) => inboxes[t] ?? null) => ({
+    ...job.defaultJobDeps(),
+    reports: deps(now).reports,
+    recipient,
+  });
+
+  it('with no mail transport it is a failed send, the claim is given back, and nothing is stored as sent', async () => {
+    await setup();
+    vi.stubEnv('EMAIL_SERVER', '');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const summary = await job.runAgentReports(withDefaultSender(SUNDAY));
+    expect(summary).toMatchObject({ optedIn: 1, sent: 0, failedSends: 1 });
+    expect(sharedMail.sendMail).not.toHaveBeenCalled();
+    expect(fake.rows('agent_report_settings')[0].last_digest_key ?? null).toBeNull();
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).toContain('MailUnavailableError');
+    expect(logged).toContain('E_NO_MAIL_TRANSPORT');
+    expect(logged).not.toContain('operator-a@example.test');
+    // The mail comes back: the same day's re-run sends the digest the failed run could not.
+    vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587');
+    const retry = await job.runAgentReports(withDefaultSender(SUNDAY));
+    expect(retry).toMatchObject({ sent: 1, failedSends: 0 });
+    expect(sharedMail.sendMail).toHaveBeenCalledTimes(1);
+    expect(fake.rows('agent_report_settings')[0].last_digest_key).toBe('daily:2026-10-17');
+  });
+
+  it('with a mail transport it goes through the shared mailer and counts as sent', async () => {
+    await setup();
+    vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587');
+    const summary = await job.runAgentReports(withDefaultSender(SUNDAY));
+    expect(summary).toMatchObject({ sent: 1, failedSends: 0 });
+    expect(sharedMail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'operator-a@example.test', subject: '1 needs your attention · Agent report, Oct 17, 2026' }));
+  });
+
+  it('a send that hangs is failed after twenty seconds, gives its claim back, and does not hold up the next account', async () => {
+    const a = await newTin(A);
+    const b = await newTin(B);
+    for (const [tenant, tin] of [[A, a], [B, b]] as const) {
+      await put(tenant, tin.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+      await opt(tenant, 'daily');
+    }
+    vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    sharedMail.sendMail.mockImplementation((mail: { to: string }) => (mail.to === 'operator-a@example.test' ? new Promise(() => {}) : Promise.resolve()));
+    vi.useFakeTimers();
+    try {
+      const running = job.runAgentReports(withDefaultSender(SUNDAY));
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(sharedMail.sendMail).toHaveBeenCalledTimes(1); // still waiting on the first account's mail server
+      await vi.advanceTimersByTimeAsync(1);
+      const summary = await running;
+      expect(summary).toMatchObject({ optedIn: 2, sent: 1, failedSends: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+    const keys = Object.fromEntries(fake.rows('agent_report_settings').map((r) => [r.tenant_id, r.last_digest_key ?? null]));
+    expect(keys).toEqual({ [A]: null, [B]: 'daily:2026-10-17' });
+  });
+});
+
+describe('the claim is for the settings the job read', () => {
+  const flaggedYesterday = async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+    return a;
+  };
+
+  it('an owner who turns the digest off while a run is under way is sent nothing', async () => {
+    await flaggedYesterday();
+    await opt(A, 'daily');
+    const base = deps(SUNDAY);
+    const summary = await job.runAgentReports({
+      ...base,
+      // The lookup comes after the account was chosen and before the claim: the owner switches it off in between.
+      recipient: async (tenantId) => { await opt(A, 'off'); return inboxes[tenantId] ?? null; },
+    });
+    expect(sent).toEqual([]);
+    expect(summary).toMatchObject({ optedIn: 1, sent: 0, failedSends: 0 });
+    expect(fake.rows('agent_report_settings')[0]).toMatchObject({ cadence: 'off' });
+    expect(fake.rows('agent_report_settings')[0].last_digest_key ?? null).toBeNull();
+  });
+
+  it('an owner who picks another cadence while a run is under way is sent nothing under the old one', async () => {
+    await flaggedYesterday();
+    await opt(A, 'daily');
+    const base = deps(SUNDAY);
+    await job.runAgentReports({ ...base, recipient: async (tenantId) => { await opt(A, 'weekly'); return inboxes[tenantId] ?? null; } });
+    expect(sent).toEqual([]);
+    expect(fake.rows('agent_report_settings')[0].last_digest_key ?? null).toBeNull();
+    // The new cadence is the one the next run goes by: Monday's run sends the week before.
+    await job.runAgentReports(deps(MONDAY));
+    expect(sent).toHaveLength(1);
+    expect(fake.rows('agent_report_settings')[0].last_digest_key).toBe('weekly:2026-10-12');
+  });
+
+  it('a digest that stays on is claimed and sent as before', async () => {
+    await flaggedYesterday();
+    await opt(A, 'daily');
+    const summary = await job.runAgentReports(deps(SUNDAY));
+    expect(summary).toMatchObject({ sent: 1, alreadySent: 0 });
+    expect(fake.rows('agent_report_settings')[0].last_digest_key).toBe('daily:2026-10-17');
+  });
+
+  it('the claim statement names the cadence', async () => {
+    await flaggedYesterday();
+    await opt(A, 'daily');
+    await job.runAgentReports(deps(SUNDAY));
+    const claim = fake.log.find((s) => /^UPDATE agent_report_settings SET last_digest_key = \? WHERE/.test(s.sql) && /last_digest_key IS NULL OR/.test(s.sql));
+    expect(claim?.sql).toMatch(/WHERE tenant_id = \? AND cadence = \? AND \(/);
+    expect(claim?.args).toEqual(['daily:2026-10-17', A, 'daily', 'daily:2026-10-17']);
+  });
+});
+
+describe('an agent that was removed is no longer told about, in the daily digest either', () => {
+  const twoAgents = async () => {
+    const kept = await newTin(A, 'Kept agent');
+    const gone = await newTin(A, 'Removed agent');
+    await put(A, kept.id, 'domain_proof', 'proven', addr(5), '2026-10-17T10:00:00.000Z'); // quiet
+    await put(A, gone.id, 'registry_flagged', 'flagged', addr(1), '2026-10-17T10:00:00.000Z');
+    await put(A, gone.id, 'not_in_registry', 'unknown', addr(2), '2026-10-17T11:00:00.000Z');
+    await job.runAgentReports(deps(SUNDAY)); // both reports are made while both agents are live
+    await store.softDeleteTin(A, gone.id, '2026-10-17 12:00:00');
+    return { kept, gone };
+  };
+
+  it('the daily digest counts only the agents the account still has', async () => {
+    await twoAgents();
+    await opt(A, 'daily');
+    await job.runAgentReports(deps(new Date('2026-10-18T09:30:00.000Z')));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].subject).not.toMatch(/^\d/); // it does not lead with "2 need your attention": the removed agent's two addresses are not counted
+    expect(sent[0].text).toContain('Agents with activity: 1');
+    expect(sent[0].text).toContain('Checks that came back proven or consistent with history: 1');
+    expect(sent[0].text).not.toContain('Had issues');
+  });
+
+  it('only-when-needed sends nothing when the only trouble was a removed agent\'s', async () => {
+    await twoAgents();
+    await opt(A, 'issues');
+    const summary = await job.runAgentReports(deps(new Date('2026-10-18T09:30:00.000Z')));
+    expect(summary).toMatchObject({ sent: 0, notNeeded: 1 });
+    expect(sent).toEqual([]);
+  });
+
+  it('agrees with the weekly digest, which already read only the live agents', async () => {
+    await twoAgents();
+    await opt(A, 'weekly');
+    await job.runAgentReports(deps(MONDAY));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain('Agents with activity: 1');
+    expect(sent[0].text).not.toContain('Had issues');
   });
 });
 

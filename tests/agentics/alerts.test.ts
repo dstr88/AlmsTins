@@ -57,6 +57,7 @@ let deps: FakeDeps;
 
 beforeEach(async () => {
   vi.stubGlobal('fetch', () => { throw new Error('the network is off in this test'); });
+  vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587'); // the Vault's own sender refuses to send with none
   vi.resetModules();
   fake = createReceivablesDbFake();
   holder.db = fake;
@@ -166,6 +167,115 @@ describe('alertFlaggedCheck', () => {
     expect(logged).toContain('ECONNRESET');
     expect(logged).not.toContain('operator-a@example.test');
     expect(logged).not.toContain(addr(1));
+  });
+
+  it('a send that fails gives the hour back: the next flagged check on that address tries again', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    outbox.fail = true;
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(outbox.sent).toEqual([]);
+    outbox.fail = false; // the mail system is back a minute later
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 60_000)))).toBe('sent');
+    expect(outbox.sent).toHaveLength(1);
+    // And now that one did go, the hour is spent as it always was.
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 120_000)))).toBe('rate_limited');
+  });
+
+  it('a failed send after an alert that did go earlier leaves the address free for the next check, not held for an hour that never produced an email', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
+    const later = new Date(NOW.getTime() + 2 * 60 * 60_000);
+    outbox.fail = true;
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps(later))).toBe('failed');
+    expect(fake.rows('agent_alert_claims')).toEqual([expect.objectContaining({ last_sent_at: delivery.NEVER_ALERTED })]);
+    outbox.fail = false;
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(later.getTime() + 1_000)))).toBe('sent');
+    expect(outbox.sent).toHaveLength(2);
+  });
+
+  it('a failed first alert leaves the address as if it had never been alerted about', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    outbox.fail = true;
+    await alerts.alertFlaggedCheck(info(), alertDeps());
+    expect(fake.rows('agent_alert_claims')).toEqual([expect.objectContaining({ last_sent_at: delivery.NEVER_ALERTED })]);
+    expect(delivery.NEVER_ALERTED < new Date(NOW.getTime() - alerts.ALERT_WINDOW_MS).toISOString()).toBe(true);
+  });
+
+  it('a burst of flagged checks while the mail is down sends nothing, and the next check after it retries', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const down = { ...alertDeps(), send: async () => { throw Object.assign(new Error('refused'), { name: 'SmtpError', code: 'ECONNRESET' }); } };
+    const results = await Promise.all(Array.from({ length: 8 }, () => alerts.alertFlaggedCheck(info(), down)));
+    expect(results.every((r) => r === 'failed' || r === 'rate_limited')).toBe(true);
+    expect(results).toContain('failed');
+    expect(outbox.sent).toEqual([]);
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 1_000)))).toBe('sent');
+    expect(outbox.sent).toHaveLength(1);
+  });
+
+  it('a burst whose first send fails still sends at most one email: the claim is given back only for a send that failed', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let calls = 0;
+    const flaky = {
+      ...alertDeps(),
+      send: async (mail: { to: string; subject: string; text: string }) => {
+        calls += 1;
+        if (calls === 1) throw Object.assign(new Error('refused'), { name: 'SmtpError', code: 'ECONNRESET' });
+        outbox.sent.push(mail);
+      },
+    };
+    const results = await Promise.all(Array.from({ length: 12 }, () => alerts.alertFlaggedCheck(info(), flaky)));
+    expect(results.filter((r) => r === 'failed')).toHaveLength(1);
+    expect(results.filter((r) => r === 'sent').length).toBeLessThanOrEqual(1);
+    expect(outbox.sent.length).toBeLessThanOrEqual(1);
+    // Whichever way the burst fell (the first failure's claim given back before some of the others
+    // looked, or after all of them did), one more check leaves exactly one email sent in all.
+    await alerts.alertFlaggedCheck(info(), flaky);
+    expect(outbox.sent).toHaveLength(1);
+  });
+
+  it('a claim that cannot be given back is logged by name and code, and the failure is still only reported', async () => {
+    await turnOn();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    outbox.fail = true;
+    holder.intercept = (sql) => {
+      if (/^UPDATE agent_alert_claims SET last_sent_at = \? WHERE .* AND last_sent_at = \?$/.test(sql)) throw Object.assign(new Error(`lost the connection for ${addr(1)}`), { name: 'DatabaseError', code: '57P01' });
+    };
+    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).toContain('SmtpError'); // the send failure
+    expect(logged).toContain('DatabaseError'); // and the release that failed
+    expect(logged).toContain('57P01');
+    expect(logged).not.toContain(addr(1));
+    expect(logged).not.toContain('operator-a@example.test');
+  });
+
+  it('giving a claim back leaves it alone when it is no longer the one that was made', async () => {
+    expect(await delivery.claimAlert(A, 'tin-1', addr(1), '2026-10-18T12:00:00.000Z', '2026-10-18T11:00:00.000Z')).toBe(true);
+    fake.rows('agent_alert_claims')[0].last_sent_at = '2026-10-18T14:00:00.000Z'; // another caller's later claim
+    await delivery.releaseAlert(A, 'tin-1', addr(1), '2026-10-18T12:00:00.000Z');
+    expect(fake.rows('agent_alert_claims')[0].last_sent_at).toBe('2026-10-18T14:00:00.000Z');
+    await delivery.releaseAlert(B, 'tin-1', addr(1), '2026-10-18T14:00:00.000Z'); // another account's call reaches nothing
+    expect(fake.rows('agent_alert_claims')[0].last_sent_at).toBe('2026-10-18T14:00:00.000Z');
+    await delivery.releaseAlert(A, 'tin-1', addr(1), '2026-10-18T14:00:00.000Z'); // the claim that is there: given back
+    expect(fake.rows('agent_alert_claims')[0].last_sent_at).toBe(delivery.NEVER_ALERTED);
+  });
+
+  it('with no mail transport the Vault\'s sender fails, so the alert is "failed" and the hour is not spent (not "sent")', async () => {
+    await turnOn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubEnv('EMAIL_SERVER', '');
+    const withDefaultSender = { ...alerts.defaultAlertDeps(), now: () => NOW, recipient: async () => 'operator-a@example.test' };
+    expect(await alerts.alertFlaggedCheck(info(), withDefaultSender)).toBe('failed');
+    expect(outbox.sent).toEqual([]);
+    expect(JSON.stringify((console.error as any).mock.calls)).toContain('E_NO_MAIL_TRANSPORT');
+    vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587');
+    expect(await alerts.alertFlaggedCheck(info(), { ...withDefaultSender, now: () => new Date(NOW.getTime() + 1_000) })).toBe('sent');
+    expect(outbox.sent).toHaveLength(1);
   });
 
   it('a lookup or a database that fails is reported, never thrown', async () => {
@@ -336,28 +446,30 @@ describe('the delivery store', () => {
 
   it('claims a digest for one caller only, gives it back only if it is still theirs, and saving settings does not forget the last digest', async () => {
     await delivery.writeSettings(A, { cadence: 'daily', alerts: false }, '2026-10-01 00:00:00');
-    expect(await delivery.claimDigest(A, 'daily:2026-10-17')).toBe(true);
-    expect(await delivery.claimDigest(A, 'daily:2026-10-17')).toBe(false);
-    expect(await delivery.claimDigest(B, 'daily:2026-10-17')).toBe(false); // B has no settings row: nothing to claim
+    expect(await delivery.claimDigest(A, 'daily:2026-10-17', 'daily')).toBe(true);
+    expect(await delivery.claimDigest(A, 'daily:2026-10-17', 'daily')).toBe(false);
+    expect(await delivery.claimDigest(B, 'daily:2026-10-17', 'daily')).toBe(false); // B has no settings row: nothing to claim
     await delivery.writeSettings(A, { cadence: 'daily', alerts: true }, '2026-10-02 00:00:00');
     expect((await delivery.readSettings(A)).lastDigestKey).toBe('daily:2026-10-17');
     await delivery.releaseDigest(A, 'daily:2026-10-16', null); // not the current one: left alone
     expect((await delivery.readSettings(A)).lastDigestKey).toBe('daily:2026-10-17');
     await delivery.releaseDigest(A, 'daily:2026-10-17', null);
     expect((await delivery.readSettings(A)).lastDigestKey).toBeNull();
-    expect(await delivery.claimDigest(A, 'daily:2026-10-17')).toBe(true);
-    const racing = await Promise.all(Array.from({ length: 8 }, () => delivery.claimDigest(A, 'daily:2026-10-18')));
+    expect(await delivery.claimDigest(A, 'daily:2026-10-17', 'daily')).toBe(true);
+    const racing = await Promise.all(Array.from({ length: 8 }, () => delivery.claimDigest(A, 'daily:2026-10-18', 'daily')));
     expect(racing.filter(Boolean)).toHaveLength(1);
   });
 
   it('every statement names the account', async () => {
     await delivery.writeSettings(A, { cadence: 'daily', alerts: true }, '2026-10-01 00:00:00');
     await delivery.readSettings(A);
-    await delivery.claimDigest(A, 'k');
+    await delivery.claimDigest(A, 'k', 'daily');
     await delivery.releaseDigest(A, 'k', null);
     await delivery.claimAlert(A, 't', addr(1), NOW.toISOString(), NOW.toISOString());
+    await delivery.claimAlert(A, 't', addr(1), '2026-10-18T14:00:00.000Z', '2026-10-18T13:00:00.000Z'); // the address is known now: moved forward
+    await delivery.releaseAlert(A, 't', addr(1), '2026-10-18T14:00:00.000Z');
     const own = fake.log.map((s) => s.sql).filter((sql) => /^(INSERT|UPDATE|SELECT)\b/i.test(sql) && /agent_(report_settings|alert_claims)/.test(sql));
-    expect(own.length).toBeGreaterThanOrEqual(5);
+    expect(own.length).toBeGreaterThanOrEqual(8);
     for (const sql of own) expect(sql, sql).toMatch(/\btenant_id\b/);
   });
 });
