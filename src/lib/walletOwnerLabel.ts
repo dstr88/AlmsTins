@@ -33,7 +33,7 @@ import { DEMO_TENANT_ID } from './demo';
 import { getImportTransactionColumns } from './importTransactionsSchema';
 import { createFixedWindowLimiter } from './rateLimit';
 import { addressLookupKey, ensureWalletIdentityTable } from './walletIdentity';
-import { cexWalletKey, chainWalletKey, isChainSource, isEvmAddress, normalizeChain, parseWalletKey } from './walletKey';
+import { cexWalletKey, chainWalletKey, guessChainFromAddress, isChainSource, normalizeChain, parseWalletKey } from './walletKey';
 
 export const OWNER_LABEL_MAX = 60;
 
@@ -100,18 +100,8 @@ export function parseChainList(value: unknown): string[] {
 	return Array.isArray(v) ? v.filter((c): c is string => typeof c === 'string' && c.trim() !== '') : [];
 }
 
-/** The chain an address most likely belongs to, for a wallet with no chain and no rows. */
-export function guessChainFromAddress(address: string): string {
-	const a = address.trim();
-	const lower = a.toLowerCase();
-	if (isEvmAddress(a)) return 'ethereum';
-	if (/^0x[0-9a-f]{64}$/.test(lower)) return 'sui';
-	if (lower.startsWith('ltc1')) return 'litecoin';
-	if (lower.startsWith('bc1') || /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(a)) return 'bitcoin';
-	if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return 'solana';
-	if (/^custom_/i.test(a)) return 'custom';
-	return 'unknown';
-}
+// guessChainFromAddress lives in walletKey.ts (the tax code needs it without this module's database import).
+export { guessChainFromAddress };
 
 const isCexAddress = (address: string) => address.trim().toLowerCase().startsWith('cex:');
 

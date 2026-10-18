@@ -24,6 +24,7 @@ import { db } from './db';
 import { getImportTransactionColumns, selectImportColumn, selectImportNotes } from './importTransactionsSchema';
 import { isChainSource, normalizeChain, parseWalletKey } from './walletKey';
 import type { WalletRef } from './walletIdentity';
+import { refOfImportRow, refOfOnchainRow, refOfSuiRow } from './tax/walletOfRow';
 
 export type HistoryOrigin = 'import' | 'onchain' | 'sui';
 export type HistoryDirection = 'in' | 'out' | 'lost' | '';
@@ -213,14 +214,9 @@ export function mapImportRow(r: DbRow): HistoryRow {
 		feeAsset = 'USD';
 	}
 
-	const walletId = str(r.wallet_id).trim();
-	const accountId = str(r.account_id).trim();
 	// Chain-synced imports key on the wallet (account ids are shared across addresses);
-	// exchange rows key on the account, or the per-exchange unassigned bucket.
-	const ref: WalletRef =
-		walletId && isChainSource(source)
-			? { kind: 'wallet', walletId, chain: normalizeChain(source) }
-			: { kind: 'account', source, accountId: accountId || null };
+	// exchange rows key on the account, or the per-exchange unassigned bucket (tax/walletOfRow.ts).
+	const ref = refOfImportRow(r);
 	const { date, sortKey } = toUtcDate(r.timestamp_utc);
 	return {
 		origin: 'import',
@@ -297,11 +293,10 @@ export function mapOnchainRow(r: DbRow): HistoryRow {
 	const feeAsset = fee ? nativeSymbol(chain) : '';
 
 	const { date, sortKey } = toUtcDate(r.timestamp);
-	const walletId = str(r.wallet_id).trim();
 	return {
 		origin: 'onchain',
 		id: str(r.id),
-		ref: { kind: 'wallet', walletId: walletId || null, chain },
+		ref: refOfOnchainRow(r),
 		source: chain,
 		chain,
 		date,
@@ -368,11 +363,10 @@ export function mapSuiRow(r: DbRow): HistoryRow | null {
 	if (isZero && !fee) return null;
 
 	const { date, sortKey } = toUtcDate(r.timestamp);
-	const walletId = str(r.wallet_id).trim();
 	return {
 		origin: 'sui',
 		id: str(r.id),
-		ref: { kind: 'wallet', walletId: walletId || null, chain: 'sui' },
+		ref: refOfSuiRow(r),
 		source: 'sui',
 		chain: 'sui',
 		date,

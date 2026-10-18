@@ -70,6 +70,19 @@ export function normalizeWalletAddress(address: unknown): string {
 	return EVM_ADDRESS.test(a) ? a.toLowerCase() : a;
 }
 
+/** The chain an address most likely belongs to, for a wallet with no chain and no rows. */
+export function guessChainFromAddress(address: string): string {
+	const a = address.trim();
+	const lower = a.toLowerCase();
+	if (isEvmAddress(a)) return 'ethereum';
+	if (/^0x[0-9a-f]{64}$/.test(lower)) return 'sui';
+	if (lower.startsWith('ltc1')) return 'litecoin';
+	if (lower.startsWith('bc1') || /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(a)) return 'bitcoin';
+	if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return 'solana';
+	if (/^custom_/i.test(a)) return 'custom';
+	return 'unknown';
+}
+
 /** True when an import source is a blockchain (bitcoin, solana, avalanche_cchain, ...), not an exchange. */
 export function isChainSource(source: unknown): boolean {
 	return CHAIN_SOURCES.has(canonicalImportSource(source));
