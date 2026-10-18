@@ -40,9 +40,10 @@ import {
   type Destination,
   type Tin,
 } from './store';
-import { listEvents, parseCursor, type LedgerEvent } from './events';
+import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type TinTotals } from './events';
 import { defaultTrustDeps, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
+import { defaultWatchDeps, runTinPass, type TinPassReport, type WatchDeps } from './watcher';
 
 /**
  * The most destinations one request adds or checks. Each checked address makes about five
@@ -58,7 +59,7 @@ export type VaultError =
   | 'invalid_label' | 'invalid_chain' | 'invalid_address' | 'invalid_id'
   | 'tin_not_found' | 'wallet_not_found' | 'destination_not_found'
   | 'key_not_found' | 'key_not_active' | 'key_in_use'
-  | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor';
+  | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor' | 'refresh_in_progress';
 
 export type Failure = { ok: false; error: VaultError; max?: number };
 const fail = (error: VaultError, max?: number): Failure => (max === undefined ? { ok: false, error } : { ok: false, error, max });
@@ -445,4 +446,46 @@ export async function listTinEvents(
     events: page.events.map((e) => ({ ...e, keyStatus: e.keyId ? (statuses.get(e.keyId) ?? 'unknown') : null })),
     next: page.next,
   };
+}
+
+// ── Watching the destinations ────────────────────────────────────────────────
+
+/** How long one owner-triggered read may keep starting new calls: the web request has to answer well inside the host's limit. */
+export const REFRESH_DEADLINE_MS = 20_000;
+
+// A read of one tin at a time per process; a second ask while one runs is told so instead of doubling the explorer calls.
+const refreshing = new Set<string>();
+
+/**
+ * Reads the chain now for one tin: the same pass the daily job runs, bounded by a deadline, so a
+ * tin with many wallets may answer `partial` and finish on the next call or the daily run (the
+ * cursor keeps what was read). The answer names the owner's own wallets and says nothing about
+ * any address that is not in the registry.
+ */
+export async function refreshTin(
+  tenantId: string,
+  tinIdRaw: unknown,
+  deps: WatchDeps = defaultWatchDeps,
+): Promise<{ ok: true; pass: TinPassReport } | Failure> {
+  const tinId = idOf(tinIdRaw);
+  if (!tinId) return fail('invalid_id');
+  const tin = await getTin(tenantId, tinId);
+  if (!tin) return fail('tin_not_found');
+  const key = `${tenantId}|${tin.id}`;
+  if (refreshing.has(key)) return fail('refresh_in_progress');
+  refreshing.add(key);
+  try {
+    return { ok: true, pass: await runTinPass(tenantId, tin, deps, { deadlineAt: deps.now() + REFRESH_DEADLINE_MS }) };
+  } finally {
+    refreshing.delete(key);
+  }
+}
+
+/** What a tin's recorded transfers add up to: raw value in (bought) and out (sold), in USD at the time of each transfer. */
+export async function getTinTotals(tenantId: string, tinIdRaw: unknown): Promise<{ ok: true; tinId: string; totals: TinTotals } | Failure> {
+  const tinId = idOf(tinIdRaw);
+  if (!tinId) return fail('invalid_id');
+  const tin = await getTin(tenantId, tinId);
+  if (!tin) return fail('tin_not_found');
+  return { ok: true, tinId: tin.id, totals: await sumTransactions(tenantId, tin.id) };
 }

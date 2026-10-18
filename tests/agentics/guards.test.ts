@@ -34,6 +34,8 @@ const VAULT_FILES = [
   path.join(ROOT, 'src/lib/agenticsFlag.mjs'),
   path.join(ROOT, 'migrations-pg/0050_agent_vault.sql'),
   path.join(ROOT, 'migrations-pg/0051_agent_events.sql'),
+  path.join(ROOT, 'migrations-pg/0052_agent_watch_cursors.sql'),
+  path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
 ].map(rel).sort();
 
 /** SQL comments out, whitespace collapsed, spaces inside parentheses and before commas dropped. */
@@ -56,10 +58,15 @@ describe('the schema file and the code create the same tables', () => {
     expect(files).toContain('0049_wallet_identity.sql');
   });
 
-  it('the ledger is the next one after that, and the only 0051; nothing numbered higher is part of this work', () => {
+  it('the ledger is the next one after that, and the only 0051', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0051'))).toEqual(['0051_agent_events.sql']);
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 51)).toEqual([]);
+  });
+
+  it('the watcher cursors are 0052, the only 0052; nothing numbered higher is part of this work', () => {
+    const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
+    expect(files.filter((f) => f.startsWith('0052'))).toEqual(['0052_agent_watch_cursors.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 52)).toEqual([]);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -109,10 +116,22 @@ describe('the ledger schema file and the code create the same table', () => {
     expect(table).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
     expect(table).not.toMatch(/\bdeleted_at\b/);
     expect(table).toMatch(/\boccurred_at\s+TEXT NOT NULL\b/);
-    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]);
+    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]).filter((c) => c !== 'CHECK');
     expect(cols).toEqual([
-      'id', 'tenant_id', 'tin_id', 'kind', 'address', 'chain', 'answer', 'registry', 'status', 'key_id', 'source_ip', 'detail_json', 'occurred_at', 'created_at',
+      'id', 'tenant_id', 'tin_id', 'kind', 'address', 'chain', 'answer', 'registry', 'status', 'key_id', 'source_ip',
+      'tx_hash', 'direction', 'wallet', 'amount', 'asset', 'asset_contract', 'usd_value', 'block_number',
+      'detail_json', 'occurred_at', 'created_at',
     ]);
+  });
+
+  it('refuses, in the table itself, a transaction stored without its facts', async () => {
+    const { AGENT_EVENTS_DDL } = await import('../../src/lib/agentVault/events');
+    const table = AGENT_EVENTS_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    const rule = table.match(/^\s{4}CHECK \(kind <> 'transaction' OR \(([^)]*)\)\)/m)?.[1] ?? '';
+    for (const col of ['chain', 'tx_hash', 'direction', 'wallet', 'amount', 'asset']) {
+      expect(rule, col).toMatch(new RegExp(`\\b${col} IS NOT NULL\\b`));
+    }
+    expect(table).toMatch(/CHECK \(direction IN \('in', 'out'\)\)/);
   });
 
   it('limits kind, answer and registry to the words the code uses, in the table itself', async () => {
@@ -128,6 +147,33 @@ describe('the ledger schema file and the code create the same table', () => {
   it('the four verify-statuses are the four the design names', async () => {
     const { VAULT_ANSWERS } = await import('../../src/lib/agentVault/events');
     expect([...VAULT_ANSWERS]).toEqual(['proven', 'consistent-with-history', 'flagged', 'unknown']);
+  });
+});
+
+describe('the watcher cursor schema file and the code create the same table', () => {
+  it('migrations-pg/0052_agent_watch_cursors.sql holds exactly the statements ensureAgentWatchTables runs, in order', async () => {
+    const { AGENT_WATCH_DDL } = await import('../../src/lib/agentVault/watchState');
+    const statements = squash(read('migrations-pg/0052_agent_watch_cursors.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_WATCH_DDL.map(squash));
+  });
+
+  it('is keyed by tenant_id and is bookkeeping only: one row per wallet and destination pair', async () => {
+    const { AGENT_WATCH_DDL } = await import('../../src/lib/agentVault/watchState');
+    const table = AGENT_WATCH_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    expect(table).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
+    expect(table).toMatch(/PRIMARY KEY \(tenant_id, wallet_id, destination_id\)/);
+    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]).filter((c) => c !== 'PRIMARY');
+    expect(cols).toEqual(['tenant_id', 'tin_id', 'wallet_id', 'destination_id', 'through_at', 'updated_at']);
+  });
+
+  it('is removed with the account, before the tins', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    expect(at('agent_watch_cursors')).toBeGreaterThanOrEqual(0);
+    expect(at('agent_watch_cursors')).toBeLessThan(at('agent_tins'));
   });
 });
 
@@ -163,21 +209,31 @@ describe('the Vault keeps to the bright lines', () => {
     expect(VAULT_FILES).toEqual([
       'migrations-pg/0050_agent_vault.sql',
       'migrations-pg/0051_agent_events.sql',
+      'migrations-pg/0052_agent_watch_cursors.sql',
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/api.ts',
       'src/lib/agentVault/checkLog.ts',
       'src/lib/agentVault/events.ts',
+      'src/lib/agentVault/explorer.ts',
+      'src/lib/agentVault/link.ts',
+      'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/store.ts',
+      'src/lib/agentVault/transfers.ts',
       'src/lib/agentVault/trustChecks.ts',
       'src/lib/agentVault/trustPolicy.ts',
       'src/lib/agentVault/vault.ts',
+      'src/lib/agentVault/watchState.ts',
+      'src/lib/agentVault/watcher.ts',
       'src/lib/agenticsAccess.ts',
       'src/lib/agenticsFlag.mjs',
       'src/pages/api/agentics/destinations.ts',
       'src/pages/api/agentics/destinations/trust.ts',
       'src/pages/api/agentics/events.ts',
+      'src/pages/api/agentics/refresh.ts',
       'src/pages/api/agentics/tins.ts',
+      'src/pages/api/agentics/totals.ts',
       'src/pages/api/agentics/wallets.ts',
+      'src/pages/api/cron/sync-agent-wallets.ts',
     ]);
   });
 

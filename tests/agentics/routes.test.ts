@@ -55,6 +55,8 @@ let wallets: typeof import('../../src/pages/api/agentics/wallets');
 let destinations: typeof import('../../src/pages/api/agentics/destinations');
 let trust: typeof import('../../src/pages/api/agentics/destinations/trust');
 let events: typeof import('../../src/pages/api/agentics/events');
+let refresh: typeof import('../../src/pages/api/agentics/refresh');
+let totals: typeof import('../../src/pages/api/agentics/totals');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -74,6 +76,8 @@ beforeEach(async () => {
   destinations = await import('../../src/pages/api/agentics/destinations');
   trust = await import('../../src/pages/api/agentics/destinations/trust');
   events = await import('../../src/pages/api/agentics/events');
+  refresh = await import('../../src/pages/api/agentics/refresh');
+  totals = await import('../../src/pages/api/agentics/totals');
 });
 
 afterEach(() => {
@@ -107,6 +111,8 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['destinations DELETE', () => destinations.DELETE, '/api/agentics/destinations?id=x', 'DELETE'],
   ['trust POST', () => trust.POST, '/api/agentics/destinations/trust', 'POST', { tinId: 'x' }],
   ['events GET', () => events.GET, '/api/agentics/events?tinId=x', 'GET'],
+  ['refresh POST', () => refresh.POST, '/api/agentics/refresh', 'POST', { tinId: 'x' }],
+  ['totals GET', () => totals.GET, '/api/agentics/totals?tinId=x', 'GET'],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -355,9 +361,9 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the five endpoint files', () => {
+  it('finds the seven endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'tins.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 
@@ -428,6 +434,99 @@ describe('the owner: read a tin\'s ledger', () => {
     holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { res, raw, json } = await call(events.GET, `/api/agentics/events?tinId=${tinId}`, 'GET');
+    expect(res.status).toBe(500);
+    expect(json).toEqual({ ok: false, error: 'server_error' });
+    expect(raw).not.toMatch(/secret_table|exploded/);
+  });
+});
+
+describe('the owner: read the chain now, and the totals', () => {
+  const newTin = async () => (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Agent' })).json.tin.id as string;
+
+  it('a read with no wallets or no trusted destinations is an answer, not an error', async () => {
+    const tinId = await newTin();
+    const r = await call(refresh.POST, '/api/agentics/refresh', 'POST', { tinId });
+    expect(r.res.status).toBe(200);
+    expect(r.res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(r.json).toEqual({
+      ok: true,
+      pass: { tinId, startedAt: expect.any(String), watchedDestinations: 0, notWatched: { pending: 0, flagged: 0, overLimit: 0 }, wallets: [], recorded: 0 },
+    });
+    expect(r.raw).not.toMatch(/tenant/i);
+  });
+
+  it('a read with the explorer unreachable says so with a code, and writes nothing to the ledger', async () => {
+    const tinId = await newTin();
+    await call(wallets.POST, '/api/agentics/wallets', 'POST', { tinId, chain: 'ethereum', address: addr(1) });
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId, text: addr(2) });
+    const r = await call(refresh.POST, '/api/agentics/refresh', 'POST', { tinId });
+    expect(r.res.status).toBe(200);
+    expect(r.json.pass.wallets).toHaveLength(1);
+    expect(r.json.pass.wallets[0]).toMatchObject({ chain: 'ethereum', address: addr(1), status: expect.stringMatching(/^(idle|unavailable)$/), recorded: 0 });
+    expect(fake.rows('agent_events') ?? []).toEqual([]);
+    expect(r.raw).not.toMatch(/tenant/i);
+  });
+
+  it('answers codes for a missing or unknown tin and a body that is not JSON', async () => {
+    expect((await call(refresh.POST, '/api/agentics/refresh', 'POST', {})).json).toEqual({ ok: false, error: 'invalid_id' });
+    const unknown = await call(refresh.POST, '/api/agentics/refresh', 'POST', { tinId: 'no-such-tin' });
+    expect(unknown.res.status).toBe(404);
+    expect(unknown.json).toEqual({ ok: false, error: 'tin_not_found' });
+    expect((await call(refresh.POST, '/api/agentics/refresh', 'POST', '{not json')).json).toEqual({ ok: false, error: 'expected_json' });
+  });
+
+  it('has no GET: reading the chain is something the owner asks for, not a page that loads', () => {
+    expect(Object.keys(refresh).filter((k) => /^(GET|PUT|PATCH|DELETE)$/.test(k))).toEqual([]);
+    expect(Object.keys(totals).filter((k) => /^(POST|PUT|PATCH|DELETE)$/.test(k))).toEqual([]);
+  });
+
+  it('the totals of a tin with nothing recorded are zero, and carry no account id', async () => {
+    const tinId = await newTin();
+    const r = await call(totals.GET, `/api/agentics/totals?tinId=${tinId}`, 'GET');
+    expect(r.res.status).toBe(200);
+    expect(r.json).toEqual({
+      ok: true,
+      tinId,
+      totals: {
+        transactions: 0,
+        bought: { count: 0, pricedCount: 0, unpricedCount: 0, usd: 0 },
+        sold: { count: 0, pricedCount: 0, unpricedCount: 0, usd: 0 },
+      },
+    });
+    expect(r.raw).not.toMatch(/tenant/i);
+  });
+
+  it('the totals add up the transfers in the ledger', async () => {
+    const tinId = await newTin();
+    const ledger = await import('../../src/lib/agentVault/events');
+    const put = (leg: string, direction: 'in' | 'out', usd: number | null) => ledger.insertTransactionEvent(OWNER_TENANT_ID, {
+      tinId, address: addr(2), chain: 'ethereum', leg, answer: 'unknown', status: null,
+      tx: { hash: `0x${'1'.repeat(64)}`, direction, wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd, blockNumber: 1 },
+      detail: {}, at: new Date().toISOString(),
+    });
+    await put('a', 'in', 120.5);
+    await put('b', 'out', 20);
+    await put('c', 'out', null);
+    const r = await call(totals.GET, `/api/agentics/totals?tinId=${tinId}`, 'GET');
+    expect(r.json.totals).toEqual({
+      transactions: 3,
+      bought: { count: 1, pricedCount: 1, unpricedCount: 0, usd: 120.5 },
+      sold: { count: 2, pricedCount: 1, unpricedCount: 1, usd: 20 },
+    });
+  });
+
+  it('answers codes for the totals of a missing or unknown tin', async () => {
+    expect((await call(totals.GET, '/api/agentics/totals', 'GET')).json).toEqual({ ok: false, error: 'invalid_id' });
+    const unknown = await call(totals.GET, '/api/agentics/totals?tinId=no-such-tin', 'GET');
+    expect(unknown.res.status).toBe(404);
+    expect(unknown.json).toEqual({ ok: false, error: 'tin_not_found' });
+  });
+
+  it('a database failure is a plain 500 with no database text', async () => {
+    const tinId = await newTin();
+    holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { res, raw, json } = await call(totals.GET, `/api/agentics/totals?tinId=${tinId}`, 'GET');
     expect(res.status).toBe(500);
     expect(json).toEqual({ ok: false, error: 'server_error' });
     expect(raw).not.toMatch(/secret_table|exploded/);

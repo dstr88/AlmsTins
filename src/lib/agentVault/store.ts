@@ -390,3 +390,49 @@ export async function softDeleteDestination(tenantId: string, id: string, at: st
   });
   return (r.rowsAffected ?? 0) > 0;
 }
+
+// ── What the watcher reads ───────────────────────────────────────────────────
+
+/**
+ * The first `limit` trusted, live destinations of one account, oldest first, across all its tins.
+ * The watcher reads only these: a free account tracks a fixed number of destinations pooled over
+ * its agents (see MAX_WATCHED_PER_TENANT in ./watcher.ts), and the oldest ones keep their place.
+ */
+export async function listWatchedDestinationIds(tenantId: string, limit: number): Promise<string[]> {
+  await ensureAgentVaultTables();
+  const r = await db.execute({
+    sql: `SELECT id FROM agent_destinations WHERE tenant_id = ? AND trust_status = 'trusted' AND deleted_at IS NULL ORDER BY created_at ASC, id ASC LIMIT ?`,
+    args: [tenantId, limit],
+  });
+  return r.rows.map((row: any) => String(row.id));
+}
+
+/** A tin with something to watch, as the daily job finds it. */
+export interface WatchTarget {
+  tenantId: string;
+  tinId: string;
+}
+
+/**
+ * The tins that have at least one trusted destination, for the daily job. The one read here that
+ * spans accounts, because the job has to visit each of them; it returns ids only, and every
+ * statement after it is scoped to the account of the row it came from.
+ */
+export async function listWatchTargets(limit: number): Promise<WatchTarget[]> {
+  await ensureAgentVaultTables();
+  const r = await db.execute({
+    sql: `SELECT tenant_id, tin_id FROM agent_destinations WHERE trust_status = 'trusted' AND deleted_at IS NULL ORDER BY tenant_id ASC, tin_id ASC LIMIT ?`,
+    args: [limit],
+  });
+  const seen = new Set<string>();
+  const out: WatchTarget[] = [];
+  for (const row of r.rows as any[]) {
+    const tenantId = String(row.tenant_id);
+    const tinId = String(row.tin_id);
+    const key = `${tenantId}|${tinId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ tenantId, tinId });
+  }
+  return out;
+}

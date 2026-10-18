@@ -1,11 +1,12 @@
 /**
  * The Agent Vault ledger: a dated record of what happened on one tin, kept append-only.
  *
- * Slice 2 writes the first kind of event, `checked`: an agent asked, through its API key, whether
- * it may send to an address, and this is what it was answered, and when. The second kind,
- * `transaction`, is reserved for the slice that watches a registered destination receive the funds.
- * The table already allows it, because a CHECK constraint is not something the web database role
- * can change later.
+ * Two kinds of event. `checked` (slice 2): an agent asked, through its API key, whether it may
+ * send to an address, and this is what it was answered, and when. `transaction` (slice 3): the
+ * chain confirmed funds moving between the agent's own wallet and a trusted, registered
+ * destination, and this is the transfer, its USD value at the time, and the verify-status it
+ * inherits from the check that came before it (./link.ts). The kind column allows both because a
+ * CHECK constraint is not something the web database role can change later.
  *
  * Append-only by construction: this module inserts and reads, and nothing in it rewrites or
  * removes a row. A correction is a new event. The only way a row leaves is the whole account
@@ -15,11 +16,18 @@
  * Tenant isolation is the same rule as store.ts: every statement names tenant_id, and a row of
  * another account answers exactly like one that does not exist. Times are UTC ISO-8601 with
  * milliseconds, so two events in one second still order, and a plain string comparison sorts them.
+ * A `transaction` event is stamped with the time of its block; a `checked` event with the time the
+ * check was answered.
+ *
+ * A transfer is written at most once. Its event id is derived from the tenant, the tin, the chain,
+ * the transaction hash and the leg of that transaction (transactionEventId), and the insert skips
+ * an id that exists. Reading the same chain history again, after a restart or an overlapping
+ * window, therefore cannot add a second row for the same movement.
  *
  * Schema is created lazily by ensureAgentEventsTable and mirrored in
  * migrations-pg/0051_agent_events.sql (tests/agentics/guards.test.ts keeps the two equal).
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { parseChain, type VaultChain } from './addresses';
 
@@ -39,23 +47,33 @@ export type RegistryVerdict = (typeof REGISTRY_VERDICTS)[number];
 /** The table and indexes, in creation order. The migration file holds the same statements. */
 export const AGENT_EVENTS_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS agent_events (
-    id          TEXT NOT NULL PRIMARY KEY,
-    tenant_id   TEXT NOT NULL,
-    tin_id      TEXT NOT NULL,
-    kind        TEXT NOT NULL CHECK (kind IN ('checked', 'transaction')),
-    address     TEXT NOT NULL,
-    chain       TEXT,
-    answer      TEXT CHECK (answer IN ('proven', 'consistent-with-history', 'flagged', 'unknown')),
-    registry    TEXT CHECK (registry IN ('trusted', 'flagged', 'pending', 'none')),
-    status      TEXT,
-    key_id      TEXT,
-    source_ip   TEXT,
-    detail_json TEXT,
-    occurred_at TEXT NOT NULL,
-    created_at  TEXT NOT NULL ${TS_DEFAULT}
+    id             TEXT NOT NULL PRIMARY KEY,
+    tenant_id      TEXT NOT NULL,
+    tin_id         TEXT NOT NULL,
+    kind           TEXT NOT NULL CHECK (kind IN ('checked', 'transaction')),
+    address        TEXT NOT NULL,
+    chain          TEXT,
+    answer         TEXT CHECK (answer IN ('proven', 'consistent-with-history', 'flagged', 'unknown')),
+    registry       TEXT CHECK (registry IN ('trusted', 'flagged', 'pending', 'none')),
+    status         TEXT,
+    key_id         TEXT,
+    source_ip      TEXT,
+    tx_hash        TEXT,
+    direction      TEXT CHECK (direction IN ('in', 'out')),
+    wallet         TEXT,
+    amount         TEXT,
+    asset          TEXT,
+    asset_contract TEXT,
+    usd_value      DOUBLE PRECISION,
+    block_number   INTEGER,
+    detail_json    TEXT,
+    occurred_at    TEXT NOT NULL,
+    created_at     TEXT NOT NULL ${TS_DEFAULT},
+    CHECK (kind <> 'transaction' OR (chain IS NOT NULL AND tx_hash IS NOT NULL AND direction IS NOT NULL AND wallet IS NOT NULL AND amount IS NOT NULL AND asset IS NOT NULL))
   )`,
   `CREATE INDEX IF NOT EXISTS agent_events_tin_time ON agent_events (tenant_id, tin_id, occurred_at, id)`,
-  `CREATE INDEX IF NOT EXISTS agent_events_tin_address ON agent_events (tenant_id, tin_id, address)`,
+  `CREATE INDEX IF NOT EXISTS agent_events_tin_address ON agent_events (tenant_id, tin_id, address, occurred_at)`,
+  `CREATE INDEX IF NOT EXISTS agent_events_tin_transactions ON agent_events (tenant_id, tin_id, occurred_at, id) WHERE kind = 'transaction'`,
 ];
 
 let ensurePromise: Promise<void> | null = null;
@@ -74,6 +92,24 @@ export function ensureAgentEventsTable(): Promise<void> {
   return ensurePromise;
 }
 
+/** The movement of funds a `transaction` event records, as the chain showed it. */
+export interface TransactionFacts {
+  hash: string;
+  /** `in` is value that reached the agent's wallet (bought); `out` is value that left it (sold). */
+  direction: 'in' | 'out';
+  /** The agent's own wallet on this transfer. The other side is the event's `address`. */
+  wallet: string;
+  /** The exact amount as a decimal string, in whole units of the asset. Never a float. */
+  amount: string;
+  /** The asset's symbol as the explorer reported it (ETH, POL, AVAX for a chain's own coin). */
+  asset: string;
+  /** The token's contract, lowercase; null for the chain's own coin. */
+  assetContract: string | null;
+  /** USD value at the time of the transfer, or null when it could not be priced (never 0 for "unknown"). */
+  usd: number | null;
+  blockNumber: number | null;
+}
+
 /** One event as callers see it (never a tenant id). */
 export interface LedgerEvent {
   id: string;
@@ -81,10 +117,11 @@ export interface LedgerEvent {
   kind: EventKind;
   /** When it happened, UTC ISO-8601 with milliseconds. */
   at: string;
-  /** Normalized: lowercase for an EVM address, as given (trimmed) for any other chain. */
+  /** Normalized: lowercase for an EVM address, as given (trimmed) for any other chain. For a transaction, the destination. */
   address: string;
   /** The chain of the tin's registry row for this address, or null when the address is not registered. */
   chain: VaultChain | null;
+  /** For a check, what it answered. For a transaction, the answer of the check that came before it (`unknown` when none did). */
   answer: VaultAnswer | null;
   registry: RegistryVerdict | null;
   /** The public check's own status (proven, mismatch, unanchored, unknown), as it answered. */
@@ -93,11 +130,18 @@ export interface LedgerEvent {
   keyId: string | null;
   /** The caller's address as the rate limiter sees it, kept as metadata only. */
   sourceIp: string | null;
+  /** The funds, for a `transaction`; null for a check. */
+  tx: TransactionFacts | null;
   /** The basis and the rest of what was answered. */
   detail: Record<string, unknown> | null;
 }
 
 const text = (v: unknown): string | null => (v == null ? null : String(v));
+const num = (v: unknown): number | null => {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
 function oneOf<T extends string>(allowed: readonly T[], v: unknown): T | null {
   return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : null;
@@ -113,6 +157,20 @@ function parseDetail(raw: unknown): Record<string, unknown> | null {
   }
 }
 
+function txFrom(r: any): TransactionFacts | null {
+  if (r.tx_hash == null) return null;
+  return {
+    hash: String(r.tx_hash),
+    direction: r.direction === 'out' ? 'out' : 'in',
+    wallet: String(r.wallet ?? ''),
+    amount: String(r.amount ?? ''),
+    asset: String(r.asset ?? ''),
+    assetContract: text(r.asset_contract),
+    usd: num(r.usd_value),
+    blockNumber: num(r.block_number),
+  };
+}
+
 function eventFrom(r: any): LedgerEvent {
   return {
     id: String(r.id),
@@ -126,11 +184,50 @@ function eventFrom(r: any): LedgerEvent {
     status: text(r.status),
     keyId: text(r.key_id),
     sourceIp: text(r.source_ip),
+    tx: txFrom(r),
     detail: parseDetail(r.detail_json),
   };
 }
 
-const EVENT_COLUMNS = `id, tin_id, kind, address, chain, answer, registry, status, key_id, source_ip, detail_json, occurred_at`;
+const EVENT_COLUMNS = `id, tin_id, kind, address, chain, answer, registry, status, key_id, source_ip, tx_hash, direction, wallet, amount, asset, asset_contract, usd_value, block_number, detail_json, occurred_at`;
+
+/** Everything an event row can hold, as one insert takes it. */
+interface EventRow {
+  id: string;
+  tinId: string;
+  kind: EventKind;
+  address: string;
+  chain: VaultChain | null;
+  answer: VaultAnswer | null;
+  registry: RegistryVerdict | null;
+  status: string | null;
+  keyId: string | null;
+  sourceIp: string | null;
+  tx: TransactionFacts | null;
+  detail: Record<string, unknown>;
+  at: string;
+}
+
+/**
+ * The one statement that writes the ledger, and the only INSERT INTO this table anywhere in src
+ * (tests/agentics/guards.test.ts counts it). An id that already exists is skipped, which is how
+ * a transfer read twice is stored once; the return value says whether a row was written.
+ */
+async function insertEvent(tenantId: string, row: EventRow): Promise<boolean> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, chain, answer, registry, status, key_id, source_ip, tx_hash, direction, wallet, amount, asset, asset_contract, usd_value, block_number, detail_json, occurred_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT (id) DO NOTHING`,
+    args: [
+      row.id, tenantId, row.tinId, row.kind, row.address, row.chain, row.answer, row.registry, row.status, row.keyId, row.sourceIp,
+      row.tx?.hash ?? null, row.tx?.direction ?? null, row.tx?.wallet ?? null, row.tx?.amount ?? null, row.tx?.asset ?? null,
+      row.tx?.assetContract ?? null, row.tx?.usd ?? null, row.tx?.blockNumber ?? null,
+      JSON.stringify(row.detail), row.at,
+    ],
+  });
+  return (r.rowsAffected ?? 0) > 0;
+}
 
 export interface CheckedEventInput {
   tinId: string;
@@ -146,18 +243,25 @@ export interface CheckedEventInput {
   at: string;
 }
 
-/** Appends a `checked` event. The only write this module has. */
+/** Appends a `checked` event. A check is never written twice, so a skipped insert is an error. */
 export async function insertCheckedEvent(tenantId: string, input: CheckedEventInput): Promise<LedgerEvent> {
-  await ensureAgentEventsTable();
   const id = randomUUID();
-  await db.execute({
-    sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, chain, answer, registry, status, key_id, source_ip, detail_json, occurred_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      id, tenantId, input.tinId, 'checked', input.address, input.chain, input.answer, input.registry,
-      input.status, input.keyId, input.sourceIp, JSON.stringify(input.detail), input.at,
-    ],
+  const written = await insertEvent(tenantId, {
+    id,
+    tinId: input.tinId,
+    kind: 'checked',
+    address: input.address,
+    chain: input.chain,
+    answer: input.answer,
+    registry: input.registry,
+    status: input.status,
+    keyId: input.keyId,
+    sourceIp: input.sourceIp,
+    tx: null,
+    detail: input.detail,
+    at: input.at,
   });
+  if (!written) throw new Error('agent_events: the check was not written');
   return {
     id,
     tinId: input.tinId,
@@ -170,8 +274,75 @@ export async function insertCheckedEvent(tenantId: string, input: CheckedEventIn
     status: input.status,
     keyId: input.keyId,
     sourceIp: input.sourceIp,
+    tx: null,
     detail: input.detail,
   };
+}
+
+/**
+ * The id of the event for one movement of funds: the same tenant, tin, chain, transaction hash and
+ * leg always give the same id, and nothing else does. A hash of those parts, shaped like a UUID so
+ * it fits the ledger's cursor. Hashing the tenant in keeps ids from ever being shared across accounts.
+ */
+export function transactionEventId(tenantId: string, tinId: string, chain: string, hash: string, leg: string): string {
+  const hex = createHash('sha256').update(['agent-event', tenantId, tinId, chain, hash, leg].join('\u0000')).digest('hex');
+  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+export interface TransactionEventInput {
+  tinId: string;
+  /** The destination: the other side of the transfer. */
+  address: string;
+  chain: VaultChain;
+  /** The leg of the transaction this event stands for (see transfers.ts); with the hash, it identifies the movement. */
+  leg: string;
+  /** The verify-status inherited from the check that came before (`unknown` when none did). */
+  answer: VaultAnswer;
+  /** The public status that check answered, or null. */
+  status: string | null;
+  tx: TransactionFacts;
+  detail: Record<string, unknown>;
+  /** The block's time, UTC ISO-8601 with milliseconds. */
+  at: string;
+}
+
+/**
+ * Appends a `transaction` event unless this movement is already in the ledger. `inserted` is false
+ * when it was, so reading the chain again adds nothing. Only called for a trusted, registered
+ * destination (./watcher.ts), so the registry verdict is `trusted` at the moment of writing.
+ */
+export async function insertTransactionEvent(
+  tenantId: string,
+  input: TransactionEventInput,
+): Promise<{ id: string; inserted: boolean }> {
+  const id = transactionEventId(tenantId, input.tinId, input.chain, input.tx.hash, input.leg);
+  const inserted = await insertEvent(tenantId, {
+    id,
+    tinId: input.tinId,
+    kind: 'transaction',
+    address: input.address,
+    chain: input.chain,
+    answer: input.answer,
+    registry: 'trusted',
+    status: input.status,
+    keyId: null,
+    sourceIp: null,
+    tx: input.tx,
+    detail: { ...input.detail, leg: input.leg },
+    at: input.at,
+  });
+  return { id, inserted };
+}
+
+/** True when the ledger of this account already holds an event with this id (see transactionEventId). */
+export async function transactionEventExists(tenantId: string, id: string): Promise<boolean> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT id FROM agent_events WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [id, tenantId],
+  });
+  return r.rows.length > 0;
 }
 
 /** True when this tin has already been asked about this exact address (the history the answer rests on). */
@@ -182,6 +353,41 @@ export async function hasPriorCheck(tenantId: string, tinId: string, address: st
     args: [tenantId, tinId, address],
   });
   return r.rows.length > 0;
+}
+
+/** A check as the link needs it: when it was answered, what it answered, and who asked. */
+export interface CheckForLink {
+  id: string;
+  at: string;
+  answer: VaultAnswer;
+  status: string | null;
+  keyId: string | null;
+}
+
+/**
+ * The checks of this tin about this address answered between `fromIso` and `toIso` (inclusive),
+ * newest first. `limit` bounds the read: the link only needs the latest few.
+ */
+export async function listChecksForLink(
+  tenantId: string,
+  tinId: string,
+  address: string,
+  range: { fromIso: string; toIso: string; limit: number },
+): Promise<CheckForLink[]> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT id, occurred_at, answer, status, key_id FROM agent_events
+          WHERE tenant_id = ? AND tin_id = ? AND kind = 'checked' AND address = ? AND occurred_at >= ? AND occurred_at <= ?
+          ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+    args: [tenantId, tinId, address, range.fromIso, range.toIso, range.limit],
+  });
+  const out: CheckForLink[] = [];
+  for (const row of r.rows as any[]) {
+    const answer = oneOf(VAULT_ANSWERS, row.answer);
+    if (!answer) continue; // a check without a recognizable answer cannot stamp anything
+    out.push({ id: String(row.id), at: String(row.occurred_at), answer, status: text(row.status), keyId: text(row.key_id) });
+  }
+  return out;
 }
 
 // ── Reading ──────────────────────────────────────────────────────────────────
@@ -218,4 +424,72 @@ export async function listEvents(
   const rows = r.rows.map(eventFrom);
   const page = rows.slice(0, opts.limit);
   return { events: page, next: rows.length > opts.limit && page.length ? cursorOf(page[page.length - 1]) : null };
+}
+
+// ── Totals ───────────────────────────────────────────────────────────────────
+
+/** One side of a tin's money in and out. `usd` adds only the transfers that have a USD value. */
+export interface SideTotal {
+  count: number;
+  pricedCount: number;
+  /** Transfers with no USD value on record (a token we could not price). They are counted here, never added in as zero. */
+  unpricedCount: number;
+  /** USD at the time of each transfer, in dollars rounded to the cent. */
+  usd: number;
+}
+
+/** What a tin's recorded transfers add up to. Raw value in and out, nothing netted, no price after the fact. */
+export interface TinTotals {
+  transactions: number;
+  /** Value that reached the agent's wallet from a trusted destination. */
+  bought: SideTotal;
+  /** Value that left the agent's wallet for a trusted destination. */
+  sold: SideTotal;
+}
+
+const TOTALS_PAGE = 1000;
+const MICROS = 1_000_000;
+
+/** Adds up every `transaction` event of one tin, oldest first, a page at a time. Dollar amounts are summed as whole micro-dollars so the sum is exact. */
+export async function sumTransactions(tenantId: string, tinId: string): Promise<TinTotals> {
+  await ensureAgentEventsTable();
+  const sides = {
+    in: { count: 0, priced: 0, unpriced: 0, micros: 0 },
+    out: { count: 0, priced: 0, unpriced: 0, micros: 0 },
+  };
+  let afterAt = '';
+  let afterId = '';
+  for (;;) {
+    const r = await db.execute({
+      sql: `SELECT id, occurred_at, direction, usd_value FROM agent_events
+            WHERE tenant_id = ? AND tin_id = ? AND kind = 'transaction' AND (occurred_at > ? OR (occurred_at = ? AND id > ?))
+            ORDER BY occurred_at ASC, id ASC LIMIT ?`,
+      args: [tenantId, tinId, afterAt, afterAt, afterId, TOTALS_PAGE],
+    });
+    const rows = r.rows as any[];
+    for (const row of rows) {
+      const side = row.direction === 'out' ? sides.out : sides.in;
+      side.count += 1;
+      const usd = num(row.usd_value);
+      if (usd === null) side.unpriced += 1;
+      else {
+        side.priced += 1;
+        side.micros += Math.round(usd * MICROS);
+      }
+    }
+    if (rows.length < TOTALS_PAGE) break;
+    const last = rows[rows.length - 1];
+    const nextAt = String(last.occurred_at);
+    const nextId = String(last.id);
+    if (nextAt === afterAt && nextId === afterId) break; // the page did not move; never loop
+    afterAt = nextAt;
+    afterId = nextId;
+  }
+  const side = (s: (typeof sides)['in']): SideTotal => ({
+    count: s.count,
+    pricedCount: s.priced,
+    unpricedCount: s.unpriced,
+    usd: Math.round(s.micros / (MICROS / 100)) / 100,
+  });
+  return { transactions: sides.in.count + sides.out.count, bought: side(sides.in), sold: side(sides.out) };
 }

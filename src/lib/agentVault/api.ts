@@ -33,6 +33,7 @@ const STATUS: Record<VaultError, number> = {
   too_many: 400,
   text_too_long: 413,
   invalid_cursor: 400,
+  refresh_in_progress: 409,
   tin_not_found: 404,
   wallet_not_found: 404,
   destination_not_found: 404,
