@@ -1,0 +1,22 @@
+---
+/**
+ * /dashboard/agentics/reports: each agent's operator reports, newest day first. Owner-only while
+ * the Agent Vault is private (src/lib/agenticsAccess.ts): the middleware answers anyone else with
+ * the 404 page before this runs, and this checks again, so the page stays closed even if the gate
+ * is ever loosened. The data is read straight from the Vault, never through its own API.
+ */
+import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
+import ReportsPage from '../../../components/agentics/ReportsPage';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadReportsPage } from '@/lib/agentVault/reportPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const data = await loadReportsPage(session.tenantId);
+---
+
+<AgenticsShell title="Reports" active="reports">
+  <ReportsPage client:load data={data} />
+</AgenticsShell>

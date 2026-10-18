@@ -451,6 +451,49 @@ describe('asking for a report', () => {
   });
 });
 
+describe('handing out a report as a signed document', () => {
+  const made = async (tenant = A) => {
+    const tin = await newTin(tenant);
+    await put(tenant, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    return (await reports.generateReport(tenant, tin, DAY, deps())).report;
+  };
+
+  it('gives the report and its bundle only when it is signed and still matches what was signed', async () => {
+    const r = await made();
+    const got = await reports.signedBundleFor(A, r.id);
+    if (!got.ok) throw new Error(JSON.stringify(got));
+    expect(got.stored.id).toBe(r.id);
+    expect(got.bundle.manifest.record_id).toBe(r.id);
+    expect(got.bundle.signature).not.toBeNull();
+    expect(proof.verifyReportBundle(got.bundle).verdict).toBe('verified');
+  });
+
+  it('each way a report can fall short is its own code, and no bundle comes with it', async () => {
+    const r = await made();
+    // altered
+    fake.rows('agent_reports')[0].merkle_root = 'f'.repeat(64);
+    expect(await reports.signedBundleFor(A, r.id)).toEqual({ ok: false, error: 'report_altered' });
+    fake.rows('agent_reports')[0].merkle_root = r.merkleRoot;
+    expect((await reports.signedBundleFor(A, r.id)).ok).toBe(true);
+    // signed, but no published key can confirm it now
+    useKey(null);
+    expect(await reports.signedBundleFor(A, r.id)).toEqual({ ok: false, error: 'signing_unavailable' });
+  });
+
+  it('a report made with no signing key is not_signed', async () => {
+    useKey(null);
+    const r = await made();
+    expect(await reports.signedBundleFor(A, r.id)).toEqual({ ok: false, error: 'not_signed' });
+  });
+
+  it('a missing id, an unknown report and another account\'s report', async () => {
+    const r = await made();
+    expect(await reports.signedBundleFor(A, undefined)).toEqual({ ok: false, error: 'invalid_id' });
+    expect(await reports.signedBundleFor(A, 'no-such-report')).toEqual({ ok: false, error: 'report_not_found' });
+    expect(await reports.signedBundleFor(B, r.id)).toEqual({ ok: false, error: 'report_not_found' });
+  });
+});
+
 describe('one account never sees another\'s reports', () => {
   it('a tin id and a report id of another account answer exactly like ones that do not exist', async () => {
     const tinA = await newTin(A);

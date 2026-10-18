@@ -1,0 +1,31 @@
+---
+/**
+ * The page shell for every Agentics screen: the app Layout (sign-in chrome, account menu), then
+ * Agentics' own bar and its stylesheet. This is the one file that knows the shared Layout, so
+ * giving Agentics its own look later is a change here and in agentics.css, and nothing else.
+ * It names no crypto-vault class and no crypto-vault navigation link.
+ */
+import Layout from '../../layouts/Layout.astro';
+import './agentics.css';
+import { copy } from './copy';
+import { REPORTS_PATH } from './paths';
+
+interface Props {
+  title: string;
+  /** Which entry of the Agentics bar is the current one. */
+  active?: 'reports';
+}
+const { title, active } = Astro.props;
+---
+
+<Layout title={`${title} | ${copy.brand}`} noindex={true}>
+  <div class="ag-shell">
+    <header class="ag-shell__bar">
+      <span class="ag-shell__brand">{copy.brand}</span>
+      <nav class="ag-shell__nav" aria-label={copy.brand}>
+        <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>
+      </nav>
+    </header>
+    <slot />
+  </div>
+</Layout>

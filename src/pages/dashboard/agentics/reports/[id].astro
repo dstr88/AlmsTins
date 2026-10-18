@@ -1,0 +1,22 @@
+---
+/**
+ * /dashboard/agentics/reports/<id>: one operator report, with its versions and its signature.
+ * Owner-only, like every Agentics page (see reports.astro). A report that is not this account's
+ * is a 404, exactly like one that does not exist.
+ */
+import AgenticsShell from '../../../../components/agentics/AgenticsShell.astro';
+import ReportView from '../../../../components/agentics/ReportView';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadReportPage } from '@/lib/agentVault/reportPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const page = await loadReportPage(session.tenantId, String(Astro.params.id ?? ''));
+if (!page) return new Response(null, { status: 404 });
+---
+
+<AgenticsShell title="Operator report" active="reports">
+  <ReportView report={page.report} signing={page.signing} />
+</AgenticsShell>

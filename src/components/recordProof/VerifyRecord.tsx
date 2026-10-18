@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { verifyBundle, type VerifyOutcome, type PublishedKey } from '@/lib/recordProof/verify';
 import type { ProofBundle } from '@/lib/recordProof/buildProof';
+import { entriesLine, recordKindLabel } from '@/lib/recordProof/manifestText';
 import './VerifyRecord.css';
 
 const WELL_KNOWN = '/.well-known/almstins-signing-key.json';
@@ -77,7 +78,7 @@ export default function VerifyRecord() {
       <header className="vr__head">
         <h1 className="vr__title">Verify an Almstins record</h1>
         <p className="vr__sub">
-          Upload the proof bundle (<code>almstins-&lt;year&gt;-proof.json</code>) from a Year-Summary. It is checked
+          Upload a proof bundle: the <code>almstins-&lt;year&gt;-proof.json</code> of a Year-Summary, or the proof of an Agent Vault report. It is checked
           <strong> in your browser</strong> — no account, and you do not have to trust this site.
         </p>
       </header>
@@ -123,9 +124,9 @@ function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; outcome: 
       </div>
 
       <dl className="vr__facts">
-        <div><dt>Period</dt><dd>{m.period} {m.record_type === 'year_summary' ? 'Year Summary' : m.record_type}</dd></div>
+        <div><dt>Period</dt><dd>{m.period} {recordKindLabel(m.record_type)}</dd></div>
         <div><dt>Generated</dt><dd>{m.generated_at}</dd></div>
-        <div><dt>Entries committed</dt><dd>{m.leaf_count} (short {m.counts.short_term} · long {m.counts.long_term} · income {m.counts.income} · held {m.counts.held} · review {m.counts.unsettled})</dd></div>
+        <div><dt>Entries committed</dt><dd>{entriesLine(m)}</dd></div>
         <div><dt>Merkle root</dt><dd className="vr__mono">{m.merkle_root}</dd></div>
         <div><dt>Signed by</dt><dd>{bundle.signature ? `Almstins key ${bundle.signature.key_id}` : 'Unsigned'}</dd></div>
         <div><dt>Checked against</dt><dd>{keySource}</dd></div>

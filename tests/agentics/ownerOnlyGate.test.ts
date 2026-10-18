@@ -122,9 +122,12 @@ const VAULT_PATHS: Array<[string, RequestInit?]> = [
   ['/api/agentics/destinations', { method: 'POST' }],
   ['/api/agentics/destinations?id=abc', { method: 'DELETE' }],
   ['/api/agentics/destinations/trust', { method: 'POST' }],
+  ['/dashboard/agentics/reports/abc'],
   ['/api/agentics/reports?tinId=abc'],
   ['/api/agentics/reports?id=abc'],
   ['/api/agentics/reports', { method: 'POST' }],
+  ['/api/agentics/reports/pdf?id=abc'],
+  ['/api/agentics/reports/bundle?id=abc'],
 ];
 
 // Spellings that reach the Vault in Astro (trailing slash, a doubled leading slash, one level of

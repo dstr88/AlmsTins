@@ -37,6 +37,8 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0052_agent_watch_cursors.sql'),
   path.join(ROOT, 'migrations-pg/0053_agent_reports.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
+  ...walk(path.join(ROOT, 'src/components/agentics')),
+  ...walk(path.join(ROOT, 'src/pages/dashboard/agentics')),
 ].map(rel).sort();
 
 /** SQL comments out, whitespace collapsed, spaces inside parentheses and before commas dropped. */
@@ -273,6 +275,12 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0051_agent_events.sql',
       'migrations-pg/0052_agent_watch_cursors.sql',
       'migrations-pg/0053_agent_reports.sql',
+      'src/components/agentics/AgenticsShell.astro',
+      'src/components/agentics/ReportView.tsx',
+      'src/components/agentics/ReportsPage.tsx',
+      'src/components/agentics/agentics.css',
+      'src/components/agentics/copy.ts',
+      'src/components/agentics/paths.ts',
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/api.ts',
       'src/lib/agentVault/checkLog.ts',
@@ -283,8 +291,12 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/money.ts',
       'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/report.ts',
+      'src/lib/agentVault/reportFormat.ts',
+      'src/lib/agentVault/reportPages.ts',
+      'src/lib/agentVault/reportPdf.ts',
       'src/lib/agentVault/reportProof.ts',
       'src/lib/agentVault/reportStore.ts',
+      'src/lib/agentVault/reportText.ts',
       'src/lib/agentVault/reports.ts',
       'src/lib/agentVault/store.ts',
       'src/lib/agentVault/transfers.ts',
@@ -300,10 +312,14 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/events.ts',
       'src/pages/api/agentics/refresh.ts',
       'src/pages/api/agentics/reports.ts',
+      'src/pages/api/agentics/reports/bundle.ts',
+      'src/pages/api/agentics/reports/pdf.ts',
       'src/pages/api/agentics/tins.ts',
       'src/pages/api/agentics/totals.ts',
       'src/pages/api/agentics/wallets.ts',
       'src/pages/api/cron/sync-agent-wallets.ts',
+      'src/pages/dashboard/agentics/reports.astro',
+      'src/pages/dashboard/agentics/reports/[id].astro',
     ]);
   });
 

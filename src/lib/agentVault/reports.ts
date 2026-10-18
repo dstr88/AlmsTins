@@ -17,7 +17,7 @@ import canonicalize from 'canonicalize';
 import { getSigningKey } from '@/lib/recordProof/signing';
 import { readEventsInRange } from './events';
 import { addDays, dayBounds, headlineOf, parseDay, ReportBuilder, utcDay, type ReportContent, type ReportHeadline } from './report';
-import { buildReportBundle, bundleFromStored, contentHashOf, verifyReportBundle } from './reportProof';
+import { buildReportBundle, bundleFromStored, contentHashOf, verifyReportBundle, type AgentReportBundle } from './reportProof';
 import {
   getLatestReport,
   getReportById,
@@ -203,8 +203,8 @@ function detailOf(r: StoredReport, versions: StoredReport[]): ReportDetail {
 
 // ── Operations the endpoints call ────────────────────────────────────────────
 
-/** The UTC day a tin's stored creation time (`YYYY-MM-DD HH:MM:SS`) falls in. */
-function createdDay(tin: Tin): string | null {
+/** The UTC day a tin's stored creation time (`YYYY-MM-DD HH:MM:SS`) falls in: the first day it can have a report. */
+export function createdDay(tin: Tin): string | null {
   const ms = Date.parse(`${tin.createdAt.replace(' ', 'T')}Z`);
   return Number.isFinite(ms) ? utcDay(ms) : null;
 }
@@ -267,6 +267,30 @@ export async function getReportDetail(tenantId: string, idRaw: unknown): Promise
   const report = await getReportById(tenantId, id);
   if (!report) return fail('report_not_found');
   return { ok: true, report: detailOf(report, await listReportVersions(tenantId, report.tinId, report.periodStart)) };
+}
+
+/**
+ * A report and its proof bundle, for a download: only a report that is signed AND still matches
+ * what was signed. Each way a report can fall short is its own code, so nothing that is unsigned,
+ * altered or unverifiable is ever handed out as a signed document:
+ *   not_signed           it was made when no signing key was configured
+ *   report_altered       what is stored no longer matches what was signed
+ *   signing_unavailable  it was signed, but no published key can confirm the signature now
+ */
+export async function signedBundleFor(
+  tenantId: string,
+  idRaw: unknown,
+): Promise<{ ok: true; stored: StoredReport; bundle: AgentReportBundle } | Failure> {
+  const id = idOf(idRaw);
+  if (!id) return fail('invalid_id');
+  const stored = await getReportById(tenantId, id);
+  if (!stored) return fail('report_not_found');
+  const state = verifyStoredReport(stored);
+  if (state === 'unsigned') return fail('not_signed');
+  if (state === 'altered') return fail('report_altered');
+  if (state === 'unverifiable') return fail('signing_unavailable');
+  const bundle = bundleFromStored(stored.content, { manifest: stored.manifest, signature: stored.signature });
+  return bundle ? { ok: true, stored, bundle } : fail('report_altered');
 }
 
 /** The UTC day before `now`: what the daily job reports on. */

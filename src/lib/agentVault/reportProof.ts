@@ -287,6 +287,16 @@ export function buildReportBundle(input: BuildBundleInput): AgentReportBundle {
   };
 }
 
+/** The name the proof bundle travels under, as the PDF attaches it and the Reports page offers it. */
+export function bundleFileName(manifest: Pick<AgentReportManifest, 'period' | 'version' | 'record_id'>): string {
+  return `almstins-agent-report-${manifest.period}-v${manifest.version}-${manifest.record_id.slice(0, 8)}-proof.json`;
+}
+
+/** The name the signed PDF is downloaded under. */
+export function pdfFileName(manifest: Pick<AgentReportManifest, 'period' | 'version' | 'record_id'>): string {
+  return `almstins-agent-report-${manifest.period}-v${manifest.version}-${manifest.record_id.slice(0, 8)}.pdf`;
+}
+
 /** What a stored report keeps of its proof. */
 export interface StoredProof {
   manifest: AgentReportManifest | null;

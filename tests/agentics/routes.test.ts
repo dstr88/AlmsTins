@@ -58,6 +58,8 @@ let events: typeof import('../../src/pages/api/agentics/events');
 let refresh: typeof import('../../src/pages/api/agentics/refresh');
 let totals: typeof import('../../src/pages/api/agentics/totals');
 let reportsRoute: typeof import('../../src/pages/api/agentics/reports');
+let pdfRoute: typeof import('../../src/pages/api/agentics/reports/pdf');
+let bundleRoute: typeof import('../../src/pages/api/agentics/reports/bundle');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -80,6 +82,8 @@ beforeEach(async () => {
   refresh = await import('../../src/pages/api/agentics/refresh');
   totals = await import('../../src/pages/api/agentics/totals');
   reportsRoute = await import('../../src/pages/api/agentics/reports');
+  pdfRoute = await import('../../src/pages/api/agentics/reports/pdf');
+  bundleRoute = await import('../../src/pages/api/agentics/reports/bundle');
 });
 
 afterEach(() => {
@@ -118,6 +122,8 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['reports GET list', () => reportsRoute.GET, '/api/agentics/reports?tinId=x', 'GET'],
   ['reports GET one', () => reportsRoute.GET, '/api/agentics/reports?id=x', 'GET'],
   ['reports POST', () => reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId: 'x', day: '2026-10-17' }],
+  ['reports pdf GET', () => pdfRoute.GET, '/api/agentics/reports/pdf?id=x', 'GET'],
+  ['reports bundle GET', () => bundleRoute.GET, '/api/agentics/reports/bundle?id=x', 'GET'],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -366,9 +372,9 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the eight endpoint files', () => {
+  it('finds the ten endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'reports.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 
@@ -622,6 +628,119 @@ describe('the owner: operator reports', () => {
     holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { res, raw, json } = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(res.status).toBe(500);
+    expect(json).toEqual({ ok: false, error: 'server_error' });
+    expect(raw).not.toMatch(/secret_table|exploded/);
+  });
+});
+
+describe('the owner: the signed PDF and the proof bundle of a report', () => {
+  const DAY = '2026-10-17';
+  const useKey = (seed: string) => vi.stubEnv('ALMSTINS_SIGNING_KEY', seed);
+  const SEED = 'ab'.repeat(32);
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const reportFor = async (signed: boolean) => {
+    vi.stubEnv('ALMSTINS_SIGNING_PUBKEY', '');
+    vi.stubEnv('ALMSTINS_SIGNING_RETIRED_PUBKEYS', '');
+    useKey(signed ? SEED : '');
+    const tinId = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Agent', agentKeyId: KEY })).json.tin.id as string;
+    fake.rows('agent_tins').find((t) => t.id === tinId)!.created_at = '2026-10-01 00:00:00';
+    const ledger = await import('../../src/lib/agentVault/events');
+    await ledger.insertCheckedEvent(OWNER_TENANT_ID, {
+      tinId, address: addr(1), chain: null, answer: 'flagged', registry: 'flagged', status: 'unknown', keyId: KEY, sourceIp: null,
+      detail: { basis: 'registry_flagged' }, at: '2026-10-17T12:00:00.000Z',
+    });
+    const made = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    return { tinId, id: made.json.report.id as string };
+  };
+
+  const getRaw = async (handler: APIRoute, url: string) => {
+    const request = new Request(`https://almstins.com${url}`);
+    const res = (await handler({ request, url: new URL(request.url) } as never)) as Response;
+    return { res, bytes: Buffer.from(await res.arrayBuffer()) };
+  };
+
+  it('hands out a PDF of a signed report: private, uncached, named by the day and version, and a real PDF', async () => {
+    const { id } = await reportFor(true);
+    const { res, bytes } = await getRaw(pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/pdf');
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(res.headers.get('Content-Disposition')).toBe(`attachment; filename="almstins-agent-report-${DAY}-v1-${id.slice(0, 8)}.pdf"`);
+    expect(res.headers.get('Content-Length')).toBe(String(bytes.length));
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(bytes.length).toBeGreaterThan(2000);
+  });
+
+  it('hands out the proof bundle of a signed report, which the public verifier reads as verified', async () => {
+    const { id } = await reportFor(true);
+    const { res, bytes } = await getRaw(bundleRoute.GET, `/api/agentics/reports/bundle?id=${id}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/json');
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(res.headers.get('Content-Disposition')).toBe(`attachment; filename="almstins-agent-report-${DAY}-v1-${id.slice(0, 8)}-proof.json"`);
+    const bundle = JSON.parse(bytes.toString('utf8'));
+    expect(bundle.manifest).toMatchObject({ record_id: id, record_type: 'agent_report', version: 1, period: DAY });
+    const { verifyReportBundle } = await import('../../src/lib/agentVault/reportProof');
+    expect(verifyReportBundle(bundle).verdict).toBe('verified');
+    expect(JSON.stringify(bundle.manifest)).not.toContain(addr(1));
+    expect(bytes.toString('utf8')).toContain(addr(1)); // the address is in the leaves, which stay with the owner
+  });
+
+  it('refuses, with a code and no document, a report that was made unsigned', async () => {
+    const { id } = await reportFor(false);
+    for (const [handler, url] of [[pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`], [bundleRoute.GET, `/api/agentics/reports/bundle?id=${id}`]] as const) {
+      const r = await call(handler, url, 'GET');
+      expect(r.res.status, url).toBe(409);
+      expect(r.res.headers.get('Content-Type'), url).toBe('application/json');
+      expect(r.json, url).toEqual({ ok: false, error: 'not_signed' });
+    }
+  });
+
+  it('refuses a report whose stored words no longer match what was signed', async () => {
+    const { id } = await reportFor(true);
+    const row = fake.rows('agent_reports').find((r) => r.id === id)!;
+    row.summary_json = row.summary_json.replace('"issues":{"addresses":1', '"issues":{"addresses":0');
+    for (const [handler, url] of [[pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`], [bundleRoute.GET, `/api/agentics/reports/bundle?id=${id}`]] as const) {
+      const r = await call(handler, url, 'GET');
+      expect(r.res.status, url).toBe(409);
+      expect(r.json, url).toEqual({ ok: false, error: 'report_altered' });
+    }
+  });
+
+  it('refuses, as unavailable, a signed report when no published key can confirm the signature now', async () => {
+    const { id } = await reportFor(true);
+    useKey('');
+    for (const [handler, url] of [[pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`], [bundleRoute.GET, `/api/agentics/reports/bundle?id=${id}`]] as const) {
+      const r = await call(handler, url, 'GET');
+      expect(r.res.status, url).toBe(503);
+      expect(r.json, url).toEqual({ ok: false, error: 'signing_unavailable' });
+    }
+  });
+
+  it('answers codes for a missing or unknown report', async () => {
+    for (const handler of [pdfRoute.GET, bundleRoute.GET]) {
+      const base = handler === pdfRoute.GET ? '/api/agentics/reports/pdf' : '/api/agentics/reports/bundle';
+      expect((await call(handler, base, 'GET')).json).toEqual({ ok: false, error: 'invalid_id' });
+      const unknown = await call(handler, `${base}?id=no-such-report`, 'GET');
+      expect(unknown.res.status).toBe(404);
+      expect(unknown.json).toEqual({ ok: false, error: 'report_not_found' });
+    }
+  });
+
+  it('has no way to change anything: only GET exists on both', () => {
+    for (const mod of [pdfRoute, bundleRoute]) expect(Object.keys(mod).filter((k) => /^(POST|PUT|PATCH|DELETE)$/.test(k))).toEqual([]);
+  });
+
+  it('a database failure is a plain 500 with no database text', async () => {
+    const { id } = await reportFor(true);
+    holder.intercept = (sql) => { if (/FROM agent_reports/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { res, raw, json } = await call(pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`, 'GET');
     expect(res.status).toBe(500);
     expect(json).toEqual({ ok: false, error: 'server_error' });
     expect(raw).not.toMatch(/secret_table|exploded/);
