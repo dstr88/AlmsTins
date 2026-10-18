@@ -1,0 +1,245 @@
+---
+import Analytics from '@/components/Analytics.astro';
+// Almstins Agentics: the sign-in and signup door at /agentics/login.
+//
+// Same Auth.js endpoints as /login and /verify/login (Google, GitHub, an email link or a
+// password), titled for Agentics. There is no separate signup: the first sign-in creates the
+// account and its tenant (ensureTenantForUser, run by the sign-in flow), so nothing is created
+// ahead of someone signing up. With no `next` the visitor lands on the Agentics welcome page,
+// /dashboard/agentics; a link from the landing page carries its campaign label along in `next`.
+//
+// CSRF: the server-side token from getLoginPageData is only valid when the browser already
+// holds the matching authjs.csrf-token cookie. A first-time visitor has none, so the page
+// refreshes the token from the browser on load (the same thing /verify/login does), which sets
+// the cookie and returns a matching token. The buttons stay disabled until that lands.
+//
+// /agentics/login is a public path (isPublicPath, exact), so it never redirect-loops with the
+// gated dashboard.
+import '@/styles/tokens.css';
+import { en as login } from '@/i18n/loginPage';
+import { en as t } from '@/i18n/agentics';
+import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
+
+export const prerender = false;
+
+const data = await getLoginPageData(Astro.request, Astro.url);
+const hasDestination = !!(Astro.url.searchParams.get('next') || Astro.url.searchParams.get('callbackUrl'));
+const callbackUrl = hasDestination ? data.safeCallbackUrl : '/dashboard/agentics';
+
+// Already signed in? Go straight where they were headed.
+if (data.isLoggedIn) return Astro.redirect(callbackUrl, 302);
+
+const { csrfToken, error } = data;
+const failed = !!error;
+const failedText = resolveLoginAlert(login, data).message || login.errors.generic;
+const l = t.login;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{l.pageTitle}</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon.webp" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 62rem; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1.6rem; }
+
+    .head { text-align: center; display: flex; flex-direction: column; gap: .35rem; max-width: 34rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.55rem, 4vw, 2.05rem); line-height: 1.18; font-weight: 700; }
+    .blurb { font-size: .95rem; color: var(--text-secondary); }
+
+    .card {
+      width: 100%; max-width: 25rem; background: var(--surface-card);
+      border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.6rem 1.6rem 1.4rem;
+      display: flex; flex-direction: column; gap: .55rem;
+    }
+    .notice { font-size: .84rem; border-radius: 9px; padding: .6rem .75rem; background: var(--loss-bg); border: 1px solid var(--loss-border); margin-bottom: .3rem; }
+
+    form { display: flex; flex-direction: column; gap: .55rem; }
+    .provider {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: .6rem;
+      background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 10px;
+      color: var(--text-primary); padding: .7rem 1rem; font-size: .9rem; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .provider:hover:not(:disabled) { background: var(--surface-hover); }
+    .provider:disabled { opacity: .45; cursor: progress; }
+    .provider svg { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; }
+
+    .divider { display: flex; align-items: center; gap: .7rem; color: var(--text-muted); font-size: .74rem; margin: .3rem 0; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+
+    label { display: flex; flex-direction: column; gap: .28rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .9rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); }
+    .primary {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 10px;
+      padding: .7rem 1rem; font-size: .9rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .primary:hover:not(:disabled) { filter: brightness(1.08); }
+    .primary:disabled { opacity: .45; cursor: progress; }
+    .tabs { display: flex; gap: .4rem; }
+    .tab {
+      flex: 1; background: transparent; border: 1px solid var(--border-subtle); border-radius: 8px;
+      color: var(--text-secondary); padding: .4rem .6rem; font-size: .78rem; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .tab.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .cardfoot { font-size: .78rem; color: var(--text-muted); text-align: center; margin-top: .35rem; }
+    .cardfoot a { color: var(--accent); }
+
+    /* ── The three tools, same as the hub ── */
+    .doors-label { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); margin-top: .6rem; }
+    .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .9rem; width: 100%; }
+    .door {
+      display: flex; flex-direction: column; gap: .35rem; text-decoration: none; color: inherit;
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px;
+      padding: 1.15rem 1.25rem; transition: border-color .15s, background .15s;
+    }
+    .door:hover { border-color: var(--accent-glow); background: var(--surface-hover); }
+    .door__icon { font-size: 1.35rem; }
+    .door__title { font-size: 1.02rem; font-weight: 700; }
+    .door__desc { font-size: .87rem; color: var(--text-secondary); }
+    .door__free { font-size: .78rem; color: var(--accent-dim, var(--accent)); margin-top: .35rem; }
+    .door__cta { font-size: .85rem; font-weight: 700; color: var(--accent); margin-top: .2rem; }
+
+    /* ── Verify door: demo + way back, as pills under the card ── */
+    .pills { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+    .pill {
+      font-size: .82rem; font-weight: 600; text-decoration: none; color: var(--text-secondary);
+      border: 1px solid var(--border-bright); border-radius: 999px; padding: .45rem 1rem;
+      transition: color .15s, border-color .15s;
+    }
+    .pill:hover { color: var(--text-primary); border-color: var(--accent); }
+    .pill--demo { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+
+    .trust { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; font-size: .78rem; color: var(--text-muted); }
+    [hidden] { display: none !important; }
+  </style>
+	<Analytics />
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="head">
+      <div class="eyebrow">{t.brand}</div>
+      <h1>{l.title}</h1>
+      <p class="blurb">{l.blurb}</p>
+    </div>
+
+    <div class="card">
+      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? login.errors.generic : failedText}</p>}
+
+      <form method="POST" action="/api/auth/signin/google">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <button class="provider" type="submit" data-needs-csrf disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="currentColor" opacity=".8" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="currentColor" opacity=".6" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="currentColor" opacity=".7" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </form>
+
+      <form method="POST" action="/api/auth/signin/github">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <button class="provider" type="submit" data-needs-csrf disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          Continue with GitHub
+        </button>
+      </form>
+
+      <div class="divider">or with email</div>
+
+      <div class="tabs">
+        <button class="tab active" id="tab-link" type="button">Email me a link</button>
+        <button class="tab" id="tab-pass" type="button">Password</button>
+      </div>
+
+      <form method="POST" action="/api/auth/signin/email" id="form-link">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <label>Email<input type="email" name="email" placeholder="you@company.com" required autocomplete="email" /></label>
+        <button class="primary" type="submit" data-needs-csrf disabled>Send me a sign-in link</button>
+      </form>
+
+      <form method="POST" action="/api/auth/callback/credentials" id="form-pass" hidden>
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <label>Email<input type="email" name="email" placeholder="you@company.com" required autocomplete="email" /></label>
+        <label>Password<input type="password" name="password" minlength="10" required autocomplete="current-password" /></label>
+        <button class="primary" type="submit" data-needs-csrf disabled>Sign in</button>
+      </form>
+
+      <p class="cardfoot">
+        {l.foot}<br />
+        <a href="/agentics/docs">{l.docsLink}</a>
+      </p>
+    </div>
+
+    <div class="pills">
+      <a class="pill" href="/agentics">What is Almstins Agentics?</a>
+    </div>
+
+    <div class="trust">
+      {l.trust.map((s) => <span>{s}</span>)}
+    </div>
+  </div>
+
+  <script>
+    // ── CSRF refresh ────────────────────────────────────────────────────────
+    // The server-issued token only works if the browser already holds the matching
+    // cookie. Fetching from the browser sets that cookie and returns a token that
+    // matches it, which is what prevents MissingCSRF on a first visit.
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data?.csrfToken) return;
+        document.querySelectorAll('input[name="csrfToken"]').forEach((el) => {
+          (el as HTMLInputElement).value = data.csrfToken;
+        });
+        document.querySelectorAll('button[data-needs-csrf]').forEach((b) => {
+          b.removeAttribute('disabled');
+        });
+      } catch (e) {
+        console.warn('[agentics-login] csrf fetch failed', e);
+      }
+    })();
+
+    // ── Email tabs ──────────────────────────────────────────────────────────
+    const tabLink = document.getElementById('tab-link')!;
+    const tabPass = document.getElementById('tab-pass')!;
+    const formLink = document.getElementById('form-link') as HTMLElement;
+    const formPass = document.getElementById('form-pass') as HTMLElement;
+    function pick(link: boolean) {
+      tabLink.classList.toggle('active', link);
+      tabPass.classList.toggle('active', !link);
+      formLink.hidden = !link;
+      formPass.hidden = link;
+    }
+    tabLink.addEventListener('click', () => pick(true));
+    tabPass.addEventListener('click', () => pick(false));
+  </script>
+</body>
+</html>

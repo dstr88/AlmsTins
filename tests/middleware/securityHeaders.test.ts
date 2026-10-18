@@ -25,13 +25,13 @@ describe('applySecurityHeaders (moved from app.ts)', () => {
 });
 
 describe('public pages that get the headers', () => {
-  it('covers the financing pages, their aliases, the landing, and the two Verify sign-in pages', () => {
+  it('covers the financing pages, their aliases, the landing, and the Verify and Agentics sign-in pages', () => {
     for (const p of [
       '/receivables', '/receivables/', '/receivables/desk', '/receivables/milestone-check',
       '/verify/desk', '/verify/attest', '/verify/offer/', '/verify/cairn', '/verify/cairn-attest',
-      '/verify/login', '/verify/agent-keys',
+      '/verify/login', '/verify/agent-keys', '/agentics/login', '/agentics/login/',
     ]) expect(needsPublicHeaders(p), p).toBe(true);
-    for (const p of ['/verify', '/verify/scan', '/verify/es', '/verify/agents', '/agentics', '/verify-record', '/', '/artifacts/proof']) {
+    for (const p of ['/verify', '/verify/scan', '/verify/es', '/verify/agents', '/agentics', '/agentics/docs', '/verify-record', '/', '/artifacts/proof']) {
       expect(needsPublicHeaders(p), p).toBe(false);
     }
   });

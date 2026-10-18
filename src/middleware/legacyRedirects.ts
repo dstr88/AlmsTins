@@ -14,7 +14,7 @@
  * /verify/cairn prefix (it would catch cairn-attest).
  *
  * RENAMED, below PAIRS, holds plain one-page renames that are not part of the financing move and
- * apply in every mode (today: the agent docs, /verify/agents to /agentics). Same rules: exact
+ * apply in every mode (today: the agent docs, /verify/agents to /agentics/docs). Same rules: exact
  * path, one optional trailing slash, query kept, never removed.
  */
 import { safeNextPath } from '../lib/safeNext';
@@ -37,7 +37,7 @@ export const PAIRS: ReadonlyArray<readonly [string, string]> = [
  * old URLs sit in public comments, PDFs and announcements.
  */
 export const RENAMED: ReadonlyArray<readonly [string, string]> = [
-  ['/verify/agents', '/agentics'],
+  ['/verify/agents', '/agentics/docs'],
 ];
 const RENAMED_MAP = new Map<string, string>(RENAMED);
 

@@ -14,6 +14,8 @@ export const TENANT_TABLES = [
   'petro_tin_entries', 'petro_tins', 'petro_receipts', 'petro_shared_cc', 'petro_splits_assignments',
   'petro_splits_payments', 'petro_splits_bills', 'petro_splits_carried', 'petro_splits_people', 'petro_splits',
   'petro_subscriptions', 'petro_visits', 'dirty_tin_entries', 'dirty_tins',
+  // Agentics signups (where the account came in, and whether its welcome letter went out)
+  'agentics_signups',
   // Transactions, imports and wallets
   'transaction_annotations', 'transaction_screenshots', 'transfer_matches', 'transactions', 'sui_transactions',
   'import_raw_rows', 'import_transactions', 'exchange_accounts', 'manual_cost_basis', 'protocol_positions',

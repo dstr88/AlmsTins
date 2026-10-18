@@ -61,11 +61,16 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/verify' ||
 		pathname.startsWith('/verify/') ||
 		pathname === '/marchand' ||
-		// Agentics: the destination-check docs for payment agents (renamed from /verify/agents, which
-		// 308s here from legacyRedirects). Exact paths: a prefix would make any future /agentics/...
-		// page public by accident.
+		// Agentics: the public landing (/agentics), the destination-check docs for payment agents
+		// (/agentics/docs, renamed from /verify/agents, which 308s there from legacyRedirects) and
+		// the sign-in door (/agentics/login). Exact paths: a prefix would make any future
+		// /agentics/... page public by accident.
 		pathname === '/agentics' ||
 		pathname === '/agentics/' ||
+		pathname === '/agentics/docs' ||
+		pathname === '/agentics/docs/' ||
+		pathname === '/agentics/login' ||
+		pathname === '/agentics/login/' ||
 		// Receivables — public landing for the financing suite; a front door to the /verify
 		// tools. Must be reachable without a session (the gated desks handle their own login).
 		pathname === '/receivables' ||

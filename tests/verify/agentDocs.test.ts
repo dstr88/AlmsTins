@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * /agentics is the contract payment agents are built against.
+ * /agentics/docs is the contract payment agents are built against.
  *
  * C5/S7b: /api/verify/check now derives `status` from `level` first — `proven` and
  * `mismatch` only ever come back with level `verified`, `unanchored` always comes with
@@ -21,7 +21,7 @@ import path from 'node:path';
 const ROOT = path.resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 
-const docs = read('src/pages/agentics.astro');
+const docs = read('src/pages/agentics/docs.astro');
 const check = read('src/pages/api/verify/check.ts');
 const landing = read('src/i18n/verify.ts');
 const docsText = docs.replace(/\s+/g, ' ');
@@ -63,7 +63,7 @@ function field(name: string): string {
   return m![1];
 }
 
-describe('/agentics: the safe-reading rule', () => {
+describe('/agentics/docs: the safe-reading rule', () => {
   it('the sample code proceeds only on status proven AND level verified, with expect passed', () => {
     const code = snippet();
     expect(code).toContain("body.status === 'proven' && body.level === 'verified'");
@@ -145,7 +145,7 @@ describe('/agentics: the safe-reading rule', () => {
   });
 });
 
-describe('/agentics: what verified covers today', () => {
+describe('/agentics/docs: what verified covers today', () => {
   it('domain is always what actually anchors the destination, never the business name alone', () => {
     const domain = field('domain');
     expect(domain).toContain('The domain that actually vouches for this destination right now');
@@ -182,7 +182,7 @@ describe('/agentics: what verified covers today', () => {
   });
 });
 
-describe('/agentics: the documented fields match check.ts', () => {
+describe('/agentics/docs: the documented fields match check.ts', () => {
   it('the sample answer shows exactly the keys check.ts returns, in order', () => {
     expect(documentedSampleKeys()).toEqual(responseKeys());
   });

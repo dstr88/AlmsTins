@@ -69,6 +69,7 @@ export function needsPublicHeaders(pathname: string): boolean {
 		p === '/receivables' ||
 		isFinancingPage(p) ||
 		p === '/verify/login' ||
+		p === '/agentics/login' ||
 		p === '/verify/agent-keys' ||
 		// The sign-up confirmation page (its URL carries the verification token).
 		p === '/verify-email'

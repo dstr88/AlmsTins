@@ -38,7 +38,7 @@
  * upstream fetch at check time (no SSRF surface). Additive-only response contract; `v`
  * bumps only on a breaking change — a new `status` value is additive (an agent that reads
  * status verbatim without an exhaustive switch already treats anything but `proven` as a
- * hold, per /agentics).
+ * hold, per /agentics/docs).
  */
 import type { APIRoute } from 'astro';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';

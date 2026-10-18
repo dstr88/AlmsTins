@@ -1,0 +1,197 @@
+---
+// Almstins Agentics: the public door. Someone who runs AI agents that move money lands here, reads
+// what it is and what stands today, and opens a free account.
+//
+// What this page claims is only what is true. The pre-send check and the free address checker are
+// live; the vault (bots, registered addresses, the record, the daily report) is opening soon, and
+// every step that depends on it says so. Free accounts are open; paid plans are "coming later" with
+// no prices because nobody can buy one yet. The words live in src/i18n/agentics.ts, where
+// tests/agentics/doorCopy.test.ts holds them to the product's wording rules.
+//
+// A campaign label on the link (/agentics?src=linkedin) rides along to the sign-in and is kept with
+// the signup (src/lib/agenticsSource.ts). Everything else about the account (the tenant) is made by
+// the first sign-in, the same as for every other account.
+//
+// The API docs the agent builders read are at /agentics/docs (they moved here from /verify/agents).
+//
+// A document of its own, not LoginLayout: that layout always ends in the Almstins site footer, whose
+// questions are about the crypto tracker and would confuse someone who came to check an agent's
+// payments. The head carries the same SEO tags LoginLayout writes (title, description, Open Graph,
+// Twitter card, canonical), and the page is indexable.
+import '@/styles/tokens.css';
+import Analytics from '@/components/Analytics.astro';
+import { en as t } from '@/i18n/agentics';
+import { cleanSource, signupHref } from '@/lib/agenticsSource';
+
+export const prerender = false;
+
+const l = t.landing;
+const signup = signupHref(cleanSource(Astro.url.searchParams.get('src')));
+const canonical = 'https://almstins.com/agentics';
+const ogImage = 'https://almstins.com/og-default.png';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{l.title}</title>
+  <meta name="description" content={l.description} />
+  <meta property="og:title" content={l.title} />
+  <meta property="og:description" content={l.description} />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={ogImage} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={l.title} />
+  <meta name="twitter:description" content={l.description} />
+  <meta name="twitter:image" content={ogImage} />
+  <link rel="canonical" href={canonical} />
+  <link rel="icon" href="/favicon.webp" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+<style is:global>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6;
+  }
+  .ag {
+    max-width: 60rem; margin: 0 auto; padding: 3.25rem 1.25rem 3.5rem;
+    display: flex; flex-direction: column; gap: 2.6rem;
+    color: var(--text-primary);
+  }
+  /* The layout does not reset the browser's margins and list padding; the page spaces itself with gaps. */
+  .ag h1, .ag h2, .ag h3, .ag p, .ag ul, .ag ol { margin: 0; padding: 0; }
+  .ag h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: .9rem; }
+  .ag h3 { font-size: 1rem; font-weight: 700; }
+  .ag p { color: var(--text-secondary); }
+
+  .ag-hero { display: flex; flex-direction: column; gap: .9rem; max-width: 42rem; }
+  .ag-eyebrow {
+    font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  .ag-hero h1 { font-size: clamp(1.9rem, 5vw, 2.9rem); line-height: 1.1; font-weight: 800; letter-spacing: -.01em; }
+  .ag-sub { font-size: 1.05rem; line-height: 1.55; }
+  .ag-cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .4rem; }
+  .ag-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: .75rem 1.25rem; border-radius: 10px; font-size: .95rem; font-weight: 700;
+    text-decoration: none; border: 1px solid transparent;
+  }
+  .ag-btn--primary { background: var(--accent); color: var(--surface-bg); }
+  .ag-btn--primary:hover { filter: brightness(1.08); }
+  .ag-btn--ghost { border-color: var(--border-bright); color: var(--text-secondary); background: transparent; }
+  .ag-btn--ghost:hover { background: var(--surface-hover); color: var(--text-primary); }
+  .ag-fine { font-size: .82rem; color: var(--text-muted); }
+
+  .ag-status {
+    background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px;
+    padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .55rem;
+  }
+  .ag-status p { font-size: .93rem; }
+
+  .ag-pill {
+    display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    padding: .12rem .55rem; border-radius: 999px; margin-right: .35rem;
+    border: 1px solid var(--border-bright); color: var(--text-muted); background: var(--surface-card-2);
+    vertical-align: 1px;
+  }
+  .ag-pill--live { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+  .ag-card .ag-pill { align-self: flex-start; margin-right: 0; }
+
+  .ag-steps { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+  .ag-card {
+    position: relative; background: var(--surface-card); border: 1px solid var(--border-subtle);
+    border-radius: 14px; padding: 1.2rem 1.25rem 1.3rem; display: flex; flex-direction: column; gap: .5rem;
+  }
+  .ag-card p { font-size: .9rem; line-height: 1.55; }
+  .ag-num {
+    width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center;
+    font-size: .8rem; font-weight: 800; color: var(--accent); background: var(--accent-soft);
+  }
+
+  .ag-stays { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+  .ag-stays li {
+    position: relative; padding-left: 1.5rem; color: var(--text-secondary); font-size: .95rem; line-height: 1.5;
+  }
+  .ag-stays li::before {
+    content: ''; position: absolute; left: .15rem; top: .55rem; width: .5rem; height: .5rem;
+    border-radius: 50%; background: var(--accent);
+  }
+
+  .ag-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+  .ag-plan--open { border-color: var(--accent-glow); }
+  .ag-plan__status { font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+  .ag-plan--open .ag-plan__status { color: var(--accent); }
+
+  .ag-foot { font-size: .85rem; color: var(--text-muted); display: flex; flex-direction: column; gap: .5rem; }
+  .ag-foot__links { display: flex; flex-wrap: wrap; gap: 1.1rem; }
+  .ag-foot a { color: var(--accent); text-decoration: none; }
+  .ag-foot a:hover { text-decoration: underline; }
+</style>
+  <Analytics />
+</head>
+<body>
+  <main class="ag">
+    <section class="ag-hero" aria-labelledby="ag-h1">
+      <p class="ag-eyebrow">{l.eyebrow}</p>
+      <h1 id="ag-h1">{l.h1}</h1>
+      <p class="ag-sub">{l.sub}</p>
+      <div class="ag-cta">
+        <a class="ag-btn ag-btn--primary" href={signup}>{l.ctaPrimary}</a>
+        <a class="ag-btn ag-btn--ghost" href="/agentics/docs">{l.ctaSecondary}</a>
+      </div>
+      <p class="ag-fine">{l.finePrint}</p>
+    </section>
+
+    <section class="ag-status" aria-label="Where it stands">
+      <p><span class="ag-pill ag-pill--live">{l.status.liveLabel}</span> {l.status.liveText}</p>
+      <p><span class="ag-pill">{l.status.soonLabel}</span> {l.status.soonText}</p>
+    </section>
+
+    <section aria-labelledby="ag-how">
+      <h2 id="ag-how">{l.stepsTitle}</h2>
+      <ol class="ag-steps">
+        {l.steps.map((s, i) => (
+          <li class="ag-card">
+            <span class="ag-num" aria-hidden="true">{i + 1}</span>
+            <span class={`ag-pill${s.live ? ' ag-pill--live' : ''}`}>{s.tag}</span>
+            <h3>{s.title}</h3>
+            <p>{s.body}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section aria-labelledby="ag-true">
+      <h2 id="ag-true">{l.staysTitle}</h2>
+      <ul class="ag-stays">
+        {l.stays.map((s) => <li>{s}</li>)}
+      </ul>
+    </section>
+
+    <section aria-labelledby="ag-plans">
+      <h2 id="ag-plans">{l.plansTitle}</h2>
+      <div class="ag-plans">
+        {l.plans.map((p, i) => (
+          <div class={`ag-card ag-plan${i === 0 ? ' ag-plan--open' : ''}`}>
+            <h3>{p.name}</h3>
+            <p class="ag-plan__status">{p.status}</p>
+            <p>{p.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <p class="ag-foot">
+      {l.footer}
+      <span class="ag-foot__links">
+        <a href="/agentics/docs">{l.footerLinks.docs}</a>
+        <a href="/wallet-checker">{l.footerLinks.checker}</a>
+        <a href="/privacy">{l.footerLinks.privacy}</a>
+      </span>
+    </p>
+  </main>
+</body>
+</html>

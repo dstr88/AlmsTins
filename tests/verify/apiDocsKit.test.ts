@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * The docs kit: ApiDocsLayout, AnswerCards and DocsFaq, and /agentics built on them.
+ * The docs kit: ApiDocsLayout, AnswerCards and DocsFaq, and /agentics/docs built on them.
  *
  * The page used to render its own document with a 135-line <style is:global> block. The shell,
  * the look and the Analytics tag now live in the kit, and the page keeps only its copy, written
@@ -14,7 +14,7 @@ import path from 'node:path';
 const ROOT = path.resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 
-const PAGE = 'src/pages/agentics.astro';
+const PAGE = 'src/pages/agentics/docs.astro';
 const LAYOUT = 'src/layouts/ApiDocsLayout.astro';
 const KIT = {
   [LAYOUT]: 'src/layouts/ApiDocsLayout.css',
@@ -40,7 +40,7 @@ function selectors(css: string): string[] {
 /** The class/attribute/pseudo-class count of a selector, the middle number of its specificity. */
 const classWeight = (sel: string) => (sel.match(/\.[\w-]+|\[[^\]]+\]|(?<!:):(?!:)[\w-]+/g) ?? []).length;
 
-describe('/agentics on the docs kit', () => {
+describe('/agentics/docs on the docs kit', () => {
   it('renders no document or styles of its own', () => {
     expect(page).not.toMatch(/<style\b/);
     expect(page).not.toMatch(/<html\b/);

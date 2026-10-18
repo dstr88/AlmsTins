@@ -14,11 +14,16 @@ const url = (path: string) => `https://almstins.com${path}`;
 
 describe('sitemap filter', () => {
   it('keeps the public Verify and Receivables landings', () => {
-    for (const p of ['/verify/', '/verify/es/', '/verify/fr/', '/agentics/', '/receivables/']) {
+    for (const p of ['/verify/', '/verify/es/', '/verify/fr/', '/agentics/', '/agentics/docs/', '/receivables/']) {
       expect(sitemapFilter(url(p))).toBe(true);
     }
     expect(sitemapFilter(url('/verify'))).toBe(true);
     expect(sitemapFilter(url('/receivables'))).toBe(true);
+  });
+
+  it('submits the Agentics landing and docs, and leaves out its sign-in and its dashboard', () => {
+    for (const p of ['/agentics/', '/agentics', '/agentics/docs/', '/agentics/docs']) expect(sitemapFilter(url(p)), p).toBe(true);
+    for (const p of ['/agentics/login/', '/agentics/login', '/dashboard/agentics/', '/dashboard/agentics']) expect(sitemapFilter(url(p)), p).toBe(false);
   });
 
   it('drops every desk and single-use-link page under the product prefixes', () => {

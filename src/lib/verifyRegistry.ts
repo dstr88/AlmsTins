@@ -1112,7 +1112,7 @@ export async function recordProofResult(
   // belongs to the account, not to a row. Another row's label, a later proof or a DNS proof
   // (recordDomainControlProof) can still reserve it, and the public lookup then shows it on
   // every proven row of the account (verifiedNameForTenant), the refused one included. That
-  // row's level stays Claimed, which is what an agent must read (/agentics).
+  // row's level stays Claimed, which is what an agent must read (/agentics/docs).
   const refused = new Set(out.legacyUnbound);
   for (const d of dests) {
     if (refused.has(d.id)) continue;

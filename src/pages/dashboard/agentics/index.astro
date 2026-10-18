@@ -1,0 +1,116 @@
+---
+// The Agentics door, signed in: the page a new account lands on after /agentics/login, and the
+// front of the Agentics vault. Today it is the letter: you are in, here is where it stands, here
+// is what you can do now, and the one email you will get is the one that says the vault is open.
+// When the vault opens, this page becomes its home.
+//
+// It looks like Agentics, not like the Almstins vault: its own small shell and the same design
+// tokens, none of the vault's navigation.
+//
+// The first visit also records the signup and sends the same letter by email, once
+// (src/lib/agenticsSignup.ts). Nothing here creates a tenant: the first sign-in already did. A
+// demo session is sent to the sign-in, never to a letter, and the page is never cached or indexed.
+// The page waits at most a few seconds for the send, so a slow mail server never holds it up.
+import '@/styles/tokens.css';
+import Analytics from '@/components/Analytics.astro';
+import LogoutButton from '@/components/LogoutButton.astro';
+import { en as t } from '@/i18n/agentics';
+import { welcomeOnFirstVisit } from '@/lib/agenticsSignup';
+import { cleanSource } from '@/lib/agenticsSource';
+import { getAuthSession } from '@/lib/authSession';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+const session = await requireTenantSession(Astro.request);
+if (!session || session.isDemo) return Astro.redirect('/agentics/login?next=%2Fdashboard%2Fagentics', 303);
+
+const auth = await getAuthSession(Astro.request);
+const SEND_WAIT_MS = 4000;
+const outcome = await Promise.race([
+  welcomeOnFirstVisit({ tenantId: session.tenantId, email: auth?.user?.email ?? null, source: cleanSource(Astro.url.searchParams.get('src')) }),
+  new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), SEND_WAIT_MS)),
+]);
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const w = t.welcome;
+const letter = t.letter;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{w.title}</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon.webp" />
+<style is:global>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6;
+  }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .9rem 1.25rem; border-bottom: 1px solid var(--border-subtle); background: var(--surface-card);
+  }
+  .bar__brand { color: var(--text-primary); font-weight: 800; letter-spacing: -.01em; text-decoration: none; }
+  .bar__out {
+    background: transparent; border: 1px solid var(--border-bright); border-radius: 8px;
+    color: var(--text-secondary); padding: .35rem .8rem; font-size: .8rem; font-weight: 600; cursor: pointer;
+  }
+  .bar__out:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+  .wrap { max-width: 40rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; display: flex; flex-direction: column; gap: 1.1rem; }
+  .eyebrow { font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); line-height: 1.1; font-weight: 800; }
+  .lead { color: var(--text-secondary); font-size: 1.05rem; }
+
+  .letter {
+    background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 16px;
+    padding: 1.6rem 1.6rem 1.4rem; display: flex; flex-direction: column; gap: .9rem; margin-top: .4rem;
+  }
+  .letter p { color: var(--text-secondary); font-size: .97rem; line-height: 1.6; }
+  .letter__sign { display: flex; flex-direction: column; color: var(--text-primary); }
+  .letter__copy { font-size: .82rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: .8rem; }
+
+  .today { margin-top: .6rem; }
+  .today h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: .6rem; }
+  .today ul { list-style: none; display: flex; flex-direction: column; gap: .55rem; }
+  .today li a {
+    display: block; color: var(--text-secondary); text-decoration: none; font-size: .93rem;
+    background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: .7rem .95rem;
+  }
+  .today li a:hover { border-color: var(--accent-glow); background: var(--surface-hover); color: var(--text-primary); }
+</style>
+  <Analytics />
+</head>
+<body>
+  <header class="bar">
+    <a class="bar__brand" href="/agentics">{t.brand}</a>
+    <LogoutButton class="bar__out" next="/agentics">{w.signOut}</LogoutButton>
+  </header>
+
+  <main class="wrap">
+    <p class="eyebrow">{t.brand}</p>
+    <h1>{w.h1}</h1>
+    <p class="lead">{w.lead}</p>
+
+    <article class="letter" aria-label="Welcome letter">
+      <p>{letter.greeting}</p>
+      {letter.paragraphs.map((p) => <p>{p}</p>)}
+      <p class="letter__sign">{letter.signoff.map((line) => <span>{line}</span>)}</p>
+      {outcome === 'sent' && <p class="letter__copy">{w.copySent}</p>}
+    </article>
+
+    <section class="today" aria-labelledby="today-h">
+      <h2 id="today-h">{w.todayTitle}</h2>
+      <ul>
+        {w.today.map((item) => (
+          <li><a href={item.href}>{item.text}</a></li>
+        ))}
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
