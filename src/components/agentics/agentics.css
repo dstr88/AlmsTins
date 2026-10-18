@@ -74,6 +74,8 @@
 .ag-btn--primary { background: var(--accent); color: var(--surface-bg); border-color: var(--accent); }
 .ag-btn--primary:hover { background: var(--accent); color: var(--surface-bg); box-shadow: 0 0 0 3px var(--accent-glow); }
 .ag-btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+.ag-check { display: flex; align-items: flex-start; gap: 0.5rem; max-width: 34rem; font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary); }
+.ag-check input { margin-top: 0.2rem; accent-color: var(--accent); }
 .ag-hint { margin: 0 0 0.9rem; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
 .ag-status { margin: 0 0 0.9rem; font-size: 0.85rem; color: var(--text-secondary); }
 .ag-status--ok { color: var(--gain); }

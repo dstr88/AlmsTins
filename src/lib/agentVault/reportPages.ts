@@ -8,6 +8,7 @@
  */
 import { getSigningKey } from '@/lib/recordProof/signing';
 import { addDays, utcDay } from './report';
+import { getReportSettings, type ReportSettings } from './delivery';
 import { createdDay, DEFAULT_REPORT_PAGE, getReportDetail, listItemOf, type ReportDetail, type ReportListItem } from './reports';
 import { listLatestReports } from './reportStore';
 import { listTins } from './store';
@@ -28,6 +29,8 @@ export interface ReportsPageData {
   /** Whether this server can sign a report: with no signing key, reports are made unsigned. */
   signing: { available: boolean };
   tins: ReportsPageTin[];
+  /** How the account hears about its agents: its settings, and whether there is an address to send to. */
+  delivery: { settings: ReportSettings; recipientAvailable: boolean };
 }
 
 export async function loadReportsPage(tenantId: string, now: Date = new Date()): Promise<ReportsPageData> {
@@ -37,7 +40,7 @@ export async function loadReportsPage(tenantId: string, now: Date = new Date()):
     const reports = await listLatestReports(tenantId, tin.id, { limit: DEFAULT_REPORT_PAGE });
     tins.push({ id: tin.id, label: tin.label, since: createdDay(tin) ?? today, reports: reports.map(listItemOf) });
   }
-  return { today, yesterday: addDays(today, -1), signing: { available: getSigningKey() !== null }, tins };
+  return { today, yesterday: addDays(today, -1), signing: { available: getSigningKey() !== null }, tins, delivery: await getReportSettings(tenantId) };
 }
 
 export interface ReportPageData {

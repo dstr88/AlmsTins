@@ -45,6 +45,7 @@ const STATUS: Record<VaultError, number> = {
   not_signed: 409,
   report_altered: 409,
   signing_unavailable: 503,
+  invalid_settings: 400,
 };
 
 /** A vault operation's failure as a response: its code, and its HTTP status. */

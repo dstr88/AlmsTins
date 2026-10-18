@@ -11,7 +11,7 @@ export type VaultError =
   | 'tin_not_found' | 'wallet_not_found' | 'destination_not_found'
   | 'key_not_found' | 'key_not_active' | 'key_in_use'
   | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor' | 'refresh_in_progress'
-  | 'invalid_period' | 'report_not_found' | 'not_signed' | 'report_altered' | 'signing_unavailable';
+  | 'invalid_period' | 'report_not_found' | 'not_signed' | 'report_altered' | 'signing_unavailable' | 'invalid_settings';
 
 export type Failure = { ok: false; error: VaultError; max?: number };
 

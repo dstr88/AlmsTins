@@ -11,6 +11,7 @@ import { formatClock, formatCount, formatDayLong, formatDayShort, formatUsd, for
 import type { ReportDetail, ReportListItem } from '../../src/lib/agentVault/reports';
 import type { ReportsPageData } from '../../src/lib/agentVault/reportPages';
 import type { LedgerEvent } from '../../src/lib/agentVault/events';
+import { errorText } from '../../src/components/agentics/errors';
 import { bundleHref, pdfHref, reportHref, REPORTS_PATH, VERIFY_RECORD_PATH } from '../../src/components/agentics/paths';
 import { copy } from '../../src/components/agentics/copy';
 
@@ -25,13 +26,13 @@ import { copy } from '../../src/components/agentics/copy';
 // The unit config compiles JSX with the classic runtime (React.createElement), so React is provided
 // as a global before the components are imported, as in tests/walletChecker/goplusCredit.test.ts.
 let ReportsPage: typeof import('../../src/components/agentics/ReportsPage').default;
-let errorText: typeof import('../../src/components/agentics/ReportsPage').errorText;
+let DeliverySettings: typeof import('../../src/components/agentics/DeliverySettings').default;
 let ReportView: typeof import('../../src/components/agentics/ReportView').default;
 beforeAll(async () => {
   (globalThis as { React?: typeof React }).React = React;
   const list = await import('../../src/components/agentics/ReportsPage');
   ReportsPage = list.default;
-  errorText = list.errorText;
+  DeliverySettings = (await import('../../src/components/agentics/DeliverySettings')).default;
   ReportView = (await import('../../src/components/agentics/ReportView')).default;
 });
 
@@ -111,13 +112,14 @@ const attributeNames = (html: string): string[] => {
 };
 const classes = (html: string) => [...html.matchAll(/\sclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean));
 
-const page = (over: Partial<ReportsPageData> = {}): ReportsPageData => {
+const pageData = (over: Partial<ReportsPageData> = {}): ReportsPageData => {
   const c = content();
   return {
     today: '2026-10-18',
     yesterday: '2026-10-17',
     signing: { available: true },
     tins: [{ id: 'tin-1', label: 'Treasury agent', since: '2026-10-01', reports: [item(c), item(c, { id: 'rep-0', day: '2026-10-16', version: 1, partial: true, signed: false })] }],
+    delivery: { settings: { cadence: 'off', alerts: false }, recipientAvailable: true },
     ...over,
   };
 };
@@ -132,7 +134,7 @@ describe('the checks used below see what a browser sees', () => {
 
 describe('the Reports page', () => {
   it('lists each agent with its reports, newest first, each linking to its own page, with the counts and the strip', () => {
-    const html = render(React.createElement(ReportsPage, { data: page() }));
+    const html = render(React.createElement(ReportsPage, { data: pageData() }));
     const t = textOf(html);
     expect(t).toContain('Reports');
     expect(t).toContain('Treasury agent');
@@ -152,25 +154,25 @@ describe('the Reports page', () => {
 
   it('a count of zero is shown muted, not as an alarm', () => {
     const empty = content({ events: [] });
-    const html = render(React.createElement(ReportsPage, { data: page({ tins: [{ id: 't', label: 'Quiet', since: '2026-10-01', reports: [item(empty)] }] }) }));
+    const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 't', label: 'Quiet', since: '2026-10-01', reports: [item(empty)] }] }) }));
     expect((html.match(/ag-count--zero/g) ?? []).length).toBe(4);
     expect(html).not.toMatch(/ag-count--issues|ag-count--confirm/);
     expect(textOf(html)).toContain('No transfers');
   });
 
   it('says plainly when there are no agents, and when an agent has no reports', () => {
-    expect(textOf(render(React.createElement(ReportsPage, { data: page({ tins: [] }) })))).toContain('No agents yet.');
-    const html = render(React.createElement(ReportsPage, { data: page({ tins: [{ id: 't', label: 'New agent', since: '2026-10-01', reports: [] }] }) }));
+    expect(textOf(render(React.createElement(ReportsPage, { data: pageData({ tins: [] }) })))).toContain('No agents yet.');
+    const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 't', label: 'New agent', since: '2026-10-01', reports: [] }] }) }));
     expect(textOf(html)).toContain('No reports yet for this agent.');
   });
 
   it('says when this server cannot sign, and says nothing when it can', () => {
-    expect(textOf(render(React.createElement(ReportsPage, { data: page({ signing: { available: false } }) })))).toContain('No signing key is configured on this server');
-    expect(textOf(render(React.createElement(ReportsPage, { data: page() })))).not.toContain('No signing key');
+    expect(textOf(render(React.createElement(ReportsPage, { data: pageData({ signing: { available: false } }) })))).toContain('No signing key is configured on this server');
+    expect(textOf(render(React.createElement(ReportsPage, { data: pageData() })))).not.toContain('No signing key');
   });
 
   it('offers a form to make a report for a day: yesterday by default, nothing before the agent existed or after today', () => {
-    const html = render(React.createElement(ReportsPage, { data: page() }));
+    const html = render(React.createElement(ReportsPage, { data: pageData() }));
     expect(html).toContain('type="date"');
     expect(html).toContain('value="2026-10-17"');
     expect(html).toContain('min="2026-10-01"');
@@ -179,7 +181,7 @@ describe('the Reports page', () => {
   });
 
   it('shows an agent\'s name as text, whatever it holds', () => {
-    const html = render(React.createElement(ReportsPage, { data: page({ tins: [{ id: 'tin-1', label: HOSTILE, since: '2026-10-01', reports: [item(content())] }] }) }));
+    const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 'tin-1', label: HOSTILE, since: '2026-10-01', reports: [item(content())] }] }) }));
     expect(html).not.toMatch(/<script/i);
     expect(html).not.toMatch(/<img/i);
     expect(attributeNames(html).filter((a) => /^on/.test(a))).toEqual([]);
@@ -197,10 +199,48 @@ describe('the Reports page', () => {
   });
 
   it('every class on the page belongs to Agentics', () => {
-    const html = render(React.createElement(ReportsPage, { data: page() }));
+    const html = render(React.createElement(ReportsPage, { data: pageData() }));
     const all = classes(html);
     expect(all.length).toBeGreaterThan(10);
     for (const c of all) expect(c, c).toMatch(/^ag-/);
+  });
+});
+
+describe('the email settings', () => {
+  const html = (over: Partial<{ cadence: 'off' | 'daily' | 'weekly' | 'issues'; alerts: boolean; recipientAvailable: boolean }> = {}) =>
+    render(React.createElement(DeliverySettings, { settings: { cadence: over.cadence ?? 'off', alerts: over.alerts ?? false }, recipientAvailable: over.recipientAvailable ?? true }));
+
+  it('shows the four choices, with the saved one selected, and says everything is off until turned on', () => {
+    const h = html({ cadence: 'weekly' });
+    const t = textOf(h);
+    for (const label of ['Off', 'Every day', 'Every Monday, for the week before', 'Only when something needs a look']) expect(t, label).toContain(label);
+    expect(h).toMatch(/<option value="weekly" selected="">/);
+    expect((h.match(/<option /g) ?? []).length).toBe(4);
+    expect(t).toContain('Email is off until you turn it on');
+    expect(t).toContain('Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in.');
+  });
+
+  it('shows the alerts choice as saved: off by default', () => {
+    expect(html()).not.toMatch(/type="checkbox" checked/);
+    expect(html({ alerts: true })).toMatch(/type="checkbox" checked/);
+    expect(textOf(html())).toContain('at most one an hour for each address');
+  });
+
+  it('warns when there is no address to send to, and says nothing otherwise', () => {
+    expect(textOf(html({ recipientAvailable: false }))).toContain('No email address is on file for this account');
+    expect(textOf(html())).not.toContain('No email address is on file');
+  });
+
+  it('is on the Reports page, after the agents, and every class on it belongs to Agentics', () => {
+    const page = render(React.createElement(ReportsPage, { data: pageData({ delivery: { settings: { cadence: 'daily', alerts: true }, recipientAvailable: true } }) }));
+    expect(page.indexOf('Treasury agent')).toBeLessThan(page.indexOf('Report email'));
+    expect(page).toMatch(/<option value="daily" selected="">/);
+    for (const c of classes(page)) expect(c, c).toMatch(/^ag-/);
+  });
+
+  it('turns an error code into plain words and the invalid-settings code into its own words', () => {
+    expect(errorText('invalid_settings')).toBe(copy.errors.invalid_settings);
+    expect(errorText('invalid_settings')).not.toBe(copy.errors.generic);
   });
 });
 
@@ -381,10 +421,12 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
   it('are these, and nothing else', () => {
     expect(files).toEqual([
       'src/components/agentics/AgenticsShell.astro',
+      'src/components/agentics/DeliverySettings.tsx',
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
       'src/components/agentics/agentics.css',
       'src/components/agentics/copy.ts',
+      'src/components/agentics/errors.ts',
       'src/components/agentics/paths.ts',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',

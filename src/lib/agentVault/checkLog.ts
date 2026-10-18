@@ -17,6 +17,13 @@
  * "Cleared" here means what a Pass pill means in the registry: the address is on the owner's
  * trusted list and nothing we ran flagged it. It is never a statement that an address is safe.
  *
+ * When the answer is `flagged` for an address that IS in the tin's registry, the operator is told
+ * at once, if the account turned alerts on (./alerts.ts). That starts after the event is written
+ * and is not waited for: the answer and the `vault` block are fixed before it runs, and nothing it
+ * does, however it fails or however long it takes, can change a byte of either. A flag on an
+ * address that is not in the registry does not alert; it shows in the report's "not confirmed"
+ * group.
+ *
  * Anonymous calls and keys that are not linked to a tin never reach this code. A failure here
  * never changes the check's own answer: the caller gets `logged: false`, or an answer of nulls
  * when the registry could not even be read, and the failure is logged by name and code only (a
@@ -24,7 +31,8 @@
  */
 import { db } from '@/lib/db';
 import { normalizeAddress, type VaultChain } from './addresses';
-import { hasPriorCheck, insertCheckedEvent, type RegistryVerdict, type VaultAnswer } from './events';
+import type { FlaggedCheckInfo } from './alerts';
+import { hasPriorCheck, insertCheckedEvent, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
 import { findLiveTinByKey, listDestinationsByAddress } from './store';
 import type { TrustStatus } from './trustPolicy';
 
@@ -138,11 +146,40 @@ function logFailure(stage: 'read' | 'write', err: unknown): void {
   console.error('[agent-vault] keyed check not logged', { stage, name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
 }
 
+/** What recordKeyedCheck calls out to. Replaced in tests; the defaults are the real thing. */
+export interface KeyedCheckDeps {
+  /** Tells the operator about a flagged check on a registered address. Not waited for, and its failure is only logged. */
+  onFlagged?: (info: FlaggedCheckInfo) => unknown;
+}
+
+const sendFlaggedAlert = (info: FlaggedCheckInfo): Promise<unknown> => import('./alerts').then((m) => m.alertFlaggedCheck(info));
+
+/**
+ * Starts the alert for a flagged check on a registered address and returns at once. It never
+ * throws and returns nothing the answer depends on: it is called after the event is written, a
+ * failure (a rejected promise, a throw, a module that will not load) is logged by name and code
+ * only, and a slow one only runs on in the background.
+ */
+function notifyFlagged(info: FlaggedCheckInfo, deps: KeyedCheckDeps): void {
+  const logAlertFailure = (err: unknown) => {
+    const e = err as { name?: unknown; code?: unknown } | null;
+    console.error('[agent-vault] flagged alert not started', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+  };
+  try {
+    const run = deps.onFlagged ?? sendFlaggedAlert;
+    void Promise.resolve()
+      .then(() => run(info))
+      .catch(logAlertFailure);
+  } catch (err) {
+    logAlertFailure(err);
+  }
+}
+
 /**
  * Records a keyed check on the tin its key is linked to. Null when there is nothing to add (the
  * key is not linked to a live tin). Never throws.
  */
-export async function recordKeyedCheck(input: KeyedCheckInput): Promise<VaultBlock | null> {
+export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckDeps = {}): Promise<VaultBlock | null> {
   let tenantId: string;
   let tinId: string;
   let address: string;
@@ -168,8 +205,9 @@ export async function recordKeyedCheck(input: KeyedCheckInput): Promise<VaultBlo
   }
 
   const block = { cleared: derived.cleared, answer: derived.answer, registry, history: derived.history };
+  let event: LedgerEvent;
   try {
-    const event = await insertCheckedEvent(tenantId, {
+    event = await insertCheckedEvent(tenantId, {
       tinId,
       address,
       chain,
@@ -188,9 +226,12 @@ export async function recordKeyedCheck(input: KeyedCheckInput): Promise<VaultBlo
       },
       at: input.now.toISOString(),
     });
-    return { ...block, eventId: event.id, logged: true };
   } catch (err) {
     logFailure('write', err);
     return { ...block, eventId: null, logged: false };
   }
+  // After the event is written, outside the try above, so nothing in the alert can turn a written
+  // check into `logged: false` or touch the answer.
+  if (derived.answer === 'flagged' && registry !== 'none') notifyFlagged({ tenantId, tinId, address }, deps);
+  return { ...block, eventId: event.id, logged: true };
 }

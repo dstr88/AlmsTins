@@ -60,6 +60,7 @@ let totals: typeof import('../../src/pages/api/agentics/totals');
 let reportsRoute: typeof import('../../src/pages/api/agentics/reports');
 let pdfRoute: typeof import('../../src/pages/api/agentics/reports/pdf');
 let bundleRoute: typeof import('../../src/pages/api/agentics/reports/bundle');
+let settingsRoute: typeof import('../../src/pages/api/agentics/report-settings');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -84,6 +85,7 @@ beforeEach(async () => {
   reportsRoute = await import('../../src/pages/api/agentics/reports');
   pdfRoute = await import('../../src/pages/api/agentics/reports/pdf');
   bundleRoute = await import('../../src/pages/api/agentics/reports/bundle');
+  settingsRoute = await import('../../src/pages/api/agentics/report-settings');
 });
 
 afterEach(() => {
@@ -124,6 +126,8 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['reports POST', () => reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId: 'x', day: '2026-10-17' }],
   ['reports pdf GET', () => pdfRoute.GET, '/api/agentics/reports/pdf?id=x', 'GET'],
   ['reports bundle GET', () => bundleRoute.GET, '/api/agentics/reports/bundle?id=x', 'GET'],
+  ['report-settings GET', () => settingsRoute.GET, '/api/agentics/report-settings', 'GET'],
+  ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', alerts: true }],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -372,9 +376,9 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the ten endpoint files', () => {
+  it('finds the eleven endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 
@@ -741,6 +745,51 @@ describe('the owner: the signed PDF and the proof bundle of a report', () => {
     holder.intercept = (sql) => { if (/FROM agent_reports/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { res, raw, json } = await call(pdfRoute.GET, `/api/agentics/reports/pdf?id=${id}`, 'GET');
+    expect(res.status).toBe(500);
+    expect(json).toEqual({ ok: false, error: 'server_error' });
+    expect(raw).not.toMatch(/secret_table|exploded/);
+  });
+});
+
+describe('the owner: report email settings', () => {
+  it('start with everything off, and answer whether there is an address to send to without ever showing it', async () => {
+    const r = await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET');
+    expect(r.res.status).toBe(200);
+    expect(r.res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(r.json).toEqual({ ok: true, settings: { cadence: 'off', alerts: false }, recipientAvailable: expect.any(Boolean) });
+    expect(r.raw).not.toMatch(/tenant|@/i);
+  });
+
+  it('saves what is given and leaves the rest', async () => {
+    const first = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'weekly' });
+    expect(first.res.status).toBe(200);
+    expect(first.json.settings).toEqual({ cadence: 'weekly', alerts: false });
+    const second = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { alerts: true });
+    expect(second.json.settings).toEqual({ cadence: 'weekly', alerts: true });
+    expect((await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET')).json.settings).toEqual({ cadence: 'weekly', alerts: true });
+    const off = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'off', alerts: false });
+    expect(off.json.settings).toEqual({ cadence: 'off', alerts: false });
+    expect(fake.rows('agent_report_settings')).toHaveLength(1);
+  });
+
+  it('refuses anything else with a code: an unknown cadence, a non-boolean, or nothing at all', async () => {
+    for (const body of [{ cadence: 'hourly' }, { cadence: 7 }, { cadence: null }, { alerts: 'yes' }, { alerts: 1 }, { alerts: null }, {}, { other: true }]) {
+      const r = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', body);
+      expect(r.res.status, JSON.stringify(body)).toBe(400);
+      expect(r.json, JSON.stringify(body)).toEqual({ ok: false, error: 'invalid_settings' });
+    }
+    expect(fake.rows('agent_report_settings') ?? []).toEqual([]);
+    expect((await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', '{nope')).json).toEqual({ ok: false, error: 'expected_json' });
+  });
+
+  it('has only GET and PUT', () => {
+    expect(Object.keys(settingsRoute).filter((k) => /^(GET|PUT|POST|PATCH|DELETE)$/.test(k)).sort()).toEqual(['GET', 'PUT']);
+  });
+
+  it('a database failure is a plain 500 with no database text', async () => {
+    holder.intercept = (sql) => { if (/agent_report_settings/i.test(sql) && /^(SELECT|INSERT)/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { res, raw, json } = await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET');
     expect(res.status).toBe(500);
     expect(json).toEqual({ ok: false, error: 'server_error' });
     expect(raw).not.toMatch(/secret_table|exploded/);

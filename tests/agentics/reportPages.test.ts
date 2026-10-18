@@ -101,6 +101,16 @@ describe('loadReportsPage', () => {
   it('an account with no tins is an empty page, not an error', async () => {
     expect((await pages.loadReportsPage(A, NOW)).tins).toEqual([]);
   });
+
+  it('carries how the account hears about its agents: everything off until it is turned on, and its own settings after', async () => {
+    const delivery = await import('../../src/lib/agentVault/deliveryStore');
+    expect((await pages.loadReportsPage(A, NOW)).delivery).toMatchObject({ settings: { cadence: 'off', alerts: false } });
+    await delivery.writeSettings(A, { cadence: 'weekly', alerts: true }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(B, { cadence: 'daily', alerts: false }, '2026-10-01 00:00:00');
+    expect((await pages.loadReportsPage(A, NOW)).delivery.settings).toEqual({ cadence: 'weekly', alerts: true });
+    expect((await pages.loadReportsPage(B, NOW)).delivery.settings).toEqual({ cadence: 'daily', alerts: false });
+    expect(JSON.stringify((await pages.loadReportsPage(A, NOW)).delivery)).not.toContain('@'); // never an email address
+  });
 });
 
 describe('loadReportPage', () => {

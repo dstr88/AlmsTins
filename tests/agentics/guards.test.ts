@@ -36,7 +36,10 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0051_agent_events.sql'),
   path.join(ROOT, 'migrations-pg/0052_agent_watch_cursors.sql'),
   path.join(ROOT, 'migrations-pg/0053_agent_reports.sql'),
+  path.join(ROOT, 'migrations-pg/0054_agent_report_delivery.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
+  path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
+  path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
   ...walk(path.join(ROOT, 'src/components/agentics')),
   ...walk(path.join(ROOT, 'src/pages/dashboard/agentics')),
 ].map(rel).sort();
@@ -71,10 +74,15 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0052'))).toEqual(['0052_agent_watch_cursors.sql']);
   });
 
-  it('the operator reports are 0053, the only 0053; nothing numbered higher is part of this work', () => {
+  it('the operator reports are 0053, the only 0053', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 53)).toEqual([]);
+  });
+
+  it('report delivery is 0054, the only 0054; nothing numbered higher is part of this work', () => {
+    const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
+    expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual([]);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -215,6 +223,52 @@ describe('the reports schema file and the code create the same table', () => {
   });
 });
 
+describe('the delivery schema file and the code create the same tables', () => {
+  it('migrations-pg/0054_agent_report_delivery.sql holds exactly the statements ensureAgentDeliveryTables runs, in order', async () => {
+    const { AGENT_DELIVERY_DDL } = await import('../../src/lib/agentVault/deliveryStore');
+    const statements = squash(read('migrations-pg/0054_agent_report_delivery.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_DELIVERY_DDL.map(squash));
+  });
+
+  it('both tables are keyed by tenant_id, and settings are per account (one row each)', async () => {
+    const { AGENT_DELIVERY_DDL } = await import('../../src/lib/agentVault/deliveryStore');
+    const tables = AGENT_DELIVERY_DDL.filter((s) => /^CREATE TABLE/.test(s));
+    expect(tables).toHaveLength(2);
+    for (const sql of tables) expect(sql).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
+    const settings = tables.find((s) => s.includes('agent_report_settings')) ?? '';
+    expect(settings).toMatch(/tenant_id\s+TEXT NOT NULL PRIMARY KEY/);
+    expect(settings).toMatch(/cadence\s+TEXT NOT NULL DEFAULT 'off'/);
+    expect(settings).toMatch(/alerts\s+INTEGER NOT NULL DEFAULT 0/);
+    const claims = tables.find((s) => s.includes('agent_alert_claims')) ?? '';
+    expect(claims).toMatch(/PRIMARY KEY \(tenant_id, tin_id, address\)/);
+  });
+
+  it('limits the cadence to the words the code uses, in the table itself, and everything starts off', async () => {
+    const { AGENT_DELIVERY_DDL, CADENCES } = await import('../../src/lib/agentVault/deliveryStore');
+    const settings = AGENT_DELIVERY_DDL.find((s) => s.includes('agent_report_settings (')) ?? '';
+    const listed = [...(settings.match(/CHECK \(cadence IN \(([^)]*)\)\)/)?.[1] ?? '').matchAll(/'(\w+)'/g)].map((m) => m[1]);
+    expect(listed.sort()).toEqual([...CADENCES].sort());
+    expect(CADENCES[0]).toBe('off');
+  });
+
+  it('are removed with the account, before the tin', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    for (const table of ['agent_report_settings', 'agent_alert_claims']) {
+      expect(at(table), table).toBeGreaterThanOrEqual(0);
+      expect(at(table), table).toBeLessThan(at('agent_tins'));
+    }
+  });
+
+  it('nothing is ever sent from the Vault without an account having turned it on: no email call outside the three delivery files', () => {
+    const senders = VAULT_FILES.filter((f) => /@\/lib\/email'|sendMail\(/.test(read(f))).sort();
+    expect(senders).toEqual(['src/lib/agentVault/alerts.ts', 'src/lib/agentVault/reportJob.ts']);
+  });
+});
+
 describe('reports are append-only', () => {
   const srcFiles = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|tsx|astro|mjs|js)$/.test(f));
 
@@ -275,15 +329,23 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0051_agent_events.sql',
       'migrations-pg/0052_agent_watch_cursors.sql',
       'migrations-pg/0053_agent_reports.sql',
+      'migrations-pg/0054_agent_report_delivery.sql',
       'src/components/agentics/AgenticsShell.astro',
+      'src/components/agentics/DeliverySettings.tsx',
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
       'src/components/agentics/agentics.css',
       'src/components/agentics/copy.ts',
+      'src/components/agentics/errors.ts',
       'src/components/agentics/paths.ts',
+      'src/i18n/emails/agentReport.ts',
       'src/lib/agentVault/addresses.ts',
+      'src/lib/agentVault/alerts.ts',
       'src/lib/agentVault/api.ts',
       'src/lib/agentVault/checkLog.ts',
+      'src/lib/agentVault/delivery.ts',
+      'src/lib/agentVault/deliveryStore.ts',
+      'src/lib/agentVault/digest.ts',
       'src/lib/agentVault/errors.ts',
       'src/lib/agentVault/events.ts',
       'src/lib/agentVault/explorer.ts',
@@ -292,6 +354,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/report.ts',
       'src/lib/agentVault/reportFormat.ts',
+      'src/lib/agentVault/reportJob.ts',
       'src/lib/agentVault/reportPages.ts',
       'src/lib/agentVault/reportPdf.ts',
       'src/lib/agentVault/reportProof.ts',
@@ -311,12 +374,14 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/destinations/trust.ts',
       'src/pages/api/agentics/events.ts',
       'src/pages/api/agentics/refresh.ts',
+      'src/pages/api/agentics/report-settings.ts',
       'src/pages/api/agentics/reports.ts',
       'src/pages/api/agentics/reports/bundle.ts',
       'src/pages/api/agentics/reports/pdf.ts',
       'src/pages/api/agentics/tins.ts',
       'src/pages/api/agentics/totals.ts',
       'src/pages/api/agentics/wallets.ts',
+      'src/pages/api/cron/agent-reports.ts',
       'src/pages/api/cron/sync-agent-wallets.ts',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',
@@ -352,6 +417,20 @@ describe('the Vault keeps to the bright lines', () => {
   it('no attribution: nothing in the Vault names a person or looks an address up as someone', () => {
     for (const file of VAULT_FILES.filter((f) => f.endsWith('.ts'))) {
       expect(read(file), file).not.toMatch(/\b(kyc|de-?anonymi[sz]|cluster(ing)?|reverse[- ]lookup|who owns)\b/i);
+    }
+  });
+
+  it('the report, delivery and job code assumes nothing about who the owner is: the gate is the only place that knows', () => {
+    const slice4 = VAULT_FILES.filter(
+      (f) =>
+        /^src\/lib\/agentVault\/(report\w*|reports|delivery\w*|digest|alerts|money|errors)\.ts$/.test(f) ||
+        /^src\/pages\/api\/agentics\/(reports|report-settings)/.test(f) ||
+        f === 'src/pages/api/cron/agent-reports.ts' ||
+        f === 'src/i18n/emails/agentReport.ts',
+    );
+    expect(slice4.length).toBeGreaterThan(15);
+    for (const file of slice4) {
+      expect(read(file), file).not.toMatch(/@\/lib\/owner|OWNER_TENANT_ID|\bisOwner\b|titaniumhut|donnie@|ADMIN_(EMAIL|TENANT)/);
     }
   });
 

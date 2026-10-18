@@ -85,9 +85,28 @@ export const copy = {
     verifyLink: 'Verify a record',
   },
 
+  delivery: {
+    title: 'Email',
+    lede: 'Reports are always made and kept here. Email is off until you turn it on, and goes to the email address on your account.',
+    cadenceLabel: 'Report email',
+    cadence: {
+      off: 'Off',
+      daily: 'Every day',
+      weekly: 'Every Monday, for the week before',
+      issues: 'Only when something needs a look',
+    },
+    alertsLabel: 'Email me at once when a check on a registered address comes back flagged (at most one an hour for each address)',
+    countsOnly: 'Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in. Something needs a look when an address had issues or was not confirmed.',
+    save: 'Save',
+    saving: 'Saving',
+    saved: 'Saved.',
+    noRecipient: 'No email address is on file for this account, so nothing can be sent.',
+  },
+
   errors: {
     generic: 'Something went wrong. Try again in a moment.',
     invalid_period: 'That day is not available. Pick a day from the day the agent was created up to today.',
+    invalid_settings: 'Those settings were not understood. Try again.',
     tin_not_found: 'That agent was not found.',
     invalid_id: 'That agent was not found.',
     expected_json: 'Something went wrong. Try again in a moment.',

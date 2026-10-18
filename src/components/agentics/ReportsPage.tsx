@@ -11,12 +11,9 @@ import type { ReportsPageData, ReportsPageTin } from '@/lib/agentVault/reportPag
 import type { ReportListItem } from '@/lib/agentVault/reports';
 import { formatCount, formatDayLong, formatUsd, formatUtc } from '@/lib/agentVault/reportFormat';
 import { copy } from './copy';
+import DeliverySettings from './DeliverySettings';
+import { errorText } from './errors';
 import { reportHref } from './paths';
-
-/** The text for an error code the API answered with, or the plain fallback for a code this page does not know. */
-export function errorText(code: unknown): string {
-  return typeof code === 'string' && Object.prototype.hasOwnProperty.call(copy.errors, code) ? copy.errors[code] : copy.errors.generic;
-}
 
 function Counts({ h }: { h: ReportListItem['headline'] }) {
   const items: Array<{ key: string; n: number; label: string; on: string }> = [
@@ -148,6 +145,8 @@ export default function ReportsPage({ data }: { data: ReportsPageData }) {
           )}
         </section>
       ))}
+
+      <DeliverySettings settings={data.delivery.settings} recipientAvailable={data.delivery.recipientAvailable} />
     </div>
   );
 }

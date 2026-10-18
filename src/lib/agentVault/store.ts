@@ -414,6 +414,20 @@ export interface WatchTarget {
 }
 
 /**
+ * Every live tin of every account, for the daily report job: ids only, oldest account first. The
+ * other read here that spans accounts, because the job has to visit each tin; every statement
+ * after it is scoped to the account of the row it came from.
+ */
+export async function listAllTins(limit: number): Promise<WatchTarget[]> {
+  await ensureAgentVaultTables();
+  const r = await db.execute({
+    sql: `SELECT tenant_id, id FROM agent_tins WHERE deleted_at IS NULL ORDER BY tenant_id ASC, created_at ASC, id ASC LIMIT ?`,
+    args: [limit],
+  });
+  return (r.rows as any[]).map((row) => ({ tenantId: String(row.tenant_id), tinId: String(row.id) }));
+}
+
+/**
  * The tins that have at least one trusted destination, for the daily job. The one read here that
  * spans accounts, because the job has to visit each of them; it returns ids only, and every
  * statement after it is scoped to the account of the row it came from.
