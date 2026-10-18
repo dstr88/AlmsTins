@@ -57,6 +57,7 @@ let trust: typeof import('../../src/pages/api/agentics/destinations/trust');
 let events: typeof import('../../src/pages/api/agentics/events');
 let refresh: typeof import('../../src/pages/api/agentics/refresh');
 let totals: typeof import('../../src/pages/api/agentics/totals');
+let reportsRoute: typeof import('../../src/pages/api/agentics/reports');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -78,6 +79,7 @@ beforeEach(async () => {
   events = await import('../../src/pages/api/agentics/events');
   refresh = await import('../../src/pages/api/agentics/refresh');
   totals = await import('../../src/pages/api/agentics/totals');
+  reportsRoute = await import('../../src/pages/api/agentics/reports');
 });
 
 afterEach(() => {
@@ -113,6 +115,9 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['events GET', () => events.GET, '/api/agentics/events?tinId=x', 'GET'],
   ['refresh POST', () => refresh.POST, '/api/agentics/refresh', 'POST', { tinId: 'x' }],
   ['totals GET', () => totals.GET, '/api/agentics/totals?tinId=x', 'GET'],
+  ['reports GET list', () => reportsRoute.GET, '/api/agentics/reports?tinId=x', 'GET'],
+  ['reports GET one', () => reportsRoute.GET, '/api/agentics/reports?id=x', 'GET'],
+  ['reports POST', () => reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId: 'x', day: '2026-10-17' }],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -361,16 +366,16 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the seven endpoint files', () => {
+  it('finds the eight endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'refresh.ts', 'reports.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 
-  it('read only an id from the URL (and, for the ledger, a page size and a cursor): an address goes in the body, never in a query string', () => {
+  it('read only an id from the URL (and, for the ledger and the reports, a page size and a cursor): an address goes in the body, never in a query string', () => {
     for (const file of files) {
       const src = readFileSync(file, 'utf8');
-      const allowed = file.endsWith('events.ts') ? ['tinId', 'limit', 'before'] : ['id', 'tinId'];
+      const allowed = file.endsWith('events.ts') || file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : ['id', 'tinId'];
       const keys = [...src.matchAll(/searchParams\.get\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
       for (const key of keys) expect(allowed, `${file}: ${key}`).toContain(key);
     }
@@ -527,6 +532,96 @@ describe('the owner: read the chain now, and the totals', () => {
     holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { res, raw, json } = await call(totals.GET, `/api/agentics/totals?tinId=${tinId}`, 'GET');
+    expect(res.status).toBe(500);
+    expect(json).toEqual({ ok: false, error: 'server_error' });
+    expect(raw).not.toMatch(/secret_table|exploded/);
+  });
+});
+
+describe('the owner: operator reports', () => {
+  const DAY = '2026-10-17';
+  const newTin = async () => {
+    const id = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Agent', agentKeyId: KEY })).json.tin.id as string;
+    fake.rows('agent_tins').find((t) => t.id === id)!.created_at = '2026-10-01 00:00:00'; // a tin old enough to have a report for DAY
+    return id;
+  };
+  const put = async (tinId: string, i: number, basis: string, answer: string) => {
+    const ledger = await import('../../src/lib/agentVault/events');
+    return ledger.insertCheckedEvent(OWNER_TENANT_ID, {
+      tinId, address: addr(i), chain: null, answer: answer as never, registry: 'none', status: 'unknown',
+      keyId: KEY, sourceIp: null, detail: { basis }, at: new Date(Date.UTC(2026, 9, 17, 12, 0, 0, i)).toISOString(),
+    });
+  };
+
+  it('makes a report, 201 the first time and 200 when nothing changed, and reads it back with its versions', async () => {
+    const tinId = await newTin();
+    await put(tinId, 1, 'registry_flagged', 'flagged');
+    await put(tinId, 2, 'not_in_registry', 'unknown');
+
+    const made = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(made.res.status).toBe(201);
+    expect(made.res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(made.json).toMatchObject({ ok: true, created: true, report: { day: DAY, version: 1, tinId, headline: { issues: 1, notConfirmed: 1, new: 0, noIssues: 0, checks: 2 } } });
+    expect(made.json.report.content.buckets.issues.listed[0].address).toBe(addr(1));
+    expect(made.raw).not.toMatch(/tenant/i);
+
+    const again = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(again.res.status).toBe(200);
+    expect(again.json).toMatchObject({ created: false, report: { id: made.json.report.id } });
+
+    const one = await call(reportsRoute.GET, `/api/agentics/reports?id=${made.json.report.id}`, 'GET');
+    expect(one.res.status).toBe(200);
+    expect(one.json.report).toMatchObject({ id: made.json.report.id, versions: [{ version: 1 }] });
+    expect(one.raw).not.toMatch(/tenant/i);
+  });
+
+  it('lists a tin\'s reports with headline counts and no address, and pages', async () => {
+    const tinId = await newTin();
+    await put(tinId, 1, 'registry_flagged', 'flagged');
+    for (const day of ['2026-10-15', '2026-10-16', DAY]) await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day });
+    const list = await call(reportsRoute.GET, `/api/agentics/reports?tinId=${tinId}&limit=2`, 'GET');
+    expect(list.res.status).toBe(200);
+    expect(list.json.reports.map((r: any) => r.day)).toEqual([DAY, '2026-10-16']);
+    expect(list.json.next).toBe('2026-10-16');
+    expect(list.raw).not.toContain(addr(1));
+    expect(list.raw).not.toMatch(/tenant/i);
+    const older = await call(reportsRoute.GET, `/api/agentics/reports?tinId=${tinId}&limit=2&before=${list.json.next}`, 'GET');
+    expect(older.json.reports.map((r: any) => r.day)).toEqual(['2026-10-15']);
+    expect(older.json.next).toBeNull();
+  });
+
+  it('answers codes, with the status that fits, for every way a request can be wrong', async () => {
+    const tinId = await newTin();
+    const cases: Array<[string, Promise<{ res: Response; json: any }>, number, string]> = [
+      ['no tin id', call(reportsRoute.GET, '/api/agentics/reports', 'GET'), 400, 'invalid_id'],
+      ['unknown tin', call(reportsRoute.GET, '/api/agentics/reports?tinId=ghost', 'GET'), 404, 'tin_not_found'],
+      ['unknown report', call(reportsRoute.GET, '/api/agentics/reports?id=ghost', 'GET'), 404, 'report_not_found'],
+      ['bad cursor', call(reportsRoute.GET, `/api/agentics/reports?tinId=${tinId}&before=nope`, 'GET'), 400, 'invalid_cursor'],
+      ['no day', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId }), 400, 'invalid_period'],
+      ['not a date', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: '2026-02-30' }), 400, 'invalid_period'],
+      ['the future', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: '2999-01-01' }), 400, 'invalid_period'],
+      ['before the tin existed', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: '2026-09-30' }), 400, 'invalid_period'],
+      ['unknown tin on make', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId: 'ghost', day: DAY }), 404, 'tin_not_found'],
+      ['no tin id on make', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { day: DAY }), 400, 'invalid_id'],
+      ['not JSON', call(reportsRoute.POST, '/api/agentics/reports', 'POST', '{nope'), 400, 'expected_json'],
+    ];
+    for (const [name, pending, status, error] of cases) {
+      const r = await pending;
+      expect(r.res.status, name).toBe(status);
+      expect(r.json, name).toEqual({ ok: false, error });
+    }
+  });
+
+  it('has no way to change or remove a report: only GET and POST exist, and POST adds a version', () => {
+    expect(Object.keys(reportsRoute).filter((k) => /^(PUT|PATCH|DELETE)$/.test(k))).toEqual([]);
+    expect(Object.keys(reportsRoute).filter((k) => /^(GET|POST)$/.test(k)).sort()).toEqual(['GET', 'POST']);
+  });
+
+  it('a database failure is a plain 500 with no database text', async () => {
+    const tinId = await newTin();
+    holder.intercept = (sql) => { if (/FROM agent_events/i.test(sql)) throw Object.assign(new Error('relation "secret_table" exploded'), { code: 'XX000' }); };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { res, raw, json } = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
     expect(res.status).toBe(500);
     expect(json).toEqual({ ok: false, error: 'server_error' });
     expect(raw).not.toMatch(/secret_table|exploded/);

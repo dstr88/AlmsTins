@@ -40,6 +40,7 @@ import {
   type Destination,
   type Tin,
 } from './store';
+import { fail, idOf, type Failure, type VaultError } from './errors';
 import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type TinTotals } from './events';
 import { defaultTrustDeps, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
@@ -55,19 +56,7 @@ export const MAX_BATCH = 10;
 export const MAX_TEXT_CHARS = 50_000;
 export const MAX_TIN_LABEL = 80;
 
-export type VaultError =
-  | 'invalid_label' | 'invalid_chain' | 'invalid_address' | 'invalid_id'
-  | 'tin_not_found' | 'wallet_not_found' | 'destination_not_found'
-  | 'key_not_found' | 'key_not_active' | 'key_in_use'
-  | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor' | 'refresh_in_progress';
-
-export type Failure = { ok: false; error: VaultError; max?: number };
-const fail = (error: VaultError, max?: number): Failure => (max === undefined ? { ok: false, error } : { ok: false, error, max });
-
-const idOf = (raw: unknown): string | null => {
-  const s = typeof raw === 'string' ? raw.trim() : '';
-  return s && s.length <= 64 ? s : null;
-};
+export type { Failure, VaultError };
 
 /** A tin's name: control characters out, whitespace collapsed, 1 to 80 characters. */
 function cleanTinLabel(raw: unknown): string | null {

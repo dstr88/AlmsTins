@@ -35,6 +35,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0050_agent_vault.sql'),
   path.join(ROOT, 'migrations-pg/0051_agent_events.sql'),
   path.join(ROOT, 'migrations-pg/0052_agent_watch_cursors.sql'),
+  path.join(ROOT, 'migrations-pg/0053_agent_reports.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
 ].map(rel).sort();
 
@@ -63,10 +64,15 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0051'))).toEqual(['0051_agent_events.sql']);
   });
 
-  it('the watcher cursors are 0052, the only 0052; nothing numbered higher is part of this work', () => {
+  it('the watcher cursors are 0052, the only 0052', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0052'))).toEqual(['0052_agent_watch_cursors.sql']);
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 52)).toEqual([]);
+  });
+
+  it('the operator reports are 0053, the only 0053; nothing numbered higher is part of this work', () => {
+    const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
+    expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 53)).toEqual([]);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -177,6 +183,62 @@ describe('the watcher cursor schema file and the code create the same table', ()
   });
 });
 
+describe('the reports schema file and the code create the same table', () => {
+  it('migrations-pg/0053_agent_reports.sql holds exactly the statements ensureAgentReportsTable runs, in order', async () => {
+    const { AGENT_REPORTS_DDL } = await import('../../src/lib/agentVault/reportStore');
+    const statements = squash(read('migrations-pg/0053_agent_reports.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_REPORTS_DDL.map(squash));
+  });
+
+  it('is keyed by tenant_id, is never soft-deleted (it is append-only), and has the columns the design names', async () => {
+    const { AGENT_REPORTS_DDL } = await import('../../src/lib/agentVault/reportStore');
+    const table = AGENT_REPORTS_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    expect(table).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
+    expect(table).not.toMatch(/\bdeleted_at\b/);
+    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]).filter((c) => c !== 'CHECK');
+    expect(cols).toEqual([
+      'id', 'tenant_id', 'tin_id', 'period_start', 'period_end', 'version', 'generated_at', 'content_hash', 'summary_json',
+      'merkle_root', 'leaf_count', 'signing_key_id', 'signature_hex', 'manifest_json', 'created_at',
+    ]);
+  });
+
+  it('makes a version number unique per account, tin and period, in the table itself', async () => {
+    const { AGENT_REPORTS_DDL } = await import('../../src/lib/agentVault/reportStore');
+    expect(AGENT_REPORTS_DDL.some((s) => /^CREATE UNIQUE INDEX IF NOT EXISTS \w+ ON agent_reports \(tenant_id, tin_id, period_start, version\)$/.test(squash(s)))).toBe(true);
+    // The insert's conflict target is that same key, so a taken version is skipped, never overwritten.
+    expect(read('src/lib/agentVault/reportStore.ts')).toMatch(/ON CONFLICT \(tenant_id, tin_id, period_start, version\) DO NOTHING/);
+  });
+});
+
+describe('reports are append-only', () => {
+  const srcFiles = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|tsx|astro|mjs|js)$/.test(f));
+
+  it('no file in src updates or removes a row of agent_reports', () => {
+    for (const file of srcFiles) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, rel(file)).not.toMatch(/\bUPDATE\s+agent_reports\b/i);
+      expect(src, rel(file)).not.toMatch(/\bDELETE\s+FROM\s+agent_reports\b/i);
+      expect(src, rel(file)).not.toMatch(/\bTRUNCATE\b[^;]*\bagent_reports\b/i);
+    }
+  });
+
+  it('the only statement that writes it is one INSERT, in reportStore.ts', () => {
+    const writers = srcFiles.filter((f) => /\bINSERT\s+INTO\s+agent_reports\b/i.test(readFileSync(f, 'utf8'))).map(rel);
+    expect(writers).toEqual(['src/lib/agentVault/reportStore.ts']);
+    expect(read('src/lib/agentVault/reportStore.ts').match(/\bINSERT\s+INTO\s+agent_reports\b/gi)).toHaveLength(1);
+  });
+
+  it('is removed with the account, before the tin', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    expect(at('agent_reports')).toBeGreaterThanOrEqual(0);
+    expect(at('agent_reports')).toBeLessThan(at('agent_tins'));
+  });
+});
+
 describe('the ledger is append-only', () => {
   const srcFiles = walk(path.join(ROOT, 'src')).filter((f) => /\.(ts|tsx|astro|mjs|js)$/.test(f));
 
@@ -210,13 +272,20 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0050_agent_vault.sql',
       'migrations-pg/0051_agent_events.sql',
       'migrations-pg/0052_agent_watch_cursors.sql',
+      'migrations-pg/0053_agent_reports.sql',
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/api.ts',
       'src/lib/agentVault/checkLog.ts',
+      'src/lib/agentVault/errors.ts',
       'src/lib/agentVault/events.ts',
       'src/lib/agentVault/explorer.ts',
       'src/lib/agentVault/link.ts',
+      'src/lib/agentVault/money.ts',
       'src/lib/agentVault/pricing.ts',
+      'src/lib/agentVault/report.ts',
+      'src/lib/agentVault/reportProof.ts',
+      'src/lib/agentVault/reportStore.ts',
+      'src/lib/agentVault/reports.ts',
       'src/lib/agentVault/store.ts',
       'src/lib/agentVault/transfers.ts',
       'src/lib/agentVault/trustChecks.ts',
@@ -230,6 +299,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/destinations/trust.ts',
       'src/pages/api/agentics/events.ts',
       'src/pages/api/agentics/refresh.ts',
+      'src/pages/api/agentics/reports.ts',
       'src/pages/api/agentics/tins.ts',
       'src/pages/api/agentics/totals.ts',
       'src/pages/api/agentics/wallets.ts',

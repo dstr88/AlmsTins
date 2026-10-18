@@ -30,6 +30,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { parseChain, type VaultChain } from './addresses';
+import { addTransfer, emptySums, toSideTotal, type SideTotal } from './money';
+
+export type { SideTotal };
 
 const TS_DEFAULT = `DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`;
 
@@ -428,16 +431,6 @@ export async function listEvents(
 
 // ── Totals ───────────────────────────────────────────────────────────────────
 
-/** One side of a tin's money in and out. `usd` adds only the transfers that have a USD value. */
-export interface SideTotal {
-  count: number;
-  pricedCount: number;
-  /** Transfers with no USD value on record (a token we could not price). They are counted here, never added in as zero. */
-  unpricedCount: number;
-  /** USD at the time of each transfer, in dollars rounded to the cent. */
-  usd: number;
-}
-
 /** What a tin's recorded transfers add up to. Raw value in and out, nothing netted, no price after the fact. */
 export interface TinTotals {
   transactions: number;
@@ -448,15 +441,11 @@ export interface TinTotals {
 }
 
 const TOTALS_PAGE = 1000;
-const MICROS = 1_000_000;
 
 /** Adds up every `transaction` event of one tin, oldest first, a page at a time. Dollar amounts are summed as whole micro-dollars so the sum is exact. */
 export async function sumTransactions(tenantId: string, tinId: string): Promise<TinTotals> {
   await ensureAgentEventsTable();
-  const sides = {
-    in: { count: 0, priced: 0, unpriced: 0, micros: 0 },
-    out: { count: 0, priced: 0, unpriced: 0, micros: 0 },
-  };
+  const sides = { in: emptySums(), out: emptySums() };
   let afterAt = '';
   let afterId = '';
   for (;;) {
@@ -467,16 +456,7 @@ export async function sumTransactions(tenantId: string, tinId: string): Promise<
       args: [tenantId, tinId, afterAt, afterAt, afterId, TOTALS_PAGE],
     });
     const rows = r.rows as any[];
-    for (const row of rows) {
-      const side = row.direction === 'out' ? sides.out : sides.in;
-      side.count += 1;
-      const usd = num(row.usd_value);
-      if (usd === null) side.unpriced += 1;
-      else {
-        side.priced += 1;
-        side.micros += Math.round(usd * MICROS);
-      }
-    }
+    for (const row of rows) addTransfer(row.direction === 'out' ? sides.out : sides.in, num(row.usd_value));
     if (rows.length < TOTALS_PAGE) break;
     const last = rows[rows.length - 1];
     const nextAt = String(last.occurred_at);
@@ -485,11 +465,62 @@ export async function sumTransactions(tenantId: string, tinId: string): Promise<
     afterAt = nextAt;
     afterId = nextId;
   }
-  const side = (s: (typeof sides)['in']): SideTotal => ({
-    count: s.count,
-    pricedCount: s.priced,
-    unpricedCount: s.unpriced,
-    usd: Math.round(s.micros / (MICROS / 100)) / 100,
+  return { transactions: sides.in.count + sides.out.count, bought: toSideTotal(sides.in), sold: toSideTotal(sides.out) };
+}
+
+// ── Reading a period ─────────────────────────────────────────────────────────
+
+/** Rows per page when a period is read. */
+export const PERIOD_PAGE = 1000;
+
+/**
+ * Hands every event of one tin that happened in [fromIso, toIso) to `onEvent`, oldest first, a
+ * page at a time, so a busy day never sits in memory whole. Both bounds are UTC ISO-8601 with
+ * milliseconds, the form `occurred_at` is stored in, so a plain string comparison is a time
+ * comparison. The end is exclusive: an event stamped at the stroke of midnight belongs to the day
+ * that begins there. Returns how many events it read.
+ */
+export async function readEventsInRange(
+  tenantId: string,
+  tinId: string,
+  range: { fromIso: string; toIso: string },
+  onEvent: (event: LedgerEvent) => void,
+  opts: { pageSize?: number } = {},
+): Promise<number> {
+  await ensureAgentEventsTable();
+  const pageSize = opts.pageSize ?? PERIOD_PAGE;
+  let afterAt = '';
+  let afterId = '';
+  let read = 0;
+  for (;;) {
+    const r = await db.execute({
+      sql: `SELECT ${EVENT_COLUMNS} FROM agent_events
+            WHERE tenant_id = ? AND tin_id = ? AND occurred_at >= ? AND occurred_at < ? AND (occurred_at > ? OR (occurred_at = ? AND id > ?))
+            ORDER BY occurred_at ASC, id ASC LIMIT ?`,
+      args: [tenantId, tinId, range.fromIso, range.toIso, afterAt, afterAt, afterId, pageSize],
+    });
+    const rows = r.rows as any[];
+    for (const row of rows) {
+      onEvent(eventFrom(row));
+      read += 1;
+    }
+    if (rows.length < pageSize) break;
+    const last = rows[rows.length - 1];
+    const nextAt = String(last.occurred_at);
+    const nextId = String(last.id);
+    if (nextAt === afterAt && nextId === afterId) break; // the page did not move; never loop
+    afterAt = nextAt;
+    afterId = nextId;
+  }
+  return read;
+}
+
+/** True when this tin has at least one event in [fromIso, toIso): the cheap question a daily job asks before it reads a whole day. */
+export async function hasEventsInRange(tenantId: string, tinId: string, range: { fromIso: string; toIso: string }): Promise<boolean> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT id FROM agent_events WHERE tenant_id = ? AND tin_id = ? AND occurred_at >= ? AND occurred_at < ? LIMIT 1`,
+    args: [tenantId, tinId, range.fromIso, range.toIso],
   });
-  return { transactions: sides.in.count + sides.out.count, bought: side(sides.in), sold: side(sides.out) };
+  return r.rows.length > 0;
 }

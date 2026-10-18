@@ -40,6 +40,11 @@ const STATUS: Record<VaultError, number> = {
   key_not_found: 404,
   key_not_active: 409,
   key_in_use: 409,
+  invalid_period: 400,
+  report_not_found: 404,
+  not_signed: 409,
+  report_altered: 409,
+  signing_unavailable: 503,
 };
 
 /** A vault operation's failure as a response: its code, and its HTTP status. */
