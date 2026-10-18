@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr } from '../helpers/agentVault';
+import { buildReport, dayBounds } from '../../src/lib/agentVault/report';
 import { txHash } from '../helpers/fakeExplorer';
 
 /**
@@ -249,6 +250,72 @@ describe('the last three days', () => {
     );
     expect(summary).toMatchObject({ tins: 1, active: 2, created: 2, truncated: true }); // two of the three days, then out of time
     expect(periods()).toEqual([`${A}:2026-10-19:v1`, `${A}:2026-10-20:v1`]);
+  });
+});
+
+describe('a day that already has the most versions', () => {
+  const WEDNESDAY = new Date('2026-10-21T09:10:00.000Z');
+  /** Fifty stored versions of a tin's report for a day, so the next change cannot be written. */
+  const fillDay = async (tinId: string, day: string, tenant = A) => {
+    const reportStore = await import('../../src/lib/agentVault/reportStore');
+    await reportStore.ensureAgentReportsTable();
+    const { start, end } = dayBounds(day);
+    for (let v = 1; v <= 50; v++) {
+      fake.seed('agent_reports', {
+        id: `filler-${tenant}-${day}-${v}`, tenant_id: tenant, tin_id: tinId, period_start: start, period_end: end, version: v, generated_at: '2026-10-01T00:00:00.000Z',
+        content_hash: `h${v}`, summary_json: JSON.stringify(buildReport([], { tin: { id: tinId, label: 'x' }, period: { start, end, partial: false } })),
+        merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
+      });
+    }
+  };
+
+  it('is counted on its own: the run goes on, nothing is called a failure, and the other days and agents are made', async () => {
+    const a = await newTin(A);
+    const b = await newTin(B);
+    for (const day of ['2026-10-18', '2026-10-19', '2026-10-20']) {
+      await put(A, a.id, 'registry_flagged', 'flagged', addr(1), `${day}T10:00:00.000Z`);
+      await put(B, b.id, 'registry_flagged', 'flagged', addr(2), `${day}T10:00:00.000Z`);
+    }
+    await fillDay(a.id, '2026-10-19');
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(summary).toMatchObject({ tins: 2, active: 6, created: 5, unchanged: 0, atVersionLimit: 1, failedReports: 0, truncated: false });
+    expect(reportRows().filter((r) => !String(r.id).startsWith('filler-')).map((r) => `${r.tenant_id}:${String(r.period_start).slice(0, 10)}`).sort()).toEqual([
+      `${A}:2026-10-18`, `${A}:2026-10-20`, `${B}:2026-10-18`, `${B}:2026-10-19`, `${B}:2026-10-20`,
+    ]);
+    expect(reportRows().filter((r) => r.tenant_id === A && String(r.period_start).startsWith('2026-10-19'))).toHaveLength(50);
+  });
+
+  it('is not logged as a failed step, and the digests of the other accounts still go out', async () => {
+    const a = await newTin(A);
+    const b = await newTin(B);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-20T10:00:00.000Z');
+    await put(B, b.id, 'registry_flagged', 'flagged', addr(2), '2026-10-20T10:00:00.000Z');
+    await opt(A, 'daily');
+    await opt(B, 'daily');
+    await fillDay(a.id, '2026-10-20');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(summary).toMatchObject({ atVersionLimit: 1, failedReports: 0, optedIn: 2, sent: 1, failedSends: 0, truncated: false });
+    expect(log).not.toHaveBeenCalled();
+    expect(sent.map((m) => m.to)).toEqual(['operator-b@example.test']);
+  });
+
+  it('a full day whose report has not changed is "unchanged", not at the limit', async () => {
+    const a = await newTin(A);
+    await put(A, a.id, 'registry_flagged', 'flagged', addr(1), '2026-10-20T10:00:00.000Z');
+    await job.runAgentReports(deps(WEDNESDAY));
+    const real = fake.rows('agent_reports')[0];
+    // Forty-nine more versions that say what the first says: the day is full, and the ledger has not moved.
+    for (let v = 2; v <= 50; v++) fake.seed('agent_reports', { ...real, id: `copy-${v}`, version: v, generated_at: '2026-10-21T09:11:00.000Z' });
+    const again = await job.runAgentReports(deps(new Date('2026-10-21T10:00:00.000Z')));
+    expect(again).toMatchObject({ active: 1, unchanged: 1, atVersionLimit: 0, created: 0, failedReports: 0 });
+    expect(reportRows()).toHaveLength(50);
+  });
+
+  it('the answer is still numbers and true/false only, and carries the new count', async () => {
+    const summary = await job.runAgentReports(deps(WEDNESDAY));
+    expect(Object.keys(summary)).toContain('atVersionLimit');
+    for (const [key, value] of Object.entries(summary)) expect(['number', 'boolean'], key).toContain(typeof value);
   });
 });
 

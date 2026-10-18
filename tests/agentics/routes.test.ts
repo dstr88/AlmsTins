@@ -613,13 +613,106 @@ describe('the owner: operator reports', () => {
       ['before the tin existed', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: '2026-09-30' }), 400, 'invalid_period'],
       ['unknown tin on make', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId: 'ghost', day: DAY }), 404, 'tin_not_found'],
       ['no tin id on make', call(reportsRoute.POST, '/api/agentics/reports', 'POST', { day: DAY }), 400, 'invalid_id'],
-      ['not JSON', call(reportsRoute.POST, '/api/agentics/reports', 'POST', '{nope'), 400, 'expected_json'],
     ];
     for (const [name, pending, status, error] of cases) {
       const r = await pending;
       expect(r.res.status, name).toBe(status);
       expect(r.json, name).toEqual({ ok: false, error });
     }
+  });
+
+  it('answers a body that is not JSON with a code (a test of its own: an account may ask for six reports a minute)', async () => {
+    const { res, json } = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', '{nope');
+    expect(res.status).toBe(400);
+    expect(json).toEqual({ ok: false, error: 'expected_json' });
+  });
+
+  describe('asking for reports too often', () => {
+    const ask = (tinId: string, body: unknown = { tinId, day: DAY }) => call(reportsRoute.POST, '/api/agentics/reports', 'POST', body);
+
+    it('six requests a minute are answered; the seventh is a 429 in the Vault\'s error shape, with a hint of how long to wait', async () => {
+      const tinId = await newTin();
+      await put(tinId, 1, 'registry_flagged', 'flagged');
+      for (let i = 1; i <= 6; i++) expect((await ask(tinId)).res.status, `request ${i}`).toBe(i === 1 ? 201 : 200);
+      const seventh = await ask(tinId);
+      expect(seventh.res.status).toBe(429);
+      expect(seventh.json).toEqual({ ok: false, error: 'rate_limited' });
+      expect(seventh.res.headers.get('Retry-After')).toBe('60');
+      expect(seventh.res.headers.get('Content-Type')).toBe('application/json');
+      expect(seventh.res.headers.get('Cache-Control')).toBe('private, no-store');
+      expect(seventh.raw).not.toMatch(/tenant|upgrade|plan|price|billing/i);
+      expect((await ask(tinId)).res.status).toBe(429); // and it stays so until the minute is up
+    });
+
+    it('is counted before the body is read, so a malformed request spends the budget too', async () => {
+      const tinId = await newTin();
+      for (let i = 1; i <= 6; i++) expect((await ask(tinId, '{nope')).res.status).toBe(400);
+      const seventh = await ask(tinId, { tinId, day: DAY });
+      expect(seventh.res.status).toBe(429);
+      expect(seventh.json).toEqual({ ok: false, error: 'rate_limited' });
+    });
+
+    it('lets the account ask again once the minute has passed', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(new Date('2026-10-18T09:00:00.000Z'));
+        const tinId = await newTin();
+        for (let i = 1; i <= 6; i++) await ask(tinId);
+        expect((await ask(tinId)).res.status).toBe(429);
+        vi.setSystemTime(new Date('2026-10-18T09:00:59.000Z'));
+        expect((await ask(tinId)).res.status).toBe(429);
+        vi.setSystemTime(new Date('2026-10-18T09:01:00.001Z'));
+        expect((await ask(tinId)).res.status).toBe(200);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('reading reports is not throttled, only making them', async () => {
+      const tinId = await newTin();
+      for (let i = 1; i <= 7; i++) await ask(tinId);
+      for (let i = 0; i < 10; i++) expect((await call(reportsRoute.GET, `/api/agentics/reports?tinId=${tinId}`, 'GET')).res.status).toBe(200);
+    });
+
+    it('someone who is not the owner never spends the owner\'s budget, and is still a plain 404', async () => {
+      const tinId = await newTin();
+      mem.session = { tenantId: OTHER_TENANT_ID };
+      for (let i = 0; i < 10; i++) {
+        const r = await ask(tinId);
+        expect(r.res.status).toBe(404);
+        expect(r.raw).toBe('Not found');
+      }
+      mem.session = OWNER;
+      expect((await ask(tinId)).res.status).toBe(201); // the owner's first report, with the whole budget
+    });
+  });
+
+  it('a change that would need a fifty-first version of a day is a 409 with a code and the limit; an unchanged report is still a 200', async () => {
+    const tinId = await newTin();
+    const store = await import('../../src/lib/agentVault/reportStore');
+    await store.ensureAgentReportsTable();
+    const { buildReport, dayBounds } = await import('../../src/lib/agentVault/report');
+    const filler = JSON.stringify(buildReport([], { tin: { id: tinId, label: 'Agent' }, period: { ...dayBounds(DAY), partial: false } }));
+    for (let v = 1; v <= 49; v++) {
+      fake.seed('agent_reports', {
+        id: `filler-${v}`, tenant_id: OWNER_TENANT_ID, tin_id: tinId, period_start: dayBounds(DAY).start, period_end: dayBounds(DAY).end, version: v,
+        generated_at: '2026-10-17T00:00:00.000Z', content_hash: `h${v}`, summary_json: filler, merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
+      });
+    }
+    await put(tinId, 1, 'registry_flagged', 'flagged');
+    const fiftieth = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(fiftieth.res.status).toBe(201);
+    expect(fiftieth.json.report.version).toBe(50);
+    const unchanged = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(unchanged.res.status).toBe(200);
+    expect(unchanged.json).toMatchObject({ created: false, report: { version: 50 } });
+    await put(tinId, 2, 'not_in_registry', 'unknown');
+    const refused = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+    expect(refused.res.status).toBe(409);
+    expect(refused.json).toEqual({ ok: false, error: 'version_limit', max: 50 });
+    expect(refused.res.headers.get('Retry-After')).toBeNull();
+    expect(refused.raw).not.toMatch(/tenant|upgrade|plan|price|billing|pay/i);
+    expect(fake.rows('agent_reports')).toHaveLength(50);
   });
 
   it('has no way to change or remove a report: only GET and POST exist, and POST adds a version', () => {

@@ -18,11 +18,14 @@ import type { Failure, VaultError } from './vault';
 /** The largest request body accepted, in characters. A pasted list is capped separately (MAX_TEXT_CHARS). */
 export const MAX_BODY_CHARS = 60_000;
 
-export const json = (body: unknown, status = 200): Response =>
+export const json = (body: unknown, status = 200, headers: Record<string, string> = {}): Response =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', ...headers },
   });
+
+/** What a throttled caller is told to wait, in whole seconds: the length of the throttle's window. */
+export const RETRY_AFTER_SECONDS = 60;
 
 const STATUS: Record<VaultError, number> = {
   invalid_label: 400,
@@ -46,10 +49,13 @@ const STATUS: Record<VaultError, number> = {
   report_altered: 409,
   signing_unavailable: 503,
   invalid_settings: 400,
+  rate_limited: 429,
+  version_limit: 409,
 };
 
-/** A vault operation's failure as a response: its code, and its HTTP status. */
-export const failure = (f: Failure): Response => json(f, STATUS[f.error]);
+/** A vault operation's failure as a response: its code, and its HTTP status (a throttled caller also gets a Retry-After). */
+export const failure = (f: Failure): Response =>
+  json(f, STATUS[f.error], f.error === 'rate_limited' ? { 'Retry-After': String(RETRY_AFTER_SECONDS) } : {});
 
 const notFound = (): Response => new Response('Not found', { status: 404 });
 

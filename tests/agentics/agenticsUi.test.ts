@@ -241,6 +241,15 @@ describe('the email settings', () => {
   it('turns an error code into plain words and the invalid-settings code into its own words', () => {
     expect(errorText('invalid_settings')).toBe(copy.errors.invalid_settings);
     expect(errorText('invalid_settings')).not.toBe(copy.errors.generic);
+    // The two limits say what happened and what to do, calmly, and never in the words of a price list.
+    for (const code of ['rate_limited', 'version_limit'] as const) {
+      expect(errorText(code), code).toBe(copy.errors[code]);
+      expect(errorText(code), code).not.toBe(copy.errors.generic);
+      expect(errorText(code), code).not.toMatch(/upgrade|plan\b|price|pric|billing|subscri|pay|quota|premium|pro\b|!/i);
+      expect(brightLineViolations(errorText(code)), code).toEqual([]);
+    }
+    expect(errorText('rate_limited')).toMatch(/wait a minute/i);
+    expect(errorText('version_limit')).toMatch(/newest version/i);
   });
 });
 

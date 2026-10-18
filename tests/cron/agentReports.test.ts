@@ -21,7 +21,7 @@ const call = (headers: Record<string, string> = {}, query = '') =>
   GET({ request: new Request(`https://app.test/api/cron/agent-reports${query}`, { headers }) } as never) as Promise<Response>;
 
 const SUMMARY = {
-  tins: 3, active: 2, created: 2, unchanged: 0, failedReports: 0, optedIn: 1, sent: 1, notNeeded: 0, noRecipient: 0, alreadySent: 0, failedSends: 0, truncated: false,
+  tins: 3, active: 2, created: 2, unchanged: 0, atVersionLimit: 0, failedReports: 0, optedIn: 1, sent: 1, notNeeded: 0, noRecipient: 0, alreadySent: 0, failedSends: 0, truncated: false,
 };
 
 beforeEach(() => {

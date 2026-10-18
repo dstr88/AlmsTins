@@ -10,13 +10,14 @@
  * one before it when that one was made with no signing key and a key is configured now, so a
  * signed copy can be had without waiting for the ledger to change. A snapshot is only ever a newer
  * version if it is a newer snapshot: one taken no later than the newest version is handed back as
- * that version, never stored after it.
+ * that version, never stored after it. A day has at most MAX_VERSIONS_PER_DAY versions.
  *
  * Every operation takes the tenant first and passes it to every query. Days are UTC days.
  */
 import { randomUUID } from 'node:crypto';
 import canonicalize from 'canonicalize';
 import { getSigningKey } from '@/lib/recordProof/signing';
+import { createFixedWindowLimiter } from '@/lib/rateLimit';
 import { readEventsInRange } from './events';
 import { addDays, dayBounds, headlineOf, parseDay, ReportBuilder, utcDay, type ReportContent, type ReportHeadline } from './report';
 import { buildReportBundle, bundleFromStored, contentHashOf, verifyReportBundle, type AgentReportBundle } from './reportProof';
@@ -40,6 +41,42 @@ export const defaultReportDeps: ReportDeps = { now: () => new Date(), newId: () 
 
 /** How often a writer retries for a version number another writer took first. */
 const MAX_ATTEMPTS = 5;
+
+/**
+ * The most versions one agent's report for one UTC day can have. A version is only written when the
+ * report changed (or a signing key arrived), so an agent and an owner behaving normally never come
+ * near it; it bounds what a runaway caller or script can store. At the limit a report whose words
+ * have not changed is still handed back as before; only a change that would need a 51st version is
+ * refused (see ReportVersionLimitError). The daily job counts such a day separately instead of failing.
+ */
+export const MAX_VERSIONS_PER_DAY = 50;
+
+/**
+ * How often an account may ask for a report to be made: this many requests in one window. A person
+ * pressing the button never nears it; a script looping on it does. Counted per account, in this
+ * process only (it resets on a restart), by the endpoint, not by the daily job.
+ */
+export const REPORT_REQUESTS_PER_WINDOW = 6;
+export const REPORT_REQUEST_WINDOW_MS = 60_000;
+
+export interface ReportRequestLimiter {
+  /** Counts one request for the account and says whether it is now over its budget. */
+  tooMany(tenantId: string, now?: number): boolean;
+}
+
+export function createReportRequestLimiter(): ReportRequestLimiter {
+  const limiter = createFixedWindowLimiter({ windowMs: REPORT_REQUEST_WINDOW_MS, max: REPORT_REQUESTS_PER_WINDOW });
+  return { tooMany: (tenantId, now) => limiter.hit(`t:${tenantId}`, now) };
+}
+
+/** The day already has the most versions a report can have, so a new one was not written. */
+export class ReportVersionLimitError extends Error {
+  readonly code = 'E_VERSION_LIMIT';
+  constructor() {
+    super('the day already has the most versions a report can have');
+    this.name = 'ReportVersionLimitError';
+  }
+}
 
 export const DEFAULT_REPORT_PAGE = 30;
 export const MAX_REPORT_PAGE = 90;
@@ -96,6 +133,7 @@ export async function generateReport(tenantId: string, tin: Tin, day: string, de
       }
     }
     const version = newest ? newest.version + 1 : 1;
+    if (version > MAX_VERSIONS_PER_DAY) throw new ReportVersionLimitError();
     const id = deps.newId();
     const bundle = buildReportBundle({ tenantId, reportId: id, version, generatedAt, content, prevRoot: newest?.merkleRoot ?? null });
     const written = await insertReportVersion(tenantId, {
@@ -240,7 +278,13 @@ export async function generateReportFor(
   const first = createdDay(tin);
   if (day > utcDay(deps.now()) || (first !== null && day < first)) return fail('invalid_period');
 
-  const made = await generateReport(tenantId, tin, day, deps);
+  let made: GeneratedReport;
+  try {
+    made = await generateReport(tenantId, tin, day, deps);
+  } catch (err) {
+    if (err instanceof ReportVersionLimitError) return fail('version_limit', MAX_VERSIONS_PER_DAY);
+    throw err;
+  }
   const versions = await listReportVersions(tenantId, tin.id, made.report.periodStart);
   return { ok: true, created: made.created, report: detailOf(made.report, versions) };
 }

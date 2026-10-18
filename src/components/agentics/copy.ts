@@ -107,6 +107,8 @@ export const copy = {
     generic: 'Something went wrong. Try again in a moment.',
     invalid_period: 'That day is not available. Pick a day from the day the agent was created up to today.',
     invalid_settings: 'Those settings were not understood. Try again.',
+    rate_limited: 'That is a lot of reports in a short time. Wait a minute, then try again.',
+    version_limit: 'That day already has the most versions a report can have. The newest version is in the list below.',
     tin_not_found: 'That agent was not found.',
     invalid_id: 'That agent was not found.',
     expected_json: 'Something went wrong. Try again in a moment.',

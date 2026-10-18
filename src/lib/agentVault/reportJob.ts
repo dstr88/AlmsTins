@@ -19,7 +19,9 @@
  *      send that fails gives its claim back, so a re-run the same day tries again.
  *
  * It stops starting new work when its deadline passes and says so (`truncated`), and picks up the
- * next day. A failure on one agent or one account never stops the rest. The summary is numbers
+ * next day. A failure on one agent or one account never stops the rest. A day that already has the
+ * most versions a report can have (reports.ts MAX_VERSIONS_PER_DAY) is counted as `atVersionLimit`,
+ * not as a failure. The summary is numbers
  * and true/false only: the workflow prints it in a public log, so it names no account or agent.
  * The workflow goes red when the summary reports a failed report, a failed send or a truncated run.
  *
@@ -37,7 +39,7 @@ import { hasEventsInRange, readEventsInRange } from './events';
 import { sendVaultMail } from './mailer';
 import { addDays, dayBounds, ReportBuilder, utcDay, type ReportContent } from './report';
 import { composeDigest, countsOf, digestPeriod, shouldSend, type DigestCounts, type DigestPeriod } from './digest';
-import { defaultReportDeps, generateReport, type ReportDeps } from './reports';
+import { defaultReportDeps, generateReport, ReportVersionLimitError, type ReportDeps } from './reports';
 import { listLatestReportsForPeriod } from './reportStore';
 import { getTin, listAllTins, listTins, type Tin, type WatchTarget } from './store';
 
@@ -72,6 +74,8 @@ export interface JobSummary {
   /** Of those, newly written, and ones that already said the same. */
   created: number;
   unchanged: number;
+  /** Ones whose day already has the most versions a report can have, so a changed report was not written. Not a failure. */
+  atVersionLimit: number;
   failedReports: number;
   /** Accounts that asked for a digest. */
   optedIn: number;
@@ -87,7 +91,7 @@ export interface JobSummary {
 }
 
 export const emptySummary = (): JobSummary => ({
-  tins: 0, active: 0, created: 0, unchanged: 0, failedReports: 0, optedIn: 0, sent: 0, notNeeded: 0, noRecipient: 0, alreadySent: 0, failedSends: 0, truncated: false,
+  tins: 0, active: 0, created: 0, unchanged: 0, atVersionLimit: 0, failedReports: 0, optedIn: 0, sent: 0, notNeeded: 0, noRecipient: 0, alreadySent: 0, failedSends: 0, truncated: false,
 });
 
 function logFailure(stage: string, err: unknown): void {
@@ -174,6 +178,12 @@ export async function runAgentReports(deps: JobDeps = defaultJobDeps(), opts: { 
         if (made.created) summary.created += 1;
         else summary.unchanged += 1;
       } catch (err) {
+        if (err instanceof ReportVersionLimitError) {
+          // The day is full. That is the limit working, not a report that could not be made: count it
+          // on its own, so it neither turns the workflow red nor hides among the failures.
+          summary.atVersionLimit += 1;
+          continue;
+        }
         logFailure('report', err);
         summary.failedReports += 1;
       }

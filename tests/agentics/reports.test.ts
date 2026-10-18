@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr } from '../helpers/agentVault';
 import { txHash } from '../helpers/fakeExplorer';
+import { buildReport, dayBounds } from '../../src/lib/agentVault/report';
 
 /**
  * Making, storing, listing and reading operator reports, over the real SQL run by the in-memory
@@ -73,6 +74,14 @@ const ok = <T extends { ok: boolean }>(r: T): Extract<T, { ok: true }> => {
   if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r)}`);
   return r as Extract<T, { ok: true }>;
 };
+
+/** A stored version with minimal, readable words: for tests that need many versions of a day without making each one. */
+const fillerRow = (tenant: string, tinId: string, day: string, version: number, id = `filler-${tenant}-${tinId.slice(0, 4)}-${day}-${version}`, generatedAt = '2026-10-17T00:00:00.000Z') => ({
+  id, tenant_id: tenant, tin_id: tinId, period_start: `${day}T00:00:00.000Z`, period_end: `${day}T23:59:59.999Z`, version, generated_at: generatedAt,
+  content_hash: `h-${id}`,
+  summary_json: JSON.stringify(buildReport([], { tin: { id: tinId, label: 'x' }, period: { ...dayBounds(day), partial: false } })),
+  merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
+});
 
 const newTin = (tenant = A, label = 'Treasury agent', createdAt = '2026-10-01 00:00:00') =>
   store.insertTin(tenant, { label, agentKeyId: null, at: createdAt });
@@ -359,11 +368,7 @@ describe('numbering a version from the newest row, and paging by period', () => 
 
   it('picks the highest version of each day whatever order the rows are in, and does it in one statement', async () => {
     const tin = await newTin();
-    const row = (version: number, day: string, id: string) => ({
-      id, tenant_id: A, tin_id: tin.id, period_start: `${day}T00:00:00.000Z`, period_end: `${day}T23:59:59.999Z`, version, generated_at: NOW.toISOString(),
-      content_hash: `h${id}`, summary_json: JSON.stringify({ v: 1, tin: { id: tin.id, label: 'x' }, period: { start: '', end: '', partial: false }, events: { checked: 0, transaction: 0 }, addresses: 0, buckets: {}, strip: {} }),
-      merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
-    });
+    const row = (version: number, day: string, id: string) => fillerRow(A, tin.id, day, version, id, NOW.toISOString());
     await reportStore.ensureAgentReportsTable();
     for (const r of [row(2, '2026-10-16', 'b2'), row(1, '2026-10-17', 'a1'), row(3, '2026-10-16', 'b3'), row(1, '2026-10-16', 'b1'), row(2, '2026-10-17', 'a2')]) fake.seed('agent_reports', r);
     const before = fake.log.length;
@@ -376,6 +381,132 @@ describe('numbering a version from the newest row, and paging by period', () => 
     expect(mine[0].args).toEqual([A, tin.id, 5]);
     expect(await reportStore.listLatestReports(B, tin.id, { limit: 5 })).toEqual([]);
     expect((await reportStore.listLatestReports(A, tin.id, { limit: 5, beforeStart: '2026-10-17T00:00:00.000Z' })).map((r) => r.id)).toEqual(['b3']);
+  });
+
+  it('two accounts that happen to share a tin id and a day each see their own newest version: the other\'s higher versions do not hide it', async () => {
+    const shared = '22222222-2222-4222-8222-222222222222';
+    await reportStore.ensureAgentReportsTable();
+    for (const v of [1, 2]) fake.seed('agent_reports', fillerRow(A, shared, '2026-10-16', v, `a${v}`));
+    for (const v of [1, 2, 3, 4, 5]) fake.seed('agent_reports', fillerRow(B, shared, '2026-10-16', v, `b${v}`));
+    fake.seed('agent_reports', fillerRow(A, shared, '2026-10-15', 1, 'a-older'));
+    expect((await reportStore.listLatestReports(A, shared, { limit: 5 })).map((r) => r.id)).toEqual(['a2', 'a-older']);
+    expect((await reportStore.listLatestReports(B, shared, { limit: 5 })).map((r) => r.id)).toEqual(['b5']);
+    expect((await reportStore.getNewestVersion(A, shared, '2026-10-16T00:00:00.000Z'))?.version).toBe(2);
+    expect((await reportStore.getNewestVersion(B, shared, '2026-10-16T00:00:00.000Z'))?.version).toBe(5);
+  });
+});
+
+describe('a day has at most 50 versions of an agent\'s report', () => {
+  const full = async (tin: { id: string }, day: string, versions = 49) => {
+    await reportStore.ensureAgentReportsTable();
+    for (let v = 1; v <= versions; v++) fake.seed('agent_reports', fillerRow(A, tin.id, day, v));
+  };
+
+  it('the limit is fifty', () => {
+    expect(reports.MAX_VERSIONS_PER_DAY).toBe(50);
+  });
+
+  it('the fiftieth version is written, and the fifty-first is refused, written nowhere, with a code', async () => {
+    const tin = await newTin();
+    await full(tin, DAY);
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const fiftieth = await reports.generateReport(A, tin, DAY, deps());
+    expect(fiftieth).toMatchObject({ created: true, report: { version: 50 } });
+
+    await putTransfer(A, tin.id, 'in', 5, at(9)); // the report would change
+    const later = deps(new Date(NOW.getTime() + 1_000));
+    await expect(reports.generateReport(A, tin, DAY, later)).rejects.toMatchObject({ name: 'ReportVersionLimitError', code: 'E_VERSION_LIMIT' });
+    await expect(reports.generateReport(A, tin, DAY, later)).rejects.toBeInstanceOf(reports.ReportVersionLimitError);
+    expect(fake.rows('agent_reports')).toHaveLength(50);
+    expect(await reports.generateReportFor(A, tin.id, DAY, later)).toEqual({ ok: false, error: 'version_limit', max: 50 });
+    expect(fake.rows('agent_reports')).toHaveLength(50);
+  });
+
+  it('a report that has not changed is still handed back at the limit: only a change that needs a new version is refused', async () => {
+    const tin = await newTin();
+    await full(tin, DAY);
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const fiftieth = (await reports.generateReport(A, tin, DAY, deps())).report;
+    const again = ok(await reports.generateReportFor(A, tin.id, DAY, deps(new Date(NOW.getTime() + 5_000))));
+    expect(again.created).toBe(false);
+    expect(again.report.id).toBe(fiftieth.id);
+    expect(again.report.version).toBe(50);
+    expect(again.report.versions).toHaveLength(50);
+    expect(fake.rows('agent_reports')).toHaveLength(50);
+  });
+
+  it('an unreadable newest version counts: its number is taken', async () => {
+    const tin = await newTin();
+    await full(tin, DAY, 50);
+    fake.rows('agent_reports').find((r) => r.version === 50)!.summary_json = '{not json';
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    await expect(reports.generateReport(A, tin, DAY, deps())).rejects.toBeInstanceOf(reports.ReportVersionLimitError);
+    expect(fake.rows('agent_reports')).toHaveLength(50);
+  });
+
+  it('is per agent and per day: a full day leaves the next day, another agent and another account alone', async () => {
+    const tin = await newTin();
+    const other = await newTin(A, 'Other agent');
+    const theirs = await newTin(B, 'Their agent');
+    await full(tin, DAY, 50);
+    for (const [tenant, t] of [[A, tin], [A, other], [B, theirs]] as const) {
+      await put(tenant, t.id, 'registry_flagged', 'flagged', addr(1), at(8));
+      await put(tenant, t.id, 'registry_flagged', 'flagged', addr(1), '2026-10-16T08:00:00.000Z');
+    }
+    await expect(reports.generateReport(A, tin, DAY, deps())).rejects.toBeInstanceOf(reports.ReportVersionLimitError);
+    expect((await reports.generateReport(A, tin, '2026-10-16', deps())).created).toBe(true); // the day before
+    expect((await reports.generateReport(A, other, DAY, deps())).created).toBe(true); // another agent, same day
+    expect((await reports.generateReport(B, theirs, DAY, deps())).created).toBe(true); // another account
+  });
+
+  it('the refusal names no address and no account', async () => {
+    const tin = await newTin();
+    await full(tin, DAY, 50);
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    const error = (await reports.generateReport(A, tin, DAY, deps()).catch((e) => e)) as Error;
+    expect(`${error.name} ${error.message} ${(error as { code?: string }).code}`).not.toMatch(new RegExp(`${addr(1)}|${A}|${tin.id}`));
+  });
+});
+
+describe('how often an account may ask for a report', () => {
+  const NOON = Date.parse('2026-10-18T12:00:00.000Z');
+
+  it('is six requests in a window of a minute, and the limit and the window are what the endpoint tells a caller to wait', async () => {
+    expect(reports.REPORT_REQUESTS_PER_WINDOW).toBe(6);
+    expect(reports.REPORT_REQUEST_WINDOW_MS).toBe(60_000);
+    const { RETRY_AFTER_SECONDS } = await import('../../src/lib/agentVault/api');
+    expect(RETRY_AFTER_SECONDS * 1000).toBe(reports.REPORT_REQUEST_WINDOW_MS);
+  });
+
+  it('counts each account on its own: one account using its budget leaves another\'s whole', () => {
+    const limiter = reports.createReportRequestLimiter();
+    for (let i = 1; i <= 6; i++) expect(limiter.tooMany(A, NOON + i), `A ${i}`).toBe(false);
+    expect(limiter.tooMany(A, NOON + 7)).toBe(true);
+    expect(limiter.tooMany(A, NOON + 8)).toBe(true);
+    for (let i = 1; i <= 6; i++) expect(limiter.tooMany(B, NOON + i), `B ${i}`).toBe(false);
+    expect(limiter.tooMany(B, NOON + 7)).toBe(true);
+  });
+
+  it('gives the account a fresh budget when the minute is up, and not before', () => {
+    const limiter = reports.createReportRequestLimiter();
+    for (let i = 0; i < 7; i++) limiter.tooMany(A, NOON);
+    expect(limiter.tooMany(A, NOON + 59_999)).toBe(true);
+    expect(limiter.tooMany(A, NOON + 60_000)).toBe(false);
+  });
+
+  it('two limiters do not share what they counted', () => {
+    const one = reports.createReportRequestLimiter();
+    const two = reports.createReportRequestLimiter();
+    for (let i = 0; i < 7; i++) one.tooMany(A, NOON);
+    expect(one.tooMany(A, NOON)).toBe(true);
+    expect(two.tooMany(A, NOON)).toBe(false);
+  });
+
+  it('making a report from code (the daily job) is never counted', async () => {
+    const tin = await newTin();
+    await put(A, tin.id, 'registry_flagged', 'flagged', addr(1), at(8));
+    for (let i = 0; i < 20; i++) await reports.generateReport(A, tin, DAY, deps(new Date(NOW.getTime() + i * 1_000)));
+    expect(fake.rows('agent_reports')).toHaveLength(1);
   });
 });
 
