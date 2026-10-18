@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { stripe } from '../../../lib/stripe';
+import { stripe, PRICE_TO_PLAN } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { ALMSTINS_PRODUCT, almstinsPlanForPrice } from '../../../lib/billingProducts';
 
 export const prerender = false;
 
@@ -15,6 +16,13 @@ export const POST: APIRoute = async ({ request }) => {
 
 		if (!priceId || typeof priceId !== 'string') {
 			return err('Missing priceId', 400);
+		}
+
+		// The Stripe account sells other products too, and the price id comes from the client.
+		// Only an Almstins plan's price may buy through here, or the buyer would pay for
+		// something this checkout never grants.
+		if (!almstinsPlanForPrice(priceId, PRICE_TO_PLAN)) {
+			return err('Unknown priceId', 400);
 		}
 
 		// Look up user email for pre-filling checkout
@@ -49,9 +57,11 @@ export const POST: APIRoute = async ({ request }) => {
 			line_items: [{ price: priceId, quantity: 1 }],
 			success_url: `${new URL(request.url).origin}/dashboard/billing?success=1`,
 			cancel_url: `${new URL(request.url).origin}/dashboard/billing?cancelled=1`,
-			metadata: { tenant_id: tenantId },
+			// The product tag tells the webhook whose subscription this is; one from before the tag
+			// existed carries none and still counts as Almstins's (src/lib/billingProducts.ts).
+			metadata: { tenant_id: tenantId, product: ALMSTINS_PRODUCT },
 			subscription_data: {
-				metadata: { tenant_id: tenantId },
+				metadata: { tenant_id: tenantId, product: ALMSTINS_PRODUCT },
 			},
 		});
 

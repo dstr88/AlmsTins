@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { stripe, PRICE_TO_PLAN } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
 import { cancelSubscriptionNow } from '@/lib/accountDeleteBilling';
+import { almstinsPlanForSubscription } from '@/lib/billingProducts';
 import { getTenantLang } from '@/lib/i18n/userLang';
 import { getSubscriptionWelcome } from '@/i18n/emails/subscriptionWelcome';
 
@@ -183,6 +184,31 @@ async function tenantExists(tenantId: string): Promise<boolean> {
 	return res.rows.length > 0;
 }
 
+/** The price on a subscription's first item. */
+function firstPriceId(subscription: Stripe.Subscription): string | undefined {
+	return subscription.items?.data?.[0]?.price?.id;
+}
+
+/**
+ * The Almstins plan a subscription is for. Every paid product is sold from this one Stripe
+ * account and its events all arrive here, but only an Almstins plan may touch the tenant's
+ * one subscriptions row (src/lib/billingProducts.ts). For anything else this logs one line and
+ * returns null: the caller writes nothing and the event still answers 200, so Stripe does not
+ * retry an event we ignore on purpose.
+ */
+function almstinsPlanOrIgnore(
+	eventType: string,
+	who: string,
+	priceId: string | undefined,
+	metadata: Array<Stripe.Metadata | null | undefined>,
+): string | null {
+	const planId = almstinsPlanForSubscription(priceId, metadata, PRICE_TO_PLAN);
+	if (!planId) {
+		console.warn(`[webhook] ${eventType} — not an Almstins subscription, ignored (${who}, price ${priceId || 'none'})`);
+	}
+	return planId;
+}
+
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	const tenantId = session.metadata?.tenant_id;
 	if (!tenantId || session.mode !== 'subscription') return;
@@ -207,8 +233,14 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 		expand: ['items.data.price'],
 	});
 
-	const priceId = subscription.items.data[0]?.price?.id;
-	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
+	// Whose subscription this is comes only now, after the deleted-account cancel above, which
+	// holds for every product. Another product's must not touch this tenant's plan.
+	const priceId = firstPriceId(subscription);
+	const planId = almstinsPlanOrIgnore('checkout.session.completed', `tenant ${tenantId}`, priceId, [
+		subscription.metadata,
+		session.metadata,
+	]);
+	if (!planId) return;
 	const customerId = subscription.customer as string;
 	const periodEnd = periodEndIso(subscription);
 
@@ -262,17 +294,23 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 // The update and cancel handlers below only UPDATE existing rows, never insert. Account
 // deletion cancels at Stripe before it deletes the row, so the cancel events for a deleted
 // account must find nothing and write nothing (tests/billing/webhookDeletedTenant.test.ts).
+// They also act only on an Almstins subscription: another product's update or cancel leaves
+// the row alone (tests/billing/webhookProducts.test.ts).
 
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 	const tenantId = subscription.metadata?.tenant_id;
+	const customerId = subscription.customer as string;
+	const who = tenantId ? `tenant ${tenantId}` : `customer ${customerId}`;
+	const priceId = firstPriceId(subscription);
+	const planId = almstinsPlanOrIgnore('customer.subscription.updated', who, priceId, [subscription.metadata]);
+	if (!planId) return;
+
 	if (!tenantId) {
 		// Fall back to looking up by stripe_customer_id
-		await updateByCustomerId(subscription);
+		await updateByCustomerId(subscription, planId, priceId);
 		return;
 	}
 
-	const priceId = subscription.items.data[0]?.price?.id;
-	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
 	const periodEnd = periodEndIso(subscription);
 
 	await db.execute({
@@ -300,6 +338,10 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 	const tenantId = subscription.metadata?.tenant_id;
 	const customerId = subscription.customer as string;
 
+	// Canceling another product's subscription must not drop this tenant's plan to free.
+	const who = tenantId ? `tenant ${tenantId}` : `customer ${customerId}`;
+	if (!almstinsPlanOrIgnore('customer.subscription.deleted', who, firstPriceId(subscription), [subscription.metadata])) return;
+
 	const sql = tenantId
 		? `UPDATE subscriptions SET plan_id = 'free', status = 'canceled', stripe_subscription_id = NULL, stripe_price_id = NULL, current_period_end = NULL, cancel_at_period_end = 0 WHERE tenant_id = ?`
 		: `UPDATE subscriptions SET plan_id = 'free', status = 'canceled', stripe_subscription_id = NULL, stripe_price_id = NULL, current_period_end = NULL, cancel_at_period_end = 0 WHERE stripe_customer_id = ?`;
@@ -308,10 +350,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 	console.log(`[webhook] subscription.deleted — ${tenantId ?? customerId} → free`);
 }
 
-async function updateByCustomerId(subscription: Stripe.Subscription) {
+/** `planId` is the Almstins plan handleSubscriptionUpdate already vetted this subscription for. */
+async function updateByCustomerId(subscription: Stripe.Subscription, planId: string, priceId: string | undefined) {
 	const customerId = subscription.customer as string;
-	const priceId = subscription.items.data[0]?.price?.id;
-	const planId = (priceId && PRICE_TO_PLAN[priceId]) ?? 'free';
 	const periodEnd = periodEndIso(subscription);
 
 	await db.execute({
