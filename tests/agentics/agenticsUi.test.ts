@@ -428,6 +428,9 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       'src/components/agentics/copy.ts',
       'src/components/agentics/errors.ts',
       'src/components/agentics/paths.ts',
+      // The free-signup door's welcome letter (the page a new account lands on). It is not a Vault
+      // page, but it lives in this directory, so the checks below read it as well.
+      'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',
     ]);

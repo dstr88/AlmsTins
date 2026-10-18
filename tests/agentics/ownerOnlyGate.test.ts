@@ -331,10 +331,10 @@ describe('Agent Vault gate: other paths are untouched, above all the live public
     expect(state.appCalls).toBe(0);
   });
 
-  it('the old docs URL still sends people to /agentics, as before', async () => {
+  it('the old docs URL still sends people to the docs page (/agentics/docs), as before', async () => {
     const { res } = await run('/verify/agents');
     expect(res.status).toBe(308);
-    expect(new URL(res.headers.get('Location') ?? '', 'https://almstins.com').pathname).toBe('/agentics');
+    expect(new URL(res.headers.get('Location') ?? '', 'https://almstins.com').pathname).toBe('/agentics/docs');
     expect(state.sessionCalls).toBe(0);
   });
 

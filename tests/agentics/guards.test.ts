@@ -79,10 +79,12 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; nothing numbered higher is part of this work', () => {
+  it('report delivery is 0054, the only 0054; the only migration numbered higher is the door\'s 0060', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual([]);
+    // The Vault's range is 0050 to 0059 and ends at 0054; the free-signup door's table is 0060
+    // (migrations-pg/0060_agentics_signups.sql, not part of the Vault). Nothing else sits above 0054.
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual(['0060_agentics_signups.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -383,6 +385,9 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/wallets.ts',
       'src/pages/api/cron/agent-reports.ts',
       'src/pages/api/cron/sync-agent-wallets.ts',
+      // The free-signup door's welcome letter. It is not Vault code, but it shares the directory,
+      // so the Vault's wording and bright-line guards read it too (stricter, never looser).
+      'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',
     ]);
