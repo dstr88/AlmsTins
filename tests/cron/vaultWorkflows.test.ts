@@ -188,3 +188,19 @@ describe('Sync Agent Wallets goes red when a wallet could not be written or the 
     expect(r.out).not.toContain(CANARY_SECRET);
   });
 });
+
+describe('both workflows send the secret in a header only', () => {
+  it.each([
+    [REPORTS, reportsAnswer(), '/api/cron/agent-reports'],
+    [WATCHER, watcherAnswer(), '/api/cron/sync-agent-wallets'],
+  ])('%s: the URL is the bare endpoint and the secret is in the x-cron-secret header, once', (file, answer, endpoint) => {
+    const r = run(file, answer);
+    expect(r.status).toBe(0);
+    const args = r.args.filter(Boolean);
+    expect(args).toContain(`https://app.example.test${endpoint}`); // no query string at all
+    expect(args.filter((a) => a.includes('?'))).toEqual([]);
+    expect(args.filter((a) => a.includes(CANARY_SECRET))).toEqual([`x-cron-secret: ${CANARY_SECRET}`]);
+    expect(args.join('\n').split(CANARY_SECRET)).toHaveLength(2); // the secret appears exactly once among the arguments
+    expect(r.out).not.toContain(CANARY_SECRET);
+  });
+});

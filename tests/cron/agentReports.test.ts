@@ -13,6 +13,17 @@ const job = vi.hoisted(() => ({
   defaultJobDeps: vi.fn(() => ({ sentinel: true })),
 }));
 vi.mock('@/lib/agentVault/reportJob', () => job);
+// The real secret check, watched: the route has to ask it, with the secret and what the caller sent.
+const guard = vi.hoisted(() => ({ calls: [] as Array<[unknown, unknown]> }));
+vi.mock('@/lib/agentVault/cronAuth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/agentVault/cronAuth')>();
+  return {
+    cronSecretMatches: (configured: unknown, provided: unknown) => {
+      guard.calls.push([configured, provided]);
+      return actual.cronSecretMatches(configured, provided);
+    },
+  };
+});
 
 import { GET } from '../../src/pages/api/cron/agent-reports';
 
@@ -25,6 +36,7 @@ const SUMMARY = {
 };
 
 beforeEach(() => {
+  guard.calls = [];
   job.runAgentReports.mockReset().mockResolvedValue(SUMMARY);
   vi.stubEnv('CRON_SECRET', 'test-secret');
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -59,6 +71,38 @@ describe('who may call it', () => {
     expect((await call({ 'x-cron-secret': 'test-secret' })).status).toBe(200);
     expect((await call({}, '?secret=test-secret')).status).toBe(200);
     expect(job.runAgentReports).toHaveBeenCalledTimes(2);
+  });
+
+  it('nobody when the secret is not set at all (not only empty), whatever is sent', async () => {
+    vi.stubEnv('CRON_SECRET', undefined);
+    for (const [headers, query] of [[{}, ''], [{ 'x-cron-secret': '' }, ''], [{ 'x-cron-secret': 'undefined' }, ''], [{}, '?secret='], [{}, '?secret=undefined'], [{ 'x-cron-secret': 'test-secret' }, '']] as const) {
+      expect((await call({ ...headers }, query)).status, JSON.stringify([headers, query])).toBe(401);
+    }
+    expect(job.runAgentReports).not.toHaveBeenCalled();
+  });
+
+  it('nobody with a secret that is a prefix of the real one, one byte longer, or a different length altogether', async () => {
+    for (const wrong of ['test-secre', 'test-secret-and-more', 't', 'x'.repeat(10_000), 'TEST-SECRET', 'test-secretx']) {
+      expect((await call({ 'x-cron-secret': wrong })).status, wrong.slice(0, 20)).toBe(401);
+      expect((await call({}, `?secret=${encodeURIComponent(wrong)}`)).status, wrong.slice(0, 20)).toBe(401);
+    }
+    // A header loses its edge whitespace on the way in; a query value keeps it, so there it is a different secret.
+    expect((await call({}, `?secret=${encodeURIComponent('test-secret ')}`)).status).toBe(401);
+    expect(job.runAgentReports).not.toHaveBeenCalled();
+  });
+
+  it('a wrong header wins over a right query: the header is what was sent', async () => {
+    expect((await call({ 'x-cron-secret': 'nope' }, '?secret=test-secret')).status).toBe(401);
+  });
+
+  it('asks the shared constant-time check, with the configured secret and what the caller sent, and nothing else decides', async () => {
+    await call({ 'x-cron-secret': 'test-secret' });
+    await call({}, '?secret=other');
+    await call();
+    expect(guard.calls).toEqual([['test-secret', 'test-secret'], ['test-secret', 'other'], ['test-secret', null]]);
+    const src = readFileSync(path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'), 'utf8');
+    expect(src).toMatch(/cronSecretMatches\(secret, provided\)/);
+    expect(src).not.toMatch(/provided\s*[!=]==?\s*secret|secret\s*[!=]==?\s*provided/);
   });
 });
 
@@ -106,8 +150,10 @@ describe('the workflow that calls it', () => {
     expect(minutes(mine!) - minutes(theirs!)).toBeGreaterThanOrEqual(10);
   });
 
-  it('calls this endpoint through the retry wrapper, with the secret in a header, and prints numbers and true/false only', () => {
-    expect(wf).toContain('/api/cron/agent-reports?secret=$CRON_SECRET');
+  it('calls this endpoint through the retry wrapper, with the secret in a header only (never in the URL), and prints numbers and true/false only', () => {
+    expect(wf).toContain('"$SYNC_URL/api/cron/agent-reports"');
+    expect(wf).not.toContain('?secret=');
+    expect(wf.match(/\$CRON_SECRET/g)).toHaveLength(2); // the check that it is set, and the header: it is not in the URL
     expect(wf).toContain('bash scripts/cron-curl.sh');
     expect(wf).toContain('-H "x-cron-secret: $CRON_SECRET"');
     expect(wf).toContain(`jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))'`);

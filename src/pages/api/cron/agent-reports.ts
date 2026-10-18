@@ -10,9 +10,12 @@
  * numbers and true/false only: the workflow prints it in a public log, so it names no account,
  * agent, address or email.
  *
- * Protected by CRON_SECRET (header or ?secret=). Called by .github/workflows/agent-reports.yml
+ * Protected by CRON_SECRET, compared in constant time and closed when it is not set (header or
+ * ?secret=, like the other cron routes; the workflow sends the header only, so the secret is never in
+ * a URL). Called by .github/workflows/agent-reports.yml
  */
 import type { APIRoute } from 'astro';
+import { cronSecretMatches } from '@/lib/agentVault/cronAuth';
 import { defaultJobDeps, runAgentReports } from '@/lib/agentVault/reportJob';
 
 export const prerender = false;
@@ -26,7 +29,7 @@ const RUN_BUDGET_MS = 9 * 60_000;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const provided = request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
-  if (!secret || provided !== secret) return json({ ok: false, error: 'unauthorized' }, 401);
+  if (!cronSecretMatches(secret, provided)) return json({ ok: false, error: 'unauthorized' }, 401);
 
   const started = Date.now();
   try {
