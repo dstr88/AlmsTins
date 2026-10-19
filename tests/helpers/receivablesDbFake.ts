@@ -432,16 +432,30 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 	}
 
 	function insert(sql: string, args: unknown[]) {
-		// INSERT INTO t (cols) SELECT ?, ... WHERE (SELECT COUNT(*) FROM u WHERE <expr>) < ?
-		// The row goes in only while the count is under the cap; otherwise nothing is written.
-		const capped = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) SELECT (.*?) WHERE \(SELECT COUNT\(\*\) FROM (\w+) WHERE (.*)\) < \?$/i);
-		if (capped) {
-			const [, table, colList, valList, countTable, countWhere] = capped;
+		// INSERT INTO t (cols) SELECT ?, ... WHERE [<guard> AND] (SELECT COUNT(*) FROM u [alias] WHERE <expr>) < ?
+		// The row goes in only while the guard holds (an EXISTS about another table, such as "the agent is
+		// still live") and the count is under the cap; otherwise nothing is written.
+		const cappedHead = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) SELECT (.*?) WHERE (.*)$/is);
+		const countAt = cappedHead ? cappedHead[4].lastIndexOf('(SELECT COUNT(*) FROM ') : -1;
+		if (cappedHead && countAt >= 0) {
+			const [, table, colList, valList, whereSrc] = cappedHead;
+			const guardSrc = whereSrc.slice(0, countAt).replace(/\s+AND\s*$/i, '').trim();
+			const count = whereSrc.slice(countAt).match(/^\(SELECT COUNT\(\*\) FROM (\w+)(?: (\w+))? WHERE (.*)\) < \?$/is);
+			if (!count) throw new Error(`fake db: unsupported INSERT: ${sql}`);
+			const [, countTable, countAlias = countTable, countWhere] = count;
 			const placeholders = splitTopLevel(valList);
-			const where = new ExprParser(tokenize(countWhere), { next: placeholders.length }).parse();
-			exprColumns(where).forEach((c) => requireColumn(countTable, c));
-			const used = rowsOf(countTable).filter((row) => evalExpr(where, (c) => row[c], args)).length;
-			const cap = Number(args[args.length - 1]);
+			const cursor = { next: placeholders.length };
+			const guard = guardSrc ? new ExprParser(tokenize(guardSrc), cursor).parse() : null;
+			const where = new ExprParser(tokenize(countWhere), cursor).parse();
+			const capIndex = cursor.next;
+			const bare = (ref: string, row: Row): unknown => {
+				if (!ref.includes('.')) return row[ref];
+				const [a, c] = ref.split('.');
+				return a === countAlias ? row[c] : undefined;
+			};
+			if (guard && !evalExpr(guard, () => undefined, args, env)) return { rows: [], rowsAffected: 0 };
+			const used = rowsOf(countTable).filter((row) => evalExpr(where, (ref) => bare(ref, row), args, env)).length;
+			const cap = Number(args[capIndex]);
 			if (!(used < cap)) return { rows: [], rowsAffected: 0 };
 			return insert(`INSERT INTO ${table} (${colList}) VALUES (${valList})`, args.slice(0, placeholders.length));
 		}

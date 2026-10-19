@@ -1,7 +1,7 @@
 name: CI
 
-# Runs on every pull request into production: the hermetic unit tests, the tax pipeline
-# integration test against a throwaway Postgres service container, and a full build.
+# Runs on every pull request into production: the hermetic unit tests, the tax pipeline and
+# Agent Vault limits integration tests against a throwaway Postgres service container, and a full build.
 # Nothing here deploys or touches production; it needs no secrets.
 on:
   pull_request:
@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # Throwaway Postgres for the tax pipeline integration step only. It lives and dies with
-    # this job. DATABASE_URL is set on that one step, never at job level, so the unit step
-    # stays database-free.
+    # Throwaway Postgres for the integration steps only (the tax pipeline, the Agent Vault limits).
+    # It lives and dies with this job. DATABASE_URL is set on those steps, never at job level, so
+    # the unit step stays database-free.
     services:
       postgres:
         image: postgres:17
@@ -60,6 +60,16 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           # Opt-in for the suite; with it set, a skipped or unsafe setup fails the step instead.
           RUN_TAX_PIPELINE_IT: '1'
+
+      # The Agent Vault's plan limits under concurrency, against the same throwaway Postgres: the
+      # account's advisory lock, the capped inserts, the live-agent guard. The in-memory tests pin the
+      # rules; only a real database shows that a race for the last place still adds exactly one.
+      # The test refuses any DATABASE_URL whose host is not localhost or 127.0.0.1 (it writes rows).
+      - name: Agent Vault limits under concurrency (Postgres)
+        run: npx vitest run tests/pgAgenticsLimits.test.ts
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          RUN_PG_AGENTICS_LIMITS: '1'
 
       - name: Build
         run: npm run build

@@ -122,7 +122,12 @@ export async function copyText(value: string): Promise<boolean> {
   }
 }
 
-/** A button that copies an address and says it did. The address in the label is cut short: a screen reader does not need all 42 characters. */
+/**
+ * A button that copies an address and says it did. The address in the label is cut short: a screen
+ * reader does not need all 42 characters. The button's name stays the same ("Copy address 0x12...ab"),
+ * which hides the word on the button from a screen reader, so the result is also said in a live region
+ * next to it ("Copied", "Copy failed"), which is announced without moving focus.
+ */
 export function CopyButton({ value }: { value: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,18 +135,104 @@ export function CopyButton({ value }: { value: string }) {
     if (timer.current) clearTimeout(timer.current);
   }, []);
   const short = value.length > 12 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
+  const said = state === 'copied' ? copy.registry.copied : state === 'failed' ? copy.registry.copyFailed : '';
+  return (
+    <>
+      <button
+        type="button"
+        className="ag-btn ag-btn--small"
+        aria-label={copy.registry.copyLabel(short)}
+        onClick={async () => {
+          setState((await copyText(value)) ? 'copied' : 'failed');
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = setTimeout(() => setState('idle'), 1800);
+        }}
+      >
+        {said || copy.registry.copy}
+      </button>
+      <span className="ag-sr" role="status" aria-live="polite">
+        {said}
+      </span>
+    </>
+  );
+}
+
+// ── Remove, with one more question in place ──────────────────────────────────
+
+export interface ConfirmRemoveProps {
+  /** The button that begins it ("Remove"). */
+  label: string;
+  /** What is asked, and the words of the two answers and of the yes while it works. */
+  question: string;
+  yes: string;
+  yesWorking: string;
+  keep: string;
+  /** The yes is being carried out (its request is running). */
+  working: boolean;
+  /** The button that begins it is not offered for now (another action on this page is running). */
+  disabled?: boolean;
+  /** A smaller button, for a row in a list. */
+  small?: boolean;
+  /** Called on the yes. */
+  onConfirm: () => void;
+}
+
+/**
+ * A remove button that asks once more where it stands: it is replaced by the question and its two
+ * answers. Because the button the person pressed leaves the page, focus would fall to the top of the
+ * page for a keyboard or screen-reader user, so it is handled here: asking puts focus on "Keep it"
+ * (the answer that does nothing), and "Keep it" puts focus back on "Remove". After a yes that worked
+ * the thing is gone and the page that removed it decides where focus goes.
+ */
+export function ConfirmRemove({ label, question, yes, yesWorking, keep, working, disabled, small, onConfirm }: ConfirmRemoveProps) {
+  const [asking, setAsking] = useState(false);
+  const removeRef = useRef<HTMLButtonElement | null>(null);
+  const keepRef = useRef<HTMLButtonElement | null>(null);
+  /** What the next render should do with focus: none, put it on "Keep it", or put it back on "Remove". */
+  const focusNext = useRef<'none' | 'keep' | 'remove'>('none');
+  useEffect(() => {
+    if (focusNext.current === 'keep') keepRef.current?.focus();
+    else if (focusNext.current === 'remove') removeRef.current?.focus();
+    focusNext.current = 'none';
+  }, [asking]);
+  const size = small ? ' ag-btn--small' : '';
+  if (asking) {
+    const Wrapper = small ? 'span' : 'div';
+    return (
+      <Wrapper className="ag-confirm" role="group" aria-label={question}>
+        <span className="ag-confirm__text">{question}</span>
+        {/* aria-disabled, not disabled, while it works: a disabled button drops the focus it holds. */}
+        <button className={`ag-btn${size} ag-btn--danger`} type="button" aria-disabled={working || undefined} onClick={() => { if (!working) onConfirm(); }}>
+          {working ? yesWorking : yes}
+        </button>
+        <button
+          ref={keepRef}
+          className={`ag-btn${size}`}
+          type="button"
+          aria-disabled={working || undefined}
+          onClick={() => {
+            if (working) return;
+            focusNext.current = 'remove';
+            setAsking(false);
+          }}
+        >
+          {keep}
+        </button>
+      </Wrapper>
+    );
+  }
   return (
     <button
+      ref={removeRef}
+      className={`ag-btn${size}${small ? '' : ' ag-btn--danger'}`}
       type="button"
-      className="ag-btn ag-btn--small"
-      aria-label={copy.registry.copyLabel(short)}
-      onClick={async () => {
-        setState((await copyText(value)) ? 'copied' : 'failed');
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setState('idle'), 1800);
+      disabled={disabled}
+      onClick={() => {
+        focusNext.current = 'keep';
+        setAsking(true);
       }}
     >
-      {state === 'copied' ? copy.registry.copied : state === 'failed' ? copy.registry.copyFailed : copy.registry.copy}
+      {label}
     </button>
   );
 }

@@ -25,8 +25,8 @@ vi.mock('@/lib/db', () => ({
 const mem = vi.hoisted(() => ({ session: null as null | { tenantId: string; isDemo?: boolean } }));
 vi.mock('@/lib/requireTenantSession', () => ({ requireTenantSession: async () => mem.session }));
 vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async () => [] }));
-const checks = vi.hoisted(() => ({ checkWallet: vi.fn(), lookupVerifiedAddress: vi.fn(), isClaimedElsewhere: vi.fn() }));
-vi.mock('@/lib/walletChecker', () => ({ checkWallet: checks.checkWallet }));
+const checks = vi.hoisted(() => ({ checkWallet: vi.fn(), getCached: vi.fn(() => null), setCache: vi.fn(), lookupVerifiedAddress: vi.fn(), isClaimedElsewhere: vi.fn() }));
+vi.mock('@/lib/walletChecker', () => ({ checkWallet: checks.checkWallet, getCached: checks.getCached, setCache: checks.setCache }));
 vi.mock('@/lib/verifyEntities', () => ({ lookupVerifiedAddress: checks.lookupVerifiedAddress }));
 vi.mock('@/lib/verifyRegistry', () => ({ isClaimedElsewhere: checks.isClaimedElsewhere }));
 
@@ -148,7 +148,16 @@ describe('an ordinary account at its limits', () => {
     expect((await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId, text: lines(11, 5) })).res.status).toBe(201);
     const { res, json } = await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId, text: addr(16) });
     expect(res.status).toBe(409);
-    expect(json).toEqual({ ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15 });
+    // The refusal also says what became of the line, as an accepted paste would have.
+    expect(json).toEqual({
+      ok: false,
+      error: 'plan_limit',
+      cap: 'addresses',
+      limit: 15,
+      used: 15,
+      skipped: [{ line: 1, chain: 'ethereum', address: addr(16), reason: 'over_limit' }],
+      rejected: [],
+    });
   });
 
   it('a paste that only partly fits is a 201: it adds what fits and says what it did not add, as over_limit', async () => {

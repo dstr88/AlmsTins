@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr, expectOk, fakeDeps, type FakeDeps } from '../helpers/agentVault';
+import { hashWithSalt } from '../../src/lib/analytics/hash';
 
 /**
  * GET /api/verify/check with and without a key that is linked to an Agent Vault tin. The public
@@ -173,7 +174,9 @@ describe('what a keyed call on a linked key writes', () => {
     const second = await call(addr(1), { bearer: BEARER.linked, ip: '203.0.113.77' });
     expect(first.body.vault).toMatchObject({ answer: 'unknown', cleared: true, history: 'none' });
     expect(second.body.vault).toMatchObject({ answer: 'consistent-with-history', cleared: true, history: 'consistent' });
-    expect(events().map((e) => [e.answer, e.source_ip])).toEqual([['unknown', '203.0.113.77'], ['consistent-with-history', '203.0.113.77']]);
+    // The caller is kept as a salted one-way hash, the same for the same caller, and never as the address.
+    expect(events().map((e) => [e.answer, e.source_ip])).toEqual([['unknown', hashWithSalt('203.0.113.77')], ['consistent-with-history', hashWithSalt('203.0.113.77')]]);
+    expect(JSON.stringify(events())).not.toContain('203.0.113.77');
     expect(first.body.vault.eventId).toBe(events()[0].id);
   });
 

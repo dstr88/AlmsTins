@@ -11,8 +11,16 @@
  *          "N added, M flagged": every line is in destinations, skipped or rejected.
  *          An address the account's plan has no place left for is skipped with the reason
  *          `over_limit` and stores nothing; a paste of which not one address fits is refused as a
- *          whole, 409 `plan_limit` (cap `addresses`, with `limit` and `used`). The limit is for all
- *          the account's agents together. Removing an address frees its place.
+ *          whole, 409 `plan_limit` (cap `addresses`, with `limit` and `used`), and that refusal also
+ *          carries `skipped` and `rejected`, the same lists an accepted paste carries, so every line
+ *          is accounted for (an address already registered is reported as that, not as over the
+ *          limit). The limit is for all the account's agents together. Removing an address frees its
+ *          place.
+ *          Checking is paid for in addresses: an account on a plan with a cap on addresses may have
+ *          30 addresses checked in a minute, for adds and re-checks together (429 `rate_limited`
+ *          when a request would pass that, with nothing stored and nothing asked). `trust: false`
+ *          adds without checking and costs none. An address checked in the last five minutes, by
+ *          anyone, is answered from the public checker's cache when that holds a complete answer.
  * DELETE ?id=                          -> remove from the watched set; the row stays as history
  *
  * "Pass" means the address cleared the checks we ran. It never means the address is safe.

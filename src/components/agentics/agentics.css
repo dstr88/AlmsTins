@@ -6,24 +6,60 @@
  * components.
  */
 
-/* ── Shell ───────────────────────────────────────────────────────────────── */
-.ag-shell { color: var(--text-primary); }
-.ag-shell__bar {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
-  max-width: 64rem; margin: 0 auto; padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--border-subtle);
+/* ── The document and its bar ────────────────────────────────────────────── */
+/* The page is a document of its own (AgenticsShell.astro): the same footing the door and the welcome
+   letter stand on, so nothing of the app's layout reaches it. */
+.ag-body {
+  margin: 0; min-height: 100vh; background: var(--surface-bg); color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6;
 }
-.ag-shell__brand {
-  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
-  color: var(--accent);
+.ag-body *, .ag-body *::before, .ag-body *::after { box-sizing: border-box; }
+.ag-shell { display: flex; flex-direction: column; min-height: 100vh; color: var(--text-primary); }
+.ag-shell__main { flex: 1 0 auto; width: 100%; }
+
+.ag-shell__bar { background: var(--surface-card); border-bottom: 1px solid var(--border-subtle); }
+.ag-shell__bar-in {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem;
+  max-width: 64rem; margin: 0 auto; padding: 0.8rem 1rem;
 }
-.ag-shell__nav { display: flex; gap: 1rem; }
+.ag-shell__brand { font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); text-decoration: none; }
+.ag-shell__brand:hover { color: var(--accent); }
+.ag-shell__nav { display: flex; gap: 1rem; margin-right: auto; }
 .ag-shell__nav a {
   font-size: 0.85rem; font-weight: 600; color: var(--text-muted); text-decoration: none;
   padding-bottom: 0.15rem; border-bottom: 2px solid transparent;
 }
 .ag-shell__nav a:hover { color: var(--text-primary); }
 .ag-shell__nav a[aria-current='page'] { color: var(--text-primary); border-bottom-color: var(--accent); }
+.ag-shell a:focus-visible, .ag-shell__out:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ag-shell__out {
+  background: transparent; border: 1px solid var(--border-bright); border-radius: 8px; color: var(--text-secondary);
+  padding: 0.3rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.ag-shell__out:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+/* On a phone the bar is three short rows: the name and the way out, the two places, the meter. */
+@media (max-width: 600px) {
+  .ag-shell__bar-in { row-gap: 0.45rem; }
+  .ag-shell__out { order: 2; margin-left: auto; }
+  .ag-shell__nav { order: 3; flex-basis: 100%; margin-right: 0; }
+  .ag-shell .ag-meter { order: 4; align-self: flex-start; }
+}
+
+.ag-shell__foot { border-top: 1px solid var(--border-subtle); margin-top: 2rem; }
+.ag-shell__foot p {
+  max-width: 64rem; margin: 0 auto; padding: 1.1rem 1rem 1.6rem; font-size: 0.8rem; line-height: 1.6; color: var(--text-muted);
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem;
+}
+.ag-shell__foot-links { display: inline-flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+.ag-shell__foot-links a { color: var(--text-secondary); text-decoration: none; }
+.ag-shell__foot-links a:hover { color: var(--accent); }
+
+/* Text for a screen reader only: the line a live region says out loud and the page need not show. */
+.ag-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
 .ag-page { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
@@ -52,6 +88,7 @@
 .ag-card--spaced { margin-top: 1.1rem; }
 .ag-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.8rem; }
 .ag-card__title { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); }
+.ag-card__title:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
 .ag-card__meta { font-size: 0.8rem; color: var(--text-muted); }
 .ag-empty { margin: 0; font-size: 0.9rem; color: var(--text-muted); }
 
@@ -73,7 +110,7 @@
 .ag-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
 .ag-btn--primary { background: var(--accent); color: var(--surface-bg); border-color: var(--accent); }
 .ag-btn--primary:hover { background: var(--accent); color: var(--surface-bg); box-shadow: 0 0 0 3px var(--accent-glow); }
-.ag-btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+.ag-btn:disabled, .ag-btn[aria-disabled='true'] { opacity: 0.55; cursor: default; box-shadow: none; }
 .ag-check { display: flex; align-items: flex-start; gap: 0.5rem; max-width: 34rem; font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary); }
 .ag-check input { margin-top: 0.2rem; accent-color: var(--accent); }
 .ag-hint { margin: 0 0 0.9rem; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }

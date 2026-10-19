@@ -10,6 +10,11 @@
  * /verify-record, POST /api/verify-record and scripts/verify-record.mjs. The record type is
  * `agent_ledger`.
  *
+ * THE RANGE is UTC days, both ends counted (`2026-10-01` to `2026-10-18`), or, for a day that holds more
+ * events than one file carries, UTC minutes (`2026-10-18T06:00` to `2026-10-18T11:59`, the last minute
+ * counted through its end). The two forms mix: a day can start a range that a minute ends. The
+ * manifest says the exact first moment and the first moment after (`period_start`, `period_end`) either way.
+ *
  * WHAT IS SIGNED. The manifest (the part that travels with the signature) holds the agent's id and
  * name, the range, how many checks and transfers there are, when the file was made, the Merkle root
  * and the key that signed it; it holds no address. The events are the leaves: each is one canonical
@@ -26,20 +31,27 @@
  *
  * FAIL CLOSED. There is no unsigned JSON and no way to have one presented as signed: with no signing
  * key, or a key that Almstins does not publish, the export is refused (signing_unavailable). A range
- * of more than 366 days, or one that holds more than 50,000 events, is refused (export_too_large)
+ * of more than 366 days, or one that contains more than 50,000 events, is refused (export_too_large)
  * before anything large is built. The CSV is a convenience copy of the same events and is NOT signed;
- * its first line carries the Merkle root and the bundle id of the signed file so the two can be
- * matched. The id is derived from the content (ledgerRecordId), so a signed file and a CSV made from one
- * state of the ledger carry the same id and the same root, however many minutes apart they were asked
- * for; once an event is added they no longer match, which is right. The CSV is made only where the
- * signed file can be, so it never names a file that does not exist.
+ * it is named as a copy in its file name and in its last column, which carries the bundle id of the
+ * signed file so the two can be matched. The id is derived from the content (ledgerRecordId), so a
+ * signed file and a CSV made from one state of the ledger carry the same id, however many minutes
+ * apart they were asked for; once an event is added they no longer match, which is right. The CSV is
+ * made only where the signed file can be, so it never names a file that does not exist.
+ *
+ * WHAT IT COSTS. A full file (50,000 events) is about half a second of hashing and tens of megabytes
+ * of memory, so one is made at a time: an account has at most one export running, and the process at
+ * most one (createExportGate), and the hashing gives the event loop back every few thousand events
+ * (buildLedgerBundleYielding), so the site keeps answering while a large file is built. The check
+ * before a file is handed over confirms the signature against the published keys; it does not hash
+ * the events a second time (the root was just made from them by the code every verifier runs).
  */
 import { createHash } from 'node:crypto';
 import { createFixedWindowLimiter } from '@/lib/rateLimit';
 import { PROOF_FORMAT, TREE_ALGO, tenantScopeTag, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { LEAF_SCHEMA_VERSION, orderLeaves, serializeLeaf, toFixedTrimmed, type CanonicalLeaf } from '@/lib/recordProof/leaf';
 import { buildMerkleRoot, hashLeaf, toHex } from '@/lib/recordProof/merkle';
-import { canonicalManifestBytes, getPublishedKeys, getSigningKey, signManifestWithKey } from '@/lib/recordProof/signing';
+import { canonicalManifestBytes, getPublishedKeys, getSigningKey, signManifestWithKey, verifyManifestSignature } from '@/lib/recordProof/signing';
 import { verifyBundle, type VerifyOutcome } from '@/lib/recordProof/verify';
 import { countEventsInRange, readEventsInRange, type LedgerEvent } from './events';
 import { fail, idOf, type Failure } from './errors';
@@ -72,6 +84,38 @@ export interface ExportRequestLimiter {
 export function createExportRequestLimiter(): ExportRequestLimiter {
   const limiter = createFixedWindowLimiter({ windowMs: EXPORT_REQUEST_WINDOW_MS, max: EXPORT_REQUESTS_PER_WINDOW });
   return { tooMany: (tenantId, now) => limiter.hit(`t:${tenantId}`, now) };
+}
+
+/** Exports being made at once in this process. A full file is tens of megabytes of memory, so one at a time. */
+export const MAX_EXPORTS_IN_FLIGHT = 1;
+
+export interface ExportGate {
+  /**
+   * Takes the place for one export, or null when the account already has one running or the process is
+   * at its limit. The caller that gets a function back must call it when the export is over, however
+   * it ended; calling it twice is harmless.
+   */
+  enter(tenantId: string): (() => void) | null;
+}
+
+/** A gate with its own count, so a test (or a second route) can have one that is not shared. */
+export function createExportGate(opts: { perProcess?: number } = {}): ExportGate {
+  const perProcess = opts.perProcess ?? MAX_EXPORTS_IN_FLIGHT;
+  const running = new Set<string>();
+  return {
+    enter(tenantId) {
+      // One per account is a rule of its own, not only a consequence of the process limit: when the
+      // process limit is raised, an account still cannot start two.
+      if (running.has(tenantId) || running.size >= perProcess) return null;
+      running.add(tenantId);
+      let left = false;
+      return () => {
+        if (left) return;
+        left = true;
+        running.delete(tenantId);
+      };
+    },
+  };
 }
 
 // ── The leaves ───────────────────────────────────────────────────────────────
@@ -181,27 +225,64 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
 // ── The range ────────────────────────────────────────────────────────────────
 
 export interface ExportRange {
-  /** The first UTC day, `YYYY-MM-DD`. */
+  /** The first day or minute, as the query wrote it: `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`, UTC. */
   from: string;
-  /** The last UTC day, `YYYY-MM-DD`, counted in. */
+  /** The last day or minute, counted in, as written. */
   to: string;
-  /** Days in the range, both ends counted. */
+  /** Days the range spans (a part of a day counts as a day), both ends counted. */
   days: number;
 }
 
+const MINUTE_MS = 60_000;
+const MINUTE_FORM = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/;
+
+/** One end of a range as a query writes it: a UTC day (`2026-10-18`) or a UTC minute (`2026-10-18T14:30`). Null for anything else. */
+function readEnd(raw: unknown): { text: string; day: string; minute: number | null } | null {
+  const whole = parseDay(raw);
+  if (whole) return { text: whole, day: whole, minute: null };
+  const m = typeof raw === 'string' ? MINUTE_FORM.exec(raw) : null;
+  if (!m) return null;
+  const day = parseDay(m[1]);
+  const hour = Number(m[2]);
+  const minute = Number(m[3]);
+  if (!day || hour > 23 || minute > 59) return null;
+  return { text: raw as string, day, minute: hour * 60 + minute };
+}
+
 /**
- * A range of UTC days from a query string: both ends real calendar days, the start not after the end,
- * the end not in the future (a day that has not begun has nothing to export), and at most
- * MAX_EXPORT_DAYS days. A malformed or backwards range is invalid_period; a range that is only too
- * long is export_too_large.
+ * The first moment of a range and the first moment after it (exclusive), UTC ISO-8601 with milliseconds,
+ * for a `from` and a `to` as written (days or minutes). A day starts at its first moment and ends where
+ * the next begins; a minute starts at its first moment, and as the last of a range it is counted
+ * through its end. Null when either is not a day or a minute. Nothing here checks the order or the clock.
  */
-export function parseExportRange(fromRaw: unknown, toRaw: unknown, today: string): ({ ok: true } & ExportRange) | Failure {
-  const from = parseDay(fromRaw);
-  const to = parseDay(toRaw);
-  if (!from || !to || from > to || to > today) return fail('invalid_period');
-  const days = Math.round((Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / DAY_MS) + 1;
+export function rangeBounds(from: string, to: string): { start: string; end: string } | null {
+  const a = readEnd(from);
+  const b = readEnd(to);
+  if (!a || !b) return null;
+  const startMs = Date.parse(`${a.day}T00:00:00.000Z`) + (a.minute ?? 0) * MINUTE_MS;
+  const endMs = Date.parse(`${b.day}T00:00:00.000Z`) + (b.minute === null ? DAY_MS : (b.minute + 1) * MINUTE_MS);
+  return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
+}
+
+/**
+ * A range from a query string: each end a real UTC day or a real UTC minute, the start before the end,
+ * the last day or minute named already begun (a day that has not begun has nothing to export, and
+ * neither has a minute: `nowMs` is the clock for that, left out where only days are asked), and at
+ * most MAX_EXPORT_DAYS days. A malformed or backwards range is invalid_period; a range that is only
+ * too long is export_too_large.
+ */
+export function parseExportRange(fromRaw: unknown, toRaw: unknown, today: string, nowMs?: number): ({ ok: true } & ExportRange) | Failure {
+  const a = readEnd(fromRaw);
+  const b = readEnd(toRaw);
+  const bounds = a && b ? rangeBounds(a.text, b.text) : null;
+  if (!a || !b || !bounds) return fail('invalid_period');
+  const startMs = Date.parse(bounds.start);
+  const endMs = Date.parse(bounds.end);
+  if (!(startMs < endMs) || b.day > today) return fail('invalid_period');
+  if (b.minute !== null && nowMs !== undefined && Date.parse(`${b.day}T00:00:00.000Z`) + b.minute * MINUTE_MS > nowMs) return fail('invalid_period');
+  const days = Math.ceil((endMs - startMs) / DAY_MS);
   if (days > MAX_EXPORT_DAYS) return fail('export_too_large', MAX_EXPORT_DAYS);
-  return { ok: true, from, to, days };
+  return { ok: true, from: a.text, to: b.text, days };
 }
 
 // ── The manifest and the bundle ──────────────────────────────────────────────
@@ -224,7 +305,8 @@ export const AGENT_LEDGER_DISCLAIMER =
   'it names, which Almstins publishes) and the time the file was generated. It evidences what the Agent Vault had ' +
   'recorded for this agent in the range, and when. It does NOT attest that the agent asked before every payment, ' +
   'that any underlying check, address or transfer was correct or complete, or anything about a transfer to an ' +
-  'address that was never registered: the Vault does not watch one.';
+  'address that was never registered: the Vault does not watch one. The agent name (tin_label) is text the ' +
+  'account holder chose; Almstins did not check it.';
 
 const APP_BASE = process.env.APP_URL ?? 'https://almstins.com';
 
@@ -235,8 +317,9 @@ export interface LedgerManifest {
   /** An opaque tag for the account (recordProof tenantScopeTag): the same account always gets the same tag, and it is not the account id. */
   tenant_scope_tag: string;
   record_type: typeof LEDGER_RECORD_TYPE;
-  /** The range in words: `2026-10-01 to 2026-10-18`, UTC days, both counted. */
+  /** The range in words: `2026-10-01 to 2026-10-18` (UTC days, both counted), or `2026-10-18 06:00 to 2026-10-18 11:59 UTC` (UTC minutes, the last counted through its end). */
   period: string;
+  /** The UTC day the range starts in, and the UTC day its last moment falls in. */
   from_day: string;
   to_day: string;
   /** The first moment of the range, and the first moment after it (exclusive), UTC ISO-8601 with milliseconds. */
@@ -300,18 +383,48 @@ export interface BuildLedgerInput {
  */
 export function buildLedgerBundle(input: BuildLedgerInput): LedgerBundle {
   const leaves = ordered(input.leaves);
-  const hashes = leaves.map((l) => hashLeaf(serializeLeaf(l as unknown as CanonicalLeaf)));
+  return assembleBundle(input, leaves, leaves.map(hashOne));
+}
+
+const hashOne = (leaf: LedgerLeaf): Uint8Array => hashLeaf(serializeLeaf(leaf as unknown as CanonicalLeaf));
+
+/** Leaves hashed between two turns the event loop gets: about 20 milliseconds of work. */
+export const HASH_CHUNK = 2_000;
+
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+/**
+ * The same bundle as buildLedgerBundle, byte for byte, built so that the process keeps answering
+ * other requests: the hashing, which is most of the work, gives the event loop back every HASH_CHUNK
+ * leaves. This is what the endpoint uses; the synchronous one stays for tests and small callers.
+ */
+export async function buildLedgerBundleYielding(input: BuildLedgerInput): Promise<LedgerBundle> {
+  const leaves = ordered(input.leaves);
+  const hashes: Uint8Array[] = new Array(leaves.length);
+  for (let i = 0; i < leaves.length; i += 1) {
+    hashes[i] = hashOne(leaves[i]);
+    if ((i + 1) % HASH_CHUNK === 0) await yieldToEventLoop();
+  }
+  return assembleBundle(input, leaves, hashes);
+}
+
+/** The manifest, the root over the hashes and the signature, for leaves already in order and hashed. */
+function assembleBundle(input: BuildLedgerInput, leaves: LedgerLeaf[], hashes: Uint8Array[]): LedgerBundle {
   const key = getSigningKey();
-  const bounds = { start: dayBounds(input.range.from).start, end: dayBounds(input.range.to).end };
+  const bounds = rangeBounds(input.range.from, input.range.to) ?? { start: dayBounds(input.range.from).start, end: dayBounds(input.range.to).end };
+  // A range written in days is named in days; one with a minute in it is named to the minute (its last minute counted through its end).
+  const windowed = input.range.from.length > 10 || input.range.to.length > 10;
+  const minuteText = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
+  const lastMoment = Date.parse(bounds.end) - 1;
   const merkleRoot = toHex(buildMerkleRoot(hashes));
   const manifest: LedgerManifest = {
     v: 1,
     record_id: input.recordId ?? ledgerRecordId(input.tenantId, input.tin.id, input.range.from, input.range.to, merkleRoot),
     tenant_scope_tag: tenantScopeTag(input.tenantId),
     record_type: LEDGER_RECORD_TYPE,
-    period: `${input.range.from} to ${input.range.to}`,
-    from_day: input.range.from,
-    to_day: input.range.to,
+    period: windowed ? `${minuteText(Date.parse(bounds.start))} to ${minuteText(Date.parse(bounds.end) - MINUTE_MS)} UTC` : `${input.range.from} to ${input.range.to}`,
+    from_day: bounds.start.slice(0, 10),
+    to_day: utcDay(lastMoment),
     period_start: bounds.start,
     period_end: bounds.end,
     partial: input.partial,
@@ -350,6 +463,21 @@ export function verifyLedgerBundle(bundle: LedgerBundle): VerifyOutcome {
   return verifyBundle(bundle as unknown as ProofBundle, keys);
 }
 
+/**
+ * Whether a bundle's signature is one the keys Almstins publishes now can confirm. This is the check
+ * the endpoint makes before it hands a file over: it catches the one failure that matters there (a
+ * signing key that is not published), in constant time. It does not hash the events again: the root
+ * was made from them a moment ago by the same code every verifier runs, so a second pass would only
+ * repeat the work (verifyLedgerBundle is the full check, and the tests use it).
+ */
+export function signatureIsPublished(bundle: LedgerBundle): boolean {
+  if (!bundle.signature || bundle.signature.alg !== 'Ed25519') return false;
+  const sig = bundle.signature;
+  const key = getPublishedKeys().find((k) => k.key_id === sig.key_id);
+  if (!key) return false;
+  return verifyManifestSignature(canonicalManifestBytes(signedView(bundle.manifest)), sig.signature_hex, key.public_key_hex);
+}
+
 // ── Making an export ─────────────────────────────────────────────────────────
 
 export interface ExportDeps {
@@ -362,8 +490,9 @@ export const defaultExportDeps: ExportDeps = { now: () => new Date() };
 
 /**
  * Makes the signed export of one agent's ledger for a range of UTC days, or says why it cannot. The
- * moment it starts is the file's `generated_at`, read before the ledger is, and nothing recorded
- * after that moment is in it, so the file is exactly the ledger as it stood then.
+ * moment it starts is the cutoff: the file holds the events from before it, and no later one. The
+ * file's `generated_at` is read after the ledger has been, so everything in the file was already
+ * recorded when it says the file was made, and nothing recorded after that moment can be in it.
  *
  * Refused, with nothing built: an agent that is not this account's (tin_not_found, exactly like one
  * that does not exist), a range that is malformed, backwards or in the future (invalid_period), a
@@ -382,17 +511,18 @@ export async function exportLedger(
   const tin = await getTin(tenantId, tinId);
   if (!tin) return fail('tin_not_found');
 
-  const generatedMs = deps.now().getTime();
-  const range = parseExportRange(fromRaw, toRaw, utcDay(generatedMs));
+  const cutoffMs = deps.now().getTime();
+  const range = parseExportRange(fromRaw, toRaw, utcDay(cutoffMs), cutoffMs);
   if (!range.ok) return range;
   // No key, no file: before anything is read.
   if (!getSigningKey()) return fail('signing_unavailable');
 
-  const start = dayBounds(range.from).start;
-  const rangeEnd = dayBounds(range.to).end;
-  // Nothing recorded after the moment the file was made is in it.
-  const end = new Date(Math.min(Date.parse(rangeEnd), generatedMs + 1)).toISOString();
-  const generatedAt = new Date(generatedMs).toISOString();
+  const bounds = rangeBounds(range.from, range.to);
+  if (!bounds) return fail('invalid_period'); // cannot happen after a range that parsed; never read with bounds that are not there
+  const start = bounds.start;
+  const rangeEnd = bounds.end;
+  // Nothing from after the moment the export started is in it.
+  const end = new Date(Math.min(Date.parse(rangeEnd), cutoffMs + 1)).toISOString();
 
   if ((await countEventsInRange(tenantId, tin.id, { fromIso: start, toIso: end })) > MAX_EXPORT_EVENTS) return fail('export_too_large', MAX_EXPORT_EVENTS);
 
@@ -409,17 +539,20 @@ export async function exportLedger(
   });
   if (overflowed) return fail('export_too_large', MAX_EXPORT_EVENTS);
 
-  const bundle = buildLedgerBundle({
+  // Read after the ledger was, never before it (and never earlier than the cutoff): the file may say
+  // it was made at this moment because everything in it was recorded by then.
+  const generatedAt = new Date(Math.max(deps.now().getTime(), cutoffMs)).toISOString();
+  const bundle = await buildLedgerBundleYielding({
     tenantId,
     tin: { id: tin.id, label: tin.label },
     range: { from: range.from, to: range.to },
-    partial: generatedMs + 1 < Date.parse(rangeEnd),
+    partial: cutoffMs + 1 < Date.parse(rangeEnd),
     generatedAt,
     recordId: deps.newId?.(),
     leaves,
   });
   // Never hand over a file as signed that the published keys cannot confirm.
-  if (!bundle.signature || verifyLedgerBundle(bundle).verdict !== 'verified') return fail('signing_unavailable');
+  if (!signatureIsPublished(bundle)) return fail('signing_unavailable');
   return { ok: true, bundle };
 }
 
@@ -430,15 +563,28 @@ export function serializeBundle(bundle: LedgerBundle): string {
   return `${JSON.stringify(bundle, null, bundle.manifest.leaf_count <= 2_000 ? 2 : undefined)}\n`;
 }
 
-/** The name the signed file is downloaded under: the range and the first of the file's id. */
+/**
+ * The name a file is downloaded under: the range and the first of the file's id. The signed file ends
+ * in `-proof.json`; the CSV copy ends in `-unsigned-copy.csv`, so it cannot be mistaken for the
+ * signed one in a folder of downloads.
+ */
 export function ledgerFileName(manifest: Pick<LedgerManifest, 'from_day' | 'to_day' | 'record_id'>, ext: 'json' | 'csv'): string {
-  return `almstins-agent-ledger-${manifest.from_day}-to-${manifest.to_day}-${manifest.record_id.slice(0, 8)}${ext === 'json' ? '-proof.json' : '.csv'}`;
+  return `almstins-agent-ledger-${manifest.from_day}-to-${manifest.to_day}-${manifest.record_id.slice(0, 8)}${ext === 'json' ? '-proof.json' : '-unsigned-copy.csv'}`;
 }
 
+/**
+ * The columns of the CSV copy. `reason` is why a check was answered as it was (for a check) or why no
+ * check stands behind a transfer (for a transfer); it is a code, never free text. The last column is
+ * the id of the signed file this is a copy of, on every line, so a single row can be matched to the
+ * signed file without a line of prose in front of the header.
+ */
 export const CSV_COLUMNS = [
-  'time_utc', 'kind', 'direction', 'address', 'chain', 'answer', 'registry', 'basis_or_reason', 'wallet', 'amount', 'asset', 'asset_contract',
-  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id',
+  'time_utc', 'kind', 'direction', 'address', 'chain', 'answer', 'registry', 'reason', 'wallet', 'amount', 'asset', 'asset_contract',
+  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'unsigned_copy_of_bundle_id',
 ] as const;
+
+/** The byte-order mark that makes a spreadsheet read the file as UTF-8 (a token's symbol can be any text). Parsers that read UTF-8 drop it. */
+const CSV_BOM = '\uFEFF';
 
 /**
  * One CSV cell. A cell that a spreadsheet could read as a formula (it starts with =, +, - or @, or
@@ -454,23 +600,21 @@ export function csvCell(value: string | number | null | undefined): string {
 }
 
 /**
- * The CSV copy of a signed bundle: its first line names the file it is a copy of (bundle id and Merkle
- * root) and says it is not signed, the second is the column names, then one line for each event in the
- * order of the signed file. Lines end with CRLF.
+ * The CSV copy of a signed bundle: the column names first, so any program that reads a header finds
+ * it on line one, then one line for each event in the order of the signed file. It is not signed, and
+ * says so where a program or a person will see it: the file name ends in `-unsigned-copy.csv`, and the
+ * last column of every line is `unsigned_copy_of_bundle_id`, the id of the signed file. Lines end with
+ * CRLF. It starts with a byte-order mark so a spreadsheet reads it as UTF-8.
  */
 export function ledgerCsv(bundle: LedgerBundle): string {
-  const m = bundle.manifest;
-  const first = csvCell(
-    `UNSIGNED copy of an Almstins agent ledger export. Match it to the signed file by bundle_id=${m.record_id} merkle_root=${m.merkle_root} ` +
-      `(${m.from_day} to ${m.to_day} UTC, generated ${m.generated_at}). Only the signed JSON file carries a signature.`,
-  );
+  const copyOf = bundle.manifest.record_id;
   const rows = bundle.leaves.map((l) => {
     const t = l.kind === 'transaction' ? l : null;
     return [
       l.date, l.kind === 'checked' ? 'checked' : 'transaction', t ? t.direction : '', l.address, l.chain, l.answer, l.registry, t ? t.reason : (l as CheckedLeaf).basis,
       t ? t.wallet : '', t ? t.amount : '', t ? t.asset : '', t ? t.asset_contract : '', t ? t.usd : '', t ? t.tx_hash : '', t ? t.block_number : '', l.event_id,
-      t ? t.linked_check : '', l.kind === 'checked' ? l.key_id : '',
+      t ? t.linked_check : '', l.kind === 'checked' ? l.key_id : '', copyOf,
     ].map(csvCell).join(',');
   });
-  return [first, CSV_COLUMNS.join(','), ...rows].join('\r\n') + '\r\n';
+  return CSV_BOM + [CSV_COLUMNS.join(','), ...rows].join('\r\n') + '\r\n';
 }

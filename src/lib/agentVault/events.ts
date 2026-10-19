@@ -131,7 +131,11 @@ export interface LedgerEvent {
   status: string | null;
   /** The API key that asked. */
   keyId: string | null;
-  /** The caller's address as the rate limiter sees it, kept as metadata only. */
+  /**
+   * A salted one-way hash of the caller's address as the rate limiter sees it, kept as metadata only
+   * (the column is still called source_ip; the address itself is never stored). Never part of an
+   * export, and never sent to the owner either (the events endpoint leaves it out).
+   */
   sourceIp: string | null;
   /** The funds, for a `transaction`; null for a check. */
   tx: TransactionFacts | null;

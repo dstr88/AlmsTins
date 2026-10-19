@@ -1,22 +1,38 @@
 ---
 /**
- * The page shell for every Agentics screen: the app Layout (sign-in chrome, account menu), then
- * Agentics' own bar and its stylesheet. This is the one file that knows the shared Layout, so
- * giving Agentics its own look later is a change here and in agentics.css, and nothing else.
- * It names no crypto-vault class and no crypto-vault navigation link.
+ * The page for every Agentics screen in the app (the agents, one agent, the reports): a document of
+ * its own, the way the Agentics door (src/pages/agentics/index.astro) and the welcome letter
+ * (src/pages/dashboard/agentics/index.astro) are. It does not use the app's Layout, so nothing of the
+ * crypto tracker is on it: no tracker navigation, no "Titanium Hut" brand, no tracker account menu
+ * (its billing, tenant id and alert email), no site footer whose questions are about wallets. A person
+ * who came to check an agent's payments sees Agentics' bar, the page, and a small footer.
  *
- * The bar holds the two places an account goes (its agents and their reports) and a small meter
- * of the plan: what the account uses and what the plan covers. The meter is given the plan by the
- * page, which read it for the account in the session; the shell reads nothing itself.
+ * The bar holds the name, the two places an account goes (its agents and their reports), a small meter
+ * of the plan (what the account uses and what the plan covers) and the way out. The meter is given the
+ * plan by the page, which read it for the account in the session; the shell reads only who is signed in,
+ * to tell the analytics tag that the owner's own visits are internal (as the app's Layout does).
+ *
+ * The title of a page is a fixed word the page names ("Agents", "Reports"), never text an account chose:
+ * an agent's name is the account's own words, and the title is one of the few things the analytics tag
+ * sends out. The same goes for the web address, which carries an agent's id and no name.
+ *
+ * The page is never indexed, and its stylesheet is Agentics' own (agentics.css). Everything is a
+ * design token (src/styles/tokens.css).
  */
-import Layout from '../../layouts/Layout.astro';
+import '@/styles/tokens.css';
 import './agentics.css';
+import Analytics from '@/components/Analytics.astro';
+import LogoutButton from '@/components/LogoutButton.astro';
+import { en as door } from '@/i18n/agentics';
+import { isInternalAgenticsViewer } from '@/lib/agenticsAccess';
+import { getAuthSession } from '@/lib/authSession';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import { copy } from './copy';
 import PlanMeter from './PlanMeter';
 import { HOME_PATH, REPORTS_PATH } from './paths';
 
 interface Props {
+  /** The page's own fixed name. Never an account's text (see above). */
   title: string;
   /** Which entry of the Agentics bar is the current one. */
   active?: 'agents' | 'reports';
@@ -24,18 +40,48 @@ interface Props {
   plan?: PlanSummary;
 }
 const { title, active, plan } = Astro.props;
----
 
-<Layout title={`${title} | ${copy.brand}`} noindex={true}>
+const session = await getAuthSession(Astro.request).catch(() => null);
+const internal = isInternalAgenticsViewer(session);
+const links = door.landing.footerLinks;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{`${title} | ${copy.brand}`}</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon.webp" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <Analytics owner={internal} />
+</head>
+<body class="ag-body">
   <div class="ag-shell">
     <header class="ag-shell__bar">
-      <span class="ag-shell__brand">{copy.brand}</span>
-      <nav class="ag-shell__nav" aria-label={copy.brand}>
-        <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>
-        <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>
-      </nav>
-      {plan && <PlanMeter client:load plan={plan} />}
+      <div class="ag-shell__bar-in">
+        <a class="ag-shell__brand" href={HOME_PATH}>{copy.brand}</a>
+        <nav class="ag-shell__nav" aria-label={copy.brand}>
+          <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>
+          <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>
+        </nav>
+        {plan && <PlanMeter client:load plan={plan} />}
+        <LogoutButton class="ag-shell__out" next="/agentics">{door.welcome.signOut}</LogoutButton>
+      </div>
     </header>
-    <slot />
+    <main class="ag-shell__main">
+      <slot />
+    </main>
+    <footer class="ag-shell__foot">
+      <p>
+        {door.landing.footer}
+        <span class="ag-shell__foot-links">
+          <a href="/agentics/docs">{links.docs}</a>
+          <a href="/wallet-checker">{links.checker}</a>
+          <a href="/privacy">{links.privacy}</a>
+        </span>
+      </p>
+    </footer>
   </div>
-</Layout>
+</body>
+</html>

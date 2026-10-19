@@ -369,6 +369,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/alerts.ts',
       'src/lib/agentVault/api.ts',
+      'src/lib/agentVault/checkBudget.ts',
       'src/lib/agentVault/checkLog.ts',
       'src/lib/agentVault/cronAuth.ts',
       'src/lib/agentVault/delivery.ts',

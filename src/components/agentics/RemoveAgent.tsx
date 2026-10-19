@@ -7,10 +7,9 @@ import { useState } from 'react';
 import { failureText, send } from './client';
 import { copy } from './copy';
 import { HOME_PATH } from './paths';
-import { Status } from './ui';
+import { ConfirmRemove, Status } from './ui';
 
 export default function RemoveAgent({ tinId }: { tinId: string }) {
-  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -34,23 +33,17 @@ export default function RemoveAgent({ tinId }: { tinId: string }) {
         </h2>
       </div>
       <p className="ag-hint">{copy.agent.remove.lede}</p>
-      {asking ? (
-        <div className="ag-confirm" role="group" aria-label={copy.agent.remove.confirm}>
-          <span className="ag-confirm__text">{copy.agent.remove.confirm}</span>
-          <button className="ag-btn ag-btn--danger" type="button" disabled={busy} onClick={() => void remove()}>
-            {busy ? copy.agent.remove.removing : copy.agent.remove.yes}
-          </button>
-          <button className="ag-btn" type="button" disabled={busy} onClick={() => setAsking(false)}>
-            {copy.agent.remove.keep}
-          </button>
-        </div>
-      ) : (
-        <div className="ag-form">
-          <button className="ag-btn ag-btn--danger" type="button" onClick={() => setAsking(true)}>
-            {copy.agent.remove.button}
-          </button>
-        </div>
-      )}
+      <div className="ag-form">
+        <ConfirmRemove
+          label={copy.agent.remove.button}
+          question={copy.agent.remove.confirm}
+          yes={copy.agent.remove.yes}
+          yesWorking={copy.agent.remove.removing}
+          keep={copy.agent.remove.keep}
+          working={busy}
+          onConfirm={() => void remove()}
+        />
+      </div>
       <Status kind="bad">{message}</Status>
     </section>
   );

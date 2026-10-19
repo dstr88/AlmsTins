@@ -155,7 +155,7 @@ describe('runPaste: sending the requests and adding up the answers', () => {
   it('any other failure ends the paste there: that request and the rest are not tried, and the reason is in plain words', async () => {
     const cases: Array<[ApiResult, string]> = [
       [{ status: 0, ok: false, body: null }, 'Could not reach the server. Check your connection and try again.'],
-      [{ status: 429, ok: false, body: { ok: false, error: 'rate_limited' } }, 'That is a lot of reports in a short time. Wait a minute, then try again.'],
+      [{ status: 429, ok: false, body: { ok: false, error: 'rate_limited' } }, 'That is a lot of requests in a short time. Wait a minute, then try again.'],
       [{ status: 404, ok: false, body: { ok: false, error: 'tin_not_found' } }, 'That agent was not found.'],
       [{ status: 500, ok: false, body: { ok: false, error: 'server_error' } }, 'Something went wrong. Try again in a moment.'],
       [{ status: 200, ok: true, body: null }, 'Something went wrong. Try again in a moment.'],
@@ -238,5 +238,81 @@ describe('describePaste: the sentences that sum a paste up', () => {
     // 10 lines answered (6 added, 3 skipped, 1 unreadable), 10 refused by the plan, 3 never sent.
     expect(out).toMatchObject({ added: 6, already: 1, overLimit: 12, unreadable: 1, notTried: 3 });
     expect(out.added + skipped + out.unreadable + out.notTried).toBe(23);
+  });
+});
+
+describe('runPaste: a request the plan refuses as a whole still says what became of each of its lines', () => {
+  const planLimit = (skipped: unknown[], rejected: unknown[] = []): ApiResult => ({
+    status: 409, ok: false,
+    body: { ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15, skipped, rejected },
+  });
+
+  it('counts the lines from the answer: already registered is not over the limit, and an unreadable line is not either', async () => {
+    // 13 lines at 14 of 15: six already registered, one that is not an address, three that do not fit, then three never sent.
+    const text = [...lines(1, 6), 'not an address', ...lines(40, 3), ...lines(50, 3)].join('\n');
+    const reply = planLimit(
+      [
+        ...lines(1, 6).map((address, i) => ({ line: i + 1, chain: 'ethereum', address, reason: 'already_registered', id: `d${i}`, trustStatus: 'trusted' })),
+        ...lines(40, 3).map((address, i) => ({ line: 8 + i, chain: 'ethereum', address, reason: 'over_limit' })),
+      ],
+      [{ line: 7, reason: 'no_address', text: 'not an address' }],
+    );
+    const out = await runPaste(planPaste(text), { tinId: 't', chain: 'ethereum', call: async () => reply });
+    expect(out).toMatchObject({ added: 0, already: 6, repeated: 0, overLimit: 3, unreadable: 1, notTried: 3 });
+    expect(out.added + out.already + out.repeated + out.overLimit + out.unreadable + out.notTried).toBe(13);
+    expect(out.endedBecause).toBe('Your free plan covers 15 addresses. Paid plans are coming later.');
+    // Every line that was not added is listed, in paste order, with its reason.
+    expect(out.lines.map((l) => [l.line, l.reason])).toEqual([
+      [1, 'already_registered'], [2, 'already_registered'], [3, 'already_registered'], [4, 'already_registered'], [5, 'already_registered'], [6, 'already_registered'],
+      [7, 'no_address'], [8, 'over_limit'], [9, 'over_limit'], [10, 'over_limit'],
+    ]);
+    expect(describePaste(out)).toEqual([
+      '0 added: 0 trusted (Pass), 0 flagged (Fail), 0 pending (Limited or not checked)',
+      '9 skipped: 6 already registered, 3 over the free plan\'s limit, not added',
+      '1 line not read as an address',
+      '3 lines not tried, because the paste ended early',
+      'The paste ended early: Your free plan covers 15 addresses. Paid plans are coming later.',
+    ]);
+  });
+
+  it('turns the lines of a later request back into the paste\'s own line numbers', async () => {
+    const text = lines(1, 25).join('\n');
+    const replies: ApiResult[] = [
+      answer(lines(1, 10).join('\n')),
+      planLimit([{ line: 3, chain: 'ethereum', address: addr(13), reason: 'already_registered', id: 'x', trustStatus: 'pending' }, { line: 4, chain: 'ethereum', address: addr(14), reason: 'over_limit' }]),
+    ];
+    const out = await runPaste(planPaste(text), { tinId: 't', chain: 'ethereum', call: async () => replies.shift() as ApiResult });
+    expect(out.lines.map((l) => [l.line, l.text, l.reason])).toEqual([[13, addr(13), 'already_registered'], [14, addr(14), 'over_limit']]);
+    expect(out).toMatchObject({ added: 10, already: 1, overLimit: 1, notTried: 5 });
+  });
+
+  it('is the last request of a paste: nothing is left untried, so the box can clear and every line is somewhere', async () => {
+    const out = await runPaste(planPaste(lines(1, 4).join('\n')), {
+      tinId: 't', chain: 'ethereum',
+      call: async () => planLimit(lines(1, 4).map((address, i) => ({ line: i + 1, chain: 'ethereum', address, reason: 'over_limit' }))),
+    });
+    expect(out).toMatchObject({ added: 0, overLimit: 4, notTried: 0 });
+    expect(out.lines).toHaveLength(4);
+  });
+
+  it('falls back to counting every line of the request as over the limit when the answer carries no lines', async () => {
+    const bare: ApiResult = { status: 409, ok: false, body: { ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15 } };
+    const out = await runPaste(planPaste(lines(1, 7).join('\n')), { tinId: 't', chain: 'ethereum', call: async () => bare });
+    expect(out).toMatchObject({ added: 0, overLimit: 7, notTried: 0 });
+    expect(out.lines).toEqual([]);
+  });
+
+  it('says a wait in the screen\'s own words when it is given them, and leaves every other reason in the general ones', async () => {
+    const limited: ApiResult = { status: 429, ok: false, body: { ok: false, error: 'rate_limited' } };
+    const errors = { rate_limited: 'That is a lot of checks in a short time. Wait a minute, then try again.' };
+    const mine = await runPaste(planPaste(lines(1, 3).join('\n')), { tinId: 't', chain: 'ethereum', call: async () => limited, errors });
+    expect(mine.endedBecause).toBe(errors.rate_limited);
+    expect(mine.notTried).toBe(3);
+    const other = await runPaste(planPaste(lines(1, 3).join('\n')), {
+      tinId: 't', chain: 'ethereum', errors, call: async () => ({ status: 404, ok: false, body: { ok: false, error: 'tin_not_found' } }),
+    });
+    expect(other.endedBecause).toBe('That agent was not found.');
+    const plain = await runPaste(planPaste(lines(1, 3).join('\n')), { tinId: 't', chain: 'ethereum', call: async () => limited });
+    expect(plain.endedBecause).toBe('That is a lot of requests in a short time. Wait a minute, then try again.');
   });
 });

@@ -688,3 +688,69 @@ describe('the files', () => {
     }
   });
 });
+
+describe('keyboard and screen readers', () => {
+  const registry = () => render(React.createElement(RegistryPanel, { tinId: 'tin-1', destinations: [dest(1), dest(2, { trustStatus: 'pending', trust: null })], plan: FREE }));
+  const wallets = () => render(React.createElement(WalletsPanel, { tinId: 'tin-1', wallets: [wallet(1)], plan: FREE }));
+
+  it('has a live region for the result of a paste before there is any text in it, so the result is announced when it arrives', () => {
+    const html = registry();
+    expect(html).toMatch(/<p class="ag-sr" role="status" aria-live="polite" aria-atomic="true"><\/p>/);
+    // The region is for the ear: nothing in it is shown, and the visible summary is a separate card.
+    expect(html).not.toContain('What happened to your paste');
+  });
+
+  it('says "Copied" or "Copy failed" in a live region next to the button, whose own name stays the same', () => {
+    const html = render(React.createElement(ui.CopyButton, { value: addr(1) }));
+    expect(html).toMatch(/aria-label="Copy address 0x[0-9a-f]{4}\.\.\.[0-9a-f]{4}"/);
+    expect(html).toMatch(/<span class="ag-sr" role="status" aria-live="polite"><\/span>/);
+    expect(textOf(html).trim()).toBe('Copy');
+  });
+
+  it('lets focus land on the heading of the card when the row it was on is removed', () => {
+    expect(registry()).toMatch(/<h2 class="ag-card__title" id="ag-registry-h" tabindex="-1">/);
+    expect(wallets()).toMatch(/<h2 class="ag-card__title" id="ag-wallets-h" tabindex="-1">/);
+  });
+
+  it('shows Remove as a plain button until it is pressed, and asks in place only then', () => {
+    for (const html of [registry(), wallets(), render(React.createElement(RemoveAgent, { tinId: 'tin-1' }))]) {
+      expect(html).toMatch(/<button[^>]*>Remove( agent)?<\/button>/);
+      expect(html).not.toContain('ag-confirm');
+    }
+  });
+
+  it('keeps focus where it belongs when it asks: on "Keep it" (the answer that does nothing), and back on "Remove" when kept', () => {
+    const src = read('src/components/agentics/ui.tsx');
+    const confirm = src.slice(src.indexOf('export function ConfirmRemove'));
+    expect(confirm).toMatch(/focusNext\.current = 'keep';\s*setAsking\(true\)/);
+    expect(confirm).toMatch(/focusNext\.current = 'remove';\s*setAsking\(false\)/);
+    expect(confirm).toMatch(/keepRef\.current\?\.focus\(\)/);
+    expect(confirm).toMatch(/removeRef\.current\?\.focus\(\)/);
+    // The two answers are never `disabled` while it works (a disabled button drops the focus it holds); they say so with aria-disabled.
+    expect(confirm).toMatch(/aria-disabled=\{working \|\| undefined\}/);
+    expect(confirm).not.toMatch(/\bdisabled=\{working\}/);
+    // All three places that remove something use it, and none keeps a confirm group of its own.
+    for (const f of ['RegistryPanel.tsx', 'WalletsPanel.tsx', 'RemoveAgent.tsx']) {
+      const s = read(`src/components/agentics/${f}`);
+      expect(s, f).toMatch(/<ConfirmRemove/);
+      expect(s, f).not.toMatch(/className="ag-confirm"/);
+    }
+  });
+
+  it('gives each row its own busy flag and its own message, so one row finishing never clears another\'s', () => {
+    const src = read('src/components/agentics/RegistryPanel.tsx');
+    expect(src).toMatch(/const \[rowBusy, setRowBusy\] = useState<ReadonlySet<string>>/);
+    expect(src).toMatch(/const \[rowMessages, setRowMessages\] = useState<Readonly<Record<string, RowMessage>>>/);
+    expect(src).not.toMatch(/setRowBusy\(null\)|setRowBusy\(d\.id\)|setRowMessage\(/);
+    const w = read('src/components/agentics/WalletsPanel.tsx');
+    expect(w).toMatch(/const \[removing, setRemoving\] = useState<ReadonlySet<string>>/);
+    expect(w).not.toMatch(/setRemoving\(null\)|setRemoving\(w\.id\)/);
+  });
+
+  it('puts the registry\'s own words on a wait: it is about checks', () => {
+    const src = read('src/components/agentics/RegistryPanel.tsx');
+    expect(src).toMatch(/const REGISTRY_ERRORS[^=]*= \{ rate_limited: copy\.registry\.rateLimited \}/);
+    expect(copy.registry.rateLimited).toBe('That is a lot of checks in a short time. Wait a minute, then try again.');
+    expect((src.match(/failureText\(r, REGISTRY_ERRORS\)/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+});

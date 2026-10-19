@@ -45,9 +45,15 @@ export function codeOf(r: ApiResult): string {
   return typeof r.body?.error === 'string' ? r.body.error : 'server_error';
 }
 
-/** A failed answer in plain words. A `plan_limit` also says which cap and what the plan covers. */
-export function failureText(r: ApiResult): string {
-  return errorText(codeOf(r), { cap: r.body?.cap, limit: r.body?.limit });
+/**
+ * A failed answer in plain words. A `plan_limit` also says which cap and what the plan covers.
+ * `overrides` are the words a screen has of its own for a code (a wait is about checks on the
+ * registry and about exports on the export card), used in place of the general ones.
+ */
+export function failureText(r: ApiResult, overrides: Readonly<Record<string, string>> = {}): string {
+  const code = codeOf(r);
+  if (Object.prototype.hasOwnProperty.call(overrides, code)) return overrides[code];
+  return errorText(code, { cap: r.body?.cap, limit: r.body?.limit });
 }
 
 /** The plan summary an answer carries (what GET /api/agentics/plan says), or null when it is not one. */

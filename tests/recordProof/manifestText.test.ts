@@ -106,6 +106,22 @@ describe('an Agent Vault ledger export', () => {
     }
   });
 
+  it('says the first and last minute when the file covers part of a day, and keeps saying days when it covers whole days', () => {
+    const windowed = (over: Record<string, unknown> = {}) => ({
+      record_type: 'agent_ledger', from_day: '2026-10-18', to_day: '2026-10-18', period_start: '2026-10-18T06:00:00.000Z', period_end: '2026-10-18T12:00:00.000Z', ...over,
+    });
+    expect(ledgerRangeLine(windowed())).toBe('Covers 2026-10-18 06:00 to 2026-10-18 11:59 (UTC, to the minute, both counted)');
+    expect(ledgerRangeLine(windowed({ period_end: '2026-10-19T06:01:00.000Z', to_day: '2026-10-19' }))).toBe('Covers 2026-10-18 06:00 to 2026-10-19 06:00 (UTC, to the minute, both counted)');
+    expect(ledgerRangeLine(windowed({ partial: true }))).toBe('Covers 2026-10-18 06:00 to 2026-10-18 11:59 (UTC, to the minute, both counted), partial: made before the range ended');
+    // Whole days, even when their start and end are stated: the days are named, as ever.
+    const whole = { period_start: '2026-10-01T00:00:00.000Z', period_end: '2026-10-19T00:00:00.000Z' };
+    expect(ledgerRangeLine({ record_type: 'agent_ledger', from_day: '2026-10-01', to_day: '2026-10-18', ...whole })).toBe('Covers 2026-10-01 to 2026-10-18 (UTC days, both counted)');
+    // A first and last moment that cannot be read as moments fall back to the days; they are never printed.
+    for (const odd of [{ period_start: 'x', period_end: 'y' }, { period_start: '2026-10-18T06:00:00Z', period_end: '2026-10-18T12:00:00.000Z' }, { period_start: 5, period_end: 6 }, { period_start: '2026-10-18T12:00:00.000Z', period_end: '2026-10-18T06:00:00.000Z' }, { period_start: '<b>x</b>', period_end: '2026-10-18T12:00:00.000Z' }]) {
+      expect(ledgerRangeLine(windowed(odd)), JSON.stringify(odd)).toBe('Covers 2026-10-18 to 2026-10-18 (UTC days, both counted)');
+    }
+  });
+
   it('says so when the days are not stated or are not days, and prints nothing it was not given', () => {
     for (const odd of [{}, { from_day: '2026-10-01' }, { to_day: '2026-10-18' }, { from_day: 'x', to_day: 'y' }, { from_day: 5, to_day: 6 }, { from_day: '2026-1-1', to_day: '2026-10-18' }, { from_day: '<b>2026-10-01</b>', to_day: '2026-10-18' }]) {
       const line = ledgerRangeLine({ record_type: 'agent_ledger', ...odd });
@@ -116,10 +132,12 @@ describe('an Agent Vault ledger export', () => {
   it('says what its signature does not reach: a snapshot, a later export may hold more, nothing about the agent\'s own behavior, nothing about an unregistered address', () => {
     const note = ledgerNote({ record_type: 'agent_ledger' }) ?? '';
     expect(note).toMatch(/snapshot of the ledger when it was made/);
-    expect(note).toMatch(/later export of the same days can hold more/);
+    expect(note).toMatch(/later export of the same days can contain more/);
     expect(note).toMatch(/cannot see one/);
     expect(note).toMatch(/does not show that the agent asked before every payment/);
     expect(note).toMatch(/never registered/);
+    // It says "contain", never "hold": the Vault's wording rule keeps that word for what an agent does with a payment.
+    expect(note).not.toMatch(/\bholds?\b/i);
   });
 
   it('is nothing at all for any other kind of record, so a Year Summary and a report read as they always did', () => {

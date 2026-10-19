@@ -561,8 +561,10 @@ describe('the files that go out', () => {
   it('names the signed file and the CSV by the range and the first of the file\'s id', () => {
     const m = { from_day: '2026-10-01', to_day: '2026-10-18', record_id: '12345678-aaaa-4bbb-8ccc-0123456789ab' };
     expect(ex.ledgerFileName(m, 'json')).toBe('almstins-agent-ledger-2026-10-01-to-2026-10-18-12345678-proof.json');
-    expect(ex.ledgerFileName(m, 'csv')).toBe('almstins-agent-ledger-2026-10-01-to-2026-10-18-12345678.csv');
+    // The CSV says in its name that it is a copy and not signed, so it cannot be mistaken for the signed file in a folder of downloads.
+    expect(ex.ledgerFileName(m, 'csv')).toBe('almstins-agent-ledger-2026-10-01-to-2026-10-18-12345678-unsigned-copy.csv');
     expect(ex.ledgerFileName(m, 'json')).toMatch(/^[A-Za-z0-9._-]+$/);
+    expect(ex.ledgerFileName(m, 'csv')).toMatch(/^[A-Za-z0-9._-]+$/);
   });
 
   it('serializes the bundle so it reads back as the same bundle, indented while it is small', async () => {
@@ -595,38 +597,42 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+/** The CSV text a spreadsheet sees: without the byte-order mark that tells it the file is UTF-8. */
+const withoutBom = (csv: string): string => csv.replace(/^\uFEFF/, '');
+
 describe('the CSV copy', () => {
-  it('says in its first line that it is NOT signed, and names the signed file it copies by its bundle id and Merkle root', async () => {
+  it('starts with the column names, with no line of prose in front of them, and says in its last column which signed file it copies', async () => {
     const b = await exportOf(await seed());
     const csv = ex.ledgerCsv(b);
-    const first = parseCsv(csv)[0];
-    expect(first).toHaveLength(1);
-    expect(first[0]).toMatch(/^UNSIGNED copy/);
-    expect(first[0]).toContain(`bundle_id=${b.manifest.record_id}`);
-    expect(first[0]).toContain(`merkle_root=${b.manifest.merkle_root}`);
-    expect(first[0]).toContain('2026-10-01 to 2026-10-03 UTC');
-    expect(first[0]).toContain('Only the signed JSON file carries a signature.');
-    expect(csv).not.toMatch(/signature_hex|"alg"|Ed25519/);
+    // A byte-order mark first (a spreadsheet reads the file as UTF-8, and a token symbol can be any text), then the header.
+    expect(csv.startsWith('\uFEFFtime_utc,kind,direction,')).toBe(true);
+    const rows = parseCsv(withoutBom(csv));
+    expect(rows[0]).toEqual([...ex.CSV_COLUMNS]);
+    expect(rows[0][rows[0].length - 1]).toBe('unsigned_copy_of_bundle_id');
+    const idColumn = ex.CSV_COLUMNS.indexOf('unsigned_copy_of_bundle_id');
+    for (const r of rows.slice(1)) expect(r[idColumn], r.join('|')).toBe(b.manifest.record_id);
+    expect(csv).not.toMatch(/UNSIGNED copy|merkle_root|signature_hex|"alg"|Ed25519/);
+    expect(csv).not.toMatch(/basis_or_reason/);
   });
 
   it('has one line for each event after the column names, in the order of the signed file, and uses CRLF', async () => {
     const b = await exportOf(await seed());
     const csv = ex.ledgerCsv(b);
-    const rows = parseCsv(csv);
-    expect(rows[1]).toEqual([...ex.CSV_COLUMNS]);
-    expect(rows.length).toBe(2 + b.leaves.length);
-    expect(rows.slice(2).map((r) => r[ex.CSV_COLUMNS.indexOf('event_id')])).toEqual(b.leaves.map((l) => l.event_id));
-    expect(rows.slice(2).map((r) => r[0])).toEqual(b.leaves.map((l) => l.date));
+    const rows = parseCsv(withoutBom(csv));
+    expect(rows[0]).toEqual([...ex.CSV_COLUMNS]);
+    expect(rows.length).toBe(1 + b.leaves.length);
+    expect(rows.slice(1).map((r) => r[ex.CSV_COLUMNS.indexOf('event_id')])).toEqual(b.leaves.map((l) => l.event_id));
+    expect(rows.slice(1).map((r) => r[0])).toEqual(b.leaves.map((l) => l.date));
     expect(csv.endsWith('\r\n')).toBe(true);
     expect(csv.split('\r\n').length).toBe(rows.length + 1);
-    for (const r of rows.slice(1)) expect(r, r.join('|')).toHaveLength(ex.CSV_COLUMNS.length);
+    for (const r of rows) expect(r, r.join('|')).toHaveLength(ex.CSV_COLUMNS.length);
   });
 
   it('writes a check and a transfer in the columns that belong to them, and leaves the rest empty', async () => {
     const b = await exportOf(await seed());
-    const rows = parseCsv(ex.ledgerCsv(b)).slice(2);
+    const rows = parseCsv(withoutBom(ex.ledgerCsv(b))).slice(1);
     const col = (r: string[], name: (typeof ex.CSV_COLUMNS)[number]) => r[ex.CSV_COLUMNS.indexOf(name)];
-    const checkRow = rows.find((r) => col(r, 'kind') === 'checked' && col(r, 'basis_or_reason') === 'domain_proof')!;
+    const checkRow = rows.find((r) => col(r, 'kind') === 'checked' && col(r, 'reason') === 'domain_proof')!;
     expect(col(checkRow, 'answer')).toBe('proven');
     expect(col(checkRow, 'registry')).toBe('trusted');
     expect(col(checkRow, 'key_id')).toBe('k1');
@@ -641,8 +647,8 @@ describe('the CSV copy', () => {
     expect(col(inRow, 'key_id')).toBe('');
     const unpriced = rows.find((r) => col(r, 'asset') === 'ODD')!;
     expect(col(unpriced, 'usd')).toBe('');
-    expect(col(unpriced, 'basis_or_reason')).toBe('no_preceding_check');
-    const zero = rows.find((r) => col(r, 'basis_or_reason') === 'ambiguous_checks')!;
+    expect(col(unpriced, 'reason')).toBe('no_preceding_check');
+    const zero = rows.find((r) => col(r, 'reason') === 'ambiguous_checks')!;
     expect(col(zero, 'usd')).toBe('0'); // a priced zero is a zero; unknown is empty
   });
 
@@ -652,7 +658,7 @@ describe('the CSV copy', () => {
     for (const [i, asset] of odd.entries()) await transfer(A, tin.id, 10 + i, at(1, 8, i), 'in', 1, { asset });
     const b = await exportOf(tin, '2026-10-01', '2026-10-01');
     const csv = ex.ledgerCsv(b);
-    const rows = parseCsv(csv).slice(2);
+    const rows = parseCsv(withoutBom(csv)).slice(1);
     expect(rows).toHaveLength(odd.length);
     const assets = rows.map((r) => r[ex.CSV_COLUMNS.indexOf('asset')]);
     expect(assets).toEqual(["'=HYPERLINK(\"http://evil.example\",\"x\")", "'+1+1", "'-2+3", "'@SUM(1)", "'\tcmd", 'a,b', 'say "hi"', 'two\nlines', '  =spaced']);
@@ -674,10 +680,243 @@ describe('the CSV copy', () => {
     expect(ex.csvCell('0xc0ffee')).toBe('0xc0ffee');
   });
 
-  it('an export of a quiet range is the notice and the column names and nothing else', async () => {
+  it('an export of a quiet range is the column names and nothing else', async () => {
     const b = await exportOf(await newTin());
-    const rows = parseCsv(ex.ledgerCsv(b));
-    expect(rows).toHaveLength(2);
-    expect(rows[1]).toEqual([...ex.CSV_COLUMNS]);
+    const rows = parseCsv(withoutBom(ex.ledgerCsv(b)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual([...ex.CSV_COLUMNS]);
+  });
+});
+
+describe('making a large export without stalling the server', () => {
+  /** `n` checks as the canonical leaves, without going through the database. */
+  const manyLeaves = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      v: 1 as const, kind: 'checked' as const, date: new Date(Date.UTC(2026, 9, 2, 0, 0, 0, i)).toISOString(),
+      event_id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, address: addr(i % 50), chain: null, answer: 'unknown', registry: 'none', basis: 'not_in_registry', key_id: 'k',
+    }));
+  const input = (n: number) => ({
+    tenantId: A, tin: { id: '00000000-0000-4000-8000-0000000000aa', label: 'Agent' }, range: { from: '2026-10-01', to: '2026-10-03' }, partial: false,
+    generatedAt: NOW.toISOString(), recordId: '00000000-0000-4000-8000-0000000000ee', leaves: manyLeaves(n),
+  });
+
+  it('builds the same bundle, byte for byte, whether it gives the event loop turns or not', async () => {
+    const plain = ex.buildLedgerBundle(input(4_500));
+    const yielding = await ex.buildLedgerBundleYielding(input(4_500));
+    expect(yielding).toEqual(plain);
+    expect(JSON.stringify(yielding)).toBe(JSON.stringify(plain));
+    expect(verifyBundle(yielding as unknown as ProofBundle, [{ key_id: yielding.signature!.key_id, public_key_hex: pubHex }]).verdict).toBe('verified');
+  });
+
+  it('gives the event loop a turn every HASH_CHUNK leaves, and none for a small file', async () => {
+    expect(ex.HASH_CHUNK).toBe(2_000);
+    const turns = async (n: number) => {
+      const spy = vi.spyOn(globalThis, 'setImmediate');
+      try {
+        await ex.buildLedgerBundleYielding(input(n));
+        return spy.mock.calls.length;
+      } finally {
+        spy.mockRestore();
+      }
+    };
+    expect(await turns(1_999)).toBe(0);
+    expect(await turns(2_000)).toBe(1);
+    expect(await turns(4_500)).toBe(2);
+  });
+
+  it('lets another callback run while it is still building', async () => {
+    let tick = 0;
+    let otherRanAt = -1;
+    let builtAt = -1;
+    setImmediate(() => { otherRanAt = ++tick; });
+    await ex.buildLedgerBundleYielding(input(4_500)).then(() => { builtAt = ++tick; });
+    expect(otherRanAt).toBeGreaterThan(0);
+    expect(otherRanAt).toBeLessThan(builtAt); // it was served before the file was done
+  });
+
+  it('checks that the published keys confirm the signature without hashing the events again', async () => {
+    const tin = await seed();
+    const b = await exportOf(tin);
+    expect(ex.signatureIsPublished(b)).toBe(true);
+    // The check is on the signature and the manifest it covers: an altered manifest, another key and no signature all fail it.
+    expect(ex.signatureIsPublished({ ...b, manifest: { ...b.manifest, leaf_count: b.manifest.leaf_count + 1 } })).toBe(false);
+    expect(ex.signatureIsPublished({ ...b, signature: { ...b.signature!, key_id: 'almstins-0000000000000000' } })).toBe(false);
+    expect(ex.signatureIsPublished({ ...b, signature: { ...b.signature!, alg: 'RS256' as never } })).toBe(false);
+    expect(ex.signatureIsPublished({ ...b, signature: { ...b.signature!, signature_hex: '00'.repeat(64) } })).toBe(false);
+    expect(ex.signatureIsPublished({ ...b, signature: null })).toBe(false);
+  });
+});
+
+describe('one export at a time', () => {
+  it('lets an account start one, turns away a second from the same account, and takes the place back when it is over', () => {
+    const gate = ex.createExportGate({ perProcess: 5 });
+    const release = gate.enter(A);
+    expect(release).toBeTypeOf('function');
+    expect(gate.enter(A)).toBeNull(); // one per account, whatever the server allows
+    expect(gate.enter(B)).toBeTypeOf('function'); // another account has its own place
+    release!();
+    expect(gate.enter(A)).toBeTypeOf('function');
+  });
+
+  it('is one at a time for the whole server, so a full file is in memory once', () => {
+    expect(ex.MAX_EXPORTS_IN_FLIGHT).toBe(1);
+    const gate = ex.createExportGate();
+    const release = gate.enter(A);
+    expect(gate.enter(B)).toBeNull();
+    release!();
+    expect(gate.enter(B)).toBeTypeOf('function');
+  });
+
+  it('gives a place back once and only once: releasing twice cannot free another account\'s place', () => {
+    const gate = ex.createExportGate({ perProcess: 1 });
+    const first = gate.enter(A)!;
+    first();
+    const second = gate.enter(B)!; // takes the freed place
+    first(); // a stale release
+    expect(gate.enter(A)).toBeNull(); // B still holds it
+    second();
+    expect(gate.enter(A)).toBeTypeOf('function');
+  });
+});
+
+describe('when the file says it was made', () => {
+  const clock = (...ms: number[]) => {
+    let i = 0;
+    return () => new Date(ms[Math.min(i++, ms.length - 1)]);
+  };
+
+  it('reads the time after the ledger has been read, so nothing recorded after it can be in the file', async () => {
+    const tin = await seed(); // six events on 1 to 3 October
+    const t0 = NOW.getTime();
+    await check(A, tin.id, 9, new Date(t0 + 10).toISOString()); // recorded 10 ms after the export starts
+    const b = expectOk(await ex.exportLedger(A, tin.id, '2026-10-01', '2026-10-18', { now: clock(t0, t0 + 50), newId: () => '00000000-0000-4000-8000-0000000000ee' })).bundle;
+    expect(b.manifest.generated_at).toBe(new Date(t0 + 50).toISOString());
+    expect(b.manifest.leaf_count).toBe(6); // the one recorded after the start is not in it ...
+    expect(b.leaves.map((l) => l.address)).not.toContain(addr(9));
+    expect(b.manifest.partial).toBe(true); // ... and a range that runs to today says it was made before the day was over
+  });
+
+  it('is never earlier than the moment the export started, even if the clock steps back', async () => {
+    const tin = await seed();
+    const t0 = NOW.getTime();
+    const b = expectOk(await ex.exportLedger(A, tin.id, '2026-10-01', '2026-10-03', { now: clock(t0, t0 - 5_000) })).bundle;
+    expect(b.manifest.generated_at).toBe(new Date(t0).toISOString());
+  });
+
+  it('says in the manifest\'s own words that the agent\'s name is the account holder\'s text and was not checked', async () => {
+    const b = await exportOf(await seed());
+    expect(b.manifest.disclaimer).toMatch(/agent name \(tin_label\) is text the account holder chose; Almstins did not check it/);
+    expect(b.manifest.tin_label).toBe('Treasury agent');
+  });
+});
+
+describe('part of a day: a range by the minute', () => {
+  const today = '2026-10-18';
+  const at1200 = Date.UTC(2026, 9, 18, 12, 0, 0);
+
+  it('takes a UTC minute at either end, and mixes it with a day', () => {
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-18T11:59', today)).toEqual({ ok: true, from: '2026-10-18T06:00', to: '2026-10-18T11:59', days: 1 });
+    expect(ex.parseExportRange('2026-10-17', '2026-10-18T06:00', today)).toEqual({ ok: true, from: '2026-10-17', to: '2026-10-18T06:00', days: 2 });
+    expect(ex.parseExportRange('2026-10-17T22:30', '2026-10-18', today)).toMatchObject({ ok: true, days: 2 });
+    // One minute is a range: the last minute is counted through its end.
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-18T06:00', today)).toMatchObject({ ok: true, days: 1 });
+  });
+
+  it('refuses a minute that is not a real one, in any spelling but the one form', () => {
+    for (const bad of ['2026-10-18T24:00', '2026-10-18T12:60', '2026-10-18T7:00', '2026-10-18t07:00', '2026-10-18T07:00:00', '2026-10-18T07:00Z', ' 2026-10-18T07:00', '2026-10-18T07:00 ', '2026-02-30T07:00', '2026-10-18T07', '2026-10-18 07:00']) {
+      expect(ex.parseExportRange(bad, '2026-10-18', today), bad).toEqual({ ok: false, error: 'invalid_period' });
+      expect(ex.parseExportRange('2026-10-01', bad, today), bad).toEqual({ ok: false, error: 'invalid_period' });
+    }
+  });
+
+  it('refuses a start at or after the end, and an end that has not begun', () => {
+    expect(ex.parseExportRange('2026-10-18T12:00', '2026-10-18T11:59', today)).toEqual({ ok: false, error: 'invalid_period' });
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-17', today)).toEqual({ ok: false, error: 'invalid_period' });
+    // With the clock: the minute 12:00 has begun at 12:00:00, the minute 12:01 has not.
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-18T12:00', today, at1200)).toMatchObject({ ok: true });
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-18T12:01', today, at1200)).toEqual({ ok: false, error: 'invalid_period' });
+    expect(ex.parseExportRange('2026-10-18T06:00', '2026-10-19T00:00', today, at1200)).toEqual({ ok: false, error: 'invalid_period' });
+    expect(ex.parseExportRange('2026-10-19T00:00', '2026-10-19T00:05', today, at1200)).toEqual({ ok: false, error: 'invalid_period' });
+  });
+
+  it('still allows 366 days at most, counting a part of a day as a day', () => {
+    expect(ex.parseExportRange('2027-01-01T00:00', '2028-01-01T23:59', '2028-06-01')).toMatchObject({ ok: true, days: 366 });
+    expect(ex.parseExportRange('2027-01-01T00:00', '2028-01-02T00:00', '2028-06-01')).toEqual({ ok: false, error: 'export_too_large', max: 366 });
+  });
+
+  it('knows the first moment of a range and the first moment after it, to the minute', () => {
+    expect(ex.rangeBounds('2026-10-01', '2026-10-03')).toEqual({ start: '2026-10-01T00:00:00.000Z', end: '2026-10-04T00:00:00.000Z' });
+    expect(ex.rangeBounds('2026-10-18T06:00', '2026-10-18T11:59')).toEqual({ start: '2026-10-18T06:00:00.000Z', end: '2026-10-18T12:00:00.000Z' });
+    expect(ex.rangeBounds('2026-10-17', '2026-10-18T06:00')).toEqual({ start: '2026-10-17T00:00:00.000Z', end: '2026-10-18T06:01:00.000Z' });
+    expect(ex.rangeBounds('2026-10-18T23:59', '2026-10-18T23:59')).toEqual({ start: '2026-10-18T23:59:00.000Z', end: '2026-10-19T00:00:00.000Z' });
+    expect(ex.rangeBounds('nope', '2026-10-01')).toBeNull();
+    expect(ex.rangeBounds('2026-10-01', '2026-10-01T25:00')).toBeNull();
+  });
+
+  /** Checks at 08:59:59.999, 09:00:00.000, 09:30, 09:59:59.999 and 10:00:00.000 on 2 October, and one on 3 October. */
+  async function seedEdges() {
+    const tin = await newTin();
+    const when = [at(2, 8, 59, 59, 999), at(2, 9, 0, 0, 0), at(2, 9, 30), at(2, 9, 59, 59, 999), at(2, 10, 0, 0, 0), at(3, 9, 0, 0, 0)];
+    for (const [i, w] of when.entries()) await check(A, tin.id, i + 1, w);
+    return tin;
+  }
+
+  it('holds the events of its first minute and its last, and the first moment after the last minute is out', async () => {
+    const tin = await seedEdges();
+    const b = await exportOf(tin, '2026-10-02T09:00', '2026-10-02T09:59');
+    expect(b.leaves.map((l) => l.address)).toEqual([addr(2), addr(3), addr(4)]);
+    expect(b.manifest).toMatchObject({
+      period: '2026-10-02 09:00 to 2026-10-02 09:59 UTC', from_day: '2026-10-02', to_day: '2026-10-02',
+      period_start: '2026-10-02T09:00:00.000Z', period_end: '2026-10-02T10:00:00.000Z', partial: false,
+    });
+  });
+
+  it('names a range that crosses midnight by the day it starts in and the day its last moment falls in', async () => {
+    const tin = await seedEdges();
+    const b = await exportOf(tin, '2026-10-02T09:30', '2026-10-03T09:00');
+    expect(b.manifest).toMatchObject({ from_day: '2026-10-02', to_day: '2026-10-03', period: '2026-10-02 09:30 to 2026-10-03 09:00 UTC' });
+    expect(b.leaves.map((l) => l.address)).toEqual([addr(3), addr(4), addr(5), addr(6)]);
+  });
+
+  it('exports a day in parts that touch: every event is in one part, none in two, and none falls between', async () => {
+    const tin = await seedEdges();
+    const whole = await exportOf(tin, '2026-10-02', '2026-10-02');
+    const parts = [
+      await exportOf(tin, '2026-10-02T00:00', '2026-10-02T08:59'),
+      await exportOf(tin, '2026-10-02T09:00', '2026-10-02T09:59'),
+      await exportOf(tin, '2026-10-02T10:00', '2026-10-02T23:59'),
+    ];
+    const ids = parts.flatMap((p) => p.leaves.map((l) => l.event_id));
+    expect(new Set(ids).size).toBe(ids.length); // no event in two parts
+    expect([...ids].sort()).toEqual(whole.leaves.map((l) => l.event_id).sort()); // and none missing
+    // The parts are different files from the whole day and from each other (their ids are made from their content), each signed and each verifying on its own.
+    const derived = async (from: string, to: string) => expectOk(await ex.exportLedger(A, tin.id, from, to, { now: () => NOW })).bundle;
+    const files = [await derived('2026-10-02', '2026-10-02'), await derived('2026-10-02T00:00', '2026-10-02T08:59'), await derived('2026-10-02T09:00', '2026-10-02T09:59'), await derived('2026-10-02T10:00', '2026-10-02T23:59')];
+    expect(new Set(files.map((b) => b.manifest.record_id)).size).toBe(4);
+    for (const b of [whole, ...parts, ...files]) expect(verifyBundle(b as unknown as ProofBundle, [{ key_id: b.signature!.key_id, public_key_hex: pubHex }]).verdict).toBe('verified');
+    // A whole-day range written in minutes is the same events as the day.
+    const written = await exportOf(tin, '2026-10-02T00:00', '2026-10-02T23:59');
+    expect(written.leaves.map((l) => l.event_id)).toEqual(whole.leaves.map((l) => l.event_id));
+    expect(written.manifest.period_end).toBe(whole.manifest.period_end);
+  });
+
+  it('says a range that runs to the present was made before it ended, by the minute', async () => {
+    const tin = await seedEdges();
+    const b = expectOk(await ex.exportLedger(A, tin.id, '2026-10-18T06:00', '2026-10-18T12:00', deps(new Date('2026-10-18T12:00:30.000Z')))).bundle;
+    expect(b.manifest.partial).toBe(true); // the last minute, 12:00, is not over
+    expect(b.manifest.period_end).toBe('2026-10-18T12:01:00.000Z');
+    const over = expectOk(await ex.exportLedger(A, tin.id, '2026-10-18T06:00', '2026-10-18T11:00', deps(new Date('2026-10-18T12:00:30.000Z')))).bundle;
+    expect(over.manifest.partial).toBe(false); // 11:00 is over
+    // And a minute that has not begun is refused.
+    expect(await ex.exportLedger(A, tin.id, '2026-10-18T06:00', '2026-10-18T12:01', deps(new Date('2026-10-18T12:00:30.000Z')))).toEqual({ ok: false, error: 'invalid_period' });
+    expect((await ex.exportLedger(A, tin.id, '2026-10-18T06:00', '2026-10-18T12:00', deps(new Date('2026-10-18T12:00:30.000Z')))).ok).toBe(true);
+  });
+
+  it('writes a part\'s CSV copy and file names like a day\'s', async () => {
+    const tin = await seedEdges();
+    const b = await exportOf(tin, '2026-10-02T09:00', '2026-10-02T09:59');
+    expect(ex.ledgerFileName(b.manifest, 'json')).toMatch(/^almstins-agent-ledger-2026-10-02-to-2026-10-02-[0-9a-f]{8}-proof\.json$/);
+    expect(ex.ledgerFileName(b.manifest, 'csv')).toMatch(/^almstins-agent-ledger-2026-10-02-to-2026-10-02-[0-9a-f]{8}-unsigned-copy\.csv$/);
+    expect(parseCsv(withoutBom(ex.ledgerCsv(b)))).toHaveLength(1 + 3);
   });
 });

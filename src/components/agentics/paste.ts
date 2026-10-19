@@ -8,6 +8,11 @@
  * registered, repeated, over the plan's limit, not read as an address, or not tried (the paste ended
  * early). When the plan has no place left, or a request fails, the lines still waiting are counted
  * as not added and the sending ends: it never keeps sending into a refusal.
+ *
+ * A request the plan refuses as a whole (`plan_limit`) says what became of each of its lines, the same
+ * way an accepted one does, so they are counted from that: a line that was already registered is
+ * counted as that, not as over the limit. An answer that carries no lines (a server that does not send
+ * them) falls back to counting every line of that request as over the limit.
  */
 import type { Send } from './client';
 import { codeOf, failureText } from './client';
@@ -109,6 +114,25 @@ export interface PasteProgress {
 const asNumber = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const asList = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : []);
 
+/** Counts the lines an answer accounts for (its skipped and rejected lists), turning each line number back into the paste's. */
+function tallyLines(out: PasteOutcome, chunk: PasteChunk, body: Record<string, unknown>): void {
+  for (const s of asList(body.skipped)) {
+    const reason = typeof s.reason === 'string' ? s.reason : 'already_registered';
+    if (reason === 'over_limit') out.overLimit += 1;
+    else if (reason === 'repeated_in_paste') out.repeated += 1;
+    else out.already += 1;
+    out.lines.push({ line: chunk.firstLine + asNumber(s.line) - 1, text: typeof s.address === 'string' ? s.address : '', reason });
+  }
+  for (const x of asList(body.rejected)) {
+    out.unreadable += 1;
+    out.lines.push({
+      line: chunk.firstLine + asNumber(x.line) - 1,
+      text: typeof x.text === 'string' ? x.text : '',
+      reason: typeof x.reason === 'string' ? x.reason : 'no_address',
+    });
+  }
+}
+
 /**
  * Sends a planned paste, one request at a time, and adds up what came back. A request that fails
  * ends the paste there: the lines of that request and every later one are counted as not tried,
@@ -116,7 +140,7 @@ const asList = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v)
  */
 export async function runPaste(
   plan: PastePlan,
-  opts: { tinId: string; chain: string; call: Send; onProgress?: (p: PasteProgress) => void },
+  opts: { tinId: string; chain: string; call: Send; errors?: Readonly<Record<string, string>>; onProgress?: (p: PasteProgress) => void },
 ): Promise<PasteOutcome> {
   const out = emptyOutcome();
   const inOrder = (): PasteOutcome => {
@@ -127,11 +151,13 @@ export async function runPaste(
     opts.onProgress?.({ done: i, total: plan.chunks.length, fromLine: chunk.firstLine, toLine: chunk.firstLine + chunk.text.split('\n').length - 1 });
     const r = await opts.call('POST', '/api/agentics/destinations', { tinId: opts.tinId, text: chunk.text, chain: opts.chain });
     if (!r.ok || !r.body) {
-      // A paste whose every line was refused by the plan is the one failure that is also an answer about those lines.
-      if (codeOf(r) === 'plan_limit') out.overLimit += chunk.candidates;
+      // A request whose every address was refused by the plan is the one failure that is also an answer
+      // about its lines: it says what became of each of them, and they are counted from that.
+      if (codeOf(r) === 'plan_limit' && r.body && Array.isArray(r.body.skipped)) tallyLines(out, chunk, r.body);
+      else if (codeOf(r) === 'plan_limit') out.overLimit += chunk.candidates;
       else out.notTried += chunk.candidates;
       for (const later of plan.chunks.slice(i + 1)) out.notTried += later.candidates;
-      out.endedBecause = failureText(r);
+      out.endedBecause = failureText(r, opts.errors);
       return inOrder();
     }
     const summary = (r.body.summary ?? {}) as Record<string, unknown>;
@@ -139,21 +165,7 @@ export async function runPaste(
     out.trusted += asNumber(summary.trusted);
     out.flagged += asNumber(summary.flagged);
     out.pending += asNumber(summary.pending);
-    for (const s of asList(r.body.skipped)) {
-      const reason = typeof s.reason === 'string' ? s.reason : 'already_registered';
-      if (reason === 'over_limit') out.overLimit += 1;
-      else if (reason === 'repeated_in_paste') out.repeated += 1;
-      else out.already += 1;
-      out.lines.push({ line: chunk.firstLine + asNumber(s.line) - 1, text: typeof s.address === 'string' ? s.address : '', reason });
-    }
-    for (const x of asList(r.body.rejected)) {
-      out.unreadable += 1;
-      out.lines.push({
-        line: chunk.firstLine + asNumber(x.line) - 1,
-        text: typeof x.text === 'string' ? x.text : '',
-        reason: typeof x.reason === 'string' ? x.reason : 'no_address',
-      });
-    }
+    tallyLines(out, chunk, r.body);
   }
   opts.onProgress?.({ done: plan.chunks.length, total: plan.chunks.length, fromLine: 0, toLine: 0 });
   return inOrder();

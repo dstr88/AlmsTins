@@ -8,23 +8,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 const mocks = vi.hoisted(() => ({
   checkWallet: vi.fn(),
+  getCached: vi.fn(),
+  setCache: vi.fn(),
   lookupVerifiedAddress: vi.fn(),
   isClaimedElsewhere: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({
   db: { execute: async () => { throw new Error('the checks must not touch the database directly'); } },
 }));
-vi.mock('@/lib/walletChecker', () => ({ checkWallet: mocks.checkWallet }));
+vi.mock('@/lib/walletChecker', () => ({ checkWallet: mocks.checkWallet, getCached: mocks.getCached, setCache: mocks.setCache }));
 vi.mock('@/lib/verifyEntities', () => ({ lookupVerifiedAddress: mocks.lookupVerifiedAddress }));
 vi.mock('@/lib/verifyRegistry', () => ({ isClaimedElsewhere: mocks.isClaimedElsewhere }));
 
-import { CHECK_CONCURRENCY, defaultTrustDeps, runTrustChecks } from '../../src/lib/agentVault/trustChecks';
+import { CHECK_CONCURRENCY, defaultTrustDeps, isCompleteAnswer, runTrustChecks } from '../../src/lib/agentVault/trustChecks';
+import { defaultCheckBudget } from '../../src/lib/agentVault/checkBudget';
 import { addr, fakeDeps, walletResult } from '../helpers/agentVault';
 
 const TENANT = 'tenant-a';
 
 beforeEach(() => {
   mocks.checkWallet.mockReset();
+  mocks.getCached.mockReset();
+  mocks.getCached.mockReturnValue(null);
+  mocks.setCache.mockReset();
   mocks.lookupVerifiedAddress.mockReset();
   mocks.isClaimedElsewhere.mockReset();
 });
@@ -159,6 +165,44 @@ describe('the default checks are the ones the app already has', () => {
     expect(out.get(addr(3))?.result).toBe('pass');
   });
 
+  it('answers from the public checker\'s cache when it holds a complete answer, and does not ask again', async () => {
+    const kept = walletResult({ flags: { phishing: true } });
+    mocks.getCached.mockReturnValue(kept);
+    expect(await defaultTrustDeps.wallet(addr(1))).toBe(kept);
+    expect(mocks.getCached).toHaveBeenCalledWith(addr(1));
+    expect(mocks.checkWallet).not.toHaveBeenCalled();
+    expect(mocks.setCache).not.toHaveBeenCalled();
+  });
+
+  it('never reuses a cached answer that is missing a source: it asks again, so "Check again" is a real check', async () => {
+    const partial = walletResult({ coverage: { goplus: 'error' } });
+    mocks.getCached.mockReturnValue(partial);
+    const fresh = walletResult();
+    mocks.checkWallet.mockResolvedValue(fresh);
+    expect(await defaultTrustDeps.wallet(addr(1))).toBe(fresh);
+    expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a complete answer for the next look, and never keeps a limited one', async () => {
+    const complete = walletResult();
+    mocks.checkWallet.mockResolvedValueOnce(complete);
+    await defaultTrustDeps.wallet(addr(1));
+    expect(mocks.setCache).toHaveBeenCalledWith(addr(1), complete);
+
+    mocks.setCache.mockClear();
+    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { sanctions: 'error' } }));
+    await defaultTrustDeps.wallet(addr(2));
+    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { chainalysis: 'error' } }));
+    await defaultTrustDeps.wallet(addr(3));
+    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { goplus: 'skipped' } }));
+    await defaultTrustDeps.wallet(addr(4));
+    expect(mocks.setCache).not.toHaveBeenCalled();
+  });
+
+  it('carries the one budget of checks the running server shares', () => {
+    expect(defaultTrustDeps.budget).toBe(defaultCheckBudget);
+  });
+
   it('end to end: when the checks throw, nothing passes', async () => {
     mocks.checkWallet.mockRejectedValue(new Error('network down'));
     mocks.lookupVerifiedAddress.mockRejectedValue(new Error('database down'));
@@ -166,5 +210,29 @@ describe('the default checks are the ones the app already has', () => {
     const out = await runTrustChecks(TENANT, [addr(1)], defaultTrustDeps);
     expect(out.get(addr(1))?.result).toBe('limited');
     expect(out.get(addr(1))?.limits).toEqual(['sanctions', 'screening', 'verify']);
+  });
+});
+
+describe('isCompleteAnswer: what the Vault may remember for five minutes', () => {
+  it('is an answer in which both the sanctions lists and the security screening ran', () => {
+    expect(isCompleteAnswer(walletResult())).toBe(true);
+    expect(isCompleteAnswer(walletResult({ coverage: { chainalysis: 'ran' } }))).toBe(true);
+    expect(isCompleteAnswer(walletResult({ coverage: { chainalysis: 'skipped' } }))).toBe(true);
+  });
+
+  it('is not one in which a source failed or did not run', () => {
+    for (const coverage of [
+      { sanctions: 'error' as const },
+      { goplus: 'error' as const },
+      { goplus: 'skipped' as const },
+      { chainalysis: 'error' as const },
+    ]) expect(isCompleteAnswer(walletResult({ coverage })), JSON.stringify(coverage)).toBe(false);
+  });
+
+  it('is not an answer that says nothing about coverage, or no answer at all', () => {
+    expect(isCompleteAnswer(null)).toBe(false);
+    expect(isCompleteAnswer(undefined)).toBe(false);
+    expect(isCompleteAnswer({ coverage: undefined } as never)).toBe(false);
+    expect(isCompleteAnswer({ coverage: {} } as never)).toBe(false);
   });
 });

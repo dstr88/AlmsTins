@@ -72,7 +72,7 @@ describe('the home page keeps the door\'s rules for everyone', () => {
   it('is never cached or indexed: the letter says so itself, and the Vault page is gated and so answered with the private headers', () => {
     expect(page).toContain("Astro.response.headers.set('Cache-Control', 'private, no-store');");
     expect(page).toContain('<meta name="robots" content="noindex, nofollow" />');
-    expect(read('src/components/agentics/AgenticsShell.astro')).toMatch(/noindex=\{true\}/);
+    expect(read('src/components/agentics/AgenticsShell.astro')).toContain('<meta name="robots" content="noindex, nofollow" />');
   });
 });
 

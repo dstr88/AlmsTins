@@ -122,6 +122,48 @@ d('the Agent Vault plan limits, under concurrency, on a real Postgres', () => {
     expect(await count('agent_destinations', t)).toBe(1);
   });
 
+  it('one new address added by many requests at once with one place left takes it once, and none of the others is told the plan is full', async () => {
+    const t = fresh('last-same');
+    const tin = await newTin(t);
+    await vault.addDestinations(t, { tinId: tin.id, text: lines(1, 10), trust: false });
+    await vault.addDestinations(t, { tinId: tin.id, text: lines(11, 4), trust: false });
+    const results = await Promise.all(Array.from({ length: 12 }, () => vault.addDestinations(t, { tinId: tin.id, text: addr(100), trust: false })));
+    expect(results.every((r) => r.ok), JSON.stringify(results.filter((r) => !r.ok))).toBe(true);
+    expect(results.filter((r) => r.ok && r.summary.added === 1)).toHaveLength(1);
+    expect(results.filter((r) => r.ok && r.skipped.some((x) => x.reason === 'already_registered'))).toHaveLength(11);
+    expect(await count('agent_destinations', t)).toBe(15);
+  });
+
+  it('removing an agent while adds race for it leaves nothing live under it, and no place held', async () => {
+    const t = fresh('remove-race');
+    const gone = await newTin(t, 'Gone');
+    const keep = await newTin(t, 'Keep');
+    await vault.addDestinations(t, { tinId: keep.id, text: lines(500, 3), trust: false });
+    const jobs: Array<Promise<unknown>> = [vault.removeTin(t, gone.id)];
+    for (let i = 0; i < 12; i += 1) jobs.push(vault.addDestinations(t, { tinId: gone.id, text: addr(600 + i), trust: false }));
+    for (let i = 0; i < 4; i += 1) jobs.push(vault.addWallet(t, { tinId: gone.id, chain: 'ethereum', address: addr(700 + i) }));
+    await Promise.all(jobs);
+    const underGone = async (table: string) =>
+      Number((await db.execute({ sql: `SELECT COUNT(*) AS n FROM ${table} WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL`, args: [t, gone.id] })).rows[0].n);
+    expect(await underGone('agent_destinations')).toBe(0);
+    expect(await underGone('agent_wallets')).toBe(0);
+    // Only the other agent's three addresses use the plan.
+    expect((await (await import('../src/lib/agentVault/entitlements')).getPlanSummary(t)).use).toEqual({ bots: 1, addresses: 3 });
+    expect(await store.countLiveDestinations(t)).toBe(3);
+    expect(await count('agent_destinations', t)).toBe(3);
+  });
+
+  it('an address added to an agent that was removed a moment before is refused as tin_not_found and stores nothing', async () => {
+    const t = fresh('removed-first');
+    const tin = await newTin(t);
+    await vault.removeTin(t, tin.id);
+    // The request got past its own check of the agent (as one that was already running would have); the insert itself looks again.
+    expect(await store.insertDestinationWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(1), label: null, at: store.nowUtc() }, 15)).toEqual({ kind: 'no_tin' });
+    expect(await store.insertWalletWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(2), at: store.nowUtc() }, 5)).toEqual({ kind: 'no_tin' });
+    expect(await count('agent_destinations', t)).toBe(0);
+    expect(await count('agent_wallets', t)).toBe(0);
+  });
+
   it('accounts racing at the same time each get their own limit: neither waits on, nor counts, the other', async () => {
     const [a, b] = [fresh('iso-a'), fresh('iso-b')];
     const [tinA, tinB] = [await newTin(a), await newTin(b)];

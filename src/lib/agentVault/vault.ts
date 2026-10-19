@@ -205,6 +205,8 @@ export async function addWallet(
   }
   const r = await insertWalletWithinCap(tenantId, { tinId, chain, address, at: nowUtc() }, limits.walletsPerBot);
   if (r.kind === 'over_limit') return failLimit('wallets', limits.walletsPerBot, await countLiveWallets(tenantId, tinId));
+  // The agent was removed between the check above and the insert: nothing was written.
+  if (r.kind === 'no_tin') return fail('tin_not_found');
   return { ok: true, added: r.kind === 'inserted', wallet: r.wallet };
 }
 
@@ -279,6 +281,10 @@ export async function addDestinations(
   let added: Destination[] = [];
   const at = nowUtc();
   const { limits } = await getEntitlements(tenantId);
+  // The checks this paste will start are paid for before anything is written. An account on a plan
+  // with a cap on addresses has a budget of checks a minute (./checkBudget.ts); over it, nothing is
+  // stored and nothing is asked, and the caller is told to wait.
+  if (input.trust !== false && limits.addresses !== null && deps.budget && !deps.budget.spend(tenantId, unique.length)) return fail('rate_limited');
   // Once the plan has no slot left, no later address of this paste can take one, so it is not tried:
   // it is reported over the limit, and an address that is already registered is still reported as that.
   let full = false;
@@ -292,6 +298,10 @@ export async function addDestinations(
       r = held ? { kind: 'duplicate', destination: held } : { kind: 'over_limit' };
     } else {
       r = await insertDestinationWithinCap(tenantId, row, limits.addresses);
+    }
+    if (r.kind === 'no_tin') {
+      // The agent was removed while this paste was being added: what was added before is removed with it.
+      return fail('tin_not_found');
     }
     if (r.kind === 'inserted') {
       added.push(r.destination);
@@ -310,8 +320,11 @@ export async function addDestinations(
     }
   }
   // Nothing could be added because the plan is full: that is a refusal, not a paste that went through.
+  // It still says what became of every line (an address already registered, a repeat, a line that is
+  // not an address, and the ones the plan had no place for), exactly as an accepted paste does.
   if (limits.addresses !== null && !added.length && skipped.some((x) => x.reason === 'over_limit')) {
-    return failLimit('addresses', limits.addresses, await countLiveDestinations(tenantId));
+    skipped.sort((a, b) => a.line - b.line);
+    return failLimit('addresses', limits.addresses, await countLiveDestinations(tenantId), { skipped, rejected });
   }
 
   const checked = input.trust !== false && added.length > 0;
@@ -401,6 +414,11 @@ export async function trustDestinations(
     remaining = pending.length - rows.length;
   }
 
+  // The same budget as an add: the checks are paid for before they are asked, and over it nothing runs.
+  if (rows.length > 0 && deps.budget) {
+    const { limits } = await getEntitlements(tenantId);
+    if (limits.addresses !== null && !deps.budget.spend(tenantId, rows.length)) return fail('rate_limited');
+  }
   const readouts = await runTrustChecks(tenantId, rows.map((d) => d.address), deps);
   const destinations: Destination[] = [];
   const stillFlagged: string[] = [];
@@ -446,8 +464,11 @@ export async function removeDestination(tenantId: string, id: unknown): Promise<
 export const DEFAULT_EVENT_PAGE = 50;
 export const MAX_EVENT_PAGE = 200;
 
-/** An event as the endpoint answers it: the ledger row, and whether the key that asked is still active. */
-export interface EventView extends LedgerEvent {
+/**
+ * An event as the endpoint answers it: the ledger row, and whether the key that asked is still
+ * active. The caller's hash (`sourceIp`) is metadata for the Vault and is not part of the answer.
+ */
+export interface EventView extends Omit<LedgerEvent, 'sourceIp'> {
   keyStatus: 'active' | 'pending' | 'revoked' | 'unknown' | null;
 }
 
@@ -479,7 +500,7 @@ export async function listTinEvents(
   const statuses = new Map((await listAgentKeys(tenantId)).map((k) => [k.id, k.status]));
   return {
     ok: true,
-    events: page.events.map((e) => ({ ...e, keyStatus: e.keyId ? (statuses.get(e.keyId) ?? 'unknown') : null })),
+    events: page.events.map(({ sourceIp: _hash, ...e }) => ({ ...e, keyStatus: e.keyId ? (statuses.get(e.keyId) ?? 'unknown') : null })),
     next: page.next,
   };
 }

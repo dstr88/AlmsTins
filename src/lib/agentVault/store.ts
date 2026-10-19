@@ -179,10 +179,22 @@ export async function countLiveTins(tenantId: string): Promise<number> {
   return count(await db.execute({ sql: `SELECT COUNT(*) AS n FROM agent_tins WHERE tenant_id = ? AND deleted_at IS NULL`, args: [tenantId] }));
 }
 
-/** How many live registered destinations the account has, over all its agents. */
+/**
+ * The registered destinations that count toward the plan: the account's live ones under a live
+ * agent. A destination whose agent has been removed counts for nothing, even if one is somehow still
+ * marked live, so a place on the plan can never be held by a row no screen shows.
+ */
+const COUNTED_DESTINATIONS = `FROM agent_destinations d
+  WHERE d.tenant_id = ? AND d.deleted_at IS NULL
+    AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = d.tin_id AND t.tenant_id = d.tenant_id AND t.deleted_at IS NULL)`;
+
+/** A live agent of this account, as a condition on the statement that writes under it (one `?` for the id, one for the account). */
+const LIVE_TIN = `EXISTS (SELECT 1 FROM agent_tins WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL)`;
+
+/** How many live registered destinations the account has, over all its live agents. */
 export async function countLiveDestinations(tenantId: string): Promise<number> {
   await ensureAgentVaultTables();
-  return count(await db.execute({ sql: `SELECT COUNT(*) AS n FROM agent_destinations WHERE tenant_id = ? AND deleted_at IS NULL`, args: [tenantId] }));
+  return count(await db.execute({ sql: `SELECT COUNT(*) AS n ${COUNTED_DESTINATIONS}`, args: [tenantId] }));
 }
 
 /** How many live own wallets one agent has. */
@@ -280,15 +292,19 @@ export async function updateTin(tenantId: string, id: string, next: { label: str
  */
 export async function softDeleteTin(tenantId: string, id: string, at: string): Promise<boolean> {
   await ensureAgentVaultTables();
+  // Behind the same lock the capped inserts take, so a removal and an add for this account take
+  // turns: an add either lands before the removal (and is removed with its agent) or after it (and
+  // finds the agent gone). Nothing can slip a live row in under an agent that has just been removed.
   const results = await db.batch(
     [
+      capLock(tenantId),
       { sql: `UPDATE agent_destinations SET deleted_at = ? WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL`, args: [at, tenantId, id] },
       { sql: `UPDATE agent_wallets SET deleted_at = ? WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL`, args: [at, tenantId, id] },
       { sql: `UPDATE agent_tins SET deleted_at = ? WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL`, args: [at, id, tenantId] },
     ],
     'write',
   );
-  return (results[2]?.rowsAffected ?? 0) > 0;
+  return (results[3]?.rowsAffected ?? 0) > 0;
 }
 
 // ── The agent's own wallets ──────────────────────────────────────────────────
@@ -328,15 +344,16 @@ export async function insertWallet(
 }
 
 /**
- * Adds a wallet unless the tin already has this one live, and only while the tin has fewer than
- * `cap` live wallets (counted and inserted in one transaction, behind the account's lock). A wallet
- * the tin already holds is a duplicate whatever the cap says: it takes no new slot.
+ * Adds a wallet unless the tin already has this one live, and only while the tin is a live agent of
+ * the account and has fewer than `cap` live wallets (counted and inserted in one transaction, behind
+ * the account's lock). A wallet the tin already holds is a duplicate whatever the cap says: it takes
+ * no new slot. Nothing is written when the agent has been removed (`no_tin`).
  */
 export async function insertWalletWithinCap(
   tenantId: string,
   input: { tinId: string; chain: VaultChain; address: string; at: string },
   cap: number,
-): Promise<{ kind: 'inserted'; wallet: AgentWallet } | { kind: 'duplicate'; wallet: AgentWallet } | { kind: 'over_limit' }> {
+): Promise<{ kind: 'inserted'; wallet: AgentWallet } | { kind: 'duplicate'; wallet: AgentWallet } | { kind: 'over_limit' } | { kind: 'no_tin' }> {
   const existing = await findLiveWallet(tenantId, input.tinId, input.chain, input.address);
   if (existing) return { kind: 'duplicate', wallet: existing };
   const id = randomUUID();
@@ -347,13 +364,20 @@ export async function insertWalletWithinCap(
         {
           sql: `INSERT INTO agent_wallets (id, tenant_id, tin_id, chain, address, created_at)
                 SELECT ?, ?, ?, ?, ?, ?
-                WHERE (SELECT COUNT(*) FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL) < ?`,
-          args: [id, tenantId, input.tinId, input.chain, input.address, input.at, tenantId, input.tinId, cap],
+                WHERE ${LIVE_TIN}
+                  AND (SELECT COUNT(*) FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL) < ?`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.at, input.tinId, tenantId, tenantId, input.tinId, cap],
         },
       ],
       'write',
     );
-    if ((results[1]?.rowsAffected ?? 0) === 0) return { kind: 'over_limit' };
+    if ((results[1]?.rowsAffected ?? 0) === 0) {
+      // Nothing was written. Why: the same wallet was added a moment ago by another request (it is
+      // registered, so say that, not "full"); the agent is gone; or the agent is at its limit.
+      const raced = await findLiveWallet(tenantId, input.tinId, input.chain, input.address);
+      if (raced) return { kind: 'duplicate', wallet: raced };
+      return (await getTin(tenantId, input.tinId)) ? { kind: 'over_limit' } : { kind: 'no_tin' };
+    }
   } catch (e) {
     // A concurrent add won the race for the live slot.
     if (!isUniqueViolation(e)) throw e;
@@ -437,16 +461,17 @@ export async function insertDestination(
 }
 
 /**
- * Adds a destination as pending, like insertDestination, and only while the account has fewer than
- * `cap` live destinations over all its tins (counted and inserted in one transaction, behind the
- * account's lock). An address the tin already holds live is a duplicate whatever the cap says: it
- * takes no new slot.
+ * Adds a destination as pending, like insertDestination, and only while the tin is a live agent of
+ * the account and the account has fewer than `cap` live destinations over all its live agents
+ * (counted and inserted in one transaction, behind the account's lock). An address the tin already
+ * holds live is a duplicate whatever the cap says: it takes no new slot. Nothing is written when the
+ * agent has been removed (`no_tin`).
  */
 export async function insertDestinationWithinCap(
   tenantId: string,
   input: { tinId: string; chain: VaultChain; address: string; label: string | null; at: string },
   cap: number,
-): Promise<{ kind: 'inserted'; destination: Destination } | { kind: 'duplicate'; destination: Destination } | { kind: 'over_limit' }> {
+): Promise<{ kind: 'inserted'; destination: Destination } | { kind: 'duplicate'; destination: Destination } | { kind: 'over_limit' } | { kind: 'no_tin' }> {
   const existing = await findLiveDestination(tenantId, input.tinId, input.chain, input.address);
   if (existing) return { kind: 'duplicate', destination: existing };
   const id = randomUUID();
@@ -457,13 +482,20 @@ export async function insertDestinationWithinCap(
         {
           sql: `INSERT INTO agent_destinations (id, tenant_id, tin_id, chain, address, label, trust_status, trust_checked_at, trust_detail_json, created_at)
                 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                WHERE (SELECT COUNT(*) FROM agent_destinations WHERE tenant_id = ? AND deleted_at IS NULL) < ?`,
-          args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at, tenantId, cap],
+                WHERE ${LIVE_TIN}
+                  AND (SELECT COUNT(*) ${COUNTED_DESTINATIONS}) < ?`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at, input.tinId, tenantId, tenantId, cap],
         },
       ],
       'write',
     );
-    if ((results[1]?.rowsAffected ?? 0) === 0) return { kind: 'over_limit' };
+    if ((results[1]?.rowsAffected ?? 0) === 0) {
+      // Nothing was written. Why: the same address was added a moment ago by another request (it is
+      // registered, so say that, not "full"); the agent is gone; or the account is at its limit.
+      const raced = await findLiveDestination(tenantId, input.tinId, input.chain, input.address);
+      if (raced) return { kind: 'duplicate', destination: raced };
+      return (await getTin(tenantId, input.tinId)) ? { kind: 'over_limit' } : { kind: 'no_tin' };
+    }
   } catch (e) {
     // A concurrent add won the race for the live slot.
     if (!isUniqueViolation(e)) throw e;

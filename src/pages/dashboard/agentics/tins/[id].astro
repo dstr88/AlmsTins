@@ -5,7 +5,8 @@
  * middleware answers anyone else with the 404 page before this runs, and this checks again, so the
  * page stays closed even if the gate is ever loosened. An agent that is not this account's is a 404,
  * exactly like one that does not exist. The data is read straight from the Vault, never through its
- * own API.
+ * own API. The page's title is the fixed word "Agent", never the agent's name: the name is the
+ * account's own text, and a page title is one of the few things the analytics tag sends out.
  */
 import AgenticsShell from '../../../../components/agentics/AgenticsShell.astro';
 import AgentPage from '../../../../components/agentics/AgentPage';
@@ -20,6 +21,6 @@ const page = await loadAgentPage(session.tenantId, String(Astro.params.id ?? '')
 if (!page) return new Response(null, { status: 404 });
 ---
 
-<AgenticsShell title={page.tin.label} active="agents" plan={page.plan}>
+<AgenticsShell title="Agent" active="agents" plan={page.plan}>
   <AgentPage client:load data={page} />
 </AgenticsShell>

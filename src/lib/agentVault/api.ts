@@ -27,6 +27,9 @@ export const json = (body: unknown, status = 200, headers: Record<string, string
 /** What a throttled caller is told to wait, in whole seconds: the length of the throttle's window. */
 export const RETRY_AFTER_SECONDS = 60;
 
+/** What a caller turned away because an export is already being made is told to wait: a file takes seconds, not a window. */
+export const EXPORT_BUSY_RETRY_AFTER_SECONDS = 10;
+
 const STATUS: Record<VaultError, number> = {
   invalid_label: 400,
   invalid_chain: 400,
@@ -54,11 +57,20 @@ const STATUS: Record<VaultError, number> = {
   plan_limit: 409,
   export_too_large: 413,
   invalid_format: 400,
+  export_busy: 429,
 };
 
 /** A vault operation's failure as a response: its code, and its HTTP status (a throttled caller also gets a Retry-After). */
 export const failure = (f: Failure): Response =>
-  json(f, STATUS[f.error], f.error === 'rate_limited' ? { 'Retry-After': String(RETRY_AFTER_SECONDS) } : {});
+  json(
+    f,
+    STATUS[f.error],
+    f.error === 'rate_limited'
+      ? { 'Retry-After': String(RETRY_AFTER_SECONDS) }
+      : f.error === 'export_busy'
+        ? { 'Retry-After': String(EXPORT_BUSY_RETRY_AFTER_SECONDS) }
+        : {},
+  );
 
 const notFound = (): Response => new Response('Not found', { status: 404 });
 

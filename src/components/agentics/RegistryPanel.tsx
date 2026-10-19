@@ -11,13 +11,16 @@
  * Everything that came from the registry (an address, a label) is rendered as text by React, which
  * escapes it. Nothing here builds HTML from data.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import type { Destination } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
 import { describePaste, PASTE_MAX_LINES, planPaste, runPaste, type PasteOutcome } from './paste';
-import { CopyButton, pillOf, Readout, Status, TrustPill } from './ui';
+import { ConfirmRemove, CopyButton, pillOf, Readout, Status, TrustPill } from './ui';
+
+/** What the registry says for the codes it knows better than the general words do: a wait is about checks here. */
+const REGISTRY_ERRORS: Readonly<Record<string, string>> = { rate_limited: copy.registry.rateLimited };
 
 /** The destinations in an answer that look like destinations (an id and an address), and nothing else. */
 export function asDestinations(list: unknown): Destination[] {
@@ -28,7 +31,6 @@ export function asDestinations(list: unknown): Destination[] {
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
 
 interface RowMessage {
-  id: string;
   kind: 'ok' | 'bad';
   text: string;
 }
@@ -81,9 +83,26 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
   const [note, setNote] = useState<string | null>(null);
   const [pendingNote, setPendingNote] = useState<string | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [rowBusy, setRowBusy] = useState<string | null>(null);
-  const [rowMessage, setRowMessage] = useState<RowMessage | null>(null);
+  // Each row has its own busy flag and its own message: one row finishing never clears another's.
+  const [rowBusy, setRowBusy] = useState<ReadonlySet<string>>(new Set());
+  const [rowMessages, setRowMessages] = useState<Readonly<Record<string, RowMessage>>>({});
+  /** The heading of the card, where focus goes when the row the person was on has been removed. */
+  const heading = useRef<HTMLHeadingElement | null>(null);
+
+  const markBusy = (id: string, on: boolean) =>
+    setRowBusy((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const say = (id: string, message: RowMessage | null) =>
+    setRowMessages((prev) => {
+      const next = { ...prev };
+      if (message) next[id] = message;
+      else delete next[id];
+      return next;
+    });
 
   const limit = plan.limits.addresses;
   const full = limit !== null && plan.use.addresses >= limit;
@@ -117,6 +136,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
       tinId,
       chain,
       call: send,
+      errors: REGISTRY_ERRORS,
       onProgress: (p) => setProgress(p.done >= p.total ? null : copy.registry.progress(p.done + 1, p.total, p.fromLine, p.toLine)),
     });
     setProgress(null);
@@ -128,22 +148,22 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
   }
 
   async function trustOne(d: Destination) {
-    setRowBusy(d.id);
-    setRowMessage(null);
+    markBusy(d.id, true);
+    say(d.id, null);
     const r = await send('POST', '/api/agentics/destinations/trust', { tinId, ids: [d.id] });
     if (!r.ok) {
-      setRowMessage({ id: d.id, kind: 'bad', text: failureText(r) });
-      setRowBusy(null);
+      say(d.id, { kind: 'bad', text: failureText(r, REGISTRY_ERRORS) });
+      markBusy(d.id, false);
       return;
     }
     const updated = asDestinations(r.body?.destinations);
     merge(updated);
     const still = Array.isArray(r.body?.stillFlagged) && (r.body?.stillFlagged as unknown[]).includes(d.id);
     const now = updated.find((u) => u.id === d.id);
-    if (still) setRowMessage({ id: d.id, kind: 'bad', text: copy.registry.stillFlagged });
-    else if (!now || now.trustStatus === 'pending') setRowMessage({ id: d.id, kind: 'bad', text: copy.registry.couldNotRun });
-    else setRowMessage({ id: d.id, kind: 'ok', text: copy.registry.checkedNow });
-    setRowBusy(null);
+    if (still) say(d.id, { kind: 'bad', text: copy.registry.stillFlagged });
+    else if (!now || now.trustStatus === 'pending') say(d.id, { kind: 'bad', text: copy.registry.couldNotRun });
+    else say(d.id, { kind: 'ok', text: copy.registry.checkedNow });
+    markBusy(d.id, false);
   }
 
   async function trustPending() {
@@ -153,7 +173,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
     for (let i = 0; i < 20; i += 1) {
       const r = await send('POST', '/api/agentics/destinations/trust', { tinId });
       if (!r.ok) {
-        setPendingNote(failureText(r));
+        setPendingNote(failureText(r, REGISTRY_ERRORS));
         break;
       }
       const updated = asDestinations(r.body?.destinations);
@@ -169,18 +189,20 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
   }
 
   async function removeOne(d: Destination) {
-    setRowBusy(d.id);
-    setRowMessage(null);
+    markBusy(d.id, true);
+    say(d.id, null);
     const r = await send('DELETE', `/api/agentics/destinations?id=${encodeURIComponent(d.id)}`);
     if (!r.ok) {
-      setRowMessage({ id: d.id, kind: 'bad', text: failureText(r) });
-      setRowBusy(null);
+      say(d.id, { kind: 'bad', text: failureText(r) });
+      markBusy(d.id, false);
       return;
     }
     setList((prev) => prev.filter((x) => x.id !== d.id));
-    setConfirming(null);
+    say(d.id, null);
     setNote(copy.registry.removed);
-    setRowBusy(null);
+    markBusy(d.id, false);
+    // The row the person was on is gone, and so is the button that held focus: put it on the card's heading.
+    heading.current?.focus();
     await onChanged?.();
   }
 
@@ -194,7 +216,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
   return (
     <section className="ag-card" aria-labelledby="ag-registry-h">
       <div className="ag-card__head">
-        <h2 className="ag-card__title" id="ag-registry-h">
+        <h2 className="ag-card__title" id="ag-registry-h" ref={heading} tabIndex={-1}>
           {copy.registry.title}
         </h2>
         <span className="ag-card__meta">{limit === null ? copy.registry.count(list.length) : copy.registry.countOf(plan.use.addresses, limit)}</span>
@@ -244,6 +266,10 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
         <Status kind={error ? 'bad' : 'working'}>{error ?? progress}</Status>
       </form>
 
+      {/* Said aloud when a paste ends (the card below it is for the eyes): present before the text, so it is announced. */}
+      <p className="ag-sr" role="status" aria-live="polite" aria-atomic="true">
+        {outcome ? describePaste(outcome).join('. ') : ''}
+      </p>
       {outcome ? <PasteSummary outcome={outcome} /> : null}
 
       {pending > 0 ? (
@@ -265,8 +291,8 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
         <ul className="ag-dests" aria-label={copy.registry.listLabel}>
           {list.map((d) => {
             const shown = open.has(d.id);
-            const mine = rowMessage && rowMessage.id === d.id ? rowMessage : null;
-            const working = rowBusy === d.id;
+            const mine = rowMessages[d.id] ?? null;
+            const working = rowBusy.has(d.id);
             return (
               <li className="ag-dest" key={d.id}>
                 <div className="ag-dest__main">
@@ -294,21 +320,17 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
                   >
                     {shown ? copy.readout.hide : copy.readout.show}
                   </button>
-                  {confirming === d.id ? (
-                    <span className="ag-confirm" role="group" aria-label={copy.registry.removeConfirm}>
-                      <span className="ag-confirm__text">{copy.registry.removeConfirm}</span>
-                      <button className="ag-btn ag-btn--small ag-btn--danger" type="button" disabled={working} onClick={() => void removeOne(d)}>
-                        {working ? copy.registry.removing : copy.registry.removeYes}
-                      </button>
-                      <button className="ag-btn ag-btn--small" type="button" onClick={() => setConfirming(null)}>
-                        {copy.registry.removeKeep}
-                      </button>
-                    </span>
-                  ) : (
-                    <button className="ag-btn ag-btn--small" type="button" disabled={working || busy !== null} onClick={() => setConfirming(d.id)}>
-                      {copy.registry.remove}
-                    </button>
-                  )}
+                  <ConfirmRemove
+                    small
+                    label={copy.registry.remove}
+                    question={copy.registry.removeConfirm}
+                    yes={copy.registry.removeYes}
+                    yesWorking={copy.registry.removing}
+                    keep={copy.registry.removeKeep}
+                    working={working}
+                    disabled={working || busy !== null}
+                    onConfirm={() => void removeOne(d)}
+                  />
                 </div>
                 {mine ? <Status kind={mine.kind}>{mine.text}</Status> : null}
                 {shown ? <Readout id={`ag-readout-${d.id}`} d={d} /> : null}

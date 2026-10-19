@@ -38,10 +38,12 @@ const keys = vi.hoisted(() => ({ list: [] as Array<{ id: string; status: string 
 vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async () => keys.list }));
 const checks = vi.hoisted(() => ({
   checkWallet: vi.fn(),
+  getCached: vi.fn(() => null),
+  setCache: vi.fn(),
   lookupVerifiedAddress: vi.fn(),
   isClaimedElsewhere: vi.fn(),
 }));
-vi.mock('@/lib/walletChecker', () => ({ checkWallet: checks.checkWallet }));
+vi.mock('@/lib/walletChecker', () => ({ checkWallet: checks.checkWallet, getCached: checks.getCached, setCache: checks.setCache }));
 vi.mock('@/lib/verifyEntities', () => ({ lookupVerifiedAddress: checks.lookupVerifiedAddress }));
 vi.mock('@/lib/verifyRegistry', () => ({ isClaimedElsewhere: checks.isClaimedElsewhere }));
 

@@ -13,6 +13,8 @@ export interface DescribableManifest {
   partial?: unknown;
   from_day?: unknown;
   to_day?: unknown;
+  period_start?: unknown;
+  period_end?: unknown;
 }
 
 /** The kind of record, in words: `Year Summary`, `Agent Vault report`, `Agent Vault ledger`, or the manifest's own tag. */
@@ -63,15 +65,35 @@ export function supersededNote(m: DescribableManifest): string | null {
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const DAY_MS = 86_400_000;
+
+/** An instant the manifest states, as milliseconds, or null when it is not a UTC ISO-8601 time with milliseconds. */
+function instantOf(v: unknown): number | null {
+  if (typeof v !== 'string' || !INSTANT.test(v)) return null;
+  const ms = Date.parse(v);
+  return Number.isFinite(ms) && new Date(ms).toISOString() === v ? ms : null;
+}
+
+const minuteText = (ms: number): string => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 
 /**
  * The days an Agent Vault ledger export covers, in one line: "Covers 2026-10-01 to 2026-10-18 (UTC
  * days, both counted)", and, for a file made before the last day ended, that it holds that day only up
- * to the moment it was made. A day this code cannot read as a day is said to be not stated, never
- * printed. Null for any other kind of record, which is described as it always was.
+ * to the moment it was made. A file that covers part of a day (a first or last moment that is not the
+ * start of a UTC day) says its first and last minute instead: "Covers 2026-10-18 06:00 to 2026-10-18
+ * 11:59 (UTC, to the minute, both counted)". A day or a time this code cannot read is said to be not
+ * stated, never printed. Null for any other kind of record, which is described as it always was.
  */
 export function ledgerRangeLine(m: DescribableManifest): string | null {
   if (m.record_type !== 'agent_ledger') return null;
+  const start = instantOf(m.period_start);
+  const end = instantOf(m.period_end);
+  const windowed = start !== null && end !== null && end > start && (start % DAY_MS !== 0 || end % DAY_MS !== 0);
+  if (windowed) {
+    const range = `Covers ${minuteText(start)} to ${minuteText(end - 60_000)} (UTC, to the minute, both counted)`;
+    return m.partial === true ? `${range}, partial: made before the range ended` : range;
+  }
   const from = typeof m.from_day === 'string' && DAY.test(m.from_day) ? m.from_day : null;
   const to = typeof m.to_day === 'string' && DAY.test(m.to_day) ? m.to_day : null;
   const range = from && to ? `Covers ${from} to ${to} (UTC days, both counted)` : 'Range not stated';
@@ -86,7 +108,7 @@ export function ledgerRangeLine(m: DescribableManifest): string | null {
 export function ledgerNote(m: DescribableManifest): string | null {
   if (m.record_type !== 'agent_ledger') return null;
   return (
-    'An export is a snapshot of the ledger when it was made. A later export of the same days can hold more, such as a transfer the chain confirmed late; ' +
-    'this check reads only this file and cannot see one. It does not show that the agent asked before every payment, and it holds nothing about a transfer to an address that was never registered.'
+    'An export is a snapshot of the ledger when it was made. A later export of the same days can contain more, such as a transfer the chain confirmed late; ' +
+    'this check reads only this file and cannot see one. It does not show that the agent asked before every payment, and it contains nothing about a transfer to an address that was never registered.'
   );
 }

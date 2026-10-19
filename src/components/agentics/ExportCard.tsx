@@ -9,7 +9,7 @@
  * and not as a page of JSON. With no signing key there is nothing to download, and the card says so.
  */
 import { useState } from 'react';
-import { presetRange, requestExport, saveBlob } from './exportDownload';
+import { presetRange, requestExport, saveBlob, timeOfDay } from './exportDownload';
 import { copy } from './copy';
 import { VERIFY_RECORD_PATH } from './paths';
 import { Status } from './ui';
@@ -28,15 +28,20 @@ export default function ExportCard({ tinId, since, today, signing }: ExportCardP
   const initial = presetRange(today, 30, since);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  // Optional: a time of day (UTC) to start at on the first day and to end at on the last. Empty means whole days.
+  const [fromTime, setFromTime] = useState('');
+  const [toTime, setToTime] = useState('');
   const [busy, setBusy] = useState<null | 'json' | 'csv'>(null);
   const [message, setMessage] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
 
-  const usable = signing.available && !!from && !!to && from <= to;
+  // The times are a hint to the person, never a rule: the server decides what is a real range.
+  const sameDayBackwards = from === to && !!timeOfDay(fromTime) && !!timeOfDay(toTime) && timeOfDay(fromTime) > timeOfDay(toTime);
+  const usable = signing.available && !!from && !!to && from <= to && !sameDayBackwards;
 
   async function download(format: 'json' | 'csv') {
     setBusy(format);
     setMessage(null);
-    const r = await requestExport({ tinId, from, to, format });
+    const r = await requestExport({ tinId, from, to, fromTime, toTime, format });
     if (r.ok) {
       saveBlob(r.blob, r.filename);
       setMessage({ kind: 'ok', text: copy.export.done(r.filename) });
@@ -95,6 +100,32 @@ export default function ExportCard({ tinId, since, today, signing }: ExportCardP
           {busy === 'csv' ? copy.export.preparing : copy.export.csv}
         </button>
       </form>
+      <details className="ag-details">
+        <summary>{copy.export.timeSummary}</summary>
+        <p className="ag-hint">{copy.export.timeHelp}</p>
+        <div className="ag-form">
+          <label className="ag-field">
+            {copy.export.fromTime}
+            <input className="ag-input" type="time" value={fromTime} onChange={(e) => setFromTime(e.target.value)} />
+          </label>
+          <label className="ag-field">
+            {copy.export.toTime}
+            <input className="ag-input" type="time" value={toTime} onChange={(e) => setToTime(e.target.value)} />
+          </label>
+          <button
+            className="ag-btn ag-btn--small"
+            type="button"
+            disabled={busy !== null || (!fromTime && !toTime)}
+            onClick={() => {
+              setFromTime('');
+              setToTime('');
+            }}
+          >
+            {copy.export.wholeDays}
+          </button>
+        </div>
+        {sameDayBackwards ? <p className="ag-notice ag-notice--warn">{copy.export.timeBackwards}</p> : null}
+      </details>
       <Status kind={message?.kind === 'bad' ? 'bad' : 'ok'}>{message?.text}</Status>
 
       <p className="ag-note">{copy.export.covers}</p>

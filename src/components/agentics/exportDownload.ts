@@ -14,12 +14,32 @@ export interface ExportParams {
   /** The first and last UTC day, `YYYY-MM-DD`, both counted. */
   from: string;
   to: string;
+  /**
+   * A time of day (UTC, `HH:MM`) to start at on the first day and to end at on the last, the last
+   * minute counted through its end. Left out, the range runs over whole days. A day with more events
+   * than one file carries is exported in parts by time of day.
+   */
+  fromTime?: string;
+  toTime?: string;
   format: 'json' | 'csv';
+}
+
+// What a time input hands over: HH:MM, or HH:MM:SS when the browser adds seconds. Only the minute is used.
+const TIME_OF_DAY = /^(([01]\d|2[0-3]):[0-5]\d)(?::[0-5]\d(?:\.\d{1,3})?)?$/;
+
+/** A time of day the server will take (`HH:MM`, 00:00 to 23:59) from what a time input holds, or an empty string when there is none to send. */
+export function timeOfDay(value: string | undefined): string {
+  const m = TIME_OF_DAY.exec(value ?? '');
+  return m ? m[1] : '';
 }
 
 /** The address of an export. Every part is encoded, so a value can never change the path or the query. */
 export function exportUrl(p: ExportParams): string {
-  return `/api/agentics/export?tinId=${encodeURIComponent(p.tinId)}&from=${encodeURIComponent(p.from)}&to=${encodeURIComponent(p.to)}${p.format === 'csv' ? '&format=csv' : ''}`;
+  const fromTime = timeOfDay(p.fromTime);
+  const toTime = timeOfDay(p.toTime);
+  const from = fromTime ? `${p.from}T${fromTime}` : p.from;
+  const to = toTime ? `${p.to}T${toTime}` : p.to;
+  return `/api/agentics/export?tinId=${encodeURIComponent(p.tinId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${p.format === 'csv' ? '&format=csv' : ''}`;
 }
 
 /** The first day of "the last `days` days" ending on `today`: 7 days ending today starts six days back. Never before `since`. */

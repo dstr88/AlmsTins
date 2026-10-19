@@ -7,12 +7,12 @@
  * Everything that came from the registry (an address) is rendered as text by React, which escapes
  * it. Nothing here builds HTML from data.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import type { AgentWallet } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
-import { CopyButton, Status } from './ui';
+import { ConfirmRemove, CopyButton, Status } from './ui';
 
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
 
@@ -34,8 +34,10 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
   const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
+  // Each wallet has its own busy flag, so removing one never clears the flag of another that is still working.
+  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+  /** The heading of the card, where focus goes when the wallet the person was on has been removed. */
+  const heading = useRef<HTMLHeadingElement | null>(null);
 
   const limit = plan.limits.walletsPerBot;
   const full = limit !== null && list.length >= limit;
@@ -59,24 +61,33 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
     setBusy(false);
   }
 
+  const markRemoving = (id: string, on: boolean) =>
+    setRemoving((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
   async function remove(w: AgentWallet) {
-    setRemoving(w.id);
+    markRemoving(w.id, true);
     setMessage(null);
     const r = await send('DELETE', `/api/agentics/wallets?id=${encodeURIComponent(w.id)}`);
     if (r.ok) {
       setList((prev) => prev.filter((x) => x.id !== w.id));
-      setConfirming(null);
       setMessage({ kind: 'ok', text: copy.wallets.removed });
+      // The wallet the person was on is gone, and so is the button that held focus: put it on the card's heading.
+      heading.current?.focus();
     } else {
       setMessage({ kind: 'bad', text: failureText(r) });
     }
-    setRemoving(null);
+    markRemoving(w.id, false);
   }
 
   return (
     <section className="ag-card" aria-labelledby="ag-wallets-h">
       <div className="ag-card__head">
-        <h2 className="ag-card__title" id="ag-wallets-h">
+        <h2 className="ag-card__title" id="ag-wallets-h" ref={heading} tabIndex={-1}>
           {copy.wallets.title}
         </h2>
         <span className="ag-card__meta">{limit === null ? copy.wallets.count(list.length) : copy.wallets.countOf(list.length, limit)}</span>
@@ -133,21 +144,16 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
                 <CopyButton value={w.address} />
               </div>
               <div className="ag-dest__actions">
-                {confirming === w.id ? (
-                  <span className="ag-confirm" role="group" aria-label={copy.wallets.removeConfirm}>
-                    <span className="ag-confirm__text">{copy.wallets.removeConfirm}</span>
-                    <button className="ag-btn ag-btn--small ag-btn--danger" type="button" disabled={removing === w.id} onClick={() => void remove(w)}>
-                      {removing === w.id ? copy.wallets.removing : copy.wallets.removeYes}
-                    </button>
-                    <button className="ag-btn ag-btn--small" type="button" onClick={() => setConfirming(null)}>
-                      {copy.wallets.removeKeep}
-                    </button>
-                  </span>
-                ) : (
-                  <button className="ag-btn ag-btn--small" type="button" onClick={() => setConfirming(w.id)}>
-                    {copy.wallets.remove}
-                  </button>
-                )}
+                <ConfirmRemove
+                  small
+                  label={copy.wallets.remove}
+                  question={copy.wallets.removeConfirm}
+                  yes={copy.wallets.removeYes}
+                  yesWorking={copy.wallets.removing}
+                  keep={copy.wallets.removeKeep}
+                  working={removing.has(w.id)}
+                  onConfirm={() => void remove(w)}
+                />
               </div>
             </li>
           ))}

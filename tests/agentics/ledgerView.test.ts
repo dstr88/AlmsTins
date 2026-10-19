@@ -13,12 +13,12 @@ const HASH = `0x${'a'.repeat(64)}`;
 
 const check = (over: Partial<EventView> = {}): EventView => ({
   id: '00000000-0000-4000-8000-000000000001', tinId: 'tin-1', kind: 'checked', at: AT, address: addr(1), chain: 'ethereum',
-  answer: 'flagged', registry: 'flagged', status: 'mismatch', keyId: 'k', sourceIp: '203.0.113.9', tx: null,
+  answer: 'flagged', registry: 'flagged', status: 'mismatch', keyId: 'k', tx: null,
   detail: { basis: 'registry_flagged', cleared: false, domain: 'ops.example.test' }, keyStatus: 'active', ...over,
 });
 const move = (over: Partial<EventView> = {}): EventView => ({
   id: '00000000-0000-4000-8000-000000000002', tinId: 'tin-1', kind: 'transaction', at: AT, address: addr(2), chain: 'polygon',
-  answer: 'unknown', registry: 'trusted', status: null, keyId: null, sourceIp: null,
+  answer: 'unknown', registry: 'trusted', status: null, keyId: null,
   tx: { hash: HASH, direction: 'out', wallet: addr(900), amount: '12.5', asset: 'POL', assetContract: null, usd: 9.75, blockNumber: 5 },
   detail: { reason: 'no_preceding_check', leg: 'native:0', walletId: 'w', destinationId: 'd' }, keyStatus: null, ...over,
 });

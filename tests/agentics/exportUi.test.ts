@@ -27,11 +27,11 @@ describe('the export card', () => {
     const t = textOf(render());
     expect(t).toContain('The signature covers the ledger as Almstins stored it when you exported it: every check and every transfer recorded for this agent in the range, and the moment the file was made.');
     expect(t).toContain('It does not show that the agent asked before every payment, and it does not cover transfers to addresses that were never registered.');
-    expect(t).toContain('The CSV is a convenience copy. It is not signed. Its first line carries the Merkle root and the bundle ID of the signed file, so the two can be matched.');
+    expect(t).toContain('The CSV is a convenience copy. It is not signed. Its file name ends in unsigned-copy, and the last column of every line is the ID of the signed file it copies, so the two can be matched.');
     expect(t).toContain('One file covers at most 366 days and 50,000 events.');
   });
 
-  it('has the presets, two labeled date inputs and the two downloads', () => {
+  it('has the presets, two labeled date inputs, an optional time of day for each end, and the two downloads', () => {
     const html = render();
     const t = textOf(html);
     expect(t).toContain('Last 7 days');
@@ -42,10 +42,20 @@ describe('the export card', () => {
     expect(t).toContain('Download CSV');
     expect((html.match(/type="date"/g) ?? []).length).toBe(2);
     expect(html).toContain('role="group" aria-label="Range"');
+    // The times of day are optional, behind a disclosure that is closed, and say what they are for.
+    expect((html.match(/type="time"/g) ?? []).length).toBe(2);
+    expect(html).toMatch(/<details class="ag-details"><summary>Narrow to a time of day<\/summary>/);
+    expect(html).not.toMatch(/<details[^>]*\bopen\b/);
+    expect(t).toContain('From time on the first day (UTC)');
+    expect(t).toContain('To time on the last day (UTC)');
+    expect(t).toContain('Leave these empty for whole days.');
+    expect(t).toContain('A busy day can contain more events than one file carries (50,000)');
     // Every control sits in a label or a named group, and the buttons are buttons that do not submit.
-    expect((html.match(/<label class="ag-field">/g) ?? []).length).toBe(2);
-    expect((html.match(/<button[^>]*type="button"/g) ?? []).length).toBe(4);
+    expect((html.match(/<label class="ag-field">/g) ?? []).length).toBe(4);
+    expect((html.match(/<button[^>]*type="button"/g) ?? []).length).toBe(5); // two presets, two downloads, "Use whole days"
     expect(html).not.toMatch(/<button[^>]*type="submit"/);
+    // With no time chosen there is nothing to clear.
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Use whole days<\/button>/);
   });
 
   it('opens on the last 30 days, never before the agent existed, and never after today', () => {
@@ -107,6 +117,18 @@ describe('asking for the file', () => {
   it('encodes every part of the address, so a value can never change the path or the query', () => {
     expect(exportUrl({ tinId: 'tin-1', from: '2026-10-01', to: '2026-10-18', format: 'json' })).toBe('/api/agentics/export?tinId=tin-1&from=2026-10-01&to=2026-10-18');
     expect(exportUrl({ tinId: 'tin-1', from: '2026-10-01', to: '2026-10-18', format: 'csv' })).toBe('/api/agentics/export?tinId=tin-1&from=2026-10-01&to=2026-10-18&format=csv');
+    // A time of day on either end makes that end a UTC minute (the colon is encoded).
+    expect(exportUrl({ tinId: 'tin-1', from: '2026-10-18', to: '2026-10-18', fromTime: '06:00', toTime: '11:59', format: 'json' })).toBe(
+      '/api/agentics/export?tinId=tin-1&from=2026-10-18T06%3A00&to=2026-10-18T11%3A59',
+    );
+    expect(exportUrl({ tinId: 'tin-1', from: '2026-10-17', to: '2026-10-18', toTime: '06:00', format: 'csv' })).toBe('/api/agentics/export?tinId=tin-1&from=2026-10-17&to=2026-10-18T06%3A00&format=csv');
+    // A time that is not a time of day is not sent: the range stays in whole days.
+    for (const bad of ['24:00', '12:60', '7:00', 'noon', '', '06:00:30junk', '06:00&from=x', '06:00 ', ' 06:00', '06:00:60', '2026-10-18T06:00']) {
+      const url = exportUrl({ tinId: 't', from: '2026-10-18', to: '2026-10-18', fromTime: bad, format: 'json' });
+      expect(url, bad).toBe('/api/agentics/export?tinId=t&from=2026-10-18&to=2026-10-18');
+    }
+    // A time input may add seconds; only the minute is sent.
+    expect(exportUrl({ tinId: 't', from: '2026-10-18', to: '2026-10-18', fromTime: '06:00:30', format: 'json' })).toBe('/api/agentics/export?tinId=t&from=2026-10-18T06%3A00&to=2026-10-18');
     const odd = exportUrl({ tinId: 'a&from=1/../x', from: '2026-10-01&tinId=y', to: '#', format: 'json' });
     expect(odd).toBe('/api/agentics/export?tinId=a%26from%3D1%2F..%2Fx&from=2026-10-01%26tinId%3Dy&to=%23');
     expect(odd.match(/&/g)).toHaveLength(2);

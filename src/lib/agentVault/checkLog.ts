@@ -29,6 +29,7 @@
  * when the registry could not even be read, and the failure is logged by name and code only (a
  * database error message can carry the values it was given).
  */
+import { hashWithSalt } from '@/lib/analytics/hash';
 import { db } from '@/lib/db';
 import { normalizeAddress, type VaultChain } from './addresses';
 import type { FlaggedCheckInfo } from './alerts';
@@ -124,6 +125,7 @@ export interface KeyedCheckInput {
   level: string | null;
   domain: string | null;
   proofAgeDays: number | null;
+  /** The caller's address as the rate limiter sees it. It is kept only as a salted one-way hash, never as the address (see recordKeyedCheck). */
   sourceIp: string | null;
   now: Date;
 }
@@ -215,7 +217,9 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
       registry,
       status: input.status,
       keyId: input.keyId,
-      sourceIp: input.sourceIp ? input.sourceIp.slice(0, 64) : null,
+      // Never the address itself: the same salted one-way hash the public checkers' logs keep (the
+      // privacy policy promises no less). It can still tell "the same caller" from "another caller".
+      sourceIp: input.sourceIp ? hashWithSalt(input.sourceIp.slice(0, 64)) : null,
       detail: {
         basis: derived.basis,
         cleared: derived.cleared,

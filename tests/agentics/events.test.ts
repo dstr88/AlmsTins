@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr, upper, expectOk, fakeDeps, walletResult, type FakeDeps } from '../helpers/agentVault';
+import { hashWithSalt } from '../../src/lib/analytics/hash';
 
 /**
  * The Agent Vault ledger (events.ts, checkLog.ts, and the read in vault.ts) over its real SQL,
@@ -143,9 +144,12 @@ describe('a keyed check is written to the ledger of the tin its key is linked to
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       tenant_id: A, tin_id: tin.id, kind: 'checked', address: addr(1), chain: 'ethereum',
-      answer: 'unknown', registry: 'trusted', status: 'unanchored', key_id: KEY_1, source_ip: '203.0.113.9',
+      answer: 'unknown', registry: 'trusted', status: 'unanchored', key_id: KEY_1, source_ip: hashWithSalt('203.0.113.9'),
       occurred_at: '2026-10-18T12:00:00.123Z',
     });
+    // The caller is kept as a salted one-way hash (what the public checkers' logs keep), never as the address.
+    expect(rows[0].source_ip).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(rows[0])).not.toContain('203.0.113.9');
     expect(rows[0].id).toBe(block!.eventId);
     expect(JSON.parse(rows[0].detail_json)).toEqual({
       basis: 'registered_first_check', cleared: true, history: 'none', level: 'claimed', domain: null, proofAgeDays: 12,
@@ -405,5 +409,21 @@ describe('reading a tin\'s ledger (listTinEvents)', () => {
     keys.byTenant[A] = [{ id: KEY_1, status: 'active' }, { id: KEY_2, status: 'revoked' }];
     const r = expectOk(await vault.listTinEvents(A, tin.id));
     expect(r.events.map((e) => [e.keyId?.slice(0, 2), e.keyStatus])).toEqual([['f0', 'unknown'], ['b2', 'revoked'], ['a1', 'active']]);
+  });
+
+  it('never hands the owner the caller\'s hash: it is metadata for the Vault, and nothing reads it', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    await ask();
+    // It is in the stored row (a hash, never the address) ...
+    expect(rowsOf('agent_events')[0].source_ip).toBe(hashWithSalt('203.0.113.9'));
+    // ... and in no event the endpoint's code answers with.
+    const r = expectOk(await vault.listTinEvents(A, tin.id));
+    expect(r.events).toHaveLength(1);
+    expect('sourceIp' in r.events[0]).toBe(false);
+    const text = JSON.stringify(r);
+    expect(text).not.toContain(hashWithSalt('203.0.113.9'));
+    expect(text).not.toContain('203.0.113.9');
+    expect(text).not.toMatch(/source_?ip/i);
   });
 });

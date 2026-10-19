@@ -503,16 +503,48 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
     }
   });
 
-  it('only the shell knows the shared Layout, so a re-skin is the shell and the stylesheet', () => {
-    const usesLayout = files.filter((f) => /layouts\/Layout\.astro/.test(read(f)));
-    expect(usesLayout).toEqual(['src/components/agentics/AgenticsShell.astro']);
+  it('are documents of their own: not one of them uses the app\'s Layout, so nothing of the crypto tracker is on an Agentics screen', () => {
+    // The tracker's chrome (its navigation, its "Titanium Hut" brand, its account menu and its site footer)
+    // comes with the Layout; the Agentics screens stand on the shell alone, like the door and the letter.
+    expect(files.filter((f) => /layouts\/|Layout\.astro|<Footer|LoginLayout/.test(read(f)))).toEqual([]);
     for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro', 'src/pages/dashboard/agentics/tins/[id].astro', 'src/pages/dashboard/agentics/agents.astro']) {
       expect(read(f), f).toMatch(/import AgenticsShell from/);
       expect(read(f), f).not.toMatch(/import Layout from/);
     }
     const shell = read('src/components/agentics/AgenticsShell.astro');
-    expect(shell).toMatch(/noindex=\{true\}/);
+    // A whole document, with its own head: never indexed, its own icon, the one analytics tag.
+    expect(shell).toMatch(/<!doctype html>/);
+    expect(shell).toMatch(/<meta name="robots" content="noindex, nofollow" \/>/);
     expect(shell).toMatch(/import '\.\/agentics\.css'/);
+    expect(shell).toMatch(/import '@\/styles\/tokens\.css'/);
+    expect(shell).toMatch(/<Analytics owner=\{internal\} \/>/);
+    // None of the tracker's names or links: the bar is Agentics' own (the file's comment names what is left out, so only its code is read).
+    const code = shell.replace(/\/\*\*[\s\S]*?\*\//g, '');
+    expect(code).not.toMatch(/Titanium Hut|\/dashboard\/(vault|portfolio|wallets|bookkeeping|alerts|research|billing)|\/year-summary|petro/i);
+  });
+
+  it('has a bar and a footer of its own: the name, the two places an account goes, the plan meter and the way out', () => {
+    const shell = read('src/components/agentics/AgenticsShell.astro');
+    expect(shell).toMatch(/class="ag-shell__brand" href=\{HOME_PATH\}/);
+    expect(shell).toMatch(/aria-current=\{active === 'agents' \? 'page' : undefined\}/);
+    expect(shell).toMatch(/aria-current=\{active === 'reports' \? 'page' : undefined\}/);
+    expect(shell).toMatch(/<PlanMeter client:load plan=\{plan\} \/>/);
+    expect(shell).toMatch(/<LogoutButton class="ag-shell__out" next="\/agentics">/);
+    expect(shell).toMatch(/<footer class="ag-shell__foot">/);
+    // The footer is the door's own, with the links the door has: docs, the free checker, privacy.
+    expect(shell).toMatch(/door\.landing\.footer/);
+    expect(shell).toMatch(/href="\/agentics\/docs"/);
+    expect(shell).toMatch(/href="\/wallet-checker"/);
+    expect(shell).toMatch(/href="\/privacy"/);
+  });
+
+  it('title every page with a fixed word, never with text an account chose', () => {
+    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro', 'src/pages/dashboard/agentics/tins/[id].astro', 'src/pages/dashboard/agentics/agents.astro']) {
+      const title = /<AgenticsShell title=(\{[^}]*\}|"[^"]*")/.exec(read(f))?.[1];
+      expect(title, f).toMatch(/^"[A-Za-z ]+"$/);
+    }
+    // And the shell puts the title in the head as given, with the product's name after it.
+    expect(read('src/components/agentics/AgenticsShell.astro')).toMatch(/<title>\{`\$\{title\} \| \$\{copy\.brand\}`\}<\/title>/);
   });
 
   it('are owner-only twice: each page checks the gate itself, and a report that is not this account\'s is a 404', () => {

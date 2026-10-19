@@ -279,7 +279,10 @@ describe('soft delete frees the slot and keeps the history', () => {
 
     expect(['agent_tins', 'agent_wallets', 'agent_destinations'].map((t) => allRows(t).length)).toEqual(rowsBefore);
     const removal = fake.batches.find((b) => b.some((s) => /^UPDATE agent_tins SET deleted_at/.test(s.sql)));
-    expect(removal?.map((s) => s.sql.split(' SET ')[0])).toEqual(['UPDATE agent_destinations', 'UPDATE agent_wallets', 'UPDATE agent_tins']);
+    // It takes the account's lock first (the one the capped adds take), so an add and a removal for one
+    // account take turns; then the children, then the agent.
+    expect(removal?.[0].sql).toMatch(/^SELECT pg_advisory_xact_lock\(/);
+    expect(removal?.slice(1).map((s) => s.sql.split(' SET ')[0])).toEqual(['UPDATE agent_destinations', 'UPDATE agent_wallets', 'UPDATE agent_tins']);
     expect((await store.listTins(A)).map((t) => t.id)).toEqual([other.id]);
     expect(await store.getTin(A, tin.id)).toBeNull();
     expect(await vault.getTinDetail(A, tin.id)).toEqual({ ok: false, error: 'tin_not_found' });

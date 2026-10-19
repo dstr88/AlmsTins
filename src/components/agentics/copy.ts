@@ -9,7 +9,7 @@
 import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib/agentVault/reportText';
 
 export const copy = {
-  brand: 'Agentics',
+  brand: 'Almstins Agentics',
   nav: { agents: 'Agents', reports: 'Reports' },
 
   reports: {
@@ -273,6 +273,7 @@ export const copy = {
     checkedNow: 'Checks updated.',
     stillFlagged: 'It is still flagged. To check it again, remove it and add it back.',
     couldNotRun: 'The checks could not run just now. Try again in a moment.',
+    rateLimited: 'That is a lot of checks in a short time. Wait a minute, then try again.',
   },
 
   readout: {
@@ -385,6 +386,13 @@ export const copy = {
     last30: 'Last 30 days',
     from: 'From (UTC)',
     to: 'To (UTC)',
+    timeSummary: 'Narrow to a time of day',
+    timeHelp:
+      'Leave these empty for whole days. A busy day can contain more events than one file carries (50,000): pick the times you want, and download the day in parts. The first time is counted from the start of its minute, the last through the end of its minute.',
+    fromTime: 'From time on the first day (UTC)',
+    toTime: 'To time on the last day (UTC)',
+    wholeDays: 'Use whole days',
+    timeBackwards: 'On a single day, the first time has to come before the last.',
     signed: 'Download signed file',
     csv: 'Download CSV',
     preparing: 'Preparing the file. A large range can take a few seconds.',
@@ -392,16 +400,17 @@ export const copy = {
     covers:
       'The signature covers the ledger as Almstins stored it when you exported it: every check and every transfer recorded for this agent in the range, and the moment the file was made.',
     doesNotCover: 'It does not show that the agent asked before every payment, and it does not cover transfers to addresses that were never registered.',
-    csvNote: 'The CSV is a convenience copy. It is not signed. Its first line carries the Merkle root and the bundle ID of the signed file, so the two can be matched.',
-    limits: 'One file covers at most 366 days and 50,000 events. If a range is too large, narrow it.',
+    csvNote: 'The CSV is a convenience copy. It is not signed. Its file name ends in unsigned-copy, and the last column of every line is the ID of the signed file it copies, so the two can be matched.',
+    limits: 'One file covers at most 366 days and 50,000 events. If a range is too large, narrow it, down to a time of day if a single day is.',
     verify: 'Check a signed file',
     verifyNote: 'The check runs in your browser and needs no account.',
     noSigning: 'No signing key is configured on this server, so neither file can be made.',
     errors: {
-      export_too_large: 'That range has too many days or events for one file (at most 366 days and 50,000 events). Narrow the range and try again.',
+      export_too_large: 'That range has too many days or events for one file (at most 366 days and 50,000 events). Narrow the range, or pick a time of day below, and try again.',
       signing_unavailable: 'This server cannot sign a file right now, so no file was made. Try again later.',
       rate_limited: 'That is a lot of exports in a short time. Wait a minute, then try again.',
-      invalid_period: 'That range is not available. Pick real days, with the start no later than the end and the end no later than today.',
+      export_busy: 'An export is already being made. Wait a few seconds, then try again.',
+      invalid_period: 'That range is not available. Pick real days and times, with the start before the end and the end no later than now.',
       invalid_format: 'Something went wrong. Try again in a moment.',
     } as Record<string, string>,
   },
@@ -410,7 +419,7 @@ export const copy = {
     generic: 'Something went wrong. Try again in a moment.',
     invalid_period: 'That day is not available. Pick a day from the day the agent was created up to today.',
     invalid_settings: 'Those settings were not understood. Try again.',
-    rate_limited: 'That is a lot of reports in a short time. Wait a minute, then try again.',
+    rate_limited: 'That is a lot of requests in a short time. Wait a minute, then try again.',
     version_limit: 'That day already has the most versions a report can have. The newest version is in the list below.',
     tin_not_found: 'That agent was not found.',
     invalid_id: 'That agent was not found.',
@@ -432,6 +441,7 @@ export const copy = {
     key_in_use: 'That key is already linked to another agent.',
     network: 'Could not reach the server. Check your connection and try again.',
     export_too_large: 'That range is too large for one file. Narrow the range and try again.',
+    export_busy: 'An export is already being made. Wait a few seconds, then try again.',
     signing_unavailable: 'This server cannot sign a file right now. Try again later.',
     invalid_format: 'Something went wrong. Try again in a moment.',
   } as Record<string, string>,

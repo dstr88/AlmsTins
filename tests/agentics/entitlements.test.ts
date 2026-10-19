@@ -216,7 +216,15 @@ describe('registered addresses: 15 over all of an account\'s agents on the Free 
     const fill = expectOk(await add(A, tin.id, lines(1, 10)));
     expect(fill.summary).toMatchObject({ added: 10, skipped: 0 });
     expect(expectOk(await add(A, tin.id, lines(11, 5))).summary).toMatchObject({ added: 5, skipped: 0 });
-    expect(await add(A, tin.id, addr(16))).toEqual({ ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15 });
+    expect(await add(A, tin.id, addr(16))).toEqual({
+      ok: false,
+      error: 'plan_limit',
+      cap: 'addresses',
+      limit: 15,
+      used: 15,
+      skipped: [{ line: 1, chain: 'ethereum', address: addr(16), reason: 'over_limit' }],
+      rejected: [],
+    });
     expect(live('agent_destinations', A)).toHaveLength(15);
   });
 
@@ -258,7 +266,15 @@ describe('registered addresses: 15 over all of an account\'s agents on the Free 
     expectOk(await add(A, tin.id, lines(1, 10)));
     expectOk(await add(A, tin.id, lines(11, 5)));
     const before = deps.calls.wallet.length;
-    expect(await add(A, tin.id, lines(16, 4))).toEqual({ ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15 });
+    expect(await add(A, tin.id, lines(16, 4))).toEqual({
+      ok: false,
+      error: 'plan_limit',
+      cap: 'addresses',
+      limit: 15,
+      used: 15,
+      skipped: [16, 17, 18, 19].map((n, i) => ({ line: i + 1, chain: 'ethereum', address: addr(n), reason: 'over_limit' })),
+      rejected: [],
+    });
     expect(deps.calls.wallet.length).toBe(before);
   });
 
@@ -360,9 +376,14 @@ describe('how the limits are enforced', () => {
       expect(batch).toHaveLength(2);
       expect(batch[0].sql).toMatch(/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/);
       expect(batch[0].args).toEqual([A]);
-      expect(batch[1].sql).toMatch(/^INSERT INTO agent_(tins|wallets|destinations) \(id, tenant_id, .*\) SELECT \?(, \?)+ WHERE \(SELECT COUNT\(\*\) FROM agent_(tins|wallets|destinations) WHERE tenant_id = \? .*AND deleted_at IS NULL\) < \?$/);
-      // The tenant is named in the row and in the count, and the last argument is the limit.
-      expect(batch[1].args.filter((a) => a === A)).toHaveLength(2);
+      // A wallet or an address is added only under a live agent of the account (the guard); an agent has none.
+      const underAgent = /^INSERT INTO agent_(wallets|destinations) /.test(batch[1].sql);
+      expect(batch[1].sql).toMatch(
+        /^INSERT INTO agent_(tins|wallets|destinations) \(id, tenant_id, .*\) SELECT \?(, \?)+ WHERE (EXISTS \(SELECT 1 FROM agent_tins WHERE id = \? AND tenant_id = \? AND deleted_at IS NULL\) AND )?\(SELECT COUNT\(\*\) FROM agent_(tins|wallets|destinations)( d)? WHERE (d\.)?tenant_id = \? .*AND (d\.)?deleted_at IS NULL.*\) < \?$/,
+      );
+      expect(/WHERE EXISTS \(SELECT 1 FROM agent_tins WHERE id = \? AND tenant_id = \? AND deleted_at IS NULL\) AND /.test(batch[1].sql)).toBe(underAgent);
+      // The tenant is named in the row, in the guard (an agent has none) and in the count, and the last argument is the limit.
+      expect(batch[1].args.filter((a) => a === A)).toHaveLength(underAgent ? 3 : 2);
     }
     expect(batches.map((b) => b[1].args[b[1].args.length - 1])).toEqual([3, 5, 15]);
   });
@@ -403,5 +424,194 @@ describe('how the limits are enforced', () => {
     expectOk(await add(A, tin.id, lines(11, 5)));
     expect((await add(A, tin.id, addr(40))).ok).toBe(false);
     expect(live('agent_destinations', A).filter((d) => d.trust_status === 'flagged')).toHaveLength(1);
+  });
+});
+
+describe('an agent that is removed while a request for it is running', () => {
+  /** Removes the agent just before the next capped insert under it runs: the request has passed its checks and is about to write. */
+  function removeAgentBeforeNextInsert(tenant: string, tinId: string) {
+    const real = holder.db;
+    let done = false;
+    holder.db = {
+      execute: (s: any) => real.execute(s),
+      batch: async (s: any, m?: any) => {
+        if (!done && s.some((x: any) => /^INSERT INTO agent_(wallets|destinations) /.test(x.sql))) {
+          done = true;
+          expectOk(await vault.removeTin(tenant, tinId));
+        }
+        return real.batch(s, m);
+      },
+    };
+  }
+
+  it('writes no address under it: the answer is tin_not_found, nothing is stored, and no place on the plan is held', async () => {
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, addr(1)));
+    removeAgentBeforeNextInsert(A, tin.id);
+    expect(await add(A, tin.id, addr(2))).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(rows('agent_destinations').filter((r) => r.address === addr(2))).toHaveLength(0);
+    expect(live('agent_destinations', A)).toHaveLength(0);
+    expect((await entitlements.getPlanSummary(A)).use).toEqual({ bots: 0, addresses: 0 });
+  });
+
+  it('writes no own wallet under it either', async () => {
+    const tin = await newTin();
+    removeAgentBeforeNextInsert(A, tin.id);
+    expect(await vault.addWallet(A, { tinId: tin.id, chain: 'ethereum', address: addr(1) })).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(rows('agent_wallets')).toHaveLength(0);
+  });
+
+  it('a registered address whose agent is gone counts for nothing, even if its row were somehow still live', async () => {
+    const gone = await newTin(A, 'Gone');
+    const keep = await newTin(A, 'Keep');
+    expectOk(await add(A, gone.id, lines(1, 5)));
+    expectOk(await vault.removeTin(A, gone.id));
+    for (const r of rows('agent_destinations')) r.deleted_at = null; // what a leaked row would look like
+    expect((await entitlements.getPlanSummary(A)).use).toEqual({ bots: 1, addresses: 0 });
+    // The account still has all fifteen places, and the stray row does not hold one (a paste takes ten at most).
+    expect(expectOk(await add(A, keep.id, lines(20, 10))).summary).toMatchObject({ added: 10, skipped: 0 });
+    expect(expectOk(await add(A, keep.id, lines(30, 5))).summary).toMatchObject({ added: 5, skipped: 0 });
+  });
+
+  it('removing an agent takes the account\'s lock first, the one a capped add takes, so the two take turns', async () => {
+    const tin = await newTin();
+    fake.batches.length = 0;
+    expectOk(await vault.removeTin(A, tin.id));
+    const removal = fake.batches.find((b) => b.some((s) => /^UPDATE agent_tins SET deleted_at/.test(s.sql)));
+    expect(removal?.[0].sql).toMatch(/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/);
+    expect(removal?.[0].args).toEqual([A]);
+  });
+});
+
+describe('the same address added by two requests at once, with one place left', () => {
+  it('registers it once, and tells the second request it is already registered, not that the plan is full', async () => {
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10)));
+    expectOk(await add(A, tin.id, lines(11, 4))); // 14 of 15
+    const [one, two] = await Promise.all([add(A, tin.id, addr(100)), add(A, tin.id, addr(100))]);
+    expect(one.ok && two.ok, JSON.stringify([one, two])).toBe(true);
+    const results = [one, two].filter((r): r is Extract<typeof r, { ok: true }> => r.ok);
+    expect(results.filter((r) => r.summary.added === 1)).toHaveLength(1);
+    expect(results.filter((r) => r.skipped.some((s) => s.reason === 'already_registered'))).toHaveLength(1);
+    expect(live('agent_destinations', A)).toHaveLength(15);
+  });
+
+  it('is the same for an own wallet', async () => {
+    const tin = await newTin();
+    for (let n = 1; n <= 4; n += 1) expectOk(await vault.addWallet(A, { tinId: tin.id, chain: 'ethereum', address: addr(n) }));
+    const [one, two] = await Promise.all([
+      vault.addWallet(A, { tinId: tin.id, chain: 'ethereum', address: addr(100) }),
+      vault.addWallet(A, { tinId: tin.id, chain: 'ethereum', address: addr(100) }),
+    ]);
+    expect(one.ok && two.ok, JSON.stringify([one, two])).toBe(true);
+    expect([one, two].filter((r) => r.ok && r.added)).toHaveLength(1);
+    expect(live('agent_wallets', A)).toHaveLength(5);
+  });
+
+  it('a different new address that arrives second is still refused as over the limit', async () => {
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10)));
+    expectOk(await add(A, tin.id, lines(11, 4)));
+    const [one, two] = await Promise.all([add(A, tin.id, addr(100)), add(A, tin.id, addr(101))]);
+    expect([one, two].filter((r) => r.ok)).toHaveLength(1);
+    expect([one, two].filter((r) => !r.ok && r.error === 'plan_limit')).toHaveLength(1);
+    expect(live('agent_destinations', A)).toHaveLength(15);
+  });
+});
+
+describe('a paste that the plan refuses says what became of every line', () => {
+  it('lists the lines already registered, repeated, unreadable and over the limit, in the order they were pasted', async () => {
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10)));
+    expectOk(await add(A, tin.id, lines(11, 5)));
+    const refused = (await add(A, tin.id, `${addr(3)}\n${addr(3)}\nnot an address\n${addr(40)}\n${addr(41)}`)) as any;
+    expect(refused).toMatchObject({ ok: false, error: 'plan_limit', cap: 'addresses', limit: 15, used: 15 });
+    expect(refused.skipped.map((s: any) => [s.line, s.reason])).toEqual([[1, 'already_registered'], [2, 'repeated_in_paste'], [4, 'over_limit'], [5, 'over_limit']]);
+    expect(refused.skipped[0]).toMatchObject({ address: addr(3), trustStatus: 'trusted' });
+    expect(typeof refused.skipped[0].id).toBe('string');
+    expect(refused.rejected.map((x: any) => [x.line, x.reason])).toEqual([[3, 'no_address']]);
+    expect(live('agent_destinations', A)).toHaveLength(15);
+  });
+
+  it('an own-wallet or agent refusal carries no lines: only a paste has any', async () => {
+    for (const label of ['a', 'b', 'c']) await newTin(A, label);
+    expect(Object.keys((await vault.createTin(A, { label: 'd' })) as object).sort()).toEqual(['cap', 'error', 'limit', 'ok', 'used']);
+  });
+});
+
+describe('the budget of checks', () => {
+  const budgetOf = async (max: number) => (await import('../../src/lib/agentVault/checkBudget')).createCheckBudget({ max });
+
+  it('pays for an add before anything is written: over the budget nothing is stored or asked, and the answer is rate_limited', async () => {
+    deps.budget = await budgetOf(12);
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10)));
+    const asked = deps.calls.wallet.length;
+    expect(await add(A, tin.id, lines(11, 5))).toEqual({ ok: false, error: 'rate_limited' });
+    expect(live('agent_destinations', A)).toHaveLength(10);
+    expect(deps.calls.wallet.length).toBe(asked);
+    // A refusal took nothing: the two places left in the budget are still there.
+    expect(expectOk(await add(A, tin.id, lines(11, 2))).summary.added).toBe(2);
+  });
+
+  it('costs an add that asks for no checks nothing', async () => {
+    deps.budget = await budgetOf(3);
+    const tin = await newTin();
+    expect(expectOk(await add(A, tin.id, lines(1, 8), { trust: false })).summary).toMatchObject({ added: 8, pending: 8 });
+    expect(expectOk(await add(A, tin.id, lines(9, 3))).summary.added).toBe(3); // the budget is whole
+  });
+
+  it('pays for a check of existing addresses by the address, and refuses before any is asked', async () => {
+    deps.budget = await budgetOf(12);
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 6), { trust: false }));
+    const ids = live('agent_destinations', A).map((r) => r.id as string);
+    expect(expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids }, deps)).destinations).toHaveLength(6);
+    expect(expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids }, deps)).destinations).toHaveLength(6);
+    const asked = deps.calls.wallet.length;
+    expect(await vault.trustDestinations(A, { tinId: tin.id, ids }, deps)).toEqual({ ok: false, error: 'rate_limited' });
+    expect(deps.calls.wallet.length).toBe(asked);
+  });
+
+  it('asks nothing of an account that has nothing to check: an empty list is not refused', async () => {
+    deps.budget = await budgetOf(1);
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, addr(1))); // spends the one
+    expect(expectOk(await vault.trustDestinations(A, { tinId: tin.id }, deps)).destinations).toEqual([]);
+  });
+
+  it('is for each account, and not for the owner', async () => {
+    deps.budget = await budgetOf(5);
+    const mine = await newTin(A);
+    const theirs = await newTin(B);
+    const owners = await newTin(OWNER);
+    expectOk(await add(A, mine.id, lines(1, 5)));
+    expect(await add(A, mine.id, addr(30))).toEqual({ ok: false, error: 'rate_limited' });
+    expectOk(await add(B, theirs.id, lines(1, 5))); // their own five
+    for (let from = 1; from <= 31; from += 10) expect(expectOk(await add(OWNER, owners.id, lines(from, 10))).summary.added).toBe(10); // no cap on addresses, no budget
+  });
+
+  it('is open again a minute later', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-18T12:00:00.000Z'));
+      deps.budget = await budgetOf(5);
+      const tin = await newTin();
+      expectOk(await add(A, tin.id, lines(1, 5)));
+      vi.setSystemTime(new Date('2026-10-18T12:00:59.000Z'));
+      expect(await add(A, tin.id, addr(30))).toEqual({ ok: false, error: 'rate_limited' });
+      vi.setSystemTime(new Date('2026-10-18T12:01:01.000Z'));
+      expect(expectOk(await add(A, tin.id, addr(30))).summary.added).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('is counted after the cheap refusals, so an add that was never going to run spends none of it', async () => {
+    deps.budget = await budgetOf(5);
+    const tin = await newTin();
+    expect(await add(A, 'no-such-tin', lines(1, 5))).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(await add(A, tin.id, '')).toEqual({ ok: false, error: 'nothing_to_add' });
+    expect(expectOk(await add(A, tin.id, lines(1, 5))).summary.added).toBe(5);
   });
 });

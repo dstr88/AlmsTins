@@ -104,6 +104,16 @@ export function isAgenticsVaultPath(pathname: string): boolean {
 export type AgenticsViewer = { tenantId?: string | null; isDemo?: boolean } | null | undefined;
 
 /**
+ * Whether this viewer is the deployment owner, for the one use outside the gate: telling the analytics
+ * tag that the owner's own visits to the Agentics pages are internal, the way the app's Layout does for
+ * its own pages. It is not an access rule (canAccessAgenticsVault is), and the Agentics pages ask it of
+ * this file so that the gate stays the one place in the front end that knows who the owner is.
+ */
+export function isInternalAgenticsViewer(session: AgenticsViewer): boolean {
+	return isOwner(session?.tenantId ?? null);
+}
+
+/**
  * Whether this session may use the Agent Vault. Owner-only while the flag is false; otherwise
  * any real (non-demo) session that has a tenant. Never a signed-out or demo viewer.
  */
