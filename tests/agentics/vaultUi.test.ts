@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
@@ -231,11 +231,11 @@ describe('one agent', () => {
     expect(html.indexOf('invisible here')).toBeLessThan(html.indexOf('Registered addresses'));
   });
 
-  it('shows its name, when it was created, a way back, and the sections in order: key, registry, wallets, ledger, remove', () => {
+  it('shows its name, when it was created, a way back, and the sections in order: key, registry, wallets, ledger, export, remove', () => {
     expect(t).toContain('Treasury agent');
     expect(t).toContain('Created 2026-10-01 (UTC)');
     expect(html).toContain('href="/dashboard/agentics"');
-    const order = ['Agent key', 'Registered addresses', 'Own wallets', 'Ledger', 'Remove this agent'].map((h) => html.indexOf(`>${h}<`));
+    const order = ['Agent key', 'Registered addresses', 'Own wallets', 'Ledger', 'Export', 'Remove this agent'].map((h) => html.indexOf(`>${h}<`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
@@ -249,7 +249,7 @@ describe('one agent', () => {
     expect(unlabelled(html)).toEqual([]);
     for (const c of classes(html)) expect(c, c).toMatch(/^ag-/);
     for (const h of hrefs(html)) {
-      expect(h, h).toMatch(/^(\/dashboard\/agentics|\/verify\/agent-keys|https:\/\/(etherscan\.io|polygonscan\.com|snowtrace\.io)\/tx\/0x[0-9a-f]{64})$/);
+      expect(h, h).toMatch(/^(\/dashboard\/agentics|\/verify\/agent-keys|\/verify-record|https:\/\/(etherscan\.io|polygonscan\.com|snowtrace\.io)\/tx\/0x[0-9a-f]{64})$/);
     }
   });
 
@@ -404,6 +404,28 @@ describe('the registry', () => {
     const html = panel([dest(1)]);
     expect(html).toContain('>Remove</button>');
     expect(html).not.toContain('Yes, remove it');
+  });
+});
+
+describe('copying an address', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('puts the address on the clipboard and says it worked', async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    expect(await ui.copyText(addr(1))).toBe(true);
+    expect(writeText).toHaveBeenCalledWith(addr(1));
+  });
+
+  it('says it did not work when the browser refuses, and when there is no clipboard to ask (a page that is not served securely)', async () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: async () => { throw new Error('denied'); } } });
+    expect(await ui.copyText(addr(1))).toBe(false);
+    vi.stubGlobal('navigator', {});
+    expect(await ui.copyText(addr(1))).toBe(false);
+    vi.stubGlobal('navigator', undefined);
+    expect(await ui.copyText(addr(1))).toBe(false);
   });
 });
 
@@ -606,7 +628,7 @@ describe('the words on the screens', () => {
     } else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, out);
     return out;
   };
-  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.ledger, copy.refresh];
+  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.ledger, copy.refresh, copy.export];
 
   it('keep to the product\'s verbs and say nothing that stops a payment', () => {
     const all = screens.flatMap((s) => strings(s));
@@ -635,7 +657,7 @@ describe('the words on the screens', () => {
 
 describe('the files', () => {
   const files = [
-    'AgentsHome.tsx', 'AgentPage.tsx', 'RegistryPanel.tsx', 'WalletsPanel.tsx', 'LedgerPanel.tsx', 'AgentKeyCard.tsx', 'RemoveAgent.tsx', 'PlanMeter.tsx', 'ui.tsx',
+    'AgentsHome.tsx', 'AgentPage.tsx', 'RegistryPanel.tsx', 'WalletsPanel.tsx', 'LedgerPanel.tsx', 'AgentKeyCard.tsx', 'RemoveAgent.tsx', 'PlanMeter.tsx', 'ExportCard.tsx', 'ui.tsx',
   ].map((f) => `src/components/agentics/${f}`);
 
   it('build no HTML from data, run no code from a string, and never make an element out of a div or a span that is clicked', () => {
@@ -647,7 +669,7 @@ describe('the files', () => {
   });
 
   it('are client code: they import no database, no secret and no module that does', () => {
-    for (const f of [...files, 'src/components/agentics/client.ts', 'src/components/agentics/paste.ts', 'src/components/agentics/refresh.ts', 'src/components/agentics/errors.ts', 'src/components/agentics/paths.ts', 'src/lib/agentVault/ledgerView.ts']) {
+    for (const f of [...files, 'src/components/agentics/client.ts', 'src/components/agentics/paste.ts', 'src/components/agentics/refresh.ts', 'src/components/agentics/errors.ts', 'src/components/agentics/paths.ts', 'src/components/agentics/exportDownload.ts', 'src/lib/agentVault/ledgerView.ts']) {
       const src = read(f);
       const imports = [...src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+['"]([^'"]+)['"]/gm)].map((m) => ({ type: !!m[1], spec: m[2] }));
       for (const { spec } of imports.filter((i) => !i.type)) {

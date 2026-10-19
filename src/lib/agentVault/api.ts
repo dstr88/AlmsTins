@@ -52,6 +52,8 @@ const STATUS: Record<VaultError, number> = {
   rate_limited: 429,
   version_limit: 409,
   plan_limit: 409,
+  export_too_large: 413,
+  invalid_format: 400,
 };
 
 /** A vault operation's failure as a response: its code, and its HTTP status (a throttled caller also gets a Retry-After). */

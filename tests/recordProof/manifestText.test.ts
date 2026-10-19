@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { entriesLine, recordKindLabel, supersededNote, versionLine } from '../../src/lib/recordProof/manifestText';
+import { entriesLine, ledgerNote, ledgerRangeLine, recordKindLabel, supersededNote, versionLine } from '../../src/lib/recordProof/manifestText';
 
 /**
  * How /verify-record describes a manifest. The page used to read a Year Summary's counts
@@ -10,6 +10,7 @@ describe('recordKindLabel', () => {
   it('names the kinds this code knows, in words', () => {
     expect(recordKindLabel('year_summary')).toBe('Year Summary');
     expect(recordKindLabel('agent_report')).toBe('Agent Vault report');
+    expect(recordKindLabel('agent_ledger')).toBe('Agent Vault ledger');
   });
 
   it('shows another kind by its own tag, and a missing one as `record`', () => {
@@ -80,5 +81,53 @@ describe('supersededNote', () => {
   it('is nothing for any other kind of record', () => {
     expect(supersededNote({ record_type: 'year_summary' })).toBeNull();
     expect(supersededNote({})).toBeNull();
+  });
+});
+
+describe('an Agent Vault ledger export', () => {
+  it('is described by the checks and the transfers it holds', () => {
+    expect(entriesLine({ record_type: 'agent_ledger', leaf_count: 9, counts: { checked: 6, transaction: 3 } })).toBe('9 (checks 6 · transfers 3)');
+    expect(entriesLine({ record_type: 'agent_ledger', leaf_count: 0, counts: { checked: 0, transaction: 0 } })).toBe('0 (checks 0 · transfers 0)');
+  });
+
+  it('never prints undefined: missing or malformed counts read as zero', () => {
+    expect(entriesLine({ record_type: 'agent_ledger', leaf_count: 2 })).toBe('2 (checks 0 · transfers 0)');
+    expect(entriesLine({ record_type: 'agent_ledger', leaf_count: 2, counts: { checked: 'x', transaction: Number.NaN } })).toBe('2 (checks 0 · transfers 0)');
+    expect(entriesLine({ record_type: 'agent_ledger' })).not.toMatch(/undefined|NaN|null/);
+  });
+
+  it('says which days it covers, and that a file made before the last day ended covers part of it', () => {
+    expect(ledgerRangeLine({ record_type: 'agent_ledger', from_day: '2026-10-01', to_day: '2026-10-18' })).toBe('Covers 2026-10-01 to 2026-10-18 (UTC days, both counted)');
+    expect(ledgerRangeLine({ record_type: 'agent_ledger', from_day: '2026-10-01', to_day: '2026-10-18', partial: true })).toBe(
+      'Covers 2026-10-01 to 2026-10-18 (UTC days, both counted), partial: made before the last day ended',
+    );
+    for (const partial of ['true', 1, 'yes', null, undefined]) {
+      expect(ledgerRangeLine({ record_type: 'agent_ledger', from_day: '2026-10-01', to_day: '2026-10-18', partial })).toBe('Covers 2026-10-01 to 2026-10-18 (UTC days, both counted)');
+    }
+  });
+
+  it('says so when the days are not stated or are not days, and prints nothing it was not given', () => {
+    for (const odd of [{}, { from_day: '2026-10-01' }, { to_day: '2026-10-18' }, { from_day: 'x', to_day: 'y' }, { from_day: 5, to_day: 6 }, { from_day: '2026-1-1', to_day: '2026-10-18' }, { from_day: '<b>2026-10-01</b>', to_day: '2026-10-18' }]) {
+      const line = ledgerRangeLine({ record_type: 'agent_ledger', ...odd });
+      expect(line, JSON.stringify(odd)).toBe('Range not stated');
+    }
+  });
+
+  it('says what its signature does not reach: a snapshot, a later export may hold more, nothing about the agent\'s own behavior, nothing about an unregistered address', () => {
+    const note = ledgerNote({ record_type: 'agent_ledger' }) ?? '';
+    expect(note).toMatch(/snapshot of the ledger when it was made/);
+    expect(note).toMatch(/later export of the same days can hold more/);
+    expect(note).toMatch(/cannot see one/);
+    expect(note).toMatch(/does not show that the agent asked before every payment/);
+    expect(note).toMatch(/never registered/);
+  });
+
+  it('is nothing at all for any other kind of record, so a Year Summary and a report read as they always did', () => {
+    for (const record_type of ['year_summary', 'agent_report', 'receivable_set', undefined, 7]) {
+      expect(ledgerRangeLine({ record_type, from_day: '2026-10-01', to_day: '2026-10-18' }), String(record_type)).toBeNull();
+      expect(ledgerNote({ record_type }), String(record_type)).toBeNull();
+    }
+    expect(ledgerRangeLine({})).toBeNull();
+    expect(ledgerNote({})).toBeNull();
   });
 });

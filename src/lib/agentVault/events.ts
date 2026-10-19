@@ -525,6 +525,16 @@ export async function readEventsInRange(
   return read;
 }
 
+/** How many events this tin has in [fromIso, toIso): what an export asks before it reads anything, so a range that is too large is refused cheaply. */
+export async function countEventsInRange(tenantId: string, tinId: string, range: { fromIso: string; toIso: string }): Promise<number> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM agent_events WHERE tenant_id = ? AND tin_id = ? AND occurred_at >= ? AND occurred_at < ?`,
+    args: [tenantId, tinId, range.fromIso, range.toIso],
+  });
+  return Number((r.rows[0] as any)?.n ?? 0);
+}
+
 /** True when this tin has at least one event in [fromIso, toIso): the cheap question a daily job asks before it reads a whole day. */
 export async function hasEventsInRange(tenantId: string, tinId: string, range: { fromIso: string; toIso: string }): Promise<boolean> {
   await ensureAgentEventsTable();

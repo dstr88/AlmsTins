@@ -377,6 +377,35 @@ export const copy = {
       `${n} trusted ${n === 1 ? 'address is' : 'addresses are'} past the ${max} the daily read covers for an account, so ${n === 1 ? 'it was' : 'they were'} not read.`,
   },
 
+  export: {
+    title: 'Export',
+    lede: 'Download this agent\'s ledger for a range of UTC days, both ends counted. Anyone can check the signed file, with no account.',
+    presetsLabel: 'Range',
+    last7: 'Last 7 days',
+    last30: 'Last 30 days',
+    from: 'From (UTC)',
+    to: 'To (UTC)',
+    signed: 'Download signed file',
+    csv: 'Download CSV',
+    preparing: 'Preparing the file. A large range can take a few seconds.',
+    done: (name: string) => `Downloaded ${name}.`,
+    covers:
+      'The signature covers the ledger as Almstins stored it when you exported it: every check and every transfer recorded for this agent in the range, and the moment the file was made.',
+    doesNotCover: 'It does not show that the agent asked before every payment, and it does not cover transfers to addresses that were never registered.',
+    csvNote: 'The CSV is a convenience copy. It is not signed. Its first line carries the Merkle root and the bundle ID of the signed file, so the two can be matched.',
+    limits: 'One file covers at most 366 days and 50,000 events. If a range is too large, narrow it.',
+    verify: 'Check a signed file',
+    verifyNote: 'The check runs in your browser and needs no account.',
+    noSigning: 'No signing key is configured on this server, so neither file can be made.',
+    errors: {
+      export_too_large: 'That range has too many days or events for one file (at most 366 days and 50,000 events). Narrow the range and try again.',
+      signing_unavailable: 'This server cannot sign a file right now, so no file was made. Try again later.',
+      rate_limited: 'That is a lot of exports in a short time. Wait a minute, then try again.',
+      invalid_period: 'That range is not available. Pick real days, with the start no later than the end and the end no later than today.',
+      invalid_format: 'Something went wrong. Try again in a moment.',
+    } as Record<string, string>,
+  },
+
   errors: {
     generic: 'Something went wrong. Try again in a moment.',
     invalid_period: 'That day is not available. Pick a day from the day the agent was created up to today.',
@@ -402,5 +431,8 @@ export const copy = {
     key_not_active: 'That key is not active, so it cannot be linked.',
     key_in_use: 'That key is already linked to another agent.',
     network: 'Could not reach the server. Check your connection and try again.',
+    export_too_large: 'That range is too large for one file. Narrow the range and try again.',
+    signing_unavailable: 'This server cannot sign a file right now. Try again later.',
+    invalid_format: 'Something went wrong. Try again in a moment.',
   } as Record<string, string>,
 } as const;

@@ -106,3 +106,42 @@ describe('an Agent Vault report says which version it is, and whether the day wa
     expect(text(render(stripped, { verdict: 'verified', code: 'ok' }))).toContain('Version not stated.');
   });
 });
+
+describe('an Agent Vault ledger export says which days it covers and what its signature does not reach', () => {
+  const ledgerManifest = {
+    v: 1, record_id: '00000000-0000-4000-8000-0000000000cc', tenant_scope_tag: 'tst-abc', record_type: 'agent_ledger', period: '2026-10-01 to 2026-10-18', from_day: '2026-10-01', to_day: '2026-10-18',
+    period_start: '2026-10-01T00:00:00.000Z', period_end: '2026-10-19T00:00:00.000Z', partial: false, tin_id: 'tin-1', tin_label: 'Treasury agent', data_source: 'ledger',
+    merkle_root: 'f'.repeat(64), leaf_count: 9, leaf_schema_version: 1, tree_algo: 'sha256-merkle-v1', counts: { checked: 6, transaction: 3 }, prev_root: null,
+    generated_at: '2026-10-18T12:00:00.000Z', signing_key_id: 'almstins-key-1', schema_version: '1', verify_url: 'https://almstins.com/verify-record', disclaimer: 'This proof attests INTEGRITY.',
+  };
+
+  it('is described as an Agent Vault ledger, with its range and its checks and transfers', () => {
+    const html = render(bundleOf(ledgerManifest, true), { verdict: 'verified', code: 'ok' });
+    expect(text(html)).toContain('Genuine, unaltered Almstins record');
+    expect(text(html)).toContain('2026-10-01 to 2026-10-18 Agent Vault ledger');
+    expect(text(html)).toContain('Entries committed 9 (checks 6 · transfers 3)');
+    expect(text(html)).toContain('Covers 2026-10-01 to 2026-10-18 (UTC days, both counted).');
+    expect(text(html)).toContain('An export is a snapshot of the ledger when it was made.');
+    expect(text(html)).toContain('does not show that the agent asked before every payment');
+    // The words are inside the result box, with the verdict, not buried in the facts below it.
+    expect(html.indexOf('Covers 2026-10-01')).toBeLessThan(html.indexOf('<dl class="vr__facts">'));
+    expect(html.indexOf('Covers 2026-10-01')).toBeGreaterThan(html.indexOf('vr__result-title'));
+    expect(text(html)).not.toMatch(/undefined|NaN|Version/);
+  });
+
+  it('says a file made before the last day ended is partial, whatever the verdict, and a version of nothing is not stated', () => {
+    for (const outcome of [{ verdict: 'verified', code: 'ok' }, { verdict: 'unverifiable', code: 'unsigned' }, { verdict: 'tampered', code: 'root_mismatch' }] as const) {
+      const html = render(bundleOf({ ...ledgerManifest, partial: true }, true), outcome);
+      expect(text(html), outcome.code).toContain('partial: made before the last day ended.');
+    }
+  });
+
+  it('says nothing of a version, which only a report has', () => {
+    expect(text(render(bundleOf({ ...ledgerManifest, version: 3 }, true), { verdict: 'verified', code: 'ok' }))).not.toMatch(/Version/);
+  });
+
+  it('leaves a Year Summary exactly as it was, even when its manifest happens to carry the ledger\'s fields', () => {
+    const html = render(bundleOf({ ...yearManifest, from_day: '2026-10-01', to_day: '2026-10-18' }, true), { verdict: 'verified', code: 'ok' });
+    expect(html).toBe(GOLDEN.yearVerified);
+  });
+});

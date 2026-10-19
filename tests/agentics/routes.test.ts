@@ -62,6 +62,7 @@ let pdfRoute: typeof import('../../src/pages/api/agentics/reports/pdf');
 let bundleRoute: typeof import('../../src/pages/api/agentics/reports/bundle');
 let settingsRoute: typeof import('../../src/pages/api/agentics/report-settings');
 let planRoute: typeof import('../../src/pages/api/agentics/plan');
+let exportRoute: typeof import('../../src/pages/api/agentics/export');
 const answers = new Map<string, ReturnType<typeof walletResult>>();
 
 beforeEach(async () => {
@@ -88,6 +89,7 @@ beforeEach(async () => {
   bundleRoute = await import('../../src/pages/api/agentics/reports/bundle');
   settingsRoute = await import('../../src/pages/api/agentics/report-settings');
   planRoute = await import('../../src/pages/api/agentics/plan');
+  exportRoute = await import('../../src/pages/api/agentics/export');
 });
 
 afterEach(() => {
@@ -131,6 +133,8 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['report-settings GET', () => settingsRoute.GET, '/api/agentics/report-settings', 'GET'],
   ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', alerts: true }],
   ['plan GET', () => planRoute.GET, '/api/agentics/plan', 'GET'],
+  ['export GET', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17', 'GET'],
+  ['export GET csv', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17&format=csv', 'GET'],
 ];
 
 describe('owner only: anyone else gets a plain 404 from the endpoint itself', () => {
@@ -379,16 +383,17 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the twelve endpoint files', () => {
+  it('finds the thirteen endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'plan.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'export.ts', 'plan.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
     ]);
   });
 
   it('read only an id from the URL (and, for the ledger and the reports, a page size and a cursor): an address goes in the body, never in a query string', () => {
     for (const file of files) {
       const src = readFileSync(file, 'utf8');
-      const allowed = file.endsWith('events.ts') || file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : ['id', 'tinId'];
+      // The export names an agent and a range of days (never an address), and a format; the ledger and the reports page by size and cursor.
+      const allowed = file.endsWith('export.ts') ? ['tinId', 'from', 'to', 'format'] : file.endsWith('events.ts') || file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : ['id', 'tinId'];
       const keys = [...src.matchAll(/searchParams\.get\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
       for (const key of keys) expect(allowed, `${file}: ${key}`).toContain(key);
     }

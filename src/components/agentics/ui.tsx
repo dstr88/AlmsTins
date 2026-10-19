@@ -107,28 +107,16 @@ export function Readout({ id, d }: { id: string; d: Pick<Destination, 'trust'> }
 
 // ── Copy an address ──────────────────────────────────────────────────────────
 
-/** Puts text on the clipboard. The page's clipboard API first; where it is missing or refuses, a hidden field and the browser's copy command. */
+/**
+ * Puts text on the clipboard with the page's clipboard API, and says whether it worked. Where the API
+ * is missing (a page that is not served securely) or the browser refuses, it says no, and the button
+ * says "Copy failed": the address is on the page in full, to select by hand.
+ */
 export async function copyText(value: string): Promise<boolean> {
   try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
-  } catch {
-    /* fall through to the older way */
-  }
-  try {
-    if (typeof document === 'undefined') return false;
-    const field = document.createElement('textarea');
-    field.value = value;
-    field.setAttribute('readonly', '');
-    field.style.position = 'fixed';
-    field.style.opacity = '0';
-    document.body.appendChild(field);
-    field.select();
-    const done = document.execCommand('copy');
-    document.body.removeChild(field);
-    return done;
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
+    await navigator.clipboard.writeText(value);
+    return true;
   } catch {
     return false;
   }

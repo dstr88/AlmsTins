@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { verifyBundle, type VerifyOutcome, type PublishedKey } from '@/lib/recordProof/verify';
 import type { ProofBundle } from '@/lib/recordProof/buildProof';
-import { entriesLine, recordKindLabel, supersededNote, versionLine } from '@/lib/recordProof/manifestText';
+import { entriesLine, ledgerNote, ledgerRangeLine, recordKindLabel, supersededNote, versionLine } from '@/lib/recordProof/manifestText';
 import './VerifyRecord.css';
 
 const WELL_KNOWN = '/.well-known/almstins-signing-key.json';
@@ -78,7 +78,7 @@ export default function VerifyRecord() {
       <header className="vr__head">
         <h1 className="vr__title">Verify an Almstins record</h1>
         <p className="vr__sub">
-          Upload a proof bundle: the <code>almstins-&lt;year&gt;-proof.json</code> of a Year-Summary, or the proof of an Agent Vault report. It is checked
+          Upload a proof bundle: the <code>almstins-&lt;year&gt;-proof.json</code> of a Year-Summary, the proof of an Agent Vault report, or a signed Agent Vault ledger export. It is checked
           <strong> in your browser</strong> — no account, and you do not have to trust this site.
         </p>
       </header>
@@ -115,6 +115,9 @@ export function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; ou
   // An Agent Vault report says which version of its day it is and whether the day was over; any other record says nothing more.
   const version = versionLine(m);
   const superseded = supersededNote(m);
+  // An Agent Vault ledger export says which days it covers and what its signature does not reach; any other record says nothing more.
+  const range = ledgerRangeLine(m);
+  const snapshot = ledgerNote(m);
   const [showCommit, setShowCommit] = useState(false);
   return (
     <div className="vr__out">
@@ -126,6 +129,11 @@ export function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; ou
           {version && (
             <div className="vr__result-detail">
               <strong>{version}.</strong> {superseded}
+            </div>
+          )}
+          {range && (
+            <div className="vr__result-detail">
+              <strong>{range}.</strong> {snapshot}
             </div>
           )}
         </div>

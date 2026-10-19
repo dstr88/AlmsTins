@@ -13,7 +13,7 @@ export type VaultError =
   | 'nothing_to_add' | 'too_many' | 'text_too_long' | 'invalid_cursor' | 'refresh_in_progress'
   | 'invalid_period' | 'report_not_found' | 'not_signed' | 'report_altered' | 'signing_unavailable' | 'invalid_settings'
   | 'rate_limited' | 'version_limit'
-  | 'plan_limit';
+  | 'plan_limit' | 'export_too_large' | 'invalid_format';
 
 /** Which of an account's caps a refused create ran into: its agents, its registered addresses, or one agent's own wallets. */
 export type PlanCap = 'bots' | 'addresses' | 'wallets';
