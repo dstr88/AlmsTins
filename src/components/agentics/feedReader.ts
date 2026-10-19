@@ -29,7 +29,11 @@ export const READ_MAX_WAIT_MS = 300_000;
 export const READ_FAILURE_WAIT_MS = 30_000;
 /** What it waits after being told it asks too often. */
 export const READ_RATE_LIMITED_WAIT_MS = 60_000;
-/** A read can take 20 seconds of new calls and a call up to 30 more: a request not answered in this long counts as a failure. */
+/**
+ * A request not answered in this long counts as a failure. A read of a healthy explorer takes about 20 seconds; in an outage one
+ * explorer call can take a minute and a half (cut off at 30 seconds, tried three times), so the Vault's read carries on in the
+ * background after the page has given up on its request.
+ */
 export const READ_TIMEOUT_MS = 45_000;
 
 export type ReaderState = 'off' | 'waiting' | 'reading' | 'nothing' | 'limit' | 'failing' | 'closed';

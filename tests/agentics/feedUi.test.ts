@@ -158,6 +158,13 @@ describe('the list under the stage', () => {
     expect(html).toContain('most recently recorded first');
   });
 
+  it('says the day when the row was recorded on another day than it happened: a transfer the daily job recorded the morning after its block', () => {
+    const next = row({ kind: 'transaction', chain: 'ethereum', tx: tx(), at: '2026-10-18T19:45:00.000Z', writtenAt: '2026-10-19 03:00:12' });
+    const t = textOf(render(React.createElement(LedgerItem, { row: next, recorded: next.writtenAt })));
+    expect(t).toContain('2026-10-18 19:45:00 UTC');
+    expect(t).toContain('Recorded 2026-10-19 03:00:12 UTC');
+  });
+
   it('is the only place that line is: the ledger page\'s own rows carry no "Recorded" line', () => {
     const r = row({ writtenAt: '2026-10-19 11:00:01' });
     expect(textOf(render(React.createElement(LedgerItem, { row: r })))).not.toContain('Recorded');
@@ -167,6 +174,12 @@ describe('the list under the stage', () => {
 
 describe('a card on the stage', () => {
   const card = (r: FeedRow) => render(React.createElement(StageCard, { card: { kind: 'row', row: r } }));
+
+  it('for a transfer recorded on another day than its block: both lines carry their dates', () => {
+    const t = textOf(card(row({ kind: 'transaction', chain: 'ethereum', tx: tx(), at: '2026-10-18T19:45:00.000Z', writtenAt: '2026-10-19 03:00:12' })));
+    expect(t).toContain('2026-10-19 03:00:12 UTC');
+    expect(t).toContain('On the chain at 2026-10-18 19:45:00 UTC');
+  });
 
   it('for a transfer: the time it was recorded at the top, and the time of its block on a line of its own; a check has no such line', () => {
     const t = textOf(card(row({ kind: 'transaction', chain: 'ethereum', tx: tx(), at: '2026-10-19T08:15:30.000Z', writtenAt: '2026-10-19 11:00:41' })));
@@ -273,6 +286,17 @@ describe('the words', () => {
 
   it('promise nothing about speed that the Vault does not keep: no "instant", "real time" or "live" for a transfer', () => {
     for (const s of all) expect(s, s).not.toMatch(/\b(instant(ly)?|real[- ]time|immediately)\b/i);
+  });
+});
+
+describe('the pause', () => {
+  it('lives in the player alone: choosing an agent clears the stage but never resets the player to a state that is not paused while the list still holds rows back', () => {
+    const src = read('src/components/agentics/FeedPage.tsx');
+    // The player is reset only by clearStage (which keeps a pause); a bare initialPlayer is its starting value and nothing else.
+    expect(src).toMatch(/setPlayer\(clearStage\)/);
+    expect((src.match(/initialPlayer/g) ?? []).length).toBe(2); // the import and the useState starting value
+    // The list's hold follows the player, in an effect, so any way the pause ends releases the rows that waited.
+    expect(src).toMatch(/pausedRef\.current = player\.paused;\s*if \(!player\.paused\) setList\(releaseRows\)/);
   });
 });
 

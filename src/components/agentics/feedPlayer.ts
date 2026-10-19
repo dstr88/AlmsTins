@@ -40,6 +40,11 @@ export interface PlayerState {
 
 export const initialPlayer: PlayerState = { current: null, queue: [], paused: false, left: null, skipped: 0 };
 
+/** The stage starts over (another agent was chosen): no card on it and nothing waiting, and a pause stays as the person left it. */
+export function clearStage(state: PlayerState): PlayerState {
+  return { ...initialPlayer, paused: state.paused };
+}
+
 /** A check that came back flagged, or one about an address the owner's registry has flagged. */
 export const isFlagged = (row: FeedRow): boolean => row.answer === 'flagged' || row.registry === 'flagged';
 

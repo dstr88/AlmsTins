@@ -6,8 +6,12 @@
  *          chain. Answers `{ ok, status, tinId, pass, waitMs }`:
  *            read     an agent was read (`pass` says how each wallet went, as /api/agentics/refresh does);
  *            recent   every agent was read less than 45 seconds ago, by this page or another;
- *            busy     another read is running in this process;
- *            nothing  no agent has a wallet and a trusted address on the same chain.
+ *            busy     another read is running in this process (or one ran longer than a minute);
+ *            nothing  no agent has a wallet and a trusted address on the same chain;
+ *            limit    the account has had its 240 live reads for today (UTC); the daily job and the
+ *                     "Read the chain now" button are not counted and still work.
+ *          If an agent's read fails the next agent is tried; if nothing was read and one failed, the answer is a
+ *          plain 500.
  *          `waitMs` is how long the page should wait before asking again. A page that asks sooner is only told
  *          "recent" or "busy"; nothing is read twice in a hurry.
  *

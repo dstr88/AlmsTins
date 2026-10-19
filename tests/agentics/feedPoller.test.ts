@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BACKOFF_MAX_MS, CATCH_UP_MS, MAX_PAGES, MAX_PAGES as PAGES, POLL_MS, RATE_LIMITED_WAIT_MS, REQUEST_TIMEOUT_MS, SEEN_MAX, createFeedPoller, type ConnState } from '../../src/components/agentics/feedPoller';
+import { BACKOFF_MAX_MS, CATCH_UP_MS, MAX_PAGES, MAX_PAGES as PAGES, POLL_MS, RATE_LIMITED_WAIT_MS, REQUEST_TIMEOUT_MS, SEEN_HARD_MAX, SEEN_SWEEP_AT, SETTLE_MS, createFeedPoller, type ConnState } from '../../src/components/agentics/feedPoller';
 import type { FeedRow } from '../../src/components/agentics/feedRows';
 import { addr } from '../helpers/agentVault';
 import { failed, fakeTimers, okBody, scriptedSend, settle } from '../helpers/fakeTimers';
@@ -17,14 +17,14 @@ const ev = (id: string, writtenAt: string) => ({
 const NOW = '2026-10-19T12:00:00.000Z';
 const answer = (events: unknown[], since: string, extra: Record<string, unknown> = {}) => okBody({ events, since, cursor: null, more: false, now: NOW, ...extra });
 
-function setup(script: Parameters<typeof scriptedSend>[0], opts: { since?: string; seen?: string[]; visible?: () => boolean } = {}) {
+function setup(script: Parameters<typeof scriptedSend>[0], opts: { since?: string; seen?: Array<string | { id: string; writtenAt: string }>; visible?: () => boolean } = {}) {
   const timers = fakeTimers();
   const { send, sent } = scriptedSend(script);
   const rows: FeedRow[][] = [];
   const states: Array<[ConnState, string | null]> = [];
   let visible = true;
   const poller = createFeedPoller(
-    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: opts.visible ?? (() => visible), onRows: (r) => rows.push(r), onState: (s, at) => states.push([s, at]) },
+    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: opts.visible ?? (() => visible), onRows: (r) => rows.push(r), onState: (s, at) => states.push([s, at]), now: timers.now },
     { since: opts.since ?? '2026-10-19 11:00:00', seen: opts.seen },
   );
   return { poller, timers, sent, rows, states, show: (v: boolean) => { visible = v; } };
@@ -44,20 +44,55 @@ describe('asking', () => {
     expect(t.timers.delays()).toEqual([POLL_MS]);
   });
 
-  it('asks the next time from the newest second the last answer reached', async () => {
+  const since = (n: number, t: { sent: Array<{ url: string }> }) => decodeURIComponent(t.sent[n].url.split('since=')[1] ?? '');
+
+  it('moves `since` only past what has settled: the newest second it saw, six seconds after it first saw it (the server starts five seconds earlier, so the window then begins one second after that second)', async () => {
+    // Polls at 3, 6, 9, 12 and 15 seconds on its own clock. 'a' is stamped 11:00:06 and first seen at 3 seconds.
+    const t = setup([answer([ev('a', '2026-10-19 11:00:06')], '2026-10-19 11:00:06'), answer([], '2026-10-19 11:00:06')]);
+    t.poller.start();
+    for (let i = 0; i < 5; i += 1) await t.timers.fire();
+    expect(t.sent.map((_, i) => since(i, t))).toEqual([
+      '2026-10-19 11:00:00', // the first ask: where it began (nothing had settled yet)
+      '2026-10-19 11:00:00', // the pass at 3 seconds settled nothing, so this one still starts where it began
+      '2026-10-19 11:00:06', // the pass at 6 seconds found the page's opening value (11:00:00) settled: past it, plus six...
+      '2026-10-19 11:00:12', // ...the pass at 9 found 'a' (stamped 11:00:06, first seen at 3 seconds) settled: past it, plus six. 'a' is out of the window from here
+      '2026-10-19 11:00:12', // and it stays there until something newer has settled
+    ]);
+    expect(SETTLE_MS).toBe(6000);
+  });
+
+  it('leaves `since` where it was while nothing has settled (the first seconds after the page opens)', async () => {
     const t = setup([answer([ev('a', '2026-10-19 11:00:06')], '2026-10-19 11:00:06'), answer([], '2026-10-19 11:00:06')]);
     t.poller.start();
     await t.timers.fire();
     await t.timers.fire();
-    expect(t.sent[1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:06')}`);
+    expect(since(0, t)).toBe('2026-10-19 11:00:00');
+    expect(since(1, t)).toBe('2026-10-19 11:00:00');
   });
 
-  it('never goes back, even if an answer says an earlier time', async () => {
-    const t = setup([answer([], '2026-10-19 10:00:00'), answer([], '2026-10-19 10:00:00')], { since: '2026-10-19 11:00:00' });
+  it('never goes back: older rows in an answer do not move it, and a later pass never asks from before an earlier one', async () => {
+    const t = setup([answer([ev('old', '2026-10-19 10:00:00')], '2026-10-19 10:00:00')], { since: '2026-10-19 11:00:00' });
     t.poller.start();
-    await t.timers.fire();
-    await t.timers.fire();
-    expect(t.sent[1].url).toContain(encodeURIComponent('2026-10-19 11:00:00'));
+    for (let i = 0; i < 6; i += 1) await t.timers.fire();
+    const asked = t.sent.map((_, i) => since(i, t));
+    expect(asked[0]).toBe('2026-10-19 11:00:00');
+    for (let i = 1; i < asked.length; i += 1) expect(asked[i] >= asked[i - 1], `${asked[i - 1]} then ${asked[i]}`).toBe(true);
+  });
+
+  it('stops reading a burst again and again once it has settled: a quiet ledger after a burst is asked from past the burst', async () => {
+    // A burst stamped 11:00:09 is seen at 3 seconds; after it nothing arrives. Every ask lists the burst while it is inside the window.
+    const burst = Array.from({ length: 150 }, (_, i) => ev(`b${i}`, '2026-10-19 11:00:09'));
+    const t = setup([answer(burst, '2026-10-19 11:00:09'), () => (since(t.sent.length - 1, t) <= '2026-10-19 11:00:08' ? answer(burst, '2026-10-19 11:00:09') : answer([], '2026-10-19 11:00:09'))]);
+    t.poller.start();
+    for (let i = 0; i < 8; i += 1) await t.timers.fire();
+    const asked = t.sent.map((_, i) => since(i, t));
+    // It asks from a time past the burst (its server window starts after 11:00:09) within a few polls, and stays there.
+    const pastBurst = asked.findIndex((s) => s >= '2026-10-19 11:00:14');
+    expect(pastBurst).toBeGreaterThan(0);
+    expect(pastBurst).toBeLessThanOrEqual(5);
+    for (const s of asked.slice(pastBurst)) expect(s >= '2026-10-19 11:00:14').toBe(true);
+    // And nothing was handed over twice.
+    expect(t.rows.flat()).toHaveLength(150);
   });
 
   it('drops a row it has already given, the five seconds the server repeats and the rows the page opened with', async () => {
@@ -100,11 +135,12 @@ describe('a backlog', () => {
       `/api/agentics/feed?after=${encodeURIComponent('2026-10-19 11:00:05|a')}`,
       `/api/agentics/feed?after=${encodeURIComponent('2026-10-19 11:00:05|b')}`,
     ]);
-    // One hand-over, in order, and the next ask is from the newest second reached.
+    // One hand-over, in order. What the backlog read has not settled yet (six seconds), so the next ask is from where the pass began and reads it once more (nothing is handed over twice).
     expect(t.rows).toHaveLength(1);
     expect(t.rows[0].map((r) => r.id)).toEqual(['a', 'b', 'c']);
     await t.timers.fire();
-    expect(t.sent[3].url).toContain(encodeURIComponent('2026-10-19 11:00:07'));
+    expect(t.sent[3].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:00')}`);
+    expect(t.rows).toHaveLength(1);
   });
 
   it('stops following after ten answers, and carries on in the next turn FROM THE CURSOR it left off at, not from `since` again', async () => {
@@ -128,10 +164,10 @@ describe('a backlog', () => {
     expect(t.sent[MAX_PAGES].url).toBe(`/api/agentics/feed?after=${encodeURIComponent(`2026-10-19 11:00:05|e${MAX_PAGES}`)}`);
     expect(t.rows).toHaveLength(2);
     expect(t.rows[1].map((r) => r.id)).toEqual([`e${MAX_PAGES + 1}`]);
-    // The backlog is done: the usual pace, from the newest second reached.
+    // The backlog is done: the usual pace, and the next ask is from where the pass began (what it read has not settled).
     expect(t.timers.delays()).toEqual([POLL_MS]);
     await t.timers.fire();
-    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:07')}`);
+    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:00')}`);
   });
 
   it('keeps the place it had in a long backlog through a failure: the retry continues from the same cursor', async () => {
@@ -369,23 +405,57 @@ describe('stopping and asking now', () => {
 });
 
 describe('what it remembers', () => {
-  it('forgets the oldest ids once it holds more than the limit, so a long session does not grow without end', async () => {
-    const batches = 6;
-    const per = 1000;
-    let b = 0;
-    const script = Array.from({ length: batches + 1 }, (_, i) => () => {
-      if (i === batches) return answer([ev('r0', '2026-10-19 11:00:00'), ev(`r${batches * per - 1}`, '2026-10-19 11:00:00')], '2026-10-19 11:00:00');
-      const events = Array.from({ length: per }, (_, j) => ev(`r${i * per + j}`, '2026-10-19 11:00:00'));
-      b += 1;
-      return answer(events, '2026-10-19 11:00:00');
-    });
-    const t = setup(script);
+  const asked = (t: { sent: Array<{ url: string }> }) => t.sent.map((r) => decodeURIComponent(r.url.split('since=')[1] ?? r.url));
+
+  it('keeps every id inside the server\'s window, however many: a burst bigger than the old count limit is not handed over twice by the overlap', async () => {
+    const burst = Array.from({ length: 6000 }, (_, i) => ev(`b${i}`, '2026-10-19 11:00:09'));
+    // The same burst comes back on the next ask (the server repeats its window).
+    const t = setup([answer(burst, '2026-10-19 11:00:09'), answer(burst, '2026-10-19 11:00:09')]);
+    t.poller.start();
+    await t.timers.fire();
+    await t.timers.fire();
+    expect(t.rows).toHaveLength(1);
+    expect(t.rows[0]).toHaveLength(6000);
+    expect(asked(t)).toHaveLength(2);
+  });
+
+  it('forgets an id once its second is out of anything the server can send again, so a long session does not grow without end', async () => {
+    const old = Array.from({ length: SEEN_SWEEP_AT + 100 }, (_, i) => ev(`old${i}`, '2026-10-19 11:00:01'));
+    let n = 0;
+    const t = setup([() => {
+      n += 1;
+      // The first ask: a burst of old rows. Then a new row each time. Much later the server (wrongly) lists an old row again.
+      if (n === 1) return answer(old, '2026-10-19 11:00:01');
+      if (n === 12) return answer([old[0]], '2026-10-19 11:00:01');
+      return answer([ev(`new${n}`, `2026-10-19 11:00:${String(10 + n).padStart(2, '0')}`)], `2026-10-19 11:00:${String(10 + n).padStart(2, '0')}`);
+    }]);
+    t.poller.start();
+    for (let i = 0; i < 12; i += 1) await t.timers.fire();
+    // The old rows' second is far behind `since` by now: they were forgotten, so the stray repeat is handed over again.
+    expect(t.rows.at(-1)!.map((r) => r.id)).toEqual(['old0']);
+  });
+
+  it('never holds more than SEEN_HARD_MAX ids, whatever their age: the oldest go first', async () => {
+    const per = 20_000;
+    const batches = 4;
+    let n = 0;
+    const t = setup([() => {
+      n += 1;
+      if (n <= batches) return answer(Array.from({ length: per }, (_, j) => ev(`r${(n - 1) * per + j}`, '2026-10-19 11:00:09')), '2026-10-19 11:00:09');
+      // The server lists the very first id and the very last again.
+      return answer([ev('r0', '2026-10-19 11:00:09'), ev(`r${batches * per - 1}`, '2026-10-19 11:00:09')], '2026-10-19 11:00:09');
+    }]);
     t.poller.start();
     for (let i = 0; i < batches + 1; i += 1) await t.timers.fire();
-    expect(b).toBe(batches);
-    expect(batches * per).toBeGreaterThan(SEEN_MAX);
-    const last = t.rows.at(-1)!;
-    // The very first id was forgotten and is handed over again; the newest is still remembered and is not.
-    expect(last.map((r) => r.id)).toEqual(['r0']);
+    expect(batches * per).toBeGreaterThan(SEEN_HARD_MAX);
+    // The first was forgotten (it was the oldest of more than the limit) and is handed over again; the newest is still remembered.
+    expect(t.rows.at(-1)!.map((r) => r.id)).toEqual(['r0']);
+  });
+
+  it('knows the rows the page opened with by their second, so they too are forgotten when they are out of reach', async () => {
+    const t = setup([answer([ev('opening', '2026-10-19 11:00:05')], '2026-10-19 11:00:05')], { seen: [{ id: 'opening', writtenAt: '2026-10-19 11:00:05' }] });
+    t.poller.start();
+    await t.timers.fire();
+    expect(t.rows).toEqual([]);
   });
 });

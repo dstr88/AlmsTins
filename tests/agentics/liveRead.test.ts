@@ -313,6 +313,34 @@ describe('an agent that fails, or never finishes', () => {
     }
   });
 
+  it('a read that ends after the hold, whether it works or fails, leaves nothing behind: the place stays free and nothing is left unhandled', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await newTin(A, 'Slow', '2026-10-01 00:00:00');
+      for (const ending of ['works', 'fails'] as const) {
+        let finish!: () => void;
+        const slow = vi.fn(
+          () =>
+            new Promise((resolve, reject) => {
+              finish = () => (ending === 'works' ? resolve({ ok: true, pass: pass('x', [{ status: 'complete' }]) }) : reject(new Error('the explorer went away after the hold')));
+            }) as never,
+        );
+        const now = { t: ending === 'works' ? T0 : T0 + 10 * live.LIVE_READ_MIN_GAP_MS };
+        const asked = live.liveRead(A, {}, deps(now, slow));
+        await vi.advanceTimersByTimeAsync(live.LIVE_READ_HOLD_MS);
+        expect(await asked).toMatchObject({ status: 'busy' });
+        finish();
+        await vi.advanceTimersByTimeAsync(50);
+        // The place is free for another account at once.
+        const other = await newTin(B, `Other ${ending}`, '2026-10-01 00:00:00');
+        const { read } = reader();
+        expect(await live.liveRead(B, {}, deps(now, read))).toMatchObject({ status: 'read', tinId: other.id });
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('leaves no timer behind when a read ends in time', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
@@ -356,6 +384,50 @@ describe('the day\'s budget', () => {
       now.t += live.LIVE_READ_MIN_GAP_MS;
     }
     // Still has its whole budget.
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
+  });
+
+  it('counts a read that failed: an outage cannot turn the limit off (it is the explorer the limit protects)', async () => {
+    await newTin(A, 'Treasury agent', '2026-10-01 00:00:00');
+    const boom = vi.fn(async () => { throw new Error('the explorer went away'); });
+    const now = { t: Date.UTC(2026, 9, 19, 1, 0, 0) };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+      await expect(live.liveRead(A, {}, deps(now, boom as never)), `try ${i + 1}`).rejects.toThrow('went away');
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    expect(boom).toHaveBeenCalledTimes(live.LIVE_READS_PER_DAY);
+    // The next ask is told the day's reads are used, and nothing is tried.
+    expect(await live.liveRead(A, {}, deps(now, boom as never))).toMatchObject({ ok: true, status: 'limit' });
+    expect(boom).toHaveBeenCalledTimes(live.LIVE_READS_PER_DAY);
+  });
+
+  it('counts a read that ran past the hold (it was started, and went on in the background)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await newTin(A, 'Stuck', '2026-10-01 00:00:00');
+      const never = vi.fn(() => new Promise(() => {}) as never);
+      const now = { t: Date.UTC(2026, 9, 19, 1, 0, 0) };
+      for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+        const asked = live.liveRead(A, {}, deps(now, never));
+        await vi.advanceTimersByTimeAsync(live.LIVE_READ_HOLD_MS);
+        expect(await asked, `hold ${i + 1}`).toMatchObject({ status: 'busy' });
+        now.t += live.LIVE_READ_MIN_GAP_MS;
+      }
+      expect(await live.liveRead(A, {}, deps(now, never))).toMatchObject({ status: 'limit' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not count an agent whose read was already running (the button, the daily job): nothing was tried', async () => {
+    await newTin(A, 'Being read', '2026-10-01 00:00:00');
+    const { read } = reader({});
+    const running = vi.fn(async () => ({ ok: false, error: 'refresh_in_progress' }) as never);
+    const now = { t: Date.UTC(2026, 9, 19, 1, 0, 0) };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY + 5; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, running as never))).toMatchObject({ status: 'busy' });
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
     expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
   });
 

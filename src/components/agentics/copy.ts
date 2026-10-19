@@ -389,7 +389,7 @@ export const copy = {
     totalsNote: 'Raw value in (bought) and out (sold) between this agent\'s wallets and its registered addresses, priced at the time of each transfer. The two sides are not compared.',
     transfers: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'}`,
     readTitle: 'Read the chain',
-    readLede: 'The Vault reads the chain for new transfers with your trusted addresses once a day, and about once a minute while your Live page is open (one agent at a time, in turn). Read it now to see them sooner.',
+    readLede: 'The Vault reads the chain for new transfers with your trusted addresses once a day, and about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit). Read it now to see them sooner.',
     readButton: 'Read the chain now',
     reading: 'Reading the chain. This can take up to 20 seconds.',
     readInProgress: 'A read of this agent is already running. Try again in a moment.',
@@ -410,7 +410,7 @@ export const copy = {
     recorded: (time: string) => `Recorded ${time} UTC`,
     onTheChain: (time: string) => `On the chain at ${time} UTC`,
     readSwitch: "Read my agents' wallets while this page is open",
-    readHint: 'About once a minute, one agent at a time, in turn. Only the wallets you added are read, and only for transfers with your trusted addresses. Nothing is read when this page is closed or in the background.',
+    readHint: 'About once a minute, one agent at a time, in turn, up to a daily limit. Only the wallets you added are read, and only for transfers with your trusted addresses. Nothing is read when this page is closed or in the background.',
     state: {
       live: 'Live',
       reconnecting: 'Reconnecting',

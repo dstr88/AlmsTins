@@ -355,7 +355,8 @@ describe('/agentics/docs: your vault', () => {
   it('says plainly what the vault does not see, and what it reads and how often', () => {
     expect(vault()).toContain('A transfer to an address you did not register is not seen, and a check the agent never asks leaves no record.');
     expect(vault()).not.toContain('the protection is the check before the agent sends');
-    expect(vault()).toContain('Once a day, about once a minute while your Live page is open (one agent at a time, in turn), or');
+    expect(vault()).toContain('Once a day, about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit), or');
+    expect(vault()).toContain("when the Live page's reads are used up it says so, and the daily read and the Read the chain button still work.");
     expect(vault()).toContain('Ethereum, Polygon and Avalanche');
     expect(vault()).toContain('A payment routed through a swap or a router contract is a transfer to that contract and is not seen.');
     expect(vault()).not.toMatch(/real[- ]time|live feed|as it happens/i);

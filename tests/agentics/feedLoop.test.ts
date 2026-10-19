@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr } from '../helpers/agentVault';
 import { failed, fakeTimers, okBody } from '../helpers/fakeTimers';
-import { POLL_MS, createFeedPoller } from '../../src/components/agentics/feedPoller';
+import { CATCH_UP_MS, POLL_MS, createFeedPoller } from '../../src/components/agentics/feedPoller';
 import type { FeedRow } from '../../src/components/agentics/feedRows';
 import type { ApiResult, Send } from '../../src/components/agentics/client';
 
@@ -34,6 +34,8 @@ const NOW = new Date('2026-10-19T12:00:00.000Z');
 let clockMs = NOW.getTime();
 /** How many events each of the page's requests got back. */
 const answered: number[] = [];
+/** How many of the page's next requests fail (500) before the server answers again. */
+let failNext = 0;
 
 let fake: ReceivablesDbFake;
 let store: typeof import('../../src/lib/agentVault/store');
@@ -46,6 +48,7 @@ beforeEach(async () => {
   vi.resetModules();
   clockMs = NOW.getTime();
   answered.length = 0;
+  failNext = 0;
   fake = createReceivablesDbFake();
   holder.db = fake;
   holder.intercept = null;
@@ -70,6 +73,10 @@ function put(writtenAt: string, id?: string) {
 
 /** The page's request, answered by the feed's real read side. */
 const send: Send = async (_method, url) => {
+  if (failNext > 0) {
+    failNext -= 1;
+    return failed(500);
+  }
   const q = new URL(`https://almstins.com${url}`).searchParams;
   const r = await feed.readFeed(A, { since: q.get('since'), after: q.get('after'), limit: q.get('limit'), tinId: q.get('tinId') }, () => new Date(clockMs));
   if (r.ok) {
@@ -85,8 +92,8 @@ async function open() {
   const timers = fakeTimers();
   const rows: FeedRow[] = [];
   const poller = createFeedPoller(
-    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: () => true, onRows: (r) => rows.push(...r), onState: () => {} },
-    { since: first.since, seen: first.events.map((e) => e.id) },
+    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: () => true, onRows: (r) => rows.push(...r), onState: () => {}, now: timers.now },
+    { since: first.since, seen: first.events },
   );
   poller.start();
   return { timers, rows, poller };
@@ -109,8 +116,9 @@ describe('a burst larger than one turn of the poller carries', () => {
     const page = await open();
     const burst = Array.from({ length: 900 }, () => put('2026-10-19 11:30:00'));
     await page.timers.fire();
-    expect(page.rows.map((r) => r.id)).toEqual(burst.length ? page.rows.map((r) => r.id) : []);
-    expect(page.rows).toHaveLength(900);
+    // Every row of the burst, once each.
+    expect(new Set(page.rows.flat().map((r) => r.id))).toEqual(new Set(burst));
+    expect(page.rows.flat()).toHaveLength(900);
     expect(page.timers.delays()).toEqual([POLL_MS]);
   });
 });
@@ -129,19 +137,52 @@ describe('events that become visible a moment late', () => {
     expect(page.rows).toHaveLength(2);
   });
 
-  it('are lost, honestly, only past the overlap: one stamped more than five seconds before the newest is not looked for again', async () => {
+  it('are found even when stamped well before the newest, if they show before that newest second has settled (six seconds after the page first saw it)', async () => {
     put('2026-10-19 11:00:00');
     const page = await open();
     put('2026-10-19 11:30:30');
+    await page.timers.fire(); // three seconds on: the page sees 11:30:30
+    const late = put('2026-10-19 11:30:20'); // ten seconds before it, and showing now
     await page.timers.fire();
+    expect(page.rows.flat().map((r) => r.id)).toContain(late);
+  });
+
+  it('are lost, honestly, only when they show long after their stamp: one that shows after the newest second has settled is not looked for again', async () => {
+    put('2026-10-19 11:00:00');
+    const page = await open();
+    put('2026-10-19 11:30:30');
+    // Three seconds, six, nine and twelve on: 11:30:30 is first seen at three and has settled by nine, so from the poll after that the window starts past it.
+    for (let i = 0; i < 4; i += 1) await page.timers.fire();
     const tooLate = put('2026-10-19 11:30:20');
     await page.timers.fire();
-    expect(page.rows.map((r) => r.id)).not.toContain(tooLate);
+    expect(page.rows.flat().map((r) => r.id)).not.toContain(tooLate);
+  });
+
+  it('are found behind the cursor of a backlog that was interrupted, too: a row that shows while the read waits to carry on, stamped before the cursor, is read by the pass after it', async () => {
+    put('2026-10-19 11:00:00');
+    const page = await open();
+    // A burst of 1,500 in one second needs more than one turn (ten pages of a hundred).
+    const burst = Array.from({ length: 1500 }, () => put('2026-10-19 11:30:10'));
+    await page.timers.fire(); // the first turn: ten pages, a cursor left
+    expect(page.timers.delays()).toEqual([CATCH_UP_MS]);
+    failNext = 1;
+    await page.timers.fire(); // the carry-on fails: the read waits six seconds, with the cursor kept
+    expect(page.timers.delays()).toEqual([6000]);
+    // Meanwhile a write that was slow to commit shows, stamped before the cursor's second, and newer rows arrive:
+    // when the read carries on it reaches the newer rows, and the cursor never goes back for the late one.
+    const late = put('2026-10-19 11:30:08');
+    const newer = put('2026-10-19 11:30:20');
+    for (let i = 0; i < 8; i += 1) await page.timers.fire();
+    const got = page.rows.flat().map((r) => r.id);
+    expect(got).toContain(newer);
+    expect(got).toContain(late);
+    for (const id of burst) expect(got).toContain(id);
+    expect(new Set(got).size).toBe(got.length);
   });
 });
 
 describe('what a page left open on a quiet ledger costs the database', () => {
-  it('is one statement a poll, and three on the poll that finds the remembered names out of date: one poll in two or better, never more than three', async () => {
+  it('is one statement a poll, and none of them reads a row once the newest second has settled: the window moves past it', async () => {
     put('2026-10-19 11:00:00');
     const page = await open();
     const perPoll: number[] = [];
@@ -155,11 +196,12 @@ describe('what a page left open on a quiet ledger costs the database', () => {
       perPoll.push(statements);
     }
     holder.intercept = null;
-    // The newest event came round again on every poll (the overlap), so none of these polls found nothing; the page dropped it as one it had.
-    expect(answered).toEqual(Array(20).fill(1));
+    // The opening row (11:00:00) is in the server's window for the first two polls (six seconds after the page opened it has settled);
+    // the page dropped it as one it had. From the third poll on the window is past it and the answers are empty.
+    expect(answered).toEqual([1, 1, ...Array(18).fill(0)]);
     expect(page.rows).toHaveLength(0);
+    // The poll that names the row finds the remembered names out of date (three statements); every poll after that is one cheap question.
     expect(Math.max(...perPoll)).toBeLessThanOrEqual(3);
-    expect(perPoll.filter((n) => n === 1).length).toBeGreaterThanOrEqual(10);
-    expect(perPoll.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(40);
+    expect(perPoll.slice(2)).toEqual(Array(18).fill(1));
   });
 });

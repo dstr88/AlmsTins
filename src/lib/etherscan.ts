@@ -100,7 +100,10 @@ function cacheStore(url: string, payloadText: string, ttlMs: number) {
   }
 }
 
-/** A request that the explorer never answers must not hold a caller (and the wallet read behind it) for as long as the network lets it. */
+/**
+ * A request that the explorer never answers must not hold a caller (and the wallet read behind it) for as long as the network lets it.
+ * A caller that retries (fetchJsonWithRetries, three attempts) can still spend three of these on one call.
+ */
 const FETCH_TIMEOUT_MS = 30_000;
 
 // In-flight de-dupe

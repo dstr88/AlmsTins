@@ -22,10 +22,10 @@ import { reasonText, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import type { FeedPageData } from '@/lib/agentVault/vaultPages';
 import { failureText, send } from './client';
 import { copy } from './copy';
-import { enqueue, initialPlayer, isFlagged, nextDelay, pause, resume, tick, waiting, type Card, type PlayerState } from './feedPlayer';
+import { clearStage, enqueue, initialPlayer, isFlagged, nextDelay, pause, resume, tick, waiting, type Card, type PlayerState } from './feedPlayer';
 import { createFeedPoller, type ConnState, type FeedPoller } from './feedPoller';
 import { createFeedReader, type FeedReader, type ReaderState, type ReadResult } from './feedReader';
-import { addRows, mergeRows, parseFeedRows, releaseRows, shortAddress, visibleRows, writtenIso, type ListState } from './feedRows';
+import { addRows, clockOrDate, mergeRows, parseFeedRows, releaseRows, shortAddress, visibleRows, writtenIso, type ListState } from './feedRows';
 import { ANSWER_CLASS, LedgerItem } from './LedgerPanel';
 import { HOME_PATH } from './paths';
 import { describeRefresh, passOf } from './refresh';
@@ -72,7 +72,7 @@ export function StageCard({ card }: { card: Card }) {
         <span className="ag-pill ag-pill--kind">{kind}</span>
         <span className={row.answer ? ANSWER_CLASS[row.answer] : 'ag-pill ag-pill--muted'}>{row.answer ? copy.ledger.answer(answer) : answer}</span>
         <time className="ag-feed__time" dateTime={writtenIso(row.writtenAt)}>
-          {formatClock(writtenIso(row.writtenAt))} UTC
+          {clockOrDate(writtenIso(row.writtenAt), row.at)} UTC
         </time>
       </div>
       <p className="ag-feed__agent">{row.agent}</p>
@@ -81,7 +81,7 @@ export function StageCard({ card }: { card: Card }) {
           <p className="ag-feed__big ag-mono">{copy.ledger.amount(tx.amount, tx.asset)}</p>
           <p className="ag-feed__line">{tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}</p>
           <p className="ag-feed__line ag-mono">{row.label ? `${row.label} · ${short}` : short}</p>
-          <p className="ag-feed__line">{copy.feed.onTheChain(formatClock(row.at))}</p>
+          <p className="ag-feed__line">{copy.feed.onTheChain(clockOrDate(row.at, writtenIso(row.writtenAt)))}</p>
         </>
       ) : (
         <>
@@ -144,7 +144,7 @@ export default function FeedPage({ data }: FeedPageProps) {
           if (at) setLastGood(at);
         },
       },
-      { since: data.initial.since, seen: initialRows.map((r) => r.id) },
+      { since: data.initial.since, seen: initialRows },
     );
     const wallets = createFeedReader({
       send,
@@ -178,6 +178,12 @@ export default function FeedPage({ data }: FeedPageProps) {
     };
   }, [data, initialRows]);
 
+  // The list holds still while the cards are paused, however they came to be paused or not; rows that waited join it when they are not.
+  useEffect(() => {
+    pausedRef.current = player.paused;
+    if (!player.paused) setList(releaseRows);
+  }, [player.paused]);
+
   // The card on the stage gives way to the next after three seconds.
   useEffect(() => {
     const delay = nextDelay(player, Date.now());
@@ -190,7 +196,8 @@ export default function FeedPage({ data }: FeedPageProps) {
   function chooseAgent(id: string) {
     filterRef.current = id;
     setFilter(id);
-    setPlayer(initialPlayer);
+    // A pause stays as the person left it: the list holds still with the cards, whichever agent is chosen.
+    setPlayer(clearStage);
     setManual({ busy: false, lines: null, error: null });
     reader.current?.changed();
     if (id && list.rows.filter((r) => r.tinId === id).length < 10) {
@@ -202,14 +209,9 @@ export default function FeedPage({ data }: FeedPageProps) {
 
   function togglePause() {
     const now = Date.now();
-    if (player.paused) {
-      pausedRef.current = false;
-      setList(releaseRows);
-      setPlayer((p) => resume(p, now));
-    } else {
-      pausedRef.current = true;
-      setPlayer((p) => pause(p, now));
-    }
+    // The pause lives in the player; the list's hold follows it (the effect above), and is set here as well so a row that arrives this instant is held or not at once.
+    pausedRef.current = !player.paused;
+    setPlayer((p) => (p.paused ? resume(p, now) : pause(p, now)));
   }
 
   function switchReads(on: boolean) {

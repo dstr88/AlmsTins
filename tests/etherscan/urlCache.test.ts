@@ -87,6 +87,21 @@ describe('the response cache is bounded', () => {
     expect(etherscan._debugCacheStats()).toMatchObject({ entries: 0, bytes: 0 });
   });
 
+  it('lets go of the expired entries first when it is over a bound, before any that is still good, even an old one', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-19T12:00:00Z'));
+    answers(body(500));
+    await ask(0, { cacheTtlMs: 600_000 }); // the oldest, and good for ten minutes
+    for (let n = 1; n < 200; n += 1) await ask(n, { cacheTtlMs: 1_000 }); // 199 that are good for a second: 200 in all
+    expect(etherscan._debugCacheStats().entries).toBe(200);
+    vi.setSystemTime(new Date('2026-10-19T12:00:05Z')); // the short ones have expired
+    await ask(200); // one more: over the bound
+    expect(etherscan._debugCacheStats().entries).toBe(2); // the ten-minute one and the new one
+    fetchMock.mockClear();
+    await ask(0, { cacheTtlMs: 600_000 });
+    expect(fetchMock).not.toHaveBeenCalled(); // the old one that was still good was kept
+  });
+
   it('still reuses a response inside its fifteen seconds, which is what the cache is for', async () => {
     answers(body(1000));
     await ask(1);
@@ -144,6 +159,13 @@ describe('a request that is never answered', () => {
     const pending = ask(1).then(() => 'answered', (e) => String((e as Error).message));
     await vi.advanceTimersByTimeAsync(31_000);
     expect(await pending).not.toBe('answered');
+  });
+
+  it('leaves no timer behind when a request is answered in time (a 30-second timer per call would pile up)', async () => {
+    answers(body(500));
+    vi.useFakeTimers();
+    await ask(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('is asked with a signal at all (every call, not only a slow one)', async () => {

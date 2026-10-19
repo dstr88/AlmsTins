@@ -14,10 +14,10 @@
 import { useState } from 'react';
 import type { TinTotals } from '@/lib/agentVault/events';
 import { parseLedgerRows, type LedgerRow } from '@/lib/agentVault/ledgerView';
-import { formatClock, formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
+import { formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
 import { reasonText, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import { failureText, send } from './client';
-import { writtenIso } from './feedRows';
+import { clockOrDate, writtenIso } from './feedRows';
 import { copy } from './copy';
 import { explorerTxHref } from './paths';
 import { describeRefresh, passOf } from './refresh';
@@ -95,7 +95,7 @@ export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; ag
       {agent ? <p className="ag-event__agent">{agent}</p> : null}
       <p className="ag-event__addr ag-mono">{row.address}</p>
       {label ? <p className="ag-event__line">{copy.ledger.addressLabel(label)}</p> : null}
-      {recorded ? <p className="ag-event__line">{copy.feed.recorded(formatClock(writtenIso(recorded)))}</p> : null}
+      {recorded ? <p className="ag-event__line">{copy.feed.recorded(clockOrDate(writtenIso(recorded), row.at))}</p> : null}
       {tx ? (
         <>
           <p className="ag-event__line">

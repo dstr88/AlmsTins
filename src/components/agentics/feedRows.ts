@@ -7,6 +7,7 @@
  * are rendered as text by React, which escapes them. Pure, so every branch is a unit test.
  */
 import { toLedgerRow, type LedgerRow } from '@/lib/agentVault/ledgerView';
+import { formatClock } from '@/lib/agentVault/reportFormat';
 import type { EventView } from '@/lib/agentVault/vault';
 
 export interface FeedRow extends LedgerRow {
@@ -123,6 +124,17 @@ export function releaseRows(state: ListState): ListState {
 /** The moment a row was recorded, as an ISO-8601 time, from "YYYY-MM-DD HH:MM:SS" (what a page shows is its clock, in UTC). */
 export function writtenIso(writtenAt: string): string {
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(writtenAt) ? `${writtenAt.replace(' ', 'T')}.000Z` : writtenAt;
+}
+
+/**
+ * A time as a clock (`HH:MM:SS`) when it falls on the same UTC day as `ref`, and with its date (`YYYY-MM-DD HH:MM:SS`) when it does
+ * not, so two times a day apart (a transfer the daily job recorded the morning after its block) are never read as one day.
+ * Both are ISO-8601 UTC times; anything else is shown as it is.
+ */
+export function clockOrDate(iso: string, ref: string): string {
+  const day = /^\d{4}-\d{2}-\d{2}/;
+  const clock = formatClock(iso);
+  return day.test(iso) && day.test(ref) && iso.slice(0, 10) !== ref.slice(0, 10) ? `${iso.slice(0, 10)} ${clock}` : clock;
 }
 
 /** An address a card can hold: `0x1234abcd…89abcd`. A short one is shown whole. */

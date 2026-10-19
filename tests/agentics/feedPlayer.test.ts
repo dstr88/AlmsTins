@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DWELL_MS, QUEUE_FOLD_AT, QUEUE_HARD_MAX, enqueue, initialPlayer, isFlagged, mustShow, nextDelay, pause, resume, tick, waiting,
+  DWELL_MS, QUEUE_FOLD_AT, QUEUE_HARD_MAX, clearStage, enqueue, initialPlayer, isFlagged, mustShow, nextDelay, pause, resume, tick, waiting,
   type Card, type PlayerState,
 } from '../../src/components/agentics/feedPlayer';
 import { toFeedRow, type FeedRow } from '../../src/components/agentics/feedRows';
@@ -138,6 +138,32 @@ describe('pausing', () => {
     s = resume(s, 4000);
     expect(nextDelay(s, 4000)).toBe(0);
     expect(cardId(tick(s, 4000))).toBe(b.id);
+  });
+});
+
+describe('starting the stage over (another agent is chosen)', () => {
+  it('empties the stage and the queue', () => {
+    const s = enqueue(initialPlayer, [row(), row(), row()], 1000);
+    const cleared = clearStage(s);
+    expect(cleared.current).toBeNull();
+    expect(cleared.queue).toEqual([]);
+    expect(cleared.skipped).toBe(0);
+    expect(cleared.paused).toBe(false);
+  });
+
+  it('keeps a pause as the person left it: the page\'s list holds still with the cards, and the button still says Resume', () => {
+    const paused = pause(enqueue(initialPlayer, [row(), row()], 1000), 1500);
+    expect(paused.paused).toBe(true);
+    const cleared = clearStage(paused);
+    expect(cleared.paused).toBe(true);
+    expect(cleared.current).toBeNull();
+    expect(cleared.queue).toEqual([]);
+    expect(cleared.left).toBeNull();
+    // Rows that arrive while it is cleared and paused wait; resuming shows the first.
+    const a = row();
+    const waitingRow = enqueue(cleared, [a], 2000);
+    expect(waitingRow.current).toBeNull();
+    expect(cardId(resume(waitingRow, 3000))).toBe(a.id);
   });
 });
 

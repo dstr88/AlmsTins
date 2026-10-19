@@ -1,6 +1,8 @@
 /**
  * A clock for the tests of code that takes its timers as parameters (the live feed's poller and reader): a timer
  * is recorded, never run by itself, and a test runs it when it means the time to have passed. Nothing waits.
+ * The clock the code reads (`now`) moves by a timer's delay when that timer is fired, so a poll every three seconds
+ * is three seconds on it.
  */
 import type { ApiResult, Send } from '../../src/components/agentics/client';
 
@@ -11,8 +13,14 @@ export const settle = async (): Promise<void> => {
 
 export function fakeTimers() {
   let next = 1;
+  let clock = 0;
   const pending = new Map<number, { fn: () => void; ms: number }>();
   return {
+    /** The page's own clock for a test, in milliseconds: it moves only when a timer is fired (by that timer's delay) or when a test moves it. */
+    now: (): number => clock,
+    advance: (ms: number): void => {
+      clock += ms;
+    },
     setTimer: (fn: () => void, ms: number): unknown => {
       const id = next++;
       pending.set(id, { fn, ms });
@@ -29,6 +37,7 @@ export function fakeTimers() {
       const first = [...pending.entries()][0];
       if (!first) throw new Error('no timer is waiting');
       pending.delete(first[0]);
+      clock += first[1].ms;
       first[1].fn();
       await settle();
     },

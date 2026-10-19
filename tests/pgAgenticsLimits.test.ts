@@ -587,7 +587,8 @@ d('the live feed, on a real Postgres', () => {
         return real(stmt);
       }) as typeof db.execute;
       try {
-        const late = '2026-09-03 10:00:00';
+        // Row 45,000 (4 seconds apart from 2026-09-01 00:00:00): a page late in a backlog, with 5,000 rows after it and 45,000 before.
+        const late = '2026-09-03 02:00:00';
         await events.eventsWrittenSince(planTenant, { writtenAt: late, limit: 100 });
         await events.eventsWrittenAfter(planTenant, { writtenAt: late, id: `plan-${run}-45000`, limit: 100 });
         await events.latestEventsWritten(planTenant, { limit: 30 });

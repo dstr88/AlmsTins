@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FEED_KEEP_MAX, FEED_KEEP_PER_AGENT, FEED_LIST_MAX, addRows, emptyList, mergeRows, newestFirst, parseFeedRows, releaseRows, shortAddress, toFeedRow, visibleRows, writtenIso, type FeedRow } from '../../src/components/agentics/feedRows';
+import { FEED_KEEP_MAX, FEED_KEEP_PER_AGENT, FEED_LIST_MAX, addRows, clockOrDate, emptyList, mergeRows, newestFirst, parseFeedRows, releaseRows, shortAddress, toFeedRow, visibleRows, writtenIso, type FeedRow } from '../../src/components/agentics/feedRows';
 import { addr } from '../helpers/agentVault';
 
 /**
@@ -209,5 +209,25 @@ describe('the time a row was recorded', () => {
   it('is an ISO time a page can format, from the table\'s own stamp; anything else is left as it is', () => {
     expect(writtenIso('2026-10-19 11:00:01')).toBe('2026-10-19T11:00:01.000Z');
     expect(writtenIso('yesterday')).toBe('yesterday');
+  });
+});
+
+describe('clockOrDate: a time with its date only when the day is not the other time\'s', () => {
+  it('is a clock on the same UTC day', () => {
+    expect(clockOrDate('2026-10-19T03:00:12.000Z', '2026-10-19T19:45:00.000Z')).toBe('03:00:12');
+  });
+
+  it('carries its date on another day, either way round, so a transfer recorded the morning after its block is not read as the same day', () => {
+    expect(clockOrDate('2026-10-19T03:00:12.000Z', '2026-10-18T19:45:00.000Z')).toBe('2026-10-19 03:00:12');
+    expect(clockOrDate('2026-10-18T19:45:00.000Z', '2026-10-19T03:00:12.000Z')).toBe('2026-10-18 19:45:00');
+  });
+
+  it('is by UTC day, not by an hour count: a minute before midnight and a minute after are two days', () => {
+    expect(clockOrDate('2026-10-19T00:00:30.000Z', '2026-10-18T23:59:30.000Z')).toBe('2026-10-19 00:00:30');
+  });
+
+  it('shows what it cannot read as it is', () => {
+    expect(clockOrDate('not a time', '2026-10-19T03:00:12.000Z')).toBe('not a time');
+    expect(clockOrDate('2026-10-19T03:00:12.000Z', 'not a time')).toBe('03:00:12');
   });
 });

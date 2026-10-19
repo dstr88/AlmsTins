@@ -15,7 +15,10 @@
  * The answer is `{ ok, events, since, cursor, more, now }`. Each event is what /api/agentics/events gives its
  * owner, plus `writtenAt` (when the Vault wrote it; `at` is when it happened, which for a transfer is minutes
  * earlier), `agent` (the agent's name) and `label` (the owner's label for the address, or null). Text in
- * `agent`, `label` and the asset is the account's own or the chain's, and untrusted: escape it.
+ * `agent`, `label` and the asset is the account's own or the chain's, and untrusted: escape it. The agent's name,
+ * the label and a key's state come from a memory kept per account for five seconds (src/lib/agentVault/feed.ts), so
+ * a rename, a new label or a revoked key can take that long to show on a new event; an agent or key added since
+ * is named at once.
  *
  * At most 120 requests a minute for an account (429 `rate_limited`, with `Retry-After`); the count is per
  * process and resets on a restart. A page that polls every three seconds uses 20.
