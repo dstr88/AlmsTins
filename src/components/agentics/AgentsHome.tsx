@@ -87,6 +87,8 @@ function AddAgent({ data }: { data: HomePageData }) {
         className="ag-form"
         onSubmit={(e) => {
           e.preventDefault();
+          // aria-disabled keeps focus on the button, and a press on it still submits.
+          if (busy || full || !name.trim()) return;
           void create();
         }}
       >
@@ -114,7 +116,7 @@ function AddAgent({ data }: { data: HomePageData }) {
             ))}
           </select>
         </label>
-        <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || full || !name.trim()}>
+        <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || full || !name.trim() || undefined}>
           {busy ? copy.home.add.creating : copy.home.add.create}
         </button>
       </form>

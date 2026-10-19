@@ -12,10 +12,17 @@
  * bounded concurrency, and it never throws: a check that errors becomes a check that did not run
  * (the readout says Limited), never a pass. It logs nothing about the addresses it checks.
  *
- * The screening is the public checker's, and so is its cache: an address checked in the last five
- * minutes, by anyone, is answered from that cache, so adding, removing and adding an address again
- * does not ask the screening sources each time. Only a complete answer is shared (every source the
- * Vault relies on ran); a partial one is never kept, so "Check again" always asks again.
+ * The screening is the public checker's. An answer the public checker already holds (checked in the
+ * last five minutes, by anyone) is used as it is, and a complete answer the Vault gets is kept in a
+ * memory of the Vault's own for the same five minutes, so adding, removing and adding an address again
+ * does not ask the screening sources each time. A person asking to check an address again always gets a
+ * new screening (`fresh`): the memory is for the add, which a script can loop on; the re-check is paced
+ * by the budget of checks (./checkBudget.ts) instead. The public checker's cache is read and never written:
+ * anyone can ask /api/wallet-check about an address and is told when it was last checked, so an address
+ * written there would show when an account added or re-checked it. Only a complete answer is kept
+ * (every source the Vault relies on ran); a partial one is never kept, so "Check again" asks again.
+ * A readout carries the time the screening was made, not the time it was asked for, so an answer that
+ * came from memory says how old it is.
  *
  * The checks are injected (TrustDeps) so tests run with no network and no database; the defaults
  * load the real modules lazily, so the Vault's plain list and edit endpoints never pull in the
@@ -26,8 +33,12 @@ import { defaultCheckBudget, type CheckBudget } from './checkBudget';
 import { summarizeChecks, type TrustReadout, type VerifyLookup } from './trustPolicy';
 
 export interface TrustDeps {
-  /** The public checker's answer for one normalized address. */
-  wallet(address: string): Promise<WalletCheckResult>;
+  /**
+   * The public checker's answer for one normalized address. `fresh` asks for a new screening whatever
+   * is remembered: it is what a person asking to check an address again means (adding an address, which
+   * a script can repeat in a loop, may be answered from memory).
+   */
+  wallet(address: string, opts?: { fresh?: boolean }): Promise<WalletCheckResult>;
   /** The Verify registry's answer for one address, as seen from this tenant. Throws if it cannot answer. */
   verify(tenantId: string, address: string): Promise<VerifyLookup>;
   now?(): Date;
@@ -46,6 +57,25 @@ export interface TrustDeps {
 export function isCompleteAnswer(r: Pick<WalletCheckResult, 'coverage'> | null | undefined): boolean {
   const c = r?.coverage;
   return !!c && c.sanctions === 'ran' && c.chainalysis !== 'error' && c.goplus === 'ran';
+}
+
+/** How long the Vault remembers a complete answer, and how many addresses it remembers at once. */
+export const REMEMBER_MS = 5 * 60_000;
+export const REMEMBER_MAX = 500;
+const remembered = new Map<string, { answer: WalletCheckResult; until: number }>();
+
+/** Forgets every remembered answer. For tests. */
+export function forgetAnswers(): void {
+  remembered.clear();
+}
+
+function remember(address: string, answer: WalletCheckResult, now: number): void {
+  if (remembered.size >= REMEMBER_MAX && !remembered.has(address)) {
+    const oldest = remembered.keys().next().value;
+    if (oldest !== undefined) remembered.delete(oldest);
+  }
+  remembered.delete(address); // a fresh entry goes to the back of the line
+  remembered.set(address, { answer, until: now + REMEMBER_MS });
 }
 
 /** Loads a module on first use and shares that one load with every caller. A failed load is not remembered. */
@@ -67,12 +97,17 @@ const verifyEntities = lazy(() => import('@/lib/verifyEntities'));
 const verifyRegistry = lazy(() => import('@/lib/verifyRegistry'));
 
 export const defaultTrustDeps: TrustDeps = {
-  async wallet(address) {
-    const { checkWallet, getCached, setCache } = await walletChecker();
-    const kept = getCached(address);
-    if (kept && isCompleteAnswer(kept)) return kept;
+  async wallet(address, opts) {
+    const { checkWallet, getCached } = await walletChecker();
+    const now = Date.now();
+    if (!opts?.fresh) {
+      const mine = remembered.get(address);
+      if (mine && now < mine.until) return mine.answer;
+      const shared = getCached(address);
+      if (shared && isCompleteAnswer(shared)) return shared;
+    }
     const answer = await checkWallet(address);
-    if (isCompleteAnswer(answer)) setCache(address, answer);
+    if (isCompleteAnswer(answer)) remember(address, answer, now);
     return answer;
   },
   async verify(tenantId, address) {
@@ -93,9 +128,19 @@ export const defaultTrustDeps: TrustDeps = {
 /** How many addresses are checked at once. Each check makes several outside calls. */
 export const CHECK_CONCURRENCY = 4;
 
-async function checkOne(tenantId: string, address: string, deps: TrustDeps): Promise<TrustReadout> {
-  const [wallet, verify] = await Promise.allSettled([deps.wallet(address), deps.verify(tenantId, address)]);
-  const checkedAt = (deps.now ? deps.now() : new Date()).toISOString();
+/**
+ * The time to put on a readout: when the screening was made, if that is stated and is not in the
+ * future, else now. An answer that came from memory is up to five minutes old and says so; a fresh one
+ * was made seconds ago, so the two read alike.
+ */
+function readoutTime(screened: unknown, now: Date): string {
+  const t = typeof screened === 'string' ? Date.parse(screened) : Number.NaN;
+  return Number.isFinite(t) && t <= now.getTime() ? new Date(t).toISOString() : now.toISOString();
+}
+
+async function checkOne(tenantId: string, address: string, deps: TrustDeps, fresh: boolean): Promise<TrustReadout> {
+  const [wallet, verify] = await Promise.allSettled([deps.wallet(address, fresh ? { fresh: true } : undefined), deps.verify(tenantId, address)]);
+  const checkedAt = readoutTime(wallet.status === 'fulfilled' ? wallet.value?.checkedAt : null, deps.now ? deps.now() : new Date());
   const answers = {
     wallet: wallet.status === 'fulfilled' ? wallet.value : null,
     verify: verify.status === 'fulfilled' ? verify.value : null,
@@ -111,12 +156,14 @@ async function checkOne(tenantId: string, address: string, deps: TrustDeps): Pro
 
 /**
  * The readout for each distinct address, keyed by the address as given. Never throws; an address
- * whose checks fail comes back Limited.
+ * whose checks fail comes back Limited. `fresh` asks for a new screening of every address, whatever
+ * is remembered (a person asking to check them again); left out, a recent complete answer is used.
  */
 export async function runTrustChecks(
   tenantId: string,
   addresses: readonly string[],
   deps: TrustDeps = defaultTrustDeps,
+  opts: { fresh?: boolean } = {},
 ): Promise<Map<string, TrustReadout>> {
   const unique = [...new Set(addresses)];
   const readouts = new Map<string, TrustReadout>();
@@ -126,7 +173,7 @@ export async function runTrustChecks(
       const index = next++;
       if (index >= unique.length) return;
       const address = unique[index];
-      readouts.set(address, await checkOne(tenantId, address, deps));
+      readouts.set(address, await checkOne(tenantId, address, deps, opts.fresh === true));
     }
   };
   await Promise.all(Array.from({ length: Math.min(CHECK_CONCURRENCY, unique.length) }, worker));

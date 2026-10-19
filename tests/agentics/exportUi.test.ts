@@ -55,7 +55,7 @@ describe('the export card', () => {
     expect((html.match(/<button[^>]*type="button"/g) ?? []).length).toBe(5); // two presets, two downloads, "Use whole days"
     expect(html).not.toMatch(/<button[^>]*type="submit"/);
     // With no time chosen there is nothing to clear.
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Use whole days<\/button>/);
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>Use whole days<\/button>/);
   });
 
   it('opens on the last 30 days, never before the agent existed, and never after today', () => {
@@ -72,13 +72,15 @@ describe('the export card', () => {
   it('with no signing key says so and offers nothing to download', () => {
     const off = render({ signing: { available: false } });
     expect(textOf(off)).toContain('No signing key is configured on this server, so neither file can be made.');
-    expect((off.match(/<button[^>]*type="button"[^>]*disabled=""|<button[^>]*disabled=""[^>]*type="button"/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // Unavailable, and still in the focus order: aria-disabled, never `disabled` (which drops the focus a button holds).
+    expect((off.match(/<button[^>]*type="button"[^>]*aria-disabled="true"|<button[^>]*aria-disabled="true"[^>]*type="button"/g) ?? []).length).toBeGreaterThanOrEqual(2);
     for (const label of ['Download signed file', 'Download CSV']) {
-      expect(off, label).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
+      expect(off, label).toMatch(new RegExp(`<button[^>]*aria-disabled="true"[^>]*>${label}</button>`));
     }
+    expect(off).not.toMatch(/<button[^>]*\sdisabled=/);
     const on = render();
     expect(textOf(on)).not.toContain('No signing key');
-    for (const label of ['Download signed file', 'Download CSV']) expect(on, label).not.toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${label}</button>`));
+    for (const label of ['Download signed file', 'Download CSV']) expect(on, label).not.toMatch(new RegExp(`<button[^>]*aria-disabled="true"[^>]*>${label}</button>`));
   });
 
   it('links to the public page that checks a signed file in the browser, and to nothing else', () => {

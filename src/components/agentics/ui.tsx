@@ -157,6 +157,18 @@ export function CopyButton({ value }: { value: string }) {
   );
 }
 
+// ── Where focus goes when a row is removed ───────────────────────────────────
+
+/**
+ * After the row a person was on has been removed: whether focus should move to the card's heading.
+ * It should when focus was on that row (the control the person pressed is gone with it) or is nowhere
+ * (the page body); it must not when the person has moved on to something else, such as the paste box
+ * they are typing in, because a request that finishes late would take their place away.
+ */
+export function shouldTakeFocus(active: unknown, row: { contains(node: never): boolean } | null, body: unknown): boolean {
+  return active == null || active === body || (row !== null && row.contains(active as never));
+}
+
 // ── Remove, with one more question in place ──────────────────────────────────
 
 export interface ConfirmRemoveProps {
@@ -169,7 +181,7 @@ export interface ConfirmRemoveProps {
   keep: string;
   /** The yes is being carried out (its request is running). */
   working: boolean;
-  /** The button that begins it is not offered for now (another action on this page is running). */
+  /** The button that begins it is not offered for now (another action on this page is running). It stays where it is (aria-disabled), so focus is not lost. */
   disabled?: boolean;
   /** A smaller button, for a row in a list. */
   small?: boolean;
@@ -226,8 +238,9 @@ export function ConfirmRemove({ label, question, yes, yesWorking, keep, working,
       ref={removeRef}
       className={`ag-btn${size}${small ? '' : ' ag-btn--danger'}`}
       type="button"
-      disabled={disabled}
+      aria-disabled={disabled || undefined}
       onClick={() => {
+        if (disabled) return;
         focusNext.current = 'keep';
         setAsking(true);
       }}

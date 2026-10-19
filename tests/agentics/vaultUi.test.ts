@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { addr } from '../helpers/agentVault';
 import { brightLineViolations } from '../helpers/brightLineWording';
@@ -175,7 +175,7 @@ describe('the home page', () => {
     const full = render(React.createElement(AgentsHome, { data: home({ plan: { ...FREE, use: { bots: 3, addresses: 9 } } }) }));
     expect(textOf(full)).toContain('You are at the most agents the free plan covers. Remove one to add another.');
     expect(full).toMatch(/<input[^>]*disabled=""/);
-    expect(full).toMatch(/<button[^>]*disabled=""[^>]*type="submit"|<button[^>]*type="submit"[^>]*disabled=""/);
+    expect(full).toMatch(/<button[^>]*aria-disabled="true"[^>]*type="submit"|<button[^>]*type="submit"[^>]*aria-disabled="true"/);
     const roomy = render(React.createElement(AgentsHome, { data: home({ plan: { ...FREE, use: { bots: 2, addresses: 9 } } }) }));
     expect(textOf(roomy)).not.toContain('You are at the most agents');
     const unlimited = render(React.createElement(AgentsHome, { data: home({ plan: UNLIMITED }) }));
@@ -385,7 +385,7 @@ describe('the registry', () => {
     const full = panel([dest(1)], { ...FREE, use: { bots: 2, addresses: 15 } });
     expect(textOf(full)).toContain('You are at the most addresses the free plan covers. Remove one to add another.');
     expect(full).toMatch(/<textarea[^>]*disabled=""/);
-    expect(full).toMatch(/<button[^>]*disabled=""[^>]*type="submit"|<button[^>]*type="submit"[^>]*disabled=""/);
+    expect(full).toMatch(/<button[^>]*aria-disabled="true"[^>]*type="submit"|<button[^>]*type="submit"[^>]*aria-disabled="true"/);
     const roomy = panel([dest(1)], { ...FREE, use: { bots: 2, addresses: 14 } });
     expect(textOf(roomy)).not.toContain('You are at the most addresses');
     expect(roomy).not.toMatch(/<textarea[^>]*disabled=""/);
@@ -745,6 +745,46 @@ describe('keyboard and screen readers', () => {
     const w = read('src/components/agentics/WalletsPanel.tsx');
     expect(w).toMatch(/const \[removing, setRemoving\] = useState<ReadonlySet<string>>/);
     expect(w).not.toMatch(/setRemoving\(null\)|setRemoving\(w\.id\)/);
+  });
+
+  it('never makes a button `disabled`: it would drop the focus the person holds, so a button that cannot be pressed is aria-disabled and its handler ignores the press', () => {
+    const dir = path.join(ROOT, 'src/components/agentics');
+    const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
+    expect(files.length).toBeGreaterThan(10);
+    for (const f of files) {
+      const src = read(`src/components/agentics/${f}`);
+      expect(src, f).not.toMatch(/<button\b[^>]*?\sdisabled=/s);
+    }
+    // Every submit button that can be unavailable has its form refuse the press as well (aria-disabled does not stop a submit).
+    for (const [f, guard] of [
+      ['RegistryPanel.tsx', /if \(busy !== null \|\| full \|\| !text\.trim\(\)\) return;/],
+      ['WalletsPanel.tsx', /if \(busy \|\| full \|\| !address\.trim\(\)\) return;/],
+      ['AgentsHome.tsx', /if \(busy \|\| full \|\| !name\.trim\(\)\) return;/],
+      ['AgentKeyCard.tsx', /if \(busy\) return;/],
+      ['DeliverySettings.tsx', /if \(busy\) return;/],
+      ['ReportsPage.tsx', /if \(busy \|\| !day\) return;/],
+    ] as const) expect(read(`src/components/agentics/${f}`), f).toMatch(guard);
+  });
+
+  it('takes focus to the card\'s heading after a removal only when focus was on the removed row or nowhere', () => {
+    const row = { contains: (n: unknown) => n === 'inside' };
+    const body = 'body';
+    expect(ui.shouldTakeFocus('inside', row, body)).toBe(true); // on the row that is about to go (its button held it)
+    expect(ui.shouldTakeFocus(body, row, body)).toBe(true); // nowhere
+    expect(ui.shouldTakeFocus(null, row, body)).toBe(true);
+    expect(ui.shouldTakeFocus(undefined, row, body)).toBe(true);
+    expect(ui.shouldTakeFocus('paste box', row, body)).toBe(false); // the person moved on: leave it
+    expect(ui.shouldTakeFocus('inside', null, body)).toBe(false); // the row is already gone and focus is somewhere else
+    expect(ui.shouldTakeFocus(body, null, body)).toBe(true);
+    for (const f of ['RegistryPanel.tsx', 'WalletsPanel.tsx']) {
+      const src = read(`src/components/agentics/${f}`);
+      expect(src, f).toMatch(/const takeFocus = shouldTakeFocus\(document\.activeElement, document\.getElementById\(`ag-(dest|wallet)-\$\{\w\.id\}`\), document\.body\);/);
+      expect(src, f).toMatch(/if \(takeFocus\) heading\.current\?\.focus\(\);/);
+      expect(src, f).not.toMatch(/^\s*heading\.current\?\.focus\(\);/m); // never unconditionally
+    }
+    // Each row carries the id the check looks for.
+    expect(registry()).toMatch(/<li class="ag-dest" id="ag-dest-d1">/);
+    expect(wallets()).toMatch(/<li class="ag-dest" id="ag-wallet-w1">/);
   });
 
   it('puts the registry\'s own words on a wait: it is about checks', () => {

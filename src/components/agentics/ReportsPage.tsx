@@ -87,6 +87,8 @@ function MakeReport({ tin, today, yesterday }: { tin: ReportsPageTin; today: str
       className="ag-form"
       onSubmit={(e) => {
         e.preventDefault();
+        // aria-disabled keeps focus on the button, and a press on it still submits.
+        if (busy || !day) return;
         void submit();
       }}
       aria-label={`${copy.reports.makeTitle}: ${tin.label}`}>
@@ -94,7 +96,7 @@ function MakeReport({ tin, today, yesterday }: { tin: ReportsPageTin; today: str
         {copy.reports.makeDay}
         <input className="ag-input" type="date" value={day} min={tin.since} max={today} required onChange={(e) => setDay(e.target.value)} />
       </label>
-      <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || !day}>
+      <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || !day || undefined}>
         {busy ? copy.reports.making : copy.reports.makeButton}
       </button>
       {message ? (

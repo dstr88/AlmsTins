@@ -25,6 +25,12 @@ export interface CheckBudget {
    * window's maximum; the caller then refuses the request before it writes or asks anyone anything.
    */
   spend(tenantId: string, n: number, now?: number): boolean;
+  /**
+   * Gives back `n` checks that were paid for and not made (an address that was already registered, a
+   * line that did not fit the plan). Only inside the window they were taken from, and never below none
+   * used: a refund cannot buy room the account did not have.
+   */
+  refund(tenantId: string, n: number, now?: number): void;
 }
 
 export function createCheckBudget(opts: { windowMs?: number; max?: number; maxKeys?: number } = {}): CheckBudget {
@@ -55,6 +61,11 @@ export function createCheckBudget(opts: { windowMs?: number; max?: number; maxKe
       if (w.used + n > max) return false;
       w.used += n;
       return true;
+    },
+    refund(tenantId, n, now = Date.now()) {
+      const w = windows.get(tenantId);
+      if (!w || now >= w.resetAt || !(n > 0)) return;
+      w.used = Math.max(0, w.used - n);
     },
   };
 }

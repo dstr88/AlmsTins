@@ -320,7 +320,12 @@ export async function findLiveWallet(tenantId: string, tinId: string, chain: Vau
   return r.rows.length ? walletFrom(r.rows[0]) : null;
 }
 
-/** Adds a wallet unless the tin already has this one live. */
+/**
+ * Adds a wallet unless the tin already has this one live. The plain insert: it never checks that the
+ * agent is still live and takes no lock, so it is for tests and one-off scripts only. Every request
+ * path adds through insertWalletWithinCap (a `cap` of null for a plan with no limit), which does both
+ * (tests/agentics/guards.test.ts keeps the request code from importing this one).
+ */
 export async function insertWallet(
   tenantId: string,
   input: { tinId: string; chain: VaultChain; address: string; at: string },
@@ -345,14 +350,17 @@ export async function insertWallet(
 
 /**
  * Adds a wallet unless the tin already has this one live, and only while the tin is a live agent of
- * the account and has fewer than `cap` live wallets (counted and inserted in one transaction, behind
- * the account's lock). A wallet the tin already holds is a duplicate whatever the cap says: it takes
- * no new slot. Nothing is written when the agent has been removed (`no_tin`).
+ * the account and, when there is a `cap`, has fewer than that many live wallets (counted and
+ * inserted in one transaction, behind the account's lock). A `cap` of null is a plan with no limit:
+ * nothing is counted, but the agent is still checked and the lock still taken, so a removal and an
+ * add for one account take turns whoever the account is. A wallet the tin already holds is a
+ * duplicate whatever the cap says: it takes no new slot. Nothing is written when the agent has been
+ * removed (`no_tin`).
  */
 export async function insertWalletWithinCap(
   tenantId: string,
   input: { tinId: string; chain: VaultChain; address: string; at: string },
-  cap: number,
+  cap: number | null,
 ): Promise<{ kind: 'inserted'; wallet: AgentWallet } | { kind: 'duplicate'; wallet: AgentWallet } | { kind: 'over_limit' } | { kind: 'no_tin' }> {
   const existing = await findLiveWallet(tenantId, input.tinId, input.chain, input.address);
   if (existing) return { kind: 'duplicate', wallet: existing };
@@ -364,9 +372,9 @@ export async function insertWalletWithinCap(
         {
           sql: `INSERT INTO agent_wallets (id, tenant_id, tin_id, chain, address, created_at)
                 SELECT ?, ?, ?, ?, ?, ?
-                WHERE ${LIVE_TIN}
-                  AND (SELECT COUNT(*) FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL) < ?`,
-          args: [id, tenantId, input.tinId, input.chain, input.address, input.at, input.tinId, tenantId, tenantId, input.tinId, cap],
+                WHERE ${LIVE_TIN}${cap === null ? '' : `
+                  AND (SELECT COUNT(*) FROM agent_wallets WHERE tenant_id = ? AND tin_id = ? AND deleted_at IS NULL) < ?`}`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.at, input.tinId, tenantId, ...(cap === null ? [] : [tenantId, input.tinId, cap])],
         },
       ],
       'write',
@@ -422,7 +430,9 @@ export async function findLiveDestination(tenantId: string, tinId: string, chain
 /**
  * Adds a destination as pending, with no check recorded, unless the tin already has this address
  * live on this chain. Nothing becomes trusted here: trust is written only by recordTrust, from a
- * stored readout.
+ * stored readout. The plain insert: it never checks that the agent is still live and takes no lock,
+ * so it is for tests and one-off scripts only. Every request path adds through
+ * insertDestinationWithinCap (a `cap` of null for a plan with no limit).
  */
 export async function insertDestination(
   tenantId: string,
@@ -462,15 +472,17 @@ export async function insertDestination(
 
 /**
  * Adds a destination as pending, like insertDestination, and only while the tin is a live agent of
- * the account and the account has fewer than `cap` live destinations over all its live agents
- * (counted and inserted in one transaction, behind the account's lock). An address the tin already
- * holds live is a duplicate whatever the cap says: it takes no new slot. Nothing is written when the
- * agent has been removed (`no_tin`).
+ * the account and, when there is a `cap`, the account has fewer than that many live destinations over
+ * all its live agents (counted and inserted in one transaction, behind the account's lock). A `cap`
+ * of null is a plan with no limit: nothing is counted, but the agent is still checked and the lock
+ * still taken (see insertWalletWithinCap). An address the tin already holds live is a duplicate
+ * whatever the cap says: it takes no new slot. Nothing is written when the agent has been removed
+ * (`no_tin`).
  */
 export async function insertDestinationWithinCap(
   tenantId: string,
   input: { tinId: string; chain: VaultChain; address: string; label: string | null; at: string },
-  cap: number,
+  cap: number | null,
 ): Promise<{ kind: 'inserted'; destination: Destination } | { kind: 'duplicate'; destination: Destination } | { kind: 'over_limit' } | { kind: 'no_tin' }> {
   const existing = await findLiveDestination(tenantId, input.tinId, input.chain, input.address);
   if (existing) return { kind: 'duplicate', destination: existing };
@@ -482,9 +494,9 @@ export async function insertDestinationWithinCap(
         {
           sql: `INSERT INTO agent_destinations (id, tenant_id, tin_id, chain, address, label, trust_status, trust_checked_at, trust_detail_json, created_at)
                 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                WHERE ${LIVE_TIN}
-                  AND (SELECT COUNT(*) ${COUNTED_DESTINATIONS}) < ?`,
-          args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at, input.tinId, tenantId, tenantId, cap],
+                WHERE ${LIVE_TIN}${cap === null ? '' : `
+                  AND (SELECT COUNT(*) ${COUNTED_DESTINATIONS}) < ?`}`,
+          args: [id, tenantId, input.tinId, input.chain, input.address, input.label, 'pending', null, null, input.at, input.tinId, tenantId, ...(cap === null ? [] : [tenantId, cap])],
         },
       ],
       'write',
@@ -585,14 +597,19 @@ export async function softDeleteDestination(tenantId: string, id: string, at: st
 // ── What the watcher reads ───────────────────────────────────────────────────
 
 /**
- * The first `limit` trusted, live destinations of one account, oldest first, across all its tins.
- * The watcher reads only these: a free account tracks a fixed number of destinations pooled over
- * its agents (see MAX_WATCHED_PER_TENANT in ./watcher.ts), and the oldest ones keep their place.
+ * The first `limit` trusted, live destinations of one account, oldest first, across all its live
+ * tins. The watcher reads only these: a free account tracks a fixed number of destinations pooled
+ * over its agents (see MAX_WATCHED_PER_TENANT in ./watcher.ts), and the oldest ones keep their place.
+ * A destination whose agent has been removed is not one of them, even if its row were somehow still
+ * live: it must never take a watched place from an address that is in use.
  */
 export async function listWatchedDestinationIds(tenantId: string, limit: number): Promise<string[]> {
   await ensureAgentVaultTables();
   const r = await db.execute({
-    sql: `SELECT id FROM agent_destinations WHERE tenant_id = ? AND trust_status = 'trusted' AND deleted_at IS NULL ORDER BY created_at ASC, id ASC LIMIT ?`,
+    sql: `SELECT d.id FROM agent_destinations d
+          WHERE d.tenant_id = ? AND d.trust_status = 'trusted' AND d.deleted_at IS NULL
+            AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = d.tin_id AND t.tenant_id = d.tenant_id AND t.deleted_at IS NULL)
+          ORDER BY d.created_at ASC, d.id ASC LIMIT ?`,
     args: [tenantId, limit],
   });
   return r.rows.map((row: any) => String(row.id));
@@ -619,14 +636,17 @@ export async function listAllTins(limit: number): Promise<WatchTarget[]> {
 }
 
 /**
- * The tins that have at least one trusted destination, for the daily job. The one read here that
- * spans accounts, because the job has to visit each of them; it returns ids only, and every
+ * The live tins that have at least one trusted destination, for the daily job. The one read here
+ * that spans accounts, because the job has to visit each of them; it returns ids only, and every
  * statement after it is scoped to the account of the row it came from.
  */
 export async function listWatchTargets(limit: number): Promise<WatchTarget[]> {
   await ensureAgentVaultTables();
   const r = await db.execute({
-    sql: `SELECT tenant_id, tin_id FROM agent_destinations WHERE trust_status = 'trusted' AND deleted_at IS NULL ORDER BY tenant_id ASC, tin_id ASC LIMIT ?`,
+    sql: `SELECT d.tenant_id, d.tin_id FROM agent_destinations d
+          WHERE d.trust_status = 'trusted' AND d.deleted_at IS NULL
+            AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = d.tin_id AND t.tenant_id = d.tenant_id AND t.deleted_at IS NULL)
+          ORDER BY d.tenant_id ASC, d.tin_id ASC LIMIT ?`,
     args: [limit],
   });
   const seen = new Set<string>();

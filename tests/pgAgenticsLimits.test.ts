@@ -1,4 +1,7 @@
-// DIAGNOSTIC, NOT A CI TEST: opt-in only (RUN_PG_AGENTICS_LIMITS=1 + a DATABASE_URL on localhost); it WRITES.
+// REAL-POSTGRES TEST, opt-in (RUN_PG_AGENTICS_LIMITS=1 + a DATABASE_URL on localhost); it WRITES.
+// The unit step of CI skips it (vitest.ci.config.ts excludes tests/pg*.test.ts); CI runs it in its own
+// step against the job's throwaway Postgres (.github/workflows/ci.yml, which tests/agentics/guards.test.ts
+// holds to exactly that), so a regression in the locks or the capped inserts fails the build.
 //
 // Proves on a real Postgres what the in-memory tests cannot: that the Agent Vault's plan limits hold
 // when many requests race for the last slot. The Vault's capped inserts (src/lib/agentVault/store.ts)
@@ -9,9 +12,10 @@
 //   RUN_PG_AGENTICS_LIMITS=1 DATABASE_URL=postgres://postgres@127.0.0.1:54395/slice5 \
 //     npx vitest run tests/pgAgenticsLimits.test.ts
 //
-// Skips without the opt-in (the CI config excludes tests/pg*.test.ts besides). With the opt-in but a
-// DATABASE_URL that is not on this machine it throws, so a real database is never written to by
-// mistake. Tenants are invented and unique to each run, and their rows are deleted at the end.
+// Skips without the opt-in. With the opt-in but a DATABASE_URL that is not on this machine it throws,
+// so a real database is never written to by mistake; with the opt-in and a database that cannot be
+// reached it fails (it never passes by skipping). Tenants are invented and unique to each run, and
+// their rows are deleted at the end.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 
@@ -162,6 +166,67 @@ d('the Agent Vault plan limits, under concurrency, on a real Postgres', () => {
     expect(await store.insertWalletWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(2), at: store.nowUtc() }, 5)).toEqual({ kind: 'no_tin' });
     expect(await count('agent_destinations', t)).toBe(0);
     expect(await count('agent_wallets', t)).toBe(0);
+  });
+
+  /**
+   * Holds the account's lock (the one every capped add and every removal takes) for `ms` in a transaction
+   * of its own, and says when it has it. The races above are chance; this is not: whatever is asked while
+   * the lock is held has to wait for it, so a statement that does not take the lock finishes at once.
+   */
+  const holdLock = async (t: string, ms: number) => {
+    const held = db.batch(
+      [
+        { sql: 'SELECT pg_advisory_xact_lock(1095194188, hashtext(?))', args: [t] },
+        { sql: `SELECT pg_sleep(${ms / 1000})`, args: [] },
+      ],
+      'write',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150)); // long enough for it to have taken the lock
+    // Wrapped: an async function that returned the promise itself would be awaited until the hold was over.
+    return { over: held };
+  };
+  const timed = async (job: () => Promise<unknown>) => {
+    const started = Date.now();
+    await job();
+    return Date.now() - started;
+  };
+
+  it('removing an agent waits for the account\'s lock, so a removal and an add take turns', async () => {
+    const t = fresh('lock-removal');
+    const tin = await newTin(t);
+    const held = await holdLock(t, 900);
+    const waited = await timed(() => store.softDeleteTin(t, tin.id, store.nowUtc()));
+    await held.over;
+    expect(waited).toBeGreaterThanOrEqual(500); // about 750 ms of the hold were left; a removal that took no lock would be done in milliseconds
+    expect(await count('agent_tins', t)).toBe(0);
+  });
+
+  it('every way of adding an address or a wallet waits for it too, with a limit and without one', async () => {
+    const t = fresh('lock-adds');
+    const tin = await newTin(t);
+    for (const [name, job] of [
+      ['a capped address', () => store.insertDestinationWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(1), label: null, at: store.nowUtc() }, 15)],
+      ['an address with no limit', () => store.insertDestinationWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(2), label: null, at: store.nowUtc() }, null)],
+      ['a capped wallet', () => store.insertWalletWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(3), at: store.nowUtc() }, 5)],
+      ['a wallet with no limit', () => store.insertWalletWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(4), at: store.nowUtc() }, null)],
+    ] as const) {
+      const held = await holdLock(t, 700);
+      const waited = await timed(job);
+      await held.over;
+      expect(waited, name).toBeGreaterThanOrEqual(350);
+    }
+    expect(await count('agent_destinations', t)).toBe(2);
+    expect(await count('agent_wallets', t)).toBe(2);
+  });
+
+  it('another account is not held by it: the lock is for one account', async () => {
+    const [mine, theirs] = [fresh('lock-a'), fresh('lock-b')];
+    const [tinA, tinB] = [await newTin(mine), await newTin(theirs)];
+    const held = await holdLock(mine, 700);
+    const waited = await timed(() => vault.addDestinations(theirs, { tinId: tinB.id, text: addr(5), trust: false }));
+    await held.over;
+    expect(waited).toBeLessThan(400);
+    void tinA;
   });
 
   it('accounts racing at the same time each get their own limit: neither waits on, nor counts, the other', async () => {

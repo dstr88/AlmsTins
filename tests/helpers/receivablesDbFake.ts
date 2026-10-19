@@ -432,31 +432,35 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 	}
 
 	function insert(sql: string, args: unknown[]) {
-		// INSERT INTO t (cols) SELECT ?, ... WHERE [<guard> AND] (SELECT COUNT(*) FROM u [alias] WHERE <expr>) < ?
+		// INSERT INTO t (cols) SELECT ?, ... WHERE <guard> [AND (SELECT COUNT(*) FROM u [alias] WHERE <expr>) < ?]
 		// The row goes in only while the guard holds (an EXISTS about another table, such as "the agent is
-		// still live") and the count is under the cap; otherwise nothing is written.
+		// still live") and, when there is a count, while the count is under the cap; otherwise nothing is written.
 		const cappedHead = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) SELECT (.*?) WHERE (.*)$/is);
-		const countAt = cappedHead ? cappedHead[4].lastIndexOf('(SELECT COUNT(*) FROM ') : -1;
-		if (cappedHead && countAt >= 0) {
+		if (cappedHead) {
 			const [, table, colList, valList, whereSrc] = cappedHead;
-			const guardSrc = whereSrc.slice(0, countAt).replace(/\s+AND\s*$/i, '').trim();
-			const count = whereSrc.slice(countAt).match(/^\(SELECT COUNT\(\*\) FROM (\w+)(?: (\w+))? WHERE (.*)\) < \?$/is);
-			if (!count) throw new Error(`fake db: unsupported INSERT: ${sql}`);
-			const [, countTable, countAlias = countTable, countWhere] = count;
+			const countAt = whereSrc.lastIndexOf('(SELECT COUNT(*) FROM ');
+			const guardSrc = (countAt >= 0 ? whereSrc.slice(0, countAt) : whereSrc).replace(/\s+AND\s*$/i, '').trim();
 			const placeholders = splitTopLevel(valList);
 			const cursor = { next: placeholders.length };
 			const guard = guardSrc ? new ExprParser(tokenize(guardSrc), cursor).parse() : null;
-			const where = new ExprParser(tokenize(countWhere), cursor).parse();
-			const capIndex = cursor.next;
-			const bare = (ref: string, row: Row): unknown => {
-				if (!ref.includes('.')) return row[ref];
-				const [a, c] = ref.split('.');
-				return a === countAlias ? row[c] : undefined;
-			};
 			if (guard && !evalExpr(guard, () => undefined, args, env)) return { rows: [], rowsAffected: 0 };
-			const used = rowsOf(countTable).filter((row) => evalExpr(where, (ref) => bare(ref, row), args, env)).length;
-			const cap = Number(args[capIndex]);
-			if (!(used < cap)) return { rows: [], rowsAffected: 0 };
+			if (countAt >= 0) {
+				const count = whereSrc.slice(countAt).match(/^\(SELECT COUNT\(\*\) FROM (\w+)(?: (\w+))? WHERE (.*)\) < \?$/is);
+				if (!count) throw new Error(`fake db: unsupported INSERT: ${sql}`);
+				const [, countTable, countAlias = countTable, countWhere] = count;
+				const where = new ExprParser(tokenize(countWhere), cursor).parse();
+				const capIndex = cursor.next;
+				const bare = (ref: string, row: Row): unknown => {
+					if (!ref.includes('.')) return row[ref];
+					const [a, c] = ref.split('.');
+					return a === countAlias ? row[c] : undefined;
+				};
+				const used = rowsOf(countTable).filter((row) => evalExpr(where, (ref) => bare(ref, row), args, env)).length;
+				const cap = Number(args[capIndex]);
+				if (!(used < cap)) return { rows: [], rowsAffected: 0 };
+			} else if (!guard) {
+				throw new Error(`fake db: unsupported INSERT: ${sql}`);
+			}
 			return insert(`INSERT INTO ${table} (${colList}) VALUES (${valList})`, args.slice(0, placeholders.length));
 		}
 		const m = sql.match(/^INSERT INTO (\w+) \(([^)]*)\) VALUES \((.*?)\)(?: ON CONFLICT \(([^)]*)\) DO (NOTHING|UPDATE SET (.*)))?$/i);

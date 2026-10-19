@@ -475,6 +475,28 @@ describe('the Vault keeps to the bright lines', () => {
     }
   });
 
+  it('runs the real-Postgres race tests in CI, in a step that cannot pass by skipping', () => {
+    const ci = read('.github/workflows/ci.yml');
+    const step = /- name: Agent Vault limits under concurrency \(Postgres\)\n\s+run: npx vitest run tests\/pgAgenticsLimits\.test\.ts\n\s+env:\n([\s\S]*?)\n\n/.exec(ci);
+    expect(step, 'the CI step is gone').not.toBeNull();
+    // With the opt-in set the test file runs (it never skips), against the job's own throwaway database.
+    expect(step![1]).toMatch(/DATABASE_URL: postgres:\/\/postgres:postgres@localhost:5432\/postgres/);
+    expect(step![1]).toMatch(/RUN_PG_AGENTICS_LIMITS: '1'/);
+    // It sits in the same job as the unit tests and the build, so the required check covers it.
+    expect(ci).toMatch(/name: Unit tests \+ build[\s\S]*Agent Vault limits under concurrency[\s\S]*run: npm run build/);
+    // And the unit step skips the file (it needs the database).
+    expect(read('vitest.ci.config.ts')).toMatch(/tests\/pg\*\.test\.ts/);
+  });
+
+  it('add through the guarded inserts only: no request path uses the plain ones, which never check that the agent is live', () => {
+    // insertWallet / insertDestination (store.ts) are for tests and scripts; a request adds through
+    // insertWalletWithinCap / insertDestinationWithinCap, with a cap of null for a plan with no limit.
+    const users = VAULT_FILES.filter((f) => f !== 'src/lib/agentVault/store.ts' && /\binsert(Wallet|Destination)\b(?!WithinCap)/.test(read(f)));
+    expect(users).toEqual([]);
+    expect(read('src/lib/agentVault/vault.ts')).toMatch(/insertWalletWithinCap\(tenantId, \{ tinId, chain, address, at: nowUtc\(\) \}, limits\.walletsPerBot\)/);
+    expect(read('src/lib/agentVault/vault.ts')).toMatch(/insertDestinationWithinCap\(tenantId, row, limits\.addresses\)/);
+  });
+
   it('only the plan and the gate know who the owner is: no other Vault file names the owner', () => {
     const knows = VAULT_FILES.filter((f) => /@\/lib\/owner|\.\/owner'|OWNER_TENANT_ID|\bisOwner\b|titaniumhut|donnie@/.test(read(f))).sort();
     expect(knows).toEqual(['src/lib/agentVault/entitlements.ts', 'src/lib/agenticsAccess.ts']);

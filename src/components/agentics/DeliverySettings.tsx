@@ -55,6 +55,8 @@ export default function DeliverySettings({ settings, recipientAvailable }: Deliv
         className="ag-form"
         onSubmit={(e) => {
           e.preventDefault();
+          // aria-disabled keeps focus on the button, and a press on it still submits.
+          if (busy) return;
           void save();
         }}
       >
@@ -72,7 +74,7 @@ export default function DeliverySettings({ settings, recipientAvailable }: Deliv
           <input type="checkbox" checked={alerts} onChange={(e) => setAlerts(e.target.checked)} />
           <span>{copy.delivery.alertsLabel}</span>
         </label>
-        <button className="ag-btn ag-btn--primary" type="submit" disabled={busy}>
+        <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || undefined}>
           {busy ? copy.delivery.saving : copy.delivery.save}
         </button>
         {status ? (

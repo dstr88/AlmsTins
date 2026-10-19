@@ -193,6 +193,13 @@ describe('part of a day', () => {
     }
   });
 
+  it('refuses a range that starts ahead of the clock, even when it ends on a whole day that has begun', async () => {
+    const tin = await seed();
+    const r = await get(range(tin.id, { from: '2026-10-18T23:00', to: '2026-10-18' }));
+    expect(r.res.status).toBe(400);
+    expect(r.body).toEqual({ ok: false, error: 'invalid_period' });
+  });
+
   it('allows the minute that has begun: at 12:00 the last minute can be 12:00, and the file says it was made before it ended', async () => {
     const tin = await seed();
     const r = await get(range(tin.id, { from: '2026-10-18T06:00', to: '2026-10-18T12:00' }));

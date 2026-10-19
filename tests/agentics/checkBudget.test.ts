@@ -72,6 +72,35 @@ describe('the budget of checks', () => {
     expect(budget.spend('tenant-0', 5, T0 + 500)).toBe(true);
   });
 
+  it('gives back checks that were paid for and not made, inside the window they came from', () => {
+    const budget = createCheckBudget({ max: 10 });
+    expect(budget.spend('a', 10, T0)).toBe(true);
+    expect(budget.spend('a', 1, T0)).toBe(false);
+    budget.refund('a', 4, T0 + 1);
+    expect(budget.spend('a', 4, T0 + 2)).toBe(true);
+    expect(budget.spend('a', 1, T0 + 3)).toBe(false);
+  });
+
+  it('never refunds below none used, and cannot buy room: a refund of more than was spent leaves the whole budget, no more', () => {
+    const budget = createCheckBudget({ max: 5 });
+    expect(budget.spend('a', 2, T0)).toBe(true);
+    budget.refund('a', 99, T0);
+    expect(budget.spend('a', 5, T0)).toBe(true);
+    expect(budget.spend('a', 1, T0)).toBe(false);
+  });
+
+  it('ignores a refund for an account with nothing spent, for a window that has passed, and for nothing', () => {
+    const budget = createCheckBudget({ max: 5, windowMs: 1_000 });
+    budget.refund('nobody', 3, T0);
+    expect(budget.spend('nobody', 5, T0)).toBe(true);
+    expect(budget.spend('a', 5, T0)).toBe(true);
+    budget.refund('a', 5, T0 + 1_000); // the window it was taken from is over; a new one starts empty
+    expect(budget.spend('a', 5, T0 + 1_000)).toBe(true);
+    expect(budget.spend('a', 1, T0 + 1_000)).toBe(false);
+    for (const n of [0, -2, Number.NaN]) budget.refund('a', n, T0 + 1_001);
+    expect(budget.spend('a', 1, T0 + 1_002)).toBe(false);
+  });
+
   it('shares one budget across the running server, and starts full', () => {
     expect(defaultCheckBudget.spend('a-tenant-only-this-test-uses', CHECKS_PER_WINDOW)).toBe(true);
     expect(defaultCheckBudget.spend('a-tenant-only-this-test-uses', 1)).toBe(false);

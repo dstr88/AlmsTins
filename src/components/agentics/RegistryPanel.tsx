@@ -17,7 +17,7 @@ import type { Destination } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
 import { describePaste, PASTE_MAX_LINES, planPaste, runPaste, type PasteOutcome } from './paste';
-import { ConfirmRemove, CopyButton, pillOf, Readout, Status, TrustPill } from './ui';
+import { ConfirmRemove, CopyButton, pillOf, Readout, shouldTakeFocus, Status, TrustPill } from './ui';
 
 /** What the registry says for the codes it knows better than the general words do: a wait is about checks here. */
 const REGISTRY_ERRORS: Readonly<Record<string, string>> = { rate_limited: copy.registry.rateLimited };
@@ -197,12 +197,15 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
       markBusy(d.id, false);
       return;
     }
+    // Asked while the row is still on the page: focus moves to the card's heading only if it was on
+    // this row (its button is about to be gone) or nowhere, never away from something the person
+    // moved on to while the request ran.
+    const takeFocus = shouldTakeFocus(document.activeElement, document.getElementById(`ag-dest-${d.id}`), document.body);
     setList((prev) => prev.filter((x) => x.id !== d.id));
     say(d.id, null);
     setNote(copy.registry.removed);
     markBusy(d.id, false);
-    // The row the person was on is gone, and so is the button that held focus: put it on the card's heading.
-    heading.current?.focus();
+    if (takeFocus) heading.current?.focus();
     await onChanged?.();
   }
 
@@ -227,6 +230,8 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
         className="ag-paste"
         onSubmit={(e) => {
           e.preventDefault();
+          // The button is aria-disabled while a paste runs (it keeps focus), and a press on it still submits.
+          if (busy !== null || full || !text.trim()) return;
           void submitPaste();
         }}
       >
@@ -258,7 +263,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
               ))}
             </select>
           </label>
-          <button className="ag-btn ag-btn--primary" type="submit" disabled={busy !== null || full || !text.trim()}>
+          <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy !== null || full || !text.trim() || undefined}>
             {busy === 'paste' ? copy.registry.adding : copy.registry.add}
           </button>
         </div>
@@ -274,7 +279,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
 
       {pending > 0 ? (
         <div className="ag-form">
-          <button className="ag-btn" type="button" onClick={() => void trustPending()} disabled={busy !== null}>
+          <button className="ag-btn" type="button" aria-disabled={busy !== null || undefined} onClick={() => { if (busy === null) void trustPending(); }}>
             {busy === 'pending' ? copy.registry.checkingPending : copy.registry.checkPending}
           </button>
         </div>
@@ -294,7 +299,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
             const mine = rowMessages[d.id] ?? null;
             const working = rowBusy.has(d.id);
             return (
-              <li className="ag-dest" key={d.id}>
+              <li className="ag-dest" key={d.id} id={`ag-dest-${d.id}`}>
                 <div className="ag-dest__main">
                   <TrustPill kind={pillOf(d)} />
                   <span className="ag-addr ag-mono">{d.address}</span>
@@ -307,7 +312,14 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
                 </p>
                 <div className="ag-dest__actions">
                   {d.trustStatus === 'flagged' ? null : (
-                    <button className="ag-btn ag-btn--small" type="button" disabled={working || busy !== null} onClick={() => void trustOne(d)}>
+                    <button
+                      className="ag-btn ag-btn--small"
+                      type="button"
+                      aria-disabled={working || busy !== null || undefined}
+                      onClick={() => {
+                        if (!working && busy === null) void trustOne(d);
+                      }}
+                    >
                       {working ? copy.registry.checking : d.trustStatus === 'trusted' ? copy.registry.recheck : copy.registry.trust}
                     </button>
                   )}

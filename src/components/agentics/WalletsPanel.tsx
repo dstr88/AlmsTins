@@ -12,7 +12,7 @@ import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import type { AgentWallet } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
-import { ConfirmRemove, CopyButton, Status } from './ui';
+import { ConfirmRemove, CopyButton, shouldTakeFocus, Status } from './ui';
 
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
 
@@ -74,10 +74,12 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
     setMessage(null);
     const r = await send('DELETE', `/api/agentics/wallets?id=${encodeURIComponent(w.id)}`);
     if (r.ok) {
+      // Asked while the row is still on the page: focus moves to the card's heading only if it was on
+      // this row or nowhere, never away from something the person moved on to while the request ran.
+      const takeFocus = shouldTakeFocus(document.activeElement, document.getElementById(`ag-wallet-${w.id}`), document.body);
       setList((prev) => prev.filter((x) => x.id !== w.id));
       setMessage({ kind: 'ok', text: copy.wallets.removed });
-      // The wallet the person was on is gone, and so is the button that held focus: put it on the card's heading.
-      heading.current?.focus();
+      if (takeFocus) heading.current?.focus();
     } else {
       setMessage({ kind: 'bad', text: failureText(r) });
     }
@@ -98,6 +100,8 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
         className="ag-form"
         onSubmit={(e) => {
           e.preventDefault();
+          // The button is aria-disabled while it works (it keeps focus), and a press on it still submits.
+          if (busy || full || !address.trim()) return;
           void add();
         }}
       >
@@ -125,7 +129,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
             disabled={busy || full}
           />
         </label>
-        <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || full || !address.trim()}>
+        <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || full || !address.trim() || undefined}>
           {busy ? copy.wallets.adding : copy.wallets.add}
         </button>
       </form>
@@ -137,7 +141,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
       ) : (
         <ul className="ag-dests" aria-label={copy.wallets.listLabel}>
           {list.map((w) => (
-            <li className="ag-dest" key={w.id}>
+            <li className="ag-dest" key={w.id} id={`ag-wallet-${w.id}`}>
               <div className="ag-dest__main">
                 <span className="ag-pill">{chainName(w.chain)}</span>
                 <span className="ag-addr ag-mono">{w.address}</span>

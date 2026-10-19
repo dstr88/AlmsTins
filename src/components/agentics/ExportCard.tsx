@@ -72,8 +72,9 @@ export default function ExportCard({ tinId, since, today, signing }: ExportCardP
             key={days}
             type="button"
             className="ag-btn ag-btn--small"
-            disabled={busy !== null}
+            aria-disabled={busy !== null || undefined}
             onClick={() => {
+              if (busy !== null) return;
               const r = presetRange(today, days, since);
               setFrom(r.from);
               setTo(r.to);
@@ -93,10 +94,10 @@ export default function ExportCard({ tinId, since, today, signing }: ExportCardP
           {copy.export.to}
           <input className="ag-input" type="date" value={to} min={from || since} max={today} required onChange={(e) => setTo(e.target.value)} />
         </label>
-        <button className="ag-btn ag-btn--primary" type="button" disabled={busy !== null || !usable} onClick={() => void download('json')}>
+        <button className="ag-btn ag-btn--primary" type="button" aria-disabled={busy !== null || !usable || undefined} onClick={() => { if (busy === null && usable) void download('json'); }}>
           {busy === 'json' ? copy.export.preparing : copy.export.signed}
         </button>
-        <button className="ag-btn" type="button" disabled={busy !== null || !usable} onClick={() => void download('csv')}>
+        <button className="ag-btn" type="button" aria-disabled={busy !== null || !usable || undefined} onClick={() => { if (busy === null && usable) void download('csv'); }}>
           {busy === 'csv' ? copy.export.preparing : copy.export.csv}
         </button>
       </form>
@@ -115,8 +116,9 @@ export default function ExportCard({ tinId, since, today, signing }: ExportCardP
           <button
             className="ag-btn ag-btn--small"
             type="button"
-            disabled={busy !== null || (!fromTime && !toTime)}
+            aria-disabled={busy !== null || (!fromTime && !toTime) || undefined}
             onClick={() => {
+              if (busy !== null || (!fromTime && !toTime)) return;
               setFromTime('');
               setToTime('');
             }}

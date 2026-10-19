@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 /**
  * The runner behind Add + Trust, and the default wiring to the checks the app already has:
@@ -20,13 +22,15 @@ vi.mock('@/lib/walletChecker', () => ({ checkWallet: mocks.checkWallet, getCache
 vi.mock('@/lib/verifyEntities', () => ({ lookupVerifiedAddress: mocks.lookupVerifiedAddress }));
 vi.mock('@/lib/verifyRegistry', () => ({ isClaimedElsewhere: mocks.isClaimedElsewhere }));
 
-import { CHECK_CONCURRENCY, defaultTrustDeps, isCompleteAnswer, runTrustChecks } from '../../src/lib/agentVault/trustChecks';
+import { CHECK_CONCURRENCY, defaultTrustDeps, forgetAnswers, isCompleteAnswer, REMEMBER_MAX, REMEMBER_MS, runTrustChecks } from '../../src/lib/agentVault/trustChecks';
 import { defaultCheckBudget } from '../../src/lib/agentVault/checkBudget';
 import { addr, fakeDeps, walletResult } from '../helpers/agentVault';
 
+const ROOT = path.resolve(__dirname, '../..');
 const TENANT = 'tenant-a';
 
 beforeEach(() => {
+  forgetAnswers();
   mocks.checkWallet.mockReset();
   mocks.getCached.mockReset();
   mocks.getCached.mockReturnValue(null);
@@ -183,20 +187,104 @@ describe('the default checks are the ones the app already has', () => {
     expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps a complete answer for the next look, and never keeps a limited one', async () => {
-    const complete = walletResult();
-    mocks.checkWallet.mockResolvedValueOnce(complete);
+  it('remembers a complete answer in the Vault\'s own memory, so the next look does not ask again', async () => {
+    mocks.checkWallet.mockResolvedValue(walletResult());
     await defaultTrustDeps.wallet(addr(1));
-    expect(mocks.setCache).toHaveBeenCalledWith(addr(1), complete);
-
-    mocks.setCache.mockClear();
-    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { sanctions: 'error' } }));
+    await defaultTrustDeps.wallet(addr(1));
     await defaultTrustDeps.wallet(addr(2));
-    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { chainalysis: 'error' } }));
-    await defaultTrustDeps.wallet(addr(3));
-    mocks.checkWallet.mockResolvedValueOnce(walletResult({ coverage: { goplus: 'skipped' } }));
-    await defaultTrustDeps.wallet(addr(4));
+    expect(mocks.checkWallet.mock.calls.map((c) => c[0])).toEqual([addr(1), addr(2)]);
+  });
+
+  it('asks again when a person asks to check again: fresh ignores what is remembered and what the public checker holds, and the new answer is remembered', async () => {
+    mocks.getCached.mockReturnValue(walletResult({ flags: { phishing: true } }));
+    mocks.checkWallet.mockResolvedValue(walletResult());
+    await defaultTrustDeps.wallet(addr(1)); // an add: the public checker's answer is used
+    expect(mocks.checkWallet).not.toHaveBeenCalled();
+    const fresh = await defaultTrustDeps.wallet(addr(1), { fresh: true });
+    expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
+    expect(fresh.flags.phishing).toBe(false); // the new screening, not the cached one
+    // The memory now holds the new answer, so the next add is answered from it.
+    await defaultTrustDeps.wallet(addr(1));
+    expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
+    // A second fresh look asks again, however recent the last was.
+    await defaultTrustDeps.wallet(addr(1), { fresh: true });
+    expect(mocks.checkWallet).toHaveBeenCalledTimes(2);
+  });
+
+  it('hands `fresh` to the checks only when it was asked for', async () => {
+    const asked = fakeDeps();
+    await runTrustChecks(TENANT, [addr(1), addr(2)], asked, { fresh: true });
+    expect(asked.calls.fresh.sort()).toEqual([addr(1), addr(2)]);
+    const added = fakeDeps();
+    await runTrustChecks(TENANT, [addr(1), addr(2)], added);
+    expect(added.calls.fresh).toEqual([]);
+  });
+
+  it('never writes the public checker\'s cache: anyone can read it through /api/wallet-check, and it says when an address was checked', async () => {
+    mocks.checkWallet.mockResolvedValue(walletResult());
+    await defaultTrustDeps.wallet(addr(1));
+    await defaultTrustDeps.wallet(addr(1));
     expect(mocks.setCache).not.toHaveBeenCalled();
+    // And the module does not even reach for the writer.
+    expect(readFileSync(path.join(ROOT, 'src/lib/agentVault/trustChecks.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/\bsetCache\b/);
+  });
+
+  it('never remembers a limited answer: it is asked for again each time', async () => {
+    for (const coverage of [{ sanctions: 'error' as const }, { chainalysis: 'error' as const }, { goplus: 'skipped' as const }]) {
+      forgetAnswers();
+      mocks.checkWallet.mockReset();
+      mocks.checkWallet.mockResolvedValue(walletResult({ coverage }));
+      await defaultTrustDeps.wallet(addr(3));
+      await defaultTrustDeps.wallet(addr(3));
+      expect(mocks.checkWallet, JSON.stringify(coverage)).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it('forgets an answer after five minutes, and not before', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-18T12:00:00.000Z'));
+      mocks.checkWallet.mockResolvedValue(walletResult());
+      await defaultTrustDeps.wallet(addr(1));
+      vi.setSystemTime(new Date(Date.parse('2026-10-18T12:00:00.000Z') + REMEMBER_MS - 1));
+      await defaultTrustDeps.wallet(addr(1));
+      expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(new Date(Date.parse('2026-10-18T12:00:00.000Z') + REMEMBER_MS));
+      await defaultTrustDeps.wallet(addr(1));
+      expect(mocks.checkWallet).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('remembers at most 500 addresses, dropping the oldest, so rotating addresses cannot grow it without limit', async () => {
+    expect(REMEMBER_MAX).toBe(500);
+    mocks.checkWallet.mockResolvedValue(walletResult());
+    for (let i = 0; i < REMEMBER_MAX + 5; i += 1) await defaultTrustDeps.wallet(addr(i));
+    mocks.checkWallet.mockClear();
+    await defaultTrustDeps.wallet(addr(REMEMBER_MAX + 4)); // the newest is still remembered
+    expect(mocks.checkWallet).not.toHaveBeenCalled();
+    await defaultTrustDeps.wallet(addr(0)); // the oldest was dropped
+    expect(mocks.checkWallet).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts the time the screening was made on a readout, so an answer from memory says how old it is', async () => {
+    const deps = fakeDeps(); // answers at 2026-10-01T12:00:00Z
+    deps.wallets[addr(1)] = walletResult({ checkedAt: '2026-10-01T11:57:30.250Z' }); // screened two and a half minutes ago
+    deps.wallets[addr(2)] = walletResult({ checkedAt: '2026-10-01T12:00:00.000Z' }); // screened just now
+    deps.wallets[addr(3)] = walletResult({ checkedAt: '2026-10-01T12:05:00.000Z' }); // from the future: not believed
+    deps.wallets[addr(4)] = walletResult({ checkedAt: 'last Tuesday' }); // not a time
+    const out = await runTrustChecks(TENANT, [addr(1), addr(2), addr(3), addr(4)], deps);
+    expect(out.get(addr(1))?.checkedAt).toBe('2026-10-01T11:57:30.250Z');
+    expect(out.get(addr(2))?.checkedAt).toBe('2026-10-01T12:00:00.000Z');
+    expect(out.get(addr(3))?.checkedAt).toBe('2026-10-01T12:00:00.000Z');
+    expect(out.get(addr(4))?.checkedAt).toBe('2026-10-01T12:00:00.000Z');
+  });
+
+  it('says now when the screening could not be reached, because there is no screening time to say', async () => {
+    const deps = fakeDeps();
+    deps.wallets[addr(1)] = new Error('upstream down');
+    expect((await runTrustChecks(TENANT, [addr(1)], deps)).get(addr(1))?.checkedAt).toBe('2026-10-01T12:00:00.000Z');
   });
 
   it('carries the one budget of checks the running server shares', () => {

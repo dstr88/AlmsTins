@@ -88,6 +88,12 @@ export function createExportRequestLimiter(): ExportRequestLimiter {
 
 /** Exports being made at once in this process. A full file is tens of megabytes of memory, so one at a time. */
 export const MAX_EXPORTS_IN_FLIGHT = 1;
+/**
+ * How long a place is held before it is taken back, whether or not its export ever said it was over:
+ * a database call that hangs must not close exports for the whole server until the process restarts.
+ * A full file takes about a second; a request the platform would have cut off is long gone by then.
+ */
+export const EXPORT_LEASE_MS = 120_000;
 
 export interface ExportGate {
   /**
@@ -98,21 +104,25 @@ export interface ExportGate {
   enter(tenantId: string): (() => void) | null;
 }
 
-/** A gate with its own count, so a test (or a second route) can have one that is not shared. */
-export function createExportGate(opts: { perProcess?: number } = {}): ExportGate {
+/** A gate with its own count and clock, so a test (or a second route) can have one that is not shared. */
+export function createExportGate(opts: { perProcess?: number; leaseMs?: number; now?: () => number } = {}): ExportGate {
   const perProcess = opts.perProcess ?? MAX_EXPORTS_IN_FLIGHT;
-  const running = new Set<string>();
+  const leaseMs = opts.leaseMs ?? EXPORT_LEASE_MS;
+  const now = opts.now ?? Date.now;
+  const running = new Map<string, { since: number }>();
   return {
     enter(tenantId) {
+      const at = now();
+      // A place whose lease has run out is taken back: its export is stuck or lost, and the next one goes ahead.
+      for (const [id, held] of running) if (at - held.since >= leaseMs) running.delete(id);
       // One per account is a rule of its own, not only a consequence of the process limit: when the
       // process limit is raised, an account still cannot start two.
       if (running.has(tenantId) || running.size >= perProcess) return null;
-      running.add(tenantId);
-      let left = false;
+      const mine = { since: at };
+      running.set(tenantId, mine);
       return () => {
-        if (left) return;
-        left = true;
-        running.delete(tenantId);
+        // Only the holder of this very place gives it back: a stale release cannot free a later export's place.
+        if (running.get(tenantId) === mine) running.delete(tenantId);
       };
     },
   };
@@ -266,9 +276,9 @@ export function rangeBounds(from: string, to: string): { start: string; end: str
 
 /**
  * A range from a query string: each end a real UTC day or a real UTC minute, the start before the end,
- * the last day or minute named already begun (a day that has not begun has nothing to export, and
- * neither has a minute: `nowMs` is the clock for that, left out where only days are asked), and at
- * most MAX_EXPORT_DAYS days. A malformed or backwards range is invalid_period; a range that is only
+ * the range already begun (a day that has not begun has nothing to export, and neither has a minute:
+ * `nowMs` is the clock for that, left out where only days are asked, and then only the last day is
+ * held to today), and at most MAX_EXPORT_DAYS days. A malformed or backwards range is invalid_period; a range that is only
  * too long is export_too_large.
  */
 export function parseExportRange(fromRaw: unknown, toRaw: unknown, today: string, nowMs?: number): ({ ok: true } & ExportRange) | Failure {
@@ -279,7 +289,11 @@ export function parseExportRange(fromRaw: unknown, toRaw: unknown, today: string
   const startMs = Date.parse(bounds.start);
   const endMs = Date.parse(bounds.end);
   if (!(startMs < endMs) || b.day > today) return fail('invalid_period');
-  if (b.minute !== null && nowMs !== undefined && Date.parse(`${b.day}T00:00:00.000Z`) + b.minute * MINUTE_MS > nowMs) return fail('invalid_period');
+  if (nowMs !== undefined) {
+    // A range that has not begun has nothing to export: neither its start nor the minute it ends in may be ahead of the clock.
+    if (startMs > nowMs) return fail('invalid_period');
+    if (b.minute !== null && Date.parse(`${b.day}T00:00:00.000Z`) + b.minute * MINUTE_MS > nowMs) return fail('invalid_period');
+  }
   const days = Math.ceil((endMs - startMs) / DAY_MS);
   if (days > MAX_EXPORT_DAYS) return fail('export_too_large', MAX_EXPORT_DAYS);
   return { ok: true, from: a.text, to: b.text, days };
@@ -325,7 +339,11 @@ export interface LedgerManifest {
   /** The first moment of the range, and the first moment after it (exclusive), UTC ISO-8601 with milliseconds. */
   period_start: string;
   period_end: string;
-  /** True when the file was made before the range ended (a range that runs to today), so it covers part of its last day. */
+  /**
+   * True when the file's cutoff (the moment the export started: it holds no event from after it) came before the range
+   * ended, so it covers part of its last day or minute. `generated_at` is read after the ledger was, so it can be a moment
+   * later than the cutoff, even later than the end of the range; the file still holds only what came before the cutoff.
+   */
   partial: boolean;
   tin_id: string;
   /** The agent's name as its owner wrote it. Untrusted text. */
@@ -583,19 +601,25 @@ export const CSV_COLUMNS = [
   'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'unsigned_copy_of_bundle_id',
 ] as const;
 
-/** The byte-order mark that makes a spreadsheet read the file as UTF-8 (a token's symbol can be any text). Parsers that read UTF-8 drop it. */
+/**
+ * The byte-order mark that makes a spreadsheet read the file as UTF-8 (a token's symbol can be any text).
+ * Excel, Numbers, LibreOffice and pandas take it as an encoding mark and drop it; a reader that decodes
+ * plain UTF-8 and keeps it (Python's csv module, unless it is opened with encoding='utf-8-sig') sees it
+ * as the first character of the first column name.
+ */
 const CSV_BOM = '\uFEFF';
 
 /**
- * One CSV cell. A cell that a spreadsheet could read as a formula (it starts with =, +, - or @, or
- * with a tab or a carriage return) is written with a leading quote, because an asset's symbol comes
- * from the chain and anyone can name a token. Then RFC 4180: a cell with a comma, a quote or a line
- * break is quoted, and a quote inside it is doubled.
+ * One CSV cell. A cell that a spreadsheet could read as a formula (it starts with =, +, - or @, with
+ * or without spaces or tabs in front of that, or with a tab or a carriage return) is written with a
+ * leading quote, because an asset's symbol comes from the chain and anyone can name a token (some
+ * spreadsheets trim the spaces before they look at the first character). Then RFC 4180: a cell with a
+ * comma, a quote or a line break is quoted, and a quote inside it is doubled.
  */
 export function csvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return '';
   let s = String(value);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/^\s*[=+\-@]|^[\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

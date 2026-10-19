@@ -293,6 +293,17 @@ describe('runPaste: a request the plan refuses as a whole still says what became
     });
     expect(out).toMatchObject({ added: 0, overLimit: 4, notTried: 0 });
     expect(out.lines).toHaveLength(4);
+    // It did not end early: every line is somewhere, so the summary says nothing about an early end.
+    expect(out.endedBecause).toBeNull();
+    expect(describePaste(out).join(' ')).not.toMatch(/ended early/);
+  });
+
+  it('says the paste ended early only when lines were left unsent behind a refusal', async () => {
+    const refused = planLimit(lines(1, 10).map((address, i) => ({ line: i + 1, chain: 'ethereum', address, reason: 'over_limit' })));
+    const out = await runPaste(planPaste(lines(1, 12).join('\n')), { tinId: 't', chain: 'ethereum', call: async () => refused });
+    expect(out.notTried).toBe(2);
+    expect(out.endedBecause).toBe('Your free plan covers 15 addresses. Paid plans are coming later.');
+    expect(describePaste(out).join(' ')).toMatch(/The paste ended early/);
   });
 
   it('falls back to counting every line of the request as over the limit when the answer carries no lines', async () => {

@@ -65,6 +65,8 @@ export default function AgentKeyCard({ tinId, linked, available }: AgentKeyCardP
         className="ag-form"
         onSubmit={(e) => {
           e.preventDefault();
+          // aria-disabled keeps focus on the button, and a press on it still submits.
+          if (busy) return;
           const next = choices.find((k) => k.id === chosen);
           if (next) void change(next);
         }}
@@ -82,7 +84,7 @@ export default function AgentKeyCard({ tinId, linked, available }: AgentKeyCardP
                 ))}
               </select>
             </label>
-            <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || !chosen}>
+            <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || !chosen || undefined}>
               {busy ? copy.agent.key.linking : copy.agent.key.link}
             </button>
           </>
@@ -90,7 +92,7 @@ export default function AgentKeyCard({ tinId, linked, available }: AgentKeyCardP
           <p className="ag-hint">{copy.agent.key.noneAvailable}</p>
         )}
         {key ? (
-          <button className="ag-btn" type="button" disabled={busy} onClick={() => void change(null)}>
+          <button className="ag-btn" type="button" aria-disabled={busy || undefined} onClick={() => { if (!busy) void change(null); }}>
             {copy.agent.key.unlink}
           </button>
         ) : null}

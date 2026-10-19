@@ -400,13 +400,31 @@ describe('how the limits are enforced', () => {
     expect(fake.log.some((s) => /SELECT COUNT\(\*\)/.test(s.sql))).toBe(true);
   });
 
-  it('the owner\'s creates are the plain inserts: no lock, no count', async () => {
+  it('the owner\'s own wallets and addresses are added behind the same lock and under a live agent, but nothing is counted', async () => {
     const tin = await newTin(OWNER);
+    fake.batches.length = 0;
+    fake.log.length = 0;
     await vault.addWallet(OWNER, { tinId: tin.id, chain: 'ethereum', address: addr(1) });
     await add(OWNER, tin.id, addr(2));
-    expect(capped()).toHaveLength(0);
-    expect(fake.log.some((s) => /pg_advisory_xact_lock|SELECT COUNT/.test(s.sql))).toBe(false);
+    const batches = capped();
+    expect(batches).toHaveLength(2);
+    for (const batch of batches) {
+      expect(batch[0].sql).toMatch(/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/);
+      expect(batch[0].args).toEqual([OWNER]);
+      // The agent is checked live in the statement itself, and no count and no limit are in it.
+      expect(batch[1].sql).toMatch(/WHERE EXISTS \(SELECT 1 FROM agent_tins WHERE id = \? AND tenant_id = \? AND deleted_at IS NULL\)$/);
+      expect(batch[1].sql).not.toMatch(/COUNT\(\*\)/);
+    }
+    expect(fake.log.some((s) => /SELECT COUNT/.test(s.sql))).toBe(false);
     expect(live('agent_tins', OWNER)).toHaveLength(1);
+    expect(live('agent_wallets', OWNER)).toHaveLength(1);
+    expect(live('agent_destinations', OWNER)).toHaveLength(1);
+  });
+
+  it('an agent of the owner is the plain insert: there is nothing above it to check, and no cap to count', async () => {
+    fake.batches.length = 0;
+    await newTin(OWNER);
+    expect(capped()).toHaveLength(0);
   });
 
   it('a refused create writes no row and answers without any text of its own', async () => {
@@ -459,6 +477,18 @@ describe('an agent that is removed while a request for it is running', () => {
     removeAgentBeforeNextInsert(A, tin.id);
     expect(await vault.addWallet(A, { tinId: tin.id, chain: 'ethereum', address: addr(1) })).toEqual({ ok: false, error: 'tin_not_found' });
     expect(rows('agent_wallets')).toHaveLength(0);
+  });
+
+  it('holds for the owner too, whose plan has no limits: nothing is written under the removed agent', async () => {
+    const tin = await newTin(OWNER);
+    removeAgentBeforeNextInsert(OWNER, tin.id);
+    expect(await add(OWNER, tin.id, addr(2))).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(rows('agent_destinations').filter((r) => r.address === addr(2))).toHaveLength(0);
+    const second = await newTin(OWNER, 'Second');
+    removeAgentBeforeNextInsert(OWNER, second.id);
+    expect(await vault.addWallet(OWNER, { tinId: second.id, chain: 'ethereum', address: addr(3) })).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(rows('agent_wallets')).toHaveLength(0);
+    expect(live('agent_destinations', OWNER)).toHaveLength(0);
   });
 
   it('a registered address whose agent is gone counts for nothing, even if its row were somehow still live', async () => {
@@ -589,6 +619,44 @@ describe('the budget of checks', () => {
     expect(await add(A, mine.id, addr(30))).toEqual({ ok: false, error: 'rate_limited' });
     expectOk(await add(B, theirs.id, lines(1, 5))); // their own five
     for (let from = 1; from <= 31; from += 10) expect(expectOk(await add(OWNER, owners.id, lines(from, 10))).summary.added).toBe(10); // no cap on addresses, no budget
+  });
+
+  it('gives back the checks of lines that were not made: pasting addresses that are already registered again and again costs nothing', async () => {
+    deps.budget = await budgetOf(25);
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10))); // ten checks made and spent
+    // The same ten, four times over: each paste is paid for in advance (10 more would be 20, then 30 without a refund),
+    // every line is "already registered", nothing is asked, and the charge is given back.
+    for (let i = 0; i < 4; i += 1) expect(expectOk(await add(A, tin.id, lines(1, 10))).summary, String(i)).toMatchObject({ added: 0, skipped: 10 });
+    expect(expectOk(await add(A, tin.id, lines(11, 5))).summary.added).toBe(5); // ten used, five more: fifteen of twenty-five
+    expect(expectOk(await add(A, tin.id, lines(1, 10))).summary.skipped).toBe(10);
+    expect(await vault.addDestinations(A, { tinId: tin.id, text: lines(30, 10) }, deps)).toMatchObject({ ok: false, error: 'plan_limit' }); // the plan is full: refused, and given back
+    expect(deps.calls.wallet).toHaveLength(15); // fifteen addresses were ever asked about
+  });
+
+  it('gives back the whole charge when the plan is full: a refused paste asked nobody anything', async () => {
+    deps.budget = await budgetOf(30);
+    const tin = await newTin();
+    expectOk(await add(A, tin.id, lines(1, 10)));
+    expectOk(await add(A, tin.id, lines(11, 5))); // fifteen: the plan is full, fifteen spent
+    // Six refused pastes of ten: each is paid for in advance (25 of 30), refused, and given back. Without the
+    // refund the second would already be over the budget.
+    for (let i = 0; i < 6; i += 1) expect(await add(A, tin.id, lines(100 + i * 10, 10)), String(i)).toMatchObject({ ok: false, error: 'plan_limit' });
+    // The other fifteen are still there for checking the registered addresses again (ten at a time).
+    const ids = live('agent_destinations', A).map((r) => r.id as string);
+    expect(expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids: ids.slice(0, 10) }, deps)).destinations).toHaveLength(10);
+    expect(expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids: ids.slice(10) }, deps)).destinations).toHaveLength(5);
+    expect(await vault.trustDestinations(A, { tinId: tin.id, ids: ids.slice(0, 1) }, deps)).toEqual({ ok: false, error: 'rate_limited' });
+  });
+
+  it('an add may be answered from memory, and a check again never is', async () => {
+    const tin = await newTin();
+    const first = expectOk(await add(A, tin.id, addr(1), { trust: false })).destinations[0];
+    expectOk(await add(A, tin.id, addr(2)));
+    expect(deps.calls.fresh).toEqual([]); // adding asks for no new screening
+    expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids: [first.id] }, deps));
+    expectOk(await vault.trustDestinations(A, { tinId: tin.id }, deps));
+    expect(deps.calls.fresh).toEqual([addr(1)]); // a person asked to check it again; the second call had nothing pending
   });
 
   it('is open again a minute later', async () => {

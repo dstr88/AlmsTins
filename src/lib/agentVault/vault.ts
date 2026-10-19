@@ -32,11 +32,9 @@ import {
   findLiveTinByKey,
   getDestinations,
   getTin,
-  insertDestination,
   insertDestinationWithinCap,
   insertTin,
   insertTinWithinCap,
-  insertWallet,
   insertWalletWithinCap,
   isUniqueViolation,
   listDestinations,
@@ -199,12 +197,12 @@ export async function addWallet(
   if (!address) return fail('invalid_address');
   if (!(await getTin(tenantId, tinId))) return fail('tin_not_found');
   const { limits } = await getEntitlements(tenantId);
-  if (limits.walletsPerBot === null) {
-    const r = await insertWallet(tenantId, { tinId, chain, address, at: nowUtc() });
-    return { ok: true, added: r.kind === 'inserted', wallet: r.wallet };
-  }
+  // Every account adds through the guarded insert (a plan with no limit has a cap of null): the agent
+  // is checked live and the account's lock taken, so a removal racing an add leaves no live row under
+  // a removed agent for the owner either.
   const r = await insertWalletWithinCap(tenantId, { tinId, chain, address, at: nowUtc() }, limits.walletsPerBot);
-  if (r.kind === 'over_limit') return failLimit('wallets', limits.walletsPerBot, await countLiveWallets(tenantId, tinId));
+  // Only a plan with a limit can be over it.
+  if (r.kind === 'over_limit') return failLimit('wallets', limits.walletsPerBot ?? 0, await countLiveWallets(tenantId, tinId));
   // The agent was removed between the check above and the insert: nothing was written.
   if (r.kind === 'no_tin') return fail('tin_not_found');
   return { ok: true, added: r.kind === 'inserted', wallet: r.wallet };
@@ -284,23 +282,27 @@ export async function addDestinations(
   // The checks this paste will start are paid for before anything is written. An account on a plan
   // with a cap on addresses has a budget of checks a minute (./checkBudget.ts); over it, nothing is
   // stored and nothing is asked, and the caller is told to wait.
-  if (input.trust !== false && limits.addresses !== null && deps.budget && !deps.budget.spend(tenantId, unique.length)) return fail('rate_limited');
+  let charged = 0;
+  if (input.trust !== false && limits.addresses !== null && deps.budget) {
+    if (!deps.budget.spend(tenantId, unique.length)) return fail('rate_limited');
+    charged = unique.length;
+  }
   // Once the plan has no slot left, no later address of this paste can take one, so it is not tried:
   // it is reported over the limit, and an address that is already registered is still reported as that.
   let full = false;
   for (const entry of unique) {
     const row = { tinId, chain: entry.chain, address: entry.address, label: entry.label, at };
     let r: Awaited<ReturnType<typeof insertDestinationWithinCap>>;
-    if (limits.addresses === null) {
-      r = await insertDestination(tenantId, row);
-    } else if (full) {
+    if (full) {
       const held = await findLiveDestination(tenantId, tinId, entry.chain, entry.address);
       r = held ? { kind: 'duplicate', destination: held } : { kind: 'over_limit' };
     } else {
       r = await insertDestinationWithinCap(tenantId, row, limits.addresses);
     }
     if (r.kind === 'no_tin') {
-      // The agent was removed while this paste was being added: what was added before is removed with it.
+      // The agent was removed while this paste was being added: what was added before is removed with it,
+      // and nothing was checked, so nothing is charged.
+      if (charged > 0) deps.budget?.refund(tenantId, charged);
       return fail('tin_not_found');
     }
     if (r.kind === 'inserted') {
@@ -319,6 +321,9 @@ export async function addDestinations(
       });
     }
   }
+  // The checks were paid for before anything was written, for every line. Only the addresses that were
+  // added are checked: the lines that were already registered or did not fit are given back.
+  if (charged > added.length) deps.budget?.refund(tenantId, charged - added.length);
   // Nothing could be added because the plan is full: that is a refusal, not a paste that went through.
   // It still says what became of every line (an address already registered, a repeat, a line that is
   // not an address, and the ones the plan had no place for), exactly as an accepted paste does.
@@ -419,7 +424,8 @@ export async function trustDestinations(
     const { limits } = await getEntitlements(tenantId);
     if (limits.addresses !== null && !deps.budget.spend(tenantId, rows.length)) return fail('rate_limited');
   }
-  const readouts = await runTrustChecks(tenantId, rows.map((d) => d.address), deps);
+  // A person asked to check these again: a new screening each, never an answer remembered from a moment ago.
+  const readouts = await runTrustChecks(tenantId, rows.map((d) => d.address), deps, { fresh: true });
   const destinations: Destination[] = [];
   const stillFlagged: string[] = [];
   for (const d of rows) {

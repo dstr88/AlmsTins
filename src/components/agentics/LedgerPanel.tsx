@@ -191,7 +191,7 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
       <h3 className="ag-subtitle">{copy.ledger.readTitle}</h3>
       <p className="ag-hint">{copy.ledger.readLede}</p>
       <div className="ag-form">
-        <button className="ag-btn" type="button" onClick={() => void readChain()} disabled={reading}>
+        <button className="ag-btn" type="button" aria-disabled={reading || undefined} onClick={() => { if (!reading) void readChain(); }}>
           {reading ? copy.ledger.reading : copy.ledger.readButton}
         </button>
       </div>
@@ -219,7 +219,7 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
       <Status kind="bad">{loadError}</Status>
       {next ? (
         <div className="ag-form">
-          <button className="ag-btn" type="button" onClick={() => void loadMore()} disabled={loading}>
+          <button className="ag-btn" type="button" aria-disabled={loading || undefined} onClick={() => { if (!loading) void loadMore(); }}>
             {loading ? copy.ledger.loadingMore : copy.ledger.loadMore}
           </button>
         </div>

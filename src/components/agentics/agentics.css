@@ -111,6 +111,10 @@
 .ag-btn--primary { background: var(--accent); color: var(--surface-bg); border-color: var(--accent); }
 .ag-btn--primary:hover { background: var(--accent); color: var(--surface-bg); box-shadow: 0 0 0 3px var(--accent-glow); }
 .ag-btn:disabled, .ag-btn[aria-disabled='true'] { opacity: 0.55; cursor: default; box-shadow: none; }
+/* A button that cannot be pressed right now stays in the focus order (aria-disabled) and does not react to the pointer. */
+.ag-btn[aria-disabled='true']:hover { background: transparent; color: var(--text-secondary); }
+.ag-btn--primary[aria-disabled='true']:hover { background: var(--accent); color: var(--surface-bg); box-shadow: none; }
+.ag-btn--danger[aria-disabled='true']:hover { background: transparent; color: var(--loss); }
 .ag-check { display: flex; align-items: flex-start; gap: 0.5rem; max-width: 34rem; font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary); }
 .ag-check input { margin-top: 0.2rem; accent-color: var(--accent); }
 .ag-hint { margin: 0 0 0.9rem; font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }

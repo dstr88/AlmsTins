@@ -153,11 +153,14 @@ export async function runPaste(
     if (!r.ok || !r.body) {
       // A request whose every address was refused by the plan is the one failure that is also an answer
       // about its lines: it says what became of each of them, and they are counted from that.
-      if (codeOf(r) === 'plan_limit' && r.body && Array.isArray(r.body.skipped)) tallyLines(out, chunk, r.body);
+      const accounted = codeOf(r) === 'plan_limit' && !!r.body && Array.isArray(r.body.skipped);
+      if (accounted && r.body) tallyLines(out, chunk, r.body);
       else if (codeOf(r) === 'plan_limit') out.overLimit += chunk.candidates;
       else out.notTried += chunk.candidates;
-      for (const later of plan.chunks.slice(i + 1)) out.notTried += later.candidates;
-      out.endedBecause = failureText(r, opts.errors);
+      const later = plan.chunks.slice(i + 1);
+      for (const l of later) out.notTried += l.candidates;
+      // A last request that the plan refused did not end the paste early: every line of it is accounted for above.
+      out.endedBecause = accounted && later.length === 0 ? null : failureText(r, opts.errors);
       return inOrder();
     }
     const summary = (r.body.summary ?? {}) as Record<string, unknown>;

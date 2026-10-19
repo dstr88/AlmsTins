@@ -654,17 +654,20 @@ describe('the CSV copy', () => {
 
   it('is safe to open in a spreadsheet: a cell that would run as a formula is written as text, and quotes, commas and line breaks are quoted', async () => {
     const tin = await newTin();
-    const odd = ['=HYPERLINK("http://evil.example","x")', '+1+1', '-2+3', '@SUM(1)', '\tcmd', 'a,b', 'say "hi"', 'two\nlines', '  =spaced'];
+    const odd = ['=HYPERLINK("http://evil.example","x")', '+1+1', '-2+3', '@SUM(1)', '\tcmd', 'a,b', 'say "hi"', 'two\nlines', '  =spaced', ' +1', '\t =1', '   @SUM(1)', ' -2+3'];
     for (const [i, asset] of odd.entries()) await transfer(A, tin.id, 10 + i, at(1, 8, i), 'in', 1, { asset });
     const b = await exportOf(tin, '2026-10-01', '2026-10-01');
     const csv = ex.ledgerCsv(b);
     const rows = parseCsv(withoutBom(csv)).slice(1);
     expect(rows).toHaveLength(odd.length);
     const assets = rows.map((r) => r[ex.CSV_COLUMNS.indexOf('asset')]);
-    expect(assets).toEqual(["'=HYPERLINK(\"http://evil.example\",\"x\")", "'+1+1", "'-2+3", "'@SUM(1)", "'\tcmd", 'a,b', 'say "hi"', 'two\nlines', '  =spaced']);
-    for (const a of assets) expect(a, a).not.toMatch(/^[=+\-@\t\r]/);
-    // The leading-space case is not a formula to a spreadsheet; it is kept as it came.
-    expect(csv).not.toMatch(/\r\n=[A-Z]/);
+    expect(assets).toEqual([
+      "'=HYPERLINK(\"http://evil.example\",\"x\")", "'+1+1", "'-2+3", "'@SUM(1)", "'\tcmd", 'a,b', 'say "hi"', 'two\nlines',
+      // Spaces in front do not hide it: some spreadsheets trim them before they look at the first character.
+      "'  =spaced", "' +1", "'\t =1", "'   @SUM(1)", "' -2+3",
+    ]);
+    for (const a of assets) expect(a, a).not.toMatch(/^\s*[=+\-@]/);
+    expect(csv).not.toMatch(/\r\n\s*=[A-Z]/);
   });
 
   it('writes a cell by RFC 4180', () => {
@@ -677,6 +680,9 @@ describe('the CSV copy', () => {
     expect(ex.csvCell('a\nb')).toBe('"a\nb"');
     expect(ex.csvCell('a\rb')).toBe('"a\rb"');
     expect(ex.csvCell('=1')).toBe("'=1");
+    expect(ex.csvCell('  =1')).toBe("'  =1");
+    expect(ex.csvCell(' text with = inside')).toBe(' text with = inside'); // not a formula: the first character that counts is a letter
+    expect(ex.csvCell('-')).toBe("'-");
     expect(ex.csvCell('0xc0ffee')).toBe('0xc0ffee');
   });
 
@@ -779,6 +785,43 @@ describe('one export at a time', () => {
   });
 });
 
+describe('a place in the export gate that is never given back', () => {
+  it('is taken back when its lease runs out, so one stuck export cannot close exports until a restart', () => {
+    let clock = 1_000;
+    const gate = ex.createExportGate({ perProcess: 1, leaseMs: 5_000, now: () => clock });
+    const stuck = gate.enter(A)!;
+    clock += 4_999;
+    expect(gate.enter(B)).toBeNull(); // still held, and the account's own place too
+    expect(gate.enter(A)).toBeNull();
+    clock += 1; // five seconds: the lease is up
+    const next = gate.enter(B);
+    expect(next).toBeTypeOf('function');
+    // The stuck export finally ends and calls its release: it must not free the place of the export that took over.
+    stuck();
+    expect(gate.enter(A)).toBeNull();
+    next!();
+    expect(gate.enter(A)).toBeTypeOf('function');
+  });
+
+  it('does not let a stale release free the place of the same account\'s next export', () => {
+    let clock = 1_000;
+    const gate = ex.createExportGate({ perProcess: 1, leaseMs: 5_000, now: () => clock });
+    const stuck = gate.enter(A)!;
+    clock += 5_000; // the lease is up
+    const again = gate.enter(A); // the same account starts another: its old place was taken back
+    expect(again).toBeTypeOf('function');
+    stuck(); // the first export finally ends
+    expect(gate.enter(A)).toBeNull(); // the second is still running: its place is its own
+    expect(gate.enter(B)).toBeNull();
+    again!();
+    expect(gate.enter(B)).toBeTypeOf('function');
+  });
+
+  it('has a lease of two minutes, far longer than a full file takes', () => {
+    expect(ex.EXPORT_LEASE_MS).toBe(120_000);
+  });
+});
+
 describe('when the file says it was made', () => {
   const clock = (...ms: number[]) => {
     let i = 0;
@@ -827,6 +870,15 @@ describe('part of a day: a range by the minute', () => {
       expect(ex.parseExportRange(bad, '2026-10-18', today), bad).toEqual({ ok: false, error: 'invalid_period' });
       expect(ex.parseExportRange('2026-10-01', bad, today), bad).toEqual({ ok: false, error: 'invalid_period' });
     }
+  });
+
+  it('refuses a start that has not begun, even when the end is a whole day that has', () => {
+    // It is 12:00 on the 18th: a range from 23:00 that day to the end of the day is ahead of the clock.
+    expect(ex.parseExportRange('2026-10-18T23:00', '2026-10-18', today, at1200)).toEqual({ ok: false, error: 'invalid_period' });
+    expect(ex.parseExportRange('2026-10-18T12:01', '2026-10-18T12:05', today, at1200)).toEqual({ ok: false, error: 'invalid_period' });
+    expect(ex.parseExportRange('2026-10-18T12:00', '2026-10-18', today, at1200)).toMatchObject({ ok: true }); // begins this very minute
+    expect(ex.parseExportRange('2026-10-18T11:59', '2026-10-18', today, at1200)).toMatchObject({ ok: true });
+    expect(ex.parseExportRange('2026-10-17T23:00', '2026-10-18', today, at1200)).toMatchObject({ ok: true });
   });
 
   it('refuses a start at or after the end, and an end that has not begun', () => {

@@ -955,3 +955,50 @@ describe('helpers', () => {
     expect(ledger().some((r) => r.address === D2)).toBe(true);
   });
 });
+
+describe('what the watcher reads: only addresses under a live agent', () => {
+  /** An agent that is gone, with a trusted address whose row was somehow left live (what a race could have left). */
+  async function strayUnderRemovedAgent() {
+    const gone = await makeTin(A, 'Gone');
+    const stray = await makeDestination(A, gone.id, addr(900), 'trusted', 10);
+    expect(await store.softDeleteTin(A, gone.id, stored(500))).toBe(true);
+    fake.rows('agent_destinations').find((r) => r.id === stray.id)!.deleted_at = null;
+    return { gone, stray };
+  }
+
+  it('lists the trusted addresses of live agents, and never one whose agent has been removed', async () => {
+    const { stray } = await strayUnderRemovedAgent();
+    const keep = await makeTin(A, 'Keep');
+    const real = await makeDestination(A, keep.id, addr(901), 'trusted', 2000);
+    const ids = await store.listWatchedDestinationIds(A, 15);
+    expect(ids).toEqual([real.id]);
+    expect(ids).not.toContain(stray.id);
+  });
+
+  it('does not let such a row take a watched place from an address that is in use', async () => {
+    await strayUnderRemovedAgent(); // registered first, so oldest: the first to be kept if it counted
+    const keep = await makeTin(A, 'Keep');
+    const real: string[] = [];
+    for (let i = 0; i < watcher.MAX_WATCHED_PER_TENANT; i += 1) real.push((await makeDestination(A, keep.id, addr(1000 + i), 'trusted', 2000 + i)).id);
+    expect(await store.listWatchedDestinationIds(A, watcher.MAX_WATCHED_PER_TENANT)).toEqual(real);
+  });
+
+  it('does not send the daily job to an agent that has been removed', async () => {
+    const { gone } = await strayUnderRemovedAgent();
+    const keep = await makeTin(A, 'Keep');
+    await makeDestination(A, keep.id, addr(902), 'trusted', 2000);
+    const targets = await store.listWatchTargets(100);
+    expect(targets).toEqual([{ tenantId: A, tinId: keep.id }]);
+    expect(targets.some((t) => t.tinId === gone.id)).toBe(false);
+  });
+
+  it('keeps reading one account\'s addresses for that account only', async () => {
+    const mine = await makeTin(A, 'Mine');
+    const theirs = await makeTin(B, 'Theirs');
+    const a = await makeDestination(A, mine.id, addr(903), 'trusted', 1);
+    const b = await makeDestination(B, theirs.id, addr(904), 'trusted', 1);
+    expect(await store.listWatchedDestinationIds(A, 15)).toEqual([a.id]);
+    expect(await store.listWatchedDestinationIds(B, 15)).toEqual([b.id]);
+    expect((await store.listWatchTargets(100)).map((t) => t.tenantId).sort()).toEqual([A, B].sort());
+  });
+});
