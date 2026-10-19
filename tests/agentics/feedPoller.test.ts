@@ -103,6 +103,32 @@ describe('asking', () => {
     expect(t.rows.map((r) => r.map((x) => x.id))).toEqual([['new'], ['newer']]);
   });
 
+  it('hands over a row once even when two answers of the same turn carry it', async () => {
+    const t = setup([
+      answer([ev('a', '2026-10-19 11:00:05'), ev('dup', '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: '2026-10-19 11:00:05|dup' }),
+      answer([ev('dup', '2026-10-19 11:00:05'), ev('b', '2026-10-19 11:00:06')], '2026-10-19 11:00:06'),
+    ]);
+    t.poller.start();
+    await t.timers.fire();
+    expect(t.rows).toHaveLength(1);
+    expect(t.rows[0].map((r) => r.id)).toEqual(['a', 'dup', 'b']);
+  });
+
+  it('keeps polling when a row\'s time has the right shape but is not a date (the page checks what it reads, and the calendar too)', async () => {
+    const t = setup([answer([ev('odd', '2026-13-45 99:99:99'), ev('fine', '2026-10-19 11:00:06')], '2026-10-19 11:00:06'), answer([], '2026-10-19 11:00:06')]);
+    t.poller.start();
+    for (let i = 0; i < 6; i += 1) await t.timers.fire();
+    expect(t.sent.length).toBeGreaterThanOrEqual(6);
+    expect(t.rows.flat().map((r) => r.id)).toContain('fine');
+    expect(t.states.at(-1)?.[0]).toBe('live');
+    // And what it asks from is still a real time, the one it would have asked from without that row.
+    for (const r of t.sent) {
+      const asked = decodeURIComponent(r.url.split('since=')[1] ?? '2026-10-19 11:00:00');
+      expect(asked).not.toContain('2026-13');
+      expect(Number.isFinite(Date.parse(`${asked.replace(' ', 'T')}Z`)), asked).toBe(true);
+    }
+  });
+
   it('hands over nothing when nothing is new, and says it is live', async () => {
     const t = setup([answer([], '2026-10-19 11:00:00')]);
     t.poller.start();

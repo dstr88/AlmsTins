@@ -76,6 +76,8 @@ describe('the page as the server renders it', () => {
     // A check is in the list within seconds, but its CARD waits its turn behind the ones before it (three seconds each).
     expect(t).toContain('A check shows in the list within a few seconds of the agent asking, and gets its card in turn.');
     expect(t).toContain(copy.feed.readHint);
+    // The promise as it is worded: one agent at a time, in turn, and not around the clock.
+    expect(copy.feed.readHint).toContain('About once a minute, one agent at a time, in turn, up to a daily limit.');
     expect(t).toContain('Only the wallets you added are read');
     expect(t).toContain('Nothing is read when this page is closed or in the background');
   });

@@ -374,6 +374,26 @@ describe('the day\'s budget', () => {
     expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
   });
 
+  it('gives the next day the whole budget again, and then its limit too: the count starts over, it does not carry on from yesterday\'s', async () => {
+    const a = await newTin(A, 'Treasury agent', '2026-10-01 00:00:00');
+    const { read, calls } = reader();
+    const now = { t: Date.UTC(2026, 9, 19, 1, 0, 0) };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+      await live.liveRead(A, {}, deps(now, read));
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'limit' });
+    // The next UTC day: the whole budget, and after it the limit again.
+    now.t = Date.UTC(2026, 9, 20, 1, 0, 0);
+    const before = calls.length;
+    for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, read)), `day two, read ${i + 1}`).toMatchObject({ status: 'read', tinId: a.id });
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    expect(calls.length - before).toBe(live.LIVE_READS_PER_DAY);
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'limit' });
+  });
+
   it('counts reads that read something, not asks that found nothing to read or were told "recent"', async () => {
     await newTin(A, 'Empty', '2026-10-01 00:00:00');
     const { read } = reader({});

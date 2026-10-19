@@ -89,14 +89,17 @@ export interface FeedPoller {
   visibilityChanged(): void;
 }
 
-/** "YYYY-MM-DD HH:MM:SS" (UTC) moved by `seconds`. */
+/** Whether `s` is a time the server writes and accepts: "YYYY-MM-DD HH:MM:SS" (UTC) that is also a date on the calendar. */
+const isStamp = (s: string): boolean => WRITTEN_AT.test(s) && Number.isFinite(Date.parse(`${s.replace(' ', 'T')}Z`));
+
+/** `stamp` (a valid one) moved by `seconds`. */
 function shift(stamp: string, seconds: number): string {
   return new Date(Date.parse(`${stamp.replace(' ', 'T')}Z`) + seconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
 }
 
 export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?: Iterable<string | { id: string; writtenAt: string }> }): FeedPoller {
   const clock = deps.now ?? Date.now;
-  let since = WRITTEN_AT.test(begin.since) ? begin.since : EPOCH;
+  let since = isStamp(begin.since) ? begin.since : EPOCH;
   /** The newest second any answer has reached, and when each such value was first seen (oldest first, both rising). */
   let newest = since;
   let observed: Array<{ stamp: string; at: number }> = [{ stamp: since, at: clock() }];
@@ -106,7 +109,7 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
   const seen = new Map<string, string>();
   for (const s of begin.seen ?? []) {
     if (typeof s === 'string') seen.set(s, since);
-    else seen.set(s.id, WRITTEN_AT.test(s.writtenAt) ? s.writtenAt : since);
+    else seen.set(s.id, isStamp(s.writtenAt) ? s.writtenAt : since);
   }
   let timer: unknown = null;
   let running = false;
@@ -154,7 +157,7 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
   };
 
   const remember = (rows: FeedRow[]) => {
-    for (const r of rows) seen.set(r.id, r.writtenAt);
+    for (const r of rows) seen.set(r.id, isStamp(r.writtenAt) ? r.writtenAt : since);
     if (seen.size <= SEEN_SWEEP_AT) return;
     // What the server can no longer send (its second is before its window, with a margin) need not be remembered.
     const cutoff = shift(since, -(SERVER_OVERLAP_S + SEEN_MARGIN_S));
@@ -216,7 +219,8 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
           return;
         }
         for (const row of parseFeedRows(r.body.events)) {
-          if (row.writtenAt > reached) reached = row.writtenAt;
+          // A time that is not a date on the calendar is handed over with its row but never moves what the poll asks from.
+          if (row.writtenAt > reached && isStamp(row.writtenAt)) reached = row.writtenAt;
           if (seen.has(row.id) || inTurn.has(row.id)) continue;
           inTurn.add(row.id);
           fresh.push(row);
