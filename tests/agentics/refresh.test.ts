@@ -65,10 +65,10 @@ describe('describeRefresh', () => {
     expect(lines).toContain('1 wallet read up to the newest confirmed block.');
   });
 
-  it('says how many trusted addresses the daily read does not cover for an account, and that they were not read', () => {
+  it('says how many trusted addresses a read does not cover for an account, and that they were not read', () => {
     expect(DAILY_READ_COVERS).toBe(15);
-    expect(describeRefresh(pass({ notWatched: { overLimit: 1 } })).pop()).toBe('1 trusted address is past the 15 the daily read covers for an account, so it was not read.');
-    expect(describeRefresh(pass({ notWatched: { overLimit: 3 } })).pop()).toBe('3 trusted addresses are past the 15 the daily read covers for an account, so they were not read.');
+    expect(describeRefresh(pass({ notWatched: { overLimit: 1 } })).pop()).toBe('1 trusted address is past the 15 that each read covers for an account, so it was not read.');
+    expect(describeRefresh(pass({ notWatched: { overLimit: 3 } })).pop()).toBe('3 trusted addresses are past the 15 that each read covers for an account, so they were not read.');
     expect(describeRefresh(pass({ notWatched: { overLimit: 0 } })).join(' ')).not.toMatch(/past the/);
   });
 

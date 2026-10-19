@@ -22,7 +22,7 @@ import { explorerTxHref } from './paths';
 import { describeRefresh, passOf } from './refresh';
 import { Status } from './ui';
 
-const ANSWER_CLASS: Record<string, string> = {
+export const ANSWER_CLASS: Record<string, string> = {
   proven: 'ag-pill ag-pill--gain',
   'consistent-with-history': 'ag-pill ag-pill--accent',
   flagged: 'ag-pill ag-pill--bad',
@@ -70,8 +70,12 @@ function Strip({ totals }: { totals: TinTotals }) {
   );
 }
 
-/** One row of the ledger. */
-export function LedgerItem({ row }: { row: LedgerRow }) {
+/**
+ * One row of the ledger. The live feed shows the rows of every agent in one list, so it also gives the agent's
+ * name and the owner's label for the address; the agent's own page gives neither. Both are the account's own
+ * text, rendered as text.
+ */
+export function LedgerItem({ row, agent, label }: { row: LedgerRow; agent?: string; label?: string | null }) {
   const tx = row.kind === 'transaction' ? row.tx : null;
   const kind = tx ? (tx.direction === 'in' ? copy.ledger.kind.in : copy.ledger.kind.out) : copy.ledger.kind.checked;
   const answer = row.answer ? VERIFY_STATUS_TITLE[row.answer] : copy.ledger.noAnswer;
@@ -87,7 +91,9 @@ export function LedgerItem({ row }: { row: LedgerRow }) {
         <span className={row.answer ? ANSWER_CLASS[row.answer] : 'ag-pill ag-pill--muted'}>{row.answer ? copy.ledger.answer(answer) : answer}</span>
         {registry ? <span className="ag-event__registry">{copy.ledger.registryIs(registry)}</span> : null}
       </div>
+      {agent ? <p className="ag-event__agent">{agent}</p> : null}
       <p className="ag-event__addr ag-mono">{row.address}</p>
+      {label ? <p className="ag-event__line">{copy.ledger.addressLabel(label)}</p> : null}
       {tx ? (
         <>
           <p className="ag-event__line">

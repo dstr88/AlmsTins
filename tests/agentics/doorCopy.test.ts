@@ -185,10 +185,11 @@ describe('the open vault keeps the same wording rules', () => {
     expect(enOpen.landing.status.soonLabel).toBe('Coming later');
   });
 
-  it('names the chains the record is read from and says it is read once a day, so nothing promises more than is built', () => {
-    expect(enOpen.landing.steps[2].body).toContain('Once a day');
+  it('names the chains the record is read from and says when: once a day, and about once a minute while the Live page is open, so nothing promises more than is built', () => {
+    const when = 'Once a day, and about once a minute while your Live page is open,';
+    expect(enOpen.landing.steps[2].body).toContain(when);
     expect(enOpen.landing.steps[2].body).toContain('Ethereum, Polygon and Avalanche');
-    expect(opening.letter.paragraphs.join(' ')).toContain('Once a day');
+    expect(opening.letter.paragraphs.join(' ')).toContain(when);
     expect(opening.letter.paragraphs.join(' ')).toContain('Ethereum, Polygon and Avalanche');
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/real[- ]time|live feed|as it happens|instant(ly)?|every second/i);
   });
@@ -200,12 +201,18 @@ describe('the open vault keeps the same wording rules', () => {
     const welcome = enOpen.letter.paragraphs.join(' ');
     expect(welcome).toContain('link a key to it (you make a key by proving a domain)');
     expect(welcome).toContain('Each check your bot asks with its key appears on its page.');
-    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day');
+    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day, about once a minute while your Live page is open, or when you press Read the chain');
     const opened = opening.letter.paragraphs.join(' ');
     expect(opened).toContain('link a key to it (you make a key by proving a domain)');
     expect(opened).toContain('Each check it asks with the key becomes a dated entry');
     expect(opened).toContain('the addresses you trusted are read from Ethereum, Polygon and Avalanche');
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/\bevery check\b|\ball your addresses\b|\bwatches? (the )?(receiv|every)/i);
+  });
+
+  it('never says Agentics watches the addresses an agent pays: it reads the agent\'s own wallet, in both states of the door', () => {
+    for (const [where, text] of [...ALL, ...ALL_OPEN]) expect(text, where).not.toMatch(/\bwatch(es|ing)? (the |your |a )?(registered|receiv|destination|trusted)/i);
+    const steps = strings(en.landing.steps).map(([, t]) => t).join(' ');
+    expect(steps).toContain('Agentics reads your bot’s own wallet for transfers to the addresses you trusted');
   });
 
   it('no longer says the vault is opening soon, or that one more email is coming', () => {

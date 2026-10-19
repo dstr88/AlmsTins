@@ -37,6 +37,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0052_agent_watch_cursors.sql'),
   path.join(ROOT, 'migrations-pg/0053_agent_reports.sql'),
   path.join(ROOT, 'migrations-pg/0054_agent_report_delivery.sql'),
+  path.join(ROOT, 'migrations-pg/0055_agent_events_feed_index.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
   path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
   path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
@@ -79,13 +80,14 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the only migrations numbered higher are the door\'s 0060 and 0061', () => {
+  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
-    // The Vault's range is 0050 to 0059 and ends at 0054; the free-signup door's table is 0060
+    expect(files.filter((f) => f.startsWith('0055'))).toEqual(['0055_agent_events_feed_index.sql']);
+    // The Vault's range is 0050 to 0059 and ends at 0055; the free-signup door's table is 0060
     // (migrations-pg/0060_agentics_signups.sql, not part of the Vault) and 0061 adds the two columns of its opening email.
-    // Nothing else sits above 0054.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql']);
+    // Nothing else sits above 0055.
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -166,6 +168,28 @@ describe('the ledger schema file and the code create the same table', () => {
   it('the four verify-statuses are the four the design names', async () => {
     const { VAULT_ANSWERS } = await import('../../src/lib/agentVault/events');
     expect([...VAULT_ANSWERS]).toEqual(['proven', 'consistent-with-history', 'flagged', 'unknown']);
+  });
+});
+
+describe('the feed index file and the code create the same index', () => {
+  it('migrations-pg/0055_agent_events_feed_index.sql holds exactly the statements ensureFeedIndex runs, in order', async () => {
+    const { AGENT_EVENTS_FEED_DDL } = await import('../../src/lib/agentVault/events');
+    const statements = squash(read('migrations-pg/0055_agent_events_feed_index.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_EVENTS_FEED_DDL.map(squash));
+  });
+
+  it('is an index and nothing else, on the ledger and nothing else, led by tenant_id, and safe to run twice', async () => {
+    const { AGENT_EVENTS_FEED_DDL, AGENT_EVENTS_FEED_INDEX } = await import('../../src/lib/agentVault/events');
+    expect(AGENT_EVENTS_FEED_DDL).toHaveLength(1);
+    expect(squash(AGENT_EVENTS_FEED_DDL[0])).toBe(`CREATE INDEX IF NOT EXISTS ${AGENT_EVENTS_FEED_INDEX} ON agent_events (tenant_id, created_at, id)`);
+  });
+
+  it('is not in the ledger\'s own list: that list is migration 0051 word for word, and 0051 has already run', async () => {
+    const { AGENT_EVENTS_DDL, AGENT_EVENTS_FEED_INDEX } = await import('../../src/lib/agentVault/events');
+    expect(AGENT_EVENTS_DDL.join('\n')).not.toContain(AGENT_EVENTS_FEED_INDEX);
   });
 });
 
@@ -344,6 +368,7 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0052_agent_watch_cursors.sql',
       'migrations-pg/0053_agent_reports.sql',
       'migrations-pg/0054_agent_report_delivery.sql',
+      'migrations-pg/0055_agent_events_feed_index.sql',
       'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
@@ -351,6 +376,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/AgentsHome.tsx',
       'src/components/agentics/DeliverySettings.tsx',
       'src/components/agentics/ExportCard.tsx',
+      'src/components/agentics/FeedPage.tsx',
       'src/components/agentics/LedgerPanel.tsx',
       'src/components/agentics/PlanMeter.tsx',
       'src/components/agentics/RegistryPanel.tsx',
@@ -364,6 +390,10 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/copy.ts',
       'src/components/agentics/errors.ts',
       'src/components/agentics/exportDownload.ts',
+      'src/components/agentics/feedPlayer.ts',
+      'src/components/agentics/feedPoller.ts',
+      'src/components/agentics/feedReader.ts',
+      'src/components/agentics/feedRows.ts',
       'src/components/agentics/paste.ts',
       'src/components/agentics/paths.ts',
       'src/components/agentics/refresh.ts',
@@ -382,9 +412,11 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/errors.ts',
       'src/lib/agentVault/events.ts',
       'src/lib/agentVault/explorer.ts',
+      'src/lib/agentVault/feed.ts',
       'src/lib/agentVault/ledgerExport.ts',
       'src/lib/agentVault/ledgerView.ts',
       'src/lib/agentVault/link.ts',
+      'src/lib/agentVault/liveRead.ts',
       'src/lib/agentVault/mailer.ts',
       'src/lib/agentVault/money.ts',
       'src/lib/agentVault/pricing.ts',
@@ -411,6 +443,8 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/destinations/trust.ts',
       'src/pages/api/agentics/events.ts',
       'src/pages/api/agentics/export.ts',
+      'src/pages/api/agentics/feed.ts',
+      'src/pages/api/agentics/feed/read.ts',
       'src/pages/api/agentics/plan.ts',
       'src/pages/api/agentics/refresh.ts',
       'src/pages/api/agentics/report-settings.ts',
@@ -425,6 +459,7 @@ describe('the Vault keeps to the bright lines', () => {
       // The free-signup door's welcome letter. It is not Vault code, but it shares the directory,
       // so the Vault's wording and bright-line guards read it too (stricter, never looser).
       'src/pages/dashboard/agentics/agents.astro',
+      'src/pages/dashboard/agentics/feed.astro',
       'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',

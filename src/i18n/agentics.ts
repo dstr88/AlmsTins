@@ -125,7 +125,7 @@ export const en: AgenticsCopy = {
         tag: 'Opening soon',
         live: false,
         title: 'You get the record',
-        body: 'Each check becomes a dated entry on your bot’s page. Agentics watches your registered addresses receive the funds, ties each transfer to the check that came before it, and sends a daily report you can download as a signed PDF.',
+        body: 'Each check becomes a dated entry on your bot’s page. Agentics reads your bot’s own wallet for transfers to the addresses you trusted, ties each transfer to the check that came before it, and sends a daily report you can download as a signed PDF.',
       },
     ],
 
@@ -223,7 +223,7 @@ export const enOpen: AgenticsCopy = {
         tag: 'Live',
         live: true,
         title: 'You get the record',
-        body: `Each check your bot asks with its key becomes a dated entry on your bot’s page (up to ${FREE_CHECKS_PER_DAY.toLocaleString('en-US')} a day on the free plan). Once a day Agentics reads Ethereum, Polygon and Avalanche for transfers between your bot’s wallet and the addresses you trusted, ties each one to the check that came before it, and makes a report you can download as a signed PDF.`,
+        body: `Each check your bot asks with its key becomes a dated entry on your bot’s page (up to ${FREE_CHECKS_PER_DAY.toLocaleString('en-US')} a day on the free plan). Once a day, and about once a minute while your Live page is open, Agentics reads Ethereum, Polygon and Avalanche for transfers between your bot’s wallet and the addresses you trusted, ties each one to the check that came before it, and makes a daily report you can download as a signed PDF.`,
       },
     ],
     plans: [
@@ -241,7 +241,7 @@ export const enOpen: AgenticsCopy = {
     paragraphs: [
       'Thanks for signing up for Almstins Agentics. Agentics checks the address an AI agent is about to send to, and keeps a dated record of what it answered. We verify, warn and flag. We never hold keys, and we are never in the transaction.',
       `Your vault is open. Add a bot, list the addresses it may pay, link a key to it (you make a key by proving a domain), and have the bot send that key with its pre-send checks. Your free plan covers ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. Paid plans come later; there is nothing to buy today.`,
-      'Each check your bot asks with its key appears on its page. Transfers to the addresses you trusted appear once a day, or when you press Read the chain, for Ethereum, Polygon and Avalanche.',
+      'Each check your bot asks with its key appears on its page. Transfers to the addresses you trusted appear once a day, about once a minute while your Live page is open, or when you press Read the chain, for Ethereum, Polygon and Avalanche.',
       'If you run agents that move money, reply and tell me what they do and which chains they use. I read every reply, and it decides what I build first.',
     ],
     links: [
@@ -266,7 +266,7 @@ export const opening = {
     greeting: 'Hi,',
     paragraphs: [
       'You signed up for Almstins Agentics before the vault opened, and I said I would write once, when it did. It is open.',
-      `Your free plan covers ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. You add a bot, list the addresses it may pay (each is checked against sanctions lists, scam screening and domain proofs when you add it), link a key to it (you make a key by proving a domain), and have the bot send that key with its pre-send checks. Each check it asks with the key becomes a dated entry on the bot’s page. Once a day, transfers between the bot’s wallet and the addresses you trusted are read from Ethereum, Polygon and Avalanche and tied to the check that came before them, and you can download a signed PDF report. Paid plans come later; there is nothing to buy today.`,
+      `Your free plan covers ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. You add a bot, list the addresses it may pay (each is checked against sanctions lists, scam screening and domain proofs when you add it), link a key to it (you make a key by proving a domain), and have the bot send that key with its pre-send checks. Each check it asks with the key becomes a dated entry on the bot’s page. Once a day, and about once a minute while your Live page is open, transfers between the bot’s wallet and the addresses you trusted are read from Ethereum, Polygon and Avalanche and tied to the check that came before them, and you can download a signed PDF report each day. Paid plans come later; there is nothing to buy today.`,
       'If you run agents that move money, reply and tell me what they do and which chains they use. I read every reply, and it decides what I build first.',
     ],
     links: [

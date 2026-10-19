@@ -11,7 +11,7 @@ import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib
 
 export const copy = {
   brand: 'Almstins Agentics',
-  nav: { agents: 'Agents', reports: 'Reports', account: 'Account' },
+  nav: { agents: 'Agents', live: 'Live', reports: 'Reports', account: 'Account' },
 
   account: {
     kicker: 'Almstins Agentics',
@@ -367,6 +367,7 @@ export const copy = {
     answer: (title: string) => `Answer: ${title}`,
     registry: { trusted: 'Trusted', flagged: 'Flagged', pending: 'Pending', none: 'Not registered' } as Record<string, string>,
     registryIs: (what: string) => `Registry: ${what}`,
+    addressLabel: (label: string) => `Your label: ${label}`,
     noAnswer: 'No answer recorded',
     amount: (amount: string, asset: string) => `${amount} ${asset}`,
     usd: (usd: string) => `${usd} at the time`,
@@ -388,10 +389,51 @@ export const copy = {
     totalsNote: 'Raw value in (bought) and out (sold) between this agent\'s wallets and its registered addresses, priced at the time of each transfer. The two sides are not compared.',
     transfers: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'}`,
     readTitle: 'Read the chain',
-    readLede: 'The daily job reads the chain for new transfers with your trusted addresses. Read it now to see them sooner.',
+    readLede: 'The Vault reads the chain for new transfers with your trusted addresses once a day, and about once a minute while your Live page is open. Read it now to see them sooner.',
     readButton: 'Read the chain now',
     reading: 'Reading the chain. This can take up to 20 seconds.',
     readInProgress: 'A read of this agent is already running. Try again in a moment.',
+  },
+
+  feed: {
+    kicker: 'Almstins Agentics',
+    title: 'Live',
+    lede: 'What your agents ask and what moves, as the Vault records it, one card at a time. A check shows within a few seconds of the agent asking. A transfer shows once the chain has confirmed it and the Vault has read the wallet. Times are UTC.',
+    timing:
+      'A transfer is recorded only once its block is old enough not to be undone: about 1 minute on Avalanche, 3 on Ethereum and 10 on Polygon. After that it shows on the next read of the wallet.',
+    agentLabel: 'Agent',
+    allAgents: 'All agents',
+    pause: 'Pause the cards',
+    resume: 'Resume the cards',
+    paused: 'Cards paused. The list below keeps filling.',
+    readSwitch: "Read my agents' wallets while this page is open",
+    readHint: 'About once a minute, one agent at a time. Only the wallets you added are read, and only for transfers with your trusted addresses. Nothing is read when this page is closed or in the background.',
+    state: {
+      live: 'Live',
+      reconnecting: 'Reconnecting',
+      slow: 'Slowing down, asking less often',
+      hidden: 'Paused while this tab is in the background',
+      closed: 'This page lost its sign-in or the Vault. Reload the page to see new rows.',
+    },
+    lastUpdate: (time: string) => `Last update ${time} UTC`,
+    idle: 'Waiting for the next check or transfer.',
+    waitingMore: (n: number) => `${n} more waiting`,
+    folded: (n: number) => `${n} more ${n === 1 ? 'check' : 'checks'}, in the list below`,
+    skipped: (n: number) => `${n} ${n === 1 ? 'card was' : 'cards were'} skipped to catch up. Every row is in the list below.`,
+    listTitle: 'Latest',
+    listLabel: 'Latest rows from your agents, newest first',
+    empty: 'Nothing recorded yet. A check appears when an agent asks about an address, and a transfer appears after the chain confirms it.',
+    noAgents: 'You have no agents yet. Add one, link its key, and its checks will show here.',
+    reader: {
+      off: 'Wallet reads are off.',
+      waiting: 'Next wallet read in about a minute.',
+      reading: 'Reading wallets.',
+      anAgent: 'an agent',
+      readOf: (agent: string, time: string) => `Read ${agent} at ${time} UTC.`,
+      nothing: 'No agent has a wallet and a trusted address on the same chain yet, so there is nothing to read.',
+      failing: 'Could not read the wallets just now. Trying again soon.',
+      closed: 'Wallet reads ended: this page lost its sign-in.',
+    },
   },
 
   refresh: {
@@ -406,7 +448,7 @@ export const copy = {
     },
     recorded: (n: number) => (n === 0 ? 'No new transfers.' : `${n} new ${n === 1 ? 'transfer' : 'transfers'} recorded.`),
     overLimit: (n: number, max: number) =>
-      `${n} trusted ${n === 1 ? 'address is' : 'addresses are'} past the ${max} the daily read covers for an account, so ${n === 1 ? 'it was' : 'they were'} not read.`,
+      `${n} trusted ${n === 1 ? 'address is' : 'addresses are'} past the ${max} that each read covers for an account, so ${n === 1 ? 'it was' : 'they were'} not read.`,
   },
 
   export: {

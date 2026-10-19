@@ -1,0 +1,24 @@
+---
+/**
+ * /dashboard/agentics/feed: the live feed. The ledger of every agent on the account as the Vault writes it,
+ * one card at a time for three seconds each, with the list of rows under it. Owner-only while the Agent Vault
+ * is private (src/lib/agenticsAccess.ts): the middleware answers anyone else with the 404 page before this
+ * runs, and this checks again, so the page stays closed even if the gate is ever loosened. The first screen
+ * is read straight from the Vault, never through its own API; after that the page polls the feed's own endpoint.
+ * The page's title is the fixed word "Live".
+ */
+import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
+import FeedPage from '../../../components/agentics/FeedPage';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadFeedPage } from '@/lib/agentVault/vaultPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const feed = await loadFeedPage(session.tenantId);
+---
+
+<AgenticsShell title="Live" active="feed" plan={feed.plan}>
+  <FeedPage client:load data={feed} />
+</AgenticsShell>

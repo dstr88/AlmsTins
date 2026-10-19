@@ -10,6 +10,9 @@ export const HOME_PATH = '/dashboard/agentics';
 
 export const REPORTS_PATH = '/dashboard/agentics/reports';
 
+/** The live feed: the ledger of every agent, as it is written. */
+export const FEED_PATH = '/dashboard/agentics/feed';
+
 /** The account page: who is signed in, and deleting the account. For every account with a real session, with or without the Vault. */
 export const ACCOUNT_PATH = '/agentics/account';
 

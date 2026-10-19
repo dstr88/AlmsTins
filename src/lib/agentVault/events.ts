@@ -465,6 +465,121 @@ export async function listEvents(
   return { events: page, next: rows.length > opts.limit && page.length ? cursorOf(page[page.length - 1]) : null };
 }
 
+// ── The live feed reads the ledger in the order it was WRITTEN ───────────────
+
+/** The index the feed reads by. Migration 0062 holds the same statement. */
+export const AGENT_EVENTS_FEED_INDEX = 'agent_events_tenant_written';
+
+/**
+ * Kept out of AGENT_EVENTS_DDL on purpose: that list is migration 0051 word for word (a guard test holds
+ * the two together), and 0051 has already run. The feed's index is its own migration, 0062.
+ */
+export const AGENT_EVENTS_FEED_DDL: readonly string[] = [
+  `CREATE INDEX IF NOT EXISTS ${AGENT_EVENTS_FEED_INDEX} ON agent_events (tenant_id, created_at, id)`,
+];
+
+let feedIndexPromise: Promise<void> | null = null;
+
+/**
+ * Makes sure the feed's index exists. Runs once per process, and only when the feed is read, never for a
+ * check or a transfer being written. It never throws: the feed works without the index, only slower, and
+ * a keyed check must not fail because an index could not be built. CREATE INDEX takes a lock that waits
+ * for every writer, so it gives up after two seconds instead of holding the table's other writers behind
+ * it (a failed attempt is logged by name and code and tried again by the next read).
+ */
+export function ensureFeedIndex(): Promise<void> {
+  if (!feedIndexPromise) {
+    const attempt: Promise<void> = (async () => {
+      await db.batch([{ sql: `SET LOCAL lock_timeout = '2s'`, args: [] }, ...AGENT_EVENTS_FEED_DDL.map((sql) => ({ sql, args: [] }))], 'write');
+    })().catch((err) => {
+      const e = err as { name?: unknown; code?: unknown } | null;
+      console.error('[agent-vault] feed index not ensured', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+      if (feedIndexPromise === attempt) feedIndexPromise = null;
+    });
+    feedIndexPromise = attempt;
+  }
+  return feedIndexPromise;
+}
+
+/**
+ * An event with the moment the Vault wrote it. `at` is when it happened: a check is written the moment it
+ * is asked, but a transfer is written minutes after its block (the watcher reads only blocks old enough to
+ * keep), so a feed that followed `at` would never see a transfer. `writtenAt` is the table's own created_at,
+ * UTC to the second ("YYYY-MM-DD HH:MM:SS").
+ */
+export interface WrittenEvent extends LedgerEvent {
+  writtenAt: string;
+}
+
+const WRITTEN_COLUMNS = `${EVENT_COLUMNS}, created_at`;
+const writtenFrom = (r: any): WrittenEvent => ({ ...eventFrom(r), writtenAt: String(r.created_at) });
+
+/** The newest events written for an account (for one agent when `tinId` is given), oldest first. */
+export async function latestEventsWritten(tenantId: string, opts: { limit: number; tinId?: string | null }): Promise<WrittenEvent[]> {
+  await ensureAgentEventsTable();
+  await ensureFeedIndex();
+  const args: Array<string | number> = [tenantId];
+  let tin = '';
+  if (opts.tinId) {
+    tin = ' AND tin_id = ?';
+    args.push(opts.tinId);
+  }
+  args.push(opts.limit);
+  const r = await db.execute({
+    sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ?${tin} ORDER BY created_at DESC, id DESC LIMIT ?`,
+    args,
+  });
+  return r.rows.map(writtenFrom).reverse();
+}
+
+/**
+ * Events written at or after `writtenAt`, oldest first, at most `limit` (`more` says there are others). The
+ * bound is inclusive: created_at has one-second resolution, so an event written a moment after a reader saw
+ * the second's others would otherwise be missed. The reader de-duplicates by id.
+ */
+export async function eventsWrittenSince(
+  tenantId: string,
+  opts: { writtenAt: string; limit: number; tinId?: string | null },
+): Promise<{ events: WrittenEvent[]; more: boolean }> {
+  await ensureAgentEventsTable();
+  await ensureFeedIndex();
+  const args: Array<string | number> = [tenantId, opts.writtenAt];
+  let tin = '';
+  if (opts.tinId) {
+    tin = ' AND tin_id = ?';
+    args.push(opts.tinId);
+  }
+  args.push(opts.limit + 1);
+  const r = await db.execute({
+    sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ? AND created_at >= ?${tin} ORDER BY created_at ASC, id ASC LIMIT ?`,
+    args,
+  });
+  const rows = r.rows.map(writtenFrom);
+  return { events: rows.slice(0, opts.limit), more: rows.length > opts.limit };
+}
+
+/** Events written strictly after the (writtenAt, id) position, oldest first: the next page of a backlog. */
+export async function eventsWrittenAfter(
+  tenantId: string,
+  opts: { writtenAt: string; id: string; limit: number; tinId?: string | null },
+): Promise<{ events: WrittenEvent[]; more: boolean }> {
+  await ensureAgentEventsTable();
+  await ensureFeedIndex();
+  const args: Array<string | number> = [tenantId, opts.writtenAt, opts.writtenAt, opts.id];
+  let tin = '';
+  if (opts.tinId) {
+    tin = ' AND tin_id = ?';
+    args.push(opts.tinId);
+  }
+  args.push(opts.limit + 1);
+  const r = await db.execute({
+    sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ? AND (created_at > ? OR (created_at = ? AND id > ?))${tin} ORDER BY created_at ASC, id ASC LIMIT ?`,
+    args,
+  });
+  const rows = r.rows.map(writtenFrom);
+  return { events: rows.slice(0, opts.limit), more: rows.length > opts.limit };
+}
+
 /** When the newest event of one kind happened on a tin (UTC ISO-8601), or null when it has none. */
 export async function latestEventTime(tenantId: string, tinId: string, kind: EventKind): Promise<string | null> {
   await ensureAgentEventsTable();

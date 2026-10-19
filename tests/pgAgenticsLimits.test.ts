@@ -507,3 +507,158 @@ d('the daily limit of recorded checks, on a real Postgres', () => {
     expect((await markers()).filter((m) => m.occurred_at.startsWith('2026-10-21'))).toHaveLength(0);
   });
 });
+
+d('the live feed, on a real Postgres', () => {
+  const run = randomUUID().slice(0, 8);
+  const tenant = `pg-feed-${run}`;
+  const other = `pg-feed-other-${run}`;
+  let db: typeof import('../src/lib/db').db;
+  let store: typeof import('../src/lib/agentVault/store');
+  let events: typeof import('../src/lib/agentVault/events');
+  let feed: typeof import('../src/lib/agentVault/feed');
+  let tinId = '';
+  let otherTinId = '';
+  let n = 0;
+
+  /** One check, written by a statement of its own, with the table's own created_at (the moment of writing). */
+  const writeCheck = async (t = tenant, tin = tinId) => {
+    n += 1;
+    const id = randomUUID();
+    await db.execute({
+      sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, answer, registry, status, detail_json, occurred_at) VALUES (?, ?, ?, 'checked', ?, 'unknown', 'none', 'unknown', '{}', ?)`,
+      args: [id, t, tin, addr(n % 50), new Date().toISOString()],
+    });
+    return id;
+  };
+
+  beforeAll(async () => {
+    ({ db } = await import('../src/lib/db'));
+    store = await import('../src/lib/agentVault/store');
+    events = await import('../src/lib/agentVault/events');
+    feed = await import('../src/lib/agentVault/feed');
+    await (await import('../src/lib/agentKeys')).listAgentKeys(tenant); // makes the keys table
+    await events.ensureAgentEventsTable();
+    tinId = (await store.insertTin(tenant, { label: 'Feed agent', agentKeyId: null, at: '2026-10-01 00:00:00' })).id;
+    otherTinId = (await store.insertTin(other, { label: 'Someone else\'s agent', agentKeyId: null, at: '2026-10-01 00:00:00' })).id;
+  });
+
+  afterAll(async () => {
+    for (const t of [tenant, other]) for (const table of ['agent_events', 'agent_tins']) await db.execute({ sql: `DELETE FROM ${table} WHERE tenant_id = ?`, args: [t] });
+  });
+
+  const ok = async (q: Record<string, unknown>) => {
+    const r = await feed.readFeed(tenant, q);
+    if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r)}`);
+    return r;
+  };
+
+  it('builds its index, and building it again is harmless', async () => {
+    await events.ensureFeedIndex();
+    const def = async () => (await db.execute({ sql: `SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?`, args: [events.AGENT_EVENTS_FEED_INDEX] })).rows;
+    const rows = await def();
+    expect(rows).toHaveLength(1);
+    expect(String(rows[0].indexdef)).toMatch(/\(tenant_id, created_at, id\)/);
+    // The migration file says the same thing, and runs twice without a complaint.
+    const { readFileSync } = await import('node:fs');
+    const sql = readFileSync(new URL('../migrations-pg/0055_agent_events_feed_index.sql', import.meta.url), 'utf8').replace(/--[^\n]*/g, '').split(';').map((s) => s.trim()).filter(Boolean);
+    expect(sql).toHaveLength(1);
+    await db.execute({ sql: sql[0], args: [] });
+    await db.execute({ sql: sql[0], args: [] });
+    expect(await def()).toHaveLength(1);
+  });
+
+  it('the index is the one the feed\'s query can use: its plan names it when a scan is not an option', async () => {
+    const [, , plan] = await db.batch(
+      [
+        { sql: `SET LOCAL enable_seqscan = off`, args: [] },
+        { sql: `SET LOCAL enable_bitmapscan = off`, args: [] },
+        {
+          sql: `EXPLAIN SELECT id FROM agent_events WHERE tenant_id = ? AND created_at >= ? ORDER BY created_at ASC, id ASC LIMIT ?`,
+          args: [tenant, '2026-10-19 11:00:00', 101],
+        },
+      ],
+      'write',
+    );
+    expect(plan.rows.map((r: any) => Object.values(r)[0]).join('\n')).toContain(events.AGENT_EVENTS_FEED_INDEX);
+  });
+
+  it('shows a transfer written now for a block an hour old, which a feed that followed the event\'s time would never see', async () => {
+    const first = await writeCheck();
+    const opened = await ok({});
+    expect(opened.events.map((e: any) => e.id)).toContain(first);
+    await db.execute({
+      sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, chain, answer, registry, status, tx_hash, direction, wallet, amount, asset, usd_value, detail_json, occurred_at)
+            VALUES (?, ?, ?, 'transaction', ?, 'ethereum', 'unknown', 'trusted', 'unknown', ?, 'out', ?, '1.5', 'ETH', 4200, '{}', ?)`,
+      args: [randomUUID(), tenant, tinId, addr(7), `0x${'ab'.repeat(32)}`, addr(8), new Date(Date.now() - 3600_000).toISOString()],
+    });
+    const poll = await ok({ since: opened.since });
+    const transfer = poll.events.find((e: any) => e.kind === 'transaction');
+    if (!transfer) throw new Error('the transfer was not in the poll');
+    expect(transfer).toMatchObject({ tx: { direction: 'out', amount: '1.5', asset: 'ETH' }, agent: 'Feed agent' });
+    expect(Date.parse(String(transfer.at))).toBeLessThan(Date.now() - 3000_000);
+  });
+
+  it('reads a burst of 150 events written in the same second or two, by cursor, once each and in order', async () => {
+    const ids = await Promise.all(Array.from({ length: 150 }, () => writeCheck()));
+    const start = '1970-01-01 00:00:00';
+    const got: string[] = [];
+    let q: Record<string, unknown> = { since: start, limit: 40 };
+    for (let page = 0; page < 20; page += 1) {
+      const r = await ok(q);
+      got.push(...r.events.map((e: any) => e.id));
+      if (!r.more) break;
+      q = { after: r.cursor, limit: 40 };
+    }
+    expect(new Set(got).size).toBe(got.length);
+    for (const id of ids) expect(got).toContain(id);
+  });
+
+  it('misses nothing when events are written while a reader is polling: the overlap, the cursor and the ids cover the same-second case', async () => {
+    // A reader as the page does it: ask from the newest second seen, follow `more` with the cursor to the end, drop repeats by id.
+    const pollAll = async (from: string) => {
+      const events: any[] = [];
+      let r = await ok({ since: from });
+      let since = r.since;
+      events.push(...r.events);
+      for (let page = 0; r.more && page < 20; page += 1) {
+        r = await ok({ after: r.cursor });
+        events.push(...r.events);
+        if (r.since > since) since = r.since;
+      }
+      return { events, since };
+    };
+    const opened = await ok({});
+    let since = opened.since;
+    const seen = new Set<string>(opened.events.map((e: any) => e.id));
+    const written: string[] = [];
+    let done = false;
+    const writer = (async () => {
+      for (let batch = 0; batch < 8; batch += 1) {
+        written.push(...(await Promise.all(Array.from({ length: 12 }, () => writeCheck()))));
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      done = true;
+    })();
+    // Poll while the writer works, then once more after it is done.
+    for (let turn = 0; turn < 400; turn += 1) {
+      const r = await pollAll(since);
+      for (const e of r.events) seen.add(e.id);
+      since = r.since;
+      if (done && written.every((id) => seen.has(id))) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    await writer;
+    expect(written).toHaveLength(96);
+    for (const id of written) expect(seen.has(id), id).toBe(true);
+  });
+
+  it('never shows another account\'s events, and never reads an agent that is not the account\'s', async () => {
+    const theirs = await writeCheck(other, otherTinId);
+    const all = await ok({ since: '1970-01-01 00:00:00', limit: 200 });
+    expect(all.events.map((e: any) => e.id)).not.toContain(theirs);
+    expect(await feed.readFeed(tenant, { tinId: otherTinId })).toMatchObject({ ok: false, error: 'tin_not_found' });
+    const mine = await feed.readFeed(other, {});
+    if (!mine.ok) throw new Error(`expected ok, got ${JSON.stringify(mine)}`);
+    expect(mine.events.map((e: any) => e.id)).toEqual([theirs]);
+  });
+});

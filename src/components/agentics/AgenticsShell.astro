@@ -7,7 +7,7 @@
  * (its billing, tenant id and alert email), no site footer whose questions are about wallets. A person
  * who came to check an agent's payments sees Agentics' bar, the page, and a small footer.
  *
- * The bar holds the name, the places an account goes (its agents, their reports and its account), a small
+ * The bar holds the name, the places an account goes (its agents, the live feed, their reports and its account), a small
  * meter of the plan (what the account uses and what the plan covers) and the way out. An account without the
  * Vault (the account page before the Vault is open) sees the account link and the way out, and nothing that
  * would 404. The meter is given the
@@ -31,13 +31,13 @@ import { getAuthSession } from '@/lib/authSession';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import { copy } from './copy';
 import PlanMeter from './PlanMeter';
-import { ACCOUNT_PATH, HOME_PATH, REPORTS_PATH } from './paths';
+import { ACCOUNT_PATH, FEED_PATH, HOME_PATH, REPORTS_PATH } from './paths';
 
 interface Props {
   /** The page's own fixed name. Never an account's text (see above). */
   title: string;
   /** Which entry of the Agentics bar is the current one. */
-  active?: 'agents' | 'reports' | 'account';
+  active?: 'agents' | 'feed' | 'reports' | 'account';
   /** The account's plan and use, for the meter. Without it there is no meter. */
   plan?: PlanSummary;
   /** Whether the account has the Vault. When it does not (the account page, before the Vault is open) the bar has no link to its pages and no meter. */
@@ -67,6 +67,7 @@ const links = door.landing.footerLinks;
         <a class="ag-shell__brand" href={HOME_PATH}>{copy.brand}</a>
         <nav class="ag-shell__nav" aria-label={copy.brand}>
           {vault && <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>}
+          {vault && <a href={FEED_PATH} aria-current={active === 'feed' ? 'page' : undefined}>{copy.nav.live}</a>}
           {vault && <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>}
           <a href={ACCOUNT_PATH} aria-current={active === 'account' ? 'page' : undefined}>{copy.nav.account}</a>
         </nav>

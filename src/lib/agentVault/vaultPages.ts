@@ -17,6 +17,7 @@ import { parseLedgerRows, type LedgerRow } from './ledgerView';
 import { utcDay } from './report';
 import { createdDay } from './reports';
 import { getTin, listDestinations, listTins, listWallets, type AgentWallet, type Destination, type Tin } from './store';
+import { FEED_EPOCH, readFeed, type FeedEvent } from './feed';
 import { listTinEvents } from './vault';
 
 /** The ledger rows a page opens with; "load more" pages onward by cursor. */
@@ -162,5 +163,25 @@ export async function loadAgentPage(tenantId: string, idRaw: string, now: Date =
     totals,
     signing: { available: getSigningKey() !== null },
     logLimit,
+  };
+}
+
+// ── The live feed ────────────────────────────────────────────────────────────
+
+export interface FeedPageData {
+  plan: PlanSummary;
+  /** The account's agents, for the filter. */
+  agents: Array<{ id: string; label: string }>;
+  /** What the page opens with: the newest events of every agent, oldest first, and where its live polls start. */
+  initial: { events: FeedEvent[]; since: string };
+}
+
+/** The live feed's first screen. The page polls /api/agentics/feed from `initial.since` on. */
+export async function loadFeedPage(tenantId: string): Promise<FeedPageData> {
+  const [plan, tins, feed] = await Promise.all([getPlanSummary(tenantId), listTins(tenantId), readFeed(tenantId, {})]);
+  return {
+    plan,
+    agents: tins.map((t) => ({ id: t.id, label: t.label })),
+    initial: feed.ok ? { events: feed.events, since: feed.since } : { events: [], since: FEED_EPOCH },
   };
 }
