@@ -10,6 +10,12 @@ export const HOME_PATH = '/dashboard/agentics';
 
 export const REPORTS_PATH = '/dashboard/agentics/reports';
 
+/** The account page: who is signed in, and deleting the account. For every account with a real session, with or without the Vault. */
+export const ACCOUNT_PATH = '/agentics/account';
+
+/** Where the browser goes once the account is gone. */
+export const AFTER_DELETE_PATH = '/agentics';
+
 /** The page of one agent. */
 export const agentHref = (id: string): string => `${HOME_PATH}/tins/${encodeURIComponent(id)}`;
 

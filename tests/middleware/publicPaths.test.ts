@@ -154,7 +154,7 @@ describe('the Agentics landing, docs and sign-in are public, and the old docs UR
 		for (const p of ['/agentics', '/agentics/', '/agentics/docs', '/agentics/docs/', '/agentics/login', '/agentics/login/']) {
 			expect(isPublicPath(p), p).toBe(true);
 		}
-		for (const p of ['/agentics/anything', '/agentics/docs/x', '/agentics/login/x', '/agentics/loginx', '/agentics/documents', '/dashboard/agentics', '/api/agentics/tins']) {
+		for (const p of ['/agentics/anything', '/agentics/docs/x', '/agentics/login/x', '/agentics/loginx', '/agentics/documents', '/agentics/account', '/agentics/account/', '/dashboard/agentics', '/api/agentics/tins']) {
 			expect(isPublicPath(p), p).toBe(false);
 		}
 	});

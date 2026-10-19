@@ -6,11 +6,36 @@
  * anything and never call an address safe. They stay with what was asked, what was answered and
  * the raw value that moved.
  */
+import { FREE_ADDRESSES, FREE_BOTS } from '@/i18n/agentics';
 import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib/agentVault/reportText';
 
 export const copy = {
   brand: 'Almstins Agentics',
-  nav: { agents: 'Agents', reports: 'Reports' },
+  nav: { agents: 'Agents', reports: 'Reports', account: 'Account' },
+
+  account: {
+    kicker: 'Almstins Agentics',
+    title: 'Your account',
+    lede: 'The account you signed in with. Agentics has no password of its own.',
+    emailLabel: 'Signed in as',
+    noEmail: 'This sign-in has no email address on it.',
+    planLabel: 'Plan',
+    plan: `Free: ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. Paid plans come later; there is nothing to buy today.`,
+    deleteTitle: 'Delete your account',
+    deleteLede: [
+      'This permanently deletes your account and everything in it: your agents, their wallets and registered addresses, the ledger, your reports and your delivery settings. It cannot be undone.',
+      'Your agent keys are removed too, so an agent still using one gets an error, not an answer. A signed file you already downloaded stays yours and still verifies against our published signing keys. Records other parties rely on in Almstins Verify (financing claims, confirmations and their documents) are not deleted.',
+    ],
+    deleteButton: 'Delete my account',
+    deleteQuestion: 'Delete your account and everything in it, for good?',
+    deleteYes: 'Yes, delete everything',
+    deleteWorking: 'Deleting',
+    deleteKeep: 'Keep my account',
+    done: 'Your account was deleted.',
+    failed: 'Your account was not deleted. Try again in a minute, or write to support@almstins.com.',
+    billingFailed: 'Your account was not deleted because we could not cancel your paid plan. Try again in a few minutes, or write to support@almstins.com.',
+    network: 'The request did not reach us, so nothing was deleted. Check your connection and try again.',
+  },
 
   reports: {
     kicker: 'Agent Vault',

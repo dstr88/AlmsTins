@@ -7,8 +7,10 @@
  * (its billing, tenant id and alert email), no site footer whose questions are about wallets. A person
  * who came to check an agent's payments sees Agentics' bar, the page, and a small footer.
  *
- * The bar holds the name, the two places an account goes (its agents and their reports), a small meter
- * of the plan (what the account uses and what the plan covers) and the way out. The meter is given the
+ * The bar holds the name, the places an account goes (its agents, their reports and its account), a small
+ * meter of the plan (what the account uses and what the plan covers) and the way out. An account without the
+ * Vault (the account page before the Vault is open) sees the account link and the way out, and nothing that
+ * would 404. The meter is given the
  * plan by the page, which read it for the account in the session; the shell reads only who is signed in,
  * to tell the analytics tag that the owner's own visits are internal (as the app's Layout does).
  *
@@ -29,17 +31,19 @@ import { getAuthSession } from '@/lib/authSession';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import { copy } from './copy';
 import PlanMeter from './PlanMeter';
-import { HOME_PATH, REPORTS_PATH } from './paths';
+import { ACCOUNT_PATH, HOME_PATH, REPORTS_PATH } from './paths';
 
 interface Props {
   /** The page's own fixed name. Never an account's text (see above). */
   title: string;
   /** Which entry of the Agentics bar is the current one. */
-  active?: 'agents' | 'reports';
+  active?: 'agents' | 'reports' | 'account';
   /** The account's plan and use, for the meter. Without it there is no meter. */
   plan?: PlanSummary;
+  /** Whether the account has the Vault. When it does not (the account page, before the Vault is open) the bar has no link to its pages and no meter. */
+  vault?: boolean;
 }
-const { title, active, plan } = Astro.props;
+const { title, active, plan, vault = true } = Astro.props;
 
 const session = await getAuthSession(Astro.request).catch(() => null);
 const internal = isInternalAgenticsViewer(session);
@@ -62,10 +66,11 @@ const links = door.landing.footerLinks;
       <div class="ag-shell__bar-in">
         <a class="ag-shell__brand" href={HOME_PATH}>{copy.brand}</a>
         <nav class="ag-shell__nav" aria-label={copy.brand}>
-          <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>
-          <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>
+          {vault && <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>}
+          {vault && <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>}
+          <a href={ACCOUNT_PATH} aria-current={active === 'account' ? 'page' : undefined}>{copy.nav.account}</a>
         </nav>
-        {plan && <PlanMeter client:load plan={plan} />}
+        {vault && plan && <PlanMeter client:load plan={plan} />}
         <LogoutButton class="ag-shell__out" next="/agentics">{door.welcome.signOut}</LogoutButton>
       </div>
     </header>

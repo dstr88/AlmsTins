@@ -173,6 +173,7 @@ export const en: AgenticsCopy = {
       { href: '/agentics/docs', text: 'Read the API docs and wire the pre-send check into your agent.' },
       { href: '/verify/agent-keys', text: 'Create an API key by proving a domain you control. A key raises the limit from 30 to 300 requests a minute.' },
       { href: '/wallet-checker', text: 'Check any address or site with the free checker.' },
+      { href: '/agentics/account', text: 'See your account, or delete it.' },
     ],
     signOut: 'Sign out',
   },

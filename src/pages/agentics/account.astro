@@ -1,0 +1,32 @@
+---
+/**
+ * /agentics/account: who is signed in to Agentics, the plan, and deleting the account.
+ *
+ * For every account with a real session, with or without the Vault: the door's signups (while the Vault is
+ * private) and every account (once it is open) can leave from here. It is not a Vault page, so it is not
+ * gated by the Vault's switch; it lives beside the other public Agentics pages and is not one of them: it is
+ * not in isPublicPath, so a signed-out visitor is sent to the Agentics sign-in by the middleware, and the
+ * page checks the session itself as well. A demo session is sent to the same sign-in. The page is never
+ * cached or indexed. The delete request is the app's one account deletion (/api/account/delete).
+ *
+ * The bar shows the Vault's pages only to an account that has the Vault.
+ */
+import AgenticsShell from '../../components/agentics/AgenticsShell.astro';
+import AccountPanel from '../../components/agentics/AccountPanel';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { getAuthSession } from '@/lib/authSession';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+const session = await requireTenantSession(Astro.request);
+if (!session || session.isDemo) return Astro.redirect('/agentics/login?next=%2Fagentics%2Faccount', 303);
+
+const auth = await getAuthSession(Astro.request).catch(() => null);
+const email = auth?.user?.email ?? null;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<AgenticsShell title="Account" active="account" vault={canAccessAgenticsVault(session)}>
+  <AccountPanel client:load email={email} />
+</AgenticsShell>

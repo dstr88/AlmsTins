@@ -83,7 +83,7 @@ describe('it says only what is true today', () => {
   });
 
   it('points at pages that exist: the docs, key creation and the free checker', () => {
-    expect(en.welcome.today.map((t) => t.href)).toEqual(['/agentics/docs', '/verify/agent-keys', '/wallet-checker']);
+    expect(en.welcome.today.map((t) => t.href)).toEqual(['/agentics/docs', '/verify/agent-keys', '/wallet-checker', '/agentics/account']);
   });
 });
 

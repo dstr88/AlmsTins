@@ -449,6 +449,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
 
   it('are these, and nothing else', () => {
     expect(files).toEqual([
+      'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
       'src/components/agentics/AgenticsShell.astro',
@@ -462,6 +463,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
       'src/components/agentics/WalletsPanel.tsx',
+      'src/components/agentics/account.ts',
       'src/components/agentics/agentics.css',
       'src/components/agentics/client.ts',
       'src/components/agentics/copy.ts',
