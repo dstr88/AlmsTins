@@ -235,6 +235,137 @@ describe('one at a time', () => {
   });
 });
 
+describe('an agent that fails, or never finishes', () => {
+  it('does not stand in the way of the account\'s others: it goes to the back of the line and the next agent is read', async () => {
+    const a = await newTin(A, 'Broken', '2026-10-01 00:00:00');
+    const b = await newTin(A, 'Fine', '2026-10-02 00:00:00');
+    const calls: string[] = [];
+    const read = vi.fn(async (_t: string, id: string) => {
+      calls.push(id);
+      if (id === a.id) throw new Error('this agent\'s data is unreadable');
+      return { ok: true, pass: pass(id, [{ status: 'complete' }]) } as never;
+    });
+    const now = { t: T0 };
+    // Every time it is asked the broken agent is tried first (it has waited longest) and fails, and the other is read.
+    for (let i = 0; i < 3; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read', tinId: b.id });
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    expect(calls).toEqual([a.id, b.id, a.id, b.id, a.id, b.id]);
+  });
+
+  it('when every agent fails, the first failure is the caller\'s (the route turns it into a plain 500), and the place is free again', async () => {
+    const a = await newTin(A, 'One', '2026-10-01 00:00:00');
+    await newTin(A, 'Two', '2026-10-02 00:00:00');
+    const read = vi.fn(async () => { throw new Error('the database went away'); });
+    const now = { t: T0 };
+    await expect(live.liveRead(A, {}, deps(now, read))).rejects.toThrow('the database went away');
+    expect(read).toHaveBeenCalledTimes(2);
+    now.t += live.LIVE_READ_MIN_GAP_MS;
+    const { read: fine } = reader();
+    expect(await live.liveRead(A, {}, deps(now, fine))).toMatchObject({ status: 'read', tinId: a.id });
+  });
+
+  it('when one agent fails and the others have nothing to read, it is still a failure: "nothing" would hide it', async () => {
+    const a = await newTin(A, 'Broken', '2026-10-01 00:00:00');
+    const b = await newTin(A, 'Empty', '2026-10-02 00:00:00');
+    const read = vi.fn(async (_t: string, id: string) => {
+      if (id === a.id) throw new Error('this agent\'s data is unreadable');
+      return { ok: true, pass: pass(id, []) } as never;
+    });
+    await expect(live.liveRead(A, {}, deps({ t: T0 }, read))).rejects.toThrow('unreadable');
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(read.mock.calls.map((c) => c[1])).toEqual([a.id, b.id]);
+  });
+
+  it('a read that never ends lets go of the single place after a minute, and the agent is not tried again at once', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const a = await newTin(A, 'Stuck', '2026-10-01 00:00:00');
+      const other = await newTin(B, 'Another account\'s agent', '2026-10-01 00:00:00');
+      const never = vi.fn((_t: string, id: string) => (id === a.id ? new Promise(() => {}) : Promise.resolve({ ok: true, pass: pass(id, [{ status: 'complete' }]) })) as never);
+      const now = { t: T0 };
+      const stuck = live.liveRead(A, {}, deps(now, never));
+      await vi.advanceTimersByTimeAsync(live.LIVE_READ_HOLD_MS - 1);
+      // While it holds the place, another account is told "busy".
+      expect(await live.liveRead(B, {}, deps(now, never))).toMatchObject({ status: 'busy' });
+      await vi.advanceTimersByTimeAsync(2);
+      expect(await stuck).toEqual({ ok: true, status: 'busy', tinId: null, pass: null, waitMs: live.LIVE_READ_BUSY_WAIT_MS });
+      // The place is free: the other account's read goes ahead, and the stuck agent is not tried again at once.
+      expect(await live.liveRead(B, {}, deps(now, never))).toMatchObject({ status: 'read', tinId: other.id });
+      expect(await live.liveRead(A, {}, deps(now, never))).toMatchObject({ status: 'recent' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('leaves no timer behind when a read ends in time', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await newTin(A, 'Fine', '2026-10-01 00:00:00');
+      const { read } = reader();
+      await live.liveRead(A, {}, deps({ t: T0 }, read));
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('the day\'s budget', () => {
+  it('gives an account 240 live reads in a UTC day, then says "limit" until the next day (the daily job and the button are not counted)', async () => {
+    const a = await newTin(A, 'Treasury agent', '2026-10-01 00:00:00');
+    const { read, calls } = reader();
+    const day = Date.UTC(2026, 9, 19, 8, 0, 0);
+    const now = { t: day };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, read)), `read ${i + 1}`).toMatchObject({ status: 'read', tinId: a.id });
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+      if (now.t >= Date.UTC(2026, 9, 20)) throw new Error('the test ran into the next day');
+    }
+    expect(calls).toHaveLength(live.LIVE_READS_PER_DAY);
+    const over = await live.liveRead(A, {}, deps(now, read));
+    expect(over).toEqual({ ok: true, status: 'limit', tinId: null, pass: null, waitMs: live.LIVE_READ_NOTHING_WAIT_MS });
+    expect(calls).toHaveLength(live.LIVE_READS_PER_DAY);
+    // The next UTC day starts again.
+    now.t = Date.UTC(2026, 9, 20, 0, 0, 1);
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
+  });
+
+  it('counts reads that read something, not asks that found nothing to read or were told "recent"', async () => {
+    await newTin(A, 'Empty', '2026-10-01 00:00:00');
+    const { read } = reader({});
+    const empty = vi.fn(async (_t: string, id: string) => ({ ok: true, pass: pass(id, []) }) as never);
+    const now = { t: T0 };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY + 5; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, empty))).toMatchObject({ status: 'nothing' });
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    // Still has its whole budget.
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
+  });
+
+  it('is for each account: one that has used its reads does not use up another\'s', async () => {
+    await newTin(A, 'Mine', '2026-10-01 00:00:00');
+    const theirs = await newTin(B, 'Theirs', '2026-10-01 00:00:00');
+    const { read } = reader();
+    const now = { t: Date.UTC(2026, 9, 19, 1, 0, 0) };
+    for (let i = 0; i < live.LIVE_READS_PER_DAY; i += 1) {
+      await live.liveRead(A, {}, deps(now, read));
+      now.t += live.LIVE_READ_MIN_GAP_MS;
+    }
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'limit' });
+    expect(await live.liveRead(B, {}, deps(now, read))).toMatchObject({ status: 'read', tinId: theirs.id });
+  });
+
+  it('still says what is wrong with a request before it says the budget is used: a bad id and an agent that is not the account\'s are errors, not "limit"', async () => {
+    await newTin(A, 'Mine', '2026-10-01 00:00:00');
+    const { read } = reader();
+    expect(await live.liveRead(A, { tinId: 7 }, deps({ t: T0 }, read))).toMatchObject({ ok: false, error: 'invalid_id' });
+    expect(await live.liveRead(A, { tinId: 'nope' }, deps({ t: T0 }, read))).toMatchObject({ ok: false, error: 'tin_not_found' });
+  });
+});
+
 describe('what it refuses', () => {
   it('an agent id that is not one, and an agent of another account or that does not exist (the same answer for both)', async () => {
     const theirs = await newTin(B, 'Theirs', '2026-10-01 00:00:00');
@@ -272,6 +403,8 @@ describe('the numbers', () => {
     expect(live.LIVE_READ_MIN_GAP_MS).toBe(45_000);
     expect(live.LIVE_READ_PAUSE_MS).toBe(30_000);
     expect(live.LIVE_READS_IN_FLIGHT_MAX).toBe(1);
+    expect(live.LIVE_READS_PER_DAY).toBe(240);
+    expect(live.LIVE_READ_HOLD_MS).toBe(60_000);
     expect(live.LIVE_READ_REQUESTS_PER_WINDOW).toBe(6);
     // A read takes up to 20 seconds and the page waits 30 after it: about a minute for one agent.
     expect(live.LIVE_READ_PAUSE_MS + 20_000).toBeLessThanOrEqual(60_000);

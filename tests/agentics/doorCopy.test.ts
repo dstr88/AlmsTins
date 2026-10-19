@@ -186,7 +186,7 @@ describe('the open vault keeps the same wording rules', () => {
   });
 
   it('names the chains the record is read from and says when: once a day, and about once a minute while the Live page is open, so nothing promises more than is built', () => {
-    const when = 'Once a day, and about once a minute while your Live page is open,';
+    const when = 'Once a day, and about once a minute while your Live page is open (one agent at a time, in turn),';
     expect(enOpen.landing.steps[2].body).toContain(when);
     expect(enOpen.landing.steps[2].body).toContain('Ethereum, Polygon and Avalanche');
     expect(opening.letter.paragraphs.join(' ')).toContain(when);
@@ -201,7 +201,7 @@ describe('the open vault keeps the same wording rules', () => {
     const welcome = enOpen.letter.paragraphs.join(' ');
     expect(welcome).toContain('link a key to it (you make a key by proving a domain)');
     expect(welcome).toContain('Each check your bot asks with its key appears on its page.');
-    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day, about once a minute while your Live page is open, or when you press Read the chain');
+    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day, about once a minute while your Live page is open (one agent at a time, in turn), or when you press Read the chain');
     const opened = opening.letter.paragraphs.join(' ');
     expect(opened).toContain('link a key to it (you make a key by proving a domain)');
     expect(opened).toContain('Each check it asks with the key becomes a dated entry');

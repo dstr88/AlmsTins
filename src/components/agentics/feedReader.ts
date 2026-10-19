@@ -12,10 +12,13 @@
  *     to a tenth added so two pages do not ask in step.
  *   - A failure waits longer each time (30 seconds, then 1, 2 and 5 minutes). A read in which every wallet
  *     could not be read (the explorer is down, or has no key) counts as a failure, so a page does not hammer
- *     it. Losing the sign-in or the Vault (401, 404) stops for good; a rate limit waits a minute.
+ *     it. Losing the sign-in or the Vault (a 401, or a 404 with no answer from the Vault behind it) stops for
+ *     good; a 404 the Vault itself answers (the agent the page is filtered to was removed) is only a failure.
+ *     A rate limit waits a minute. A request not answered in READ_TIMEOUT_MS counts as a failure.
  */
 import type { Send } from './client';
 import { describeRefresh, passOf } from './refresh';
+import { answerWithin } from './withTimeout';
 
 /** The first ask, after the page opens. */
 export const READ_FIRST_MS = 2500;
@@ -26,12 +29,14 @@ export const READ_MAX_WAIT_MS = 300_000;
 export const READ_FAILURE_WAIT_MS = 30_000;
 /** What it waits after being told it asks too often. */
 export const READ_RATE_LIMITED_WAIT_MS = 60_000;
+/** A read can take 20 seconds of new calls and a call up to 30 more: a request not answered in this long counts as a failure. */
+export const READ_TIMEOUT_MS = 45_000;
 
-export type ReaderState = 'off' | 'waiting' | 'reading' | 'nothing' | 'failing' | 'closed';
+export type ReaderState = 'off' | 'waiting' | 'reading' | 'nothing' | 'limit' | 'failing' | 'closed';
 
 /** What one ask came back with, for the status line. */
 export interface ReadResult {
-  status: 'read' | 'recent' | 'busy' | 'nothing';
+  status: 'read' | 'recent' | 'busy' | 'nothing' | 'limit';
   /** The agent that was read, or null. */
   tinId: string | null;
   /** Plain sentences about how the wallets went (the same ones "Read the chain now" gives); empty unless an agent was read. */
@@ -106,9 +111,11 @@ export function createFeedReader(deps: ReaderDeps): FeedReader {
     deps.onState('reading');
     try {
       const tinId = deps.tinId();
-      const r = await deps.send('POST', '/api/agentics/feed/read', tinId ? { tinId } : {});
+      const r = await answerWithin(deps.send('POST', '/api/agentics/feed/read', tinId ? { tinId } : {}), READ_TIMEOUT_MS, deps);
       if (!running) return;
-      if (r.status === 401 || r.status === 404) {
+      // The sign-in is gone (401), or the Vault answers a plain 404 for a page it will not serve: stop for good.
+      // A 404 WITH an answer from the Vault behind it (`tin_not_found`: the agent the page is filtered to was removed) is only a failure.
+      if (r.status === 401 || (r.status === 404 && r.body === null)) {
         closed = true;
         deps.onState('closed');
         return;
@@ -119,7 +126,7 @@ export function createFeedReader(deps: ReaderDeps): FeedReader {
         return;
       }
       const status = r.body?.status;
-      if (!r.ok || !r.body || (status !== 'read' && status !== 'recent' && status !== 'busy' && status !== 'nothing')) {
+      if (!r.ok || !r.body || (status !== 'read' && status !== 'recent' && status !== 'busy' && status !== 'nothing' && status !== 'limit')) {
         failed();
         return;
       }
@@ -139,7 +146,7 @@ export function createFeedReader(deps: ReaderDeps): FeedReader {
       failures = 0;
       const asked = Number(r.body.waitMs);
       const wait = clamp(Number.isFinite(asked) ? asked : READ_MIN_WAIT_MS, READ_MIN_WAIT_MS, READ_MAX_WAIT_MS);
-      deps.onState(status === 'nothing' ? 'nothing' : 'waiting');
+      deps.onState(status === 'nothing' ? 'nothing' : status === 'limit' ? 'limit' : 'waiting');
       schedule(wait);
     } finally {
       inFlight = false;

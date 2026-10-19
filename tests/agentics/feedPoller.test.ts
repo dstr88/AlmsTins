@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BACKOFF_MAX_MS, MAX_PAGES, MAX_PAGES as PAGES, POLL_MS, RATE_LIMITED_WAIT_MS, SEEN_MAX, createFeedPoller, type ConnState } from '../../src/components/agentics/feedPoller';
+import { BACKOFF_MAX_MS, CATCH_UP_MS, MAX_PAGES, MAX_PAGES as PAGES, POLL_MS, RATE_LIMITED_WAIT_MS, REQUEST_TIMEOUT_MS, SEEN_MAX, createFeedPoller, type ConnState } from '../../src/components/agentics/feedPoller';
 import type { FeedRow } from '../../src/components/agentics/feedRows';
 import { addr } from '../helpers/agentVault';
 import { failed, fakeTimers, okBody, scriptedSend, settle } from '../helpers/fakeTimers';
@@ -107,19 +107,52 @@ describe('a backlog', () => {
     expect(t.sent[3].url).toContain(encodeURIComponent('2026-10-19 11:00:07'));
   });
 
-  it('stops following after ten answers, and carries on in the next turn from where it got to', async () => {
+  it('stops following after ten answers, and carries on in the next turn FROM THE CURSOR it left off at, not from `since` again', async () => {
     let n = 0;
     const t = setup([() => {
       n += 1;
-      return answer([ev(`e${n}`, '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: `2026-10-19 11:00:05|e${n}` });
+      // Ten answers each say there is more; the eleventh (the next turn's first) is the end of the backlog.
+      return n <= MAX_PAGES
+        ? answer([ev(`e${n}`, '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: `2026-10-19 11:00:05|e${n}` })
+        : answer([ev(`e${n}`, '2026-10-19 11:00:07')], '2026-10-19 11:00:07');
     }]);
     t.poller.start();
     await t.timers.fire();
     expect(t.sent).toHaveLength(MAX_PAGES);
     expect(PAGES).toBe(10);
     expect(t.rows[0]).toHaveLength(MAX_PAGES);
+    // It does not wait the usual three seconds for the rest of a backlog.
+    expect(t.timers.delays()).toEqual([CATCH_UP_MS]);
+    await t.timers.fire();
+    // The next turn's first request continues after the tenth answer's cursor: it does not start over from `since`.
+    expect(t.sent[MAX_PAGES].url).toBe(`/api/agentics/feed?after=${encodeURIComponent(`2026-10-19 11:00:05|e${MAX_PAGES}`)}`);
+    expect(t.rows).toHaveLength(2);
+    expect(t.rows[1].map((r) => r.id)).toEqual([`e${MAX_PAGES + 1}`]);
+    // The backlog is done: the usual pace, from the newest second reached.
     expect(t.timers.delays()).toEqual([POLL_MS]);
+    await t.timers.fire();
+    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:07')}`);
   });
+
+  it('keeps the place it had in a long backlog through a failure: the retry continues from the same cursor', async () => {
+    let n = 0;
+    const t = setup([() => {
+      n += 1;
+      if (n <= MAX_PAGES) return answer([ev(`e${n}`, '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: `2026-10-19 11:00:05|e${n}` });
+      if (n === MAX_PAGES + 1) return failed(500);
+      return answer([ev('last', '2026-10-19 11:00:09')], '2026-10-19 11:00:09');
+    }]);
+    t.poller.start();
+    await t.timers.fire(); // ten pages, a backlog left
+    await t.timers.fire(); // the continuation fails
+    expect(t.states.at(-1)?.[0]).toBe('reconnecting');
+    await t.timers.fire(); // and is retried from the same place, not from `since`
+    const cursor = `/api/agentics/feed?after=${encodeURIComponent(`2026-10-19 11:00:05|e${MAX_PAGES}`)}`;
+    expect(t.sent[MAX_PAGES].url).toBe(cursor);
+    expect(t.sent[MAX_PAGES + 1].url).toBe(cursor);
+    expect(t.rows.flat().map((r) => r.id)).toEqual([...Array.from({ length: MAX_PAGES }, (_, i) => `e${i + 1}`), 'last']);
+  });
+
 
   it('does not loop on an answer that says more and gives no cursor', async () => {
     const t = setup([answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: null })]);
@@ -239,6 +272,36 @@ describe('failing', () => {
     expect(t.sent[1].url).toContain(encodeURIComponent('1970-01-01 00:00:00'));
     expect(t.states.at(-1)?.[0]).toBe('reconnecting');
     expect(t.timers.delays()).toEqual([6000]);
+  });
+});
+
+describe('a request that is never answered', () => {
+  it('counts as a failure after the timeout, and the next ask goes ahead (a stalled connection does not freeze the page)', async () => {
+    const never = () => new Promise(() => {}) as never;
+    const t = setup([never, answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05')]);
+    t.poller.start();
+    const firing = t.timers.fire();
+    await settle();
+    // The poll timer fired and the request is out: its timeout is waiting.
+    expect(t.timers.delays()).toEqual([REQUEST_TIMEOUT_MS]);
+    await t.timers.fire();
+    await firing;
+    expect(t.states.at(-1)?.[0]).toBe('reconnecting');
+    expect(t.timers.delays()).toEqual([6000]);
+    await t.timers.fire();
+    expect(t.rows[0].map((r) => r.id)).toEqual(['a']);
+    expect(t.states.at(-1)?.[0]).toBe('live');
+  });
+
+  it('drops the answer that comes after the timeout', async () => {
+    let release: (v: unknown) => void = () => {};
+    const t = setup([() => new Promise((resolve) => { release = resolve; }) as never, answer([], '2026-10-19 11:00:00')]);
+    t.poller.start();
+    await t.timers.fire();
+    await t.timers.fire();
+    release(answer([ev('late', '2026-10-19 11:00:09')], '2026-10-19 11:00:09'));
+    await settle();
+    expect(t.rows).toEqual([]);
   });
 });
 

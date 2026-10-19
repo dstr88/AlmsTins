@@ -23,8 +23,13 @@ vi.mock('@/lib/db', () => ({
     batch: (s: any, m?: any) => holder.db.batch(s, m),
   },
 }));
-const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>> }));
-vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async (tenantId: string) => keys.byTenant[tenantId] ?? [] }));
+const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>>, calls: [] as string[] }));
+vi.mock('@/lib/agentKeys', () => ({
+  listAgentKeys: async (tenantId: string) => {
+    keys.calls.push(tenantId);
+    return keys.byTenant[tenantId] ?? [];
+  },
+}));
 
 const A = 'tenant-a';
 const B = 'tenant-b';
@@ -43,6 +48,7 @@ beforeEach(async () => {
   holder.db = fake;
   holder.intercept = null;
   keys.byTenant = { [A]: [{ id: KEY, status: 'active' }], [B]: [] };
+  keys.calls = [];
   store = await import('../../src/lib/agentVault/store');
   events = await import('../../src/lib/agentVault/events');
   feed = await import('../../src/lib/agentVault/feed');
@@ -85,11 +91,14 @@ function put(tenant: string, tinId: string, writtenAt: string, over: Record<stri
 }
 
 const ids = (answer: any) => answer.events.map((e: any) => e.id);
-const ok = async (tenant: string, q: Record<string, unknown> = {}) => {
-  const r = await feed.readFeed(tenant, q, () => NOW);
+/** A read at a chosen moment; the names the feed remembers are as old as the moments between its reads. */
+const okAt = async (tenant: string, q: Record<string, unknown>, at: Date) => {
+  const r = await feed.readFeed(tenant, q, () => at);
   if (!r.ok) throw new Error(`expected ok, got ${JSON.stringify(r)}`);
   return r;
 };
+const ok = (tenant: string, q: Record<string, unknown> = {}) => okAt(tenant, q, NOW);
+const secondsAfter = (s: number) => new Date(NOW.getTime() + s * 1000);
 
 describe('opening: the newest events, oldest first, of every agent of the account', () => {
   it('returns them in the order they were written, and says where the live polls start', async () => {
@@ -228,13 +237,122 @@ describe('a live poll', () => {
     expect(r.since).toBe('2026-10-19 11:00:10');
   });
 
-  it('asks for the cheap case with one statement: nothing new costs no lookups of names, keys or labels', async () => {
+  it('looks up no names when it finds no event at all (which a live poll seldom does: the overlap brings the newest one round again)', async () => {
     const t = await newTin();
     put(A, t.id, '2026-10-19 11:00:01');
     const seen: string[] = [];
     holder.intercept = (sql) => seen.push(sql);
     await ok(A, { since: '2026-10-19 11:30:00' });
-    expect(seen.filter((s) => /FROM agent_tins|FROM agent_destinations|FROM verify_agent_keys/.test(s))).toEqual([]);
+    expect(seen.filter((s) => /FROM agent_tins|FROM agent_destinations/.test(s))).toEqual([]);
+    expect(keys.calls).toEqual([]);
+  });
+});
+
+describe('what a poll costs: the names on a card are remembered per account for a few seconds', () => {
+  const lookups = (seen: string[]) => seen.filter((s) => /FROM agent_tins|FROM agent_destinations/.test(s));
+
+  it('a poll asked from the last answer\'s own `since` is one statement, though it brings the newest event round again and names it', async () => {
+    const t = await newTin();
+    await store.insertDestination(A, { tinId: t.id, chain: 'ethereum', address: addr(1), label: 'Label', at: '2026-10-01 00:00:00' });
+    put(A, t.id, '2026-10-19 11:00:01', { key_id: KEY });
+    const first = await ok(A);
+    expect(first.events[0]).toMatchObject({ agent: 'Treasury agent', label: 'Label', keyStatus: 'active' });
+    expect(keys.calls).toEqual([A]);
+    const seen: string[] = [];
+    holder.intercept = (sql) => seen.push(sql);
+    const again = await okAt(A, { since: first.since }, secondsAfter(3));
+    expect(again.events).toHaveLength(1);
+    expect(again.events[0]).toMatchObject({ agent: 'Treasury agent', label: 'Label', keyStatus: 'active' });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatch(/FROM agent_events/);
+    expect(keys.calls).toEqual([A]);
+  });
+
+  it('reads them again when they are FEED_NAMES_TTL_MS old, and then shows a rename, a new label and a revoked key; until then it shows them as they were', async () => {
+    const t = await newTin();
+    await store.insertDestination(A, { tinId: t.id, chain: 'ethereum', address: addr(1), label: 'Old label', at: '2026-10-01 00:00:00' });
+    put(A, t.id, '2026-10-19 11:00:01', { key_id: KEY });
+    const first = await ok(A);
+    expect(first.events[0]).toMatchObject({ agent: 'Treasury agent', label: 'Old label', keyStatus: 'active' });
+    await store.updateTin(A, t.id, { label: 'Renamed agent', agentKeyId: null });
+    await fake.execute({ sql: 'UPDATE agent_destinations SET label = ? WHERE tenant_id = ? AND tin_id = ?', args: ['New label', A, t.id] });
+    keys.byTenant[A] = [{ id: KEY, status: 'revoked' }];
+    const ttl = feed.FEED_NAMES_TTL_MS / 1000;
+    const within = await okAt(A, { since: first.since }, secondsAfter(ttl - 1));
+    expect(within.events[0]).toMatchObject({ agent: 'Treasury agent', label: 'Old label', keyStatus: 'active' });
+    const after = await okAt(A, { since: first.since }, secondsAfter(ttl));
+    expect(after.events[0]).toMatchObject({ agent: 'Renamed agent', label: 'New label', keyStatus: 'revoked' });
+    expect(keys.calls).toEqual([A, A]);
+  });
+
+  it('remembers from the moment it read them, not from the moment of the last poll: a steady stream of polls still reads them afresh', async () => {
+    const t = await newTin();
+    put(A, t.id, '2026-10-19 11:00:01');
+    let q: Record<string, unknown> = {};
+    const seen: string[] = [];
+    holder.intercept = (sql) => seen.push(sql);
+    for (let i = 0; i < 12; i += 1) {
+      const r = await okAt(A, q, secondsAfter(i * 3));
+      q = { since: r.since };
+    }
+    // Polls at 0, 3, 6, ... 33 seconds with a five-second memory: it reads afresh at 0, 6, 12, 18, 24 and 30.
+    expect(keys.calls).toHaveLength(6);
+    expect(lookups(seen).filter((s) => /FROM agent_tins/.test(s))).toHaveLength(6);
+  });
+
+  it('names a new agent at once: its first event does not wait for the remembered names to run out', async () => {
+    const first = await newTin();
+    put(A, first.id, '2026-10-19 11:00:01');
+    const opened = await ok(A);
+    const added = await newTin(A, 'Payroll agent');
+    const fresh = put(A, added.id, '2026-10-19 11:00:05');
+    const next = await okAt(A, { since: opened.since }, secondsAfter(1));
+    expect(next.events.map((e: any) => [e.id, e.agent])).toContainEqual([fresh, 'Payroll agent']);
+  });
+
+  it('keeps showing an agent removed since the names were read until they run out, then leaves it out without looking the list up again for each poll', async () => {
+    const live = await newTin();
+    const gone = await newTin(A, 'Removed agent');
+    const kept = put(A, live.id, '2026-10-19 11:00:01');
+    const stale = put(A, gone.id, '2026-10-19 11:00:02');
+    const opened = await ok(A);
+    expect(ids(opened)).toEqual([kept, stale]);
+    await store.softDeleteTin(A, gone.id, '2026-10-19 11:00:30');
+    const ttl = feed.FEED_NAMES_TTL_MS / 1000;
+    expect(ids(await okAt(A, { since: opened.since }, secondsAfter(1)))).toContain(stale);
+    const after = await okAt(A, { since: opened.since }, secondsAfter(ttl));
+    expect(ids(after)).toEqual([kept]);
+    const seen: string[] = [];
+    holder.intercept = (sql) => seen.push(sql);
+    for (let i = 1; i <= 3; i += 1) await okAt(A, { since: opened.since }, secondsAfter(ttl + i));
+    expect(lookups(seen)).toEqual([]);
+  });
+
+  it('is kept per account: another account\'s event that names this account\'s agent gets no card and never the agent\'s name', async () => {
+    const mine = await newTin(A, 'Mine');
+    const theirs = await newTin(B, 'Theirs');
+    put(A, mine.id, '2026-10-19 11:00:01');
+    const b1 = put(B, theirs.id, '2026-10-19 11:00:02');
+    // B opens first and A reads after it, so the last names read are A's when B asks again.
+    const opened = await ok(B);
+    await ok(A);
+    expect(ids(opened)).toEqual([b1]);
+    // A row that should never exist (the registry refuses to write one): B's ledger naming A's agent.
+    const stray = put(B, mine.id, '2026-10-19 11:00:03');
+    const r = await okAt(B, { since: opened.since }, secondsAfter(1));
+    expect(ids(r)).toEqual([b1]);
+    expect(ids(r)).not.toContain(stray);
+    expect(JSON.stringify(r)).not.toContain('Mine');
+    expect(keys.calls.filter((c) => c === B).length).toBeGreaterThan(0);
+  });
+
+  it('does not trust what it remembered when the clock has gone backwards', async () => {
+    const t = await newTin();
+    put(A, t.id, '2026-10-19 11:00:01');
+    const opened = await okAt(A, {}, secondsAfter(100));
+    await store.updateTin(A, t.id, { label: 'Renamed agent', agentKeyId: null });
+    const r = await okAt(A, { since: opened.since }, NOW);
+    expect(r.events[0]).toMatchObject({ agent: 'Renamed agent' });
   });
 });
 
@@ -353,7 +471,10 @@ describe('every statement is for the account in the session', () => {
     await ok(A, { after: '2026-10-19 11:00:00|00000000-0000-4000-8000-000000000000' });
     await ok(A, { tinId: t.id });
     const reads = seen.filter((s) => /\bFROM (agent_events|agent_tins|agent_destinations)\b/.test(s.sql));
-    expect(reads.length).toBeGreaterThan(8);
+    // Four reads of the ledger, and the agents and the registry at least once each (the names are remembered after the first).
+    expect(reads.filter((s) => /\bFROM agent_events\b/.test(s.sql))).toHaveLength(4);
+    expect(reads.some((s) => /\bFROM agent_tins\b/.test(s.sql))).toBe(true);
+    expect(reads.some((s) => /\bFROM agent_destinations\b/.test(s.sql))).toBe(true);
     for (const s of reads) {
       expect(s.sql, s.sql).toMatch(/tenant_id = \?/);
       expect(s.args, s.sql).toContain(A);
@@ -392,28 +513,57 @@ describe('the index', () => {
     expect(batches.flat().join('\n')).not.toContain('agent_events_tenant_written');
   });
 
-  it('a failed attempt is logged by name and code only, the read still answers, and the next read tries again', async () => {
+  it('looks first, and when the index is already there takes no lock and builds nothing', async () => {
     const t = await newTin();
     put(A, t.id, '2026-10-19 11:00:01');
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await fake.execute({ sql: `CREATE INDEX IF NOT EXISTS ${events.AGENT_EVENTS_FEED_INDEX} ON agent_events (tenant_id, created_at, id)`, args: [] });
+    const batches: string[][] = [];
     const real = holder.db.batch.bind(holder.db);
-    let fail = true;
     holder.db.batch = (s: any, m?: any) => {
-      if (fail && s.some((x: any) => /agent_events_tenant_written/.test(x.sql))) return Promise.reject(Object.assign(new Error('canceling statement due to lock timeout with SECRET detail'), { name: 'DatabaseError', code: '55P03' }));
+      batches.push(s.map((x: any) => x.sql));
       return real(s, m);
     };
-    expect((await ok(A)).events).toHaveLength(1);
-    expect(errors).toHaveBeenCalledWith('[agent-vault] feed index not ensured', { name: 'DatabaseError', code: '55P03' });
-    expect(JSON.stringify(errors.mock.calls)).not.toContain('SECRET');
-    fail = false;
-    let tried = 0;
-    const counting = holder.db.batch;
-    holder.db.batch = (s: any, m?: any) => {
-      if (s.some((x: any) => /agent_events_tenant_written/.test(x.sql))) tried += 1;
-      return counting(s, m);
-    };
+    const seen: string[] = [];
+    holder.intercept = (sql) => seen.push(sql);
     await ok(A);
-    expect(tried).toBe(1);
-    errors.mockRestore();
+    expect(batches.flat().filter((sql) => /CREATE INDEX|SET LOCAL/.test(sql))).toEqual([]);
+    expect(seen.filter((sql) => /FROM pg_indexes/.test(sql))).toHaveLength(1);
+  });
+
+  it('a failed attempt is logged by name and code only, the read still answers, and the next attempt waits five minutes, then tries again', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-19T12:00:00Z'));
+      const t = await newTin();
+      put(A, t.id, '2026-10-19 11:00:01');
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const real = holder.db.batch.bind(holder.db);
+      let fail = true;
+      let tried = 0;
+      holder.db.batch = (s: any, m?: any) => {
+        if (s.some((x: any) => /agent_events_tenant_written/.test(x.sql))) {
+          tried += 1;
+          if (fail) return Promise.reject(Object.assign(new Error('canceling statement due to lock timeout with SECRET detail'), { name: 'DatabaseError', code: '55P03' }));
+        }
+        return real(s, m);
+      };
+      expect((await ok(A)).events).toHaveLength(1);
+      expect(tried).toBe(1);
+      expect(errors).toHaveBeenCalledWith('[agent-vault] feed index not ensured', { name: 'DatabaseError', code: '55P03' });
+      expect(JSON.stringify(errors.mock.calls)).not.toContain('SECRET');
+      // Polls in the next five minutes do not try again: a busy lock must not cost every poll a wait.
+      fail = false;
+      for (let i = 0; i < 5; i += 1) {
+        vi.setSystemTime(new Date(Date.now() + 3000));
+        await ok(A);
+      }
+      expect(tried).toBe(1);
+      vi.setSystemTime(new Date(Date.now() + events.FEED_INDEX_RETRY_MS));
+      await ok(A);
+      expect(tried).toBe(2);
+      errors.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -135,7 +135,9 @@ describe('GET /api/agentics/feed', () => {
 
   it('counts a page that polls every three seconds as 20 a minute: well inside the limit, with room for several tabs', async () => {
     const { FEED_REQUESTS_PER_WINDOW, FEED_REQUEST_WINDOW_MS } = await import('../../src/lib/agentVault/feed');
-    const perTab = FEED_REQUEST_WINDOW_MS / 3000;
+    const { POLL_MS } = await import('../../src/components/agentics/feedPoller');
+    // The page's own pace, not a number written here: if the page polls faster, the limit must be looked at again.
+    const perTab = FEED_REQUEST_WINDOW_MS / POLL_MS;
     expect(perTab).toBe(20);
     expect(Math.floor(FEED_REQUESTS_PER_WINDOW / perTab)).toBeGreaterThanOrEqual(5);
   });

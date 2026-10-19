@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FEED_LIST_MAX, mergeRows, newestFirst, parseFeedRows, shortAddress, toFeedRow, type FeedRow } from '../../src/components/agentics/feedRows';
+import { FEED_KEEP_MAX, FEED_KEEP_PER_AGENT, FEED_LIST_MAX, addRows, emptyList, mergeRows, newestFirst, parseFeedRows, releaseRows, shortAddress, toFeedRow, visibleRows, writtenIso, type FeedRow } from '../../src/components/agentics/feedRows';
 import { addr } from '../helpers/agentVault';
 
 /**
@@ -96,7 +96,8 @@ describe('a list of events', () => {
   });
 });
 
-const row = (id: string, writtenAt: string): FeedRow => toFeedRow(event({ id, writtenAt })) as FeedRow;
+const row = (id: string, writtenAt: string, tinId = 'tin-1'): FeedRow => toFeedRow(event({ id, writtenAt, tinId })) as FeedRow;
+const at = (i: number) => `2026-10-19 ${String(11 + Math.floor(i / 3600)).padStart(2, '0')}:${String(Math.floor((i % 3600) / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`;
 
 describe('the list on the page', () => {
   it('orders newest written first, and the id breaks a tie the same way every time', () => {
@@ -119,12 +120,33 @@ describe('the list on the page', () => {
     expect(mergeRows(list, [])).toBe(list);
   });
 
-  it('keeps the newest hundred, and drops the oldest', () => {
-    const many = Array.from({ length: FEED_LIST_MAX + 20 }, (_, i) => row(`r${String(i).padStart(3, '0')}`, `2026-10-19 11:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`));
+  it('keeps the newest hundred of an agent, and drops its oldest', () => {
+    const many = Array.from({ length: FEED_KEEP_PER_AGENT + 20 }, (_, i) => row(`r${String(i).padStart(3, '0')}`, at(i)));
     const merged = mergeRows([], many);
-    expect(merged).toHaveLength(FEED_LIST_MAX);
-    expect(merged[0].id).toBe(`r${String(FEED_LIST_MAX + 19).padStart(3, '0')}`);
+    expect(merged).toHaveLength(FEED_KEEP_PER_AGENT);
+    expect(merged[0].id).toBe(`r${String(FEED_KEEP_PER_AGENT + 19).padStart(3, '0')}`);
     expect(merged[merged.length - 1].id).toBe('r020');
+  });
+
+  it('a busy agent cannot push a quiet agent\'s rows out: the cap is for each agent, not for the whole list (the agent filter showed "nothing recorded" before)', () => {
+    // Agent A has written 100 rows lately; agent B's 30 are all older than any of them.
+    const chatty = Array.from({ length: 100 }, (_, i) => row(`a${i}`, at(1000 + i), 'tin-a'));
+    const quiet = Array.from({ length: 30 }, (_, i) => row(`b${i}`, at(i), 'tin-b'));
+    const list = mergeRows(chatty, quiet);
+    expect(visibleRows(list, 'tin-b')).toHaveLength(30);
+    expect(visibleRows(list, 'tin-a')).toHaveLength(100);
+    // And B's rows stay when A writes more: A's oldest go, B's do not.
+    const more = mergeRows(list, Array.from({ length: 20 }, (_, i) => row(`a-new${i}`, at(5000 + i), 'tin-a')));
+    expect(visibleRows(more, 'tin-b')).toHaveLength(30);
+    expect(visibleRows(more, 'tin-a')).toHaveLength(100);
+    expect(more.some((r) => r.id === 'a0')).toBe(false);
+  });
+
+  it('keeps at most a thousand rows in all, the newest', () => {
+    const rows = Array.from({ length: 15 * 100 }, (_, i) => row(`r${i}`, at(i), `tin-${i % 15}`));
+    const merged = mergeRows([], rows);
+    expect(merged).toHaveLength(FEED_KEEP_MAX);
+    expect(merged[0].writtenAt >= merged[merged.length - 1].writtenAt).toBe(true);
   });
 });
 
@@ -134,5 +156,58 @@ describe('an address on a card', () => {
     expect(shortAddress(addr(1)).length).toBeLessThan(addr(1).length);
     expect(shortAddress('0x1234')).toBe('0x1234');
     expect(shortAddress('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh')).toContain('…');
+  });
+});
+
+describe('what the list shows', () => {
+  it('is the rows of the agent chosen, or all of them, newest first, at most a hundred', () => {
+    const rows = [
+      ...Array.from({ length: 120 }, (_, i) => row(`a${i}`, at(1000 + i), 'tin-a')),
+      ...Array.from({ length: 5 }, (_, i) => row(`b${i}`, at(i), 'tin-b')),
+    ];
+    const merged = mergeRows([], rows);
+    expect(visibleRows(merged, '')).toHaveLength(FEED_LIST_MAX);
+    expect(visibleRows(merged, '')[0].id).toBe('a119');
+    expect(visibleRows(merged, 'tin-b').map((r) => r.id)).toEqual(['b4', 'b3', 'b2', 'b1', 'b0']);
+    expect(visibleRows(merged, 'tin-none')).toEqual([]);
+  });
+});
+
+describe('while the cards are paused', () => {
+  const [one, two, three] = [row('one', at(1)), row('two', at(2)), row('three', at(3))];
+
+  it('new rows are held, not shown: the list stays where the person is reading it', () => {
+    const shown = addRows(emptyList, [one], false);
+    expect(shown.rows.map((r) => r.id)).toEqual(['one']);
+    const held = addRows(shown, [two, three], true);
+    expect(held.rows.map((r) => r.id)).toEqual(['one']);
+    expect(held.held.map((r) => r.id)).toEqual(['three', 'two']);
+  });
+
+  it('resuming lets them join the list, newest first, once each', () => {
+    const held = addRows(addRows(emptyList, [one], false), [two, three, two], true);
+    const released = releaseRows(held);
+    expect(released.rows.map((r) => r.id)).toEqual(['three', 'two', 'one']);
+    expect(released.held).toEqual([]);
+  });
+
+  it('hands back the very same state when nothing changed, so the page does not redraw', () => {
+    const state = addRows(emptyList, [one], false);
+    expect(addRows(state, [], false)).toBe(state);
+    expect(addRows(state, [one], false)).toBe(state);
+    expect(addRows(state, [one], true)).toBe(state);
+    expect(releaseRows(state)).toBe(state);
+  });
+
+  it('a row that is already in the list is not held again', () => {
+    const state = addRows(emptyList, [one, two], false);
+    expect(addRows(state, [two], true).held).toEqual([]);
+  });
+});
+
+describe('the time a row was recorded', () => {
+  it('is an ISO time a page can format, from the table\'s own stamp; anything else is left as it is', () => {
+    expect(writtenIso('2026-10-19 11:00:01')).toBe('2026-10-19T11:00:01.000Z');
+    expect(writtenIso('yesterday')).toBe('yesterday');
   });
 });

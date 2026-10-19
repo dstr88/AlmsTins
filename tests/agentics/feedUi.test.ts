@@ -20,11 +20,13 @@ import type { FeedPageData } from '../../src/lib/agentVault/vaultPages';
  */
 let FeedPage: typeof import('../../src/components/agentics/FeedPage').default;
 let StageCard: typeof import('../../src/components/agentics/FeedPage').StageCard;
+let LedgerItem: typeof import('../../src/components/agentics/LedgerPanel').LedgerItem;
 beforeAll(async () => {
   (globalThis as { React?: typeof React }).React = React;
   const mod = await import('../../src/components/agentics/FeedPage');
   FeedPage = mod.default;
   StageCard = mod.StageCard;
+  LedgerItem = (await import('../../src/components/agentics/LedgerPanel')).LedgerItem;
 });
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -79,7 +81,9 @@ describe('the page as the server renders it', () => {
   it('has the controls: the agent filter, pause, and the switch for reading wallets, on by default', () => {
     const html = page();
     expect(html).toMatch(/<label class="ag-field">Agent<select class="ag-select"[^>]*><option value="" selected="">All agents<\/option><option value="tin-1">Treasury agent<\/option><option value="tin-2">Payroll agent<\/option><\/select><\/label>/);
-    expect(html).toMatch(/<button class="ag-btn" type="button" aria-pressed="false">Pause the cards<\/button>/);
+    // The label says what pressing it does, and it is not also a pressed/unpressed toggle.
+    expect(html).toMatch(/<button class="ag-btn" type="button">Pause the cards<\/button>/);
+    expect(html).not.toContain('aria-pressed');
     expect(html).toMatch(/<label class="ag-check"><input type="checkbox" checked=""\/><span>Read my agents&#x27; wallets while this page is open<\/span><\/label>/);
     // "Read the chain now" needs an agent chosen, and none is.
     expect(textOf(html)).not.toContain(copy.ledger.readButton);
@@ -95,7 +99,7 @@ describe('the page as the server renders it', () => {
     const src = read('src/components/agentics/FeedPage.tsx');
     expect(src).toContain("role={readState === 'failing' || readState === 'closed' ? 'status' : undefined}");
     expect(src).toMatch(/<span role="status">\{copy\.feed\.state\[conn\]\}<\/span>\s*\{lastGood \? <span>/);
-    expect(html).toMatch(/<ol class="ag-events" aria-label="Latest rows from your agents, newest first">/);
+    expect(html).toMatch(/<ol class="ag-events" aria-label="Latest rows from your agents, most recently recorded first">/);
   });
 
   it('says so when nothing has been recorded', () => {
@@ -137,15 +141,46 @@ describe('the page as the server renders it', () => {
   });
 });
 
+describe('the list under the stage', () => {
+  const events = [
+    ev({ id: '00000000-0000-4000-8000-000000000001', writtenAt: '2026-10-19 11:00:01' }),
+    ev({ id: '00000000-0000-4000-8000-000000000002', kind: 'transaction', chain: 'ethereum', tx: tx(), at: '2026-10-19T08:15:30.000Z', writtenAt: '2026-10-19 11:00:41' }),
+  ];
+
+  it('says when each row was recorded, and lists them most recently recorded first, whatever time the event itself carries', () => {
+    const html = page(data({ initial: { events, since: '2026-10-19 11:00:41' } }));
+    const t = textOf(html);
+    expect(t).toContain('Recorded 11:00:01 UTC');
+    expect(t).toContain('Recorded 11:00:41 UTC');
+    expect(t.indexOf('Recorded 11:00:41 UTC')).toBeLessThan(t.indexOf('Recorded 11:00:01 UTC'));
+    expect(html).toContain('most recently recorded first');
+  });
+
+  it('is the only place that line is: the ledger page\'s own rows carry no "Recorded" line', () => {
+    const r = row({ writtenAt: '2026-10-19 11:00:01' });
+    expect(textOf(render(React.createElement(LedgerItem, { row: r })))).not.toContain('Recorded');
+    expect(textOf(render(React.createElement(LedgerItem, { row: r, recorded: r.writtenAt })))).toContain('Recorded 11:00:01 UTC');
+  });
+});
+
 describe('a card on the stage', () => {
   const card = (r: FeedRow) => render(React.createElement(StageCard, { card: { kind: 'row', row: r } }));
+
+  it('for a transfer: the time it was recorded at the top, and the time of its block on a line of its own; a check has no such line', () => {
+    const t = textOf(card(row({ kind: 'transaction', chain: 'ethereum', tx: tx(), at: '2026-10-19T08:15:30.000Z', writtenAt: '2026-10-19 11:00:41' })));
+    expect(t).toContain('11:00:41 UTC');
+    expect(t).toContain('On the chain at 08:15:30 UTC');
+    expect(textOf(card(row()))).not.toContain('On the chain');
+  });
 
   it('for a check: the agent, what it asked about (the owner\'s label, else a short address), the answer and why', () => {
     const html = card(row({ label: 'Exchange deposit', answer: 'proven', registry: 'trusted', detail: { basis: 'domain_proof' } }));
     const t = textOf(html);
     expect(t).toContain('Checked');
     expect(t).toContain('Answer: Proven');
-    expect(t).toContain('11:00:00 UTC');
+    // The time on a card is when the Vault RECORDED the row (11:00:01), not when it happened (11:00:00).
+    expect(t).toContain('11:00:01 UTC');
+    expect(t).not.toContain('11:00:00 UTC');
     expect(t).toContain('Treasury agent');
     expect(html).toMatch(/<p class="ag-feed__big">Exchange deposit<\/p>/);
     expect(t).toContain('0xc0ffee');

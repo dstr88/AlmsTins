@@ -14,9 +14,10 @@
 import { useState } from 'react';
 import type { TinTotals } from '@/lib/agentVault/events';
 import { parseLedgerRows, type LedgerRow } from '@/lib/agentVault/ledgerView';
-import { formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
+import { formatClock, formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
 import { reasonText, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import { failureText, send } from './client';
+import { writtenIso } from './feedRows';
 import { copy } from './copy';
 import { explorerTxHref } from './paths';
 import { describeRefresh, passOf } from './refresh';
@@ -75,7 +76,7 @@ function Strip({ totals }: { totals: TinTotals }) {
  * name and the owner's label for the address; the agent's own page gives neither. Both are the account's own
  * text, rendered as text.
  */
-export function LedgerItem({ row, agent, label }: { row: LedgerRow; agent?: string; label?: string | null }) {
+export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; agent?: string; label?: string | null; recorded?: string }) {
   const tx = row.kind === 'transaction' ? row.tx : null;
   const kind = tx ? (tx.direction === 'in' ? copy.ledger.kind.in : copy.ledger.kind.out) : copy.ledger.kind.checked;
   const answer = row.answer ? VERIFY_STATUS_TITLE[row.answer] : copy.ledger.noAnswer;
@@ -94,6 +95,7 @@ export function LedgerItem({ row, agent, label }: { row: LedgerRow; agent?: stri
       {agent ? <p className="ag-event__agent">{agent}</p> : null}
       <p className="ag-event__addr ag-mono">{row.address}</p>
       {label ? <p className="ag-event__line">{copy.ledger.addressLabel(label)}</p> : null}
+      {recorded ? <p className="ag-event__line">{copy.feed.recorded(formatClock(writtenIso(recorded)))}</p> : null}
       {tx ? (
         <>
           <p className="ag-event__line">

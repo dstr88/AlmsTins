@@ -487,6 +487,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       'src/components/agentics/paths.ts',
       'src/components/agentics/refresh.ts',
       'src/components/agentics/ui.tsx',
+      'src/components/agentics/withTimeout.ts',
       // The free-signup door's welcome letter (the page a new account lands on); an account that may use
       // the Vault is handed to the agents page from here (tests/agentics/home.test.ts). It is not a Vault
       // page, but it lives in this directory, so the checks below read it as well.

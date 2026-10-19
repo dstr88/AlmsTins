@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  READ_FAILURE_WAIT_MS, READ_FIRST_MS, READ_MAX_WAIT_MS, READ_MIN_WAIT_MS, READ_RATE_LIMITED_WAIT_MS, createFeedReader, type ReadResult, type ReaderState,
+  READ_FAILURE_WAIT_MS, READ_FIRST_MS, READ_MAX_WAIT_MS, READ_MIN_WAIT_MS, READ_RATE_LIMITED_WAIT_MS, READ_TIMEOUT_MS, createFeedReader, type ReadResult, type ReaderState,
 } from '../../src/components/agentics/feedReader';
 import { failed, fakeTimers, okBody, scriptedSend, settle } from '../helpers/fakeTimers';
 
@@ -16,7 +16,7 @@ const pass = (statuses: string[], recorded = 0) => ({
   wallets: statuses.map((status) => ({ status })), recorded,
 });
 const read = (statuses = ['complete'], recorded = 0, waitMs = 30_000) => okBody({ status: 'read', tinId: 'tin-1', pass: pass(statuses, recorded), waitMs });
-const other = (status: 'recent' | 'busy' | 'nothing', waitMs: number) => okBody({ status, tinId: null, pass: null, waitMs });
+const other = (status: 'recent' | 'busy' | 'nothing' | 'limit', waitMs: number) => okBody({ status, tinId: null, pass: null, waitMs });
 
 function setup(script: Parameters<typeof scriptedSend>[0], opts: { enabled?: boolean; tinId?: string | null; random?: number } = {}) {
   const timers = fakeTimers();
@@ -156,8 +156,8 @@ describe('failing', () => {
     expect(t.states.at(-1)).toBe('waiting');
   });
 
-  it.each([401, 404])('stops for good on %i', async (status) => {
-    const t = setup([failed(status, 'nope')]);
+  it.each([401, 404])('stops for good on a %i with nothing behind it: the sign-in or the Vault is gone', async (status) => {
+    const t = setup([{ status, ok: false, body: null }]);
     t.reader.start();
     await t.timers.fire();
     expect(t.states.at(-1)).toBe('closed');
@@ -165,6 +165,42 @@ describe('failing', () => {
     t.reader.changed();
     expect(t.timers.count()).toBe(0);
     expect(t.sent).toHaveLength(1);
+  });
+
+  it('a 404 the Vault itself answers (the agent the page is filtered to was removed) is a failure, not a lost sign-in: it backs off and keeps going', async () => {
+    const t = setup([failed(404, 'tin_not_found'), read()], { tinId: 'gone' });
+    t.reader.start();
+    await t.timers.fire();
+    expect(t.states.at(-1)).toBe('failing');
+    expect(t.timers.delays()).toEqual([READ_FAILURE_WAIT_MS]);
+    // The person chooses another agent and the next ask goes ahead.
+    t.reader.changed();
+    await t.timers.fire();
+    expect(t.states.at(-1)).toBe('waiting');
+  });
+
+  it('says the day\'s live reads are used up, and asks again in five minutes (cheap: the answer comes from memory)', async () => {
+    const t = setup([other('limit', 300_000)]);
+    t.reader.start();
+    await t.timers.fire();
+    expect(t.states.at(-1)).toBe('limit');
+    expect(t.timers.delays()).toEqual([300_000]);
+    expect(t.results[0]).toEqual({ status: 'limit', tinId: null, lines: [], recorded: 0 });
+  });
+
+  it('counts a request that is never answered as a failure after 45 seconds, and carries on', async () => {
+    const never = () => new Promise(() => {}) as never;
+    const t = setup([never, read()]);
+    t.reader.start();
+    const firing = t.timers.fire();
+    await settle();
+    expect(t.timers.delays()).toEqual([READ_TIMEOUT_MS]);
+    await t.timers.fire();
+    await firing;
+    expect(t.states.at(-1)).toBe('failing');
+    expect(t.timers.delays()).toEqual([READ_FAILURE_WAIT_MS]);
+    await t.timers.fire();
+    expect(t.states.at(-1)).toBe('waiting');
   });
 });
 
@@ -235,7 +271,8 @@ describe('only while someone is looking and has it on', () => {
     const firing = slow.timers.fire();
     await settle();
     slow.reader.changed();
-    expect(slow.timers.count()).toBe(0);
+    // The only timer is the request's own timeout: no second ask is scheduled while one is out.
+    expect(slow.timers.delays()).toEqual([READ_TIMEOUT_MS]);
     release(read());
     await firing;
     await settle();

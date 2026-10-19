@@ -567,19 +567,48 @@ d('the live feed, on a real Postgres', () => {
     expect(await def()).toHaveLength(1);
   });
 
-  it('the index is the one the feed\'s query can use: its plan names it when a scan is not an option', async () => {
-    const [, , plan] = await db.batch(
-      [
-        { sql: `SET LOCAL enable_seqscan = off`, args: [] },
-        { sql: `SET LOCAL enable_bitmapscan = off`, args: [] },
-        {
-          sql: `EXPLAIN SELECT id FROM agent_events WHERE tenant_id = ? AND created_at >= ? ORDER BY created_at ASC, id ASC LIMIT ?`,
-          args: [tenant, '2026-10-19 11:00:00', 101],
-        },
-      ],
-      'write',
-    );
-    expect(plan.rows.map((r: any) => Object.values(r)[0]).join('\n')).toContain(events.AGENT_EVENTS_FEED_INDEX);
+  it('the statements the feed really runs are served from the index on a ledger of 50,000 rows: a page late in the backlog reads a handful of rows, not everything before it', async () => {
+    const planTenant = `pg-feedplan-${run}`;
+    try {
+      await db.execute({
+        sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, answer, registry, status, detail_json, occurred_at, created_at)
+              SELECT 'plan-${run}-' || g, ?, 'tin-plan', 'checked', ?, 'unknown', 'none', 'unknown', '{}', '2026-10-01T00:00:00.000Z',
+                     to_char(timestamp '2026-09-01 00:00:00' + (g * interval '4 seconds'), 'YYYY-MM-DD HH24:MI:SS')
+              FROM generate_series(1, 50000) AS g`,
+        args: [planTenant, addr(1)],
+      });
+      await db.execute({ sql: `ANALYZE agent_events`, args: [] });
+      await events.ensureFeedIndex();
+      // The SQL the functions themselves send, captured, so this cannot drift from what the feed runs.
+      const real = db.execute.bind(db);
+      const sent: Array<{ sql: string; args: unknown[] }> = [];
+      (db as { execute: typeof db.execute }).execute = ((stmt: any) => {
+        if (typeof stmt === 'object' && /FROM agent_events WHERE tenant_id = \?/.test(stmt.sql)) sent.push({ sql: stmt.sql, args: stmt.args });
+        return real(stmt);
+      }) as typeof db.execute;
+      try {
+        const late = '2026-09-03 10:00:00';
+        await events.eventsWrittenSince(planTenant, { writtenAt: late, limit: 100 });
+        await events.eventsWrittenAfter(planTenant, { writtenAt: late, id: `plan-${run}-45000`, limit: 100 });
+        await events.latestEventsWritten(planTenant, { limit: 30 });
+      } finally {
+        (db as { execute: typeof db.execute }).execute = real;
+      }
+      expect(sent).toHaveLength(3);
+      for (const { sql, args } of sent) {
+        const r = await db.execute({ sql: `EXPLAIN (ANALYZE, FORMAT JSON) ${sql}`, args: args as never });
+        const raw = Object.values(r.rows[0] as Record<string, unknown>)[0];
+        const plan = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const nodes: any[] = [];
+        const walk = (n: any) => { nodes.push(n); (n.Plans ?? []).forEach(walk); };
+        walk(plan[0].Plan);
+        const removed = nodes.reduce((sum, n) => sum + Number(n['Rows Removed by Filter'] ?? 0), 0);
+        expect(nodes.some((n) => n['Index Name'] === events.AGENT_EVENTS_FEED_INDEX), sql).toBe(true);
+        expect(removed, `${sql} read ${removed} rows it threw away`).toBeLessThan(50);
+      }
+    } finally {
+      await db.execute({ sql: `DELETE FROM agent_events WHERE tenant_id = ?`, args: [planTenant] });
+    }
   });
 
   it('shows a transfer written now for a block an hour old, which a feed that followed the event\'s time would never see', async () => {

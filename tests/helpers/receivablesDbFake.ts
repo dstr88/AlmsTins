@@ -368,6 +368,8 @@ function splitTopLevel(s: string): string[] {
 export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}): ReceivablesDbFake {
 	const tables = new Map<string, Row[]>();
 	const columns = new Map<string, Set<string>>();
+	/** The names of the indexes that have been created, for the "does it exist" lookup (pg_indexes). */
+	const indexes = new Set<string>();
 	const log: ExecutedStatement[] = [];
 	let clock = 0;
 	const nextCreatedAt = () => `2026-10-01 00:00:${String(clock++).padStart(2, '0')}`;
@@ -413,9 +415,10 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 			requireTable(m[1]).add(m[2]);
 			return;
 		}
-		m = sql.match(/^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS \w+ ON (\w+)/i);
+		m = sql.match(/^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS (\w+) ON (\w+)/i);
 		if (m) {
-			requireTable(m[1]);
+			requireTable(m[2]);
+			indexes.add(m[1]);
 			return;
 		}
 		throw new Error(`fake db: unsupported DDL: ${sql}`);
@@ -811,6 +814,10 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 		if (head.startsWith('UPDATE ')) return { entry, result: update(sql, args) };
 		if (/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/i.test(sql)) {
 			return { entry, result: { rows: [{ pg_advisory_xact_lock: '' }], rowsAffected: 0 } };
+		}
+		// The "does this index exist" lookup (src/lib/agentVault/events.ts ensureFeedIndex): a row when it was created, none when not.
+		if (/^SELECT 1 AS present FROM pg_indexes WHERE schemaname = current_schema\(\) AND indexname = \?$/i.test(sql)) {
+			return { entry, result: { rows: indexes.has(String(args[0])) ? [{ present: 1 }] : [], rowsAffected: 0 } };
 		}
 		// The "look before you alter" lookup (src/lib/sessionGate.ts and src/lib/agenticsSignup.ts): which of these columns does the table have?
 		const known = sql.match(/^SELECT column_name FROM information_schema\.columns WHERE table_schema = current_schema\(\) AND table_name = '(\w+)' AND column_name IN \(([^)]*)\)$/i);

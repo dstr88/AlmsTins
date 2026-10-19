@@ -21,6 +21,17 @@
  *     read, so an account with several agents is read in turn, not all at once.
  *   - Every answer says how long the page should wait before asking again (`waitMs`), so the pace is the
  *     server's to set and a page that ignores it is only told "recent" again.
+ *   - An account gets LIVE_READS_PER_DAY of them in a UTC day (a page left open on a second monitor all day
+ *     is not a reason to read a wallet every minute for ever). After that the answer is "limit" until the next
+ *     day; the daily job and the "Read the chain now" button are not counted and still work.
+ *   - One read that never ends cannot hold the single place for ever: after LIVE_READ_HOLD_MS the place is
+ *     given up (the read itself carries on, and the explorer client cuts a request off after 30 seconds).
+ *   - One agent that fails does not stand in the way of the account's others: it goes to the back of the line
+ *     and the next is tried.
+ *
+ * Not covered, on purpose: fairness between accounts (the one place goes to whoever asks when it is free; the
+ * pages' jitter spreads them), and a transfer whose price is not in yet (the watcher keeps its cursor just before
+ * it, so each pass re-lists from there until the price arrives, as the daily job does).
  *
  * Read-only: it lists transfers, it never signs, sends or holds anything. It reads the agent's OWN
  * wallets and keeps only transfers whose other side is a trusted address on the registry; it never reads
@@ -46,14 +57,19 @@ export const LIVE_READ_REQUESTS_PER_WINDOW = 6;
 export const LIVE_READ_REQUEST_WINDOW_MS = 60_000;
 /** Live reads running at once in a process. */
 export const LIVE_READS_IN_FLIGHT_MAX = 1;
+/** The live reads an account has in one UTC day: four hours of one a minute. Tunable; the daily job and the button are not counted. */
+export const LIVE_READS_PER_DAY = 240;
+/** The longest one live read keeps the place: a read takes at most about 20 seconds of new calls, and a call is cut off at 30. */
+export const LIVE_READ_HOLD_MS = 60_000;
 
-export type LiveReadStatus = 'read' | 'recent' | 'busy' | 'nothing';
+export type LiveReadStatus = 'read' | 'recent' | 'busy' | 'nothing' | 'limit';
 
 export interface LiveReadAnswer {
   ok: true;
   /**
    * read: a tin was read (see `pass`). recent: every agent was read less than LIVE_READ_MIN_GAP_MS ago.
-   * busy: another read is running. nothing: no agent has a wallet and a trusted address on the same chain.
+   * busy: another read is running (or one ran too long). nothing: no agent has a wallet and a trusted address on
+   * the same chain. limit: the account has had its live reads for today.
    */
   status: LiveReadStatus;
   /** The agent that was read, or null. */
@@ -70,12 +86,34 @@ export interface LiveReadDeps {
   read: typeof refreshTin;
 }
 
+/** A promise, or the word "held" if it has not settled in `ms` (the timer is cleared as soon as it settles). */
+function orHeld<T>(promise: Promise<T>, ms: number): Promise<T | 'held'> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve('held'), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 export const defaultLiveReadDeps: LiveReadDeps = { now: () => Date.now(), read: (tenantId, tinId) => refreshTin(tenantId, tinId) };
 
 // When each tin was last read live, in this process. Bounded; a restart forgets it, which only means one early read.
 const lastRead = new Map<string, number>();
 const LAST_READ_LIMIT = 5_000;
 let inFlight = 0;
+// The live reads each account has had today (UTC), in this process. A restart forgets them, which only gives a day's budget again.
+const dailyReads = new Map<string, number>();
+
+const dayOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const budgetKey = (tenantId: string, ms: number): string => `${tenantId}|${dayOf(ms)}`;
 
 const keyOf = (tenantId: string, tinId: string): string => `${tenantId}|${tinId}`;
 
@@ -101,27 +139,48 @@ export async function liveRead(
     const soonest = Math.min(...candidates.map((t) => LIVE_READ_MIN_GAP_MS - waited(t.id)));
     return { ok: true, status: 'recent', tinId: null, pass: null, waitMs: Math.max(LIVE_READ_MIN_WAIT_MS, Math.ceil(soonest)) };
   }
+  if ((dailyReads.get(budgetKey(tenantId, now)) ?? 0) >= LIVE_READS_PER_DAY) {
+    return { ok: true, status: 'limit', tinId: null, pass: null, waitMs: LIVE_READ_NOTHING_WAIT_MS };
+  }
   if (inFlight >= LIVE_READS_IN_FLIGHT_MAX) return { ok: true, status: 'busy', tinId: null, pass: null, waitMs: LIVE_READ_BUSY_WAIT_MS };
 
   inFlight += 1;
   try {
     let skipped = 0;
+    let firstError: unknown = null;
     for (const tin of eligible) {
-      const r = await deps.read(tenantId, tin.id);
+      let r: Awaited<ReturnType<typeof refreshTin>> | 'held';
+      try {
+        r = await orHeld(deps.read(tenantId, tin.id), LIVE_READ_HOLD_MS);
+      } catch (err) {
+        // This agent failed: it goes to the back of the line, and the account's others are not kept waiting behind it.
+        if (lastRead.size >= LAST_READ_LIMIT) lastRead.clear();
+        lastRead.set(keyOf(tenantId, tin.id), deps.now());
+        firstError ??= err;
+        continue;
+      }
+      if (lastRead.size >= LAST_READ_LIMIT) lastRead.clear();
+      lastRead.set(keyOf(tenantId, tin.id), deps.now());
+      // A read that has not ended in a minute lets go of the place (it carries on; the explorer client cuts a call off at 30 seconds).
+      if (r === 'held') return { ok: true, status: 'busy', tinId: null, pass: null, waitMs: LIVE_READ_BUSY_WAIT_MS };
       if (!r.ok) {
         // A read of this tin is already running (the button, the daily job): leave it, try the next.
         if (r.error === 'refresh_in_progress') {
+          lastRead.delete(keyOf(tenantId, tin.id));
           skipped += 1;
           continue;
         }
         return r;
       }
-      if (lastRead.size >= LAST_READ_LIMIT) lastRead.clear();
-      lastRead.set(keyOf(tenantId, tin.id), deps.now());
       // No wallet with a trusted address on its chain: nothing was read, and the next agent may have something.
       if (r.pass.wallets.length === 0) continue;
+      if (dailyReads.size >= LAST_READ_LIMIT) dailyReads.clear();
+      dailyReads.set(budgetKey(tenantId, now), (dailyReads.get(budgetKey(tenantId, now)) ?? 0) + 1);
       return { ok: true, status: 'read', tinId: tin.id, pass: r.pass, waitMs: LIVE_READ_PAUSE_MS };
     }
+    // Nothing was read. If an agent failed, the failure is the caller's (a plain 500, and the page slows down): saying "nothing"
+    // would hide it and wait five minutes as if there were nothing to read.
+    if (firstError !== null) throw firstError;
     if (skipped === eligible.length) return { ok: true, status: 'busy', tinId: null, pass: null, waitMs: LIVE_READ_BUSY_WAIT_MS };
     return { ok: true, status: 'nothing', tinId: null, pass: null, waitMs: LIVE_READ_NOTHING_WAIT_MS };
   } finally {

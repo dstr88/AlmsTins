@@ -23,11 +23,22 @@
  * What an event carries is what the ledger endpoint (/api/agentics/events) gives its owner, plus the
  * agent's name and the owner's own label for the address, so a card can say whose it is. Never the
  * caller's address hash, and nothing of an agent that has been removed.
+ *
+ * What a poll costs. Every poll returns the newest second again (the overlap above), so a poll is almost never
+ * empty once the ledger has anything in it, and each one would otherwise look up the agents, the keys and the labels.
+ * Those change rarely and polls come every few seconds, so they are remembered per account for FEED_NAMES_TTL_MS.
+ * A poll that finds them remembered is one query: about every other poll of one page, and more of them when an
+ * account has several pages open, since the memory is the account's and not the page's.
+ *
+ * What the memory costs in honesty: a rename, a changed label, a revoked key, or an agent removed in the last
+ * FEED_NAMES_TTL_MS seconds shows on the cards that arrive in that time as it was. It is never wrong about whose an
+ * event is (that is the event's own tin_id, read fresh), and an agent ADDED since is noticed at once: its events name
+ * an agent the remembered list does not have, so the list is read again.
  */
 import { listAgentKeys } from '@/lib/agentKeys';
 import { fail, idOf, type Failure } from './errors';
 import { eventsWrittenAfter, eventsWrittenSince, latestEventsWritten, type WrittenEvent } from './events';
-import { getTin, listDestinations, listTins, nowUtc } from './store';
+import { getTin, listDestinations, listTins, nowUtc, type Tin } from './store';
 import type { EventView } from './vault';
 
 /** Events an opening page shows, and the most one may ask for. */
@@ -38,6 +49,8 @@ export const FEED_POLL_LIMIT = 100;
 export const FEED_POLL_LIMIT_MAX = 200;
 /** How far before the newest second it has seen a live poll starts, in seconds. */
 export const FEED_OVERLAP_S = 5;
+/** How long the names on a card (agents, keys, labels) are remembered per account. */
+export const FEED_NAMES_TTL_MS = 5_000;
 /** What an account may ask of the feed: this many requests in one window, counted per account in this process only. */
 export const FEED_REQUESTS_PER_WINDOW = 120;
 export const FEED_REQUEST_WINDOW_MS = 60_000;
@@ -92,6 +105,44 @@ function parseAfter(raw: unknown): { writtenAt: string; id: string } | null {
 
 const present = (v: unknown): boolean => v !== null && v !== undefined && v !== '';
 
+/** What a card needs to name, for one account, as of `at` (milliseconds). */
+interface Names {
+  at: number;
+  tins: Map<string, Tin>;
+  keys: Map<string, string>;
+  /** The owner's labels, by agent and then by address, read the first time an agent's events are shown. */
+  labels: Map<string, Map<string, string>>;
+  /** Agent ids that events name and the account does not have (removed): not looked for again until the names are read afresh. */
+  gone: Set<string>;
+}
+
+// Per account, in this process, bounded. Never shared between accounts: the key is the tenant, and everything in an entry was read for it.
+const NAMES = new Map<string, Names>();
+const NAMES_LIMIT = 1_000;
+
+async function namesFor(tenantId: string, tinIds: ReadonlySet<string>, nowMs: number): Promise<Names> {
+  let names = NAMES.get(tenantId);
+  const expired = !names || nowMs - names.at >= FEED_NAMES_TTL_MS || nowMs < names.at;
+  // An agent the account's list did not have when it was read: added since, or removed. Read the list again once to tell which.
+  const unknown = names !== undefined && [...tinIds].some((id) => !names!.tins.has(id) && !names!.gone.has(id));
+  if (!names || expired || unknown) {
+    const [tins, keys] = await Promise.all([listTins(tenantId), listAgentKeys(tenantId)]);
+    names = { at: nowMs, tins: new Map(tins.map((t) => [t.id, t] as const)), keys: new Map(keys.map((k) => [k.id, k.status] as const)), labels: new Map(), gone: new Set() };
+    for (const id of tinIds) if (!names.tins.has(id)) names.gone.add(id);
+    if (NAMES.size >= NAMES_LIMIT) NAMES.clear();
+    NAMES.set(tenantId, names);
+  }
+  for (const id of tinIds) {
+    if (!names.tins.has(id) || names.labels.has(id)) continue;
+    const byAddress = new Map<string, string>();
+    for (const d of await listDestinations(tenantId, id)) {
+      if (d.label && !byAddress.has(d.address)) byAddress.set(d.address, d.label);
+    }
+    names.labels.set(id, byAddress);
+  }
+  return names;
+}
+
 /** A time `seconds` earlier, in the form created_at is stored in. */
 function secondsBefore(writtenAt: string, seconds: number): string {
   return nowUtc(new Date(Date.parse(`${writtenAt.replace(' ', 'T')}Z`) - seconds * 1000));
@@ -143,29 +194,17 @@ export async function readFeed(
   };
   if (!raw.length) return answer;
 
-  // Names and statuses, read only when there is something to name.
-  const [tins, keys] = await Promise.all([listTins(tenantId), listAgentKeys(tenantId)]);
-  const tinById = new Map(tins.map((t) => [t.id, t] as const));
-  const keyStatus = new Map(keys.map((k) => [k.id, k.status] as const));
-  const labels = new Map<string, Map<string, string>>();
-  for (const id of new Set(raw.map((e) => e.tinId))) {
-    if (!tinById.has(id)) continue;
-    const byAddress = new Map<string, string>();
-    for (const d of await listDestinations(tenantId, id)) {
-      if (d.label && !byAddress.has(d.address)) byAddress.set(d.address, d.label);
-    }
-    labels.set(id, byAddress);
-  }
-
+  // Names and statuses, from the account's remembered ones (see the top of this file: a quiet poll is one query).
+  const names = await namesFor(tenantId, new Set(raw.map((e) => e.tinId)), now().getTime());
   for (const e of raw) {
-    const tin = tinById.get(e.tinId);
+    const tin = names.tins.get(e.tinId);
     if (!tin) continue; // an agent that has been removed leaves no card
     const { sourceIp: _hash, ...event } = e;
     answer.events.push({
       ...event,
-      keyStatus: e.keyId ? (keyStatus.get(e.keyId) ?? 'unknown') : null,
+      keyStatus: e.keyId ? ((names.keys.get(e.keyId) as EventView['keyStatus']) ?? 'unknown') : null,
       agent: tin.label,
-      label: labels.get(e.tinId)?.get(e.address) ?? null,
+      label: names.labels.get(e.tinId)?.get(e.address) ?? null,
     });
   }
   return answer;

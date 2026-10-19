@@ -8,13 +8,17 @@
  *   - It asks from the newest second it has seen (`since`). The server starts a few seconds earlier, on
  *     purpose, and this drops what it already has by id.
  *   - An answer that says `more` is followed at once with the cursor it gave, so a backlog (a burst, or a
- *     tab that was asleep) is read to its end in the same turn, up to MAX_PAGES.
+ *     tab that was asleep) is read to its end in the same turn, up to MAX_PAGES. A backlog longer than that
+ *     is not started over from `since` (which, with the server's overlap, could land on the same first
+ *     MAX_PAGES pages again and never get past them): the next turn CONTINUES from the cursor, and soon.
+ *   - A request that is not answered in REQUEST_TIMEOUT_MS counts as a failure (./withTimeout.ts).
  *   - A hidden tab does not poll. When it is shown again it asks at once.
  *   - A failure waits longer each time (6, 12, 24, then 30 seconds) and says so; a rate limit waits half a
  *     minute; losing the sign-in or the Vault (401, 404) stops for good and says so.
  */
 import { parseFeedRows, type FeedRow } from './feedRows';
 import type { Send } from './client';
+import { answerWithin } from './withTimeout';
 
 /** How often a visible page asks. */
 export const POLL_MS = 3000;
@@ -24,6 +28,10 @@ export const BACKOFF_MAX_MS = 30_000;
 export const RATE_LIMITED_WAIT_MS = 30_000;
 /** Answers followed in one turn when each says there is more. */
 export const MAX_PAGES = 10;
+/** A turn that left a backlog unread asks again this soon, from the cursor it left off at. */
+export const CATCH_UP_MS = 250;
+/** A request not answered in this long counts as a failure. */
+export const REQUEST_TIMEOUT_MS = 15_000;
 /** Ids kept to drop repeats; the oldest are forgotten past this. */
 export const SEEN_MAX = 5000;
 const SEEN_KEEP = 2000;
@@ -64,6 +72,8 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
   let failures = 0;
   let lastGoodAt: string | null = null;
   let resetOnce = false;
+  /** Where a backlog that did not fit in one turn continues from (a cursor), or null. */
+  let resume: string | null = null;
 
   const cancel = () => {
     if (timer !== null) deps.clearTimer(timer);
@@ -91,10 +101,11 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
     try {
       const fresh: FeedRow[] = [];
       let nextSince = since;
-      let url = `/api/agentics/feed?since=${encodeURIComponent(since)}`;
+      let url = resume ? `/api/agentics/feed?after=${encodeURIComponent(resume)}` : `/api/agentics/feed?since=${encodeURIComponent(since)}`;
       let serverNow: string | null = null;
+      let leftOff: string | null = null;
       for (let page = 0; page < MAX_PAGES; page += 1) {
-        const r = await deps.send('GET', url);
+        const r = await answerWithin(deps.send('GET', url), REQUEST_TIMEOUT_MS, deps);
         if (!running) return;
         if (r.status === 401 || r.status === 404) {
           closed = true;
@@ -111,6 +122,7 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
           if (r.status === 400 && !resetOnce) {
             resetOnce = true;
             since = EPOCH;
+            resume = null;
             schedule(0);
             return;
           }
@@ -129,10 +141,14 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
         const cursor = r.body.cursor;
         if (r.body.more === true && typeof cursor === 'string' && cursor) {
           url = `/api/agentics/feed?after=${encodeURIComponent(cursor)}`;
+          leftOff = cursor;
           continue;
         }
+        leftOff = null;
         break;
       }
+      // Ended by the page limit with more to read: the next turn continues from where this one stopped.
+      resume = leftOff;
       since = nextSince;
       failures = 0;
       resetOnce = false;
@@ -142,7 +158,7 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
         deps.onRows(fresh);
       }
       deps.onState('live', lastGoodAt);
-      schedule(POLL_MS);
+      schedule(resume ? CATCH_UP_MS : POLL_MS);
     } finally {
       inFlight = false;
     }

@@ -69,8 +69,39 @@ export type NftTx = Record<string, any>;
 
 const lastCallAt: Record<Provider, number> = { etherscan: 0, snowtrace: 0 };
 
-// Per-URL memo cache
+// Per-URL memo cache. It is BOUNDED: an entry goes when it expires, and the oldest go when the cache holds more than
+// URL_CACHE_MAX_ENTRIES or URL_CACHE_MAX_BYTES (a response is a listing of up to a thousand transfers, and a feed that reads a
+// wallet every minute asks for a new block range, so a new URL, every time: nothing would ever have been reused or released).
+// A single response larger than a quarter of the byte budget is not kept at all.
 const urlCache = new Map<string, { expiresAt: number; payloadText: string }>();
+const URL_CACHE_MAX_ENTRIES = 200;
+const URL_CACHE_MAX_BYTES = 8_000_000;
+let urlCacheBytes = 0;
+
+function cacheDrop(url: string) {
+  const entry = urlCache.get(url);
+  if (!entry) return;
+  urlCacheBytes -= entry.payloadText.length;
+  urlCache.delete(url);
+}
+
+function cacheStore(url: string, payloadText: string, ttlMs: number) {
+  if (payloadText.length > URL_CACHE_MAX_BYTES / 4) return;
+  cacheDrop(url);
+  urlCache.set(url, { expiresAt: Date.now() + ttlMs, payloadText });
+  urlCacheBytes += payloadText.length;
+  if (urlCache.size <= URL_CACHE_MAX_ENTRIES && urlCacheBytes <= URL_CACHE_MAX_BYTES) return;
+  // Over a bound: expired entries first, then the oldest (a Map keeps insertion order).
+  const now = Date.now();
+  for (const [key, entry] of urlCache) if (entry.expiresAt <= now) cacheDrop(key);
+  for (const key of [...urlCache.keys()]) {
+    if (urlCache.size <= URL_CACHE_MAX_ENTRIES && urlCacheBytes <= URL_CACHE_MAX_BYTES) break;
+    cacheDrop(key);
+  }
+}
+
+/** A request that the explorer never answers must not hold a caller (and the wallet read behind it) for as long as the network lets it. */
+const FETCH_TIMEOUT_MS = 30_000;
 
 // In-flight de-dupe
 const inflight = new Map<string, Promise<string>>();
@@ -160,6 +191,7 @@ async function fetchTextWithCache(
 ): Promise<string> {
   // Memo cache by URL
   const cached = urlCache.get(url);
+  if (cached && cached.expiresAt <= Date.now()) cacheDrop(url);
   if (cached && cached.expiresAt > Date.now()) {
     logDebug('cache.hit', {
       requestId,
@@ -184,11 +216,24 @@ async function fetchTextWithCache(
     // The per-provider spacing above is ours alone; the key's rate limit is shared with the
     // wallet checker's live lookups. One gate per key for the whole process keeps us under
     // it; these calls go right after the verdict's safety lookups (explorerGates.ts).
-    const res = await gateForUrl(url).schedule(() => fetch(url), {
-      priority: GATE_PRIORITY.background,
-      maxWaitMs: BACKGROUND_MAX_WAIT_MS,
-    });
-    const text = await res.text();
+    // The timeout covers the request AND the reading of its body, from the moment the gate lets it go (not the wait for the gate).
+    const res = await gateForUrl(url).schedule(
+      async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        try {
+          const r = await fetch(url, { signal: controller.signal });
+          return { ok: r.ok, status: r.status, text: await r.text() };
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+      {
+        priority: GATE_PRIORITY.background,
+        maxWaitMs: BACKGROUND_MAX_WAIT_MS,
+      },
+    );
+    const text = res.text;
 
     logDebug('fetch', {
       requestId,
@@ -202,7 +247,7 @@ async function fetchTextWithCache(
       throw new Error(`${provider} HTTP ${res.status}: ${text.slice(0, 240)}`);
     }
 
-    urlCache.set(url, { expiresAt: Date.now() + cacheTtlMs, payloadText: text });
+    cacheStore(url, text, cacheTtlMs);
     return text;
   })();
 
@@ -550,7 +595,13 @@ export async function getTxByHash({
  */
 export function _debugClearCaches() {
   urlCache.clear();
+  urlCacheBytes = 0;
   inflight.clear();
+}
+
+/** What the response cache holds, for tests: how many entries and how many characters of response text. */
+export function _debugCacheStats(): { entries: number; bytes: number; maxEntries: number; maxBytes: number } {
+  return { entries: urlCache.size, bytes: urlCacheBytes, maxEntries: URL_CACHE_MAX_ENTRIES, maxBytes: URL_CACHE_MAX_BYTES };
 }
 
 // ─────────────────────────────────────────────────────────────

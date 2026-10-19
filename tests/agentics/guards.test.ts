@@ -398,6 +398,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/paths.ts',
       'src/components/agentics/refresh.ts',
       'src/components/agentics/ui.tsx',
+      'src/components/agentics/withTimeout.ts',
       'src/i18n/emails/agentReport.ts',
       'src/lib/agentVault/addresses.ts',
       'src/lib/agentVault/alerts.ts',

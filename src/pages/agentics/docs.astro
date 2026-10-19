@@ -411,8 +411,8 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
     <p class="body">
       <b>What the vault does not see.</b> It records the checks your agent asks with its key and the transfers
       to the addresses you trusted. A transfer to an address you did not register is not seen, and a check the
-      agent never asks leaves no record. Once a day, about once a minute while your Live page is open, or
-      when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
+      agent never asks leaves no record. Once a day, about once a minute while your Live page is open (one
+      agent at a time, in turn), or when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
       direct transfers between your agent's own wallets and your trusted addresses, and ties each one to
       the check that came before it. A payment routed through a swap or a router contract is a transfer to
       that contract and is not seen.

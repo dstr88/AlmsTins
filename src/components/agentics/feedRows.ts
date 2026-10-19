@@ -17,8 +17,12 @@ export interface FeedRow extends LedgerRow {
   label: string | null;
 }
 
-/** The rows a page keeps in its list, newest first. Older ones are on the agent's own page. */
+/** The rows the list shows, newest written first. Older ones are on the agent's own page. */
 export const FEED_LIST_MAX = 100;
+/** The rows kept for each agent, so one agent that is busy cannot push another's out. */
+export const FEED_KEEP_PER_AGENT = 100;
+/** The most rows kept for all agents together. */
+export const FEED_KEEP_MAX = 1000;
 /** The longest agent name or label a card shows. */
 const MAX_TEXT = 120;
 /** What a card calls an agent whose name did not arrive. */
@@ -56,12 +60,69 @@ export function newestFirst(a: Pick<FeedRow, 'writtenAt' | 'id'>, b: Pick<FeedRo
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 }
 
-/** The list with `incoming` added: each id once, newest first, at most `max` rows. Returns the same array when nothing was new. */
-export function mergeRows(list: readonly FeedRow[], incoming: readonly FeedRow[], max: number = FEED_LIST_MAX): FeedRow[] {
+/**
+ * The list with `incoming` added: each id once, newest first. The newest FEED_KEEP_PER_AGENT rows of each agent are
+ * kept (so a chatty agent never pushes a quiet one's rows out, which a single cap on the whole list did), and at
+ * most FEED_KEEP_MAX in all. Returns the same array when nothing was new.
+ */
+export function mergeRows(list: readonly FeedRow[], incoming: readonly FeedRow[], perAgent: number = FEED_KEEP_PER_AGENT, total: number = FEED_KEEP_MAX): FeedRow[] {
   const have = new Set(list.map((r) => r.id));
-  const fresh = incoming.filter((r) => !have.has(r.id));
+  // Each id once, including within `incoming` itself.
+  const fresh: FeedRow[] = [];
+  for (const r of incoming) {
+    if (have.has(r.id)) continue;
+    have.add(r.id);
+    fresh.push(r);
+  }
   if (!fresh.length) return list as FeedRow[];
-  return [...list, ...fresh].sort(newestFirst).slice(0, max);
+  const taken = new Map<string, number>();
+  const kept: FeedRow[] = [];
+  for (const row of [...list, ...fresh].sort(newestFirst)) {
+    const n = (taken.get(row.tinId) ?? 0) + 1;
+    taken.set(row.tinId, n);
+    if (n <= perAgent) kept.push(row);
+  }
+  return kept.slice(0, total);
+}
+
+/** The rows the list shows: those of the agent chosen (all of them when none is), the newest FEED_LIST_MAX. */
+export function visibleRows(rows: readonly FeedRow[], tinId: string, max: number = FEED_LIST_MAX): FeedRow[] {
+  return (tinId ? rows.filter((r) => r.tinId === tinId) : [...rows]).slice(0, max);
+}
+
+/**
+ * The list and the rows held back. While the cards are paused the list does not move either (rows that slide in
+ * above whatever a person is reading shift it away from them, on a phone especially): new rows wait, and the
+ * page says how many, until the person resumes.
+ */
+export interface ListState {
+  rows: FeedRow[];
+  held: FeedRow[];
+}
+export const emptyList: ListState = { rows: [], held: [] };
+
+/** Rows that have arrived: into the list, or held while paused. */
+export function addRows(state: ListState, incoming: readonly FeedRow[], paused: boolean): ListState {
+  if (!incoming.length) return state;
+  if (paused) {
+    // A row the list already shows is not held again.
+    const shown = new Set(state.rows.map((r) => r.id));
+    const held = mergeRows(state.held, incoming.filter((r) => !shown.has(r.id)));
+    return held === state.held ? state : { ...state, held };
+  }
+  const rows = mergeRows(state.rows, incoming);
+  return rows === state.rows ? state : { ...state, rows };
+}
+
+/** The person resumed: what was held joins the list. */
+export function releaseRows(state: ListState): ListState {
+  if (!state.held.length) return state;
+  return { rows: mergeRows(state.rows, state.held), held: [] };
+}
+
+/** The moment a row was recorded, as an ISO-8601 time, from "YYYY-MM-DD HH:MM:SS" (what a page shows is its clock, in UTC). */
+export function writtenIso(writtenAt: string): string {
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(writtenAt) ? `${writtenAt.replace(' ', 'T')}.000Z` : writtenAt;
 }
 
 /** An address a card can hold: `0x1234abcd…89abcd`. A short one is shown whole. */

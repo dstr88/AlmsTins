@@ -467,38 +467,51 @@ export async function listEvents(
 
 // ── The live feed reads the ledger in the order it was WRITTEN ───────────────
 
-/** The index the feed reads by. Migration 0062 holds the same statement. */
+/** The index the feed reads by. Migration 0055 holds the same statement. */
 export const AGENT_EVENTS_FEED_INDEX = 'agent_events_tenant_written';
 
 /**
  * Kept out of AGENT_EVENTS_DDL on purpose: that list is migration 0051 word for word (a guard test holds
- * the two together), and 0051 has already run. The feed's index is its own migration, 0062.
+ * the two together), and 0051 has already run. The feed's index is its own migration, 0055.
  */
 export const AGENT_EVENTS_FEED_DDL: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS ${AGENT_EVENTS_FEED_INDEX} ON agent_events (tenant_id, created_at, id)`,
 ];
 
+/** After a failed attempt the next one waits this long: a lock that stays busy must not cost every poll a two-second wait. */
+export const FEED_INDEX_RETRY_MS = 5 * 60_000;
+
 let feedIndexPromise: Promise<void> | null = null;
+let feedIndexRetryAt = 0;
 
 /**
  * Makes sure the feed's index exists. Runs once per process, and only when the feed is read, never for a
  * check or a transfer being written. It never throws: the feed works without the index, only slower, and
- * a keyed check must not fail because an index could not be built. CREATE INDEX takes a lock that waits
- * for every writer, so it gives up after two seconds instead of holding the table's other writers behind
- * it (a failed attempt is logged by name and code and tried again by the next read).
+ * a keyed check must not fail because an index could not be built.
+ *
+ * It looks first. When the index is there (every start after the first, and any start after migration 0055
+ * was run by hand) it takes no lock and builds nothing: even CREATE INDEX IF NOT EXISTS takes a lock that
+ * every writer waits behind. When it is missing it is built in a transaction that gives up after two seconds
+ * of waiting for that lock. Note what the timeout does not bound: once the lock is held, the build itself
+ * holds off the table's writers for as long as it takes, which on a ledger of millions of rows is long. That
+ * is what the migration is for: run it by hand, with the build you choose, before the ledger is large.
+ * A failed attempt is logged by name and code, and the next one waits FEED_INDEX_RETRY_MS.
  */
 export function ensureFeedIndex(): Promise<void> {
-  if (!feedIndexPromise) {
-    const attempt: Promise<void> = (async () => {
-      await db.batch([{ sql: `SET LOCAL lock_timeout = '2s'`, args: [] }, ...AGENT_EVENTS_FEED_DDL.map((sql) => ({ sql, args: [] }))], 'write');
-    })().catch((err) => {
-      const e = err as { name?: unknown; code?: unknown } | null;
-      console.error('[agent-vault] feed index not ensured', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
-      if (feedIndexPromise === attempt) feedIndexPromise = null;
-    });
-    feedIndexPromise = attempt;
-  }
-  return feedIndexPromise;
+  if (feedIndexPromise) return feedIndexPromise;
+  if (Date.now() < feedIndexRetryAt) return Promise.resolve();
+  const attempt: Promise<void> = (async () => {
+    const have = await db.execute({ sql: `SELECT 1 AS present FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?`, args: [AGENT_EVENTS_FEED_INDEX] });
+    if (have.rows.length) return;
+    await db.batch([{ sql: `SET LOCAL lock_timeout = '2s'`, args: [] }, ...AGENT_EVENTS_FEED_DDL.map((sql) => ({ sql, args: [] }))], 'write');
+  })().catch((err) => {
+    const e = err as { name?: unknown; code?: unknown } | null;
+    console.error('[agent-vault] feed index not ensured', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+    feedIndexRetryAt = Date.now() + FEED_INDEX_RETRY_MS;
+    if (feedIndexPromise === attempt) feedIndexPromise = null;
+  });
+  feedIndexPromise = attempt;
+  return attempt;
 }
 
 /**
@@ -566,6 +579,7 @@ export async function eventsWrittenAfter(
   await ensureAgentEventsTable();
   await ensureFeedIndex();
   const args: Array<string | number> = [tenantId, opts.writtenAt, opts.writtenAt, opts.id];
+  // created_at >= W AND (created_at > W OR id > I) is exactly "after (W, I)": a row in W's own second needs a larger id.
   let tin = '';
   if (opts.tinId) {
     tin = ' AND tin_id = ?';
@@ -573,7 +587,9 @@ export async function eventsWrittenAfter(
   }
   args.push(opts.limit + 1);
   const r = await db.execute({
-    sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ? AND (created_at > ? OR (created_at = ? AND id > ?))${tin} ORDER BY created_at ASC, id ASC LIMIT ?`,
+    // `created_at >= ?` first, on purpose: it is the part the index can range over. Without it the OR below can only be a
+    // filter, and a page late in a long ledger reads every row before it (measured: 21,600 rows read to return 101).
+    sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ? AND created_at >= ? AND (created_at > ? OR id > ?)${tin} ORDER BY created_at ASC, id ASC LIMIT ?`,
     args,
   });
   const rows = r.rows.map(writtenFrom);

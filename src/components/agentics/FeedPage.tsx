@@ -25,7 +25,7 @@ import { copy } from './copy';
 import { enqueue, initialPlayer, isFlagged, nextDelay, pause, resume, tick, waiting, type Card, type PlayerState } from './feedPlayer';
 import { createFeedPoller, type ConnState, type FeedPoller } from './feedPoller';
 import { createFeedReader, type FeedReader, type ReaderState, type ReadResult } from './feedReader';
-import { mergeRows, parseFeedRows, shortAddress, type FeedRow } from './feedRows';
+import { addRows, mergeRows, parseFeedRows, releaseRows, shortAddress, visibleRows, writtenIso, type ListState } from './feedRows';
 import { ANSWER_CLASS, LedgerItem } from './LedgerPanel';
 import { HOME_PATH } from './paths';
 import { describeRefresh, passOf } from './refresh';
@@ -71,8 +71,8 @@ export function StageCard({ card }: { card: Card }) {
       <div className="ag-feed__top">
         <span className="ag-pill ag-pill--kind">{kind}</span>
         <span className={row.answer ? ANSWER_CLASS[row.answer] : 'ag-pill ag-pill--muted'}>{row.answer ? copy.ledger.answer(answer) : answer}</span>
-        <time className="ag-feed__time" dateTime={row.at}>
-          {formatClock(row.at)} UTC
+        <time className="ag-feed__time" dateTime={writtenIso(row.writtenAt)}>
+          {formatClock(writtenIso(row.writtenAt))} UTC
         </time>
       </div>
       <p className="ag-feed__agent">{row.agent}</p>
@@ -81,6 +81,7 @@ export function StageCard({ card }: { card: Card }) {
           <p className="ag-feed__big ag-mono">{copy.ledger.amount(tx.amount, tx.asset)}</p>
           <p className="ag-feed__line">{tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}</p>
           <p className="ag-feed__line ag-mono">{row.label ? `${row.label} · ${short}` : short}</p>
+          <p className="ag-feed__line">{copy.feed.onTheChain(formatClock(row.at))}</p>
         </>
       ) : (
         <>
@@ -99,7 +100,7 @@ export interface FeedPageProps {
 
 export default function FeedPage({ data }: FeedPageProps) {
   const initialRows = useMemo(() => mergeRows([], parseFeedRows(data.initial.events)), [data]);
-  const [rows, setRows] = useState<FeedRow[]>(initialRows);
+  const [list, setList] = useState<ListState>({ rows: initialRows, held: [] });
   const [player, setPlayer] = useState<PlayerState>(initialPlayer);
   const [filter, setFilter] = useState('');
   const [conn, setConn] = useState<ConnState>('live');
@@ -110,6 +111,7 @@ export default function FeedPage({ data }: FeedPageProps) {
   const [manual, setManual] = useState<{ busy: boolean; lines: string[] | null; error: string | null }>({ busy: false, lines: null, error: null });
 
   const filterRef = useRef('');
+  const pausedRef = useRef(false);
   const readOnRef = useRef(true);
   const poller = useRef<FeedPoller | null>(null);
   const reader = useRef<FeedReader | null>(null);
@@ -132,7 +134,8 @@ export default function FeedPage({ data }: FeedPageProps) {
         ...timers,
         visible,
         onRows: (fresh) => {
-          setRows((prev) => mergeRows(prev, fresh));
+          // While paused the list holds still too; the rows wait and the page says how many.
+          setList((s) => addRows(s, fresh, pausedRef.current));
           const shown = fresh.filter((r) => !filterRef.current || r.tinId === filterRef.current);
           if (shown.length) setPlayer((p) => enqueue(p, shown, Date.now()));
         },
@@ -190,10 +193,22 @@ export default function FeedPage({ data }: FeedPageProps) {
     setPlayer(initialPlayer);
     setManual({ busy: false, lines: null, error: null });
     reader.current?.changed();
-    if (id && rows.filter((r) => r.tinId === id).length < 10) {
+    if (id && list.rows.filter((r) => r.tinId === id).length < 10) {
       void send('GET', `/api/agentics/feed?tinId=${encodeURIComponent(id)}&limit=30`).then((r) => {
-        if (r.ok) setRows((prev) => mergeRows(prev, parseFeedRows(r.body?.events)));
+        if (r.ok) setList((s) => ({ ...s, rows: mergeRows(s.rows, parseFeedRows(r.body?.events)) }));
       });
+    }
+  }
+
+  function togglePause() {
+    const now = Date.now();
+    if (player.paused) {
+      pausedRef.current = false;
+      setList(releaseRows);
+      setPlayer((p) => resume(p, now));
+    } else {
+      pausedRef.current = true;
+      setPlayer((p) => pause(p, now));
     }
   }
 
@@ -235,20 +250,17 @@ export default function FeedPage({ data }: FeedPageProps) {
     );
   }
 
-  const visibleRows = filter ? rows.filter((r) => r.tinId === filter) : rows;
+  const shown = visibleRows(list.rows, filter);
   const current = player.current?.card ?? null;
   const queued = waiting(player);
-  const readText = !readOn
-    ? copy.feed.reader.off
-    : readState === 'reading'
-      ? copy.feed.reader.reading
-      : readState === 'nothing'
-        ? copy.feed.reader.nothing
-        : readState === 'failing'
-          ? copy.feed.reader.failing
-          : readState === 'closed'
-            ? copy.feed.reader.closed
-            : `${readLine ? `${readLine} ` : ''}${copy.feed.reader.waiting}`;
+  const stateText: Partial<Record<ReaderState, string>> = {
+    reading: copy.feed.reader.reading,
+    nothing: copy.feed.reader.nothing,
+    limit: copy.feed.reader.limit,
+    failing: copy.feed.reader.failing,
+    closed: copy.feed.reader.closed,
+  };
+  const readText = !readOn ? copy.feed.reader.off : (stateText[readState] ?? `${readLine ? `${readLine} ` : ''}${copy.feed.reader.waiting}`);
 
   return (
     <div className="ag-page">
@@ -294,7 +306,8 @@ export default function FeedPage({ data }: FeedPageProps) {
               ))}
             </select>
           </label>
-          <button className="ag-btn" type="button" aria-pressed={player.paused} onClick={() => setPlayer((p) => (p.paused ? resume(p, Date.now()) : pause(p, Date.now())))}>
+          {/* The label says what pressing it does; it is not also a pressed/unpressed toggle (a screen reader would say both). */}
+          <button className="ag-btn" type="button" onClick={togglePause}>
             {player.paused ? copy.feed.resume : copy.feed.pause}
           </button>
           {filter ? (
@@ -330,12 +343,13 @@ export default function FeedPage({ data }: FeedPageProps) {
             {copy.feed.listTitle}
           </h2>
         </div>
-        {visibleRows.length === 0 ? (
+        {list.held.length > 0 ? <p className="ag-hint">{copy.feed.held(list.held.length)}</p> : null}
+        {shown.length === 0 ? (
           <p className="ag-empty">{copy.feed.empty}</p>
         ) : (
           <ol className="ag-events" aria-label={copy.feed.listLabel}>
-            {visibleRows.map((row) => (
-              <LedgerItem key={row.id} row={row} agent={row.agent} label={row.label} />
+            {shown.map((row) => (
+              <LedgerItem key={row.id} row={row} agent={row.agent} label={row.label} recorded={row.writtenAt} />
             ))}
           </ol>
         )}
