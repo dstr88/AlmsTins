@@ -12,7 +12,12 @@ import type { ApiResult, Send } from '../../src/components/agentics/client';
  * on the rows are all this one clock; timers move it. What is written: trickles, bursts (hundreds of rows in the
  * same second), and writes that show LATE (stamped now, visible up to four seconds later, inside the five seconds
  * the server's overlap promises). What goes wrong around it: requests that fail (500, 429, no answer), a tab that
- * is hidden and shown, a backlog read that is cut short and carried on.
+ * is hidden and shown, a backlog read that is cut short and carried on. Every third history runs over a SLOW LINK
+ * (a request takes 0.2 to 1 second, so the page learns of a row later than the server read it: where the poll
+ * stamps "first seen" matters only then); every second history also writes rows of an agent that has been
+ * REMOVED (the server counts them and the page cannot show them); every fifth is a DENSE stream (twenty-five rows a
+ * second, a quarter of them showing up to 4.999 seconds late) over a slow link; a history that writes a removed
+ * agent's rows ends the writing with a burst of them, newer than anything the page can show.
  *
  * What must hold: every row that became visible is handed to the page exactly once; and a ledger that has gone
  * quiet costs next to nothing (the poll does not read the same burst for as long as the page is open).
@@ -68,28 +73,37 @@ describe('the poll and the read side together, under faults and a clock', () => 
         (await store.insertTin(A, { label: 'One', agentKeyId: null, at: '2026-10-01 00:00:00' })).id,
         (await store.insertTin(A, { label: 'Two', agentKeyId: null, at: '2026-10-01 00:00:01' })).id,
       ];
+      const removedTin = (await store.insertTin(A, { label: 'Removed', agentKeyId: null, at: '2026-10-01 00:00:02' })).id;
+      await store.softDeleteTin(A, removedTin, '2026-10-01 00:00:03');
+      const withRemoved = seed % 2 === 0;
+      const dense = seed % 5 === 0;
+      const slowLink = seed % 3 === 0 || dense;
+      const rtt = () => (dense ? 600 + Math.floor(rnd() * 400) : slowLink ? 200 + Math.floor(rnd() * 800) : 0);
       const timers = fakeTimers();
       const world = () => BASE + timers.now();
       let counter = 0;
       const rows = new Map<string, { visibleAt: number }>();
       const pending: Array<{ id: string; row: Record<string, unknown>; visibleAt: number }> = [];
-      const makeRow = (stampMs: number) => {
+      const makeRow = (stampMs: number, onlyRemoved = false) => {
         counter += 1;
         const id = `00000000-0000-4000-8000-${String(Math.floor(rnd() * 1e9)).padStart(9, '0')}${String(counter).padStart(3, '0')}`;
+        const ofRemoved = onlyRemoved || (withRemoved && rnd() < 0.2);
         return {
           id,
+          ofRemoved,
           row: {
-            id, tenant_id: A, tin_id: tins[Math.floor(rnd() * 2)], kind: 'checked', address: addr(1), chain: null, answer: 'unknown', registry: 'none', status: 'unknown', key_id: null,
+            id, tenant_id: A, tin_id: ofRemoved ? removedTin : tins[Math.floor(rnd() * 2)], kind: 'checked', address: addr(1), chain: null, answer: 'unknown', registry: 'none', status: 'unknown', key_id: null,
             source_ip: 'h', tx_hash: null, direction: null, wallet: null, amount: null, asset: null, asset_contract: null, usd_value: null, block_number: null,
             detail_json: '{"basis":"not_in_registry"}', occurred_at: new Date(stampMs).toISOString(), created_at: stamp(stampMs),
           } as Record<string, unknown>,
         };
       };
       /** A row written now, stamped now, visible at once or up to four seconds later. */
-      const write = (lateMs = 0) => {
-        const { id, row } = makeRow(world());
+      const write = (lateMs = 0, onlyRemoved = false) => {
+        const { id, row, ofRemoved } = makeRow(world(), onlyRemoved);
         const visibleAt = world() + lateMs;
-        rows.set(id, { visibleAt });
+        // A removed agent's rows are never owed to the page.
+        if (!ofRemoved) rows.set(id, { visibleAt });
         if (lateMs === 0) fake.seed('agent_events', row);
         else pending.push({ id, row, visibleAt });
       };
@@ -136,6 +150,8 @@ describe('the poll and the read side together, under faults and a clock', () => 
         if (!r.ok) { trace.push(`${Math.round((world() - BASE) / 1000)}s ERROR ${r.error} ${url.slice(0, 80)}`); return failed(400, r.error); }
         served.push([world(), r.events.length]);
         trace.push(`${Math.round((world() - BASE) / 1000)}s ${url.replace('/api/agentics/feed?', '').slice(0, 60)} -> ${r.events.length} (more ${r.more})`);
+        // The answer reaches the page after the server has read: on a slow link a row is seen by the page later than it was read.
+        timers.advance(rtt());
         return okBody({ ...r }) as ApiResult;
       };
       const poller = createFeedPoller(
@@ -144,9 +160,13 @@ describe('the poll and the read side together, under faults and a clock', () => 
       );
       poller.start();
 
-      for (let step = 0; step < 70; step += 1) {
+      for (let step = 0; step < (dense ? 110 : 70); step += 1) {
         const x = rnd();
-        if (x < 0.34) {
+        if (dense) {
+          // Twenty-five rows every second, a quarter of them showing up to 4.999 seconds late (most of those very nearly that late).
+          for (let j = 0; j < 25; j += 1) write(rnd() < 0.25 ? (rnd() < 0.6 ? 4999 : 4000 + Math.floor(rnd() * 999)) : 0);
+          timers.advance(1000);
+        } else if (x < 0.34) {
           // A burst (a first read of a busy wallet) or a trickle, and sometimes a late row.
           // Most steps write a few rows; one in ten a burst of hundreds; one in thirty a burst past what one turn of the poll carries (ten pages of a hundred).
           const big = rnd();
@@ -167,6 +187,8 @@ describe('the poll and the read side together, under faults and a clock', () => 
         if (timers.count() > 0 && rnd() < 0.8) await timers.fire();
       }
 
+      // The last writing, in a history that has a removed agent: a burst of its rows, newer than any row the page can show.
+      if (withRemoved) for (let j = 0; j < 150 + Math.floor(rnd() * 250); j += 1) write(0, true);
       // Quiet: nothing more is written, nothing fails, the tab is showing, and a minute goes by on the page's own timers.
       faults = false;
       visible = true;

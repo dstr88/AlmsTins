@@ -292,6 +292,12 @@ describe('the words', () => {
 });
 
 describe('the pause', () => {
+  it('the poll is given a clock that only moves forward: a wall clock that is set jumps, and the poll settles what it saw by elapsed time', () => {
+    const src = read('src/components/agentics/FeedPage.tsx');
+    expect(src).toMatch(/now: \(\) => performance\.now\(\)/);
+    expect(src).not.toMatch(/now: \(\) => Date\.now\(\)/);
+  });
+
   it('lives in the player alone: choosing an agent clears the stage but never resets the player to a state that is not paused while the list still holds rows back', () => {
     const src = read('src/components/agentics/FeedPage.tsx');
     // The player is reset only by clearStage (which keeps a pause); a bare initialPlayer is its starting value and nothing else.

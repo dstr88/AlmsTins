@@ -76,7 +76,11 @@ export interface PollerDeps {
   onRows: (rows: FeedRow[]) => void;
   /** The connection's state, and the time of the last answer that worked (ISO-8601, from the server's clock), or null. */
   onState: (state: ConnState, lastGoodAt: string | null) => void;
-  /** The page's own clock in milliseconds; Date.now when omitted. */
+  /**
+   * The page's own clock in milliseconds; Date.now when omitted. It must only move forward (the page gives it performance.now): the poll
+   * settles what it has seen by elapsed time, and a clock stepped forward counts a row as settled before it is. (One that goes back is
+   * handled: settling starts again.)
+   */
   now?: () => number;
 }
 
@@ -99,10 +103,11 @@ function shift(stamp: string, seconds: number): string {
 
 export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?: Iterable<string | { id: string; writtenAt: string }> }): FeedPoller {
   const clock = deps.now ?? Date.now;
+  let lastClock = clock();
   let since = isStamp(begin.since) ? begin.since : EPOCH;
   /** The newest second any answer has reached, and when each such value was first seen (oldest first, both rising). */
   let newest = since;
-  let observed: Array<{ stamp: string; at: number }> = [{ stamp: since, at: clock() }];
+  let observed: Array<{ stamp: string; at: number }> = [{ stamp: since, at: lastClock }];
   /** The value that had settled when the pass in progress began (null: none had), while a pass is in progress. */
   let passSettled: string | null = null;
   /** Ids handed over, with their second. */
@@ -133,9 +138,24 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
     }, ms);
   };
 
+  /** The page's clock now. If it has gone back (a wall clock was set back), everything seen counts as seen just now: settling starts again, which is slower and loses nothing. */
+  const sample = (): number => {
+    const t = clock();
+    if (t < lastClock) for (const o of observed) o.at = t;
+    lastClock = t;
+    return t;
+  };
+
+  /** A failed turn: the next ask waits longer each time. The ask is set first, so the poll goes on even if the page's own callback fails. */
+  const fail = () => {
+    failures += 1;
+    schedule(Math.min(BACKOFF_MAX_MS, POLL_MS * 2 ** failures));
+    deps.onState('reconnecting', lastGoodAt);
+  };
+
   /** The newest-second value that had settled by now (the latest one first seen SETTLE_MS ago or more), or null. */
   const settledNow = (): string | null => {
-    const cutoff = clock() - SETTLE_MS;
+    const cutoff = sample() - SETTLE_MS;
     let at = -1;
     for (let i = 0; i < observed.length; i += 1) {
       if (observed[i].at <= cutoff) at = i;
@@ -186,6 +206,8 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
       const inTurn = new Set<string>();
       let reached = newest;
       let url = resume ? `/api/agentics/feed?after=${encodeURIComponent(resume)}` : `/api/agentics/feed?since=${encodeURIComponent(since)}`;
+      // The second the server was asked from, while it is asked from a second (not a cursor): it answers with that same second when nothing is newer.
+      let askedSince: string | null = resume === null ? since : null;
       let serverNow: string | null = null;
       let leftOff: string | null = null;
       for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -202,20 +224,16 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
           return;
         }
         if (!r.ok || !r.body) {
-          // A cursor this code made is refused only if something is wrong with ours: start over once from the beginning (the ids drop repeats), then treat it as any failure.
+          // A cursor this code made is refused only if something is wrong with ours (the server changed while the page was open, say):
+          // the pass starts again from `since` (the ids drop what the page already has), and a second refusal is a failure like any other.
           if (r.status === 400 && !resetOnce) {
             resetOnce = true;
-            since = EPOCH;
-            newest = EPOCH;
-            observed = [{ stamp: EPOCH, at: clock() }];
             passSettled = null;
             resume = null;
             schedule(0);
             return;
           }
-          failures += 1;
-          deps.onState('reconnecting', lastGoodAt);
-          schedule(Math.min(BACKOFF_MAX_MS, POLL_MS * 2 ** failures));
+          fail();
           return;
         }
         for (const row of parseFeedRows(r.body.events)) {
@@ -225,32 +243,53 @@ export function createFeedPoller(deps: PollerDeps, begin: { since: string; seen?
           inTurn.add(row.id);
           fresh.push(row);
         }
+        // The server's own newest second also counts rows this page does not show (an agent removed in another tab, a kind this page
+        // does not know): without it those rows stay inside the window and are read again by every poll. It answers with the second it
+        // was asked from when nothing is newer, so from a second only a value past it is news; from a cursor it is always a real row's.
+        const answered = r.body.since;
+        if (typeof answered === 'string' && isStamp(answered) && answered > reached && (askedSince === null || answered > askedSince)) reached = answered;
         if (typeof r.body.now === 'string') serverNow = r.body.now;
         const cursor = r.body.cursor;
-        if (r.body.more === true && typeof cursor === 'string' && cursor) {
+        if (r.body.more === true) {
+          // More, and no way to ask for it: this is not a whole read, and `since` must not move past what was never fetched.
+          if (typeof cursor !== 'string' || !cursor) {
+            fail();
+            return;
+          }
           url = `/api/agentics/feed?after=${encodeURIComponent(cursor)}`;
+          askedSince = null;
           leftOff = cursor;
           continue;
         }
         leftOff = null;
         break;
       }
+      // The page takes the rows first: if it cannot (its callback throws), nothing below has happened, and the next turn reads them again.
+      if (fresh.length) deps.onRows(fresh);
       // Ended by the page limit with more to read: the next turn continues from where this one stopped.
       resume = leftOff;
       if (reached > newest) {
         newest = reached;
-        observed.push({ stamp: newest, at: clock() });
+        observed.push({ stamp: newest, at: sample() });
       }
+      if (fresh.length) remember(fresh);
       if (resume === null) finishPass();
       failures = 0;
       resetOnce = false;
       lastGoodAt = serverNow ?? lastGoodAt;
-      if (fresh.length) {
-        remember(fresh);
-        deps.onRows(fresh);
-      }
       deps.onState('live', lastGoodAt);
       schedule(resume ? CATCH_UP_MS : POLL_MS);
+    } catch {
+      // Anything the turn throws (a callback of the page that fails, say) is a failed turn, not the end of the poll.
+      if (timer === null) {
+        failures += 1;
+        schedule(Math.min(BACKOFF_MAX_MS, POLL_MS * 2 ** failures));
+      }
+      try {
+        deps.onState('reconnecting', lastGoodAt);
+      } catch {
+        // The page's own callback failed as well: the next ask is already set.
+      }
     } finally {
       inFlight = false;
     }

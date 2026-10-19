@@ -133,6 +133,9 @@ export default function FeedPage({ data }: FeedPageProps) {
         send,
         ...timers,
         visible,
+        // The poll settles what it has seen by elapsed time, so its clock must only ever move forward: a wall clock that is set (or
+        // corrected) jumps, and a jump forward would count a row as settled before it is.
+        now: () => performance.now(),
         onRows: (fresh) => {
           // While paused the list holds still too; the rows wait and the page says how many.
           setList((s) => addRows(s, fresh, pausedRef.current));

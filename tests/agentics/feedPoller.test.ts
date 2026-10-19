@@ -17,14 +17,14 @@ const ev = (id: string, writtenAt: string) => ({
 const NOW = '2026-10-19T12:00:00.000Z';
 const answer = (events: unknown[], since: string, extra: Record<string, unknown> = {}) => okBody({ events, since, cursor: null, more: false, now: NOW, ...extra });
 
-function setup(script: Parameters<typeof scriptedSend>[0], opts: { since?: string; seen?: Array<string | { id: string; writtenAt: string }>; visible?: () => boolean } = {}) {
+function setup(script: Parameters<typeof scriptedSend>[0], opts: { since?: string; seen?: Array<string | { id: string; writtenAt: string }>; visible?: () => boolean; onRows?: (r: FeedRow[]) => void } = {}) {
   const timers = fakeTimers();
   const { send, sent } = scriptedSend(script);
   const rows: FeedRow[][] = [];
   const states: Array<[ConnState, string | null]> = [];
   let visible = true;
   const poller = createFeedPoller(
-    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: opts.visible ?? (() => visible), onRows: (r) => rows.push(r), onState: (s, at) => states.push([s, at]), now: timers.now },
+    { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: opts.visible ?? (() => visible), onRows: opts.onRows ?? ((r) => rows.push(r)), onState: (s, at) => states.push([s, at]), now: timers.now },
     { since: opts.since ?? '2026-10-19 11:00:00', seen: opts.seen },
   );
   return { poller, timers, sent, rows, states, show: (v: boolean) => { visible = v; } };
@@ -216,7 +216,7 @@ describe('a backlog', () => {
   });
 
 
-  it('forgets the place it had in a long backlog when the cursor is refused: it starts again from the beginning, not from the refused cursor', async () => {
+  it('drops a refused cursor and starts the pass again from `since` (not from the beginning of the ledger, which would hand over every row the page had forgotten)', async () => {
     let n = 0;
     const t = setup([() => {
       n += 1;
@@ -228,8 +228,8 @@ describe('a backlog', () => {
     await t.timers.fire(); // ten pages, a backlog left
     await t.timers.fire(); // the continuation's cursor is refused
     expect(t.timers.delays()).toEqual([0]);
-    await t.timers.fire(); // again from the beginning, with no cursor
-    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('1970-01-01 00:00:00')}`);
+    await t.timers.fire(); // again from where the pass began, with no cursor
+    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('2026-10-19 11:00:00')}`);
   });
 
   it('does not loop on an answer that says more and gives no cursor', async () => {
@@ -341,15 +341,52 @@ describe('failing', () => {
     expect(t.sent).toHaveLength(1);
   });
 
-  it('starts again from the beginning once if a time it made is refused, then treats it as any failure', async () => {
-    const t = setup([failed(400, 'invalid_cursor'), failed(400, 'invalid_cursor'), answer([], '1970-01-01 00:00:00')], { since: '2026-10-19 11:00:00' });
+  it('asks once more at once when a request is refused (from where it was), then treats a second refusal as any failure', async () => {
+    const t = setup([failed(400, 'invalid_cursor'), failed(400, 'invalid_cursor'), answer([], '2026-10-19 11:00:00')], { since: '2026-10-19 11:00:00' });
     t.poller.start();
     await t.timers.fire();
     expect(t.timers.delays()).toEqual([0]);
     await t.timers.fire();
-    expect(t.sent[1].url).toContain(encodeURIComponent('1970-01-01 00:00:00'));
+    expect(t.sent[1].url).toBe(t.sent[0].url);
     expect(t.states.at(-1)?.[0]).toBe('reconnecting');
     expect(t.timers.delays()).toEqual([6000]);
+  });
+
+  it('is a failure when an answer says there is more and gives no way to ask for it: it hands nothing over, and does not move `since` past rows it never fetched', async () => {
+    // A server that says so every time: no turn is a whole read.
+    const t = setup([answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: null })]);
+    t.poller.start();
+    await t.timers.fire();
+    expect(t.rows).toEqual([]);
+    expect(t.states.at(-1)?.[0]).toBe('reconnecting');
+    expect(t.timers.delays()).toEqual([6000]);
+    for (let i = 0; i < 6; i += 1) await t.timers.fire();
+    expect(t.rows).toEqual([]);
+    // It asked from where it began every time: no pass was finished, so `since` never moved (past rows it never fetched).
+    for (const r of t.sent) expect(decodeURIComponent(r.url.split('since=')[1] ?? '')).toBe('2026-10-19 11:00:00');
+  });
+
+  it('counts the server\'s own newest second even when none of its rows can be shown (an agent removed in another tab): the window moves past them once they have settled', async () => {
+    // Every answer has no event to show, and says its newest raw row is 11:00:20 (the server answers with the second it was asked from when nothing is newer).
+    const t = setup([(r) => {
+      const asked = decodeURIComponent(r.url.split('since=')[1] ?? '');
+      return answer([], asked > '2026-10-19 11:00:20' ? asked : '2026-10-19 11:00:20');
+    }]);
+    t.poller.start();
+    for (let i = 0; i < 8; i += 1) await t.timers.fire();
+    const asked = t.sent.map((r) => decodeURIComponent(r.url.split('since=')[1] ?? ''));
+    // It asked from past those rows (their server window, five seconds earlier, starts after 11:00:20) within a few polls, and stayed there.
+    expect(asked.at(-1)! >= '2026-10-19 11:00:26').toBe(true);
+    expect(asked.at(-1)).toBe('2026-10-19 11:00:26');
+  });
+
+  it('does not take the second it asked from, echoed back, for news: asked past anything newer it stays where it settled, it does not walk ahead six seconds a pass', async () => {
+    const t = setup([(r) => answer([], decodeURIComponent(r.url.split('since=')[1] ?? ''))], { since: '2026-10-19 11:00:00' });
+    t.poller.start();
+    for (let i = 0; i < 12; i += 1) await t.timers.fire();
+    const asked = t.sent.map((r) => decodeURIComponent(r.url.split('since=')[1] ?? ''));
+    // Only the page's own opening value ever settles: past it, plus six seconds, and no further.
+    expect(asked.at(-1)).toBe('2026-10-19 11:00:06');
   });
 });
 
@@ -427,6 +464,77 @@ describe('stopping and asking now', () => {
     t.poller.start();
     t.poller.start();
     expect(t.timers.count()).toBe(1);
+  });
+});
+
+describe('the clock it settles by', () => {
+  it('counts a value as first seen when its answer ARRIVED, not when the turn began: a slow answer does not make what it carries settle early', async () => {
+    // The first ask takes ten seconds to be answered; its row is stamped 11:00:06.
+    let t0!: ReturnType<typeof setup>;
+    const t = setup([
+      () => {
+        t0.timers.advance(10_000);
+        return answer([ev('a', '2026-10-19 11:00:06')], '2026-10-19 11:00:06');
+      },
+      answer([], '2026-10-19 11:00:06'),
+    ]);
+    t0 = t;
+    t.poller.start();
+    for (let i = 0; i < 5; i += 1) await t.timers.fire();
+    const asked = t.sent.map((r) => decodeURIComponent(r.url.split('since=')[1] ?? ''));
+    // 'a' arrived at 13 seconds (the poll at 3 took ten seconds to be answered). Polls begin at 3, 16, 19, 22 and 25.
+    expect(asked).toEqual([
+      '2026-10-19 11:00:00', // the first ask
+      '2026-10-19 11:00:00', // the pass at 3 s settled nothing; this one (16 s) finds the opening value settled, and 'a' (seen at 13) only 3 seconds old
+      '2026-10-19 11:00:06', // the pass at 19 s finds 'a' settled (six seconds after 13) ...
+      '2026-10-19 11:00:12', // ... and the ask after it is from past it. (Counting 'a' as seen when the turn began, at 3, would have made this 11:00:12 a poll earlier.)
+      '2026-10-19 11:00:12',
+    ]);
+  });
+
+  it('starts settling again when the clock goes back (a wall clock set back an hour must not freeze `since` for an hour)', async () => {
+    const t = setup([answer([ev('a', '2026-10-19 11:00:06')], '2026-10-19 11:00:06'), answer([], '2026-10-19 11:00:06')]);
+    t.poller.start();
+    await t.timers.fire();
+    await t.timers.fire();
+    t.timers.advance(-3_600_000);
+    for (let i = 0; i < 6; i += 1) await t.timers.fire();
+    const asked = t.sent.map((r) => decodeURIComponent(r.url.split('since=')[1] ?? ''));
+    expect(asked.at(-1)! >= '2026-10-19 11:00:12').toBe(true);
+  });
+});
+
+describe('a callback of the page that fails', () => {
+  it('is a failed turn, not the end of the poll: the rows were not taken, so the next turn hands them over again', async () => {
+    let calls = 0;
+    const delivered: string[] = [];
+    const t = setup([answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05')], {
+      onRows: (rows) => {
+        calls += 1;
+        if (calls === 1) throw new Error('the page could not take them');
+        delivered.push(...rows.map((r) => r.id));
+      },
+    });
+    t.poller.start();
+    await t.timers.fire();
+    expect(t.states.at(-1)?.[0]).toBe('reconnecting');
+    expect(t.timers.delays()).toEqual([6000]);
+    await t.timers.fire();
+    expect(delivered).toEqual(['a']);
+    expect(t.states.at(-1)?.[0]).toBe('live');
+    expect(t.timers.delays()).toEqual([POLL_MS]);
+  });
+
+  it('does not stop the poll when the page\'s state callback fails too', async () => {
+    const timers = fakeTimers();
+    const { send } = scriptedSend([answer([], '2026-10-19 11:00:00')]);
+    const poller = createFeedPoller(
+      { send, setTimer: timers.setTimer, clearTimer: timers.clearTimer, visible: () => true, onRows: () => {}, onState: () => { throw new Error('and the state callback'); }, now: timers.now },
+      { since: '2026-10-19 11:00:00' },
+    );
+    poller.start();
+    await timers.fire();
+    expect(timers.count()).toBe(1);
   });
 });
 

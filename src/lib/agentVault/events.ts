@@ -495,6 +495,9 @@ let feedIndexRetryAt = 0;
  * of waiting for that lock. Note what the timeout does not bound: once the lock is held, the build itself
  * holds off the table's writers for as long as it takes, which on a ledger of millions of rows is long. That
  * is what the migration is for: run it by hand, with the build you choose, before the ledger is large.
+ * A row written while it builds waits for it, and carries the time its transaction began, so it shows after
+ * the build with a stamp older than the moment it shows: a Live page open at that moment may not show it
+ * (the ledger, the agent's page and the reports have it). Another reason to run the migration first.
  * A failed attempt is logged by name and code, and the next one waits FEED_INDEX_RETRY_MS.
  */
 export function ensureFeedIndex(): Promise<void> {
