@@ -23,6 +23,11 @@
 // that job instead. The Verify landing page's Agents tile links to this page
 // plainly (no anchor) rather than to a demo widget.
 //
+// "Your vault" documents the one field a keyed call gains when its key is linked to an agent in the
+// vault (src/lib/agentVault/checkLog.ts, VaultBlock), and "Copy and paste" writes the rule out in curl,
+// JavaScript and Python. tests/verify/agentDocs.test.ts holds the vault field to the type that builds it,
+// and runs the JavaScript against a stand-in for fetch.
+//
 // The document shell and the look come from the docs kit: ApiDocsLayout (head, Analytics, the
 // column), AnswerCards (the answers below) and DocsFaq (the FAQ container). The copy stays
 // literal in this file, the description meta included, because the test above reads it here.
@@ -74,6 +79,16 @@ const FIELDS = [
   ['checkedAt', 'When this answer was computed (ISO 8601, UTC).'],
 ];
 
+const VAULT_FIELDS = [
+  ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history: on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership). flagged: the registry flagged it, or a different domain than the one you expected vouches for it. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
+  ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
+  ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
+  ['logged', 'Whether the check was written to the ledger. false when it could not be, or when the agent had reached its daily limit (see reason).'],
+  ['reason', 'Present only when logged is false because the agent reached its daily limit of recorded checks: log_limit. The Free plan records 5,000 checks per agent per UTC day. The check itself still answers in full.'],
+];
+
 const PRINCIPLES = [
   ['Proof, never reputation.', 'We answer "is there a current proof tying this destination to a domain," never "is this party good." No risk scores, no success counts, no endorsements. A verified answer means a domain stands behind the destination, not that the deal is wise. The check is proof-only: it does not screen for sanctions or scams, so a verified destination has not been screened. Run your own screening, or the free wallet checker at almstins.com/wallet-checker, separately.'],
   ['Always pass expect.', 'Without it you only learn that some proof exists for this destination. With it you learn whether it is tied to the party you intend to pay. The second is the product, and the rule above requires it. Take expect from your own records, never from the page that supplied the address.'],
@@ -88,12 +103,14 @@ const TOC = [
   ['answers', 'The answers'],
   ['specs', 'Specs'],
   ['limits', 'Limits & keys'],
+  ['vault', 'Your vault'],
+  ['kit', 'Copy and paste'],
   ['faq', 'FAQ'],
   ['for-payees', 'For payees'],
 ];
 
 const FAQ = [
-  ['Is there an SDK or client library?', "No — it's a single unauthenticated GET that returns JSON. Fetch or curl it directly from any language; there's nothing to install."],
+  ['Is there an SDK or client library?', "No — it's a single unauthenticated GET that returns JSON. Fetch or curl it directly from any language; there's nothing to install. The rule above is written out in curl, JavaScript and Python under Copy and paste."],
   ['What does the API return if value or expect is malformed?', "A 400, with a JSON body naming the problem — { error: 'invalid address format' } for a value that isn't a recognized address or link, or { error: 'expect must be a domain' } for an expect that isn't domain-shaped. Neither is a proof answer: treat any non-200 as a hold, same as everywhere else on this page."],
   ['Do I need to normalize expect myself — strip https://, www., a trailing slash?', 'No. expect accepts a bare domain or a full URL (acme.com, https://acme.com/pay, WWW.Acme.com.) and normalizes it the same way before comparing. Pass whatever format your own records already have.'],
   ['Why isn’t there a live "try it" widget on this page?', "Because a random address almost always comes back unknown — nobody has published proof for it yet — and that reads as broken rather than correct. The static example under \"The call\" shows the real shape of a proven answer instead. Once you or a payee you know has proven a real destination, check that one for real."],
@@ -255,7 +272,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
         <caption>Endpoint</caption>
         <tr><th>Method</th><td><code>GET</code></td></tr>
         <tr><th>URL</th><td><code>https://almstins.com/api/verify/check</code></td></tr>
-        <tr><th>Auth</th><td>None required for anonymous use. Optional <code>Authorization: Bearer &lt;key&gt;</code> for a raised rate limit.</td></tr>
+        <tr><th>Auth</th><td>None required for anonymous use. Optional <code>Authorization: Bearer &lt;key&gt;</code> for a raised rate limit, and for the record in your vault when the key is linked to one of your agents.</td></tr>
         <tr><th>Query params</th><td><code>value</code> (required), <code>expect</code> (optional in the API, required by the rule above)</td></tr>
         <tr><th>Response</th><td><code>application/json</code>, always <code>v: 1</code> today — additive-only, never a breaking change</td></tr>
       </table>
@@ -326,6 +343,137 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       <b>unanchored</b>, and never treat a 503 as <b>unknown</b>: an outage is not an absence of proof,
       which is exactly why the two are different signals.
     </p>
+  </section>
+
+  <section id="vault">
+    <h2>Your vault (optional)</h2>
+    <p class="body">
+      The check works without an account. If you run agents that move money, you can also keep a
+      dated record of what each one asked and what it was answered. Sign in free at
+      <a href="/agentics">almstins.com/agentics</a>, add an agent in your vault, register the addresses it
+      may pay (each is checked when you add it: sanctions lists, scam screening and domain proofs), and
+      link one of your keys to the agent. From then on every call that carries that key is also written
+      to the agent's ledger, and the answer gains one more field, <code>vault</code>. The Free plan covers
+      3 agents and 15 addresses.
+    </p>
+    <div class="term">
+      <div class="term__bar">
+        <span class="term__dot"></span><span class="term__dot"></span><span class="term__dot"></span>
+        <span class="term__title">the vault field, on a call with a linked key</span>
+      </div>
+      <pre>{`{
+  "cleared": true,           // on this agent's trusted list, and nothing we ran flagged it (not a statement that it is safe)
+  "answer": "proven",        // "proven" | "consistent-with-history" | "flagged" | "unknown"
+  "registry": "trusted",     // "trusted" | "flagged" | "pending" | "none"
+  "history": "consistent",   // "consistent" | "none"
+  "eventId": "6f1c0a52-9d3e-4b7a-8c10-2e5d7a9b4f31",  // the ledger row this check was written as, or null
+  "logged": true             // false when nothing was written; then see reason
+}`}</pre>
+    </div>
+    <ul class="pr">
+      {VAULT_FIELDS.map(([f, d]) => (<li><code>{f}</code> {d}</li>))}
+    </ul>
+    <p class="body">
+      <b>The rule above does not change.</b> The vault field is the answer about your own registry; it does
+      not loosen the public one. Use it to apply your own policy to the addresses you registered, and decide
+      for yourself what each answer is worth: consistent-with-history proves sameness, never ownership. An
+      address that is not in your registry never clears, whatever the public proof says. If any part of the
+      field is null, the vault could not be read: treat it as not cleared. Hold and escalate to a person
+      whatever is not cleared, exactly as before.
+    </p>
+    <p class="body">
+      <b>What is recorded.</b> For each call on a linked key: the address as you asked, the time, the answer,
+      the registry's word, which key asked, and the caller's network address kept only as a salted one-way
+      hash. Calls with no key, and keys not linked to an agent, are never recorded. Rows are never edited or
+      removed. You read the ledger on the agent's page, get a daily report you can download as a signed PDF,
+      and export a signed file that anyone can check at <a href="/verify-record">/verify-record</a>.
+    </p>
+    <p class="body">
+      <b>What the vault does not see.</b> It records the addresses you register. A transfer to an address
+      you did not register is not seen: the protection is the check before the agent sends. Once a day, or
+      when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
+      direct transfers between your agent's own wallets and your trusted addresses, and ties each one to
+      the check that came before it. A payment routed through a swap or a router contract is a transfer to
+      that contract and is not seen.
+    </p>
+  </section>
+
+  <section id="kit">
+    <h2>Copy and paste</h2>
+    <p class="body">
+      The rule above, written out for three common places. Each one proceeds only when every part of the
+      rule holds, retries a 5xx or a 429 with the delay the answer asks for, and treats an answer it
+      cannot read as a hold. A hold means your agent flags the payment and asks a person; none of these
+      sends anything or decides for you. Keep your key in an environment variable on your server, out of
+      any page that runs in a browser, and take the payee's domain from your own records.
+    </p>
+    <h3>curl and jq</h3>
+    <pre>{`# Exit status 0: the rule holds. Anything else: hold for a person.
+# PAYEE_DOMAIN comes from your own records, never from the invoice.
+VALUE="0x..."
+PAYEE_DOMAIN="acme.com"
+[ -n "$PAYEE_DOMAIN" ] || { echo "hold: no expect"; exit 1; }
+curl -sS --max-time 10 --retry 3 --retry-all-errors \\
+  -H "Authorization: Bearer $ALMSTINS_KEY" \\
+  --get --data-urlencode "value=$VALUE" --data-urlencode "expect=$PAYEE_DOMAIN" \\
+  https://almstins.com/api/verify/check \\
+| jq -e --arg want "$PAYEE_DOMAIN" \\
+  '.status == "proven" and .level == "verified" and (.domain == $want or ((.domain // "") | endswith("." + $want)))' \\
+  > /dev/null && echo "proceed" || { echo "hold for a person"; exit 1; }`}</pre>
+    <h3>JavaScript</h3>
+    <pre>{`// Node 18+ or any runtime with fetch. Resolves true only when the rule holds.
+async function mayProceed(value, payeeDomain, key) {
+  const want = String(payeeDomain ?? '').trim().toLowerCase();
+  if (!want) return false;                                   // the API ignores an empty expect: hold
+  const url = 'https://almstins.com/api/verify/check'
+    + '?value=' + encodeURIComponent(value)
+    + '&expect=' + encodeURIComponent(want);
+  const headers = key ? { Authorization: 'Bearer ' + key } : {};
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res;
+    try { res = await fetch(url, { headers }); }
+    catch { await sleep(2 ** attempt * 1000); continue; }    // no answer: try again
+    if (res.status >= 500 || res.status === 429) {
+      await sleep(Number(res.headers.get('Retry-After')) * 1000 || 2 ** attempt * 1000);
+      continue;
+    }
+    if (!res.ok) return false;                               // 400, 401 and the rest: hold
+    let body;
+    try { body = await res.json(); } catch { return false; } // unreadable: hold
+    const got = String(body.domain ?? '').toLowerCase();
+    return body.status === 'proven' && body.level === 'verified'
+      && (got === want || got.endsWith('.' + want));         // and it is about your payee
+  }
+  return false;                                              // still no answer: hold
+}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));`}</pre>
+    <h3>Python</h3>
+    <pre>{`# Standard library only. Returns True only when the rule holds.
+import json, time, urllib.error, urllib.parse, urllib.request
+
+def may_proceed(value, payee_domain, key=None, tries=3):
+    want = (payee_domain or "").strip().lower()
+    if not want:
+        return False                          # the API ignores an empty expect: hold
+    url = ("https://almstins.com/api/verify/check?value=" + urllib.parse.quote(value, safe="")
+           + "&expect=" + urllib.parse.quote(want, safe=""))
+    headers = {"Authorization": "Bearer " + key} if key else {}
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=10) as res:
+                body = json.load(res)
+        except urllib.error.HTTPError as e:
+            if e.code >= 500 or e.code == 429:
+                time.sleep(int(e.headers.get("Retry-After") or 2 ** attempt))
+                continue
+            return False                      # 400, 401 and the rest: hold
+        except (urllib.error.URLError, TimeoutError, ValueError):
+            time.sleep(2 ** attempt)          # no answer, or one that cannot be read: try again
+            continue
+        got = (body.get("domain") or "").lower()
+        return (body.get("status") == "proven" and body.get("level") == "verified"
+                and (got == want or got.endswith("." + want)))   # and it is about your payee
+    return False                              # still no answer: hold`}</pre>
   </section>
 
   <section id="faq">
