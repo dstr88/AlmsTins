@@ -79,12 +79,13 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the only migration numbered higher is the door\'s 0060', () => {
+  it('report delivery is 0054, the only 0054; the only migrations numbered higher are the door\'s 0060 and 0061', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
     // The Vault's range is 0050 to 0059 and ends at 0054; the free-signup door's table is 0060
-    // (migrations-pg/0060_agentics_signups.sql, not part of the Vault). Nothing else sits above 0054.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual(['0060_agentics_signups.sql']);
+    // (migrations-pg/0060_agentics_signups.sql, not part of the Vault) and 0061 adds the two columns of its opening email.
+    // Nothing else sits above 0054.
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 54)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {

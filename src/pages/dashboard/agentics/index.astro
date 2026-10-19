@@ -24,6 +24,7 @@ import Analytics from '@/components/Analytics.astro';
 import LogoutButton from '@/components/LogoutButton.astro';
 import { en as t } from '@/i18n/agentics';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { recordVaultFirstVisit } from '@/lib/agenticsFirstVisit';
 import { welcomeOnFirstVisit } from '@/lib/agenticsSignup';
 import { cleanSource } from '@/lib/agenticsSource';
 import { getAuthSession } from '@/lib/authSession';
@@ -35,8 +36,13 @@ const session = await requireTenantSession(Astro.request);
 if (!session || session.isDemo) return Astro.redirect('/agentics/login?next=%2Fdashboard%2Fagentics', 303);
 
 // An account that may use the Agent Vault sees the Vault's home at this address. The agents page
-// checks the same rule itself, and the middleware gates its path, before it reads anything.
-if (canAccessAgenticsVault(session)) return Astro.rewrite('/dashboard/agentics/agents');
+// checks the same rule itself, and the middleware gates its path, before it reads anything. A new
+// account is still a signup: its first visit is recorded and its welcome letter sent, once, behind the
+// page (the deployment owner is not a signup).
+if (canAccessAgenticsVault(session)) {
+  recordVaultFirstVisit(Astro.request, session, Astro.url.searchParams.get('src'));
+  return Astro.rewrite('/dashboard/agentics/agents');
+}
 
 const auth = await getAuthSession(Astro.request);
 const SEND_WAIT_MS = 4000;

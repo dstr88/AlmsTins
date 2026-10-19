@@ -13,14 +13,22 @@
  * cannot both send it. A claim that was never finished (the process died mid-send) is taken over
  * after CLAIM_STALE_MS, and a send that fails releases its claim so the next visit tries again.
  *
+ * The same table is the list for the one email the privacy policy promises "when the vault opens":
+ * `opened_notified_at` says an account has been told (by the opening email, or by a welcome letter
+ * sent after the vault was already open, which says so itself), and `open_claimed_at` is the same
+ * once-only claim the welcome letter uses. sendOpeningNotices sends it, only when asked by an admin,
+ * only after the vault is open, and a dry run sends nothing.
+ *
  * Tenant isolation is the same rule as everywhere: every statement names tenant_id. Schema is
  * created lazily by ensureAgenticsSignupsTable and mirrored in
  * migrations-pg/0060_agentics_signups.sql (tests/agentics/doorSignup.test.ts keeps the two equal).
  */
 import { db } from '@/lib/db';
 import { sendMail as realSendMail } from '@/lib/email';
-import { renderAgenticsWelcome } from '@/i18n/emails/agenticsWelcome';
+import { renderAgenticsOpening, renderAgenticsWelcomeFor } from '@/i18n/emails/agenticsWelcome';
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { cleanSource, DEFAULT_SOURCE } from '@/lib/agenticsSource';
+import { isOwner, OWNER_TENANT_ID } from '@/lib/owner';
 
 const TS_DEFAULT = `DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`;
 
@@ -33,6 +41,8 @@ export const AGENTICS_SIGNUPS_DDL: readonly string[] = [
     claimed_at  TEXT,
     welcomed_at TEXT
   )`,
+  `ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS open_claimed_at TEXT`,
+  `ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS opened_notified_at TEXT`,
 ];
 
 let ensurePromise: Promise<void> | null = null;
@@ -78,12 +88,17 @@ export async function claimWelcome(tenantId: string, now: Date = new Date()): Pr
   return (r.rowsAffected ?? 0) > 0;
 }
 
-export async function markWelcomed(tenantId: string, now: Date = new Date()): Promise<void> {
+/**
+ * Records that the letter went out. `alsoOpened` is for a letter sent once the vault is open, which tells the
+ * account so: it then needs no opening email.
+ */
+export async function markWelcomed(tenantId: string, now: Date = new Date(), alsoOpened = false): Promise<void> {
   await ensureAgenticsSignupsTable();
-  await db.execute({
-    sql: `UPDATE agentics_signups SET welcomed_at = ? WHERE tenant_id = ?`,
-    args: [stamp(now), tenantId],
-  });
+  await db.execute(
+    alsoOpened
+      ? { sql: `UPDATE agentics_signups SET welcomed_at = ?, opened_notified_at = ? WHERE tenant_id = ?`, args: [stamp(now), stamp(now), tenantId] }
+      : { sql: `UPDATE agentics_signups SET welcomed_at = ? WHERE tenant_id = ?`, args: [stamp(now), tenantId] },
+  );
 }
 
 /** Gives the claim back after a failed send, so the next visit tries again. Does nothing once the letter is sent. */
@@ -104,6 +119,8 @@ export interface WelcomeDeps {
   appUrl: string;
   /** Where a reply goes: a person reads it. */
   replyTo: string;
+  /** Whether the vault is open to every account: the letter says which. */
+  vaultOpen: boolean;
 }
 
 /** The site's address for links in the letter: AUTH_URL when it is set (with https:// added if it has no scheme), else almstins.com. No trailing slash. */
@@ -118,6 +135,7 @@ const defaultDeps = (): WelcomeDeps => ({
   now: () => new Date(),
   appUrl: siteUrl(),
   replyTo: 'support@almstins.com',
+  vaultOpen: AGENTICS_VAULT_PUBLIC,
 });
 
 /**
@@ -141,9 +159,9 @@ export async function welcomeOnFirstVisit(
     if (!email) return 'no_email';
     claimed = await claimWelcome(input.tenantId, deps.now());
     if (!claimed) return 'already';
-    const letter = renderAgenticsWelcome(deps.appUrl.replace(/\/+$/, ''));
+    const letter = renderAgenticsWelcomeFor(deps.appUrl.replace(/\/+$/, ''), deps.vaultOpen);
     await deps.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html, replyTo: deps.replyTo });
-    await markWelcomed(input.tenantId, deps.now());
+    await markWelcomed(input.tenantId, deps.now(), deps.vaultOpen);
     return 'sent';
   } catch (err) {
     const e = err as { name?: unknown; code?: unknown } | null;
@@ -157,4 +175,141 @@ export async function welcomeOnFirstVisit(
     }
     return 'failed';
   }
+}
+
+// ── The opening email ────────────────────────────────────────────────────────
+
+/** The most one admin call sends, and what it sends when it is not told. A few seconds each, and the call has a time budget. */
+export const OPENING_BATCH_MAX = 200;
+export const OPENING_BATCH_DEFAULT = 100;
+
+/** The accounts still to be told the vault is open: signed up, not yet told, and not the deployment owner's. */
+export async function countOpeningWaiting(): Promise<number> {
+  await ensureAgenticsSignupsTable();
+  const r = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM agentics_signups WHERE opened_notified_at IS NULL AND tenant_id <> ?`,
+    args: [OWNER_TENANT_ID],
+  });
+  return Number((r.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+}
+
+/** Takes the right to send one account its opening email. True for exactly one caller until it is sent or released. */
+export async function claimOpening(tenantId: string, now: Date = new Date()): Promise<boolean> {
+  await ensureAgenticsSignupsTable();
+  const r = await db.execute({
+    sql: `UPDATE agentics_signups SET open_claimed_at = ? WHERE tenant_id = ? AND opened_notified_at IS NULL AND (open_claimed_at IS NULL OR open_claimed_at < ?)`,
+    args: [stamp(now), tenantId, stamp(new Date(now.getTime() - CLAIM_STALE_MS))],
+  });
+  return (r.rowsAffected ?? 0) > 0;
+}
+
+export async function markOpened(tenantId: string, now: Date = new Date()): Promise<void> {
+  await ensureAgenticsSignupsTable();
+  await db.execute({ sql: `UPDATE agentics_signups SET opened_notified_at = ? WHERE tenant_id = ?`, args: [stamp(now), tenantId] });
+}
+
+/** Gives the claim back after a failed send, so the next call tries again. Does nothing once the email is sent. */
+export async function releaseOpening(tenantId: string): Promise<void> {
+  await ensureAgenticsSignupsTable();
+  await db.execute({ sql: `UPDATE agentics_signups SET open_claimed_at = NULL WHERE tenant_id = ? AND opened_notified_at IS NULL`, args: [tenantId] });
+}
+
+/** The address of the account's first sign-in, or null when it has none that looks like one. */
+export async function emailOfTenant(tenantId: string): Promise<string | null> {
+  const m = await db.execute({
+    sql: `SELECT user_id FROM tenant_memberships WHERE tenant_id = ? ORDER BY created_at ASC, id ASC LIMIT 1`,
+    args: [tenantId],
+  });
+  const userId = (m.rows[0] as { user_id?: unknown } | undefined)?.user_id;
+  if (!userId) return null;
+  const u = await db.execute({ sql: `SELECT email FROM auth_users WHERE id = ? LIMIT 1`, args: [String(userId)] });
+  const email = String((u.rows[0] as { email?: unknown } | undefined)?.email ?? '').trim();
+  return /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+}
+
+export interface OpeningDeps {
+  send: typeof realSendMail;
+  now: () => Date;
+  appUrl: string;
+  replyTo: string;
+  emailOf: (tenantId: string) => Promise<string | null>;
+}
+
+const defaultOpeningDeps = (): OpeningDeps => ({
+  send: realSendMail,
+  now: () => new Date(),
+  appUrl: siteUrl(),
+  replyTo: 'support@almstins.com',
+  emailOf: emailOfTenant,
+});
+
+export interface OpeningReport {
+  dryRun: boolean;
+  /** Accounts still to be told, before this call. */
+  waiting: number;
+  sent: number;
+  /** Sends that failed. Their claim is released: the next call tries them again. */
+  failed: number;
+  /** Accounts with no address to write to. They are marked told, so they do not wait forever. */
+  noEmail: number;
+  /** Accounts still to be told, after this call. */
+  remaining: number;
+}
+
+/**
+ * Sends the opening email to accounts that signed up while the vault was private, once each.
+ *
+ * A dry run (`apply: false`) counts and sends nothing. A real run takes at most `limit` accounts,
+ * oldest signup first, and stops starting new sends at `deadlineAt`; calling it again carries on. Each
+ * account is claimed before its email goes out (claimOpening), so two calls at once cannot send it
+ * twice, and a send that fails gives its claim back. Never throws for one account's failure; the
+ * caller (an admin) sees the counts. The deployment owner's account is never written to.
+ *
+ * Whether the vault is open is the caller's to check before this runs: the email says it is.
+ */
+export async function sendOpeningNotices(
+  opts: { apply: boolean; limit?: number; deadlineAt?: number },
+  deps: OpeningDeps = defaultOpeningDeps(),
+): Promise<OpeningReport> {
+  const waiting = await countOpeningWaiting();
+  if (!opts.apply) return { dryRun: true, waiting, sent: 0, failed: 0, noEmail: 0, remaining: waiting };
+
+  const limit = Math.max(1, Math.min(OPENING_BATCH_MAX, Math.floor(opts.limit ?? OPENING_BATCH_DEFAULT) || OPENING_BATCH_DEFAULT));
+  const stale = stamp(new Date(deps.now().getTime() - CLAIM_STALE_MS));
+  const rows = await db.execute({
+    sql: `SELECT tenant_id FROM agentics_signups
+          WHERE opened_notified_at IS NULL AND tenant_id <> ? AND (open_claimed_at IS NULL OR open_claimed_at < ?)
+          ORDER BY created_at ASC, tenant_id ASC LIMIT ?`,
+    args: [OWNER_TENANT_ID, stale, limit],
+  });
+
+  const letter = renderAgenticsOpening(deps.appUrl.replace(/\/+$/, ''));
+  let sent = 0;
+  let failed = 0;
+  let noEmail = 0;
+  for (const row of rows.rows as Array<{ tenant_id?: unknown }>) {
+    if (opts.deadlineAt !== undefined && deps.now().getTime() >= opts.deadlineAt) break;
+    const tenantId = String(row.tenant_id ?? '');
+    if (!tenantId || isOwner(tenantId)) continue; // the owner's id is matched in the query; this is for a spelling of it that is not
+    let claimed = false;
+    try {
+      claimed = await claimOpening(tenantId, deps.now());
+      if (!claimed) continue;
+      const email = await deps.emailOf(tenantId);
+      if (!email) {
+        await markOpened(tenantId, deps.now());
+        noEmail += 1;
+        continue;
+      }
+      await deps.send({ to: email, subject: letter.subject, text: letter.text, html: letter.html, replyTo: deps.replyTo });
+      await markOpened(tenantId, deps.now());
+      sent += 1;
+    } catch (err) {
+      const e = err as { name?: unknown; code?: unknown } | null;
+      console.error('[agentics] opening email not sent', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+      failed += 1;
+      if (claimed) await releaseOpening(tenantId).catch(() => undefined);
+    }
+  }
+  return { dryRun: false, waiting, sent, failed, noEmail, remaining: await countOpeningWaiting() };
 }

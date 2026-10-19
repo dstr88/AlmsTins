@@ -80,7 +80,8 @@ describe('the Vault branch', () => {
   it('is chosen by canAccessAgenticsVault(session) and by nothing else, and hands the viewer to the agents page at this address', () => {
     const fm = frontmatter(page);
     expect(fm).toContain("import { canAccessAgenticsVault } from '@/lib/agenticsAccess';");
-    expect(fm).toContain("if (canAccessAgenticsVault(session)) return Astro.rewrite('/dashboard/agentics/agents');");
+    // The Vault's home is shown by a rewrite at this address; a new account's first visit is recorded behind it.
+    expect(fm).toMatch(/if \(canAccessAgenticsVault\(session\)\) \{\s*recordVaultFirstVisit\(Astro\.request, session, Astro\.url\.searchParams\.get\('src'\)\);\s*return Astro\.rewrite\('\/dashboard\/agentics\/agents'\);\s*\}/);
     expect(code(page)).not.toMatch(/isOwner|OWNER_TENANT_ID|@\/lib\/owner|AGENTICS_VAULT_PUBLIC|redirect\('\/dashboard\/agentics\//);
   });
 
@@ -116,6 +117,7 @@ describe('the letter branch', () => {
       '@/components/LogoutButton.astro',
       '@/i18n/agentics',
       '@/lib/agenticsAccess',
+      '@/lib/agenticsFirstVisit',
       '@/lib/agenticsSignup',
       '@/lib/agenticsSource',
       '@/lib/authSession',

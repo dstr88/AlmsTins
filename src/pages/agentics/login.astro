@@ -17,7 +17,8 @@ import Analytics from '@/components/Analytics.astro';
 // gated dashboard.
 import '@/styles/tokens.css';
 import { en as login } from '@/i18n/loginPage';
-import { en as t } from '@/i18n/agentics';
+import { agenticsCopy } from '@/i18n/agentics';
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
 
 export const prerender = false;
@@ -32,6 +33,7 @@ if (data.isLoggedIn) return Astro.redirect(callbackUrl, 302);
 const { csrfToken, error } = data;
 const failed = !!error;
 const failedText = resolveLoginAlert(login, data).message || login.errors.generic;
+const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);
 const l = t.login;
 ---
 <!doctype html>

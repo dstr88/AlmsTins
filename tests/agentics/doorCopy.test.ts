@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { brightLineViolations } from '../helpers/brightLineWording';
-import { en, FREE_ADDRESSES, FREE_BOTS } from '../../src/i18n/agentics';
-import { renderAgenticsWelcome } from '../../src/i18n/emails/agenticsWelcome';
+import { agenticsCopy, en, enOpen, FREE_ADDRESSES, FREE_BOTS, opening } from '../../src/i18n/agentics';
+import { renderAgenticsOpening, renderAgenticsWelcome, renderAgenticsWelcomeFor } from '../../src/i18n/emails/agenticsWelcome';
 
 /**
  * The words of the Agentics door (landing, sign-in, welcome page, welcome letter) are held to the
@@ -121,6 +121,136 @@ describe('the letter is the same on the page and in the email', () => {
   it('escapes the site address it is given', () => {
     const odd = renderAgenticsWelcome('https://x.example"><script>');
     expect(odd.html).not.toContain('<script>');
+  });
+});
+
+describe('the copy follows the state of the vault', () => {
+  it('is the private vault\'s words until the flag opens it, and the open vault\'s words after', () => {
+    expect(agenticsCopy(false)).toBe(en);
+    expect(agenticsCopy(true)).toBe(enOpen);
+  });
+
+  it('differs only where "opening soon" stops being true: the same bright-line text, the same docs and footer, the same sign-out', () => {
+    expect(enOpen.landing.title).toBe(en.landing.title);
+    expect(enOpen.landing.h1).toBe(en.landing.h1);
+    expect(enOpen.landing.stays).toEqual(en.landing.stays);
+    expect(enOpen.landing.footerLinks).toEqual(en.landing.footerLinks);
+    expect(enOpen.welcome).toEqual(en.welcome);
+    expect(enOpen.brand).toBe(en.brand);
+  });
+});
+
+describe('the open vault keeps the same wording rules', () => {
+  const ALL_OPEN = [...strings(enOpen, 'enOpen'), ...strings(opening, 'opening')];
+  const joined = (node: unknown) => strings(node).map(([, t]) => t).join(' ');
+
+  it('reads every string of the open door and of the opening email (sanity)', () => {
+    expect(ALL_OPEN.length).toBeGreaterThan(60);
+  });
+
+  it('verifies, warns and flags, never stops anything, and is American English', () => {
+    for (const [where, text] of ALL_OPEN) expect(brightLineViolations(text), where).toEqual([]);
+  });
+
+  it('never calls anything safe, trustless, guaranteed or insured', () => {
+    for (const [where, text] of ALL_OPEN) {
+      expect(text, where).not.toMatch(/\b(safe|safely|safety|trustless|guarantee[sd]?|insur(ed|ance)|risk[- ]free)\b/i);
+    }
+  });
+
+  it('keeps clear of tax, attribution and custody wording', () => {
+    for (const [where, text] of ALL_OPEN) {
+      expect(text, where).not.toMatch(/cost[ -]basis|capital gain|realized|profit|\bP\/L\b|8949|\bkyc\b|who owns|cluster/i);
+    }
+  });
+
+  it('names no price, and says paid plans are coming later with nothing to buy', () => {
+    for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/\$\s?\d|\d+\s?(USD|dollars)|per month|\/mo\b|per year/i);
+    expect(enOpen.landing.plans.find((x) => x.name === 'Paid plans')).toEqual({ name: 'Paid plans', status: 'Coming later', body: 'Nothing to buy today.' });
+  });
+
+  it('still states the bright lines: read-only, no keys, never in the transaction, the agent that skips the check is outside', () => {
+    const landing = joined(enOpen.landing);
+    expect(landing).toMatch(/Read-only/);
+    expect(landing).toMatch(/never holds keys/);
+    expect(landing).toMatch(/never in the transaction path/);
+    expect(landing).toMatch(/skips the check is outside what Agentics can see/);
+    expect(landing).toMatch(/An outage is never a pass/);
+  });
+
+  it('says the free plan is open now, with its numbers, and that every step is live', () => {
+    expect(enOpen.landing.plans[0]).toEqual({ name: 'Free', status: 'Open now', body: `${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses.` });
+    expect(enOpen.landing.steps.map((x) => [x.live, x.tag])).toEqual([[true, 'Live'], [true, 'Live'], [true, 'Live']]);
+    expect(enOpen.landing.status.liveText).toMatch(/your vault/);
+    expect(enOpen.landing.status.soonLabel).toBe('Coming later');
+  });
+
+  it('names the chains the record is read from and says it is read once a day, so nothing promises more than is built', () => {
+    expect(enOpen.landing.steps[2].body).toContain('Once a day');
+    expect(enOpen.landing.steps[2].body).toContain('Ethereum, Polygon and Avalanche');
+    expect(opening.letter.paragraphs.join(' ')).toContain('Once a day');
+    expect(opening.letter.paragraphs.join(' ')).toContain('Ethereum, Polygon and Avalanche');
+    for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/real[- ]time|live feed|as it happens|instant(ly)?|every second/i);
+  });
+
+  it('no longer says the vault is opening soon, or that one more email is coming', () => {
+    for (const [where, text] of ALL_OPEN) {
+      expect(text, where).not.toMatch(/opening soon|when your vault opens|until your vault opens|when it opens/i);
+    }
+  });
+
+  it('promises no email beyond the welcome and reports the account turns on', () => {
+    expect(enOpen.letter.why).toMatch(/We send a welcome like this once, and reports only if you turn them on/);
+    expect(opening.letter.why).toMatch(/the one email we said we would send when it did, and we will not email you about it again/);
+  });
+});
+
+describe('the letters in the open state', () => {
+  const welcome = renderAgenticsWelcome('https://almstins.com', enOpen);
+  const mail = renderAgenticsOpening('https://almstins.com');
+  const inOrder = (text: string, lines: readonly string[]) => {
+    let at = 0;
+    for (const line of lines) {
+      const found = text.indexOf(line, at);
+      expect(found, line).toBeGreaterThanOrEqual(at);
+      at = found + line.length;
+    }
+  };
+
+  it('the welcome letter of an open vault is the one renderAgenticsWelcomeFor gives, and differs from the private one', () => {
+    expect(renderAgenticsWelcomeFor('https://almstins.com', true)).toEqual(welcome);
+    expect(renderAgenticsWelcomeFor('https://almstins.com', false)).toEqual(renderAgenticsWelcome('https://almstins.com'));
+    expect(welcome.subject).toBe('Your vault is open: Almstins Agentics');
+    expect(welcome.subject).not.toBe(en.letter.subject);
+  });
+
+  it('carries every line of the letter, in order, then a link for each button', () => {
+    inOrder(welcome.text, [enOpen.letter.greeting, ...enOpen.letter.paragraphs, 'Your vault: https://almstins.com/dashboard/agentics', 'API docs: https://almstins.com/agentics/docs', ...enOpen.letter.signoff, enOpen.letter.why]);
+    inOrder(mail.text, [opening.letter.greeting, ...opening.letter.paragraphs, 'Your vault: https://almstins.com/dashboard/agentics', 'API docs: https://almstins.com/agentics/docs', ...opening.letter.signoff, opening.letter.why]);
+    expect(mail.subject).toBe(opening.subject);
+  });
+
+  it('the html is the same lines, escaped, with two buttons that go to this site and nowhere else', () => {
+    for (const rendered of [welcome, mail]) {
+      const links = [...rendered.html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+      expect(links).toEqual(['https://almstins.com/dashboard/agentics', 'https://almstins.com/agentics/docs']);
+      expect(rendered.html).toContain('Open your vault');
+      expect(rendered.html).toContain('Read the API docs');
+    }
+    expect(mail.html).toContain(opening.heading);
+  });
+
+  it('puts the account\'s address nowhere in the body, and escapes the site address it is given', () => {
+    const odd = renderAgenticsOpening('https://x.example"><script>');
+    expect(odd.html).not.toContain('<script>');
+    expect(odd.text).not.toMatch(/@/);
+  });
+
+  it('both pass the wording rules', () => {
+    for (const rendered of [welcome, mail]) {
+      expect(brightLineViolations(rendered.text)).toEqual([]);
+      expect(brightLineViolations(rendered.subject)).toEqual([]);
+    }
   });
 });
 

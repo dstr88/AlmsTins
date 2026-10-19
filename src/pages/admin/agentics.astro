@@ -1,0 +1,134 @@
+---
+// Admin only: the Agentics opening email. Shows how many accounts signed up while the vault was
+// private and have not been told it is open, and sends the one email the privacy policy promises
+// them (src/lib/agenticsSignup.ts, sendOpeningNotices) in batches, after a dry run. The buttons call
+// /api/admin/agentics-opening. A real send is refused until the flag that opens the Vault is on.
+import '@/styles/tokens.css';
+import Analytics from '@/components/Analytics.astro';
+import { requireAdminSession } from '@/lib/adminGuard';
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
+import { countOpeningWaiting, OPENING_BATCH_DEFAULT } from '@/lib/agenticsSignup';
+import { db } from '@/lib/db';
+
+try {
+	await requireAdminSession(Astro.request);
+} catch (resp) {
+	if (resp instanceof Response && resp.status === 401) return Astro.redirect('/login', 303);
+	return Astro.redirect('/dashboard/vault', 303);
+}
+
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+
+const count = async (sql: string): Promise<number> => {
+	try {
+		const r = await db.execute({ sql, args: [] });
+		return Number((r.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+	} catch {
+		return 0;
+	}
+};
+const signups = await count(`SELECT COUNT(*) AS n FROM agentics_signups`);
+const welcomed = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE welcomed_at IS NOT NULL`);
+const told = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE opened_notified_at IS NOT NULL`);
+const waiting = await countOpeningWaiting().catch(() => 0);
+---
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Agentics opening email</title>
+	<meta name="robots" content="noindex, nofollow" />
+	<link rel="icon" href="/favicon.webp" />
+	<style>
+		* { box-sizing: border-box; }
+		body { margin: 0; background: var(--surface-bg); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.55; }
+		main { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: flex; flex-direction: column; gap: 1.1rem; }
+		h1 { margin: 0; font-size: 1.6rem; }
+		p { margin: 0; color: var(--text-secondary); }
+		.card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .7rem; }
+		dl { display: grid; grid-template-columns: 1fr auto; gap: .35rem 1rem; margin: 0; }
+		dt { color: var(--text-secondary); }
+		dd { margin: 0; font-weight: 700; text-align: right; }
+		.row { display: flex; flex-wrap: wrap; gap: .6rem; }
+		button { font: inherit; font-weight: 700; padding: .5rem 1rem; border-radius: 8px; cursor: pointer; border: 1px solid var(--border-bright); background: transparent; color: var(--text-secondary); }
+		button:hover { background: var(--surface-hover); color: var(--text-primary); }
+		button.primary { background: var(--accent); color: var(--surface-bg); border-color: var(--accent); }
+		button[aria-disabled='true'] { opacity: .55; cursor: default; }
+		.notice { color: var(--text-secondary); border: 1px solid var(--border-subtle); border-radius: 10px; padding: .6rem .8rem; background: var(--surface-card-2); }
+		.notice--off { border-color: var(--loss-border); background: var(--loss-bg); color: var(--text-primary); }
+		pre { margin: 0; padding: .7rem .8rem; border-radius: 8px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); color: var(--text-secondary); white-space: pre-wrap; min-height: 2.6rem; }
+		a { color: var(--accent); }
+	</style>
+	<Analytics owner />
+</head>
+<body>
+	<main>
+		<h1>Agentics opening email</h1>
+		<p>The one email that tells everyone who signed up while the vault was private that it is open. It is sent once per account, never before the vault is open, and never to the owner's account.</p>
+
+		<p class={`notice${AGENTICS_VAULT_PUBLIC ? '' : ' notice--off'}`} id="state">
+			{AGENTICS_VAULT_PUBLIC
+				? 'The vault is open to every account. A real send is allowed.'
+				: 'The vault is still private (AGENTICS_VAULT_PUBLIC is false). A dry run works; a real send is refused until the flag is on.'}
+		</p>
+
+		<section class="card" aria-label="Where it stands">
+			<dl>
+				<dt>Signed up through the door</dt><dd id="n-signups">{signups}</dd>
+				<dt>Welcome letter sent</dt><dd id="n-welcomed">{welcomed}</dd>
+				<dt>Told the vault is open</dt><dd id="n-told">{told}</dd>
+				<dt>Still to tell (the owner is not counted)</dt><dd id="n-waiting">{waiting}</dd>
+			</dl>
+		</section>
+
+		<section class="card" aria-label="Send">
+			<p>Start with a dry run: it counts and sends nothing. A real send takes up to {OPENING_BATCH_DEFAULT} accounts at a time, oldest signup first. Press it again until nothing is left to tell.</p>
+			<div class="row">
+				<button type="button" id="dry">Dry run</button>
+				<button type="button" id="send" class="primary" aria-disabled={AGENTICS_VAULT_PUBLIC ? undefined : 'true'}>Send the next {OPENING_BATCH_DEFAULT}</button>
+			</div>
+			<pre id="out" role="status" aria-live="polite">Nothing run yet.</pre>
+		</section>
+	</main>
+
+	<script>
+		const out = document.getElementById('out') as HTMLElement;
+		const waitingEl = document.getElementById('n-waiting') as HTMLElement;
+		const toldEl = document.getElementById('n-told') as HTMLElement;
+		const sendBtn = document.getElementById('send') as HTMLButtonElement;
+		const dryBtn = document.getElementById('dry') as HTMLButtonElement;
+		let busy = false;
+
+		async function run(apply: boolean) {
+			if (busy) return;
+			if (apply && sendBtn.getAttribute('aria-disabled') === 'true') {
+				out.textContent = 'The vault is still private, so nothing is sent.';
+				return;
+			}
+			if (apply && !confirm('Send the opening email to the next accounts that have not been told? It goes out for real.')) return;
+			busy = true;
+			out.textContent = apply ? 'Sending…' : 'Counting…';
+			try {
+				const res = await fetch('/api/admin/agentics-opening', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply }) });
+				const body = await res.json().catch(() => ({}));
+				if (!res.ok || !body.ok) {
+					out.textContent = `Refused (${res.status}): ${body.error ?? 'unknown'}`;
+					return;
+				}
+				waitingEl.textContent = String(body.remaining);
+				if (apply) toldEl.textContent = String(Number(toldEl.textContent ?? 0) + Number(body.sent) + Number(body.noEmail));
+				out.textContent = body.dryRun
+					? `Dry run: ${body.waiting} account(s) would be told. Nothing was sent.`
+					: `Sent ${body.sent}. Failed ${body.failed} (tried again next time). No address ${body.noEmail}. Still to tell: ${body.remaining}.`;
+			} catch {
+				out.textContent = 'The request did not complete. Nothing is lost: press it again.';
+			} finally {
+				busy = false;
+			}
+		}
+		dryBtn.addEventListener('click', () => void run(false));
+		sendBtn.addEventListener('click', () => void run(true));
+	</script>
+</body>
+</html>

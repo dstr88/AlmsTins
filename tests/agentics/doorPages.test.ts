@@ -53,7 +53,10 @@ describe('the landing page /agentics', () => {
   });
 
   it('reads its words from the copy module, not from literals of its own', () => {
-    expect(landing).toContain("import { en as t } from '@/i18n/agentics';");
+    expect(landing).toContain("import { agenticsCopy } from '@/i18n/agentics';");
+    expect(landing).toContain('const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);');
+    expect(login).toContain("import { agenticsCopy } from '@/i18n/agentics';");
+    expect(login).toContain('const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);');
     expect(landing).not.toMatch(/Create a free account|Check the address before/);
   });
 });

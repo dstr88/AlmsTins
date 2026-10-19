@@ -9,13 +9,78 @@
  * blocks anything; nothing is called safe; the free plan is described only as what it will cover
  * when the vault opens; paid plans are "coming later" with no prices, because nobody can buy one
  * yet.
+ *
+ * The copy has two states, chosen by the flag that opens the Vault (AGENTICS_VAULT_PUBLIC, see
+ * src/lib/agenticsFlag.mjs): `en` while the vault is private ("opening soon"), `enOpen` once it is
+ * open. agenticsCopy(flag) picks one. Both are held to the same wording rules in
+ * tests/agentics/doorCopy.test.ts, so flipping the flag cannot put a claim on the page that no test has read.
  */
 
 /** The plan a free account gets once the vault opens. Not enforced anywhere yet: the vault is not open. */
 export const FREE_BOTS = 3;
 export const FREE_ADDRESSES = 15;
 
-export const en = {
+/** A link in a letter: the words beside it in the text version, the words on its button, and the path on this site. */
+export interface LetterLink {
+  readonly text: string;
+  readonly button: string;
+  readonly path: string;
+}
+
+/** A letter as the page shows it and the email sends it. */
+export interface Letter {
+  readonly subject: string;
+  readonly greeting: string;
+  readonly paragraphs: readonly string[];
+  readonly links: readonly LetterLink[];
+  readonly signoff: readonly string[];
+  readonly why: string;
+}
+
+/** Every string the door shows, in either state. */
+export interface AgenticsCopy {
+  readonly lang: string;
+  readonly brand: string;
+  readonly landing: {
+    readonly title: string;
+    readonly description: string;
+    readonly eyebrow: string;
+    readonly h1: string;
+    readonly sub: string;
+    readonly ctaPrimary: string;
+    readonly ctaSecondary: string;
+    readonly finePrint: string;
+    readonly status: { readonly liveLabel: string; readonly liveText: string; readonly soonLabel: string; readonly soonText: string };
+    readonly stepsTitle: string;
+    readonly steps: ReadonlyArray<{ readonly tag: string; readonly live: boolean; readonly title: string; readonly body: string }>;
+    readonly staysTitle: string;
+    readonly stays: readonly string[];
+    readonly plansTitle: string;
+    readonly plans: ReadonlyArray<{ readonly name: string; readonly status: string; readonly body: string }>;
+    readonly footer: string;
+    readonly footerLinks: { readonly docs: string; readonly checker: string; readonly privacy: string };
+  };
+  readonly login: {
+    readonly title: string;
+    readonly pageTitle: string;
+    readonly blurb: string;
+    readonly foot: string;
+    readonly docsLink: string;
+    readonly trust: readonly string[];
+  };
+  readonly welcome: {
+    readonly title: string;
+    readonly h1: string;
+    readonly lead: string;
+    readonly copySent: string;
+    readonly todayTitle: string;
+    readonly today: ReadonlyArray<{ readonly href: string; readonly text: string }>;
+    readonly signOut: string;
+  };
+  readonly letter: Letter;
+}
+
+export const en: AgenticsCopy = {
   lang: 'en',
   brand: 'Almstins Agentics',
 
@@ -122,9 +187,92 @@ export const en = {
       'What happens next. I will write once, when your vault opens. No newsletter.',
       'If you run agents that move money, reply and tell me what they do and which chains they use. I read every reply, and it decides what I build first.',
     ],
+    links: [{ text: 'API docs', button: 'Read the API docs', path: '/agentics/docs' }],
     signoff: ['Donnie', 'Almstins'],
     why: 'You are getting this because you created an Agentics account at almstins.com. It is the only email we will send until your vault opens.',
   },
+};
+
+/**
+ * The door once the vault is open to every account. It differs from `en` only where "opening soon"
+ * stops being true: the steps are live, the sign-up note, the plan line and the letter a new account
+ * gets. Chains are named because the record is read from those and no others. Not shown until the flag
+ * that opens the Vault is flipped.
+ */
+export const enOpen: AgenticsCopy = {
+  ...en,
+  landing: {
+    ...en.landing,
+    finePrint: 'Free to sign up. Your vault opens the moment you do.',
+    status: {
+      liveLabel: 'Live today',
+      liveText: 'the pre-send check (one request, no login), the free address checker, and your vault.',
+      soonLabel: 'Coming later',
+      soonText: 'paid plans, for more bots and addresses. Nothing to buy today.',
+    },
+    steps: [
+      { ...en.landing.steps[0], tag: 'Live', live: true },
+      { ...en.landing.steps[1] },
+      {
+        tag: 'Live',
+        live: true,
+        title: 'You get the record',
+        body: 'Each check becomes a dated entry on your bot’s page. Once a day Agentics reads Ethereum, Polygon and Avalanche for transfers between your bot’s wallet and the addresses you registered, ties each one to the check that came before it, and makes a report you can download as a signed PDF.',
+      },
+    ],
+    plans: [
+      { name: 'Free', status: 'Open now', body: `${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses.` },
+      { name: 'Paid plans', status: 'Coming later', body: 'Nothing to buy today.' },
+    ],
+  },
+  login: {
+    ...en.login,
+    blurb: 'Create your free account and your vault is ready right away.',
+  },
+  letter: {
+    subject: 'Your vault is open: Almstins Agentics',
+    greeting: 'Hi,',
+    paragraphs: [
+      'Thanks for signing up for Almstins Agentics. Agentics checks the address an AI agent is about to send to, and keeps a dated record of what it answered. We verify, warn and flag. We never hold keys, and we are never in the transaction.',
+      `Your vault is open. Add a bot, list the addresses it may pay, and point its key at the pre-send check. Your free plan covers ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. Paid plans come later; there is nothing to buy today.`,
+      'Each check appears on your bot’s page when the agent asks. Transfers appear once a day, or when you press Read the chain, for Ethereum, Polygon and Avalanche.',
+      'If you run agents that move money, reply and tell me what they do and which chains they use. I read every reply, and it decides what I build first.',
+    ],
+    links: [
+      { text: 'Your vault', button: 'Open your vault', path: '/dashboard/agentics' },
+      { text: 'API docs', button: 'Read the API docs', path: '/agentics/docs' },
+    ],
+    signoff: ['Donnie', 'Almstins'],
+    why: 'You are getting this because you created an Agentics account at almstins.com. We send a welcome like this once, and reports only if you turn them on.',
+  },
+};
+
+/**
+ * The one email that goes to everyone who signed up while the vault was private, the day it opens
+ * (the privacy policy's "one email when the vault opens"). Sent once per account by the admin action
+ * (src/pages/api/admin/agentics-opening.ts), and never before the vault is open.
+ */
+export const opening = {
+  subject: 'Your Agentics vault is open',
+  heading: 'Your vault is open.',
+  letter: {
+    subject: 'Your Agentics vault is open',
+    greeting: 'Hi,',
+    paragraphs: [
+      'You signed up for Almstins Agentics before the vault opened, and I said I would write once, when it did. It is open.',
+      `Your free plan covers ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. You add a bot, list the addresses it may pay (each is checked against sanctions lists, scam screening and domain proofs when you add it), and point the bot’s key at the pre-send check. Each check becomes a dated entry on your bot’s page. Once a day, transfers between the bot’s wallet and your registered addresses are read from Ethereum, Polygon and Avalanche and tied to the check that came before them, and you can download a signed PDF report. Paid plans come later; there is nothing to buy today.`,
+      'If you run agents that move money, reply and tell me what they do and which chains they use. I read every reply, and it decides what I build first.',
+    ],
+    links: [
+      { text: 'Your vault', button: 'Open your vault', path: '/dashboard/agentics' },
+      { text: 'API docs', button: 'Read the API docs', path: '/agentics/docs' },
+    ],
+    signoff: ['Donnie', 'Almstins'],
+    why: 'You are getting this because you created an Agentics account at almstins.com before the vault opened. It is the one email we said we would send when it did, and we will not email you about it again.',
+  } satisfies Letter,
 } as const;
 
-export type AgenticsCopy = typeof en;
+/** The door's words for the state the Vault is in: `enOpen` once it is open to every account, else `en`. */
+export function agenticsCopy(open: boolean): AgenticsCopy {
+  return open ? enOpen : en;
+}

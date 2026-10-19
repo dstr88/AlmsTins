@@ -20,11 +20,14 @@
 // Twitter card, canonical), and the page is indexable.
 import '@/styles/tokens.css';
 import Analytics from '@/components/Analytics.astro';
-import { en as t } from '@/i18n/agentics';
+import { agenticsCopy } from '@/i18n/agentics';
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { cleanSource, signupHref } from '@/lib/agenticsSource';
 
 export const prerender = false;
 
+// The words follow the state of the vault: "opening soon" until the flag opens it, then the open copy.
+const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);
 const l = t.landing;
 const signup = signupHref(cleanSource(Astro.url.searchParams.get('src')));
 const canonical = 'https://almstins.com/agentics';
