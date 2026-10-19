@@ -272,6 +272,41 @@ describe('a keyed check is written to the ledger of the tin its key is linked to
   });
 });
 
+describe('countCheckedSince: what the daily limit on recorded checks counts', () => {
+  const put = (tenant: string, tinId: string, id: string, kind: string, when: string) =>
+    fake.seed('agent_events', {
+      id, tenant_id: tenant, tin_id: tinId, kind, address: addr(1), chain: null, answer: 'unknown', registry: 'none', status: 'unknown',
+      key_id: KEY_3, source_ip: null, detail_json: '{}', occurred_at: when,
+    });
+
+  it('counts the agent\'s checks from the time given, to the millisecond, and nothing else', async () => {
+    const tin = await newTin();
+    const other = await newTin(A, 'Another agent', KEY_2);
+    await events.ensureAgentEventsTable();
+    put(A, tin.id, 'c0', 'checked', '2026-10-18T23:59:59.999Z'); // before
+    put(A, tin.id, 'c1', 'checked', '2026-10-19T00:00:00.000Z'); // the first millisecond
+    put(A, tin.id, 'c2', 'checked', '2026-10-19T12:00:00.000Z');
+    put(A, tin.id, 't1', 'transaction', '2026-10-19T12:00:00.000Z'); // a transfer is not a check
+    put(A, other.id, 'c3', 'checked', '2026-10-19T12:00:00.000Z'); // another agent
+    put(B, tin.id, 'c4', 'checked', '2026-10-19T12:00:00.000Z'); // another account that carries the same agent id
+    expect(await events.countCheckedSince(A, tin.id, '2026-10-19T00:00:00.000Z')).toBe(2);
+    expect(await events.countCheckedSince(A, tin.id, '2026-10-19T00:00:00.001Z')).toBe(1);
+    expect(await events.countCheckedSince(A, tin.id, '2026-10-20T00:00:00.000Z')).toBe(0);
+    expect(await events.countCheckedSince(B, tin.id, '2026-10-19T00:00:00.000Z')).toBe(1);
+    expect(await events.countCheckedSince(A, 'no-such-agent', '2026-10-19T00:00:00.000Z')).toBe(0);
+  });
+
+  it('names the account in the statement it sends', async () => {
+    const tin = await newTin();
+    fake.log.length = 0;
+    await events.countCheckedSince(A, tin.id, '2026-10-19T00:00:00.000Z');
+    const sql = fake.log.filter((x) => /COUNT\(\*\)/i.test(x.sql));
+    expect(sql).toHaveLength(1);
+    expect(sql[0].sql).toMatch(/\btenant_id = \?/);
+    expect(sql[0].args).toContain(A);
+  });
+});
+
 describe('every ledger and registry read names the account, even if a row of another account carries the same tin id', () => {
   it('listEvents, hasPriorCheck and the registry lookup ignore a foreign row', async () => {
     const tin = await newTin();

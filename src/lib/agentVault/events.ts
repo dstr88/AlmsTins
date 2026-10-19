@@ -287,6 +287,20 @@ export async function insertCheckedEvent(tenantId: string, input: CheckedEventIn
 }
 
 /**
+ * How many checks the agent has had written to its ledger since `sinceIso` (UTC ISO-8601 with
+ * milliseconds). Only `checked` events count: the transfers the chain watcher writes are not what a
+ * looping key can fill. Used by the daily limit on recorded checks (./entitlements.ts).
+ */
+export async function countCheckedSince(tenantId: string, tinId: string, sinceIso: string): Promise<number> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM agent_events WHERE tenant_id = ? AND tin_id = ? AND kind = 'checked' AND occurred_at >= ?`,
+    args: [tenantId, tinId, sinceIso],
+  });
+  return Number((r.rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+}
+
+/**
  * The id of the event for one movement of funds: the same tenant, tin, chain, transaction hash and
  * leg always give the same id, and nothing else does. A hash of those parts, shaped like a UUID so
  * it fits the ledger's cursor. Hashing the tenant in keeps ids from ever being shared across accounts.

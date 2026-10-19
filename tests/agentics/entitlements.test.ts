@@ -569,6 +569,19 @@ describe('a paste that the plan refuses says what became of every line', () => {
   });
 });
 
+describe('the daily limit on recorded checks', () => {
+  it('is 5,000 for each agent for each UTC day on the Free plan, and none for the owner, whatever the letter case of the id', async () => {
+    expect(entitlements.FREE_LOGGED_CHECKS_PER_DAY).toBe(5_000);
+    expect(await entitlements.getLoggedChecksPerDay(A)).toBe(5_000);
+    expect(await entitlements.getLoggedChecksPerDay('x')).toBe(5_000);
+    for (const id of [OWNER, OWNER.toUpperCase()]) expect(await entitlements.getLoggedChecksPerDay(id), id).toBeNull();
+  });
+
+  it('is not part of the plan limits an account lists and sees: the plan answer is unchanged', async () => {
+    expect((await entitlements.getEntitlements(A)).limits).toEqual({ bots: 3, addresses: 15, walletsPerBot: 5 });
+  });
+});
+
 describe('the budget of checks', () => {
   const budgetOf = async (max: number) => (await import('../../src/lib/agentVault/checkBudget')).createCheckBudget({ max });
 

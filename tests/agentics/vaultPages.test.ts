@@ -265,6 +265,32 @@ describe('one agent', () => {
     expect((await pages.loadAgentPage(A, tin.id))?.signing).toEqual({ available: true });
   });
 
+  it('says whether today\'s limit on recorded checks is used up: today\'s checks of this agent only, and nothing to say for the owner', async () => {
+    const { FREE_LOGGED_CHECKS_PER_DAY: limit } = await import('../../src/lib/agentVault/entitlements');
+    const tin = await newTin(A, 'Busy agent');
+    const now = new Date('2026-10-18T12:00:00.000Z');
+    await events.ensureAgentEventsTable();
+    const fill = (n: number, when: string, tinId = tin.id, kind = 'checked') => {
+      for (let i = 0; i < n; i += 1) {
+        fake.seed('agent_events', {
+          id: `f-${tinId}-${kind}-${when}-${i}`, tenant_id: A, tin_id: tinId, kind, address: addr(900), chain: null, answer: 'unknown',
+          registry: 'none', status: 'unknown', key_id: K1, source_ip: null, detail_json: '{}', occurred_at: when,
+        });
+      }
+    };
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    fill(limit, '2026-10-17T23:59:59.999Z'); // yesterday
+    fill(limit, '2026-10-18T01:00:00.000Z', 'another-agent'); // another agent
+    fill(limit, '2026-10-18T02:00:00.000Z', tin.id, 'transaction'); // transfers
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    fill(limit - 1, '2026-10-18T00:00:00.000Z'); // the first millisecond of today counts
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    fill(1, '2026-10-18T11:59:59.999Z');
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: true });
+    const mine = await newTin(OWNER_TENANT_ID, 'Owner agent');
+    expect((await pages.loadAgentPage(OWNER_TENANT_ID, mine.id, now))?.logLimit).toBeNull();
+  });
+
   it('every statement it sends names the account', async () => {
     const tin = await newTin(A, 'Mine', K1);
     await register(A, tin.id, 1, 'trusted');

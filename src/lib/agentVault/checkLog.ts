@@ -24,6 +24,12 @@
  * address that is not in the registry does not alert; it shows in the report's "not confirmed"
  * group.
  *
+ * On the Free plan an agent has a limit on the checks written to its ledger in one UTC day
+ * (FREE_LOGGED_CHECKS_PER_DAY, ./entitlements.ts). Past it the check still answers, in full, and the
+ * block says `logged: false` with the reason `log_limit`: nothing is written, so a key looped on cannot
+ * fill the ledger, and the operator is still alerted about a flagged registered address. The owner's
+ * account has no limit.
+ *
  * Anonymous calls and keys that are not linked to a tin never reach this code. A failure here
  * never changes the check's own answer: the caller gets `logged: false`, or an answer of nulls
  * when the registry could not even be read, and the failure is logged by name and code only (a
@@ -33,7 +39,8 @@ import { hashWithSalt } from '@/lib/analytics/hash';
 import { db } from '@/lib/db';
 import { normalizeAddress, type VaultChain } from './addresses';
 import type { FlaggedCheckInfo } from './alerts';
-import { hasPriorCheck, insertCheckedEvent, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
+import { getLoggedChecksPerDay } from './entitlements';
+import { countCheckedSince, hasPriorCheck, insertCheckedEvent, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
 import { findLiveTinByKey, listDestinationsByAddress } from './store';
 import type { TrustStatus } from './trustPolicy';
 
@@ -95,6 +102,11 @@ export function eventAddress(raw: string): string {
   return normalizeAddress('ethereum', s) ?? s;
 }
 
+/** The start of the UTC day of `d`, as the ledger stores times: `2026-10-19T00:00:00.000Z`. */
+export function utcDayStart(d: Date): string {
+  return `${d.toISOString().slice(0, 10)}T00:00:00.000Z`;
+}
+
 // A key's account never changes, so the lookup is cached; a miss is held only briefly.
 const TENANT_CACHE = new Map<string, { tenantId: string | null; expiresAt: number }>();
 const HIT_TTL_MS = 10 * 60_000;
@@ -139,6 +151,8 @@ export interface VaultBlock {
   /** The ledger event this check was written as, or null when it could not be written. */
   eventId: string | null;
   logged: boolean;
+  /** Present only when the check was answered and deliberately not written: the agent's daily limit on recorded checks was reached. */
+  reason?: 'log_limit';
 }
 
 const NO_ANSWER: VaultBlock = { cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false };
@@ -207,6 +221,22 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   }
 
   const block = { cleared: derived.cleared, answer: derived.answer, registry, history: derived.history };
+
+  // The daily limit on recorded checks. A failure to count it is not a reason to change the answer or to
+  // refuse to record: it is logged, and the check is written as it would be without a limit.
+  let overLimit = false;
+  try {
+    const perDay = await getLoggedChecksPerDay(tenantId);
+    if (perDay !== null) overLimit = (await countCheckedSince(tenantId, tinId, utcDayStart(input.now))) >= perDay;
+  } catch (err) {
+    logFailure('read', err);
+  }
+  if (overLimit) {
+    // Nothing is written, but a flag on a registered address is still told to the operator (the alert has its own hourly claim).
+    if (derived.answer === 'flagged' && registry !== 'none') notifyFlagged({ tenantId, tinId, address }, deps);
+    return { ...block, eventId: null, logged: false, reason: 'log_limit' };
+  }
+
   let event: LedgerEvent;
   try {
     event = await insertCheckedEvent(tenantId, {

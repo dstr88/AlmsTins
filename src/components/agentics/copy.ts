@@ -182,6 +182,8 @@ export const copy = {
         'Records the checks this agent asks and the funds that reach your registered addresses. A transfer to an address that was never registered is invisible here.',
       pass: 'Pass means the checks we ran came back without a flag. It is not a statement that an address is safe or legitimate.',
     },
+    logLimitReached: (perDay: number) =>
+      `This agent has reached today's limit of ${perDay.toLocaleString('en-US')} recorded checks. Checks later today are still answered. They are not recorded. The count starts over at midnight UTC.`,
     key: {
       title: 'Agent key',
       none: 'No key is linked. Link one so the checks this agent asks are recorded in its ledger.',

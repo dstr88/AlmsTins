@@ -10,9 +10,9 @@
  */
 import { listAgentKeys, type AgentKeyMeta } from '@/lib/agentKeys';
 import { getSigningKey } from '@/lib/recordProof/signing';
-import { getPlanSummary, type PlanSummary } from './entitlements';
+import { getLoggedChecksPerDay, getPlanSummary, type PlanSummary } from './entitlements';
 import { idOf } from './errors';
-import { latestEventTime, sumTransactions, type TinTotals } from './events';
+import { countCheckedSince, latestEventTime, sumTransactions, type TinTotals } from './events';
 import { parseLedgerRows, type LedgerRow } from './ledgerView';
 import { utcDay } from './report';
 import { createdDay } from './reports';
@@ -113,7 +113,11 @@ export interface AgentPageData {
   ledger: { rows: LedgerRow[]; next: string | null };
   totals: TinTotals;
   /** Whether this server can sign an export: with no signing key it cannot, and says so. */
-  signing: { available: boolean };
+  signing: { available: boolean };  /**
+   * The plan's daily limit on recorded checks for this agent and whether today's is used up, or null when the
+   * plan has no limit. When it is reached the agent's checks are still answered and are not recorded.
+   */
+  logLimit: { perDay: number; reached: boolean } | null;
 }
 
 /** One agent for its page, or null when there is none on this account (the page answers 404). */
@@ -132,6 +136,8 @@ export async function loadAgentPage(tenantId: string, idRaw: string, now: Date =
     sumTransactions(tenantId, tin.id),
   ]);
   const today = utcDay(now);
+  const perDay = await getLoggedChecksPerDay(tenantId);
+  const logLimit = perDay === null ? null : { perDay, reached: (await countCheckedSince(tenantId, tin.id, `${today}T00:00:00.000Z`)) >= perDay };
   const linked = tin.agentKeyId ? keys.find((k) => k.id === tin.agentKeyId) : undefined;
   return {
     plan,
@@ -146,5 +152,6 @@ export async function loadAgentPage(tenantId: string, idRaw: string, now: Date =
     ledger: page.ok ? { rows: parseLedgerRows(page.events), next: page.next } : { rows: [], next: null },
     totals,
     signing: { available: getSigningKey() !== null },
+    logLimit,
   };
 }

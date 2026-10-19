@@ -43,6 +43,16 @@ export interface Entitlements {
  */
 export const FREE_LIMITS: PlanLimits = { bots: 3, addresses: 15, walletsPerBot: 5 };
 
+/**
+ * Keyed checks an agent may have written to its ledger in one UTC day on the Free plan. The check
+ * itself always answers; past this number a call is answered and not recorded (`vault.logged` is
+ * false, with the reason `log_limit`), so an account cannot fill its ledger by looping on a key. 5,000
+ * is about 3.5 a minute around the clock for each agent, far more than an agent that pays invoices or
+ * runs a payout asks. It is a default of this build, not a decided number, and it sits beside the plan
+ * limits rather than in them because it is a guard on volume, not something an account lists or buys.
+ */
+export const FREE_LOGGED_CHECKS_PER_DAY = 5_000;
+
 const FREE: Entitlements = { plan: 'free', label: 'Free', limits: FREE_LIMITS };
 const UNLIMITED: Entitlements = { plan: 'unlimited', label: 'Unlimited', limits: { bots: null, addresses: null, walletsPerBot: null } };
 
@@ -59,6 +69,16 @@ export async function getEntitlements(tenantId: string): Promise<Entitlements> {
   // It must never be the tracker's `subscriptions` row: a tracker plan unlocks nothing in the Vault
   // and a Vault plan unlocks nothing in the tracker. Until then every account but the owner's is Free.
   return FREE;
+}
+
+/**
+ * How many keyed checks the plan lets each of the account's agents have recorded per UTC day, or null
+ * for no limit (the deployment owner's account). Async for the same reason as getEntitlements: a paid
+ * plan will answer from its own row.
+ */
+export async function getLoggedChecksPerDay(tenantId: string): Promise<number | null> {
+  const { plan } = await getEntitlements(tenantId);
+  return plan === 'free' ? FREE_LOGGED_CHECKS_PER_DAY : null;
 }
 
 /** The slots left under a limit: `null` when there is no limit, never below zero. */

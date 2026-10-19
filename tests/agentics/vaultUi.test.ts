@@ -101,6 +101,7 @@ const agentData = (over: Partial<AgentPageData> = {}): AgentPageData => ({
   ledger: { rows: [row(), transfer()], next: null },
   totals: totals() as never,
   signing: { available: true },
+  logLimit: { perDay: 5000, reached: false },
   ...over,
 });
 const card = (n: number, over: Partial<AgentCard> = {}): AgentCard => ({
@@ -242,6 +243,14 @@ describe('one agent', () => {
     const order = ['Agent key', 'Registered addresses', 'Own wallets', 'Ledger', 'Export', 'Remove this agent'].map((h) => html.indexOf(`>${h}<`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('says nothing about the daily limit on recorded checks until it is reached, and says what happens then', () => {
+    expect(t).not.toContain('recorded checks');
+    const reached = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: { perDay: 5000, reached: true } }) })));
+    expect(reached).toContain("This agent has reached today's limit of 5,000 recorded checks. Checks later today are still answered. They are not recorded. The count starts over at midnight UTC.");
+    const none = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: null }) })));
+    expect(none).not.toContain('recorded checks');
   });
 
   it('says the limits of what it sees where the ledger is read, and the plan\'s places in the registry', () => {

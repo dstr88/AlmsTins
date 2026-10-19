@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import { addr, expectOk, fakeDeps, type FakeDeps } from '../helpers/agentVault';
 import { hashWithSalt } from '../../src/lib/analytics/hash';
+import { OWNER_TENANT_ID } from '../../src/lib/owner';
 
 /**
  * GET /api/verify/check with and without a key that is linked to an Agent Vault tin. The public
@@ -36,13 +37,15 @@ vi.mock('@/lib/verifyEntities', () => ({
 
 const KEY_LINKED = 'a1'.repeat(12);
 const KEY_UNLINKED = 'b2'.repeat(12);
-const BEARER = { linked: 'avk_linked', unlinked: 'avk_unlinked' };
+const KEY_OWNER = 'c3'.repeat(12);
+const BEARER = { linked: 'avk_linked', unlinked: 'avk_unlinked', owner: 'avk_owner' };
 const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>> }));
 vi.mock('@/lib/agentKeys', () => ({
   listAgentKeys: async (tenantId: string) => keys.byTenant[tenantId] ?? [],
   authenticateAgentKey: async (bearer: string) =>
     bearer === 'avk_linked' ? { id: 'a1'.repeat(12), domain: 'agent.example' }
     : bearer === 'avk_unlinked' ? { id: 'b2'.repeat(12), domain: 'other.example' }
+    : bearer === 'avk_owner' ? { id: 'c3'.repeat(12), domain: 'owner.example' }
     : null,
 }));
 
@@ -211,5 +214,131 @@ describe('what a keyed call on a linked key writes', () => {
     expect(res.status).toBe(200);
     expect(body.status).toBe('unknown');
     expect(body.vault).toEqual({ cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false });
+  });
+});
+
+describe('the daily limit on recorded checks', () => {
+  const NOON = '2026-10-19T12:00:00.000Z';
+  const limitOf = async () => (await import('../../src/lib/agentVault/entitlements')).FREE_LOGGED_CHECKS_PER_DAY;
+
+  /** Runs a test with the clock at noon UTC on the day the filler events are written for. */
+  const atNoon = async (run: () => Promise<void>) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(NOON));
+      await run();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  /** `n` events already on an agent's ledger, written straight into the stand-in table at the time given. */
+  const fillLedger = async (tenantId: string, tinId: string, n: number, at: string, kind: 'checked' | 'transaction' = 'checked') => {
+    await (await import('../../src/lib/agentVault/events')).ensureAgentEventsTable();
+    for (let i = 0; i < n; i += 1) {
+      fake.seed('agent_events', {
+        id: `filler-${tinId}-${kind}-${at}-${i}`, tenant_id: tenantId, tin_id: tinId, kind, address: addr(900), chain: null, answer: 'unknown',
+        registry: 'none', status: 'unknown', key_id: KEY_LINKED, source_ip: null, detail_json: '{}', occurred_at: at,
+      });
+    }
+  };
+
+  it('records checks up to the limit, then answers in full and writes nothing', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit - 1, '2026-10-19T00:00:00.000Z'); // the first millisecond of the day counts
+
+      const last = await call(addr(1), { bearer: BEARER.linked });
+      expect(last.body.vault).toMatchObject({ logged: true, answer: 'proven' });
+      expect(last.body.vault).not.toHaveProperty('reason');
+      const written = events().length;
+      expect(written).toBe(limit);
+
+      const over = await call(addr(1), { bearer: BEARER.linked });
+      const plain = await call(addr(1));
+      expect(over.res.status).toBe(200);
+      expect(publicPart(over.body)).toEqual(publicPart(plain.body));
+      expect(over.body.vault).toMatchObject({ cleared: true, answer: 'proven', registry: 'trusted', eventId: null, logged: false, reason: 'log_limit' });
+      expect(events()).toHaveLength(written);
+    });
+  });
+
+  it('counts one agent\'s checks of one UTC day: not another agent\'s, not yesterday\'s, not transfers', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      const other = expectOk(await vault.createTin(A, { label: 'Another agent' })).tin;
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit, '2026-10-18T23:59:59.999Z'); // yesterday, to the last millisecond
+      await fillLedger(A, other.id, limit, '2026-10-19T01:00:00.000Z'); // another agent of the same account
+      await fillLedger(A, tin.id, limit, '2026-10-19T02:00:00.000Z', 'transaction'); // transfers read from the chain
+      const { body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(body.vault).toMatchObject({ logged: true });
+    });
+  });
+
+  it('is the account\'s own to reach: another account\'s agent is not held by it', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger('tenant-b', tin.id, limit, '2026-10-19T01:00:00.000Z'); // a foreign row that carries the same agent id
+      const { body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(body.vault).toMatchObject({ logged: true });
+    });
+  });
+
+  it('does not apply to the owner\'s account, which has no limits', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      keys.byTenant[OWNER_TENANT_ID] = [{ id: KEY_OWNER, status: 'active' }];
+      fake.seed('verify_agent_keys', { id: KEY_OWNER, tenant_id: OWNER_TENANT_ID, domain: 'owner.example', status: 'active' });
+      const tin = expectOk(await vault.createTin(OWNER_TENANT_ID, { label: 'Treasury agent', agentKeyId: KEY_OWNER })).tin;
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(OWNER_TENANT_ID, tin.id, limit + 5, '2026-10-19T01:00:00.000Z');
+      const { body } = await call(addr(1), { bearer: BEARER.owner });
+      expect(body.vault).toMatchObject({ logged: true });
+      expect(body.vault).not.toHaveProperty('reason');
+    });
+  });
+
+  it('still tells the operator about a flag on a registered address when the limit is reached, and writes nothing', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      const { recordKeyedCheck } = await import('../../src/lib/agentVault/checkLog');
+      const onFlagged = vi.fn();
+      const block = await recordKeyedCheck(
+        { keyId: KEY_LINKED, value: addr(1), status: 'mismatch', level: 'verified', domain: 'other.example', proofAgeDays: 3, sourceIp: '203.0.113.9', now: new Date(NOON) },
+        { onFlagged },
+      );
+      expect(block).toMatchObject({ answer: 'flagged', logged: false, eventId: null, reason: 'log_limit' });
+      await vi.waitFor(() => expect(onFlagged).toHaveBeenCalledTimes(1));
+      expect(onFlagged).toHaveBeenCalledWith({ tenantId: A, tinId: tin.id, address: addr(1) });
+      expect(events()).toHaveLength(limit);
+    });
+  });
+
+  it('a failure to count never changes the answer or stops the record: the check is written as it would be without a limit', async () => {
+    await atNoon(async () => {
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      holder.intercept = (sql) => { if (/^SELECT COUNT\(\*\) AS n FROM agent_events/i.test(sql)) throw new Error('the disk is slow'); };
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const plain = await call(addr(1));
+      const { res, body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(res.status).toBe(200);
+      expect(publicPart(body)).toEqual(publicPart(plain.body));
+      expect(body.vault).toMatchObject({ logged: true, answer: 'proven' });
+      expect(events()).toHaveLength(1);
+    });
   });
 });
