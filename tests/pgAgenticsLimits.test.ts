@@ -16,8 +16,8 @@
 // so a real database is never written to by mistake; with the opt-in and a database that cannot be
 // reached it fails (it never passes by skipping). Tenants are invented and unique to each run, and
 // their rows are deleted at the end.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 const OPT_IN = process.env.RUN_PG_AGENTICS_LIMITS === '1';
 const URL_HOST = (() => {
@@ -281,5 +281,229 @@ d('the Agent Vault plan limits, under concurrency, on a real Postgres', () => {
     const adds = Array.from({ length: 10 }, (_, i) => vault.addDestinations(t, { tinId: tin.id, text: addr(500 + i), trust: false }));
     await Promise.all([removing, ...adds]);
     expect(await count('agent_destinations', t)).toBeLessThanOrEqual(15);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// 7b: the opening email's claim, the signups table's schema check, and the daily limit's marker,
+// on a real Postgres. The in-memory stand-in the unit tests use is a hand-written parser of SQL;
+// these run the real statements (a LIKE on the detail, ON CONFLICT, an UPDATE that claims a row,
+// an ALTER that waits for a lock) so a difference between the stand-in and Postgres fails here.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+d('the opening email, on a real Postgres', () => {
+  const run = randomUUID().slice(0, 8);
+  const prefix = `pg-open-${run}-`;
+  const tenants = Array.from({ length: 40 }, (_, i) => `${prefix}${String(i).padStart(2, '0')}`);
+  let signup: typeof import('../src/lib/agenticsSignup');
+  let db: typeof import('../src/lib/db').db;
+  const NOW = new Date('2026-10-19T12:00:00.000Z');
+
+  beforeAll(async () => {
+    ({ db } = await import('../src/lib/db'));
+    signup = await import('../src/lib/agenticsSignup');
+    await signup.ensureAgenticsSignupsTable();
+    // This test sends to everyone waiting. It will not run beside rows that are not its own.
+    const others = Number((await db.execute({ sql: `SELECT COUNT(*) AS n FROM agentics_signups WHERE tenant_id NOT LIKE ?`, args: [`${prefix}%`] })).rows[0].n);
+    if (others > 0) throw new Error('agentics_signups holds rows that are not this test\'s: run it against an empty throwaway database.');
+    for (const [i, t] of tenants.entries()) {
+      await db.execute({
+        sql: `INSERT INTO agentics_signups (tenant_id, source, created_at, welcomed_at) VALUES (?, 'direct', ?, ?)`,
+        args: [t, `2026-10-01 00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`, '2026-10-01 00:00:00'],
+      });
+    }
+  });
+
+  afterAll(async () => {
+    await db.execute({ sql: `DELETE FROM agentics_signups WHERE tenant_id LIKE ?`, args: [`${prefix}%`] });
+  });
+
+  const deps = (sent: string[], over: Record<string, unknown> = {}) => ({
+    send: async (mail: { to: string }) => { sent.push(mail.to); },
+    now: () => NOW,
+    appUrl: 'https://almstins.com',
+    replyTo: 'support@almstins.com',
+    emailOf: async (t: string) => `${t}@example.test`,
+    ...over,
+  });
+
+  it('twenty requests at once for one account\'s claim give it to exactly one', async () => {
+    const t = tenants[0];
+    const claims = await Promise.all(Array.from({ length: 20 }, () => signup.claimOpening(t, NOW)));
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    await signup.releaseOpening(t, NOW);
+  });
+
+  it('a claim is taken over once it is stale, by the real timestamps, and a release only gives back the claim its caller took', async () => {
+    const t = tenants[1];
+    const stale = new Date(NOW.getTime() + signup.CLAIM_STALE_MS + 1000);
+    expect(await signup.claimOpening(t, NOW)).toBe(true);
+    expect(await signup.claimOpening(t, new Date(NOW.getTime() + 1000))).toBe(false);
+    expect(await signup.claimOpening(t, stale)).toBe(true); // the first went stale
+    await signup.releaseOpening(t, NOW); // the slow first caller fails late: it must not undo the takeover
+    const held = (await db.execute({ sql: `SELECT open_claimed_at FROM agentics_signups WHERE tenant_id = ?`, args: [t] })).rows[0] as unknown as { open_claimed_at: string | null };
+    expect(held.open_claimed_at).toBe('2026-10-19 12:15:01');
+    await signup.releaseOpening(t, stale);
+  });
+
+  it('four overlapping calls over forty accounts send each account exactly once', async () => {
+    const sent: string[] = [];
+    const reports = await Promise.all(Array.from({ length: 4 }, () => signup.sendOpeningNotices({ apply: true, limit: 200 }, deps(sent))));
+    expect(reports.reduce((n, r) => n + r.sent, 0)).toBe(40);
+    expect(sent.sort()).toEqual(tenants.map((t) => `${t}@example.test`).sort());
+    const told = Number((await db.execute({ sql: `SELECT COUNT(*) AS n FROM agentics_signups WHERE tenant_id LIKE ? AND opened_notified_at IS NOT NULL`, args: [`${prefix}%`] })).rows[0].n);
+    expect(told).toBe(40);
+    expect((await signup.sendOpeningNotices({ apply: true }, deps([]))).sent).toBe(0);
+  });
+
+  it('a mail that went out but could not be marked leaves the account claimed, so the next call does not send it again at once', async () => {
+    const t = `${prefix}late`;
+    await db.execute({ sql: `INSERT INTO agentics_signups (tenant_id, source, created_at, welcomed_at) VALUES (?, 'direct', '2026-10-02 00:00:00', '2026-10-02 00:00:00')`, args: [t] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sent: string[] = [];
+    // Fail the mark: a trigger that refuses the update which sets opened_notified_at.
+    await db.execute({ sql: `CREATE OR REPLACE FUNCTION pg_open_refuse_${run}() RETURNS trigger AS $$ BEGIN IF NEW.opened_notified_at IS NOT NULL AND NEW.tenant_id = '${t}' THEN RAISE EXCEPTION 'refused on purpose'; END IF; RETURN NEW; END $$ LANGUAGE plpgsql`, args: [] });
+    await db.execute({ sql: `CREATE TRIGGER pg_open_refuse_${run} BEFORE UPDATE ON agentics_signups FOR EACH ROW EXECUTE FUNCTION pg_open_refuse_${run}()`, args: [] });
+    try {
+      const r = await signup.sendOpeningNotices({ apply: true }, deps(sent));
+      expect(r.sent).toBe(1);
+      expect(sent).toEqual([`${t}@example.test`]);
+    } finally {
+      await db.execute({ sql: `DROP TRIGGER IF EXISTS pg_open_refuse_${run} ON agentics_signups`, args: [] });
+      await db.execute({ sql: `DROP FUNCTION IF EXISTS pg_open_refuse_${run}()`, args: [] });
+    }
+    const row = (await db.execute({ sql: `SELECT open_claimed_at, opened_notified_at FROM agentics_signups WHERE tenant_id = ?`, args: [t] })).rows[0] as unknown as { open_claimed_at: string | null; opened_notified_at: string | null };
+    expect(row.opened_notified_at).toBeNull();
+    expect(row.open_claimed_at).not.toBeNull(); // the claim was NOT released
+    expect((await signup.sendOpeningNotices({ apply: true }, deps(sent))).sent).toBe(0);
+    expect(sent).toHaveLength(1);
+  });
+});
+
+d('the signups table\'s schema check, on a real Postgres', () => {
+  it('does not wait for a row lock when the columns are already there: a fresh process is ready at once while an account is being deleted', async () => {
+    const { db } = await import('../src/lib/db');
+    const first = await import('../src/lib/agenticsSignup');
+    await first.ensureAgenticsSignupsTable();
+    const t = `pg-ensure-${randomUUID().slice(0, 8)}`;
+    await db.execute({ sql: `INSERT INTO agentics_signups (tenant_id, source) VALUES (?, 'direct')`, args: [t] });
+    // A second connection holds a row lock, the way the account-delete batch does.
+    const { Client } = await import('pg');
+    const holder = new Client({ connectionString: process.env.DATABASE_URL });
+    await holder.connect();
+    try {
+      await holder.query('BEGIN');
+      await holder.query(`UPDATE agentics_signups SET source = 'direct' WHERE tenant_id = $1`, [t]);
+      vi.resetModules();
+      const fresh = await import('../src/lib/agenticsSignup'); // a new process: nothing remembered
+      const started = Date.now();
+      await Promise.race([
+        fresh.ensureAgenticsSignupsTable(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('the schema check waited for the row lock')), 3000)),
+      ]);
+      expect(Date.now() - started).toBeLessThan(1500);
+      // And a plain read is not queued behind an ALTER either.
+      const read = Date.now();
+      await db.execute({ sql: `SELECT COUNT(*) AS n FROM agentics_signups WHERE tenant_id = ?`, args: [t] });
+      expect(Date.now() - read).toBeLessThan(1500);
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      await holder.end();
+      await db.execute({ sql: `DELETE FROM agentics_signups WHERE tenant_id = ?`, args: [t] });
+    }
+  });
+
+  it('has both opening columns, and creates nothing twice', async () => {
+    const { db } = await import('../src/lib/db');
+    const signup = await import('../src/lib/agenticsSignup');
+    await signup.ensureAgenticsSignupsTable();
+    const cols = (await db.execute({ sql: `SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'agentics_signups'`, args: [] })).rows.map((r) => String((r as unknown as { column_name: unknown }).column_name));
+    expect(cols).toEqual(expect.arrayContaining(['tenant_id', 'source', 'created_at', 'claimed_at', 'welcomed_at', 'open_claimed_at', 'opened_notified_at']));
+  });
+});
+
+d('the daily limit of recorded checks, on a real Postgres', () => {
+  const run = randomUUID().slice(0, 8);
+  const tenant = `pg-cap-${run}`;
+  const keyId = randomBytes(12).toString('hex'); // a key id is 24 hex characters
+  let db: typeof import('../src/lib/db').db;
+  let vault: typeof import('../src/lib/agentVault/vault');
+  let checkLog: typeof import('../src/lib/agentVault/checkLog');
+  let entitlements: typeof import('../src/lib/agentVault/entitlements');
+  let tinId = '';
+  const DAY = '2026-10-19';
+  const at = (iso: string) => new Date(iso);
+  const ask = (iso: string, over: Record<string, unknown> = {}) =>
+    checkLog.recordKeyedCheck({ keyId, value: addr(1), status: 'proven', level: 'verified', domain: 'acme.example', proofAgeDays: 3, sourceIp: '203.0.113.9', now: at(iso), ...over } as never, { onFlagged: () => undefined });
+  const rows = async () => (await db.execute({ sql: `SELECT id, detail_json, occurred_at FROM agent_events WHERE tenant_id = ? AND tin_id = ? ORDER BY occurred_at, id`, args: [tenant, tinId] })).rows as unknown as Array<{ id: string; detail_json: string; occurred_at: string }>;
+  const markers = async () => (await rows()).filter((r) => /"limit":\{"reached":true/.test(r.detail_json));
+
+  beforeAll(async () => {
+    ({ db } = await import('../src/lib/db'));
+    vault = await import('../src/lib/agentVault/vault');
+    checkLog = await import('../src/lib/agentVault/checkLog');
+    entitlements = await import('../src/lib/agentVault/entitlements');
+    const keys = await import('../src/lib/agentKeys');
+    await keys.listAgentKeys(tenant); // makes the keys table
+    await (await import('../src/lib/agentVault/events')).ensureAgentEventsTable();
+    await db.execute({
+      sql: `INSERT INTO verify_agent_keys (id, tenant_id, domain, challenge_token, key_hash, status, proven_at) VALUES (?, ?, 'pg-cap.example', 'x', ?, 'active', '2026-10-01 00:00:00')`,
+      args: [keyId, tenant, `hash-${run}`],
+    });
+    const made = await vault.createTin(tenant, { label: 'Cap agent', agentKeyId: keyId });
+    if (!made.ok) throw new Error(`setup: ${JSON.stringify(made)}`);
+    tinId = made.tin.id;
+    await vault.addDestinations(tenant, { tinId, text: addr(1), trust: false });
+    await db.execute({ sql: `UPDATE agent_destinations SET trust_status = 'trusted' WHERE tenant_id = ? AND tin_id = ?`, args: [tenant, tinId] });
+  });
+
+  afterAll(async () => {
+    for (const table of ['agent_events', 'agent_destinations', 'agent_wallets', 'agent_tins']) await db.execute({ sql: `DELETE FROM ${table} WHERE tenant_id = ?`, args: [tenant] });
+    await db.execute({ sql: `DELETE FROM verify_agent_keys WHERE id = ?`, args: [keyId] });
+  });
+
+  const fill = async (n: number, when: string) => {
+    await db.execute({
+      sql: `INSERT INTO agent_events (id, tenant_id, tin_id, kind, address, answer, registry, status, key_id, detail_json, occurred_at)
+            SELECT 'fill-${run}-' || g || '-' || ?::text, ?, ?, 'checked', ?, 'unknown', 'none', 'unknown', ?, '{}', ? FROM generate_series(1, ?::int) AS g`,
+      args: [when, tenant, tinId, addr(900), keyId, when, n],
+    });
+  };
+
+  it('the check that finds the day full is recorded with a marker, found again by the LIKE, and the rest of the day writes nothing', async () => {
+    const limit = entitlements.FREE_LOGGED_CHECKS_PER_DAY;
+    await fill(limit, `${DAY}T00:00:00.000Z`);
+    const found = await ask(`${DAY}T00:30:00.000Z`);
+    expect(found).toMatchObject({ logged: true, answer: 'proven' });
+    expect((await markers())).toHaveLength(1);
+    expect(await entitlements.getLoggedChecksPerDay(tenant)).toBe(limit);
+    // A process that forgot the marker finds it in the ledger.
+    checkLog._clearKeyTenantCache();
+    expect(await ask(`${DAY}T23:59:59.999Z`)).toMatchObject({ logged: false, reason: 'log_limit' });
+    expect((await markers())).toHaveLength(1);
+    expect((await rows()).length).toBe(limit + 1);
+  });
+
+  it('a check that comes back flagged is still recorded past the limit', async () => {
+    const flagged = await ask(`${DAY}T12:00:00.000Z`, { status: 'mismatch', domain: 'other.example' });
+    expect(flagged).toMatchObject({ answer: 'flagged', logged: true });
+    expect((await markers())).toHaveLength(1);
+  });
+
+  it('thirty checks at once on a day that is not marked yet write ONE marker', async () => {
+    const limit = entitlements.FREE_LOGGED_CHECKS_PER_DAY;
+    const next = '2026-10-20';
+    await fill(limit, `${next}T00:00:00.000Z`);
+    checkLog._clearKeyTenantCache();
+    const answers = await Promise.all(Array.from({ length: 30 }, () => ask(`${next}T08:00:00.000Z`)));
+    expect(answers.filter((a) => a?.logged === true)).toHaveLength(1);
+    expect(answers.filter((a) => a?.reason === 'log_limit')).toHaveLength(29);
+    expect((await markers()).filter((m) => m.occurred_at.startsWith(next))).toHaveLength(1);
+  });
+
+  it('the UTC day is the UTC day: the first millisecond of tomorrow starts a clean count', async () => {
+    const answer = await ask('2026-10-21T00:00:00.000Z');
+    expect(answer).toMatchObject({ logged: true });
+    expect(answer).not.toHaveProperty('reason');
+    expect((await markers()).filter((m) => m.occurred_at.startsWith('2026-10-21'))).toHaveLength(0);
   });
 });

@@ -310,6 +310,15 @@ describe('one report', () => {
     expect(textOf(quiet)).not.toContain('Partial day');
   });
 
+  it('says a day that reached the daily limit of recorded checks was cut, and when; a day that was not says nothing', () => {
+    const marked = { ...check(addr(5), 'domain_proof', 'proven', at(11, 7)), detail: { basis: 'domain_proof', limit: { reached: true, perDay: 5000 } } };
+    const cut = content({ events: [check(addr(1), 'domain_proof', 'proven', at(8)), marked] });
+    const html = render(React.createElement(ReportView, { report: detail(cut), signing: { available: true } }));
+    expect(textOf(html)).toContain('Daily limit reached. This agent reached its daily limit of recorded checks at 2026-10-17 11:07:00 UTC. Checks after that were answered and not recorded, except checks that came back flagged, so the counts below cover the recorded checks.');
+    expect(html).toContain('ag-notice ag-notice--warn');
+    expect(textOf(render(React.createElement(ReportView, { report: detail(content()), signing: { available: true } })))).not.toContain('Daily limit reached');
+  });
+
   it('an all-clear is about what was recorded: it names the registered destinations and says a transfer to an unregistered address is not seen', () => {
     const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
     expect(quiet).toContain('A transfer to an address that was never registered is not recorded here.');

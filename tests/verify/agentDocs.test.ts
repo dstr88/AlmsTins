@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 /**
@@ -261,8 +262,20 @@ describe('/agentics/docs: your vault', () => {
 
   it('is on the page, in the contents, and says the field exists only for a call on a key linked to an agent', () => {
     expect(docs).toContain("['vault', 'Your vault']");
-    expect(vault()).toContain('every call that carries that key is also written to the agent');
+    expect(vault()).toContain('every address check made with that key is also written to the agent');
     expect(vault()).toContain('the answer gains one more field, <code>vault</code>');
+  });
+
+  it('says the vault is opening soon while it is private, and is open to sign in once it is: the text follows the flag', () => {
+    expect(docs).toContain("import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';");
+    const soon = vault().slice(vault().indexOf(') : ('));
+    expect(vault()).toContain('{AGENTICS_VAULT_PUBLIC ? (');
+    expect(soon).toContain('The vault opens to free accounts soon');
+    expect(soon).toContain('Until the vault is open a call is answered exactly as described above, with no <code>vault</code> field.');
+    // The open text sends a reader to sign in; the private text must not.
+    const open = vault().slice(vault().indexOf('{AGENTICS_VAULT_PUBLIC ? ('), vault().indexOf(') : ('));
+    expect(open).toContain('Sign in free at');
+    expect(soon).not.toContain('Sign in free at');
   });
 
   it('explains every key of the block the code builds, and the sample shows all of them but reason', () => {
@@ -303,12 +316,45 @@ describe('/agentics/docs: your vault', () => {
     expect(docs).toContain('not a statement that it is safe');
     expect(docs).toContain('It is never a statement that an address is safe or legitimate.');
     expect(vault()).toContain('the caller\'s network address kept only as a salted one-way hash');
-    expect(vault()).toContain('Calls with no key, and keys not linked to an agent, are never recorded.');
-    expect(vault()).toContain('Rows are never edited or removed.');
+    expect(vault()).toContain('Calls with no key, keys not linked to an agent, and payment links or QR values');
+    expect(vault()).toContain('are never recorded.');
+    expect(vault()).toContain('Rows are never edited or removed while your account exists; deleting the account deletes them.');
+  });
+
+  it('says exactly what is recorded for a check: the status, level, domain, proof age and the reason, as well as the address, time, answer, registry and key', () => {
+    const recorded = vault().slice(vault().indexOf('<b>What is recorded.</b>'), vault().indexOf('<b>What the vault does not see.</b>'));
+    for (const word of ['the address as you asked', 'the time', 'the answer and why it was answered so', "the registry's word", 'the status, level, domain and proof age the public check returned', 'which key asked']) {
+      expect(recorded, word).toContain(word);
+    }
+    // What checkLog.ts actually stores in a check's detail.
+    for (const key of ['basis:', 'cleared:', 'history:', 'level:', 'domain:', 'proofAgeDays:']) expect(checkLog, key).toContain(key);
+  });
+
+  it('a payment link or QR value on a linked key carries no vault field and is not recorded, as check.ts does it', () => {
+    expect(check).toContain('if (keyId && !isQrValue) {');
+    expect(vault()).toContain('payment links or QR values (which carry no <code>vault</code> field)');
+  });
+
+  it('describes the answer exactly as deriveAnswer decides it: a public mismatch is flagged even when the address is not on the list', () => {
+    expect(checkLog).toContain("if (status === 'mismatch') return { answer: 'flagged', basis: 'domain_mismatch'");
+    const registryCheck = checkLog.indexOf("if (registry === 'none') return { answer: 'unknown'");
+    expect(checkLog.indexOf("if (status === 'mismatch') return { answer: 'flagged'")).toBeLessThan(registryCheck); // the mismatch is decided before the registry's absence
+    expect(field('answer')).toContain('or a different domain than the one you expected vouches for it, whether or not the address is on your list');
+    expect(field('answer')).toContain('unknown: everything else, including an address that is not on the list');
+    expect(field('answer')).toContain('only checks that were recorded count as asked before');
+  });
+
+  it('describes the daily limit as the code applies it: a mark on the check that finds the day full, and a room for flagged checks', () => {
+    expect(field('reason')).toContain('keeps recording the ones that come back flagged, up to 500 more');
+    expect(field('reason')).toContain('The check that finds the day full is recorded with a mark');
+    expect(entitlements).toContain('export const FLAGGED_LOGGED_PAST_LIMIT = 500;');
+    expect(vault()).toContain('plus room for up to 500 more that come back flagged');
+    expect(vault()).toContain('the check that found the day full carries a mark');
   });
 
   it('says plainly what the vault does not see, and what it reads and how often', () => {
-    expect(vault()).toContain('A transfer to an address you did not register is not seen');
+    expect(vault()).toContain('A transfer to an address you did not register is not seen, and a check the agent never asks leaves no record.');
+    expect(vault()).not.toContain('the protection is the check before the agent sends');
     expect(vault()).toContain('Once a day');
     expect(vault()).toContain('Ethereum, Polygon and Avalanche');
     expect(vault()).toContain('A payment routed through a swap or a router contract is a transfer to that contract and is not seen.');
@@ -328,8 +374,8 @@ describe('/agentics/docs: the copy-paste kit', () => {
   const block = (title: string): string => {
     const m = docs.match(new RegExp(`<h3>${title}</h3>\\s*<pre>\\{\`([\\s\\S]*?)\`\\}</pre>`));
     expect(m, `${title} block not found`).not.toBeNull();
-    // A template literal turns \\ into \ : this is the text a reader copies.
-    return m![1].replace(/\\\\/g, '\\');
+    // A template literal turns \\ into \ (and \$ into $): this is the text a reader copies.
+    return m![1].replace(/\\(\\|\$|`)/g, '$1');
   };
 
   it('is on the page and in the contents, and says what a hold is and where the key lives', () => {
@@ -428,6 +474,53 @@ describe('/agentics/docs: the copy-paste kit', () => {
     it('holds on an answer it cannot read', async () => {
       expect((await run([{ unreadable: true }], ['0xabc', 'acme.com'])).result).toBe(false);
     });
+
+    it.each([['null', null], ['a number', 7], ['a string', 'proven'], ['a list', ['proven']], ['true', true]])('holds, and does not throw, when the answer is %s', async (_name, body) => {
+      expect((await run([{ body }], ['0xabc', 'acme.com'])).result).toBe(false);
+    });
+
+    it.each([
+      ['https://acme.com/pay'],
+      ['http://acme.com'],
+      ['https://www.acme.com/a/b?c=d'],
+      ['www.acme.com'],
+      ['WWW.Acme.com.'],
+      ['acme.com:443'],
+      ['  Acme.COM  '],
+      ['https://ACME.com:8443/x'],
+    ])('takes the payee\'s domain in any form the API accepts (%s): asks with the bare domain, and proceeds on the same answer', async (form) => {
+      const r = await run([{ body: proven }], ['0xabc', form]);
+      expect(r.calls[0].url).toBe('https://almstins.com/api/verify/check?value=0xabc&expect=acme.com');
+      expect(r.result, form).toBe(true);
+    });
+
+    it.each([['https://'], ['http:///'], ['https://:443'], ['.'], ['/']])('holds, and asks nothing, for a domain that leaves nothing (%s)', async (form) => {
+      const r = await run([{ body: proven }], ['0xabc', form]);
+      expect(r.result).toBe(false);
+      expect(r.calls).toHaveLength(0);
+    });
+
+    it('keeps one request to ten seconds: every fetch carries an abort signal, and one that times out is tried again, then held', async () => {
+      const calls: Array<{ signal?: unknown }> = [];
+      const abort = (): Error => Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+      const mayProceed = new Function('fetch', 'setTimeout', `${block('JavaScript')}\nreturn mayProceed;`)(
+        async (_url: string, init: { signal?: unknown }) => { calls.push(init); throw abort(); },
+        (fn: () => void) => { fn(); return 0; },
+      ) as (...a: unknown[]) => Promise<boolean>;
+      expect(await mayProceed('0xabc', 'acme.com')).toBe(false);
+      expect(calls).toHaveLength(3);
+      for (const c of calls) expect(c.signal).toBeInstanceOf(AbortSignal);
+      expect(block('JavaScript')).toContain('AbortSignal.timeout(10000)');
+    });
+
+    it('waits what the answer asks for but never more than 30 seconds, and falls back to the backoff for a date or nothing readable', async () => {
+      const waits = async (retryAfter: string | undefined) => (await run([{ status: 503, retryAfter }, { body: proven }], ['0xabc', 'acme.com'])).waits;
+      expect(await waits('5')).toEqual([5000]);
+      expect(await waits('86400')).toEqual([30000]);
+      expect(await waits('Wed, 21 Oct 2099 07:28:00 GMT')).toEqual([1000]);
+      expect(await waits('soon')).toEqual([1000]);
+      expect(await waits(undefined)).toEqual([1000]);
+    });
   });
 
   describe('the Python', () => {
@@ -444,30 +537,36 @@ describe('/agentics/docs: the copy-paste kit', () => {
       expect(py).toContain('body.get("status") == "proven" and body.get("level") == "verified"');
       expect(py).toContain('(got == want or got.endswith("." + want))');
       expect(py.trim().endsWith('return False                              # still no answer: hold')).toBe(true);
+      // Standard library only, and the version it needs is stated.
+      expect(py).toContain('# Standard library only, Python 3.8 or newer.');
+      expect(py).toContain('except (urllib.error.URLError, OSError, http.client.HTTPException):');
+      expect(py).toContain('timeout=10');
     });
 
     it.skipIf(!hasPython)('is valid Python and holds or proceeds exactly as the JavaScript does, against a stand-in for the network', () => {
       const harness = `
 ${code()}
 
-import io, json as _json, urllib.error as _err, urllib.request as _req
+import io, json as _json, socket as _socket, http.client as _http, urllib.error as _err, urllib.request as _req
 
 class _Res(io.BytesIO):
     def __enter__(self): return self
     def __exit__(self, *a): return False
 
-def _run(replies, *args):
-    seen, waits = [], []
+def _run(replies, *args, **kw):
+    seen, waits, headers = [], [], []
     def fake_urlopen(request, timeout=None):
         seen.append(request.full_url)
+        headers.append(request.get_header("Authorization"))
         r = replies.pop(0)
         if isinstance(r, Exception): raise r
         if isinstance(r, tuple):
             raise _err.HTTPError(request.full_url, r[0], "x", {"Retry-After": r[1]} if len(r) > 1 and r[1] else {}, None)
+        if isinstance(r, bytes): return _Res(r)
         return _Res(_json.dumps(r).encode())
     _req.urlopen = fake_urlopen
     globals()["time"].sleep = lambda s: waits.append(s)
-    return may_proceed(*args), seen, waits
+    return may_proceed(*args, **kw), seen, waits, headers
 
 proven = {"status": "proven", "level": "verified", "domain": "acme.com"}
 out = []
@@ -487,12 +586,40 @@ r = _run([_err.URLError("down"), proven], "0xabc", "acme.com")
 out.append(r[0] is True and r[2] == [1])
 r = _run([proven], "0xabc&x=1", "acme.com")
 out.append(r[1][0].endswith("value=0xabc%26x%3D1&expect=acme.com"))
+# 11-21: the payee's domain in every form the API accepts is asked as the bare domain, and the answer is accepted
+for i, form in enumerate(["https://acme.com/pay", "http://acme.com", "https://www.acme.com/a/b?c=d", "www.acme.com", "WWW.Acme.com.", "acme.com:443", "  Acme.COM  ", "https://ACME.com:8443/x"]):
+    r = _run([proven], "0xabc", form)
+    out.append(r[0] is True and r[1][0].endswith("&expect=acme.com"))
+# a domain that leaves nothing holds without asking
+for form in ["https://", "http:///", "https://:443", ".", "/", None]:
+    r = _run([proven], "0xabc", form)
+    out.append(r[0] is False and r[1] == [])
+# a dropped connection, a timeout, a truncated body and a reset are tried again, and then held
+for err in [_http.RemoteDisconnected("gone"), _socket.timeout("slow"), _http.IncompleteRead(b"x"), ConnectionResetError("reset"), TimeoutError("slow")]:
+    r = _run([err, err, err], "0xabc", "acme.com")
+    out.append(r[0] is False and len(r[1]) == 3 and r[2] == [1, 2, 4])
+    r = _run([err, proven], "0xabc", "acme.com")
+    out.append(r[0] is True)
+# Retry-After: seconds are honored up to 30, a date or nonsense uses the backoff
+r = _run([(503, "86400"), proven], "0xabc", "acme.com"); out.append(r[2] == [30])
+r = _run([(503, "Wed, 21 Oct 2099 07:28:00 GMT"), proven], "0xabc", "acme.com"); out.append(r[0] is True and r[2] == [1])
+r = _run([(429, "-5"), proven], "0xabc", "acme.com"); out.append(r[2] == [0])
+# an answer that is not an object, or cannot be read, holds at once
+for body in [b"null", b"[]", b"7", b'"proven"', b"{not json", b""]:
+    r = _run([body, proven], "0xabc", "acme.com")
+    out.append(r[0] is False and len(r[1]) == 1)
+# the key is sent only when there is one: never the word None
+r = _run([proven], "0xabc", "acme.com"); out.append(r[3] == [None])
+r = _run([proven], "0xabc", "acme.com", key="avk_secret"); out.append(r[3] == ["Bearer avk_secret"])
+r = _run([proven], "0xabc", "acme.com", key=None); out.append(r[3] == [None])
 print(_json.dumps(out))
 `;
       // The empty-domain case must not call the network at all: it is checked first.
       const res = spawnSync('python3', ['-I', '-c', harness], { encoding: 'utf8' });
       expect(res.stderr, res.stderr).toBe('');
-      expect(JSON.parse(res.stdout.trim())).toEqual(Array(11).fill(true));
+      const verdicts = JSON.parse(res.stdout.trim()) as boolean[];
+      expect(verdicts.length).toBeGreaterThanOrEqual(47);
+      expect(verdicts.map((v, i) => (v ? null : i)).filter((i) => i !== null), 'cases that failed').toEqual([]);
     });
   });
 
@@ -506,12 +633,71 @@ print(_json.dumps(out))
       return m![1];
     };
 
-    it('is valid shell, holds when there is no domain, passes the key and encodes both parameters', () => {
+    it('is valid shell, holds when there is no domain, passes the key only when there is one and encodes both parameters', () => {
       expect(spawnSync('bash', ['-n', '-c', code()], { encoding: 'utf8' }).status).toBe(0);
-      expect(code()).toContain('[ -n "$PAYEE_DOMAIN" ] || { echo "hold: no expect"; exit 1; }');
-      expect(code()).toContain('--data-urlencode "value=$VALUE" --data-urlencode "expect=$PAYEE_DOMAIN"');
-      expect(code()).toContain('-H "Authorization: Bearer $ALMSTINS_KEY"');
+      expect(code()).toContain('[ -n "$WANT" ] || { echo "hold: no expect"; exit 1; }');
+      expect(code()).toContain('--data-urlencode "value=$VALUE" --data-urlencode "expect=$WANT"');
+      expect(code()).toContain('[ -n "$ALMSTINS_KEY" ] && set -- "$@" -H "Authorization: Bearer $ALMSTINS_KEY"');
       expect(code()).toContain('echo "hold for a person"; exit 1;');
+      // Bounded: ten seconds a request, three retries, thirty seconds of waiting in all (a Retry-After date can ask for days).
+      expect(code()).toContain('--max-time 10 --retry 3 --retry-all-errors --retry-max-time 30');
+      expect(code()).toContain('Needs curl 7.71 or newer, and jq.');
+    });
+
+    describe('run for real, with a stand-in for curl', () => {
+      const hasBash = spawnSync('bash', ['--version']).status === 0;
+      /** Runs the snippet in bash with a curl that records what it was given and answers with `reply`. */
+      function runSnippet(opts: { domain: string; key?: string; reply?: unknown; value?: string }) {
+        const dir = mkdtempSync(path.join(tmpdir(), 'kit-'));
+        try {
+          const argsFile = path.join(dir, 'args');
+          writeFileSync(path.join(dir, 'curl'), '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$CURL_ARGS_FILE"\nprintf \'%s\' "$CURL_REPLY"\n', { mode: 0o755 });
+          const script = code().replace('PAYEE_DOMAIN="acme.com"', `PAYEE_DOMAIN=${JSON.stringify(opts.domain)}`).replace('VALUE="0x..."', `VALUE=${JSON.stringify(opts.value ?? '0xabc')}`);
+          const env: Record<string, string> = { PATH: `${dir}:${process.env.PATH ?? ''}`, CURL_ARGS_FILE: argsFile, CURL_REPLY: JSON.stringify(opts.reply ?? { status: 'proven', level: 'verified', domain: 'acme.com' }) };
+          if (opts.key !== undefined) env.ALMSTINS_KEY = opts.key;
+          const res = spawnSync('bash', ['-c', script], { env, encoding: 'utf8' });
+          let args: string[] | null = null;
+          try { args = readFileSync(argsFile, 'utf8').split('\n').filter((a) => a !== ''); } catch { /* curl was not called */ }
+          return { status: res.status, out: res.stdout.trim(), args };
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      }
+
+      it.skipIf(!hasBash || !hasJq)('proceeds on a good answer, and holds on a bad one', () => {
+        expect(runSnippet({ domain: 'acme.com' })).toMatchObject({ status: 0, out: 'proceed' });
+        expect(runSnippet({ domain: 'acme.com', reply: { status: 'mismatch', level: 'verified', domain: 'other.com' } })).toMatchObject({ status: 1, out: 'hold for a person' });
+        expect(runSnippet({ domain: 'acme.com', reply: { ok: false, error: 'rate limited' } })).toMatchObject({ status: 1 });
+        expect(runSnippet({ domain: 'acme.com', reply: 'not an object' })).toMatchObject({ status: 1 });
+      });
+
+      it.skipIf(!hasBash || !hasJq)('sends no Authorization header when there is no key (an empty Bearer is a 401, not an anonymous call), and the key when there is one', () => {
+        const without = runSnippet({ domain: 'acme.com' });
+        expect(without.args?.join(' ')).not.toMatch(/Authorization/i);
+        expect(runSnippet({ domain: 'acme.com', key: '' }).args?.join(' ')).not.toMatch(/Authorization/i); // set but empty
+        const withKey = runSnippet({ domain: 'acme.com', key: 'avk_secret' });
+        expect(withKey.args).toContain('Authorization: Bearer avk_secret');
+      });
+
+      it.skipIf(!hasBash || !hasJq)('asks with the bare domain whatever form the records hold it in, and proceeds on the same answer', () => {
+        for (const form of ['https://acme.com/pay', 'http://acme.com', 'https://www.acme.com/a/b?c=d', 'www.acme.com', 'WWW.Acme.com.', 'acme.com:443', 'ACME.COM', 'https://ACME.com:8443/x']) {
+          const r = runSnippet({ domain: form });
+          expect(r.args, form).toContain('expect=acme.com');
+          expect(r, form).toMatchObject({ status: 0, out: 'proceed' });
+        }
+      });
+
+      it.skipIf(!hasBash || !hasJq)('holds, and does not call curl, when the domain leaves nothing', () => {
+        for (const form of ['', 'https://', 'http:///', 'https://:443', '.', '/']) {
+          const r = runSnippet({ domain: form });
+          expect(r, JSON.stringify(form)).toMatchObject({ status: 1, out: 'hold: no expect', args: null });
+        }
+      });
+
+      it.skipIf(!hasBash || !hasJq)('encodes the address, passes the bounds, and asks the one endpoint', () => {
+        const r = runSnippet({ domain: 'acme.com', value: '0xabc&x=1' });
+        expect(r.args).toEqual(expect.arrayContaining(['--get', '--data-urlencode', 'value=0xabc&x=1', '--max-time', '10', '--retry', '3', '--retry-all-errors', '--retry-max-time', '30', 'https://almstins.com/api/verify/check']));
+      });
     });
 
     it.skipIf(!hasJq)('applies the same rule as the other two, to the same answers', () => {

@@ -179,6 +179,17 @@ describe('a signed report as a PDF', () => {
     expect(full.text).not.toContain('Partial day');
   });
 
+  it('says so on its first page when the agent reached its daily limit of recorded checks, and says nothing of it otherwise', async () => {
+    const events = baseEvents();
+    events.push({ ...events.find((e) => e.kind === 'checked')!, id: '00000000-0000-4000-8000-0000000000aa', at: at(11, 5), detail: { basis: 'domain_proof', limit: { reached: true, perDay: 5000 } } });
+    const content = makeContent({ events });
+    expect(content.limit).toEqual({ reachedAt: at(11, 5) });
+    const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
+    expect(flow(text)).toContain('Daily limit reached. The agent reached its daily limit of recorded checks at 2026-10-17 11:05:00 UTC. Checks after that were answered and not recorded, except checks that came back flagged, so the counts below cover the recorded checks.');
+    const plain = await readPdf(await buildReportPdf({ content: makeContent(), bundle: makeBundle(makeContent()) }));
+    expect(plain.text).not.toContain('Daily limit reached');
+  });
+
   it('a day with nothing in it is still a report, and says nothing needs a look', async () => {
     const content = makeContent({ events: [] });
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));

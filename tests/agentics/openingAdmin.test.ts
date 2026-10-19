@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
@@ -31,8 +31,19 @@ const B = 'tenant-b';
 let fake: ReceivablesDbFake;
 let route: typeof import('../../src/pages/api/admin/agentics-opening');
 
+// The endpoint sends through the Vault's strict sender, which fails when no mail transport is set up (the
+// shared mailer, mocked above, would return quietly). A transport is "set up" here by naming one.
+const ORIGINAL_TRANSPORT = process.env.EMAIL_SERVER;
+afterEach(() => {
+  if (ORIGINAL_TRANSPORT === undefined) delete process.env.EMAIL_SERVER;
+  else process.env.EMAIL_SERVER = ORIGINAL_TRANSPORT;
+  vi.unstubAllEnvs();
+});
+
 beforeEach(async () => {
   vi.resetModules();
+  process.env.EMAIL_SERVER = 'smtp://mail.example.test';
+  vi.stubEnv('AUTH_URL', ''); // the letter's links are built from the site address: a shell that has it set must not change them
   vi.spyOn(console, 'error').mockImplementation(() => {});
   fake = createReceivablesDbFake();
   holder.db = fake;
@@ -93,7 +104,7 @@ describe('counting', () => {
     for (const body of [undefined, {}, { apply: false }, { apply: 'yes' }]) {
       const { res, json } = await call('POST', body);
       expect(res.status, JSON.stringify(body)).toBe(200);
-      expect(json).toEqual({ ok: true, dryRun: true, waiting: 2, sent: 0, failed: 0, noEmail: 0, remaining: 2 });
+      expect(json).toEqual({ ok: true, dryRun: true, waiting: 2, sent: 0, failed: 0, timedOut: 0, noEmail: 0, remaining: 2 });
     }
     expect(mail.send).not.toHaveBeenCalled();
   });
@@ -115,7 +126,7 @@ describe('sending', () => {
     route = await import('../../src/pages/api/admin/agentics-opening');
     const { res, json } = await call('POST', { apply: true });
     expect(res.status).toBe(200);
-    expect(json).toEqual({ ok: true, dryRun: false, waiting: 2, sent: 2, failed: 0, noEmail: 0, remaining: 0 });
+    expect(json).toEqual({ ok: true, dryRun: false, waiting: 2, sent: 2, failed: 0, timedOut: 0, noEmail: 0, remaining: 0 });
     expect(mail.send.mock.calls.map((c) => c[0].to).sort()).toEqual(['a@example.test', 'b@example.test']);
     expect(mail.send.mock.calls[0][0].subject).toBe('Your Agentics vault is open');
     expect(JSON.stringify(json)).not.toMatch(/@|example\.test/);
@@ -157,6 +168,57 @@ describe('sending', () => {
     expect(src).not.toMatch(/body\.(to|email|tenant|tenantId|address)\b/);
   });
 
+  it('with no mail transport set up, a real send FAILS: nobody is marked told for a mail that never went', async () => {
+    flag.open = true;
+    delete process.env.EMAIL_SERVER;
+    vi.resetModules();
+    route = await import('../../src/pages/api/admin/agentics-opening');
+    const { res, json } = await call('POST', { apply: true });
+    expect(res.status).toBe(200);
+    expect(json).toEqual({ ok: true, dryRun: false, waiting: 2, sent: 0, failed: 2, timedOut: 0, noEmail: 0, remaining: 2 });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(fake.rows('agentics_signups').every((r) => !r.opened_notified_at && !r.open_claimed_at)).toBe(true); // told: no one; claims given back
+    expect(console.error).toHaveBeenCalledWith('[agentics] opening email not sent', { name: 'MailUnavailableError', code: 'E_NO_MAIL_TRANSPORT' });
+    // Once a transport exists the same accounts are sent to, because none was marked.
+    process.env.EMAIL_SERVER = 'smtp://mail.example.test';
+    expect((await call('POST', { apply: true })).json).toMatchObject({ sent: 2, failed: 0, remaining: 0 });
+    expect(mail.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('ends the batch when its time budget is used, so a slow mail server cannot hold a request past what the host allows', async () => {
+    flag.open = true;
+    vi.resetModules();
+    route = await import('../../src/pages/api/admin/agentics-opening');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-19T12:00:00.000Z'));
+      // Each send "takes" longer than the whole budget.
+      mail.send.mockImplementation(async () => { vi.setSystemTime(Date.now() + route.OPENING_CALL_BUDGET_MS + 1000); });
+      const { json } = await call('POST', { apply: true });
+      expect(json).toMatchObject({ ok: true, sent: 1, remaining: 1 }); // the second account waits for the next call
+      expect(mail.send).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hands the shared mailer the letter in html, with replies going to a person', async () => {
+    flag.open = true;
+    vi.resetModules();
+    route = await import('../../src/pages/api/admin/agentics-opening');
+    await call('POST', { apply: true, limit: 1 });
+    const sent = mail.send.mock.calls[0][0];
+    expect(sent.html).toContain('<a href="https://almstins.com/dashboard/agentics"');
+    expect(sent.replyTo).toBe('support@almstins.com');
+  });
+
+  it('keeps one call within what the host allows: the batch budget plus one send is under 30 seconds', async () => {
+    const signup = await import('../../src/lib/agenticsSignup');
+    expect(route.OPENING_CALL_BUDGET_MS).toBeLessThanOrEqual(15_000);
+    expect(signup.OPENING_SEND_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
+    expect(route.OPENING_CALL_BUDGET_MS + signup.OPENING_SEND_TIMEOUT_MS).toBeLessThan(25_000);
+  });
+
   it('a database failure is a plain 500 that names nothing', async () => {
     fake.options.failDml = () => true;
     flag.open = true;
@@ -190,6 +252,12 @@ describe('the page', () => {
   it('asks before a real send, and says plainly when the vault is private', () => {
     expect(page).toContain("confirm('Send the opening email to the next accounts that have not been told? It goes out for real.')");
     expect(page).toContain('AGENTICS_VAULT_PUBLIC is false');
+  });
+
+  it('makes sure the table exists before it counts anything, and says what a timed-out send means', () => {
+    expect(frontmatter.indexOf('await ensureAgenticsSignupsTable()')).toBeGreaterThan(0);
+    expect(frontmatter.indexOf('await ensureAgenticsSignupsTable()')).toBeLessThan(frontmatter.indexOf('const signups = await count('));
+    expect(page).toContain('Timed out ${body.timedOut}');
   });
 
   it('uses only the design tokens for color, and renders nothing from the database as html', () => {

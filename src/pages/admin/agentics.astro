@@ -7,7 +7,7 @@ import '@/styles/tokens.css';
 import Analytics from '@/components/Analytics.astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
-import { countOpeningWaiting, OPENING_BATCH_DEFAULT } from '@/lib/agenticsSignup';
+import { countOpeningWaiting, ensureAgenticsSignupsTable, OPENING_BATCH_DEFAULT } from '@/lib/agenticsSignup';
 import { db } from '@/lib/db';
 
 try {
@@ -27,6 +27,8 @@ const count = async (sql: string): Promise<number> => {
 		return 0;
 	}
 };
+// The counts below read the table, which a fresh process may not have made yet.
+await ensureAgenticsSignupsTable().catch(() => undefined);
 const signups = await count(`SELECT COUNT(*) AS n FROM agentics_signups`);
 const welcomed = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE welcomed_at IS NOT NULL`);
 const told = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE opened_notified_at IS NOT NULL`);
@@ -120,7 +122,7 @@ const waiting = await countOpeningWaiting().catch(() => 0);
 				if (apply) toldEl.textContent = String(Number(toldEl.textContent ?? 0) + Number(body.sent) + Number(body.noEmail));
 				out.textContent = body.dryRun
 					? `Dry run: ${body.waiting} account(s) would be told. Nothing was sent.`
-					: `Sent ${body.sent}. Failed ${body.failed} (tried again next time). No address ${body.noEmail}. Still to tell: ${body.remaining}.`;
+					: `Sent ${body.sent}. Failed ${body.failed} (tried again next time). Timed out ${body.timedOut} (may still arrive; tried again in 15 minutes). No address ${body.noEmail}. Still to tell: ${body.remaining}.`;
 			} catch {
 				out.textContent = 'The request did not complete. Nothing is lost: press it again.';
 			} finally {

@@ -100,6 +100,18 @@ describe('the canonical record of an event', () => {
     });
   });
 
+  it('the check that found the daily limit used up carries `limit_reached: true`, and no other leaf has the field at all', () => {
+    const marked = ex.leafOf({ ...base, detail: { basis: 'registry_flagged', limit: { reached: true, perDay: 5000 } } }) as unknown as Record<string, unknown>;
+    expect(marked.limit_reached).toBe(true);
+    expect(marked).toEqual({ ...(ex.leafOf(base) as object), limit_reached: true });
+    expect('limit_reached' in (ex.leafOf(base) as object)).toBe(false); // an ordinary check is the leaf it always was
+    for (const limit of [{ reached: false }, { reached: 'true' }, {}, null, 'yes']) {
+      expect('limit_reached' in (ex.leafOf({ ...base, detail: { basis: 'registry_flagged', limit } as never }) as object), JSON.stringify(limit)).toBe(false);
+    }
+    // A transfer never has it, whatever its detail says.
+    expect('limit_reached' in (ex.leafOf(move({ detail: { limit: { reached: true } } })) as object)).toBe(false);
+  });
+
   it('leaves out the caller\'s address, the public status and the free text of what was answered, and files an unknown reason as `other`', () => {
     const leaf = JSON.stringify(ex.leafOf(base));
     expect(leaf).not.toMatch(/203\.0\.113\.9|sourceIp|status|ops\.example\.test|cleared|mismatch/);

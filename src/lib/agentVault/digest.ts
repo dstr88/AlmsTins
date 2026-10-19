@@ -32,9 +32,11 @@ export interface DigestCounts {
   /** All checks, and the ones that came back proven or consistent with history. */
   checks: number;
   noIssuesChecks: number;
+  /** Agents that reached their daily limit of recorded checks in the period: for them the counts cover the recorded checks only. */
+  limited: number;
 }
 
-export const emptyCounts = (): DigestCounts => ({ agents: 0, issues: 0, notConfirmed: 0, new: 0, noIssues: 0, checks: 0, noIssuesChecks: 0 });
+export const emptyCounts = (): DigestCounts => ({ agents: 0, issues: 0, notConfirmed: 0, new: 0, noIssues: 0, checks: 0, noIssuesChecks: 0, limited: 0 });
 
 /** The sum of several agents' reports over one period. An agent with no events in the period is not counted as having activity. */
 export function countsOf(contents: readonly ReportContent[]): DigestCounts {
@@ -49,6 +51,7 @@ export function countsOf(contents: readonly ReportContent[]): DigestCounts {
     c.noIssues += h.noIssues;
     c.checks += h.checks;
     c.noIssuesChecks += h.noIssuesChecks;
+    if (h.limitReached) c.limited += 1;
   }
   return c;
 }
@@ -106,6 +109,7 @@ export function composeDigest(period: Pick<DigestPeriod, 'kind' | 'from' | 'to'>
     notConfirmed: counts.notConfirmed,
     new: counts.new,
     clearChecks: counts.noIssuesChecks,
+    limited: counts.limited,
     appBase,
   };
   return getAgentReportEmail('en').digest(args);

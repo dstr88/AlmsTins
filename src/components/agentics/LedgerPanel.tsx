@@ -109,6 +109,7 @@ export function LedgerItem({ row }: { row: LedgerRow }) {
           <p className="ag-event__line">{reasonText(row.basis ?? 'other')}</p>
           {row.keyState === 'revoked' ? <p className="ag-event__line">{copy.ledger.keyRevoked}</p> : null}
           {row.keyState === 'unknown' ? <p className="ag-event__line">{copy.ledger.keyUnknown}</p> : null}
+          {row.limitReached ? <p className="ag-event__line ag-event__line--warn">{copy.ledger.limitReached}</p> : null}
         </>
       )}
     </li>

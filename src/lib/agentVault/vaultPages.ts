@@ -10,9 +10,9 @@
  */
 import { listAgentKeys, type AgentKeyMeta } from '@/lib/agentKeys';
 import { getSigningKey } from '@/lib/recordProof/signing';
-import { getLoggedChecksPerDay, getPlanSummary, type PlanSummary } from './entitlements';
+import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay, getPlanSummary, type PlanSummary } from './entitlements';
 import { idOf } from './errors';
-import { countCheckedSince, latestEventTime, sumTransactions, type TinTotals } from './events';
+import { countCheckedSince, latestEventTime, limitMarkerSince, sumTransactions, type TinTotals } from './events';
 import { parseLedgerRows, type LedgerRow } from './ledgerView';
 import { utcDay } from './report';
 import { createdDay } from './reports';
@@ -113,11 +113,14 @@ export interface AgentPageData {
   ledger: { rows: LedgerRow[]; next: string | null };
   totals: TinTotals;
   /** Whether this server can sign an export: with no signing key it cannot, and says so. */
-  signing: { available: boolean };  /**
-   * The plan's daily limit on recorded checks for this agent and whether today's is used up, or null when the
-   * plan has no limit. When it is reached the agent's checks are still answered and are not recorded.
+  signing: { available: boolean };
+  /**
+   * The plan's daily limit on recorded checks for this agent, or null when the plan has none. `reached`: today's is
+   * used up; `reachedAt`: when the check that found it full was written (the ledger row carries the same marker), or
+   * null when the day filled without one. Past it a check is still answered and is not recorded, except one that
+   * comes back flagged, for `flaggedExtra` more.
    */
-  logLimit: { perDay: number; reached: boolean } | null;
+  logLimit: { perDay: number; flaggedExtra: number; reached: boolean; reachedAt: string | null } | null;
 }
 
 /** One agent for its page, or null when there is none on this account (the page answers 404). */
@@ -137,7 +140,13 @@ export async function loadAgentPage(tenantId: string, idRaw: string, now: Date =
   ]);
   const today = utcDay(now);
   const perDay = await getLoggedChecksPerDay(tenantId);
-  const logLimit = perDay === null ? null : { perDay, reached: (await countCheckedSince(tenantId, tin.id, `${today}T00:00:00.000Z`)) >= perDay };
+  let logLimit: AgentPageData['logLimit'] = null;
+  if (perDay !== null) {
+    const since = `${today}T00:00:00.000Z`;
+    const reachedAt = await limitMarkerSince(tenantId, tin.id, since);
+    const reached = reachedAt !== null || (await countCheckedSince(tenantId, tin.id, since)) >= perDay;
+    logLimit = { perDay, flaggedExtra: FLAGGED_LOGGED_PAST_LIMIT, reached, reachedAt };
+  }
   const linked = tin.agentKeyId ? keys.find((k) => k.id === tin.agentKeyId) : undefined;
   return {
     plan,

@@ -243,7 +243,7 @@ describe('one agent', () => {
     expect(text).not.toContain('onerror');
     const checkRow = page?.ledger.rows.find((r) => r.kind === 'checked');
     expect(checkRow?.basis).toBe('other');
-    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'id', 'keyState', 'kind', 'linkReason', 'registry', 'tx']);
+    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'id', 'keyState', 'kind', 'limitReached', 'linkReason', 'registry', 'tx']);
   });
 
   it('offers the keys it could take, never the one it has, nor one another agent has', async () => {
@@ -278,17 +278,54 @@ describe('one agent', () => {
         });
       }
     };
-    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    const room = (await import('../../src/lib/agentVault/entitlements')).FLAGGED_LOGGED_PAST_LIMIT;
+    const shape = (over: Record<string, unknown>) => ({ perDay: limit, flaggedExtra: room, reached: false, reachedAt: null, ...over });
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual(shape({}));
     fill(limit, '2026-10-17T23:59:59.999Z'); // yesterday
     fill(limit, '2026-10-18T01:00:00.000Z', 'another-agent'); // another agent
     fill(limit, '2026-10-18T02:00:00.000Z', tin.id, 'transaction'); // transfers
-    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual(shape({}));
     fill(limit - 1, '2026-10-18T00:00:00.000Z'); // the first millisecond of today counts
-    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: false });
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual(shape({}));
     fill(1, '2026-10-18T11:59:59.999Z');
-    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual({ perDay: limit, reached: true });
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toEqual(shape({ reached: true })); // full, and no row says when it was found full
     const mine = await newTin(OWNER_TENANT_ID, 'Owner agent');
     expect((await pages.loadAgentPage(OWNER_TENANT_ID, mine.id, now))?.logLimit).toBeNull();
+  });
+
+  it.each([['Pacific/Kiritimati'], ['America/Los_Angeles']])('takes today from the UTC day, not from the server\'s clock zone (%s)', async (tz) => {
+    const before = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      const tin = await newTin(A, 'Zone agent');
+      // Half past midnight UTC: still the 18th in Los Angeles, already the 19th in Kiritimati.
+      const page = await pages.loadAgentPage(A, tin.id, new Date('2026-10-18T00:30:00.000Z'));
+      expect(page?.today).toBe('2026-10-18');
+      expect((await pages.loadAgentPage(A, tin.id, new Date('2026-10-18T23:59:59.999Z')))?.today).toBe('2026-10-18');
+      expect((await pages.loadAgentPage(A, tin.id, new Date('2026-10-19T00:00:00.000Z')))?.today).toBe('2026-10-19');
+    } finally {
+      if (before === undefined) delete process.env.TZ;
+      else process.env.TZ = before;
+    }
+  });
+
+  it('says when the limit was found used up: the time of the marked check of today, of this agent only', async () => {
+    const { FREE_LOGGED_CHECKS_PER_DAY: limit } = await import('../../src/lib/agentVault/entitlements');
+    const tin = await newTin(A, 'Busy agent');
+    const other = await newTin(A, 'Another agent');
+    const now = new Date('2026-10-18T12:00:00.000Z');
+    await events.ensureAgentEventsTable();
+    const marker = (tinId: string, when: string, id: string) =>
+      fake.seed('agent_events', {
+        id, tenant_id: A, tin_id: tinId, kind: 'checked', address: addr(901), chain: null, answer: 'unknown', registry: 'none', status: 'unknown', key_id: K1,
+        source_ip: null, detail_json: JSON.stringify({ basis: 'not_in_registry', limit: { reached: true, perDay: limit } }), occurred_at: when,
+      });
+    marker(tin.id, '2026-10-17T22:00:00.000Z', 'marker-yesterday'); // yesterday's marker is not today's
+    marker(other.id, '2026-10-18T03:00:00.000Z', 'marker-other'); // another agent's is not this one's
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toMatchObject({ reached: false, reachedAt: null });
+    marker(tin.id, '2026-10-18T07:30:00.000Z', 'marker-later');
+    marker(tin.id, '2026-10-18T06:15:00.000Z', 'marker-earlier'); // two processes can each write one; the earlier is the moment
+    expect((await pages.loadAgentPage(A, tin.id, now))?.logLimit).toMatchObject({ reached: true, reachedAt: '2026-10-18T06:15:00.000Z' });
   });
 
   it('every statement it sends names the account', async () => {

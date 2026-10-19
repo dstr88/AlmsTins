@@ -35,6 +35,9 @@ const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 
 const OWNER_ONLY_PATHS = new Set(['/tax/', '/tax-login/', '/year-summary/']);
 
+// A signed-in page outside the denylisted prefixes: a sitemap is a public list, and this page is for one account only.
+const SIGNED_IN_PATHS = new Set(['/agentics/account/']);
+
 const DENY_SUBSTRINGS = [
 	'/dashboard',
 	'/admin',
@@ -58,6 +61,7 @@ export function sitemapFilter(page) {
 	}
 	const withSlash = path.endsWith('/') ? path : `${path}/`;
 	if (OWNER_ONLY_PATHS.has(withSlash.toLowerCase())) return false;
+	if (SIGNED_IN_PATHS.has(withSlash.toLowerCase())) return false;
 	if (!PETRO_TINS_PUBLIC && withSlash.toLowerCase().startsWith('/petro-tins/')) return false;
 	if (withSlash.startsWith('/verify/') || withSlash.startsWith('/receivables/')) {
 		return PUBLIC_UNDER_PRODUCT_PREFIXES.has(withSlash);

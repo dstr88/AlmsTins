@@ -292,6 +292,7 @@
 .ag-event__registry { font-size: 0.76rem; color: var(--text-muted); }
 .ag-event__addr { margin: 0.3rem 0 0; font-size: 0.78rem; overflow-wrap: anywhere; word-break: break-all; }
 .ag-event__line { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
+.ag-event__line--warn { color: var(--warning); }
 .ag-readresult { min-height: 0; margin: 0 0 0.6rem; }
 
 @media (max-width: 760px) {

@@ -6,27 +6,34 @@
  * private) and every account (once it is open) can leave from here. It is not a Vault page, so it is not
  * gated by the Vault's switch; it lives beside the other public Agentics pages and is not one of them: it is
  * not in isPublicPath, so a signed-out visitor is sent to the Agentics sign-in by the middleware, and the
- * page checks the session itself as well. A demo session is sent to the same sign-in. The page is never
- * cached or indexed. The delete request is the app's one account deletion (/api/account/delete).
+ * page checks the session itself as well (src/lib/agenticsAccountEntry.ts decides where each kind of visitor goes: a demo
+ * session to the Agentics sign-in, and a real sign-in with no account yet to the account set-up, never round and round
+ * between the two). The page is never cached or indexed. The delete request is the app's one account deletion
+ * (/api/account/delete), which removes the whole Almstins account, not only what is kept in Agentics.
  *
  * The bar shows the Vault's pages only to an account that has the Vault.
  */
 import AgenticsShell from '../../components/agentics/AgenticsShell.astro';
 import AccountPanel from '../../components/agentics/AccountPanel';
+import { getEntitlements } from '@/lib/agentVault/entitlements';
+import { accountEntry } from '@/lib/agenticsAccountEntry';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
 import { getAuthSession } from '@/lib/authSession';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
-const session = await requireTenantSession(Astro.request);
-if (!session || session.isDemo) return Astro.redirect('/agentics/login?next=%2Fagentics%2Faccount', 303);
-
 const auth = await getAuthSession(Astro.request).catch(() => null);
+const session = await requireTenantSession(Astro.request);
+const entry = accountEntry({ signedIn: Boolean(auth?.user?.id), session });
+if (entry.kind === 'redirect') return Astro.redirect(entry.to, 303);
+
 const email = auth?.user?.email ?? null;
+// The plan this account is on (Free for every account but the deployment owner's), by the one function that decides it.
+const plan = await getEntitlements(entry.session.tenantId).then((e) => e.plan, () => 'free' as const);
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 ---
 
-<AgenticsShell title="Account" active="account" vault={canAccessAgenticsVault(session)}>
-  <AccountPanel client:load email={email} />
+<AgenticsShell title="Account" active="account" vault={canAccessAgenticsVault(entry.session)}>
+  <AccountPanel client:load email={email} plan={plan} />
 </AgenticsShell>

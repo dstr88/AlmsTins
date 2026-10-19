@@ -1,7 +1,8 @@
 /**
- * The one way the Vault sends an email: a digest or a flagged-check alert. It wraps the shared
- * mailer (src/lib/email.ts) and changes two things, because the Vault counts a send as done and
- * remembers it (a digest key, an hourly alert claim):
+ * The one way the Vault sends an email: a digest or a flagged-check alert, and the one email that tells
+ * earlier signups the vault is open (src/lib/agenticsSignup.ts). It wraps the shared mailer
+ * (src/lib/email.ts) and changes two things, because these jobs count a send as done and remember it
+ * (a digest key, an hourly alert claim, an account marked told):
  *
  *   - No mail transport is a failure. The shared mailer logs "skipping send" and returns as if it
  *     had sent, which is right for a feature that only wants to try. A job that counts the message
@@ -11,6 +12,9 @@
  *     must not hold the daily job's serial loop past its budget. A send that times out may still
  *     complete in the background; the caller treats it as failed, gives its claim back, and a
  *     retry can then send it again.
+ *
+ * A caller can give one send less time than the default (`timeoutMs`): the opening email's admin call has
+ * a few seconds in all, and a request that runs past 30 seconds is cut by the host.
  *
  * Both failures carry a name and a code and no address, so they log safely (the job logs name and
  * code only). Who may be sent what, and how often, is ./alerts.ts and ./reportJob.ts; this file
@@ -22,6 +26,10 @@ export interface VaultMail {
   to: string;
   subject: string;
   text: string;
+  /** The HTML form, for a letter. Left out, the text is sent as it is. */
+  html?: string;
+  /** Where a reply goes, when it is not the sender. */
+  replyTo?: string | null;
 }
 
 /** One send is given this long before it counts as failed. */
@@ -46,12 +54,12 @@ export class MailTimeoutError extends Error {
 }
 
 /** Sends one email, or throws: no transport, a refusal from the mail server, or a send that took too long. */
-export async function sendVaultMail(mail: VaultMail): Promise<void> {
+export async function sendVaultMail(mail: VaultMail, opts: { timeoutMs?: number } = {}): Promise<void> {
   // Read when called, like the other settings: the same question the shared mailer asks.
   if (!process.env.EMAIL_SERVER) throw new MailUnavailableError();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const tooSlow = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new MailTimeoutError()), SEND_TIMEOUT_MS);
+    timer = setTimeout(() => reject(new MailTimeoutError()), opts.timeoutMs ?? SEND_TIMEOUT_MS);
   });
   try {
     await Promise.race([sendMail(mail), tooSlow]);

@@ -2,12 +2,13 @@
  * The account page's body: who is signed in, the plan, and deleting the account. Deleting asks once more
  * in place (the same ConfirmRemove the rest of Agentics uses, so focus is kept), then calls the app's
  * one delete-account request (POST /api/account/delete). On success the browser leaves for the Agentics
- * page; on failure it says why, in plain words, and the account is untouched.
+ * page; otherwise it says what is known, in plain words, and never says "not deleted" for a request that
+ * may have finished (a dropped connection, a host error, a wait that ran out).
  *
  * The email comes from the signed-in session on the server and is rendered as text by React.
  */
 import { useState } from 'react';
-import { deleteOutcome } from './account';
+import { deleteOutcome, withWait } from './account';
 import { send } from './client';
 import { copy } from './copy';
 import { AFTER_DELETE_PATH } from './paths';
@@ -16,9 +17,11 @@ import { ConfirmRemove, Status } from './ui';
 export interface AccountPanelProps {
   /** The address the person signed in with, or null when the sign-in has none. */
   email: string | null;
+  /** The plan the account is on. */
+  plan?: 'free' | 'unlimited';
 }
 
-export default function AccountPanel({ email }: AccountPanelProps) {
+export default function AccountPanel({ email, plan = 'free' }: AccountPanelProps) {
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -26,7 +29,7 @@ export default function AccountPanel({ email }: AccountPanelProps) {
     if (working) return;
     setWorking(true);
     setMessage(null);
-    const outcome = deleteOutcome(await send('POST', '/api/account/delete'));
+    const outcome = deleteOutcome(await withWait(send('POST', '/api/account/delete')));
     if (outcome.kind === 'deleted') {
       window.location.assign(AFTER_DELETE_PATH);
       return;
@@ -51,7 +54,7 @@ export default function AccountPanel({ email }: AccountPanelProps) {
         </div>
         <p className="ag-hint">{email ?? copy.account.noEmail}</p>
         <p className="ag-hint">
-          {copy.account.planLabel}: {copy.account.plan}
+          {copy.account.planLabel}: {plan === 'unlimited' ? copy.account.planUnlimited : copy.account.plan}
         </p>
       </section>
 

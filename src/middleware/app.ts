@@ -232,8 +232,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				return finish(Response.redirect(`https://${canonicalHost}/petro-tins${cutQuery ? `?${cutQuery}` : ''}`, 303));
 			}
 			// Agentics dashboard and account page → the Agentics sign-in (titled for Agentics), not the general /login.
-			if (pathname === '/dashboard/agentics' || pathname.startsWith('/dashboard/agentics/') || pathname.replace(/\/+$/, '') === '/agentics/account') {
-				const next = encodeURIComponent(pathname.replace(/(.)\/+$/, '$1'));
+			const oneSlashes = pathname.replace(/\/{2,}/g, '/'); // `//agentics/account` is the same page
+			if (pathname === '/dashboard/agentics' || pathname.startsWith('/dashboard/agentics/') || oneSlashes.replace(/\/+$/, '') === '/agentics/account') {
+				const next = encodeURIComponent(oneSlashes.replace(/(.)\/+$/, '$1'));
 				return finish(Response.redirect(`https://${canonicalHost}/agentics/login?next=${next}${cutQuery ? `&${cutQuery}` : ''}`, 303));
 			}
 			// Verify dashboard → the Verify login (titled for Verify), not the general

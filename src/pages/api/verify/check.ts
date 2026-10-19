@@ -163,8 +163,8 @@ export const GET: APIRoute = async ({ request, url }) => {
   // tin's ledger, and the answer gains one `vault` field. Everything else is unchanged, and a
   // failure here never changes the answer (src/lib/agentVault/checkLog.ts). Anonymous calls and
   // payment links or QR payloads never get one. The module loads only on this path. The field is
-  // not on the public /agentics/docs page yet: it exists only for the owner's own dark tins, and goes
-  // on the page, with its test, when the Vault opens.
+  // documented on /agentics/docs (Your vault), and tests/verify/agentDocs.test.ts holds that page to the
+  // VaultBlock type the module builds, so a key added there must be explained there.
   let vault: VaultBlock | null = null;
   if (keyId && !isQrValue) {
     try {

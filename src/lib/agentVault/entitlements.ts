@@ -53,6 +53,14 @@ export const FREE_LIMITS: PlanLimits = { bots: 3, addresses: 15, walletsPerBot: 
  */
 export const FREE_LOGGED_CHECKS_PER_DAY = 5_000;
 
+/**
+ * Past that limit a check that comes back FLAGGED is still written, up to this many more per agent per
+ * UTC day. A flag is the evidence the ledger most needs to keep, and a key that is looped on (or leaked)
+ * would otherwise use the whole day's recording on noise and leave the real flags unrecorded. The room is
+ * small and its own: a loop on flagged addresses fills it too, and then those are not recorded either.
+ */
+export const FLAGGED_LOGGED_PAST_LIMIT = 500;
+
 const FREE: Entitlements = { plan: 'free', label: 'Free', limits: FREE_LIMITS };
 const UNLIMITED: Entitlements = { plan: 'unlimited', label: 'Unlimited', limits: { bots: null, addresses: null, walletsPerBot: null } };
 

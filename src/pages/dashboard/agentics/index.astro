@@ -9,8 +9,11 @@
 // The letter stays exactly what it was, to the byte, and it stays out of the Vault's way: nothing of
 // the Vault is imported here, so the letter loads none of the Vault's styles or code, and nothing
 // of the Vault is read for a viewer who does not pass the check. The Vault viewer is handed to the
-// agents page before the letter's work begins, so the signup claim and the email are never run for
-// an account that has the Vault. tests/agentics/home.test.ts pins both branches and the letter.
+// agents page before the letter's work begins, so the letter's own work (the signup claim and the
+// email, below) is not run for an account that has the Vault. That account's first visit is recorded
+// by recordVaultFirstVisit (src/lib/agenticsFirstVisit.ts), in the background, before the hand-off, so
+// a new account is a signup and gets its one welcome letter however it arrives.
+// tests/agentics/home.test.ts pins both branches and the letter.
 //
 // It looks like Agentics, not like the Almstins vault: its own small shell and the same design
 // tokens, none of the vault's navigation.

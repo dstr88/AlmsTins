@@ -35,6 +35,8 @@ export interface DigestEmailArgs {
   new: number;
   /** Checks that came back proven or consistent with history. */
   clearChecks: number;
+  /** Agents that reached their daily limit of recorded checks in the period. */
+  limited: number;
   /** The site's address, e.g. "https://almstins.com". */
   appBase: string;
 }
@@ -58,10 +60,14 @@ export const reportsLink = (appBase: string): string => `${appBase.replace(/\/+$
 const attentionLead = (n: number): string => `${formatCount(n)} ${n === 1 ? 'needs' : 'need'} your attention`;
 
 /** The subject's first words: whether action is needed. */
-export function digestLead(a: Pick<DigestEmailArgs, 'issues' | 'notConfirmed' | 'clearChecks'>): string {
+export function digestLead(a: Pick<DigestEmailArgs, 'issues' | 'notConfirmed' | 'clearChecks'> & { limited?: number }): string {
   const attention = a.issues + a.notConfirmed;
   if (attention > 0) return attentionLead(attention);
-  if (a.clearChecks > 0) return `No flags, ${formatCount(a.clearChecks)} ${a.clearChecks === 1 ? 'check' : 'checks'}`;
+  // A day the daily limit cut is not described as all checks: only the recorded ones were looked at.
+  if (a.clearChecks > 0) {
+    const noun = a.clearChecks === 1 ? 'check' : 'checks';
+    return (a.limited ?? 0) > 0 ? `No flags, ${formatCount(a.clearChecks)} recorded ${noun}` : `No flags, ${formatCount(a.clearChecks)} ${noun}`;
+  }
   return 'Nothing needs your attention';
 }
 
@@ -89,6 +95,12 @@ export const en: AgentReportEmailLocale = {
       `New (first check of a registered address): ${formatCount(a.new)}`,
       `Checks that came back proven or consistent with history: ${formatCount(a.clearChecks)}`,
       `Agents with activity: ${formatCount(a.agents)}`,
+      ...(a.limited > 0
+        ? [
+            ``,
+            `${formatCount(a.limited)} ${a.limited === 1 ? 'agent' : 'agents'} reached the daily limit of recorded checks. Checks after that were answered and not recorded, except ones that came back flagged, so the counts above cover the recorded checks.`,
+          ]
+        : []),
       ``,
       `View the full report (sign-in required):`,
       reportsLink(a.appBase),

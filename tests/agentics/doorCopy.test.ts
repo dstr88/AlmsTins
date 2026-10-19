@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { brightLineViolations } from '../helpers/brightLineWording';
-import { agenticsCopy, en, enOpen, FREE_ADDRESSES, FREE_BOTS, opening } from '../../src/i18n/agentics';
+import { agenticsCopy, en, enOpen, FREE_ADDRESSES, FREE_BOTS, FREE_CHECKS_PER_DAY, opening } from '../../src/i18n/agentics';
 import { renderAgenticsOpening, renderAgenticsWelcome, renderAgenticsWelcomeFor } from '../../src/i18n/emails/agenticsWelcome';
 
 /**
@@ -191,6 +191,21 @@ describe('the open vault keeps the same wording rules', () => {
     expect(opening.letter.paragraphs.join(' ')).toContain('Once a day');
     expect(opening.letter.paragraphs.join(' ')).toContain('Ethereum, Polygon and Avalanche');
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/real[- ]time|live feed|as it happens|instant(ly)?|every second/i);
+  });
+
+  it('says what a check needs to be recorded, that only trusted addresses are read, and the daily number: no promise of "every check" or "every address"', () => {
+    const step = enOpen.landing.steps[2].body;
+    expect(step).toContain(`Each check your bot asks with its key becomes a dated entry on your bot’s page (up to ${FREE_CHECKS_PER_DAY.toLocaleString('en-US')} a day on the free plan).`);
+    expect(step).toContain('the addresses you trusted');
+    const welcome = enOpen.letter.paragraphs.join(' ');
+    expect(welcome).toContain('link a key to it (you make a key by proving a domain)');
+    expect(welcome).toContain('Each check your bot asks with its key appears on its page.');
+    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day');
+    const opened = opening.letter.paragraphs.join(' ');
+    expect(opened).toContain('link a key to it (you make a key by proving a domain)');
+    expect(opened).toContain('Each check it asks with the key becomes a dated entry');
+    expect(opened).toContain('the addresses you trusted are read from Ethereum, Polygon and Avalanche');
+    for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/\bevery check\b|\ball your addresses\b|\bwatches? (the )?(receiv|every)/i);
   });
 
   it('no longer says the vault is opening soon, or that one more email is coming', () => {

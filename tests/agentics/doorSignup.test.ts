@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
+import { OWNER_TENANT_ID } from '../../src/lib/owner';
 
 /**
  * The Agentics signup record and its welcome letter: written once per account, sent once, never
@@ -38,12 +39,17 @@ const deps = (over: Record<string, unknown> = {}) => ({
 beforeEach(async () => {
   vi.resetModules();
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.stubEnv('AUTH_URL', ''); // the site address is read from it: a shell that has it set must not change what these tests expect
   fake = createReceivablesDbFake();
   holder.db = fake;
   sendMail.mockReset().mockResolvedValue(undefined);
   realMail.sendMail.mockReset().mockResolvedValue(undefined);
   signup = await import('../../src/lib/agenticsSignup');
   source = await import('../../src/lib/agenticsSource');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // The stand-in leaves a column the INSERT did not name undefined; Postgres makes it NULL.
@@ -110,6 +116,36 @@ describe('the table', () => {
     await signup.registerSignup(A, 'direct');
     await signup.registerSignup(B, 'direct');
     expect(fake.statements(/^CREATE TABLE IF NOT EXISTS agentics_signups/i)).toHaveLength(1);
+  });
+
+  it('looks before it alters: a table that has the columns is not altered, so a busy table cannot hold the page up', async () => {
+    await signup.ensureAgenticsSignupsTable();
+    vi.resetModules();
+    const again = await import('../../src/lib/agenticsSignup');
+    const before = fake.log.length;
+    await again.ensureAgenticsSignupsTable();
+    const ran = fake.log.slice(before).map((s) => s.sql);
+    expect(ran.some((sql) => /^ALTER TABLE/i.test(sql))).toBe(false);
+    expect(ran.some((sql) => /^SET LOCAL lock_timeout/i.test(sql))).toBe(false);
+    expect(ran.some((sql) => /FROM information_schema\.columns/i.test(sql))).toBe(true);
+  });
+
+  it('a table from before the columns existed gets only the missing ones, under a lock timeout, in one batch', async () => {
+    // The table as the door first shipped it.
+    await fake.execute({ sql: `CREATE TABLE IF NOT EXISTS agentics_signups (tenant_id TEXT NOT NULL PRIMARY KEY, source TEXT NOT NULL DEFAULT 'direct', created_at TEXT, claimed_at TEXT, welcomed_at TEXT)`, args: [] });
+    fake.seed('agentics_signups', { tenant_id: A, source: 'direct', created_at: '2026-10-01 00:00:00', claimed_at: null, welcomed_at: '2026-10-01 00:00:00' });
+    const before = fake.log.length;
+    await signup.ensureAgenticsSignupsTable();
+    const ran = fake.log.slice(before).map((s) => s.sql);
+    expect(ran.filter((sql) => /^ALTER TABLE/i.test(sql))).toEqual([
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS open_claimed_at TEXT',
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS opened_notified_at TEXT',
+    ]);
+    expect(ran.indexOf("SET LOCAL lock_timeout = '2s'")).toBeGreaterThan(-1);
+    expect(ran.indexOf("SET LOCAL lock_timeout = '2s'")).toBeLessThan(ran.findIndex((sql) => /^ALTER TABLE/i.test(sql)));
+    // The rows it already had are still there.
+    expect(fake.rows('agentics_signups')).toHaveLength(1);
+    expect(fake.columns.get('agentics_signups')?.has('opened_notified_at')).toBe(true);
   });
 
   it('a failed create is tried again by the next call', async () => {
@@ -326,7 +362,7 @@ describe('the welcome letter once the vault is open', () => {
 });
 
 describe('the opening email', () => {
-  const OWNER = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
+  const OWNER = OWNER_TENANT_ID;
   const emails: Record<string, string | null> = { [A]: 'a@example.test', [B]: 'b@example.test', 'tenant-c': 'c@example.test', 'tenant-d': null, [OWNER]: 'owner@example.test' };
   const odeps = (over: Record<string, unknown> = {}) => ({
     send: sendMail as any,
@@ -349,7 +385,7 @@ describe('the opening email', () => {
   it('a dry run counts the accounts still to be told and sends nothing, claims nothing', async () => {
     await signUp(A, B, 'tenant-c');
     const r = await signup.sendOpeningNotices({ apply: false }, odeps());
-    expect(r).toEqual({ dryRun: true, waiting: 3, sent: 0, failed: 0, noEmail: 0, remaining: 3 });
+    expect(r).toEqual({ dryRun: true, waiting: 3, sent: 0, failed: 0, timedOut: 0, noEmail: 0, remaining: 3 });
     expect(sendMail).not.toHaveBeenCalled();
     expect(fake.rows('agentics_signups').every((x) => !x.open_claimed_at && !x.opened_notified_at)).toBe(true);
   });
@@ -357,7 +393,7 @@ describe('the opening email', () => {
   it('sends each account the opening email once, to its own address, and marks it told', async () => {
     await signUp(A, B);
     const r = await signup.sendOpeningNotices({ apply: true }, odeps());
-    expect(r).toEqual({ dryRun: false, waiting: 2, sent: 2, failed: 0, noEmail: 0, remaining: 0 });
+    expect(r).toEqual({ dryRun: false, waiting: 2, sent: 2, failed: 0, timedOut: 0, noEmail: 0, remaining: 0 });
     expect(sendMail.mock.calls.map((c) => c[0].to).sort()).toEqual(['a@example.test', 'b@example.test']);
     const mail = sendMail.mock.calls[0][0];
     expect(mail).toMatchObject({ subject: 'Your Agentics vault is open', replyTo: 'support@almstins.com' });
@@ -412,6 +448,27 @@ describe('the opening email', () => {
     expect((await signup.sendOpeningNotices({ apply: true, limit: 10_000 }, odeps())).sent).toBe(1);
   });
 
+  it('never takes more than the batch maximum, however many are waiting and whatever it is asked for', async () => {
+    const total = signup.OPENING_BATCH_MAX + 5;
+    for (let i = 0; i < total; i += 1) fake.seed('agentics_signups', { tenant_id: `bulk-${String(i).padStart(3, '0')}`, source: 'direct', created_at: `2026-10-01 00:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`, claimed_at: null, welcomed_at: NOW.toISOString(), open_claimed_at: null, opened_notified_at: null });
+    const r = await signup.sendOpeningNotices({ apply: true, limit: 10_000 }, odeps({ emailOf: async (t: string) => `${t}@example.test` }));
+    expect(r).toMatchObject({ sent: signup.OPENING_BATCH_MAX, remaining: 5 });
+    expect(sendMail).toHaveBeenCalledTimes(signup.OPENING_BATCH_MAX);
+    // A limit that is not a usable number falls back to the default, never to "all".
+    const again = await signup.sendOpeningNotices({ apply: true, limit: Number.NaN }, odeps({ emailOf: async (t: string) => `${t}@example.test` }));
+    expect(again).toMatchObject({ sent: 5, remaining: 0 });
+  });
+
+  it('a deadline that is already reached sends nothing, even when it is exactly now', async () => {
+    await signUp(A, B);
+    const r = await signup.sendOpeningNotices({ apply: true, deadlineAt: NOW.getTime() }, odeps());
+    expect(r).toMatchObject({ sent: 0, failed: 0, remaining: 2 });
+    expect(sendMail).not.toHaveBeenCalled();
+    expect(fake.rows('agentics_signups').every((x) => !x.open_claimed_at)).toBe(true); // nothing was claimed either
+    const later = await signup.sendOpeningNotices({ apply: true, deadlineAt: NOW.getTime() + 1 }, odeps());
+    expect(later.sent).toBe(2);
+  });
+
   it('stops starting new sends at the deadline and says how many are left', async () => {
     await signUp(A, B, 'tenant-c');
     let t = NOW.getTime();
@@ -454,6 +511,129 @@ describe('the opening email', () => {
     expect(await signup.emailOfTenant(A)).toBe('first@example.test');
     expect(await signup.emailOfTenant(B)).toBeNull();
     expect(await signup.emailOfTenant('tenant-ghost')).toBeNull();
+  });
+
+  describe('with the real sender', () => {
+    const TRANSPORT = process.env.EMAIL_SERVER;
+    afterEach(() => {
+      if (TRANSPORT === undefined) delete process.env.EMAIL_SERVER;
+      else process.env.EMAIL_SERVER = TRANSPORT;
+    });
+    const realDeps = () => ({ ...signup.defaultOpeningDeps(), emailOf: async (t: string) => emails[t] ?? null, now: () => NOW });
+
+    it('with no mail transport set up nobody is marked told: the send FAILS, and their claims are given back', async () => {
+      delete process.env.EMAIL_SERVER;
+      await signUp(A, B);
+      const r = await signup.sendOpeningNotices({ apply: true }, realDeps());
+      expect(r).toEqual({ dryRun: false, waiting: 2, sent: 0, failed: 2, timedOut: 0, noEmail: 0, remaining: 2 });
+      expect(realMail.sendMail).not.toHaveBeenCalled(); // the shared mailer would have logged "skipping send" and returned
+      expect(fake.rows('agentics_signups').every((x) => !x.opened_notified_at && !x.open_claimed_at)).toBe(true);
+      expect(console.error).toHaveBeenCalledWith('[agentics] opening email not sent', { name: 'MailUnavailableError', code: 'E_NO_MAIL_TRANSPORT' });
+    });
+
+    it('with a transport it hands the shared mailer the html letter and a reply-to, to the account\'s own address', async () => {
+      process.env.EMAIL_SERVER = 'smtp://mail.example.test';
+      await signUp(A);
+      expect(await signup.sendOpeningNotices({ apply: true }, realDeps())).toMatchObject({ sent: 1, failed: 0 });
+      expect(realMail.sendMail).toHaveBeenCalledTimes(1);
+      expect(realMail.sendMail.mock.calls[0][0]).toMatchObject({ to: 'a@example.test', replyTo: 'support@almstins.com', subject: 'Your Agentics vault is open' });
+      expect(realMail.sendMail.mock.calls[0][0].html).toContain('<a href="https://almstins.com/dashboard/agentics"');
+    });
+
+    it('gives one send a few seconds, not the Vault\'s twenty', async () => {
+      vi.useFakeTimers();
+      try {
+        process.env.EMAIL_SERVER = 'smtp://mail.example.test';
+        realMail.sendMail.mockImplementation(() => new Promise<void>(() => {})); // a mail server that never answers
+        await signUp(A);
+        const running = signup.sendOpeningNotices({ apply: true }, realDeps());
+        await vi.advanceTimersByTimeAsync(signup.OPENING_SEND_TIMEOUT_MS + 50);
+        expect(await running).toMatchObject({ sent: 0, failed: 0, timedOut: 1, remaining: 1 });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it('a send that ran out of time is not tried again at once: it may still arrive, so its claim stays until it goes stale', async () => {
+    await signUp(A);
+    sendMail.mockImplementationOnce(async () => { throw Object.assign(new Error('slow'), { name: 'MailTimeoutError', code: 'E_MAIL_TIMEOUT' }); });
+    expect(await signup.sendOpeningNotices({ apply: true }, odeps())).toMatchObject({ sent: 0, failed: 0, timedOut: 1, remaining: 1 });
+    expect(row(A)).toMatchObject({ open_claimed_at: '2026-10-18 12:00:00', opened_notified_at: null });
+    sendMail.mockClear();
+    // A minute later the claim is fresh: nothing is sent.
+    expect(await signup.sendOpeningNotices({ apply: true }, odeps({ now: () => new Date(NOW.getTime() + 60_000) }))).toMatchObject({ sent: 0, timedOut: 0 });
+    expect(sendMail).not.toHaveBeenCalled();
+    // Once the claim is stale, the account is sent to.
+    const later = new Date(NOW.getTime() + signup.CLAIM_STALE_MS + 1000);
+    expect(await signup.sendOpeningNotices({ apply: true }, odeps({ now: () => later }))).toMatchObject({ sent: 1, remaining: 0 });
+    expect(sendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('a mail that went out but could not be marked told is not sent a second time at once, and the failure is logged without the address', async () => {
+    await signUp(A);
+    fake.options.failDml = (sql) => /^UPDATE agentics_signups SET opened_notified_at = \? WHERE tenant_id = \?$/.test(sql);
+    const r = await signup.sendOpeningNotices({ apply: true }, odeps());
+    expect(r).toMatchObject({ sent: 1, failed: 0 }); // the mail did go
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith('[agentics] opening email sent but not marked', { attempt: 3, name: 'Error', code: '' });
+    expect(row(A)).toMatchObject({ open_claimed_at: '2026-10-18 12:00:00', opened_notified_at: null }); // the claim was NOT released
+    fake.options.failDml = undefined;
+    sendMail.mockClear();
+    await signup.sendOpeningNotices({ apply: true }, odeps({ now: () => new Date(NOW.getTime() + 120_000) }));
+    expect(sendMail).not.toHaveBeenCalled(); // still claimed
+  });
+
+  it('a claim is refused while it is fresh and taken over once it is stale, to the second', async () => {
+    await signUp(A);
+    expect(await signup.claimOpening(A, NOW)).toBe(true);
+    expect(await signup.claimOpening(A, new Date(NOW.getTime() + 1000))).toBe(false);
+    expect(await signup.claimOpening(A, new Date(NOW.getTime() + signup.CLAIM_STALE_MS - 1000))).toBe(false);
+    expect(await signup.claimOpening(A, new Date(NOW.getTime() + signup.CLAIM_STALE_MS + 1000))).toBe(true);
+    // An account that was told cannot be claimed at all, however old the claim.
+    await signup.markOpened(A, NOW);
+    expect(await signup.claimOpening(A, new Date(NOW.getTime() + 10 * signup.CLAIM_STALE_MS))).toBe(false);
+  });
+
+  it('a release never reopens an account that was already told, and never touches another account\'s claim', async () => {
+    await signUp(A, B);
+    await signup.claimOpening(A, NOW);
+    await signup.claimOpening(B, NOW);
+    await signup.markOpened(A, NOW);
+    await signup.releaseOpening(A, NOW);
+    expect(row(A)?.opened_notified_at).toBe('2026-10-18 12:00:00'); // still told
+    await signup.releaseOpening(A);
+    expect(row(A)?.opened_notified_at).toBe('2026-10-18 12:00:00');
+    expect(row(B)?.open_claimed_at).toBe('2026-10-18 12:00:00'); // B's claim is B's
+  });
+
+  it('a release only gives back the claim its caller took: a slow call cannot undo the call that took over from it', async () => {
+    await signUp(A);
+    const first = NOW;
+    const second = new Date(NOW.getTime() + signup.CLAIM_STALE_MS + 1000);
+    expect(await signup.claimOpening(A, first)).toBe(true);
+    expect(await signup.claimOpening(A, second)).toBe(true); // the first claim went stale and was taken over
+    await signup.releaseOpening(A, first); // the slow first call fails late
+    expect(row(A)?.open_claimed_at).toBe('2026-10-18 12:15:01');
+    await signup.releaseOpening(A, second);
+    expect(row(A)?.open_claimed_at).toBeNull();
+  });
+
+  it('an account that signs up once the vault is open is marked told at once, so it can never get "you signed up before it opened"', async () => {
+    // Its welcome letter could not go (no address), which is how an account stayed on the waiting list.
+    expect(await signup.welcomeOnFirstVisit({ tenantId: 'tenant-late', email: null, source: 'direct' }, deps({ vaultOpen: true }))).toBe('no_email');
+    expect(row('tenant-late')?.opened_notified_at).toBe('2026-10-18 12:00:00');
+    expect(await signup.countOpeningWaiting()).toBe(0);
+    // The same account while the vault is private is waiting, as before.
+    expect(await signup.welcomeOnFirstVisit({ tenantId: 'tenant-early', email: null, source: 'direct' }, deps({ vaultOpen: false }))).toBe('no_email');
+    expect(row('tenant-early')?.opened_notified_at).toBeNull();
+    expect(await signup.countOpeningWaiting()).toBe(1);
+  });
+
+  it('a row that already exists keeps what it had: registering again once the vault is open does not mark it told', async () => {
+    await signup.registerSignup('tenant-early', 'direct', false, NOW);
+    expect(await signup.registerSignup('tenant-early', 'direct', true, NOW)).toBe(false);
+    expect(row('tenant-early')?.opened_notified_at).toBeNull();
   });
 
   it('is removed with the account, like the rest of the row', async () => {

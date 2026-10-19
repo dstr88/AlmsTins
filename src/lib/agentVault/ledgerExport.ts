@@ -1,7 +1,9 @@
 /**
- * The signed export of one agent's ledger: every check the agent asked and every transfer the Vault
- * recorded for it, in a range of UTC days, as one file an accountant or an auditor can check without
- * trusting Almstins.
+ * The signed export of one agent's ledger: every check that was recorded for the agent and every transfer the Vault
+ * recorded for it, in a range of UTC days, as one file an accountant or an auditor can check without trusting
+ * Almstins. A check that came after the agent's daily limit was reached is answered and not recorded (except one
+ * that came back flagged), so it is not in the file; the check that found the limit used up carries a
+ * `limit_reached` mark, so the file itself shows where a day was cut.
  *
  *   events -> one canonical leaf for each -> Merkle root -> manifest -> Ed25519 signature -> bundle
  *
@@ -55,7 +57,7 @@ import { canonicalManifestBytes, getPublishedKeys, getSigningKey, signManifestWi
 import { verifyBundle, type VerifyOutcome } from '@/lib/recordProof/verify';
 import { countEventsInRange, readEventsInRange, type LedgerEvent } from './events';
 import { fail, idOf, type Failure } from './errors';
-import { basisOf, DAY_MS, dayBounds, parseDay, utcDay } from './report';
+import { basisOf, DAY_MS, dayBounds, hasLimitMarker, parseDay, utcDay } from './report';
 import { getTin } from './store';
 
 export const LEDGER_RECORD_TYPE = 'agent_ledger' as const;
@@ -150,6 +152,8 @@ export interface CheckedLeaf {
   basis: string;
   /** The key that asked. */
   key_id: string | null;
+  /** Present, and true, only on the check that found the agent's daily limit of recorded checks used up. Checks after it that day were answered and not recorded, except flagged ones. */
+  limit_reached?: true;
 }
 
 export interface TransferLeaf {
@@ -206,6 +210,7 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
       registry: e.registry,
       basis: basisOf(e.detail),
       key_id: e.keyId,
+      ...(hasLimitMarker(e.detail) ? { limit_reached: true as const } : {}),
     };
   }
   if (e.kind === 'transaction' && e.tx) {

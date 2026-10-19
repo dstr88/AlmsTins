@@ -67,6 +67,16 @@ void _everyBasisIsListed;
 
 const BASES: ReadonlySet<string> = new Set(ANSWER_BASES);
 
+/**
+ * Whether a check's detail carries the daily-limit marker: the check that found the agent's limit on recorded
+ * checks used up is written with `limit.reached` in its detail (./checkLog.ts), so the ledger, the report and the
+ * export show the moment a day was cut. Pure, so the browser can use it too.
+ */
+export function hasLimitMarker(detail: Record<string, unknown> | null | undefined): boolean {
+  const limit = detail?.limit;
+  return !!limit && typeof limit === 'object' && (limit as { reached?: unknown }).reached === true;
+}
+
 /** The basis of a check's answer, or `other` when it is missing or not one this file knows. */
 export function basisOf(detail: Record<string, unknown> | null): string {
   const raw = detail?.basis;
@@ -189,6 +199,12 @@ export interface ReportContent {
     no_issues: BucketCounts;
   };
   strip: ReportStrip;
+  /**
+   * Present only when the agent reached its daily limit of recorded checks during the period: the time of the check
+   * that found the limit used up. Checks after it were answered and not recorded, except flagged ones, so the counts
+   * above cover the recorded checks, not necessarily every check the agent asked.
+   */
+  limit?: { reachedAt: string };
 }
 
 export interface ReportOptions {
@@ -231,6 +247,7 @@ export class ReportBuilder {
   private readonly sold = emptySums();
   private readonly byStatus = zeroStatuses();
   private noPrecedingCheck = 0;
+  private limitReachedAt: string | null = null;
 
   constructor(private readonly opts: ReportOptions) {}
 
@@ -244,6 +261,7 @@ export class ReportBuilder {
   private addCheck(event: LedgerEvent): void {
     const bucket = classifyCheck(event);
     this.checked += 1;
+    if (hasLimitMarker(event.detail) && (this.limitReachedAt === null || event.at < this.limitReachedAt)) this.limitReachedAt = event.at;
     this.bucketChecks[bucket] += 1;
 
     let state = this.addresses.get(event.address);
@@ -325,6 +343,7 @@ export class ReportBuilder {
         byStatus: { ...this.byStatus },
         noPrecedingCheck: this.noPrecedingCheck,
       },
+      ...(this.limitReachedAt !== null ? { limit: { reachedAt: this.limitReachedAt } } : {}),
     };
   }
 }
@@ -356,6 +375,8 @@ export interface ReportHeadline {
   transfers: number;
   bought: SideTotal;
   sold: SideTotal;
+  /** Whether the agent reached its daily limit of recorded checks in the period (see ReportContent.limit). */
+  limitReached: boolean;
 }
 
 export function headlineOf(content: ReportContent): ReportHeadline {
@@ -369,5 +390,6 @@ export function headlineOf(content: ReportContent): ReportHeadline {
     transfers: content.strip.transfers,
     bought: content.strip.bought,
     sold: content.strip.sold,
+    limitReached: content.limit !== undefined,
   };
 }

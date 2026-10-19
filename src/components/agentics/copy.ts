@@ -21,20 +21,22 @@ export const copy = {
     noEmail: 'This sign-in has no email address on it.',
     planLabel: 'Plan',
     plan: `Free: ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. Paid plans come later; there is nothing to buy today.`,
+    planUnlimited: 'Unlimited: this account has no limit on bots or addresses.',
     deleteTitle: 'Delete your account',
     deleteLede: [
-      'This permanently deletes your account and everything in it: your agents, their wallets and registered addresses, the ledger, your reports and your delivery settings. It cannot be undone.',
-      'Your agent keys are removed too, so an agent still using one gets an error, not an answer. A signed file you already downloaded stays yours and still verifies against our published signing keys. Records other parties rely on in Almstins Verify (financing claims, confirmations and their documents) are not deleted.',
+      'This permanently deletes your whole Almstins account and everything in it, not only what you keep in Agentics. That is your agents, their wallets and registered addresses, the ledger, your reports and your delivery settings here, and whatever you keep in the rest of Almstins: tracked wallets, imported transactions, tax records, PetroTins data and your sign-in. It cannot be undone.',
+      'A paid Almstins plan is canceled at once, not at the end of the period. Your agent keys are removed too, so an agent still using one gets an error, not an answer. A signed file you already downloaded stays yours and still verifies against our published signing keys. Records other parties rely on in Almstins Verify (financing claims, confirmations and their documents) are not deleted.',
     ],
     deleteButton: 'Delete my account',
-    deleteQuestion: 'Delete your account and everything in it, for good?',
+    deleteQuestion: 'Delete your whole Almstins account and everything in it, for good?',
     deleteYes: 'Yes, delete everything',
     deleteWorking: 'Deleting',
     deleteKeep: 'Keep my account',
     done: 'Your account was deleted.',
-    failed: 'Your account was not deleted. Try again in a minute, or write to support@almstins.com.',
+    failed: 'We could not delete your account. It is probably still here, but part of what it holds, such as an agent key, may already be gone. Try again in a minute, or write to support@almstins.com.',
     billingFailed: 'Your account was not deleted because we could not cancel your paid plan. Try again in a few minutes, or write to support@almstins.com.',
-    network: 'The request did not reach us, so nothing was deleted. Check your connection and try again.',
+    unclear: 'We did not get an answer, so we cannot say whether your account was deleted. Reload this page: if you are still signed in, it was not deleted. Then try again, or write to support@almstins.com.',
+    signedOut: 'You were signed out. If your account was deleted you cannot sign in to it again; if you can sign in, it was not deleted.',
   },
 
   reports: {
@@ -81,6 +83,7 @@ export const copy = {
     title: 'Operator report',
     back: 'All reports',
     partialNote: (at: string) => `Partial day. This report was made at ${at}, before the day ended, so it covers the day up to that moment.`,
+    limitNote: (at: string) => `Daily limit reached. This agent reached its daily limit of recorded checks at ${at}. Checks after that were answered and not recorded, except checks that came back flagged, so the counts below cover the recorded checks.`,
     snapshotNote: 'This report is a snapshot. It holds every event the Vault had recorded up to the time it was generated. A transfer is recorded after the chain confirms it, so a later version of this day may list one that this version does not.',
     needsAttention: 'Needs a look',
     nothingNeeds: NOTHING_NEEDS_A_PERSON,
@@ -204,11 +207,11 @@ export const copy = {
     created: (day: string) => `Created ${day} (UTC)`,
     limits: {
       records:
-        'Records the checks this agent asks and the funds that reach your registered addresses. A transfer to an address that was never registered is invisible here.',
+        'Records the checks this agent asks with its key and the funds that reach your trusted addresses. A transfer to an address that was never registered is invisible here.',
       pass: 'Pass means the checks we ran came back without a flag. It is not a statement that an address is safe or legitimate.',
     },
-    logLimitReached: (perDay: number) =>
-      `This agent has reached today's limit of ${perDay.toLocaleString('en-US')} recorded checks. Checks later today are still answered. They are not recorded. The count starts over at midnight UTC.`,
+    logLimitReached: (perDay: number, reachedAt: string | null, flaggedExtra: number) =>
+      `This agent reached today's limit of ${perDay.toLocaleString('en-US')} recorded checks${reachedAt ? ` at ${reachedAt} UTC` : ''}. Checks after that are still answered, but they are not recorded, except checks that come back flagged (up to ${flaggedExtra.toLocaleString('en-US')} more). The ledger marks the check that found the limit used up. The count starts over at midnight UTC.`,
     key: {
       title: 'Agent key',
       none: 'No key is linked. Link one so the checks this agent asks are recorded in its ledger.',
@@ -357,7 +360,7 @@ export const copy = {
 
   ledger: {
     title: 'Ledger',
-    lede: 'Newest first. A check is a row the moment the agent asks. A transfer is a row once the chain confirms it. Times are UTC. Rows are never edited or removed.',
+    lede: 'Newest first. A check the agent asks with its key is a row the moment it asks, up to the plan\'s daily limit. A transfer is a row once the chain confirms it. Times are UTC. Rows are never edited or removed.',
     empty: 'Nothing recorded yet. A check appears when the agent asks about an address, and a transfer appears after the chain confirms it.',
     listLabel: 'Ledger of this agent, newest first',
     kind: { checked: 'Checked', in: 'Bought (in)', out: 'Sold (out)' },
@@ -374,6 +377,7 @@ export const copy = {
       ambiguous_checks: 'Checks about this address disagreed at that moment, so the transfer took none of their answers.',
     } as Record<string, string>,
     inheritedFrom: 'Status taken from the check that came before it.',
+    limitReached: 'The daily limit of recorded checks was reached with this check. Checks after it that day were answered and not recorded, except flagged ones.',
     keyRevoked: 'Asked with a key that has since been revoked.',
     keyUnknown: 'Asked with a key that is no longer on this account.',
     loadMore: 'Load more',

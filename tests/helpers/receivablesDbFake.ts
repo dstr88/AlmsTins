@@ -812,6 +812,13 @@ export function createReceivablesDbFake(options: ReceivablesDbFakeOptions = {}):
 		if (/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/i.test(sql)) {
 			return { entry, result: { rows: [{ pg_advisory_xact_lock: '' }], rowsAffected: 0 } };
 		}
+		// The "look before you alter" lookup (src/lib/sessionGate.ts and src/lib/agenticsSignup.ts): which of these columns does the table have?
+		const known = sql.match(/^SELECT column_name FROM information_schema\.columns WHERE table_schema = current_schema\(\) AND table_name = '(\w+)' AND column_name IN \(([^)]*)\)$/i);
+		if (known) {
+			const have = columns.get(known[1]);
+			const wanted = known[2].split(',').map((c) => c.trim().replace(/^'|'$/g, ''));
+			return { entry, result: { rows: wanted.filter((c) => have?.has(c)).map((c) => ({ column_name: c })), rowsAffected: 0 } };
+		}
 		if (head.startsWith('SELECT ')) return { entry, result: select(sql, args) };
 		if (head.startsWith('DELETE ')) return { entry, result: del(sql, args) };
 		throw new Error(`fake db: unsupported statement: ${sql}`);

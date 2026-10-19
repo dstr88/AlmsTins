@@ -46,7 +46,7 @@ export default function AgentPage({ data }: { data: AgentPageData }) {
         <p>{copy.agent.limits.pass}</p>
       </div>
 
-      {data.logLimit?.reached ? <p className="ag-notice ag-notice--warn">{copy.agent.logLimitReached(data.logLimit.perDay)}</p> : null}
+      {data.logLimit?.reached ? <p className="ag-notice ag-notice--warn">{copy.agent.logLimitReached(data.logLimit.perDay, data.logLimit.reachedAt ? data.logLimit.reachedAt.slice(11, 16) : null, data.logLimit.flaggedExtra)}</p> : null}
 
       <AgentKeyCard tinId={data.tin.id} linked={data.key} available={data.availableKeys} />
       <RegistryPanel tinId={data.tin.id} destinations={data.destinations} plan={plan} onChanged={planChanged} />

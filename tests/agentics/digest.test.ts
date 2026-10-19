@@ -38,7 +38,18 @@ describe('the numbers of a digest', () => {
   it('add up the agents that had activity: addresses per group, and the checks that came back clear', () => {
     const a = content([check(addr(1), 'registry_flagged', 'flagged', at(DAY, 8)), check(addr(5), 'domain_proof', 'proven', at(DAY, 9)), check(addr(5), 'domain_proof', 'proven', at(DAY, 10))]);
     const b = content([check(addr(3), 'not_in_registry', 'unknown', at(DAY, 8)), check(addr(4), 'registered_first_check', 'unknown', at(DAY, 9))]);
-    expect(countsOf([a, b])).toEqual({ agents: 2, issues: 1, notConfirmed: 1, new: 1, noIssues: 1, checks: 5, noIssuesChecks: 2 });
+    expect(countsOf([a, b])).toEqual({ agents: 2, issues: 1, notConfirmed: 1, new: 1, noIssues: 1, checks: 5, noIssuesChecks: 2, limited: 0 });
+  });
+
+  it('counts the agents that reached their daily limit of recorded checks, and no others', () => {
+    const cut = check(addr(5), 'domain_proof', 'proven', at(DAY, 9));
+    cut.detail = { basis: 'domain_proof', limit: { reached: true, perDay: 5000 } };
+    const a = content([check(addr(6), 'domain_proof', 'proven', at(DAY, 8)), cut]);
+    const b = content([check(addr(3), 'not_in_registry', 'unknown', at(DAY, 8))]);
+    expect(a.limit).toEqual({ reachedAt: at(DAY, 9) });
+    expect('limit' in b).toBe(false); // a day that was not cut has the report it always had
+    expect(countsOf([a, b])).toMatchObject({ agents: 2, limited: 1 });
+    expect(countsOf([b])).toMatchObject({ limited: 0 });
   });
 
   it('an agent with nothing in the period is not an agent with activity', () => {
@@ -116,6 +127,14 @@ describe('the subject leads with whether action is needed', () => {
     expect(lead({ clearChecks: 2 })).toBe('No flags, 2 checks');
   });
 
+  it('says "recorded" when the daily limit cut the day: only the recorded checks were looked at', () => {
+    expect(digestLead({ issues: 0, notConfirmed: 0, clearChecks: 5001, limited: 1 })).toBe('No flags, 5,001 recorded checks');
+    expect(digestLead({ issues: 0, notConfirmed: 0, clearChecks: 1, limited: 1 })).toBe('No flags, 1 recorded check');
+    expect(digestLead({ issues: 0, notConfirmed: 0, clearChecks: 5001, limited: 0 })).toBe('No flags, 5,001 checks');
+    // What needs a look still leads, cut or not.
+    expect(digestLead({ issues: 2, notConfirmed: 0, clearChecks: 5001, limited: 1 })).toBe('2 need your attention');
+  });
+
   it('never calls a check verified or a day all clear: consistent with history is not verified', () => {
     const states = [
       counts({}), counts({ new: 4 }), counts({ noIssuesChecks: 1 }), counts({ noIssuesChecks: 1284, noIssues: 9 }), counts({ issues: 1, noIssuesChecks: 12 }),
@@ -174,6 +193,17 @@ describe('the body of a digest', () => {
         'Almstins',
       ].join('\n'),
     );
+  });
+
+  it('says which agents reached the daily limit, in the body, and says nothing of it otherwise', () => {
+    const cut = composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ agents: 3, limited: 2, noIssuesChecks: 9000 }), APP);
+    expect(cut.text).toContain('2 agents reached the daily limit of recorded checks. Checks after that were answered and not recorded, except ones that came back flagged, so the counts above cover the recorded checks.');
+    expect(cut.subject).toContain('No flags, 9,000 recorded checks');
+    const one = composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ limited: 1, noIssuesChecks: 5 }), APP);
+    expect(one.text).toContain('1 agent reached the daily limit of recorded checks.');
+    const plain = composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ noIssuesChecks: 5 }), APP);
+    expect(plain.text).not.toMatch(/daily limit/);
+    expect(plain.subject).toContain('No flags, 5 checks');
   });
 
   it('for a quiet day: it says nothing needs attention and does not list zero groups', () => {

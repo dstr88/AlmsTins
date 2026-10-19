@@ -301,6 +301,24 @@ export async function countCheckedSince(tenantId: string, tinId: string, sinceIs
 }
 
 /**
+ * When the agent's daily limit on recorded checks was reached, for the day that starts at `sinceIso`: the
+ * time of the earliest check written with the limit marker (`detail.limit.reached`), or null when none was.
+ * The marker is a field of the check that filled the day, so the ledger shows the moment itself and every
+ * export and report that carries the ledger carries it. Looks at one day's rows of one agent only.
+ */
+export async function limitMarkerSince(tenantId: string, tinId: string, sinceIso: string): Promise<string | null> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT occurred_at FROM agent_events
+          WHERE tenant_id = ? AND tin_id = ? AND kind = 'checked' AND occurred_at >= ? AND detail_json LIKE ?
+          ORDER BY occurred_at ASC, id ASC LIMIT 1`,
+    args: [tenantId, tinId, sinceIso, `%"limit":{"reached":true%`],
+  });
+  const at = (r.rows[0] as { occurred_at?: unknown } | undefined)?.occurred_at;
+  return typeof at === 'string' ? at : null;
+}
+
+/**
  * The id of the event for one movement of funds: the same tenant, tin, chain, transaction hash and
  * leg always give the same id, and nothing else does. A hash of those parts, shaped like a UUID so
  * it fits the ledger's cursor. Hashing the tenant in keeps ids from ever being shared across accounts.

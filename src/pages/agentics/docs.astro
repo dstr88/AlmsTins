@@ -34,6 +34,7 @@
 import ApiDocsLayout from '@/layouts/ApiDocsLayout.astro';
 import AnswerCards from '@/components/docs/AnswerCards.astro';
 import DocsFaq from '@/components/docs/DocsFaq.astro';
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 
 export const prerender = false;
 
@@ -81,12 +82,12 @@ const FIELDS = [
 
 const VAULT_FIELDS = [
   ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
-  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history: on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership). flagged: the registry flagged it, or a different domain than the one you expected vouches for it. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history: on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
   ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
   ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
   ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
   ['logged', 'Whether the check was written to the ledger. false when it could not be, or when the agent had reached its daily limit (see reason).'],
-  ['reason', 'Present only when logged is false because the agent reached its daily limit of recorded checks: log_limit. The Free plan records 5,000 checks per agent per UTC day. The check itself still answers in full.'],
+  ['reason', 'Present only when logged is false because the agent reached its daily limit of recorded checks: log_limit. The Free plan records 5,000 checks per agent per UTC day, and keeps recording the ones that come back flagged, up to 500 more. The check that finds the day full is recorded with a mark, so the ledger, the report and the export show where the day was cut. The check itself still answers in full.'],
 ];
 
 const PRINCIPLES = [
@@ -112,7 +113,7 @@ const TOC = [
 const FAQ = [
   ['Is there an SDK or client library?', "No — it's a single unauthenticated GET that returns JSON. Fetch or curl it directly from any language; there's nothing to install. The rule above is written out in curl, JavaScript and Python under Copy and paste."],
   ['What does the API return if value or expect is malformed?', "A 400, with a JSON body naming the problem — { error: 'invalid address format' } for a value that isn't a recognized address or link, or { error: 'expect must be a domain' } for an expect that isn't domain-shaped. Neither is a proof answer: treat any non-200 as a hold, same as everywhere else on this page."],
-  ['Do I need to normalize expect myself — strip https://, www., a trailing slash?', 'No. expect accepts a bare domain or a full URL (acme.com, https://acme.com/pay, WWW.Acme.com.) and normalizes it the same way before comparing. Pass whatever format your own records already have.'],
+  ['Do I need to normalize expect myself — strip https://, www., a trailing slash?', 'Not for the API: expect accepts a bare domain or a full URL (acme.com, https://acme.com/pay, WWW.Acme.com.) and normalizes it the same way before comparing. Your own check of the answer is different: the short sample under The rule compares against a bare lowercase domain, so keep the payee\'s domain in that form there. The snippets under Copy and paste convert a URL, a www. or a trailing dot for you.'],
   ['Why isn’t there a live "try it" widget on this page?', "Because a random address almost always comes back unknown — nobody has published proof for it yet — and that reads as broken rather than correct. The static example under \"The call\" shows the real shape of a proven answer instead. Once you or a payee you know has proven a real destination, check that one for real."],
   ['Does checking a destination notify the payee, or cost them anything?', "No. A check only reads proof state that's already public, silently and for free. It never contacts, involves, or bills the party being checked."],
   ['Is there a sandbox or test destination I can safely check?', "No dedicated sandbox — the static example on this page is the fixed reference for what a proven answer looks like. To see a real one, prove a destination yourself for free (2 wallets, no card) and check that."],
@@ -211,7 +212,7 @@ const FAQ = [
       <li><b>status</b> is <b>proven</b>.</li>
       <li><b>level</b> is <b>verified</b>.</li>
     </ol>
-    <pre>{`// payeeDomain: the payee's registrable domain from YOUR records, e.g. 'acme.com'
+    <pre>{`// payeeDomain: the payee's bare, lowercase domain from YOUR records, e.g. 'acme.com' (a URL or www. will not match below)
 const want = String(payeeDomain ?? '').trim().toLowerCase();
 if (!want) return holdForReview({ reason: 'no expect' });  // the API ignores an empty expect
 const url = 'https://almstins.com/api/verify/check'
@@ -347,15 +348,28 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
 
   <section id="vault">
     <h2>Your vault (optional)</h2>
-    <p class="body">
-      The check works without an account. If you run agents that move money, you can also keep a
-      dated record of what each one asked and what it was answered. Sign in free at
-      <a href="/agentics">almstins.com/agentics</a>, add an agent in your vault, register the addresses it
-      may pay (each is checked when you add it: sanctions lists, scam screening and domain proofs), and
-      link one of your keys to the agent. From then on every call that carries that key is also written
-      to the agent's ledger, and the answer gains one more field, <code>vault</code>. The Free plan covers
-      3 agents and 15 addresses.
-    </p>
+    {AGENTICS_VAULT_PUBLIC ? (
+      <p class="body">
+        The check works without an account. If you run agents that move money, you can also keep a
+        dated record of what each one asked and what it was answered. Sign in free at
+        <a href="/agentics">almstins.com/agentics</a>, add an agent in your vault, register the addresses it
+        may pay (each is checked when you add it: sanctions lists, scam screening and domain proofs), and
+        link one of your keys to the agent. From then on every address check made with that key is also
+        written to the agent's ledger, and the answer gains one more field, <code>vault</code>. The Free plan
+        covers 3 agents and 15 addresses.
+      </p>
+    ) : (
+      <p class="body">
+        The check works without an account. If you run agents that move money, you will also be able to keep a
+        dated record of what each one asked and what it was answered. The vault opens to free accounts soon:
+        leave your email at <a href="/agentics">almstins.com/agentics</a> and we write once, when it does. You
+        will add an agent, register the addresses it may pay (each is checked when you add it: sanctions lists,
+        scam screening and domain proofs), and link one of your keys to the agent. From then on every address
+        check made with that key is also written to the agent's ledger, and the answer gains one more field,
+        <code>vault</code>. The Free plan covers 3 agents and 15 addresses. Until the vault is open a call is
+        answered exactly as described above, with no <code>vault</code> field.
+      </p>
+    )}
     <div class="term">
       <div class="term__bar">
         <span class="term__dot"></span><span class="term__dot"></span><span class="term__dot"></span>
@@ -382,15 +396,22 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       whatever is not cleared, exactly as before.
     </p>
     <p class="body">
-      <b>What is recorded.</b> For each call on a linked key: the address as you asked, the time, the answer,
-      the registry's word, which key asked, and the caller's network address kept only as a salted one-way
-      hash. Calls with no key, and keys not linked to an agent, are never recorded. Rows are never edited or
-      removed. You read the ledger on the agent's page, get a daily report you can download as a signed PDF,
-      and export a signed file that anyone can check at <a href="/verify-record">/verify-record</a>.
+      <b>What is recorded.</b> For each address check made with a linked key: the address as you asked, the
+      time, the answer and why it was answered so, the registry's word, the status, level, domain and proof
+      age the public check returned, which key asked, and the caller's network address kept only as a salted
+      one-way hash. Calls with no key, keys not linked to an agent, and payment links or QR values (which
+      carry no <code>vault</code> field) are never recorded. Rows are never edited or removed while your account
+      exists; deleting the account deletes them. On the Free plan an agent has 5,000 recorded checks per UTC
+      day, plus room for up to 500 more that come back flagged. Past that a check is answered in full and not
+      recorded, and the check that found the day full carries a mark, so the ledger, the report and the
+      export show where the day was cut. You read the ledger on the agent's page, get a daily report you can
+      download as a signed PDF, and export a signed file that anyone can check at
+      <a href="/verify-record">/verify-record</a>.
     </p>
     <p class="body">
-      <b>What the vault does not see.</b> It records the addresses you register. A transfer to an address
-      you did not register is not seen: the protection is the check before the agent sends. Once a day, or
+      <b>What the vault does not see.</b> It records the checks your agent asks with its key and the transfers
+      to the addresses you trusted. A transfer to an address you did not register is not seen, and a check the
+      agent never asks leaves no record. Once a day, or
       when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
       direct transfers between your agent's own wallets and your trusted addresses, and ties each one to
       the check that came before it. A payment routed through a swap or a router contract is a transfer to
@@ -409,21 +430,29 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
     </p>
     <h3>curl and jq</h3>
     <pre>{`# Exit status 0: the rule holds. Anything else: hold for a person.
-# PAYEE_DOMAIN comes from your own records, never from the invoice.
+# Needs curl 7.71 or newer, and jq. PAYEE_DOMAIN comes from your own records, never from the invoice.
 VALUE="0x..."
 PAYEE_DOMAIN="acme.com"
-[ -n "$PAYEE_DOMAIN" ] || { echo "hold: no expect"; exit 1; }
-curl -sS --max-time 10 --retry 3 --retry-all-errors \\
-  -H "Authorization: Bearer $ALMSTINS_KEY" \\
-  --get --data-urlencode "value=$VALUE" --data-urlencode "expect=$PAYEE_DOMAIN" \\
-  https://almstins.com/api/verify/check \\
-| jq -e --arg want "$PAYEE_DOMAIN" \\
+# The bare form the API compares (acme.com): a URL, a www. or a trailing dot in your records is fine.
+WANT=$(printf '%s' "$PAYEE_DOMAIN" | tr 'A-Z' 'a-z' | sed -E 's#^https?://##; s#^www\\.##; s#[/:].*$##; s#\\.+$##')
+[ -n "$WANT" ] || { echo "hold: no expect"; exit 1; }
+(
+  set -- --get --data-urlencode "value=$VALUE" --data-urlencode "expect=$WANT"
+  [ -n "$ALMSTINS_KEY" ] && set -- "$@" -H "Authorization: Bearer $ALMSTINS_KEY"
+  curl -sS --max-time 10 --retry 3 --retry-all-errors --retry-max-time 30 "$@" https://almstins.com/api/verify/check
+) \\
+| jq -e --arg want "$WANT" \\
   '.status == "proven" and .level == "verified" and (.domain == $want or ((.domain // "") | endswith("." + $want)))' \\
   > /dev/null && echo "proceed" || { echo "hold for a person"; exit 1; }`}</pre>
     <h3>JavaScript</h3>
     <pre>{`// Node 18+ or any runtime with fetch. Resolves true only when the rule holds.
+function bareDomain(raw) {                                   // the form the API compares: acme.com
+  let s = String(raw ?? '').trim().toLowerCase();
+  if (/^https?:\\/\\//.test(s)) { try { s = new URL(s).hostname; } catch { return ''; } }
+  return s.replace(/^www\\./, '').replace(/\\.+$/, '').split('/')[0].split(':')[0];
+}
 async function mayProceed(value, payeeDomain, key) {
-  const want = String(payeeDomain ?? '').trim().toLowerCase();
+  const want = bareDomain(payeeDomain);
   if (!want) return false;                                   // the API ignores an empty expect: hold
   const url = 'https://almstins.com/api/verify/check'
     + '?value=' + encodeURIComponent(value)
@@ -431,15 +460,17 @@ async function mayProceed(value, payeeDomain, key) {
   const headers = key ? { Authorization: 'Bearer ' + key } : {};
   for (let attempt = 0; attempt < 3; attempt++) {
     let res;
-    try { res = await fetch(url, { headers }); }
-    catch { await sleep(2 ** attempt * 1000); continue; }    // no answer: try again
+    try { res = await fetch(url, { headers, signal: AbortSignal.timeout(10000) }); }
+    catch { await sleep(2 ** attempt * 1000); continue; }    // no answer, or too slow: try again
     if (res.status >= 500 || res.status === 429) {
-      await sleep(Number(res.headers.get('Retry-After')) * 1000 || 2 ** attempt * 1000);
+      const asked = Math.min(Number(res.headers.get('Retry-After')) * 1000, 30000);
+      await sleep(asked || 2 ** attempt * 1000);
       continue;
     }
     if (!res.ok) return false;                               // 400, 401 and the rest: hold
     let body;
     try { body = await res.json(); } catch { return false; } // unreadable: hold
+    if (!body || typeof body !== 'object') return false;     // null or a bare value: hold
     const got = String(body.domain ?? '').toLowerCase();
     return body.status === 'proven' && body.level === 'verified'
       && (got === want || got.endsWith('.' + want));         // and it is about your payee
@@ -448,11 +479,23 @@ async function mayProceed(value, payeeDomain, key) {
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));`}</pre>
     <h3>Python</h3>
-    <pre>{`# Standard library only. Returns True only when the rule holds.
-import json, time, urllib.error, urllib.parse, urllib.request
+    <pre>{`# Standard library only, Python 3.8 or newer. Returns True only when the rule holds.
+import http.client, json, re, time, urllib.error, urllib.parse, urllib.request
+
+def bare_domain(raw):                         # the form the API compares: acme.com
+    s = (raw or "").strip().lower()
+    if re.match(r"^https?://", s):
+        s = urllib.parse.urlsplit(s).hostname or ""
+    return re.sub(r"^www\\.", "", s).rstrip(".").split("/")[0].split(":")[0]
+
+def retry_delay(asked, attempt):              # seconds; a date or anything else uses the backoff
+    try:
+        return min(30, max(0, int(asked)))
+    except (TypeError, ValueError):
+        return 2 ** attempt
 
 def may_proceed(value, payee_domain, key=None, tries=3):
-    want = (payee_domain or "").strip().lower()
+    want = bare_domain(payee_domain)
     if not want:
         return False                          # the API ignores an empty expect: hold
     url = ("https://almstins.com/api/verify/check?value=" + urllib.parse.quote(value, safe="")
@@ -464,12 +507,16 @@ def may_proceed(value, payee_domain, key=None, tries=3):
                 body = json.load(res)
         except urllib.error.HTTPError as e:
             if e.code >= 500 or e.code == 429:
-                time.sleep(int(e.headers.get("Retry-After") or 2 ** attempt))
+                time.sleep(retry_delay(e.headers.get("Retry-After"), attempt))
                 continue
             return False                      # 400, 401 and the rest: hold
-        except (urllib.error.URLError, TimeoutError, ValueError):
-            time.sleep(2 ** attempt)          # no answer, or one that cannot be read: try again
+        except ValueError:
+            return False                      # an answer that cannot be read: hold
+        except (urllib.error.URLError, OSError, http.client.HTTPException):
+            time.sleep(2 ** attempt)          # no answer, or a dropped connection: try again
             continue
+        if not isinstance(body, dict):
+            return False                      # null or a list: hold
         got = (body.get("domain") or "").lower()
         return (body.get("status") == "proven" and body.get("level") == "verified"
                 and (got == want or got.endswith("." + want)))   # and it is about your payee

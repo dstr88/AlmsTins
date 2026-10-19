@@ -243,7 +243,17 @@ describe('the daily limit on recorded checks', () => {
     }
   };
 
-  it('records checks up to the limit, then answers in full and writes nothing', async () => {
+  /** A check already on the ledger that carries the limit marker, as the one that found the day full is written. */
+  const seedMarker = async (tenantId: string, tinId: string, at: string, perDay: number) => {
+    await (await import('../../src/lib/agentVault/events')).ensureAgentEventsTable();
+    fake.seed('agent_events', {
+      id: `marker-${tinId}-${at}`, tenant_id: tenantId, tin_id: tinId, kind: 'checked', address: addr(901), chain: null, answer: 'unknown',
+      registry: 'none', status: 'unknown', key_id: KEY_LINKED, source_ip: null, detail_json: JSON.stringify({ basis: 'not_in_registry', limit: { reached: true, perDay } }), occurred_at: at,
+    });
+  };
+  const markers = () => events().filter((e) => /"limit":\{"reached":true/.test(String(e.detail_json)));
+
+  it('records checks up to the limit; the check that finds the day full is recorded WITH a marker; after it nothing is written', async () => {
     await atNoon(async () => {
       const limit = await limitOf();
       const tin = await linkedTin();
@@ -254,15 +264,134 @@ describe('the daily limit on recorded checks', () => {
       const last = await call(addr(1), { bearer: BEARER.linked });
       expect(last.body.vault).toMatchObject({ logged: true, answer: 'proven' });
       expect(last.body.vault).not.toHaveProperty('reason');
-      const written = events().length;
-      expect(written).toBe(limit);
+      expect(events()).toHaveLength(limit);
+      expect(markers()).toHaveLength(0); // the limit-th check is an ordinary row
 
+      // The next check finds the day full. It is answered in full and written, and the row says so.
+      const filled = await call(addr(1), { bearer: BEARER.linked });
+      expect(filled.body.vault).toMatchObject({ logged: true, answer: 'proven' });
+      expect(events()).toHaveLength(limit + 1);
+      expect(markers()).toHaveLength(1);
+      expect(JSON.parse(String(markers()[0].detail_json)).limit).toEqual({ reached: true, perDay: limit });
+
+      // After it: answered in full, nothing written, and the block says why.
       const over = await call(addr(1), { bearer: BEARER.linked });
       const plain = await call(addr(1));
       expect(over.res.status).toBe(200);
       expect(publicPart(over.body)).toEqual(publicPart(plain.body));
       expect(over.body.vault).toMatchObject({ cleared: true, answer: 'proven', registry: 'trusted', eventId: null, logged: false, reason: 'log_limit' });
-      expect(events()).toHaveLength(written);
+      expect(events()).toHaveLength(limit + 1);
+      expect(markers()).toHaveLength(1); // one marker for the day, however many checks come after
+    });
+  });
+
+  it('a day that filled past the limit without any marker (checks that raced) gets its marker on the next check', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit + 50, '2026-10-19T00:30:00.000Z'); // 50 over, and no row says the limit was reached
+      const { body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(body.vault).toMatchObject({ logged: true });
+      expect(markers()).toHaveLength(1);
+      expect((await call(addr(1), { bearer: BEARER.linked })).body.vault).toMatchObject({ logged: false, reason: 'log_limit' });
+    });
+  });
+
+  it('a marker is one agent\'s, for one UTC day: another day\'s or another agent\'s does not stand in for today\'s', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      const other = expectOk(await vault.createTin(A, { label: 'Another agent' })).tin;
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await seedMarker(A, tin.id, '2026-10-18T23:59:59.999Z', limit); // yesterday's
+      await seedMarker(A, other.id, '2026-10-19T01:00:00.000Z', limit); // another agent's today
+      await fillLedger(A, tin.id, limit, '2026-10-19T02:00:00.000Z');
+      const { body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(body.vault).toMatchObject({ logged: true }); // written, as today's marker
+      expect(markers().filter((m) => m.tin_id === tin.id && String(m.occurred_at).startsWith('2026-10-19'))).toHaveLength(1);
+    });
+  });
+
+  it('the marker is found again by a process that forgot it: the day does not get a second one', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      await call(addr(1), { bearer: BEARER.linked }); // writes the marker
+      (await import('../../src/lib/agentVault/checkLog'))._clearKeyTenantCache(); // a restart: the process remembers nothing
+      const { body } = await call(addr(1), { bearer: BEARER.linked });
+      expect(body.vault).toMatchObject({ logged: false, reason: 'log_limit' });
+      expect(markers()).toHaveLength(1);
+    });
+  });
+
+  it('checks that find the day full at the same moment write ONE marker between them, not one each', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      const answers = await Promise.all(Array.from({ length: 25 }, () => call(addr(1), { bearer: BEARER.linked })));
+      expect(answers.filter((a) => a.body.vault.logged === true)).toHaveLength(1); // the one that wrote the marker
+      expect(answers.filter((a) => a.body.vault.reason === 'log_limit')).toHaveLength(24);
+      expect(markers()).toHaveLength(1);
+      expect(events()).toHaveLength(limit + 1);
+    });
+  });
+
+  it('a marker that could not be written is tried again by the next check that finds the day full', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      entities.address.mockResolvedValue(hit());
+      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      let failures = 1;
+      holder.intercept = (sql) => { if (failures > 0 && /^INSERT INTO agent_events/i.test(sql)) { failures -= 1; throw new Error('the disk is full'); } };
+      const failed = await call(addr(1), { bearer: BEARER.linked });
+      expect(failed.body.vault).toMatchObject({ logged: false, eventId: null });
+      expect(failed.body.vault).not.toHaveProperty('reason'); // not the limit: the write failed
+      expect(markers()).toHaveLength(0);
+      const retried = await call(addr(1), { bearer: BEARER.linked });
+      expect(retried.body.vault).toMatchObject({ logged: true });
+      expect(markers()).toHaveLength(1);
+    });
+  });
+
+  it('a check that comes back FLAGGED is still recorded past the limit, for a further room of its own, and then it is not either', async () => {
+    await atNoon(async () => {
+      const limit = await limitOf();
+      const extra = (await import('../../src/lib/agentVault/entitlements')).FLAGGED_LOGGED_PAST_LIMIT;
+      const tin = await linkedTin();
+      await register(tin.id, addr(1));
+      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      await seedMarker(A, tin.id, '2026-10-19T01:30:00.000Z', limit);
+      const flagged = () => call(addr(1), { bearer: BEARER.linked, expect: 'wrong.example' }); // a different domain stands behind it: flagged
+      entities.address.mockResolvedValue(hit({ domain: 'other.example' }));
+
+      // An ordinary check is not recorded now...
+      const plainRows = events().length;
+      expect((await call(addr(2), { bearer: BEARER.linked })).body.vault).toMatchObject({ logged: false, reason: 'log_limit' });
+      expect(events()).toHaveLength(plainRows);
+      // ...a flagged one is.
+      const { body } = await flagged();
+      expect(body.vault).toMatchObject({ answer: 'flagged', logged: true });
+      expect(events()).toHaveLength(plainRows + 1);
+
+      // Fill the flagged room, and the next flagged check is answered and not recorded.
+      const room = limit + extra - events().length;
+      await fillLedger(A, tin.id, room, '2026-10-19T03:00:00.000Z');
+      expect(events()).toHaveLength(limit + extra);
+      const over = await flagged();
+      expect(over.body.vault).toMatchObject({ answer: 'flagged', logged: false, reason: 'log_limit' });
+      expect(events()).toHaveLength(limit + extra);
     });
   });
 
@@ -307,12 +436,16 @@ describe('the daily limit on recorded checks', () => {
     });
   });
 
-  it('still tells the operator about a flag on a registered address when the limit is reached, and writes nothing', async () => {
+  it('still tells the operator about a flag on a registered address when even the flagged room is used up, and writes nothing', async () => {
     await atNoon(async () => {
       const limit = await limitOf();
+      const extra = (await import('../../src/lib/agentVault/entitlements')).FLAGGED_LOGGED_PAST_LIMIT;
       const tin = await linkedTin();
       await register(tin.id, addr(1));
-      await fillLedger(A, tin.id, limit, '2026-10-19T01:00:00.000Z');
+      await fillLedger(A, tin.id, limit + extra - 1, '2026-10-19T01:00:00.000Z');
+      await seedMarker(A, tin.id, '2026-10-19T01:30:00.000Z', limit);
+      const total = events().length;
+      expect(total).toBe(limit + extra);
       const { recordKeyedCheck } = await import('../../src/lib/agentVault/checkLog');
       const onFlagged = vi.fn();
       const block = await recordKeyedCheck(
@@ -322,7 +455,44 @@ describe('the daily limit on recorded checks', () => {
       expect(block).toMatchObject({ answer: 'flagged', logged: false, eventId: null, reason: 'log_limit' });
       await vi.waitFor(() => expect(onFlagged).toHaveBeenCalledTimes(1));
       expect(onFlagged).toHaveBeenCalledWith({ tenantId: A, tinId: tin.id, address: addr(1) });
-      expect(events()).toHaveLength(limit);
+      expect(events()).toHaveLength(total);
+    });
+  });
+
+  describe('the UTC day, whatever time zone the server runs in', () => {
+    async function withTimeZone(tz: string, run: () => Promise<void>) {
+      const before = process.env.TZ;
+      process.env.TZ = tz;
+      try {
+        await run();
+      } finally {
+        if (before === undefined) delete process.env.TZ;
+        else process.env.TZ = before;
+      }
+    }
+
+    it.each([['UTC'], ['Pacific/Kiritimati'], ['America/Los_Angeles'], ['Asia/Kolkata']])('starts at 00:00:00.000 UTC and ends at 23:59:59.999 UTC (server zone %s)', async (tz) => {
+      await withTimeZone(tz, async () => {
+        // The zone really changed: half past midnight UTC is the evening before in Los Angeles.
+        if (tz === 'America/Los_Angeles') expect(new Date('2026-10-19T00:30:00.000Z').getDate()).toBe(18);
+        if (tz === 'Pacific/Kiritimati') expect(new Date('2026-10-19T23:30:00.000Z').getDate()).toBe(20);
+        const limit = await limitOf();
+        const tin = await linkedTin();
+        await register(tin.id, addr(1));
+        await fillLedger(A, tin.id, 1, '2026-10-18T23:59:59.999Z'); // the last millisecond of yesterday: not today's
+        await fillLedger(A, tin.id, limit, '2026-10-19T00:00:00.000Z'); // the first millisecond of today: counted
+        const { recordKeyedCheck } = await import('../../src/lib/agentVault/checkLog');
+        const ask = (iso: string) =>
+          recordKeyedCheck({ keyId: KEY_LINKED, value: addr(1), status: 'proven', level: 'verified', domain: 'acme.com', proofAgeDays: 3, sourceIp: null, now: new Date(iso) });
+        const found = await ask('2026-10-19T00:30:00.000Z');
+        expect(found, 'the day is full at half past midnight').toMatchObject({ logged: true });
+        expect(markers()).toHaveLength(1);
+        expect(await ask('2026-10-19T23:59:59.999Z'), 'and still full at the last millisecond').toMatchObject({ logged: false, reason: 'log_limit' });
+        const tomorrow = await ask('2026-10-20T00:00:00.000Z');
+        expect(tomorrow, 'a new day starts clean').toMatchObject({ logged: true });
+        expect(tomorrow).not.toHaveProperty('reason');
+        expect(markers()).toHaveLength(1);
+      });
     });
   });
 

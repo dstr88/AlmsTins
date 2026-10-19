@@ -90,6 +90,7 @@ export default function ReportView({ report, signing }: { report: ReportDetail; 
       </header>
 
       {report.partial ? <p className="ag-notice ag-notice--warn">{copy.view.partialNote(formatUtc(report.generatedAt))}</p> : null}
+      {c.limit ? <p className="ag-notice ag-notice--warn">{copy.view.limitNote(formatUtc(c.limit.reachedAt))}</p> : null}
       <p className="ag-note">{copy.view.snapshotNote}</p>
 
       <div className="ag-tiles">

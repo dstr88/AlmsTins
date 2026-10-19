@@ -27,8 +27,18 @@ describe('a check', () => {
   it('becomes a row with what a screen reads and nothing else', () => {
     expect(toLedgerRow(check())).toEqual({
       id: '00000000-0000-4000-8000-000000000001', at: AT, kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged',
-      basis: 'registry_flagged', linkReason: null, keyState: 'active', tx: null,
+      basis: 'registry_flagged', linkReason: null, limitReached: false, keyState: 'active', tx: null,
     });
+  });
+
+  it('carries the daily-limit marker only when the check really has it: a `reached` that is true, in a `limit` object', () => {
+    expect(toLedgerRow(check({ detail: { basis: 'domain_proof', limit: { reached: true, perDay: 5000 } } }))?.limitReached).toBe(true);
+    for (const limit of [{ reached: false }, { reached: 'true' }, { reached: 1 }, {}, null, 'reached', true, [] as unknown]) {
+      expect(toLedgerRow(check({ detail: { basis: 'domain_proof', limit } as never }))?.limitReached, JSON.stringify(limit)).toBe(false);
+    }
+    expect(toLedgerRow(check({ detail: null }))?.limitReached).toBe(false);
+    // A transfer is never the check that found the day full, whatever its detail says.
+    expect(toLedgerRow(move({ detail: { limit: { reached: true } } }))?.limitReached).toBe(false);
   });
 
   it('leaves out the caller\'s address, the public status, the key id and the free text of what was answered', () => {
@@ -66,7 +76,7 @@ describe('a transfer', () => {
   it('becomes a row with its facts, and the reason it has no check behind it', () => {
     expect(toLedgerRow(move())).toEqual({
       id: '00000000-0000-4000-8000-000000000002', at: AT, kind: 'transaction', address: addr(2), chain: 'polygon', answer: 'unknown', registry: 'trusted',
-      basis: null, linkReason: 'no_preceding_check', keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75 },
+      basis: null, linkReason: 'no_preceding_check', limitReached: false, keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75 },
     });
   });
 

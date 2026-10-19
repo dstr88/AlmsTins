@@ -16,7 +16,7 @@
  */
 import type { VaultChain } from './addresses';
 import type { RegistryVerdict, VaultAnswer } from './events';
-import { basisOf } from './report';
+import { basisOf, hasLimitMarker } from './report';
 import type { EventView } from './vault';
 
 export type LinkReason = 'no_preceding_check' | 'ambiguous_checks';
@@ -50,6 +50,8 @@ export interface LedgerRow {
   basis: string | null;
   /** For a transfer: why no check stands behind it, or null when one does. */
   linkReason: LinkReason | null;
+  /** For a check: whether it is the one that found the agent's daily limit of recorded checks used up. Checks after it that day were answered and not recorded, except flagged ones. */
+  limitReached: boolean;
   /** For a check: whether the key that asked is still in use. A rotated key stays marked. Null for a transfer. */
   keyState: KeyState | null;
   tx: LedgerTransfer | null;
@@ -98,6 +100,7 @@ export function toLedgerRow(event: Partial<EventView> | null | undefined): Ledge
     registry: has(REGISTRIES, event.registry) ? (event.registry as RegistryVerdict) : null,
     basis: isCheck ? basisOf(detail) : null,
     linkReason: !isCheck && has(LINK_REASONS, reason) ? (reason as LinkReason) : null,
+    limitReached: isCheck && hasLimitMarker(detail),
     keyState: isCheck && event.keyId ? (has(KEY_STATES, event.keyStatus) ? (event.keyStatus as KeyState) : 'unknown') : null,
     tx,
   };

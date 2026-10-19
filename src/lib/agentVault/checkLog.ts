@@ -27,7 +27,11 @@
  * On the Free plan an agent has a limit on the checks written to its ledger in one UTC day
  * (FREE_LOGGED_CHECKS_PER_DAY, ./entitlements.ts). Past it the check still answers, in full, and the
  * block says `logged: false` with the reason `log_limit`: nothing is written, so a key looped on cannot
- * fill the ledger, and the operator is still alerted about a flagged registered address. The owner's
+ * fill the ledger, and the operator is still alerted about a flagged registered address. Two things keep
+ * that from hiding what happened. The check that finds the day full is written, with a marker in its
+ * detail (`limit.reached`), so the ledger, the report and the export show the moment the day was cut. And
+ * a check that comes back FLAGGED is still written past the limit, up to FLAGGED_LOGGED_PAST_LIMIT more,
+ * so a loop on a key cannot use the day's recording up and leave the real flags unrecorded. The owner's
  * account has no limit.
  *
  * Anonymous calls and keys that are not linked to a tin never reach this code. A failure here
@@ -39,8 +43,8 @@ import { hashWithSalt } from '@/lib/analytics/hash';
 import { db } from '@/lib/db';
 import { normalizeAddress, type VaultChain } from './addresses';
 import type { FlaggedCheckInfo } from './alerts';
-import { getLoggedChecksPerDay } from './entitlements';
-import { countCheckedSince, hasPriorCheck, insertCheckedEvent, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
+import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay } from './entitlements';
+import { countCheckedSince, hasPriorCheck, insertCheckedEvent, limitMarkerSince, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
 import { findLiveTinByKey, listDestinationsByAddress } from './store';
 import type { TrustStatus } from './trustPolicy';
 
@@ -123,9 +127,47 @@ async function keyTenant(keyId: string): Promise<string | null> {
   return tenantId;
 }
 
+// Whether an agent's day already has its limit marker. Once it does it always will, so a process remembers it
+// and asks the ledger only about the first check that finds a day full. Within one process exactly one check
+// writes the marker: the callers that find the day full at the same moment share one lookup, and the first to
+// continue claims the marker before it writes (no await between the test and the claim). Two processes can each
+// write one for a day; the ledger shows the earlier, and an extra marker costs one row.
+const MARKED = new Map<string, true>();
+const LOOKING = new Map<string, Promise<boolean>>();
+const MARKED_LIMIT = 2_000;
+
+/** True for exactly one caller in this process per agent and day: the one that must write the marker. */
+async function claimLimitMarker(tenantId: string, tinId: string, day: string): Promise<boolean> {
+  const key = `${tinId}|${day}`;
+  if (MARKED.has(key)) return false;
+  let lookup = LOOKING.get(key);
+  if (!lookup) {
+    lookup = limitMarkerSince(tenantId, tinId, day).then((at) => at !== null);
+    LOOKING.set(key, lookup);
+    void lookup.then(
+      () => LOOKING.delete(key),
+      () => LOOKING.delete(key),
+    );
+  }
+  if (await lookup) {
+    rememberLimitMarked(key);
+    return false;
+  }
+  if (MARKED.has(key)) return false; // another caller of this process claimed it while this one waited
+  rememberLimitMarked(key);
+  return true;
+}
+
+function rememberLimitMarked(key: string): void {
+  if (MARKED.size >= MARKED_LIMIT) MARKED.clear();
+  MARKED.set(key, true);
+}
+
 /** For tests: forget cached key-to-account lookups. */
 export function _clearKeyTenantCache(): void {
   TENANT_CACHE.clear();
+  MARKED.clear();
+  LOOKING.clear();
 }
 
 export interface KeyedCheckInput {
@@ -224,10 +266,25 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
 
   // The daily limit on recorded checks. A failure to count it is not a reason to change the answer or to
   // refuse to record: it is logged, and the check is written as it would be without a limit.
+  const day = utcDayStart(input.now);
   let overLimit = false;
+  let marksLimit = false;
+  let perDay: number | null = null;
   try {
-    const perDay = await getLoggedChecksPerDay(tenantId);
-    if (perDay !== null) overLimit = (await countCheckedSince(tenantId, tinId, utcDayStart(input.now))) >= perDay;
+    perDay = await getLoggedChecksPerDay(tenantId);
+    if (perDay !== null) {
+      const recorded = await countCheckedSince(tenantId, tinId, day);
+      if (recorded >= perDay) {
+        if (await claimLimitMarker(tenantId, tinId, day)) {
+          // The first check to find the day full is written, with the marker that says so.
+          marksLimit = true;
+        } else if (derived.answer === 'flagged' && recorded < perDay + FLAGGED_LOGGED_PAST_LIMIT) {
+          // A flag is still recorded (see FLAGGED_LOGGED_PAST_LIMIT).
+        } else {
+          overLimit = true;
+        }
+      }
+    }
   } catch (err) {
     logFailure('read', err);
   }
@@ -257,11 +314,13 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
         level: input.level,
         domain: input.domain,
         proofAgeDays: input.proofAgeDays,
+        ...(marksLimit && perDay !== null ? { limit: { reached: true, perDay } } : {}),
       },
       at: input.now.toISOString(),
     });
   } catch (err) {
     logFailure('write', err);
+    if (marksLimit) MARKED.delete(`${tinId}|${day}`); // the marker was not written: the next check that finds the day full writes it
     return { ...block, eventId: null, logged: false };
   }
   // After the event is written, outside the try above, so nothing in the alert can turn a written

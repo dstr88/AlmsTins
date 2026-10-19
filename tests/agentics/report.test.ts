@@ -12,6 +12,7 @@ import {
   buildReport,
   classifyCheck,
   dayBounds,
+  hasLimitMarker,
   headlineOf,
   parseDay,
   utcDay,
@@ -243,6 +244,44 @@ describe('what each listed address carries', () => {
     expect(r.buckets.not_confirmed.listed).toHaveLength(MAX_LISTED_PER_BUCKET);
     expect(r.buckets.not_confirmed.omitted).toBe(5);
     expect(r.addresses).toBe(MAX_LISTED_PER_BUCKET + 5);
+  });
+});
+
+describe('the daily limit of recorded checks', () => {
+  const marked = (when: string): LedgerEvent => check(addr(8), 'domain_proof', when, { detail: { basis: 'domain_proof', limit: { reached: true, perDay: 5000 } } });
+
+  it('a report of a day that was cut says when: the earliest check carrying the marker', () => {
+    const content = report([check(addr(1), 'domain_proof', at(8)), marked(at(11)), marked(at(9, 30))]);
+    expect(content.limit).toEqual({ reachedAt: at(9, 30) });
+    expect(headlineOf(content).limitReached).toBe(true);
+  });
+
+  it('a report of a day that was not cut has no `limit` at all, so the reports it always made are the same byte for byte', () => {
+    const content = report([check(addr(1), 'domain_proof', at(8))]);
+    expect('limit' in content).toBe(false);
+    expect(JSON.stringify(content)).not.toContain('limit');
+    expect(headlineOf(content).limitReached).toBe(false);
+  });
+
+  it('only a check inside the period can mark it, and only a check does: a transfer with the same detail does not', () => {
+    const outside = marked('2026-10-16T09:00:00.000Z');
+    const transferWithIt = transfer('in', 5, at(9), { detail: { leg: 'native:0', limit: { reached: true, perDay: 5000 } } });
+    expect('limit' in report([outside, transferWithIt, check(addr(1), 'domain_proof', at(8))])).toBe(false);
+  });
+
+  it('the marked check is an ordinary check in every count: it falls in its own bucket by its own answer', () => {
+    const content = report([marked(at(9))]);
+    expect(content.events.checked).toBe(1);
+    expect(content.buckets.no_issues).toEqual({ addresses: 1, checks: 1 });
+  });
+
+  it('the marker is exactly a `limit` object whose `reached` is true', () => {
+    for (const bad of [{ reached: false }, { reached: 'true' }, {}, null, 'reached', 1]) {
+      expect(hasLimitMarker({ limit: bad } as never), JSON.stringify(bad)).toBe(false);
+    }
+    expect(hasLimitMarker(null)).toBe(false);
+    expect(hasLimitMarker({ basis: 'domain_proof' })).toBe(false);
+    expect(hasLimitMarker({ limit: { reached: true } })).toBe(true);
   });
 });
 

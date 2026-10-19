@@ -26,6 +26,12 @@ describe('sitemap filter', () => {
     for (const p of ['/agentics/login/', '/agentics/login', '/dashboard/agentics/', '/dashboard/agentics']) expect(sitemapFilter(url(p)), p).toBe(false);
   });
 
+  it('leaves out the Agentics account page: it is one signed-in account\'s, and a sitemap is a public list', () => {
+    for (const p of ['/agentics/account/', '/agentics/account', '/AGENTICS/ACCOUNT/']) expect(sitemapFilter(url(p)), p).toBe(false);
+    // Its neighbors are still listed.
+    expect(sitemapFilter(url('/agentics/docs/'))).toBe(true);
+  });
+
   it('drops every desk and single-use-link page under the product prefixes', () => {
     for (const p of [
       '/verify/desk/', '/verify/client/', '/verify/registry/', '/verify/login/', '/verify/scan/',

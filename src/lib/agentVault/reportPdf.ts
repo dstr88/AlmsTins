@@ -178,6 +178,15 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
       y += h + 12;
     }
 
+    if (content.limit) {
+      const note = `Daily limit reached. The agent reached its daily limit of recorded checks at ${formatUtc(content.limit.reachedAt)}. Checks after that were answered and not recorded, except checks that came back flagged, so the counts below cover the recorded checks.`;
+      const h = heightOf(note, CONTENT_W - 20, 8.5, 'Helvetica-Bold') + 14;
+      doc.rect(MARGIN.left, y, CONTENT_W, h).fillColor(PDF_COLORS['--warning'], 0.12).fill();
+      doc.rect(MARGIN.left, y, 3, h).fillColor(PDF_COLORS['--warning'], 1).fill();
+      write(note, MARGIN.left + 12, y + 7, { size: 8.5, font: 'Helvetica-Bold', width: CONTENT_W - 20 });
+      y += h + 12;
+    }
+
     // ── The four tiles ───────────────────────────────────────────────────────
     const gap = 8;
     const tileW = (CONTENT_W - gap * 3) / 4;

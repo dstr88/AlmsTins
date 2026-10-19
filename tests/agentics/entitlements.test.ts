@@ -59,6 +59,16 @@ describe('the plan an account is on', () => {
     expect(entitlements.FREE_LIMITS).toEqual({ bots: 3, addresses: 15, walletsPerBot: 5 });
   });
 
+  it('the words the door and the screens use for the Free plan are the numbers it enforces', async () => {
+    const copy = await import('../../src/i18n/agentics');
+    expect([copy.FREE_BOTS, copy.FREE_ADDRESSES, copy.FREE_CHECKS_PER_DAY]).toEqual([entitlements.FREE_LIMITS.bots, entitlements.FREE_LIMITS.addresses, entitlements.FREE_LOGGED_CHECKS_PER_DAY]);
+    expect([entitlements.FREE_LOGGED_CHECKS_PER_DAY, entitlements.FLAGGED_LOGGED_PAST_LIMIT]).toEqual([5000, 500]);
+    // The room for flagged checks past the limit is small next to the limit: it is a reserve, not a second allowance.
+    expect(entitlements.FLAGGED_LOGGED_PAST_LIMIT).toBeLessThan(entitlements.FREE_LOGGED_CHECKS_PER_DAY / 5);
+    expect(await entitlements.getLoggedChecksPerDay(A)).toBe(5000);
+    expect(await entitlements.getLoggedChecksPerDay(OWNER)).toBeNull();
+  });
+
   it('has no limits for the owner, whatever the letter case of the id', async () => {
     for (const id of [OWNER, OWNER.toUpperCase()]) {
       expect(await entitlements.getEntitlements(id)).toEqual({

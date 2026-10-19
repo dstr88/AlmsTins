@@ -79,7 +79,7 @@ const dest = (n: number, over: Partial<Destination> = {}): Destination => ({
 const wallet = (n: number, over: Partial<AgentWallet> = {}): AgentWallet => ({ id: `w${n}`, tinId: 'tin-1', chain: 'ethereum', address: addr(900 + n), createdAt: '2026-10-01 00:00:00', ...over });
 const HASH = `0x${'ab'.repeat(32)}`;
 const row = (over: Partial<LedgerRow> = {}): LedgerRow => ({
-  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, keyState: 'active', tx: null, ...over,
+  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, limitReached: false, keyState: 'active', tx: null, ...over,
 });
 const transfer = (over: Partial<LedgerRow> = {}): LedgerRow =>
   row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5 }, ...over });
@@ -101,7 +101,7 @@ const agentData = (over: Partial<AgentPageData> = {}): AgentPageData => ({
   ledger: { rows: [row(), transfer()], next: null },
   totals: totals() as never,
   signing: { available: true },
-  logLimit: { perDay: 5000, reached: false },
+  logLimit: { perDay: 5000, flaggedExtra: 500, reached: false, reachedAt: null },
   ...over,
 });
 const card = (n: number, over: Partial<AgentCard> = {}): AgentCard => ({
@@ -231,7 +231,7 @@ describe('one agent', () => {
   });
 
   it('puts the two honest sentences near the top, in the words the brief fixed', () => {
-    expect(t).toContain('Records the checks this agent asks and the funds that reach your registered addresses. A transfer to an address that was never registered is invisible here.');
+    expect(t).toContain('Records the checks this agent asks with its key and the funds that reach your trusted addresses. A transfer to an address that was never registered is invisible here.');
     expect(t).toContain('Pass means the checks we ran came back without a flag. It is not a statement that an address is safe or legitimate.');
     expect(html.indexOf('invisible here')).toBeLessThan(html.indexOf('Registered addresses'));
   });
@@ -247,10 +247,20 @@ describe('one agent', () => {
 
   it('says nothing about the daily limit on recorded checks until it is reached, and says what happens then', () => {
     expect(t).not.toContain('recorded checks');
-    const reached = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: { perDay: 5000, reached: true } }) })));
-    expect(reached).toContain("This agent has reached today's limit of 5,000 recorded checks. Checks later today are still answered. They are not recorded. The count starts over at midnight UTC.");
+    const reached = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: { perDay: 5000, flaggedExtra: 500, reached: true, reachedAt: '2026-10-18T00:17:33.000Z' } }) })));
+    expect(reached).toContain("This agent reached today's limit of 5,000 recorded checks at 00:17 UTC. Checks after that are still answered, but they are not recorded, except checks that come back flagged (up to 500 more). The ledger marks the check that found the limit used up. The count starts over at midnight UTC.");
+    // A day that filled without a marked check (checks that raced) says so without a time.
+    const noTime = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: { perDay: 5000, flaggedExtra: 500, reached: true, reachedAt: null } }) })));
+    expect(noTime).toContain("This agent reached today's limit of 5,000 recorded checks. Checks after that are still answered, but they are not recorded, except checks that come back flagged (up to 500 more).");
     const none = textOf(render(React.createElement(AgentPage, { data: agentData({ logLimit: null }) })));
     expect(none).not.toContain('recorded checks');
+  });
+
+  it('marks, in the ledger itself, the check that found the limit used up, and no other row', () => {
+    const marked = textOf(render(React.createElement(LedgerItem, { row: row({ limitReached: true, answer: 'proven', registry: 'trusted', basis: 'domain_proof' }) })));
+    expect(marked).toContain('The daily limit of recorded checks was reached with this check. Checks after it that day were answered and not recorded, except flagged ones.');
+    expect(textOf(render(React.createElement(LedgerItem, { row: row() })))).not.toContain('daily limit');
+    expect(textOf(render(React.createElement(LedgerItem, { row: transfer({ limitReached: false }) })))).not.toContain('daily limit');
   });
 
   it('says the limits of what it sees where the ledger is read, and the plan\'s places in the registry', () => {
