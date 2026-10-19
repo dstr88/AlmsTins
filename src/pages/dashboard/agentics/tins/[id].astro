@@ -1,0 +1,25 @@
+---
+/**
+ * /dashboard/agentics/tins/<id>: one agent, with its key, its registered addresses, its own wallets
+ * and its ledger. Owner-only while the Agent Vault is private (src/lib/agenticsAccess.ts): the
+ * middleware answers anyone else with the 404 page before this runs, and this checks again, so the
+ * page stays closed even if the gate is ever loosened. An agent that is not this account's is a 404,
+ * exactly like one that does not exist. The data is read straight from the Vault, never through its
+ * own API.
+ */
+import AgenticsShell from '../../../../components/agentics/AgenticsShell.astro';
+import AgentPage from '../../../../components/agentics/AgentPage';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadAgentPage } from '@/lib/agentVault/vaultPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const page = await loadAgentPage(session.tenantId, String(Astro.params.id ?? ''));
+if (!page) return new Response(null, { status: 404 });
+---
+
+<AgenticsShell title={page.tin.label} active="agents" plan={page.plan}>
+  <AgentPage client:load data={page} />
+</AgenticsShell>

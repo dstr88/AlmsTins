@@ -5,6 +5,16 @@
  */
 import { copy } from './copy';
 
-export function errorText(code: unknown): string {
+/** What a create over a limit says: the cap it ran into and what the plan covers, calmly. */
+export function planLimitText(cap: unknown, limit: unknown): string {
+  if (typeof cap === 'string' && Object.prototype.hasOwnProperty.call(copy.plan.limit, cap) && typeof limit === 'number' && Number.isFinite(limit)) {
+    return copy.plan.limit[cap as keyof typeof copy.plan.limit](limit);
+  }
+  return copy.errors.plan_limit;
+}
+
+/** `extra` carries what a `plan_limit` answer adds to the code: the cap and its limit. */
+export function errorText(code: unknown, extra: { cap?: unknown; limit?: unknown } = {}): string {
+  if (code === 'plan_limit') return planLimitText(extra.cap, extra.limit);
   return typeof code === 'string' && Object.prototype.hasOwnProperty.call(copy.errors, code) ? copy.errors[code] : copy.errors.generic;
 }

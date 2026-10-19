@@ -1,8 +1,16 @@
 ---
 // The Agentics door, signed in: the page a new account lands on after /agentics/login, and the
-// front of the Agentics vault. Today it is the letter: you are in, here is where it stands, here
-// is what you can do now, and the one email you will get is the one that says the vault is open.
-// When the vault opens, this page becomes its home.
+// front of the Agentics vault. For an account without the Vault it is the letter: you are in, here
+// is where it stands, here is what you can do now, and the one email you will get is the one that
+// says the vault is open. For an account that may use the Vault (canAccessAgenticsVault: the owner
+// today, every real account once the Vault opens) this address shows the Vault's home instead, its
+// agents (src/pages/dashboard/agentics/agents.astro), rendered at this same address.
+//
+// The letter stays exactly what it was, to the byte, and it stays out of the Vault's way: nothing of
+// the Vault is imported here, so the letter loads none of the Vault's styles or code, and nothing
+// of the Vault is read for a viewer who does not pass the check. The Vault viewer is handed to the
+// agents page before the letter's work begins, so the signup claim and the email are never run for
+// an account that has the Vault. tests/agentics/home.test.ts pins both branches and the letter.
 //
 // It looks like Agentics, not like the Almstins vault: its own small shell and the same design
 // tokens, none of the vault's navigation.
@@ -15,6 +23,7 @@ import '@/styles/tokens.css';
 import Analytics from '@/components/Analytics.astro';
 import LogoutButton from '@/components/LogoutButton.astro';
 import { en as t } from '@/i18n/agentics';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
 import { welcomeOnFirstVisit } from '@/lib/agenticsSignup';
 import { cleanSource } from '@/lib/agenticsSource';
 import { getAuthSession } from '@/lib/authSession';
@@ -24,6 +33,10 @@ export const prerender = false;
 
 const session = await requireTenantSession(Astro.request);
 if (!session || session.isDemo) return Astro.redirect('/agentics/login?next=%2Fdashboard%2Fagentics', 303);
+
+// An account that may use the Agent Vault sees the Vault's home at this address. The agents page
+// checks the same rule itself, and the middleware gates its path, before it reads anything.
+if (canAccessAgenticsVault(session)) return Astro.rewrite('/dashboard/agentics/agents');
 
 const auth = await getAuthSession(Astro.request);
 const SEND_WAIT_MS = 4000;

@@ -1,0 +1,25 @@
+---
+/**
+ * /dashboard/agentics/agents: the Agent Vault's home, its agents. This is what an account that may
+ * use the Vault sees at /dashboard/agentics (src/pages/dashboard/agentics/index.astro hands it here
+ * without changing the address; everyone else sees the door's welcome letter there). It is a Vault
+ * page like the others: owner-only while the Vault is private (src/lib/agenticsAccess.ts), answered
+ * by the middleware with the 404 page before this runs for anyone else, and checked again here, so
+ * the page stays closed even if the gate is ever loosened. The data is read straight from the Vault,
+ * never through its own API.
+ */
+import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
+import AgentsHome from '../../../components/agentics/AgentsHome';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadHomePage } from '@/lib/agentVault/vaultPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const home = await loadHomePage(session.tenantId);
+---
+
+<AgenticsShell title="Agents" active="agents" plan={home.plan}>
+  <AgentsHome client:load data={home} />
+</AgenticsShell>

@@ -4,18 +4,26 @@
  * Agentics' own bar and its stylesheet. This is the one file that knows the shared Layout, so
  * giving Agentics its own look later is a change here and in agentics.css, and nothing else.
  * It names no crypto-vault class and no crypto-vault navigation link.
+ *
+ * The bar holds the two places an account goes (its agents and their reports) and a small meter
+ * of the plan: what the account uses and what the plan covers. The meter is given the plan by the
+ * page, which read it for the account in the session; the shell reads nothing itself.
  */
 import Layout from '../../layouts/Layout.astro';
 import './agentics.css';
+import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import { copy } from './copy';
-import { REPORTS_PATH } from './paths';
+import PlanMeter from './PlanMeter';
+import { HOME_PATH, REPORTS_PATH } from './paths';
 
 interface Props {
   title: string;
   /** Which entry of the Agentics bar is the current one. */
-  active?: 'reports';
+  active?: 'agents' | 'reports';
+  /** The account's plan and use, for the meter. Without it there is no meter. */
+  plan?: PlanSummary;
 }
-const { title, active } = Astro.props;
+const { title, active, plan } = Astro.props;
 ---
 
 <Layout title={`${title} | ${copy.brand}`} noindex={true}>
@@ -23,8 +31,10 @@ const { title, active } = Astro.props;
     <header class="ag-shell__bar">
       <span class="ag-shell__brand">{copy.brand}</span>
       <nav class="ag-shell__nav" aria-label={copy.brand}>
+        <a href={HOME_PATH} aria-current={active === 'agents' ? 'page' : undefined}>{copy.nav.agents}</a>
         <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>
       </nav>
+      {plan && <PlanMeter client:load plan={plan} />}
     </header>
     <slot />
   </div>

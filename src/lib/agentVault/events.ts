@@ -429,6 +429,16 @@ export async function listEvents(
   return { events: page, next: rows.length > opts.limit && page.length ? cursorOf(page[page.length - 1]) : null };
 }
 
+/** When the newest event of one kind happened on a tin (UTC ISO-8601), or null when it has none. */
+export async function latestEventTime(tenantId: string, tinId: string, kind: EventKind): Promise<string | null> {
+  await ensureAgentEventsTable();
+  const r = await db.execute({
+    sql: `SELECT occurred_at FROM agent_events WHERE tenant_id = ? AND tin_id = ? AND kind = ? ORDER BY occurred_at DESC, id DESC LIMIT 1`,
+    args: [tenantId, tinId, kind],
+  });
+  return r.rows.length ? String((r.rows[0] as any).occurred_at) : null;
+}
+
 // ── Totals ───────────────────────────────────────────────────────────────────
 
 /** What a tin's recorded transfers add up to. Raw value in and out, nothing netted, no price after the fact. */

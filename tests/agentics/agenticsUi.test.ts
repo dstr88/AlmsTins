@@ -449,19 +449,34 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
 
   it('are these, and nothing else', () => {
     expect(files).toEqual([
+      'src/components/agentics/AgentKeyCard.tsx',
+      'src/components/agentics/AgentPage.tsx',
       'src/components/agentics/AgenticsShell.astro',
+      'src/components/agentics/AgentsHome.tsx',
       'src/components/agentics/DeliverySettings.tsx',
+      'src/components/agentics/LedgerPanel.tsx',
+      'src/components/agentics/PlanMeter.tsx',
+      'src/components/agentics/RegistryPanel.tsx',
+      'src/components/agentics/RemoveAgent.tsx',
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
+      'src/components/agentics/WalletsPanel.tsx',
       'src/components/agentics/agentics.css',
+      'src/components/agentics/client.ts',
       'src/components/agentics/copy.ts',
       'src/components/agentics/errors.ts',
+      'src/components/agentics/paste.ts',
       'src/components/agentics/paths.ts',
-      // The free-signup door's welcome letter (the page a new account lands on). It is not a Vault
+      'src/components/agentics/refresh.ts',
+      'src/components/agentics/ui.tsx',
+      // The free-signup door's welcome letter (the page a new account lands on); an account that may use
+      // the Vault is handed to the agents page from here (tests/agentics/home.test.ts). It is not a Vault
       // page, but it lives in this directory, so the checks below read it as well.
+      'src/pages/dashboard/agentics/agents.astro',
       'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',
+      'src/pages/dashboard/agentics/tins/[id].astro',
     ]);
   });
 
@@ -489,7 +504,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
   it('only the shell knows the shared Layout, so a re-skin is the shell and the stylesheet', () => {
     const usesLayout = files.filter((f) => /layouts\/Layout\.astro/.test(read(f)));
     expect(usesLayout).toEqual(['src/components/agentics/AgenticsShell.astro']);
-    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro']) {
+    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro', 'src/pages/dashboard/agentics/tins/[id].astro', 'src/pages/dashboard/agentics/agents.astro']) {
       expect(read(f), f).toMatch(/import AgenticsShell from/);
       expect(read(f), f).not.toMatch(/import Layout from/);
     }
@@ -499,7 +514,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
   });
 
   it('are owner-only twice: each page checks the gate itself, and a report that is not this account\'s is a 404', () => {
-    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro']) {
+    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro', 'src/pages/dashboard/agentics/tins/[id].astro', 'src/pages/dashboard/agentics/agents.astro']) {
       const src = read(f);
       expect(src, f).toMatch(/const session = await requireTenantSession\(Astro\.request\);/);
       expect(src, f).toMatch(/if \(!session \|\| !canAccessAgenticsVault\(session\)\) return new Response\(null, \{ status: 404 \}\);/);
@@ -507,10 +522,11 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       expect(src, f).not.toMatch(/Astro\.url\.searchParams|searchParams\.get\(\s*['"]tenant/); // the account comes from the session, never the request
     }
     expect(read('src/pages/dashboard/agentics/reports/[id].astro')).toMatch(/if \(!page\) return new Response\(null, \{ status: 404 \}\);/);
+    expect(read('src/pages/dashboard/agentics/tins/[id].astro')).toMatch(/if \(!page\) return new Response\(null, \{ status: 404 \}\);/);
   });
 
   it('read their data from the Vault directly, never through their own API', () => {
-    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro']) {
+    for (const f of ['src/pages/dashboard/agentics/reports.astro', 'src/pages/dashboard/agentics/reports/[id].astro', 'src/pages/dashboard/agentics/tins/[id].astro', 'src/pages/dashboard/agentics/agents.astro', 'src/pages/dashboard/agentics/index.astro']) {
       expect(read(f), f).not.toMatch(/fetch\(|\/api\/agentics/);
     }
   });

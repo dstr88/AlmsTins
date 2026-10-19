@@ -8,6 +8,7 @@ import AgenticsShell from '../../../../components/agentics/AgenticsShell.astro';
 import ReportView from '../../../../components/agentics/ReportView';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPlanSummary } from '@/lib/agentVault/entitlements';
 import { loadReportPage } from '@/lib/agentVault/reportPages';
 
 const session = await requireTenantSession(Astro.request);
@@ -15,8 +16,9 @@ if (!session || !canAccessAgenticsVault(session)) return new Response(null, { st
 
 const page = await loadReportPage(session.tenantId, String(Astro.params.id ?? ''));
 if (!page) return new Response(null, { status: 404 });
+const plan = await getPlanSummary(session.tenantId);
 ---
 
-<AgenticsShell title="Operator report" active="reports">
+<AgenticsShell title="Operator report" active="reports" plan={plan}>
   <ReportView report={page.report} signing={page.signing} />
 </AgenticsShell>

@@ -9,14 +9,16 @@ import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
 import ReportsPage from '../../../components/agentics/ReportsPage';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPlanSummary } from '@/lib/agentVault/entitlements';
 import { loadReportsPage } from '@/lib/agentVault/reportPages';
 
 const session = await requireTenantSession(Astro.request);
 if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
 
 const data = await loadReportsPage(session.tenantId);
+const plan = await getPlanSummary(session.tenantId);
 ---
 
-<AgenticsShell title="Reports" active="reports">
+<AgenticsShell title="Reports" active="reports" plan={plan}>
   <ReportsPage client:load data={data} />
 </AgenticsShell>

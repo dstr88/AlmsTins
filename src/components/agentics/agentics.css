@@ -1,5 +1,5 @@
 /*
- * Agentics pages: the one stylesheet for the Agent Vault's screens (the Reports pages today). It is
+ * Agentics pages: the one stylesheet for the Agent Vault's screens (the agents, one agent, the Reports pages). It is
  * self-contained on purpose: every class starts with ag-, nothing here reads a class from the
  * crypto vault, and every color is one of the product's tokens (src/styles/tokens.css). Giving
  * Agentics its own look later is a change to this file and to AgenticsShell.astro, not to the
@@ -9,7 +9,7 @@
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 .ag-shell { color: var(--text-primary); }
 .ag-shell__bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
   max-width: 64rem; margin: 0 auto; padding: 0.9rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -177,6 +177,80 @@
 .ag-dl dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
 .ag-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.2rem 0 0.9rem; }
 
+/* ── The usage meter in the bar ──────────────────────────────────────────── */
+.ag-meter {
+  margin: 0; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+  padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid var(--border-bright); background: var(--surface-card-2);
+}
+
+/* ── More form controls ──────────────────────────────────────────────────── */
+.ag-field--grow { flex: 1 1 16rem; min-width: 0; }
+.ag-field--grow .ag-input { box-sizing: border-box; width: 100%; min-width: 0; }
+.ag-textarea {
+  box-sizing: border-box; width: 100%; font: inherit; font-size: 0.85rem; padding: 0.55rem 0.65rem; border-radius: 8px; resize: vertical;
+  background: var(--surface-card-2); color: var(--text-primary); border: 1px solid var(--border-bright);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.ag-textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ag-textarea:disabled, .ag-input:disabled, .ag-select:disabled { opacity: 0.55; }
+.ag-paste { margin: 0 0 0.9rem; }
+.ag-paste > .ag-field { margin-bottom: 0.25rem; }
+.ag-select { max-width: 100%; }
+.ag-btn--small { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+.ag-btn--danger { color: var(--loss); border-color: var(--loss-border); }
+.ag-btn--danger:hover { background: var(--loss-bg); color: var(--loss); }
+.ag-pill--bad { color: var(--loss); background: var(--loss-bg); border-color: var(--loss-border); }
+.ag-pill--accent { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+.ag-pill--kind { color: var(--text-primary); }
+.ag-subtitle { margin: 1.1rem 0 0.4rem; font-size: 0.9rem; font-weight: 800; color: var(--text-primary); }
+.ag-card__title--plain { margin: 0 0 0.7rem; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); }
+
+/* ── Agents ──────────────────────────────────────────────────────────────── */
+.ag-agents { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
+.ag-agent {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; padding: 0.95rem 1.05rem; min-width: 0;
+  border-radius: 12px; background: var(--surface-card); border: 1px solid var(--border-subtle);
+}
+.ag-agent__name { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); overflow-wrap: anywhere; }
+.ag-agent__line { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
+.ag-agent .ag-counts { list-style: none; margin: 0; padding: 0; }
+.ag-agent .ag-btn { margin-top: 0.4rem; }
+.ag-steps { margin: 0 0 0.8rem; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; line-height: 1.5; color: var(--text-secondary); }
+
+/* ── The registry and the wallets ────────────────────────────────────────── */
+.ag-dests { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.ag-dest { padding: 0.75rem 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
+.ag-dest:first-child { border-top: 0; }
+.ag-dest__main { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; min-width: 0; }
+.ag-addr { min-width: 0; font-size: 0.8rem; overflow-wrap: anywhere; word-break: break-all; }
+.ag-dest__meta { margin: 0.3rem 0 0; font-size: 0.78rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.ag-dest__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; margin-top: 0.5rem; }
+.ag-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; }
+.ag-confirm__text { font-size: 0.8rem; color: var(--text-secondary); max-width: 34rem; }
+.ag-readout { margin-top: 0.6rem; padding: 0.65rem 0.8rem; border-radius: 10px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+.ag-dl--tight { margin: 0 0 0.5rem; grid-template-columns: 9rem minmax(0, 1fr); }
+.ag-hits { margin: 0 0 0.5rem; padding-left: 1.1rem; font-size: 0.82rem; color: var(--loss); }
+.ag-summary { margin: 0 0 0.9rem; padding: 0.75rem 0.9rem; border-radius: 10px; background: var(--surface-card-2); border: 1px solid var(--border-bright); }
+.ag-summary__title { margin: 0 0 0.4rem; font-size: 0.9rem; font-weight: 800; color: var(--text-primary); }
+.ag-summary__list { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+.ag-details { margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-secondary); }
+.ag-details summary { cursor: pointer; font-weight: 700; color: var(--text-primary); }
+.ag-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ag-issues { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.ag-issues li { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+.ag-issues__line { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); min-width: 2rem; }
+
+/* ── The ledger ──────────────────────────────────────────────────────────── */
+.ag-events { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+.ag-event { padding: 0.7rem 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
+.ag-event:first-child { border-top: 0; }
+.ag-event__top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
+.ag-event__time { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+.ag-event__registry { font-size: 0.76rem; color: var(--text-muted); }
+.ag-event__addr { margin: 0.3rem 0 0; font-size: 0.78rem; overflow-wrap: anywhere; word-break: break-all; }
+.ag-event__line { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
+.ag-readresult { min-height: 0; margin: 0 0 0.6rem; }
+
 @media (max-width: 760px) {
   .ag-row, .ag-listhead { grid-template-columns: 1fr; }
   .ag-listhead { display: none; }
@@ -184,4 +258,5 @@
   .ag-dl dd { margin-bottom: 0.5rem; }
   .ag-strip { grid-template-columns: 1fr; }
   .ag-strip__side + .ag-strip__side { border-left: 0; border-top: 1px solid var(--border-bright); }
+  .ag-dl--tight { grid-template-columns: 1fr; }
 }
