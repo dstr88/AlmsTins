@@ -106,6 +106,16 @@ describe('opening: the newest events, oldest first, of every agent of the accoun
     expect(r.now).toBe(NOW.toISOString());
   });
 
+  it('follows the order of writing when it picks the newest 30: transfers written now for old blocks come before older-written checks', async () => {
+    const t = await newTin();
+    // Five checks written early, which happened late in their own time...
+    for (let i = 0; i < 5; i += 1) put(A, t.id, `2026-10-19 11:00:0${i}`, { occurred_at: `2026-10-19T11:59:0${i}.000Z` });
+    // ...and thirty transfers written later, for blocks that were mined hours before.
+    const later = Array.from({ length: 30 }, (_, i) => put(A, t.id, `2026-10-19 12:00:${String(i).padStart(2, '0')}`, { occurred_at: `2026-10-19T08:00:${String(i).padStart(2, '0')}.000Z` }));
+    expect(ids(await ok(A))).toEqual(later);
+    expect(ids(await ok(A, { limit: 3 }))).toEqual(later.slice(-3));
+  });
+
   it('takes the newest 30 when there are more, still oldest first', async () => {
     const t = await newTin();
     const all = Array.from({ length: 35 }, (_, i) => put(A, t.id, `2026-10-19 11:00:${String(i).padStart(2, '0')}`));
@@ -194,10 +204,12 @@ describe('a live poll', () => {
   it('carries events from the five seconds before, which the page drops by id, and nothing older', async () => {
     const t = await newTin();
     put(A, t.id, '2026-10-19 11:00:04');
+    const onTheEdge = put(A, t.id, '2026-10-19 11:00:05');
     const inWindow = put(A, t.id, '2026-10-19 11:00:06');
     const after = put(A, t.id, '2026-10-19 11:00:20');
     const r = await ok(A, { since: '2026-10-19 11:00:10' });
-    expect(ids(r)).toEqual([inWindow, after]);
+    // The window starts exactly five seconds before `since`, and that second is in it.
+    expect(ids(r)).toEqual([onTheEdge, inWindow, after]);
   });
 
   it('returns nothing and does not slide `since` back when there is nothing new', async () => {

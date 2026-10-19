@@ -88,8 +88,13 @@ describe('the page as the server renders it', () => {
   it('keeps the stage out of the screen reader\'s way and announces the state and the wallet reads politely', () => {
     const html = page(data({ initial: { events: [ev()], since: '2026-10-19 11:00:01' } }));
     expect(html).toContain('<div class="ag-feed__stage" aria-live="off">');
-    expect(html).toMatch(/<p class="ag-feed__state" role="status"><span class="ag-feed__dot ag-feed__dot--live" aria-hidden="true"><\/span>Live<\/p>/);
-    expect(html).toContain(`<p class="ag-hint" role="status">${copy.feed.reader.waiting}</p>`);
+    // The state is announced; the time of the last update, which changes every few seconds, is not (it is outside the live region).
+    expect(html).toMatch(/<p class="ag-feed__state"><span class="ag-feed__dot ag-feed__dot--live" aria-hidden="true"><\/span><span role="status">Live<\/span><\/p>/);
+    // A wallet read about once a minute is plain text; only a failure is a live region.
+    expect(html).toContain(`<p class="ag-hint">${copy.feed.reader.waiting}</p>`);
+    const src = read('src/components/agentics/FeedPage.tsx');
+    expect(src).toContain("role={readState === 'failing' || readState === 'closed' ? 'status' : undefined}");
+    expect(src).toMatch(/<span role="status">\{copy\.feed\.state\[conn\]\}<\/span>\s*\{lastGood \? <span>/);
     expect(html).toMatch(/<ol class="ag-events" aria-label="Latest rows from your agents, newest first">/);
   });
 
@@ -214,6 +219,19 @@ describe('the words', () => {
       expect(s, s).not.toMatch(/\b(receiving|destination) (wallet|address)/i);
     }
     expect(copy.feed.readHint).toContain('wallets you added');
+  });
+
+  it('say the waits the watcher keeps before it records a transfer: the numbers are read from the code, so the two cannot drift', () => {
+    const lag = /CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = \{ ethereum: (\d+), polygon: (\d+), avalanche: (\d+) \}/.exec(read('src/lib/agentVault/watcher.ts'));
+    expect(lag, 'the watcher no longer has CONFIRMATION_LAG_S in this form').not.toBeNull();
+    const minutes = (seconds: string) => Math.round(Number(seconds) / 60);
+    const [, ethereum, polygon, avalanche] = lag!;
+    expect(copy.feed.timing).toContain(`about ${minutes(avalanche)} minute on Avalanche, ${minutes(ethereum)} on Ethereum and ${minutes(polygon)} on Polygon`);
+    // And "about once a minute" is what the numbers add up to: a pause after a read, plus a read that takes at most twenty seconds.
+    const pause = Number(/LIVE_READ_PAUSE_MS = ([\d_]+)/.exec(read('src/lib/agentVault/liveRead.ts'))![1].replace(/_/g, ''));
+    const deadline = Number(/REFRESH_DEADLINE_MS = ([\d_]+)/.exec(read('src/lib/agentVault/vault.ts'))![1].replace(/_/g, ''));
+    expect(pause + deadline).toBeLessThanOrEqual(60_000);
+    expect(copy.feed.readHint).toContain('About once a minute');
   });
 
   it('promise nothing about speed that the Vault does not keep: no "instant", "real time" or "live" for a transfer', () => {

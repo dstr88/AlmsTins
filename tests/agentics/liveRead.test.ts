@@ -147,6 +147,25 @@ describe('the pace', () => {
     expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read', tinId: c.id });
   });
 
+  it('among agents that are all due, the one that has waited longest goes first, and one never read goes before any that was', async () => {
+    const a = await newTin(A, 'First', '2026-10-01 00:00:00');
+    const b = await newTin(A, 'Second', '2026-10-02 00:00:00');
+    const c = await newTin(A, 'Third', '2026-10-03 00:00:00');
+    const { read, calls } = reader();
+    const now = { t: T0 };
+    // B is read first, A a little later; C is never read.
+    await live.liveRead(A, { tinId: b.id }, deps(now, read));
+    now.t += 5_000;
+    await live.liveRead(A, { tinId: a.id }, deps(now, read));
+    // A long time later all three are due. C was never read, so it goes first; then B, which has waited longer than A.
+    now.t += 10 * live.LIVE_READ_MIN_GAP_MS;
+    for (let i = 0; i < 3; i += 1) {
+      expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read' });
+      now.t += 1_000;
+    }
+    expect(calls.slice(2)).toEqual([c.id, b.id, a.id]);
+  });
+
   it('reads the agent it is asked for, and only that one, even when another has waited longer', async () => {
     const a = await newTin(A, 'First', '2026-10-01 00:00:00');
     const b = await newTin(A, 'Second', '2026-10-02 00:00:00');

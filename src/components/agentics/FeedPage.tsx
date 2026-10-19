@@ -262,10 +262,11 @@ export default function FeedPage({ data }: FeedPageProps) {
         <h2 className="ag-card__title--plain ag-sr" id="ag-feed-h">
           {copy.feed.title}
         </h2>
-        <p className="ag-feed__state" role="status">
+        <p className="ag-feed__state">
           <span className={`ag-feed__dot ag-feed__dot--${DOT[conn]}`} aria-hidden="true" />
-          {copy.feed.state[conn]}
-          {lastGood ? ` · ${copy.feed.lastUpdate(formatClock(lastGood))}` : ''}
+          {/* Only the state is announced. The time of the last update changes every few seconds and is not. */}
+          <span role="status">{copy.feed.state[conn]}</span>
+          {lastGood ? <span>{` · ${copy.feed.lastUpdate(formatClock(lastGood))}`}</span> : null}
         </p>
 
         <div className="ag-feed__stage" aria-live="off">
@@ -315,7 +316,8 @@ export default function FeedPage({ data }: FeedPageProps) {
           <input type="checkbox" checked={readOn} onChange={(e) => switchReads(e.target.checked)} />
           <span>{copy.feed.readSwitch}</span>
         </label>
-        <p className="ag-hint" role="status">
+        {/* A wallet read happens about once a minute; only a failure is worth interrupting a screen reader for. */}
+        <p className="ag-hint" role={readState === 'failing' || readState === 'closed' ? 'status' : undefined}>
           {readText}
         </p>
         <p className="ag-hint">{copy.feed.readHint}</p>

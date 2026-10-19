@@ -179,6 +179,19 @@ describe('failing', () => {
     expect(t.timers.delays()).toEqual([POLL_MS]);
   });
 
+  it('a failure after one that worked starts the wait over at six seconds, not where the last run of failures left off', async () => {
+    const t = setup([failed(0), failed(0), failed(0), answer([], '2026-10-19 11:00:00'), failed(0)]);
+    t.poller.start();
+    await t.timers.fire();
+    await t.timers.fire();
+    await t.timers.fire();
+    expect(t.timers.delays()).toEqual([24_000]);
+    await t.timers.fire();
+    expect(t.timers.delays()).toEqual([POLL_MS]);
+    await t.timers.fire();
+    expect(t.timers.delays()).toEqual([6000]);
+  });
+
   it('keeps what it had: a failure hands over nothing and does not move the time it asks from', async () => {
     const t = setup([failed(0), answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05')]);
     t.poller.start();
