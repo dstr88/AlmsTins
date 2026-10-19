@@ -147,7 +147,8 @@ async function namesFor(tenantId: string, tinIds: ReadonlySet<string>, keyIds: R
     };
     for (const id of tinIds) if (!names.tins.has(id)) names.goneTins.add(id);
     for (const id of keyIds) if (!names.keys.has(id)) names.goneKeys.add(id);
-    if (NAMES.size >= FEED_NAMES_MAX_TENANTS) NAMES.clear();
+    // Full: start over, but only for an account the memory does not have yet (a refresh of one it has replaces it in place).
+    if (!NAMES.has(tenantId) && NAMES.size >= FEED_NAMES_MAX_TENANTS) NAMES.clear();
     NAMES.set(tenantId, names);
   }
   for (const id of tinIds) {

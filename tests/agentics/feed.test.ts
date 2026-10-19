@@ -380,6 +380,27 @@ describe('what a poll costs: the names on a card are remembered per account for 
     expect(_debugFeedNames().tenants).toBeLessThanOrEqual(FEED_NAMES_MAX_TENANTS);
   });
 
+  it('does not forget the other accounts when it reads one account\'s names again, even with the memory full', async () => {
+    const { FEED_NAMES_MAX_TENANTS, _debugFeedNames } = feed;
+    expect(FEED_NAMES_MAX_TENANTS).toBe(1000);
+    for (let i = 0; i < 1000; i += 1) {
+      const tenant = `tenant-full-${i}`;
+      const t = await store.insertTin(tenant, { label: 'Agent', agentKeyId: null, at: '2026-10-01 00:00:00' });
+      put(tenant, t.id, '2026-10-19 11:00:01');
+      await ok(tenant);
+    }
+    expect(_debugFeedNames().tenants).toBe(FEED_NAMES_MAX_TENANTS);
+    // The first account gets a second agent with an event: its names are read again (an agent the memory does not have).
+    const added = await store.insertTin('tenant-full-0', { label: 'Second agent', agentKeyId: null, at: '2026-10-02 00:00:00' });
+    put('tenant-full-0', added.id, '2026-10-19 11:00:02');
+    await okAt('tenant-full-0', { since: '2026-10-19 11:00:01' }, secondsAfter(1));
+    // The others are still remembered: asking for another account's names costs no new lookup.
+    const before = keys.calls.length;
+    await okAt('tenant-full-1', {}, secondsAfter(2));
+    expect(keys.calls).toHaveLength(before);
+    expect(_debugFeedNames().tenants).toBe(FEED_NAMES_MAX_TENANTS);
+  });
+
   it('does not trust what it remembered when the clock has gone backwards', async () => {
     const t = await newTin();
     put(A, t.id, '2026-10-19 11:00:01');
