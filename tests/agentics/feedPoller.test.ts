@@ -154,6 +154,22 @@ describe('a backlog', () => {
   });
 
 
+  it('forgets the place it had in a long backlog when the cursor is refused: it starts again from the beginning, not from the refused cursor', async () => {
+    let n = 0;
+    const t = setup([() => {
+      n += 1;
+      if (n <= MAX_PAGES) return answer([ev(`e${n}`, '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: `2026-10-19 11:00:05|e${n}` });
+      if (n === MAX_PAGES + 1) return failed(400, 'invalid_cursor');
+      return answer([], '1970-01-01 00:00:00');
+    }]);
+    t.poller.start();
+    await t.timers.fire(); // ten pages, a backlog left
+    await t.timers.fire(); // the continuation's cursor is refused
+    expect(t.timers.delays()).toEqual([0]);
+    await t.timers.fire(); // again from the beginning, with no cursor
+    expect(t.sent[MAX_PAGES + 1].url).toBe(`/api/agentics/feed?since=${encodeURIComponent('1970-01-01 00:00:00')}`);
+  });
+
   it('does not loop on an answer that says more and gives no cursor', async () => {
     const t = setup([answer([ev('a', '2026-10-19 11:00:05')], '2026-10-19 11:00:05', { more: true, cursor: null })]);
     t.poller.start();

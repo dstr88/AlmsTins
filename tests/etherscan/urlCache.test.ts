@@ -34,20 +34,21 @@ const ask = (n: number, over: Record<string, unknown> = {}) => etherscan.request
 const answers = (text: string) => fetchMock.mockImplementation(async () => new Response(text, { status: 200 }));
 
 describe('the response cache is bounded', () => {
+  it('has the limits it is documented to have, 200 responses and 8,000,000 characters (a bigger number is a decision, not an accident)', () => {
+    expect(etherscan._debugCacheStats()).toMatchObject({ maxEntries: 200, maxBytes: 8_000_000 });
+  });
+
   it('keeps no more than its entry limit, however many different URLs are asked for', async () => {
     answers(body(1000));
-    const { maxEntries } = etherscan._debugCacheStats();
-    for (let n = 0; n < maxEntries + 150; n += 1) await ask(n);
-    expect(etherscan._debugCacheStats().entries).toBeLessThanOrEqual(maxEntries);
+    for (let n = 0; n < 350; n += 1) await ask(n);
+    expect(etherscan._debugCacheStats().entries).toBeLessThanOrEqual(200);
   });
 
   it('keeps no more than its byte budget: a thousand-row listing is a big response, and thirty of them used to stay for good', async () => {
-    const { maxBytes } = etherscan._debugCacheStats();
-    const big = Math.floor(maxBytes / 10);
-    answers(body(big));
+    answers(body(800_000));
     for (let n = 0; n < 40; n += 1) await ask(n);
     const stats = etherscan._debugCacheStats();
-    expect(stats.bytes).toBeLessThanOrEqual(maxBytes);
+    expect(stats.bytes).toBeLessThanOrEqual(8_000_000);
     expect(stats.entries).toBeLessThan(40);
     // The newest are the ones kept: asking for the last one again does not go back to the network.
     fetchMock.mockClear();
@@ -56,8 +57,7 @@ describe('the response cache is bounded', () => {
   });
 
   it('does not keep one response that is larger than a quarter of the budget', async () => {
-    const { maxBytes } = etherscan._debugCacheStats();
-    answers(body(Math.floor(maxBytes / 4) + 1000));
+    answers(body(2_000_000 + 1000));
     await ask(1);
     expect(etherscan._debugCacheStats()).toMatchObject({ entries: 0, bytes: 0 });
   });
@@ -73,6 +73,18 @@ describe('the response cache is bounded', () => {
     await ask(1);
     expect(fetchMock).toHaveBeenCalledTimes(1); // asked again, not served stale
     expect(etherscan._debugCacheStats().entries).toBe(1);
+  });
+
+  it('lets go of an expired entry when it is read, even when asking again then fails', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-19T12:00:00Z'));
+    answers(body(5000));
+    await ask(1);
+    expect(etherscan._debugCacheStats().entries).toBe(1);
+    vi.setSystemTime(new Date('2026-10-19T12:00:20Z'));
+    fetchMock.mockImplementation(async () => new Response('the explorer is down', { status: 500 }));
+    await expect(ask(1)).rejects.toThrow();
+    expect(etherscan._debugCacheStats()).toMatchObject({ entries: 0, bytes: 0 });
   });
 
   it('still reuses a response inside its fifteen seconds, which is what the cache is for', async () => {
@@ -117,6 +129,21 @@ describe('a request that is never answered', () => {
     await vi.advanceTimersByTimeAsync(2_000);
     expect(signal?.aborted).toBe(true);
     expect(await pending).toMatch(/aborted|Provider fetch failed/);
+  });
+
+  it('is cut off too when the answer starts and its body never ends', async () => {
+    fetchMock.mockImplementation(async (_url: string, init?: { signal?: AbortSignal }) => {
+      const stream = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    vi.useFakeTimers();
+    const pending = ask(1).then(() => 'answered', (e) => String((e as Error).message));
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(await pending).not.toBe('answered');
   });
 
   it('is asked with a signal at all (every call, not only a slow one)', async () => {

@@ -300,6 +300,27 @@ describe('what a poll costs: the names on a card are remembered per account for 
     expect(lookups(seen).filter((s) => /FROM agent_tins/.test(s))).toHaveLength(6);
   });
 
+  it('names a key linked since at once: a check it asked is not called "a key no longer on this account" a moment after the key was linked', async () => {
+    const t = await newTin();
+    keys.byTenant[A] = [];
+    put(A, t.id, '2026-10-19 11:00:01');
+    const opened = await ok(A);
+    keys.byTenant[A] = [{ id: KEY, status: 'active' }];
+    const asked = put(A, t.id, '2026-10-19 11:00:05', { key_id: KEY });
+    const next = await okAt(A, { since: opened.since }, secondsAfter(1));
+    expect(next.events.find((e: any) => e.id === asked)).toMatchObject({ keyId: KEY, keyStatus: 'active' });
+  });
+
+  it('reads a key that is no longer on the account as such once, not again for every poll that carries its old checks', async () => {
+    const t = await newTin();
+    put(A, t.id, '2026-10-19 11:00:01', { key_id: 'ff'.repeat(12) });
+    const opened = await ok(A);
+    expect(opened.events[0]).toMatchObject({ keyStatus: 'unknown' });
+    const before = keys.calls.length;
+    for (let i = 1; i <= 3; i += 1) expect((await okAt(A, { since: opened.since }, secondsAfter(i))).events[0]).toMatchObject({ keyStatus: 'unknown' });
+    expect(keys.calls).toHaveLength(before);
+  });
+
   it('names a new agent at once: its first event does not wait for the remembered names to run out', async () => {
     const first = await newTin();
     put(A, first.id, '2026-10-19 11:00:01');
@@ -337,13 +358,26 @@ describe('what a poll costs: the names on a card are remembered per account for 
     const opened = await ok(B);
     await ok(A);
     expect(ids(opened)).toEqual([b1]);
-    // A row that should never exist (the registry refuses to write one): B's ledger naming A's agent.
-    const stray = put(B, mine.id, '2026-10-19 11:00:03');
-    const r = await okAt(B, { since: opened.since }, secondsAfter(1));
-    expect(ids(r)).toEqual([b1]);
+    // A row that should never exist (the registry refuses to write one): B's ledger naming A's agent, alone in the poll's window.
+    const stray = put(B, mine.id, '2026-10-19 11:00:30');
+    const r = await okAt(B, { since: '2026-10-19 11:00:30' }, secondsAfter(1));
+    expect(ids(r)).toEqual([]);
     expect(ids(r)).not.toContain(stray);
     expect(JSON.stringify(r)).not.toContain('Mine');
     expect(keys.calls.filter((c) => c === B).length).toBeGreaterThan(0);
+  });
+
+  it('remembers no more than FEED_NAMES_MAX_TENANTS accounts at a time', async () => {
+    const { FEED_NAMES_MAX_TENANTS, _debugFeedNames } = feed;
+    expect(FEED_NAMES_MAX_TENANTS).toBe(1000);
+    for (let i = 0; i < FEED_NAMES_MAX_TENANTS + 20; i += 1) {
+      const tenant = `tenant-bound-${i}`;
+      const t = await store.insertTin(tenant, { label: 'Agent', agentKeyId: null, at: '2026-10-01 00:00:00' });
+      put(tenant, t.id, '2026-10-19 11:00:01');
+      await ok(tenant);
+    }
+    expect(_debugFeedNames().tenants).toBeGreaterThan(0);
+    expect(_debugFeedNames().tenants).toBeLessThanOrEqual(FEED_NAMES_MAX_TENANTS);
   });
 
   it('does not trust what it remembered when the clock has gone backwards', async () => {

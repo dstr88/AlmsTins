@@ -32,8 +32,9 @@
  *
  * What the memory costs in honesty: a rename, a changed label, a revoked key, or an agent removed in the last
  * FEED_NAMES_TTL_MS seconds shows on the cards that arrive in that time as it was. It is never wrong about whose an
- * event is (that is the event's own tin_id, read fresh), and an agent ADDED since is noticed at once: its events name
- * an agent the remembered list does not have, so the list is read again.
+ * event is (that is the event's own tin_id, read fresh), and an agent or a key ADDED since is noticed at once: its
+ * events name one the remembered lists do not have, so the lists are read again (a key the page would otherwise call
+ * "no longer on this account" a moment after it was linked).
  */
 import { listAgentKeys } from '@/lib/agentKeys';
 import { fail, idOf, type Failure } from './errors';
@@ -112,24 +113,41 @@ interface Names {
   keys: Map<string, string>;
   /** The owner's labels, by agent and then by address, read the first time an agent's events are shown. */
   labels: Map<string, Map<string, string>>;
-  /** Agent ids that events name and the account does not have (removed): not looked for again until the names are read afresh. */
-  gone: Set<string>;
+  /** Agents and keys that events name and the lists did not have when they were read (an agent removed, a key no longer there): not looked for again until the lists are read afresh. */
+  goneTins: Set<string>;
+  goneKeys: Set<string>;
 }
 
 // Per account, in this process, bounded. Never shared between accounts: the key is the tenant, and everything in an entry was read for it.
 const NAMES = new Map<string, Names>();
-const NAMES_LIMIT = 1_000;
+/** The most accounts whose names are remembered at once; past it the memory starts over. */
+export const FEED_NAMES_MAX_TENANTS = 1_000;
 
-async function namesFor(tenantId: string, tinIds: ReadonlySet<string>, nowMs: number): Promise<Names> {
+/** For tests: how many accounts' names are remembered, and the most there can be. */
+export function _debugFeedNames(): { tenants: number; max: number } {
+  return { tenants: NAMES.size, max: FEED_NAMES_MAX_TENANTS };
+}
+
+async function namesFor(tenantId: string, tinIds: ReadonlySet<string>, keyIds: ReadonlySet<string>, nowMs: number): Promise<Names> {
   let names = NAMES.get(tenantId);
   const expired = !names || nowMs - names.at >= FEED_NAMES_TTL_MS || nowMs < names.at;
-  // An agent the account's list did not have when it was read: added since, or removed. Read the list again once to tell which.
-  const unknown = names !== undefined && [...tinIds].some((id) => !names!.tins.has(id) && !names!.gone.has(id));
+  // An agent or a key the lists did not have when they were read: added since, or gone. Read them again once to tell which.
+  const unknown =
+    names !== undefined &&
+    ([...tinIds].some((id) => !names!.tins.has(id) && !names!.goneTins.has(id)) || [...keyIds].some((id) => !names!.keys.has(id) && !names!.goneKeys.has(id)));
   if (!names || expired || unknown) {
     const [tins, keys] = await Promise.all([listTins(tenantId), listAgentKeys(tenantId)]);
-    names = { at: nowMs, tins: new Map(tins.map((t) => [t.id, t] as const)), keys: new Map(keys.map((k) => [k.id, k.status] as const)), labels: new Map(), gone: new Set() };
-    for (const id of tinIds) if (!names.tins.has(id)) names.gone.add(id);
-    if (NAMES.size >= NAMES_LIMIT) NAMES.clear();
+    names = {
+      at: nowMs,
+      tins: new Map(tins.map((t) => [t.id, t] as const)),
+      keys: new Map(keys.map((k) => [k.id, k.status] as const)),
+      labels: new Map(),
+      goneTins: new Set(),
+      goneKeys: new Set(),
+    };
+    for (const id of tinIds) if (!names.tins.has(id)) names.goneTins.add(id);
+    for (const id of keyIds) if (!names.keys.has(id)) names.goneKeys.add(id);
+    if (NAMES.size >= FEED_NAMES_MAX_TENANTS) NAMES.clear();
     NAMES.set(tenantId, names);
   }
   for (const id of tinIds) {
@@ -195,7 +213,7 @@ export async function readFeed(
   if (!raw.length) return answer;
 
   // Names and statuses, from the account's remembered ones (see the top of this file: a quiet poll is one query).
-  const names = await namesFor(tenantId, new Set(raw.map((e) => e.tinId)), now().getTime());
+  const names = await namesFor(tenantId, new Set(raw.map((e) => e.tinId)), new Set(raw.flatMap((e) => (e.keyId ? [e.keyId] : []))), now().getTime());
   for (const e of raw) {
     const tin = names.tins.get(e.tinId);
     if (!tin) continue; // an agent that has been removed leaves no card

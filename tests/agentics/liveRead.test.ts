@@ -254,6 +254,20 @@ describe('an agent that fails, or never finishes', () => {
     expect(calls).toEqual([a.id, b.id, a.id, b.id, a.id, b.id]);
   });
 
+  it('does not try a failed agent again before the minimum gap is up: it counts as read, and the account is told "recent" meanwhile', async () => {
+    const a = await newTin(A, 'Broken', '2026-10-01 00:00:00');
+    const b = await newTin(A, 'Fine', '2026-10-02 00:00:00');
+    const read = vi.fn(async (_t: string, id: string) => {
+      if (id === a.id) throw new Error('this agent\'s data is unreadable');
+      return { ok: true, pass: pass(id, [{ status: 'complete' }]) } as never;
+    });
+    const now = { t: T0 };
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'read', tinId: b.id });
+    now.t += 30_000;
+    expect(await live.liveRead(A, {}, deps(now, read))).toMatchObject({ status: 'recent', waitMs: live.LIVE_READ_MIN_GAP_MS - 30_000 });
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   it('when every agent fails, the first failure is the caller\'s (the route turns it into a plain 500), and the place is free again', async () => {
     const a = await newTin(A, 'One', '2026-10-01 00:00:00');
     await newTin(A, 'Two', '2026-10-02 00:00:00');

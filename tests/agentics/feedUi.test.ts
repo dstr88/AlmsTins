@@ -73,6 +73,8 @@ describe('the page as the server renders it', () => {
   it('says the two honest things: when a transfer shows, and what is read and when', () => {
     const t = textOf(page());
     expect(t).toContain('about 1 minute on Avalanche, 3 on Ethereum and 10 on Polygon');
+    // A check is in the list within seconds, but its CARD waits its turn behind the ones before it (three seconds each).
+    expect(t).toContain('A check shows in the list within a few seconds of the agent asking, and gets its card in turn.');
     expect(t).toContain(copy.feed.readHint);
     expect(t).toContain('Only the wallets you added are read');
     expect(t).toContain('Nothing is read when this page is closed or in the background');
