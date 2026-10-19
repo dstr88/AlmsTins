@@ -205,7 +205,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
     say(d.id, null);
     setNote(copy.registry.removed);
     markBusy(d.id, false);
-    if (takeFocus) heading.current?.focus();
+    if (takeFocus) heading.current?.focus({ preventScroll: true });
     await onChanged?.();
   }
 
@@ -246,7 +246,8 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
           spellCheck={false}
           autoComplete="off"
           aria-describedby="ag-paste-help"
-          disabled={busy !== null || full}
+          readOnly={busy !== null || full}
+          aria-disabled={busy !== null || full || undefined}
           onChange={(e) => setText(e.target.value)}
         />
         <p className="ag-hint" id="ag-paste-help">
@@ -255,7 +256,14 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
         <div className="ag-form">
           <label className="ag-field">
             {copy.registry.chainLabel}
-            <select className="ag-select" value={chain} onChange={(e) => setChain(e.target.value)} disabled={busy !== null || full}>
+            <select
+              className="ag-select"
+              value={chain}
+              aria-disabled={busy !== null || full || undefined}
+              onChange={(e) => {
+                if (busy === null && !full) setChain(e.target.value);
+              }}
+            >
               {Object.keys(copy.registry.chains).map((c) => (
                 <option key={c} value={c}>
                   {chainName(c)}

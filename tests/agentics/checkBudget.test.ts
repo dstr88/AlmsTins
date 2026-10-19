@@ -72,11 +72,11 @@ describe('the budget of checks', () => {
     expect(budget.spend('tenant-0', 5, T0 + 500)).toBe(true);
   });
 
-  it('gives back checks that were paid for and not made, inside the window they came from', () => {
+  it('gives back checks that were paid for and not made, naming the time they were paid for', () => {
     const budget = createCheckBudget({ max: 10 });
     expect(budget.spend('a', 10, T0)).toBe(true);
-    expect(budget.spend('a', 1, T0)).toBe(false);
-    budget.refund('a', 4, T0 + 1);
+    expect(budget.spend('a', 1, T0 + 1)).toBe(false);
+    budget.refund('a', 4, T0);
     expect(budget.spend('a', 4, T0 + 2)).toBe(true);
     expect(budget.spend('a', 1, T0 + 3)).toBe(false);
   });
@@ -89,16 +89,40 @@ describe('the budget of checks', () => {
     expect(budget.spend('a', 1, T0)).toBe(false);
   });
 
-  it('ignores a refund for an account with nothing spent, for a window that has passed, and for nothing', () => {
+  it('ignores a refund for an account with nothing spent, for nothing, and for no time', () => {
     const budget = createCheckBudget({ max: 5, windowMs: 1_000 });
     budget.refund('nobody', 3, T0);
     expect(budget.spend('nobody', 5, T0)).toBe(true);
     expect(budget.spend('a', 5, T0)).toBe(true);
-    budget.refund('a', 5, T0 + 1_000); // the window it was taken from is over; a new one starts empty
-    expect(budget.spend('a', 5, T0 + 1_000)).toBe(true);
-    expect(budget.spend('a', 1, T0 + 1_000)).toBe(false);
-    for (const n of [0, -2, Number.NaN]) budget.refund('a', n, T0 + 1_001);
-    expect(budget.spend('a', 1, T0 + 1_002)).toBe(false);
+    for (const n of [0, -2, Number.NaN]) budget.refund('a', n, T0);
+    for (const at of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) budget.refund('a', 5, at);
+    expect(budget.spend('a', 1, T0 + 1)).toBe(false);
+  });
+
+  it('ignores a refund for checks paid in an earlier window: giving them to the new one would buy room it does not have', () => {
+    const budget = createCheckBudget({ max: 30, windowMs: 60_000 });
+    expect(budget.spend('a', 10, T0)).toBe(true); // window one: a paste starts, and is slow
+    expect(budget.spend('a', 30, T0 + 70_000)).toBe(true); // window two opens and is spent in full
+    budget.refund('a', 10, T0); // the slow paste ends and gives back its ten, paid for in window one
+    expect(budget.spend('a', 1, T0 + 75_000)).toBe(false); // window two is still full: it did not receive them
+    // The checks paid for in window two itself are still given back to it.
+    budget.refund('a', 5, T0 + 70_000);
+    expect(budget.spend('a', 5, T0 + 76_000)).toBe(true);
+    expect(budget.spend('a', 1, T0 + 77_000)).toBe(false);
+  });
+
+  it('counts a charge as the window open at its time: its first instant and its last, and not the instant before or after', () => {
+    const budget = createCheckBudget({ max: 5, windowMs: 1_000 });
+    expect(budget.spend('a', 5, T0)).toBe(true); // the window is [T0, T0 + 1000)
+    budget.refund('a', 1, T0 - 1); // paid for just before this window began: not this window's
+    expect(budget.spend('a', 1, T0 + 10)).toBe(false);
+    budget.refund('a', 1, T0 + 1_000); // the instant this window ends: not this window's either
+    expect(budget.spend('a', 1, T0 + 10)).toBe(false);
+    budget.refund('a', 1, T0); // the first instant
+    expect(budget.spend('a', 1, T0 + 10)).toBe(true);
+    budget.refund('a', 1, T0 + 999); // the last
+    expect(budget.spend('a', 1, T0 + 11)).toBe(true);
+    expect(budget.spend('a', 1, T0 + 12)).toBe(false);
   });
 
   it('shares one budget across the running server, and starts full', () => {

@@ -79,7 +79,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
       const takeFocus = shouldTakeFocus(document.activeElement, document.getElementById(`ag-wallet-${w.id}`), document.body);
       setList((prev) => prev.filter((x) => x.id !== w.id));
       setMessage({ kind: 'ok', text: copy.wallets.removed });
-      if (takeFocus) heading.current?.focus();
+      if (takeFocus) heading.current?.focus({ preventScroll: true });
     } else {
       setMessage({ kind: 'bad', text: failureText(r) });
     }
@@ -107,7 +107,15 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
       >
         <label className="ag-field">
           {copy.wallets.chainLabel}
-          <select className="ag-select" value={chain} onChange={(e) => setChain(e.target.value)} disabled={busy || full}>
+          {/* aria-disabled and read-only, never `disabled`: a field that is disabled while it holds focus (Enter in it started the request) drops that focus to the page. */}
+          <select
+            className="ag-select"
+            value={chain}
+            aria-disabled={busy || full || undefined}
+            onChange={(e) => {
+              if (!(busy || full)) setChain(e.target.value);
+            }}
+          >
             {Object.keys(copy.registry.chains).map((c) => (
               <option key={c} value={c}>
                 {chainName(c)}
@@ -125,8 +133,9 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
             spellCheck={false}
             autoComplete="off"
             required
+            readOnly={busy || full}
+            aria-disabled={busy || full || undefined}
             onChange={(e) => setAddress(e.target.value)}
-            disabled={busy || full}
           />
         </label>
         <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || full || !address.trim() || undefined}>

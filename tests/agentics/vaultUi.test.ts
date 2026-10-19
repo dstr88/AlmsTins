@@ -174,13 +174,17 @@ describe('the home page', () => {
   it('at the agent limit the form is off and says why, calmly; an account with no limit is never held back', () => {
     const full = render(React.createElement(AgentsHome, { data: home({ plan: { ...FREE, use: { bots: 3, addresses: 9 } } }) }));
     expect(textOf(full)).toContain('You are at the most agents the free plan covers. Remove one to add another.');
-    expect(full).toMatch(/<input[^>]*disabled=""/);
+    // Read-only and aria-disabled, never `disabled`: a field that goes disabled while it holds focus drops that focus to the page.
+    expect(full).toMatch(/<input[^>]*\sreadonly=""[^>]*aria-disabled="true"|<input[^>]*aria-disabled="true"[^>]*\sreadonly=""/i);
+    expect(full).toMatch(/<select[^>]*aria-disabled="true"/);
+    expect(full).not.toMatch(/<(input|select)[^>]*\sdisabled=""/);
     expect(full).toMatch(/<button[^>]*aria-disabled="true"[^>]*type="submit"|<button[^>]*type="submit"[^>]*aria-disabled="true"/);
     const roomy = render(React.createElement(AgentsHome, { data: home({ plan: { ...FREE, use: { bots: 2, addresses: 9 } } }) }));
     expect(textOf(roomy)).not.toContain('You are at the most agents');
     const unlimited = render(React.createElement(AgentsHome, { data: home({ plan: UNLIMITED }) }));
     expect(textOf(unlimited)).not.toContain('You are at the most agents');
-    expect(unlimited).not.toMatch(/<input[^>]*disabled=""/);
+    expect(unlimited).not.toMatch(/<input[^>]*\sreadonly=""/i);
+    expect(unlimited).not.toMatch(/<(input|select)[^>]*aria-disabled/);
   });
 
   it('shows an agent\'s name and a key\'s domain as text, whatever they hold', () => {
@@ -384,11 +388,14 @@ describe('the registry', () => {
   it('at the limit the paste box and its button are off and the plan says why, calmly, with no price', () => {
     const full = panel([dest(1)], { ...FREE, use: { bots: 2, addresses: 15 } });
     expect(textOf(full)).toContain('You are at the most addresses the free plan covers. Remove one to add another.');
-    expect(full).toMatch(/<textarea[^>]*disabled=""/);
+    expect(full).toMatch(/<textarea[^>]*\sreadonly=""[^>]*aria-disabled="true"|<textarea[^>]*aria-disabled="true"[^>]*\sreadonly=""/i);
+    expect(full).toMatch(/<select[^>]*aria-disabled="true"/);
+    expect(full).not.toMatch(/<(textarea|select)[^>]*\sdisabled=""/);
     expect(full).toMatch(/<button[^>]*aria-disabled="true"[^>]*type="submit"|<button[^>]*type="submit"[^>]*aria-disabled="true"/);
     const roomy = panel([dest(1)], { ...FREE, use: { bots: 2, addresses: 14 } });
     expect(textOf(roomy)).not.toContain('You are at the most addresses');
-    expect(roomy).not.toMatch(/<textarea[^>]*disabled=""/);
+    expect(roomy).not.toMatch(/<textarea[^>]*\sreadonly=""/i);
+    expect(roomy).not.toMatch(/<(textarea|select)[^>]*aria-disabled/);
   });
 
   it('shows an address and a label as text, whatever they hold', () => {
@@ -454,8 +461,12 @@ describe('the wallets', () => {
     const full = panel(five);
     expect(textOf(full)).toContain('5 of 5 wallets');
     expect(textOf(full)).toContain('This agent is at the most wallets the free plan covers. Remove one to add another.');
-    expect(full).toMatch(/<input[^>]*disabled=""/);
-    expect(textOf(panel(five, UNLIMITED))).not.toContain('This agent is at the most wallets');
+    expect(full).toMatch(/<input[^>]*\sreadonly=""[^>]*aria-disabled="true"|<input[^>]*aria-disabled="true"[^>]*\sreadonly=""/i);
+    expect(full).toMatch(/<select[^>]*aria-disabled="true"/);
+    expect(full).not.toMatch(/<(input|select)[^>]*\sdisabled=""/);
+    const unlimited = panel(five, UNLIMITED);
+    expect(textOf(unlimited)).not.toContain('This agent is at the most wallets');
+    expect(unlimited).not.toMatch(/<input[^>]*\sreadonly=""/i);
   });
 
   it('shows a wallet address as text, whatever it holds', () => {
@@ -747,13 +758,82 @@ describe('keyboard and screen readers', () => {
     expect(w).not.toMatch(/setRemoving\(null\)|setRemoving\(w\.id\)/);
   });
 
-  it('never makes a button `disabled`: it would drop the focus the person holds, so a button that cannot be pressed is aria-disabled and its handler ignores the press', () => {
+  /**
+   * The opening tags of the given elements in a JSX source, each reduced to its attribute names: what is
+   * inside a string or a `{...}` value is dropped, so the `>` of an arrow function inside an attribute
+   * cannot end the tag early (a plain `[^>]*` pattern stops there and never sees the attributes after it),
+   * and a word inside a value is not mistaken for an attribute.
+   */
+  function openingTags(src: string, names: readonly string[]): Array<{ name: string; attrs: string }> {
+    const found: Array<{ name: string; attrs: string }> = [];
+    const re = new RegExp(`<(${names.join('|')})(?=[\\s/>])`, 'g');
+    for (let m = re.exec(src); m; m = re.exec(src)) {
+      let depth = 0;
+      let quote: string | null = null;
+      let attrs = '';
+      for (let i = m.index + m[0].length; i < src.length; i += 1) {
+        const c = src[i];
+        if (quote) {
+          if (c === '\\' && depth > 0) i += 1; // an escape inside a JavaScript string
+          else if (c === quote) quote = null;
+          continue;
+        }
+        if (c === '"' || c === "'" || c === '`') quote = c;
+        else if (c === '{') depth += 1;
+        else if (c === '}') depth -= 1;
+        else if (depth === 0) {
+          if (c === '>') break;
+          attrs += c;
+        }
+      }
+      found.push({ name: m[1], attrs });
+    }
+    return found;
+  }
+  const HAS_DISABLED = /\sdisabled(?=[=\s/]|$)/;
+  const CONTROLS = ['button', 'input', 'select', 'textarea'] as const;
+
+  it('reads a tag\'s attributes through an arrow function, which a plain pattern cannot', () => {
+    const [bad] = openingTags('<button className="ag-btn" onClick={() => { go(); }} disabled={busy}>Go</button>', ['button']);
+    expect(bad.attrs).toMatch(HAS_DISABLED);
+    // The pattern the guard used to be, and why it was not enough: it ends at the `>` of the arrow.
+    expect('<button className="ag-btn" onClick={() => { go(); }} disabled={busy}>').not.toMatch(/<button\b[^>]*?\sdisabled=/s);
+    const [good] = openingTags('<button className="ag-btn disabled" aria-disabled={busy || undefined} onClick={() => { if (!busy) go(); }}>Go</button>', ['button']);
+    expect(good.attrs).not.toMatch(HAS_DISABLED);
+    const [multi, second] = openingTags('<input\n  type="text"\n  onChange={(e) => set(e.target.value)}\n  disabled={full}\n/>\n<select value={a} onChange={(e) => set(`${e.target.value}`)} disabled>', ['input', 'select']);
+    expect(multi.attrs).toMatch(HAS_DISABLED);
+    expect(second.attrs).toMatch(HAS_DISABLED); // a bare `disabled`
+    expect(openingTags('<ConfirmRemove disabled={x} /><button type="button">', ['button'])).toHaveLength(1); // a component is not an element
+  });
+
+  it('never makes a button, field or list `disabled`: it would drop the focus the person holds, so one that cannot be used is aria-disabled (read-only for a text field) and its handler ignores the press', () => {
     const dir = path.join(ROOT, 'src/components/agentics');
     const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
     expect(files.length).toBeGreaterThan(10);
+    let looked = 0;
     for (const f of files) {
-      const src = read(`src/components/agentics/${f}`);
-      expect(src, f).not.toMatch(/<button\b[^>]*?\sdisabled=/s);
+      for (const tag of openingTags(read(`src/components/agentics/${f}`), CONTROLS)) {
+        looked += 1;
+        expect(tag.attrs, `${f} <${tag.name}>`).not.toMatch(HAS_DISABLED);
+      }
+    }
+    expect(looked, 'a guard that reads no controls proves nothing').toBeGreaterThan(25);
+    // Each field that can be unavailable says so with aria-disabled; a text field is also read-only, so it cannot be typed in.
+    for (const [f, name, readOnly] of [
+      ['WalletsPanel.tsx', 'select', false],
+      ['WalletsPanel.tsx', 'input', true],
+      ['RegistryPanel.tsx', 'select', false],
+      ['RegistryPanel.tsx', 'textarea', true],
+      ['AgentKeyCard.tsx', 'select', false],
+      ['AgentsHome.tsx', 'select', false],
+      ['AgentsHome.tsx', 'input', true],
+    ] as const) {
+      const tags = openingTags(read(`src/components/agentics/${f}`), [name]);
+      expect(tags.length, `${f} <${name}>`).toBeGreaterThan(0);
+      for (const tag of tags) {
+        expect(tag.attrs, `${f} <${name}>`).toMatch(/\saria-disabled=/);
+        if (readOnly) expect(tag.attrs, `${f} <${name}>`).toMatch(/\sreadOnly=/);
+      }
     }
     // Every submit button that can be unavailable has its form refuse the press as well (aria-disabled does not stop a submit).
     for (const [f, guard] of [
@@ -779,8 +859,9 @@ describe('keyboard and screen readers', () => {
     for (const f of ['RegistryPanel.tsx', 'WalletsPanel.tsx']) {
       const src = read(`src/components/agentics/${f}`);
       expect(src, f).toMatch(/const takeFocus = shouldTakeFocus\(document\.activeElement, document\.getElementById\(`ag-(dest|wallet)-\$\{\w\.id\}`\), document\.body\);/);
-      expect(src, f).toMatch(/if \(takeFocus\) heading\.current\?\.focus\(\);/);
-      expect(src, f).not.toMatch(/^\s*heading\.current\?\.focus\(\);/m); // never unconditionally
+      // Without scrolling: focus on the page body (a click that did not focus the button) must not drag the page back to the card.
+      expect(src, f).toMatch(/if \(takeFocus\) heading\.current\?\.focus\(\{ preventScroll: true \}\);/);
+      expect(src, f).not.toMatch(/^\s*heading\.current\?\.focus\(/m); // never unconditionally
     }
     // Each row carries the id the check looks for.
     expect(registry()).toMatch(/<li class="ag-dest" id="ag-dest-d1">/);

@@ -12,17 +12,20 @@
  * bounded concurrency, and it never throws: a check that errors becomes a check that did not run
  * (the readout says Limited), never a pass. It logs nothing about the addresses it checks.
  *
- * The screening is the public checker's. An answer the public checker already holds (checked in the
- * last five minutes, by anyone) is used as it is, and a complete answer the Vault gets is kept in a
- * memory of the Vault's own for the same five minutes, so adding, removing and adding an address again
- * does not ask the screening sources each time. A person asking to check an address again always gets a
- * new screening (`fresh`): the memory is for the add, which a script can loop on; the re-check is paced
- * by the budget of checks (./checkBudget.ts) instead. The public checker's cache is read and never written:
- * anyone can ask /api/wallet-check about an address and is told when it was last checked, so an address
- * written there would show when an account added or re-checked it. Only a complete answer is kept
- * (every source the Vault relies on ran); a partial one is never kept, so "Check again" asks again.
- * A readout carries the time the screening was made, not the time it was asked for, so an answer that
- * came from memory says how old it is.
+ * The screening is the public checker's. A complete answer the Vault gets is kept in a memory of the
+ * Vault's own for five minutes, for one account only (an account never reads what another's screenings
+ * left behind), so adding the same address under a second agent does not ask the screening sources
+ * again. An answer the public checker already holds (checked in the last five minutes, by anyone) may be
+ * used too, and of the two the newer wins. A person asking to check an address again always gets a new
+ * screening (`fresh`), and removing an address or an agent forgets the account's remembered answers, so
+ * adding an address back, which is how a flagged one is checked again, is a new screening as well. Adds
+ * and re-checks are paced by the budget of checks (./checkBudget.ts). The public checker's cache is read
+ * and never written: anyone can ask /api/wallet-check about an address and is told when it was last
+ * checked, so an address written there would show when an account added or re-checked it. The memory is
+ * per account for the same reason: an answer carries the time of its screening, and one account must not
+ * learn from it when another asked. Only a complete answer is kept (every source the Vault relies on
+ * ran); a partial one is never kept, so "Check again" asks again. A readout carries the time the
+ * screening was made, not the time it was asked for, so an answer that came from memory says how old it is.
  *
  * The checks are injected (TrustDeps) so tests run with no network and no database; the defaults
  * load the real modules lazily, so the Vault's plain list and edit endpoints never pull in the
@@ -35,10 +38,11 @@ import { summarizeChecks, type TrustReadout, type VerifyLookup } from './trustPo
 export interface TrustDeps {
   /**
    * The public checker's answer for one normalized address. `fresh` asks for a new screening whatever
-   * is remembered: it is what a person asking to check an address again means (adding an address, which
-   * a script can repeat in a loop, may be answered from memory).
+   * is remembered: it is what a person asking to check an address again means. `tenantId` is whose check
+   * it is: what the Vault remembers is kept per account, and without one nothing is remembered or read
+   * from memory.
    */
-  wallet(address: string, opts?: { fresh?: boolean }): Promise<WalletCheckResult>;
+  wallet(address: string, opts?: { fresh?: boolean; tenantId?: string }): Promise<WalletCheckResult>;
   /** The Verify registry's answer for one address, as seen from this tenant. Throws if it cannot answer. */
   verify(tenantId: string, address: string): Promise<VerifyLookup>;
   now?(): Date;
@@ -59,23 +63,44 @@ export function isCompleteAnswer(r: Pick<WalletCheckResult, 'coverage'> | null |
   return !!c && c.sanctions === 'ran' && c.chainalysis !== 'error' && c.goplus === 'ran';
 }
 
-/** How long the Vault remembers a complete answer, and how many addresses it remembers at once. */
+/** How long the Vault remembers a complete answer, and how many answers it remembers at once (all accounts together). */
 export const REMEMBER_MS = 5 * 60_000;
 export const REMEMBER_MAX = 500;
+/** Keyed by account and address: an account only ever reads its own screenings. */
 const remembered = new Map<string, { answer: WalletCheckResult; until: number }>();
+const memoryKey = (tenantId: string, address: string): string => `${tenantId}\u0000${address}`;
 
 /** Forgets every remembered answer. For tests. */
 export function forgetAnswers(): void {
   remembered.clear();
 }
 
-function remember(address: string, answer: WalletCheckResult, now: number): void {
-  if (remembered.size >= REMEMBER_MAX && !remembered.has(address)) {
+/** Forgets what is remembered for one account. Called when the account removes an address or an agent. */
+export function forgetAnswersOf(tenantId: string): void {
+  const prefix = `${tenantId}\u0000`;
+  for (const key of remembered.keys()) if (key.startsWith(prefix)) remembered.delete(key);
+}
+
+function remember(tenantId: string, address: string, answer: WalletCheckResult, now: number): void {
+  const key = memoryKey(tenantId, address);
+  if (remembered.size >= REMEMBER_MAX && !remembered.has(key)) {
     const oldest = remembered.keys().next().value;
     if (oldest !== undefined) remembered.delete(oldest);
   }
-  remembered.delete(address); // a fresh entry goes to the back of the line
-  remembered.set(address, { answer, until: now + REMEMBER_MS });
+  remembered.delete(key); // a fresh entry goes to the back of the line
+  remembered.set(key, { answer, until: now + REMEMBER_MS });
+}
+
+/** When an answer was made, as a number; -Infinity for one that does not say. */
+function madeAt(answer: WalletCheckResult): number {
+  const t = Date.parse(answer.checkedAt);
+  return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+}
+
+/** Of the two answers the Vault may reuse, the one made later; the account's own when they were made together. */
+function newer(own: WalletCheckResult | null, shared: WalletCheckResult | null): WalletCheckResult | null {
+  if (own && shared) return madeAt(shared) > madeAt(own) ? shared : own;
+  return own ?? shared;
 }
 
 /** Loads a module on first use and shares that one load with every caller. A failed load is not remembered. */
@@ -100,14 +125,15 @@ export const defaultTrustDeps: TrustDeps = {
   async wallet(address, opts) {
     const { checkWallet, getCached } = await walletChecker();
     const now = Date.now();
+    const tenantId = opts?.tenantId;
     if (!opts?.fresh) {
-      const mine = remembered.get(address);
-      if (mine && now < mine.until) return mine.answer;
+      const mine = tenantId ? remembered.get(memoryKey(tenantId, address)) : undefined;
       const shared = getCached(address);
-      if (shared && isCompleteAnswer(shared)) return shared;
+      const reuse = newer(mine && now < mine.until ? mine.answer : null, shared && isCompleteAnswer(shared) ? shared : null);
+      if (reuse) return reuse;
     }
     const answer = await checkWallet(address);
-    if (isCompleteAnswer(answer)) remember(address, answer, now);
+    if (tenantId && isCompleteAnswer(answer)) remember(tenantId, address, answer, now);
     return answer;
   },
   async verify(tenantId, address) {
@@ -139,7 +165,7 @@ function readoutTime(screened: unknown, now: Date): string {
 }
 
 async function checkOne(tenantId: string, address: string, deps: TrustDeps, fresh: boolean): Promise<TrustReadout> {
-  const [wallet, verify] = await Promise.allSettled([deps.wallet(address, fresh ? { fresh: true } : undefined), deps.verify(tenantId, address)]);
+  const [wallet, verify] = await Promise.allSettled([deps.wallet(address, fresh ? { fresh: true, tenantId } : { tenantId }), deps.verify(tenantId, address)]);
   const checkedAt = readoutTime(wallet.status === 'fulfilled' ? wallet.value?.checkedAt : null, deps.now ? deps.now() : new Date());
   const answers = {
     wallet: wallet.status === 'fulfilled' ? wallet.value : null,

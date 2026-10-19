@@ -168,6 +168,35 @@ d('the Agent Vault plan limits, under concurrency, on a real Postgres', () => {
     expect(await count('agent_wallets', t)).toBe(0);
   });
 
+  it('the same is true with no limit, which is how the owner\'s account adds: an agent that was removed takes nothing', async () => {
+    const t = fresh('removed-first-unlimited');
+    const tin = await newTin(t);
+    await vault.removeTin(t, tin.id);
+    expect(await store.insertDestinationWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(1), label: null, at: store.nowUtc() }, null)).toEqual({ kind: 'no_tin' });
+    expect(await store.insertWalletWithinCap(t, { tinId: tin.id, chain: 'ethereum', address: addr(2), at: store.nowUtc() }, null)).toEqual({ kind: 'no_tin' });
+    expect(await count('agent_destinations', t)).toBe(0);
+    expect(await count('agent_wallets', t)).toBe(0);
+    // And an agent that is live takes them, so the refusal above is the guard and not a broken insert.
+    const live = await newTin(t, 'Live');
+    expect((await store.insertDestinationWithinCap(t, { tinId: live.id, chain: 'ethereum', address: addr(3), label: null, at: store.nowUtc() }, null)).kind).toBe('inserted');
+    expect((await store.insertWalletWithinCap(t, { tinId: live.id, chain: 'ethereum', address: addr(4), at: store.nowUtc() }, null)).kind).toBe('inserted');
+  });
+
+  it('removing an agent while unlimited adds race for it leaves nothing live under it', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const t = fresh(`remove-race-unlimited-${round}`);
+      const gone = await newTin(t, 'Gone');
+      const jobs: Array<Promise<unknown>> = [store.softDeleteTin(t, gone.id, store.nowUtc())];
+      for (let i = 0; i < 10; i += 1) {
+        jobs.push(store.insertDestinationWithinCap(t, { tinId: gone.id, chain: 'ethereum', address: addr(800 + i), label: null, at: store.nowUtc() }, null));
+        jobs.push(store.insertWalletWithinCap(t, { tinId: gone.id, chain: 'ethereum', address: addr(900 + i), at: store.nowUtc() }, null));
+      }
+      await Promise.all(jobs);
+      expect(await count('agent_destinations', t), `round ${round}`).toBe(0);
+      expect(await count('agent_wallets', t), `round ${round}`).toBe(0);
+    }
+  });
+
   /**
    * Holds the account's lock (the one every capped add and every removal takes) for `ms` in a transaction
    * of its own, and says when it has it. The races above are chance; this is not: whatever is asked while

@@ -234,6 +234,8 @@
 }
 .ag-textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ag-textarea:disabled, .ag-input:disabled, .ag-select:disabled { opacity: 0.55; }
+/* A field that cannot be used right now stays in the focus order (read-only or aria-disabled, never disabled), so focus is not lost with it. */
+.ag-textarea[aria-disabled='true'], .ag-input[aria-disabled='true'], .ag-select[aria-disabled='true'] { opacity: 0.55; cursor: default; }
 .ag-paste { margin: 0 0 0.9rem; }
 .ag-paste > .ag-field { margin-bottom: 0.25rem; }
 .ag-select { max-width: 100%; }

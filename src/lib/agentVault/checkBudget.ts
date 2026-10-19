@@ -27,10 +27,12 @@ export interface CheckBudget {
   spend(tenantId: string, n: number, now?: number): boolean;
   /**
    * Gives back `n` checks that were paid for and not made (an address that was already registered, a
-   * line that did not fit the plan). Only inside the window they were taken from, and never below none
-   * used: a refund cannot buy room the account did not have.
+   * line that did not fit the plan). `spentAt` is the time they were paid for (the `now` given to
+   * `spend`), and they are given back only if the account's window is still the one they were taken
+   * from: a request that ends after a newer window has opened must not refund into it, or the new
+   * window would pass its maximum. Never below none used.
    */
-  refund(tenantId: string, n: number, now?: number): void;
+  refund(tenantId: string, n: number, spentAt: number): void;
 }
 
 export function createCheckBudget(opts: { windowMs?: number; max?: number; maxKeys?: number } = {}): CheckBudget {
@@ -62,9 +64,13 @@ export function createCheckBudget(opts: { windowMs?: number; max?: number; maxKe
       w.used += n;
       return true;
     },
-    refund(tenantId, n, now = Date.now()) {
+    refund(tenantId, n, spentAt) {
       const w = windows.get(tenantId);
-      if (!w || now >= w.resetAt || !(n > 0)) return;
+      if (!w || !(n > 0) || !Number.isFinite(spentAt)) return;
+      // The window the checks were paid in began when its first spend did and ends windowMs later. A charge
+      // from an earlier window went with that window; giving it back to this one would buy room the
+      // account did not have.
+      if (spentAt < w.resetAt - windowMs || spentAt >= w.resetAt) return;
       w.used = Math.max(0, w.used - n);
     },
   };

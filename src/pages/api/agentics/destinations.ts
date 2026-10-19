@@ -19,9 +19,13 @@
  *          Checking is paid for in addresses: an account on a plan with a cap on addresses may have
  *          30 addresses checked in a minute, for adds and re-checks together (429 `rate_limited`
  *          when a request would pass that, with nothing stored and nothing asked). `trust: false`
- *          adds without checking and costs none. An address checked in the last five minutes, by
- *          anyone, is answered from the public checker's cache when that holds a complete answer.
- * DELETE ?id=                          -> remove from the watched set; the row stays as history
+ *          adds without checking and costs none. An address this account had checked in the last
+ *          five minutes (a complete answer, kept for this account only), or that the public checker
+ *          checked in that time, is answered from the newer of the two instead of being screened
+ *          again; the time on its readout is the time it was screened.
+ * DELETE ?id=                          -> remove from the watched set; the row stays as history.
+ *          Removing it forgets what was remembered of the account's screenings, so adding the
+ *          address back is a new screening (that is how a flagged address is checked again).
  *
  * "Pass" means the address cleared the checks we ran. It never means the address is safe.
  * "Trusted" is the owner's own designation. Re-check or complete a check: POST /api/agentics/destinations/trust.

@@ -55,7 +55,7 @@ export interface FakeDeps extends TrustDeps {
   /** Answers by address; an Error is thrown. Anything not listed is a clean answer. */
   wallets: Record<string, WalletCheckResult | Error>;
   verifies: Record<string, VerifyLookup | Error>;
-  calls: { wallet: string[]; verify: Array<{ tenantId: string; address: string }>; fresh: string[] };
+  calls: { wallet: string[]; verify: Array<{ tenantId: string; address: string }>; fresh: string[]; tenants: Array<string | undefined> };
   inFlight: { now: number; max: number };
 }
 
@@ -64,12 +64,13 @@ export function fakeDeps(): FakeDeps {
   const deps: FakeDeps = {
     wallets: {},
     verifies: {},
-    calls: { wallet: [], verify: [], fresh: [] },
+    calls: { wallet: [], verify: [], fresh: [], tenants: [] },
     inFlight: { now: 0, max: 0 },
     now: () => new Date('2026-10-01T12:00:00.000Z'),
     async wallet(address, opts) {
       deps.calls.wallet.push(address);
       if (opts?.fresh) deps.calls.fresh.push(address);
+      deps.calls.tenants.push(opts?.tenantId);
       deps.inFlight.now += 1;
       deps.inFlight.max = Math.max(deps.inFlight.max, deps.inFlight.now);
       try {

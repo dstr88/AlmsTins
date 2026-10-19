@@ -101,13 +101,21 @@ function AddAgent({ data }: { data: HomePageData }) {
             maxLength={80}
             required
             placeholder={copy.home.add.namePlaceholder}
+            readOnly={full}
+            aria-disabled={full || undefined}
             onChange={(e) => setName(e.target.value)}
-            disabled={full}
           />
         </label>
         <label className="ag-field">
           {copy.home.add.keyLabel}
-          <select className="ag-select" value={keyId} onChange={(e) => setKeyId(e.target.value)} disabled={full}>
+          <select
+            className="ag-select"
+            value={keyId}
+            aria-disabled={full || undefined}
+            onChange={(e) => {
+              if (!full) setKeyId(e.target.value);
+            }}
+          >
             <option value="">{copy.home.add.keyNone}</option>
             {data.availableKeys.map((k) => (
               <option key={k.id} value={k.id}>

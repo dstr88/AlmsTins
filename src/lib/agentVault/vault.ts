@@ -53,7 +53,7 @@ import {
 import { getEntitlements } from './entitlements';
 import { fail, failLimit, idOf, type Failure, type VaultError } from './errors';
 import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type TinTotals } from './events';
-import { defaultTrustDeps, runTrustChecks, type TrustDeps } from './trustChecks';
+import { defaultTrustDeps, forgetAnswersOf, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
 import { defaultWatchDeps, runTinPass, type TinPassReport, type WatchDeps } from './watcher';
 
@@ -165,7 +165,10 @@ export async function renameOrRelinkTin(
 export async function removeTin(tenantId: string, id: unknown): Promise<{ ok: true } | Failure> {
   const tinId = idOf(id);
   if (!tinId) return fail('invalid_id');
-  return (await softDeleteTin(tenantId, tinId, nowUtc())) ? { ok: true } : fail('tin_not_found');
+  if (!(await softDeleteTin(tenantId, tinId, nowUtc()))) return fail('tin_not_found');
+  // Whatever was screened for this account in the last few minutes is forgotten: adding an address back is a new screening.
+  forgetAnswersOf(tenantId);
+  return { ok: true };
 }
 
 export { listTins };
@@ -283,8 +286,10 @@ export async function addDestinations(
   // with a cap on addresses has a budget of checks a minute (./checkBudget.ts); over it, nothing is
   // stored and nothing is asked, and the caller is told to wait.
   let charged = 0;
+  // The time the checks are paid for: a refund names it, so it only lands in the window it came from.
+  const spentAt = Date.now();
   if (input.trust !== false && limits.addresses !== null && deps.budget) {
-    if (!deps.budget.spend(tenantId, unique.length)) return fail('rate_limited');
+    if (!deps.budget.spend(tenantId, unique.length, spentAt)) return fail('rate_limited');
     charged = unique.length;
   }
   // Once the plan has no slot left, no later address of this paste can take one, so it is not tried:
@@ -302,7 +307,7 @@ export async function addDestinations(
     if (r.kind === 'no_tin') {
       // The agent was removed while this paste was being added: what was added before is removed with it,
       // and nothing was checked, so nothing is charged.
-      if (charged > 0) deps.budget?.refund(tenantId, charged);
+      if (charged > 0) deps.budget?.refund(tenantId, charged, spentAt);
       return fail('tin_not_found');
     }
     if (r.kind === 'inserted') {
@@ -323,7 +328,7 @@ export async function addDestinations(
   }
   // The checks were paid for before anything was written, for every line. Only the addresses that were
   // added are checked: the lines that were already registered or did not fit are given back.
-  if (charged > added.length) deps.budget?.refund(tenantId, charged - added.length);
+  if (charged > added.length) deps.budget?.refund(tenantId, charged - added.length, spentAt);
   // Nothing could be added because the plan is full: that is a refusal, not a paste that went through.
   // It still says what became of every line (an address already registered, a repeat, a line that is
   // not an address, and the ones the plan had no place for), exactly as an accepted paste does.
@@ -458,11 +463,17 @@ export async function listTinDestinations(
   return { ok: true, destinations: await listDestinations(tenantId, tinId) };
 }
 
-/** Takes a destination out of the watched set. The row stays as history; the same address can be added again later. */
+/**
+ * Takes a destination out of the watched set. The row stays as history; the same address can be added again
+ * later, and then it is screened again: removing it forgets what was remembered of the account's screenings,
+ * because "remove it and add it back" is how a flagged address is checked again (a flag is never cleared by a check).
+ */
 export async function removeDestination(tenantId: string, id: unknown): Promise<{ ok: true } | Failure> {
   const destinationId = idOf(id);
   if (!destinationId) return fail('invalid_id');
-  return (await softDeleteDestination(tenantId, destinationId, nowUtc())) ? { ok: true } : fail('destination_not_found');
+  if (!(await softDeleteDestination(tenantId, destinationId, nowUtc()))) return fail('destination_not_found');
+  forgetAnswersOf(tenantId);
+  return { ok: true };
 }
 
 // ── The ledger ───────────────────────────────────────────────────────────────

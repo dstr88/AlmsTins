@@ -92,6 +92,9 @@ export const MAX_EXPORTS_IN_FLIGHT = 1;
  * How long a place is held before it is taken back, whether or not its export ever said it was over:
  * a database call that hangs must not close exports for the whole server until the process restarts.
  * A full file takes about a second; a request the platform would have cut off is long gone by then.
+ * So "one at a time" is a bound with one exception: an export still running when its lease ends lets
+ * the next one begin beside it. The lease is counted on a clock that only moves forward, so a change
+ * to the server's clock cannot shorten or stretch it.
  */
 export const EXPORT_LEASE_MS = 120_000;
 
@@ -108,7 +111,7 @@ export interface ExportGate {
 export function createExportGate(opts: { perProcess?: number; leaseMs?: number; now?: () => number } = {}): ExportGate {
   const perProcess = opts.perProcess ?? MAX_EXPORTS_IN_FLIGHT;
   const leaseMs = opts.leaseMs ?? EXPORT_LEASE_MS;
-  const now = opts.now ?? Date.now;
+  const now = opts.now ?? (() => performance.now());
   const running = new Map<string, { since: number }>();
   return {
     enter(tenantId) {

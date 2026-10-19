@@ -820,6 +820,25 @@ describe('a place in the export gate that is never given back', () => {
   it('has a lease of two minutes, far longer than a full file takes', () => {
     expect(ex.EXPORT_LEASE_MS).toBe(120_000);
   });
+
+  it('counts its lease on a clock that only moves forward: a change to the server\'s clock cannot shorten or stretch it', () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); // moves the wall clock only; the monotonic clock keeps its own time
+    try {
+      vi.setSystemTime(new Date('2026-10-18T12:00:00.000Z'));
+      const gate = ex.createExportGate({ perProcess: 1 });
+      const held = gate.enter(A);
+      expect(held).toBeTypeOf('function');
+      vi.setSystemTime(new Date('2026-10-18T12:10:00.000Z')); // the wall clock jumps ten minutes ahead...
+      expect(gate.enter(A)).toBeNull(); // ...and the export, a moment old, still holds its place
+      expect(gate.enter(B)).toBeNull();
+      vi.setSystemTime(new Date('2026-10-18T11:00:00.000Z')); // and back an hour
+      expect(gate.enter(B)).toBeNull();
+      held!();
+      expect(gate.enter(B)).toBeTypeOf('function');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('when the file says it was made', () => {

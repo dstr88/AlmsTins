@@ -649,6 +649,53 @@ describe('the budget of checks', () => {
     expect(await vault.trustDestinations(A, { tinId: tin.id, ids: ids.slice(0, 1) }, deps)).toEqual({ ok: false, error: 'rate_limited' });
   });
 
+  it('gives the whole charge back when the agent was removed while the paste was being added: nothing was written, nothing was asked', async () => {
+    const real = await budgetOf(12);
+    const tin = await newTin();
+    deps.budget = {
+      spend: (t, n, now) => {
+        const paid = real.spend(t, n, now);
+        // The agent is removed after the paste was paid for and before anything is written.
+        rows('agent_tins').find((r) => r.id === tin.id)!.deleted_at = '2026-10-18T12:00:00.000Z';
+        return paid;
+      },
+      refund: (t, n, at) => real.refund(t, n, at),
+    };
+    expect(await add(A, tin.id, lines(1, 10))).toEqual({ ok: false, error: 'tin_not_found' });
+    expect(live('agent_destinations', A)).toHaveLength(0);
+    expect(deps.calls.wallet).toEqual([]);
+    expect(real.spend(A, 12)).toBe(true); // the ten were given back: the whole budget of twelve is still there
+  });
+
+  it('names the time it paid at when it gives checks back, so a paste that ends late cannot refund into a newer window', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-18T12:00:00.000Z'));
+      const real = await budgetOf(30);
+      const tin = await newTin();
+      expectOk(await add(A, tin.id, lines(1, 10), { trust: false })); // ten registered, nothing asked
+      let slow = true;
+      deps.budget = {
+        spend: (t, n, now) => {
+          const paid = real.spend(t, n, now);
+          if (slow) {
+            slow = false;
+            // While this paste is still being written, more than a minute goes by and the next window is spent in full.
+            vi.setSystemTime(new Date('2026-10-18T12:01:10.000Z'));
+            expect(real.spend(t, 30, Date.now())).toBe(true);
+          }
+          return paid;
+        },
+        refund: (t, n, at) => real.refund(t, n, at),
+      };
+      // The same ten again: every line is already registered, so the ten paid for are given back, to the window they were taken from.
+      expect(expectOk(await add(A, tin.id, lines(1, 10))).summary).toMatchObject({ added: 0, skipped: 10 });
+      expect(real.spend(A, 1, Date.now())).toBe(false); // the new window is still full: it was given nothing
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('an add may be answered from memory, and a check again never is', async () => {
     const tin = await newTin();
     const first = expectOk(await add(A, tin.id, addr(1), { trust: false })).destinations[0];

@@ -75,7 +75,14 @@ export default function AgentKeyCard({ tinId, linked, available }: AgentKeyCardP
           <>
             <label className="ag-field">
               {copy.agent.key.choose}
-              <select className="ag-select" value={chosen} onChange={(e) => setChosen(e.target.value)} disabled={busy}>
+              <select
+                className="ag-select"
+                value={chosen}
+                aria-disabled={busy || undefined}
+                onChange={(e) => {
+                  if (!busy) setChosen(e.target.value);
+                }}
+              >
                 <option value="">{copy.home.add.keyNone}</option>
                 {choices.map((k) => (
                   <option key={k.id} value={k.id}>

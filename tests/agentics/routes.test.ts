@@ -265,6 +265,46 @@ describe('the owner: add a tin, an own wallet and destinations, check them, list
     const r = await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId, text: `polygon, ${addr(1)}`, chain: 'avalanche' });
     expect(r.json.destinations[0].chain).toBe('polygon');
   });
+
+  it('screens a flagged address again when it is removed and added back, which is how the page says to check it again', async () => {
+    const one = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'One' })).json.tin.id as string;
+    const two = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Two' })).json.tin.id as string;
+    answers.set(addr(1), walletResult({ flags: { sanctioned: true } }));
+    const flagged = await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: one, text: addr(1) });
+    expect(flagged.json.destinations[0].trustStatus).toBe('flagged');
+    expect(checks.checkWallet).toHaveBeenCalledTimes(1);
+    // The same address under a second agent a moment later: the account's own screening is used, nobody is asked again.
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: two, text: addr(1) });
+    expect(checks.checkWallet).toHaveBeenCalledTimes(1);
+    // The source now says it is clean. Removing the flagged address and adding it back is a new screening, which finds that out.
+    answers.set(addr(1), walletResult());
+    await call(destinations.DELETE, `/api/agentics/destinations?id=${flagged.json.destinations[0].id}`, 'DELETE');
+    const back = await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: one, text: addr(1) });
+    expect(checks.checkWallet).toHaveBeenCalledTimes(2);
+    expect(back.json.destinations[0].trustStatus).toBe('trusted');
+  });
+
+  it('screens an address again after the agent it was under is removed', async () => {
+    const one = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'One' })).json.tin.id as string;
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: one, text: addr(2) });
+    expect(checks.checkWallet).toHaveBeenCalledTimes(1);
+    expect((await call(tins.DELETE, `/api/agentics/tins?id=${one}`, 'DELETE')).json).toEqual({ ok: true });
+    const two = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Two' })).json.tin.id as string;
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: two, text: addr(2) });
+    expect(checks.checkWallet).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgets nothing when a removal fails: an address that is not there leaves the account\'s screenings as they were', async () => {
+    const one = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'One' })).json.tin.id as string;
+    const two = (await call(tins.POST, '/api/agentics/tins', 'POST', { label: 'Two' })).json.tin.id as string;
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: one, text: addr(3) });
+    // Well-formed ids of things that are not there: the removal is refused after it looked, not before.
+    const nobody = '00000000-0000-4000-8000-000000000099';
+    expect((await call(destinations.DELETE, `/api/agentics/destinations?id=${nobody}`, 'DELETE')).json).toEqual({ ok: false, error: 'destination_not_found' });
+    expect((await call(tins.DELETE, `/api/agentics/tins?id=${nobody}`, 'DELETE')).json).toEqual({ ok: false, error: 'tin_not_found' });
+    await call(destinations.POST, '/api/agentics/destinations', 'POST', { tinId: two, text: addr(3) });
+    expect(checks.checkWallet).toHaveBeenCalledTimes(1); // still answered from memory
+  });
 });
 
 describe('errors are codes, with the status that fits', () => {
