@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import type { PetroTin, PetroTinEntry } from './types';
+import { writeToApi } from './saveResult';
 import './BudgetTin.css';
 
 const BLANK_ROWS = 5;
@@ -44,6 +45,13 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   const allPaidKey = `petro_allpaid_${tin.id}_${curMonth}`;
 
   const [saving,        setSaving]        = useState<Record<number, boolean>>({});
+  // The last write the server refused. Shown above the register until the next write succeeds.
+  const [error,         setError]         = useState<string | null>(null);
+  // Saves in flight, by new-line row, and the edit save. A ref, not state: Enter saves a line,
+  // the row then disables itself, and leaving the field tries to save the same line again 120ms
+  // later. If the first save is still on its way the second would add the line twice.
+  const savingRows = useRef<Record<number, boolean>>({});
+  const savingEdit = useRef(false);
   const [showDefaults,  setShowDefaults]  = useState(false);
   const [showSurplus,   setShowSurplus]   = useState(false);
   const [editingEntry,  setEditingEntry]  = useState<{ id: string; amount: string; desc: string; url: string } | null>(null);
@@ -93,12 +101,20 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
+  // Every write goes through here so a refusal from the server is shown, not swallowed.
+  const write = useCallback(async (url: string, init: RequestInit) => {
+    const r = await writeToApi(url, init);
+    setError(r.ok ? null : r.message);
+    return r.ok;
+  }, []);
+
   const toggleChecked = useCallback(async (entryId: string, current: boolean) => {
-    await fetch('/api/petro-tins/entries', {
+    const saved = await write('/api/petro-tins/entries', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entryId, checked: !current }),
     });
+    if (!saved) { onRefresh(); return; }
 
     // After toggling, check if all bills are now paid
     const updated = curBills.map(e => e.id === entryId ? { ...e, checked: !current } : e);
@@ -106,14 +122,14 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       setAllPaidBanner(true);
       try { localStorage.setItem(allPaidKey, '1'); } catch { /* ignore */ }
       // Seed next month immediately so it's ready to go
-      await fetch('/api/petro-tins/rollover', {
+      await write('/api/petro-tins/rollover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tinId: tin.id }),
       });
       // Sweep surplus to slush if enabled
       if (tin.surplusMode === 'slush' && surplus > 0) {
-        await fetch('/api/petro-tins/sweep', {
+        await write('/api/petro-tins/sweep', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tinId: tin.id }),
@@ -121,34 +137,41 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       }
     }
     onRefresh();
-  }, [curBills, tin.id, tin.surplusMode, surplus, onRefresh]);
+  }, [write, curBills, tin.id, tin.surplusMode, surplus, onRefresh]);
 
   const toggleDefault = useCallback(async (entryId: string, current: boolean) => {
-    await fetch('/api/petro-tins/entries', {
+    await write('/api/petro-tins/entries', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entryId, isDefault: !current }),
     });
     onRefresh();
-  }, [onRefresh]);
+  }, [write, onRefresh]);
 
   const deleteEntry = useCallback(async (entryId: string) => {
-    await fetch(`/api/petro-tins/entries?id=${entryId}&tinId=${tin.id}`, { method: 'DELETE' });
+    await write(`/api/petro-tins/entries?id=${entryId}&tinId=${tin.id}`, { method: 'DELETE' });
     onRefresh();
-  }, [tin.id, onRefresh]);
+  }, [write, tin.id, onRefresh]);
 
   const saveEditEntry = useCallback(async () => {
-    if (!editingEntry) return;
+    if (!editingEntry || savingEdit.current) return;
     const amount = evalFormula(editingEntry.amount);
-    if (isNaN(amount) || amount < 0) return;
-    await fetch('/api/petro-tins/entries', {
+    if (isNaN(amount) || amount < 0) {
+      setError('Enter the amount as a number, for example 450 or =400+50.');
+      return;
+    }
+    savingEdit.current = true;
+    const saved = await write('/api/petro-tins/entries', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entryId: editingEntry.id, amount, description: editingEntry.desc, url: editingEntry.url || null }),
     });
+    savingEdit.current = false;
+    // A refused save leaves the box open with what was typed, so nothing typed is lost.
+    if (!saved) return;
     setEditingEntry(null);
     onRefresh();
-  }, [editingEntry, onRefresh]);
+  }, [write, editingEntry, onRefresh]);
 
   const updateRow = (i: number, field: keyof BlankRow, value: string) => {
     setRows(prev => {
@@ -160,42 +183,53 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     });
   };
 
-  const trySave = useCallback(async (i: number) => {
+  // `explicit` is true when the person pressed Enter. Leaving a field also tries a save, but an
+  // unfinished row is only reported when Enter was pressed, so tabbing through never nags.
+  const trySave = useCallback(async (i: number, explicit = false) => {
+    if (savingRows.current[i]) return;
     const row = rows[i];
     const dep = evalFormula(row.deposit);
     const pay = evalFormula(row.payment);
-    if (!row.date || !row.desc.trim()) return;
     const depValid = !isNaN(dep) && dep >= 0;
     const payValid = !isNaN(pay) && pay >= 0;
-    if (!depValid && !payValid) return;
+    if (!row.date || !row.desc.trim() || (!depValid && !payValid)) {
+      if (explicit && (row.desc.trim() || row.payment.trim() || row.deposit.trim())) {
+        setError('A line needs a date, a description and an amount in Expense or Income. Type 0 if there is no amount.');
+      }
+      return;
+    }
     const isDeposit = depValid && dep >= 0 && !(payValid && pay > 0);
     const kind      = isDeposit ? 'income' : 'expense';
     const amount    = isDeposit ? (dep || 0) : (pay || 0);
 
+    savingRows.current[i] = true;
     setSaving(prev => ({ ...prev, [i]: true }));
-    await fetch('/api/petro-tins/entries', {
+    const saved = await write('/api/petro-tins/entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tinId: tin.id, kind, amount, entryDate: row.date, description: row.desc.trim() }),
     });
+    savingRows.current[i] = false;
     setSaving(prev => ({ ...prev, [i]: false }));
+    // A refused save keeps the typed line where it is, so nothing typed is lost.
+    if (!saved) return;
     setRows(prev => {
       const next = [...prev];
       next[i] = { date: today(), desc: '', payment: '', deposit: '' };
       return next;
     });
     onRefresh();
-  }, [rows, tin.id, onRefresh]);
+  }, [write, rows, tin.id, onRefresh]);
 
   const saveSurplusMode = useCallback(async (mode: 'none' | 'slush') => {
-    await fetch(`/api/petro-tins/${tin.id}`, {
+    const saved = await write(`/api/petro-tins/${tin.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ surplusMode: mode }),
     });
-    setShowSurplus(false);
+    if (saved) setShowSurplus(false);
     onRefresh();
-  }, [tin.id, onRefresh]);
+  }, [write, tin.id, onRefresh]);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   const renderRow = (e: PetroTinEntry, showDefault = false) => {
@@ -314,6 +348,14 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
         </div>
       )}
 
+      {/* A refused save: what happened, with what was typed left in place */}
+      {error && (
+        <div className="pt-reg-error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="pt-reg-error__close" aria-label="Dismiss this message" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
       <div className="pt-budget-tin__register">
         <table>
           <thead>
@@ -385,21 +427,21 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                   <td>
                     <input className="pt-reg-input" type="date" value={row.date}
                       onChange={e => updateRow(i, 'date', e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && trySave(i)}
+                      onKeyDown={e => e.key === 'Enter' && trySave(i, true)}
                       disabled={saving[i]} />
                   </td>
                   <td>
                     <input className="pt-reg-input" type="text" placeholder="Description" maxLength={120}
                       value={row.desc}
                       onChange={e => updateRow(i, 'desc', e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && trySave(i)}
+                      onKeyDown={e => e.key === 'Enter' && trySave(i, true)}
                       disabled={saving[i]} />
                   </td>
                   <td style={{ position: 'relative' }}>
                     <input className="pt-reg-input col-amt" type="text" placeholder="— or =500+50"
                       value={row.payment}
                       onChange={e => updateRow(i, 'payment', e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && trySave(i)}
+                      onKeyDown={e => e.key === 'Enter' && trySave(i, true)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
                       disabled={saving[i]} />
                     {row.payment.trim().startsWith('=') && !isNaN(evalFormula(row.payment)) && (
@@ -412,7 +454,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                     <input className="pt-reg-input col-amt" type="text" placeholder="— or =500+50"
                       value={row.deposit}
                       onChange={e => updateRow(i, 'deposit', e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && trySave(i)}
+                      onKeyDown={e => e.key === 'Enter' && trySave(i, true)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
                       disabled={saving[i]} />
                     {row.deposit.trim().startsWith('=') && !isNaN(evalFormula(row.deposit)) && (

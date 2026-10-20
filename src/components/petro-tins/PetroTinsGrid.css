@@ -4,14 +4,16 @@
 .pt-grid__loading { color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; }
 
 /* Row 1: budget + summary */
+/* Two columns only while each is wide enough for the register's table (it needs about 575px:
+   check box, date field, description, two amount columns, delete). Narrower than that, the
+   summary drops under the register. At a fixed 900px breakpoint the register was about 414px
+   wide and its Income column slid off the right edge, so a deposit's digits were hidden while
+   the total above stayed visible. */
 .pt-grid__top {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 36.5rem), 1fr));
   gap: 1.5rem;
   align-items: start;
-}
-@media (min-width: 900px) {
-  .pt-grid__top { grid-template-columns: 1fr 1fr; }
 }
 
 /* Add another register: sits under the last budget register */

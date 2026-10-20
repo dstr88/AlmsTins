@@ -78,6 +78,31 @@
   letter-spacing: 0.01em;
 }
 
+/* A write the server refused: said out loud, above the register, until the next save works. */
+.pt-reg-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--loss-bg);
+  border-top: 1px solid var(--loss-border);
+  border-bottom: 1px solid var(--loss-border);
+  color: var(--loss);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  padding: 0.6rem 1.25rem;
+}
+.pt-reg-error__close {
+  flex: none;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+.pt-reg-error__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Register table */
 .pt-budget-tin__register { overflow-x: auto; }
 .pt-budget-tin__register table {
