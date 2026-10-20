@@ -48,8 +48,25 @@ describe('the landing page /agentics', () => {
 
   it('links only to pages on this site', () => {
     const hrefs = [...landing.matchAll(/<a\s[^>]*href="([^"]+)"/g)].map((m) => m[1]);
-    expect(hrefs.sort()).toEqual(['/agentics/docs', '/agentics/docs', '/privacy', '/wallet-checker']);
+    // The sign-up button is an expression (the campaign label rides on it); the account link is what a signed-in visitor gets instead.
+    expect(hrefs.sort()).toEqual(['/agentics/docs', '/agentics/docs', '/dashboard/agentics', '/privacy', '/wallet-checker']);
     expect(code(landing)).not.toMatch(/href="https?:/);
+  });
+
+  it('shows someone who is already signed in a button to their account, not the sign-up button', () => {
+    expect(landing).toContain("import { hasAccount } from '@/lib/agenticsAccountEntry';");
+    expect(landing).toContain("import { requireTenantSession } from '@/lib/requireTenantSession';");
+    expect(landing).toContain('const member = hasAccount(session);');
+    expect(landing).toContain('href="/dashboard/agentics">{l.ctaMember}</a>');
+    expect(landing).toContain('href={signup}>{l.ctaPrimary}</a>');
+    expect(landing).toContain('{member ? l.finePrintMember : l.finePrint}');
+  });
+
+  it('never caches a signed-in render, and never turns a failed lookup into an error page', () => {
+    expect(landing).toContain("if (member) Astro.response.headers.set('Cache-Control', 'private, no-store');");
+    // Only the member's render carries the header; the visitor's page is the page it always was.
+    expect(code(landing)).not.toMatch(/^\s*Astro\.response\.headers\.set\('Cache-Control'/m);
+    expect(landing).toContain('await requireTenantSession(Astro.request).catch(() => null);');
   });
 
   it('reads its words from the copy module, not from literals of its own', () => {

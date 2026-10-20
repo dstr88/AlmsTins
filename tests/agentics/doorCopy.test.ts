@@ -85,6 +85,24 @@ describe('it says only what is true today', () => {
   it('points at pages that exist: the docs, key creation and the free checker', () => {
     expect(en.welcome.today.map((t) => t.href)).toEqual(['/agentics/docs', '/verify/agent-keys', '/wallet-checker', '/agentics/account']);
   });
+
+  it('gives someone who is already signed in a way to their account, in both states, with no sign-up wording', () => {
+    expect(en.landing.ctaMember).toBe('Open your account');
+    expect(en.landing.finePrintMember).toBe('You are signed in. We will email you once, when your vault opens.');
+    expect(enOpen.landing.ctaMember).toBe('Open your vault');
+    expect(enOpen.landing.finePrintMember).toBe('You are signed in. Your vault is open.');
+    for (const s of [en.landing.ctaMember, en.landing.finePrintMember, enOpen.landing.ctaMember, enOpen.landing.finePrintMember]) {
+      expect(s).not.toMatch(/sign up|create|free to/i);
+      expect(brightLineViolations(s), s).toEqual([]);
+    }
+  });
+
+  it('says the API key page is part of Almstins Verify, so the change of name is no surprise', () => {
+    for (const copy of [en, enOpen]) {
+      const key = copy.welcome.today.find((t) => t.href === '/verify/agent-keys');
+      expect(key?.text).toBe('Create an API key on the Almstins Verify page by proving a domain you control. A key raises the limit from 30 to 300 requests a minute.');
+    }
+  });
 });
 
 describe('the letter is the same on the page and in the email', () => {

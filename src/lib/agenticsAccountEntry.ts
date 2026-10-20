@@ -17,9 +17,14 @@ export const ACCOUNT_SET_UP = '/onboarding/tenant-setup';
 
 export type AccountEntry<S extends { tenantId: string; isDemo?: boolean }> = { kind: 'page'; session: S } | { kind: 'redirect'; to: string };
 
+/** A real session with an account behind it: not nobody, and not the shared demo tenant. */
+export function hasAccount<S extends { tenantId: string; isDemo?: boolean }>(session: S | null): session is S {
+  return Boolean(session && !session.isDemo);
+}
+
 export function accountEntry<S extends { tenantId: string; isDemo?: boolean }>(input: { signedIn: boolean; session: S | null }): AccountEntry<S> {
   const { signedIn, session } = input;
-  if (session && !session.isDemo) return { kind: 'page', session };
+  if (hasAccount(session)) return { kind: 'page', session };
   if (signedIn && !session) return { kind: 'redirect', to: ACCOUNT_SET_UP };
   return { kind: 'redirect', to: ACCOUNT_SIGN_IN };
 }

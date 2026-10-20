@@ -12,6 +12,10 @@
 // the signup (src/lib/agenticsSource.ts). Everything else about the account (the tenant) is made by
 // the first sign-in, the same as for every other account.
 //
+// Someone who is already signed in has the account the sign-up button would make, so for them the button
+// opens it (/dashboard/agentics) and that render is never cached. A failed lookup is a visitor, never an
+// error page, and the page for visitors is exactly what it was.
+//
 // The API docs the agent builders read are at /agentics/docs (they moved here from /verify/agents).
 //
 // A document of its own, not LoginLayout: that layout always ends in the Almstins site footer, whose
@@ -23,6 +27,8 @@ import Analytics from '@/components/Analytics.astro';
 import { agenticsCopy } from '@/i18n/agentics';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { cleanSource, signupHref } from '@/lib/agenticsSource';
+import { hasAccount } from '@/lib/agenticsAccountEntry';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
@@ -30,6 +36,9 @@ export const prerender = false;
 const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);
 const l = t.landing;
 const signup = signupHref(cleanSource(Astro.url.searchParams.get('src')));
+const session = await requireTenantSession(Astro.request).catch(() => null);
+const member = hasAccount(session);
+if (member) Astro.response.headers.set('Cache-Control', 'private, no-store');
 const canonical = 'https://almstins.com/agentics';
 const ogImage = 'https://almstins.com/og-default.png';
 ---
@@ -142,10 +151,12 @@ const ogImage = 'https://almstins.com/og-default.png';
       <h1 id="ag-h1">{l.h1}</h1>
       <p class="ag-sub">{l.sub}</p>
       <div class="ag-cta">
-        <a class="ag-btn ag-btn--primary" href={signup}>{l.ctaPrimary}</a>
+        {member
+          ? <a class="ag-btn ag-btn--primary" href="/dashboard/agentics">{l.ctaMember}</a>
+          : <a class="ag-btn ag-btn--primary" href={signup}>{l.ctaPrimary}</a>}
         <a class="ag-btn ag-btn--ghost" href="/agentics/docs">{l.ctaSecondary}</a>
       </div>
-      <p class="ag-fine">{l.finePrint}</p>
+      <p class="ag-fine">{member ? l.finePrintMember : l.finePrint}</p>
     </section>
 
     <section class="ag-status" aria-label="Where it stands">

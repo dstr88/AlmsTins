@@ -22,6 +22,7 @@ export const copy = {
     planLabel: 'Plan',
     plan: `Free: ${FREE_BOTS} bots and ${FREE_ADDRESSES} addresses. Paid plans come later; there is nothing to buy today.`,
     planUnlimited: 'Unlimited: this account has no limit on bots or addresses.',
+    products: 'The same sign-in also opens the Almstins wallet tracker, which has a Vault dashboard of its own. The Agent Vault here is a separate record.',
     deleteTitle: 'Delete your account',
     deleteLede: [
       'This permanently deletes your whole Almstins account and everything in it, not only what you keep in Agentics. That is your agents, their wallets and registered addresses, the ledger, your reports and your delivery settings here, and whatever you keep in the rest of Almstins: tracked wallets, imported transactions, tax records, PetroTins data and your sign-in. It cannot be undone.',

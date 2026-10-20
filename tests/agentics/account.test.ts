@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { brightLineViolations } from '../helpers/brightLineWording';
 import { DELETE_WAIT_MS, deleteOutcome, withWait } from '../../src/components/agentics/account';
-import { ACCOUNT_SET_UP, ACCOUNT_SIGN_IN, accountEntry } from '../../src/lib/agenticsAccountEntry';
+import { ACCOUNT_SET_UP, ACCOUNT_SIGN_IN, accountEntry, hasAccount } from '../../src/lib/agenticsAccountEntry';
 import { copy } from '../../src/components/agentics/copy';
 import { ACCOUNT_PATH, AFTER_DELETE_PATH } from '../../src/components/agentics/paths';
 import type { ApiResult } from '../../src/components/agentics/client';
@@ -105,7 +105,7 @@ describe('the wait for the answer', () => {
 
 describe('the words', () => {
   it('keep the product wording, in every line of the account block', () => {
-    const lines = [copy.account.lede, copy.account.plan, copy.account.planUnlimited, ...copy.account.deleteLede, copy.account.deleteQuestion, copy.account.failed, copy.account.billingFailed, copy.account.unclear, copy.account.signedOut, copy.account.done];
+    const lines = [copy.account.lede, copy.account.plan, copy.account.planUnlimited, copy.account.products, ...copy.account.deleteLede, copy.account.deleteQuestion, copy.account.failed, copy.account.billingFailed, copy.account.unclear, copy.account.signedOut, copy.account.done];
     for (const text of lines) expect(brightLineViolations(text), text).toEqual([]);
   });
 
@@ -133,9 +133,17 @@ describe('the words', () => {
     expect(copy.account.plan).toBe('Free: 3 bots and 15 addresses. Paid plans come later; there is nothing to buy today.');
     expect(copy.account.plan).not.toMatch(/\$\s?\d/);
   });
+
+  it('say that one sign-in opens two products, and that the Agent Vault is a separate record from the tracker\'s Vault', () => {
+    expect(copy.account.products).toBe('The same sign-in also opens the Almstins wallet tracker, which has a Vault dashboard of its own. The Agent Vault here is a separate record.');
+  });
 });
 
 describe('the panel', () => {
+  it('says there are two products behind the one sign-in', () => {
+    expect(textOf(render(React.createElement(AccountPanel, { email: 'a@example.test' })))).toContain(copy.account.products);
+  });
+
   it('shows the address the person signed in with as text, whatever it holds', () => {
     const hostile = '"><img src=x onerror=alert(1)>@example.test';
     const html = render(React.createElement(AccountPanel, { email: hostile }));
@@ -201,6 +209,24 @@ describe('who may see the page, and where everyone else goes', () => {
 
   it('a demo cookie does not turn a real sign-in into a demo: a real session with a demo flag set false is a page', () => {
     expect(accountEntry({ signedIn: true, session: { tenantId: 't', isDemo: false } }).kind).toBe('page');
+  });
+});
+
+describe('who has an account', () => {
+  it('a real session with a tenant does', () => {
+    expect(hasAccount({ tenantId: 't' })).toBe(true);
+    expect(hasAccount({ tenantId: 't', isDemo: false })).toBe(true);
+  });
+
+  it('nobody does, and neither does the shared demo tenant', () => {
+    expect(hasAccount(null)).toBe(false);
+    expect(hasAccount({ tenantId: 'demo', isDemo: true })).toBe(false);
+  });
+
+  it('is the same rule the account page uses: a page for exactly those who have one', () => {
+    for (const session of [null, { tenantId: 'demo', isDemo: true }, { tenantId: 't' }, { tenantId: 't', isDemo: false }]) {
+      expect(accountEntry({ signedIn: true, session }).kind === 'page', JSON.stringify(session)).toBe(hasAccount(session));
+    }
   });
 });
 

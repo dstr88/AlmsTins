@@ -54,7 +54,10 @@ export interface AgenticsCopy {
     readonly sub: string;
     readonly ctaPrimary: string;
     readonly ctaSecondary: string;
+    /** The button for someone who is already signed in, in place of the sign-up button. */
+    readonly ctaMember: string;
     readonly finePrint: string;
+    readonly finePrintMember: string;
     readonly status: { readonly liveLabel: string; readonly liveText: string; readonly soonLabel: string; readonly soonText: string };
     readonly stepsTitle: string;
     readonly steps: ReadonlyArray<{ readonly tag: string; readonly live: boolean; readonly title: string; readonly body: string }>;
@@ -98,7 +101,9 @@ export const en: AgenticsCopy = {
     sub: 'Agentics verifies the destination an AI agent is about to send to, and keeps a dated record of what it answered. Read-only. No keys, no wallet connection, never in the transaction path.',
     ctaPrimary: 'Create a free account',
     ctaSecondary: 'Read the API docs',
+    ctaMember: 'Open your account',
     finePrint: 'Free to sign up. We will email you once, when your vault opens.',
+    finePrintMember: 'You are signed in. We will email you once, when your vault opens.',
 
     status: {
       liveLabel: 'Live today',
@@ -176,7 +181,7 @@ export const en: AgenticsCopy = {
     todayTitle: 'What you can do today',
     today: [
       { href: '/agentics/docs', text: 'Read the API docs and wire the pre-send check into your agent.' },
-      { href: '/verify/agent-keys', text: 'Create an API key by proving a domain you control. A key raises the limit from 30 to 300 requests a minute.' },
+      { href: '/verify/agent-keys', text: 'Create an API key on the Almstins Verify page by proving a domain you control. A key raises the limit from 30 to 300 requests a minute.' },
       { href: '/wallet-checker', text: 'Check any address or site with the free checker.' },
       { href: '/agentics/account', text: 'See your account, or delete it.' },
     ],
@@ -209,7 +214,9 @@ export const enOpen: AgenticsCopy = {
   ...en,
   landing: {
     ...en.landing,
+    ctaMember: 'Open your vault',
     finePrint: 'Free to sign up. Your vault opens the moment you do.',
+    finePrintMember: 'You are signed in. Your vault is open.',
     status: {
       liveLabel: 'Live today',
       liveText: 'the pre-send check (one request, no login), the free address checker, and your vault.',

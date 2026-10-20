@@ -56,6 +56,7 @@ export default function AccountPanel({ email, plan = 'free' }: AccountPanelProps
         <p className="ag-hint">
           {copy.account.planLabel}: {plan === 'unlimited' ? copy.account.planUnlimited : copy.account.plan}
         </p>
+        <p className="ag-hint">{copy.account.products}</p>
       </section>
 
       <section className="ag-card" aria-labelledby="ag-delete-h">
