@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { en } from '../../src/i18n/agentics';
 
 /**
  * The three Agentics door pages, read as source: what each one links to, what it posts to, who it
@@ -49,8 +50,20 @@ describe('the landing page /agentics', () => {
   it('links only to pages on this site', () => {
     const hrefs = [...landing.matchAll(/<a\s[^>]*href="([^"]+)"/g)].map((m) => m[1]);
     // The sign-up button is an expression (the campaign label rides on it); the account link is what a signed-in visitor gets instead.
-    expect(hrefs.sort()).toEqual(['/agentics/docs', '/agentics/docs', '/dashboard/agentics', '/privacy', '/wallet-checker']);
+    // The brand and the Log in link sit in the top bar; the "More from Almstins" cards take their links from the copy.
+    expect(hrefs.sort()).toEqual(['/agentics', '/agentics/docs', '/agentics/docs', '/agentics/login', '/dashboard/agentics', '/privacy', '/wallet-checker']);
     expect(code(landing)).not.toMatch(/href="https?:/);
+  });
+
+  it('offers a returning visitor a Log in link, and shows it to nobody who is already signed in', () => {
+    expect(landing).toContain('{!member && <a class="ag-login" href="/agentics/login">{l.loginLink}</a>}');
+    expect(en.landing.loginLink).toBe('Log in');
+  });
+
+  it('points the "More from Almstins" cards at the tracker, the free checker and Verify, on this site', () => {
+    expect(en.landing.more.map((m) => m.href)).toEqual(['/', '/wallet-checker', '/verify']);
+    expect(landing).toContain('href={m.href}');
+    for (const m of en.landing.more) expect(m.href).toMatch(/^\//);
   });
 
   it('shows someone who is already signed in a button to their account, not the sign-up button', () => {
