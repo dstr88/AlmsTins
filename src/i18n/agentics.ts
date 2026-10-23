@@ -65,6 +65,10 @@ export interface AgenticsCopy {
     readonly stays: readonly string[];
     readonly plansTitle: string;
     readonly plans: ReadonlyArray<{ readonly name: string; readonly status: string; readonly body: string }>;
+    /** The link for someone who already has an account, in the corner of the page. */
+    readonly loginLink: string;
+    readonly moreTitle: string;
+    readonly more: ReadonlyArray<{ readonly name: string; readonly body: string; readonly href: string }>;
     readonly footer: string;
     readonly footerLinks: { readonly docs: string; readonly checker: string; readonly privacy: string };
   };
@@ -153,6 +157,26 @@ export const en: AgenticsCopy = {
         name: 'Paid plans',
         status: 'Coming later',
         body: 'Nothing to buy today.',
+      },
+    ],
+
+    loginLink: 'Log in',
+    moreTitle: 'More from Almstins',
+    more: [
+      {
+        name: 'Almstins',
+        body: 'The crypto tracker and bookkeeping tool. Your wallets, exchanges and positions in one place, read-only.',
+        href: '/',
+      },
+      {
+        name: 'Free address checker',
+        body: 'Paste an address or a site before you send. It checks known scam and sanctions lists and flags what it finds.',
+        href: '/wallet-checker',
+      },
+      {
+        name: 'Almstins Verify',
+        body: 'A business proves the addresses it controls from its own domain, and the pre-send check reads that proof.',
+        href: '/verify',
       },
     ],
 
