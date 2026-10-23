@@ -22,6 +22,10 @@ export interface AnchorSpecEntry {
   readonly digestColumn: string;
   /** The column the timestamp receipt is stored in. */
   readonly anchorColumn: string;
+  /** The column holding the signed manifest (the JSON whose canonical bytes hash to the digest). */
+  readonly manifestColumn: string;
+  /** The column holding the Almstins signature over that manifest (NULL when signed unkept or unsigned). */
+  readonly signatureColumn: string;
   /** The column holding when this kind's record was written. The anchor cron stamps a kind's
    *  records oldest first by it, and leaves out rows where it is NULL: discharges and
    *  settlements recorded before that time was kept. Those were never stamped when they were
@@ -39,12 +43,12 @@ export interface AnchorSpecEntry {
 }
 
 export const ANCHOR_SPEC = {
-  receivable: { table: 'receivables', digestColumn: 'digest', anchorColumn: 'anchor_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  claim: { table: 'receivable_claims', digestColumn: 'digest', anchorColumn: 'anchor_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  attestation: { table: 'receivable_attestations', digestColumn: 'digest', anchorColumn: 'anchor_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  reverification: { table: 'receivable_reverifications', digestColumn: 'digest', anchorColumn: 'anchor_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
-  claim_discharge: { table: 'receivable_claims', digestColumn: 'discharge_digest', anchorColumn: 'discharge_anchor_json', writtenAtColumn: 'discharge_recorded_at', addedColumns: true, cronStamps: true },
-  settlement: { table: 'receivables', digestColumn: 'settlement_digest', anchorColumn: 'settlement_anchor_json', writtenAtColumn: 'settlement_recorded_at', addedColumns: true, cronStamps: true },
+  receivable: { table: 'receivables', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
+  claim: { table: 'receivable_claims', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
+  attestation: { table: 'receivable_attestations', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
+  reverification: { table: 'receivable_reverifications', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
+  claim_discharge: { table: 'receivable_claims', digestColumn: 'discharge_digest', anchorColumn: 'discharge_anchor_json', manifestColumn: 'discharge_json', signatureColumn: 'discharge_signature_json', writtenAtColumn: 'discharge_recorded_at', addedColumns: true, cronStamps: true },
+  settlement: { table: 'receivables', digestColumn: 'settlement_digest', anchorColumn: 'settlement_anchor_json', manifestColumn: 'settlement_json', signatureColumn: 'settlement_signature_json', writtenAtColumn: 'settlement_recorded_at', addedColumns: true, cronStamps: true },
 } as const satisfies Record<string, AnchorSpecEntry>;
 
 export type AnchorRecordKind = keyof typeof ANCHOR_SPEC;

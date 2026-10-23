@@ -2339,6 +2339,34 @@ export async function getRecordForAnchor(
   return { digest: String(row.digest), anchorJson: row.anchor_json != null ? String(row.anchor_json) : null };
 }
 
+/**
+ * Everything a record's proof file is built from: the signed manifest, its signature, digest and
+ * timestamp receipt, exactly as stored. Scoped to the tenant that owns the record, like
+ * getRecordForAnchor, and null in the same cases (not found, not this tenant's, nothing signed
+ * yet). The caller (receivables/proofFile.ts) re-checks the digest; nothing here is recomputed.
+ */
+export async function getRecordProofSource(
+  tenantId: string, kind: AnchorRecordKind, id: string,
+): Promise<{ manifestJson: string; signatureJson: string | null; digest: string; anchorJson: string | null } | null> {
+  await ensureReceivablesTables();
+  if (!isAnchorKind(kind) || !anchorKindReady(kind)) return null;
+  const { table, digestColumn, anchorColumn, manifestColumn, signatureColumn } = ANCHOR_SPEC[kind];
+  const r = await db.execute({
+    sql: `SELECT ${manifestColumn} AS manifest_json, ${signatureColumn} AS signature_json, ${digestColumn} AS digest, ${anchorColumn} AS anchor_json
+          FROM ${table} WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(id || '').trim(), tenantId],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.digest == null || row.manifest_json == null) return null;
+  return {
+    manifestJson: String(row.manifest_json),
+    signatureJson: row.signature_json != null ? String(row.signature_json) : null,
+    digest: String(row.digest),
+    anchorJson: row.anchor_json != null ? String(row.anchor_json) : null,
+  };
+}
+
 /** Persist an anchor receipt (JSON) onto a record. Tenant-scoped; a record with no digest to
  *  stamp yet is left alone. */
 export async function setRecordAnchor(
