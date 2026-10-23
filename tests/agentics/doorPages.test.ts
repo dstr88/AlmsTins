@@ -55,6 +55,11 @@ describe('the landing page /agentics', () => {
     expect(code(landing)).not.toMatch(/href="https?:/);
   });
 
+  it('shows decorative hero art that exists, with empty alt text, and takes its colors from the page', () => {
+    expect(landing).toContain('<img class="ag-art" src="/agentics-hero.webp" alt=""');
+    expect(readFileSync(path.join(ROOT, 'public/agentics-hero.webp')).length).toBeGreaterThan(1000);
+  });
+
   it('offers a returning visitor a Log in link, and shows it to nobody who is already signed in', () => {
     expect(landing).toContain('{!member && <a class="ag-login" href="/agentics/login">{l.loginLink}</a>}');
     expect(en.landing.loginLink).toBe('Log in');
