@@ -1,9 +1,15 @@
 /**
- * Core BTC sync logic — shared between the per-wallet sync endpoint and the
- * bulk /api/import/btc-sync route.
+ * Core BTC sync logic — shared between the per-wallet sync endpoint, the
+ * bulk /api/import/btc-sync route (Sync Tins), the weekly sync-btc cron and
+ * the wallet card's refresh.
  *
  * Uses Blockstream (no key required) to fetch transactions and balance,
- * Coinpaprika for BTC/USD price.
+ * Coinpaprika for BTC/USD price. Litecoin gets a balance snapshot only, from
+ * litecoinspace.org (the same Esplora API); its history is not imported.
+ *
+ * Addresses are passed exactly as stored (canonicalAddress): a legacy 1… or
+ * 3… address is base58 and case-sensitive, so lowercasing it asks Blockstream
+ * about a different, invalid address.
  */
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -13,15 +19,26 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
 import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
+import { canonicalAddress, safeParseChains } from '@/lib/wallets-service';
+import { buildTickerPriceMap } from '@/lib/aave/pricing';
+import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
 const SATS_PER_BTC = 100_000_000;
 
+export type UtxoChain = 'bitcoin' | 'litecoin';
+
+const ESPLORA: Record<UtxoChain, string> = {
+	bitcoin: BLOCKSTREAM,
+	litecoin: 'https://litecoinspace.org/api',
+};
+const UTXO_SYMBOL: Record<UtxoChain, string> = { bitcoin: 'BTC', litecoin: 'LTC' };
+
 // ── Blockstream helpers ───────────────────────────────────────────────────────
 
-export async function fetchAddressInfo(addr: string): Promise<{ confirmed_balance: number } | null> {
+export async function fetchAddressInfo(addr: string, chain: UtxoChain = 'bitcoin'): Promise<{ confirmed_balance: number } | null> {
 	try {
-		const res = await fetch(`${BLOCKSTREAM}/address/${addr}`);
+		const res = await fetch(`${ESPLORA[chain]}/address/${addr}`);
 		if (!res.ok) return null;
 		const data = await res.json();
 		const funded = Number(data?.chain_stats?.funded_txo_sum ?? 0);
@@ -53,16 +70,11 @@ export async function fetchAllTxs(addr: string): Promise<any[]> {
 	return all;
 }
 
-// ── BTC price via Coinpaprika ─────────────────────────────────────────────────
+// ── BTC / LTC price via Coinpaprika ───────────────────────────────────────────
 
-export async function fetchBtcPriceUsd(): Promise<number | null> {
+export async function fetchUtxoPriceUsd(chain: UtxoChain): Promise<number | null> {
 	try {
-		const tickers = (await getTickersUSD()) as Array<{
-			symbol?: string; quotes?: { USD?: { price?: number } };
-		}>;
-		const btc = tickers.find(t => String(t.symbol ?? '').toUpperCase() === 'BTC');
-		const price = btc?.quotes?.USD?.price;
-		return typeof price === 'number' && price > 0 ? price : null;
+		return walletTokenUsdPrice(UTXO_SYMBOL[chain], buildTickerPriceMap(await getTickersUSD()));
 	} catch {
 		return null;
 	}
@@ -70,29 +82,49 @@ export async function fetchBtcPriceUsd(): Promise<number | null> {
 
 // ── Wallet snapshot ───────────────────────────────────────────────────────────
 
-export async function writeBtcSnapshot(
+export async function writeUtxoSnapshot(
 	tenantId: string,
 	walletId: string,
-	balanceBtc: number,
-	btcPriceUsd: number | null,
+	chain: UtxoChain,
+	balance: number,
+	priceUsd: number | null,
 ): Promise<void> {
-	const valueUsd = btcPriceUsd !== null ? balanceBtc * btcPriceUsd : null;
+	const valueUsd = priceUsd !== null ? balance * priceUsd : null;
 	const totalUsd = valueUsd ?? 0;
-	const tokens = [{ symbol: 'BTC', amount: balanceBtc, priceUsd: btcPriceUsd, valueUsd, tokenAddress: null }];
+	const tokens = [{ symbol: UTXO_SYMBOL[chain], amount: balance, priceUsd, valueUsd, tokenAddress: null }];
 
 	await db.execute({
 		sql: `INSERT INTO wallet_snapshots
 		        (tenant_id, wallet_id, chain, totals_usd,
 		         collateral_usd, debt_usd, collateral_apy_pct,
 		         borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-		      VALUES (?, ?, 'bitcoin', ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
-		args: [tenantId, walletId, totalUsd, JSON.stringify(tokens)],
+		      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+		args: [tenantId, walletId, chain, totalUsd, JSON.stringify(tokens)],
 	});
 
 	await db.execute({
 		sql: `DELETE FROM cache WHERE cache_key = ?`,
 		args: [`t:${tenantId}:networth:summary:v3`],
 	}).catch(() => {});
+}
+
+/**
+ * Read the address's confirmed balance and store it as the wallet's snapshot for that chain.
+ * Balance only, no history, so it is quick enough for the wallet card's refresh. Returns false
+ * (and writes nothing) when the explorer can't answer, so an outage never reads as a zero balance.
+ */
+export async function snapshotUtxoBalance(
+	tenantId: string,
+	walletId: string,
+	chain: UtxoChain,
+	address: string,
+	priceUsd?: number | null,
+): Promise<boolean> {
+	const info = await fetchAddressInfo(address, chain);
+	if (!info) return false;
+	const price = priceUsd !== undefined ? priceUsd : await fetchUtxoPriceUsd(chain);
+	await writeUtxoSnapshot(tenantId, walletId, chain, info.confirmed_balance / SATS_PER_BTC, price);
+	return true;
 }
 
 // ── Resolve or create wallet row ──────────────────────────────────────────────
@@ -119,14 +151,23 @@ ON CONFLICT DO NOTHING`,
 
 export async function syncBtcAddress(
 	tenantId: string,
-	address: string,
-): Promise<{ inserted: number; skipped: number; txCount: number }> {
-	const walletId  = await ensureBtcWallet(tenantId, address);
+	rawAddress: string,
+	knownWalletId?: string,
+): Promise<{ inserted: number; skipped: number; txCount: number; snapshotWritten: boolean }> {
+	const address   = canonicalAddress(rawAddress);
+	const ownKey    = address.toLowerCase(); // explorer output compared case-insensitively, as autoClassify does
+	const walletId  = knownWalletId || await ensureBtcWallet(tenantId, address);
 	const batchId   = randomUUID();
 	const [allTxs, btcPrice] = await Promise.all([
 		fetchAllTxs(address),
-		fetchBtcPriceUsd(),
+		fetchUtxoPriceUsd('bitcoin'),
 	]);
+
+	// Balance first: a failure importing the history must never cost the wallet its balance.
+	const snapshotWritten = await snapshotUtxoBalance(tenantId, walletId, 'bitcoin', address, btcPrice).catch(err => {
+		console.error('[btc-sync] snapshot failed', err);
+		return false;
+	});
 
 	const normRows: Array<{
 		txHash:    string;
@@ -148,14 +189,14 @@ export async function syncBtcAddress(
 
 		let receivedSats = 0;
 		for (const out of (tx.vout ?? [])) {
-			if (String(out.scriptpubkey_address ?? '').toLowerCase() === address) {
+			if (String(out.scriptpubkey_address ?? '').toLowerCase() === ownKey) {
 				receivedSats += Number(out.value ?? 0);
 			}
 		}
 
 		let spentSats = 0;
 		for (const inp of (tx.vin ?? [])) {
-			if (String(inp.prevout?.scriptpubkey_address ?? '').toLowerCase() === address) {
+			if (String(inp.prevout?.scriptpubkey_address ?? '').toLowerCase() === ownKey) {
 				spentSats += Number(inp.prevout?.value ?? 0);
 			}
 		}
@@ -177,7 +218,7 @@ export async function syncBtcAddress(
 		} else {
 			const toAddr = (tx.vout ?? [])
 				.map((o: any) => String(o.scriptpubkey_address ?? ''))
-				.find((a: string) => a.toLowerCase() !== address) ?? '';
+				.find((a: string) => a.toLowerCase() !== ownKey) ?? '';
 			counterparty = toAddr ? `to ${toAddr.slice(0, 12)}…` : '';
 		}
 		const description = counterparty ? `${kind} ${counterparty}` : kind;
@@ -192,7 +233,7 @@ export async function syncBtcAddress(
 	// Resolve or create exchange_account row for BTC
 	const accRes = await db.execute({
 		sql: `SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'bitcoin' AND lower(name) = ? LIMIT 1`,
-		args: [tenantId, address],
+		args: [tenantId, ownKey],
 	});
 	let accountId = String(accRes.rows[0]?.id ?? '');
 	if (!accountId) {
@@ -212,10 +253,13 @@ export async function syncBtcAddress(
 	}
 
 	const BATCH = 100;
+	// The table's columns are import_batch_id and row_json (migrations/0001_crypto_com.sql). This
+	// insert used to name batch_id and raw_json, which don't exist, so every sync threw here, after
+	// creating the wallet row and before the snapshot: no Bitcoin wallet ever got a balance.
 	const rawStmts = normRows.map(r => ({
 		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'bitcoin', ?, ?)
+		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash, imported_at)
+		      VALUES (?, ?, ?, ?, 'bitcoin', ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
 	}));
@@ -247,18 +291,11 @@ ON CONFLICT DO NOTHING`,
 		insertedNorm += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
 	}
 
-	const addrInfo = await fetchAddressInfo(address);
-	if (addrInfo) {
-		const balanceBtc = addrInfo.confirmed_balance / SATS_PER_BTC;
-		await writeBtcSnapshot(tenantId, walletId, balanceBtc, btcPrice).catch(err => {
-			console.error('[btc-sync] snapshot failed', err);
-		});
-	}
-
 	return {
 		inserted: insertedNorm,
 		skipped:  normStmts.length - insertedNorm,
 		txCount:  allTxs.length,
+		snapshotWritten,
 	};
 }
 
@@ -269,7 +306,7 @@ export async function syncBtcWallet(
 	walletId: string,
 	address: string,
 ): Promise<WalletSyncStats> {
-	const result = await syncBtcAddress(tenantId, address.toLowerCase());
+	const result = await syncBtcAddress(tenantId, address, walletId);
 
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
@@ -310,3 +347,19 @@ export function isBitcoinAddress(address: string): boolean {
 export function isBitcoinWallet(chains: string[], address: string): boolean {
 	return chains.includes('bitcoin') || isBitcoinAddress(address);
 }
+
+/** Which UTXO chain a wallet row is on, if any. Litecoin first: an ltc1 wallet is never Bitcoin. */
+export function utxoChainOf(chains: unknown, address: string): UtxoChain | null {
+	const list = Array.isArray(chains) ? chains.map(String) : safeParseChains(chains);
+	if (list.includes('solana')) return null; // a base58 Solana key can look like a legacy 1… address
+	if (list.includes('litecoin') || /^ltc1/i.test(address.trim())) return 'litecoin';
+	if (isBitcoinWallet(list, address.trim())) return 'bitcoin';
+	return null;
+}
+
+/** SQL filter (on alias-free `wallets` columns) for rows utxoChainOf may call bitcoin or litecoin. */
+export const UTXO_WALLET_SQL = `(chains LIKE '%bitcoin%'
+	OR chains LIKE '%litecoin%'
+	OR lower(address) LIKE 'bc1%'
+	OR lower(address) LIKE 'ltc1%'
+	OR (length(address) BETWEEN 26 AND 35 AND (address LIKE '1%' OR address LIKE '3%')))`;

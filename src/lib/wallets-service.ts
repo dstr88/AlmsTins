@@ -21,6 +21,23 @@ export function sanitizeAddress(input: unknown): string | null {
 	return null;
 }
 
+// The bech32 data alphabet (BIP-173), shared by bc1 / ltc1 / tb1 addresses.
+const BECH32_ADDRESS = /^(bc1|ltc1|tb1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+
+/**
+ * How an address is stored and compared. EVM hex and bech32 (bc1…, ltc1…) are case-insensitive,
+ * so they are lowercased. Base58 (Bitcoin legacy 1…, P2SH 3…, Solana) is case-sensitive:
+ * lowercasing one makes a different, invalid address, so it is kept exactly as given.
+ */
+export function canonicalAddress(input: string): string {
+	const value = String(input ?? '').trim();
+	const lower = value.toLowerCase();
+	if (/^0x[0-9a-f]+$/.test(lower)) return lower;
+	// bech32 is all-lower or all-upper, never mixed; a mixed-case string is base58 that happens to start with "bc1".
+	if (BECH32_ADDRESS.test(lower) && (value === lower || value === value.toUpperCase())) return lower;
+	return value;
+}
+
 export function sanitizeSuiAddress(input: unknown): string | null {
 	if (typeof input !== 'string') return null;
 	const value = input.trim().toLowerCase();

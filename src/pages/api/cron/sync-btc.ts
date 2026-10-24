@@ -1,16 +1,17 @@
 /**
  * GET /api/cron/sync-btc
  *
- * Called weekly by Render Cron (staggered 1 hour after sync-aave).
+ * Called weekly by GitHub Actions (.github/workflows/sync-btc.yml, Monday 04:00 UTC).
  * Re-syncs BTC transactions and balance snapshots for every Bitcoin wallet
- * across all tenants. Skips wallets whose snapshot is less than 6 days old.
+ * across all tenants, and the balance snapshot for every Litecoin wallet.
+ * Skips wallets whose snapshot is less than 6 days old.
  *
  * Protected by CRON_SECRET header — never exposes user sessions.
  */
 
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
-import { syncBtcAddress } from '@/lib/sync/syncBtcAddress';
+import { snapshotUtxoBalance, syncBtcAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
 
 export const prerender = false;
 
@@ -28,12 +29,10 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log('[cron/sync-btc] Starting weekly BTC sync');
 
 	const walletsResult = await db.execute(
-		`SELECT id, tenant_id, address, label
+		`SELECT id, tenant_id, address, label, chains
 		 FROM wallets
 		 WHERE wallet_type = 'onchain'
-		   AND (chains LIKE '%bitcoin%'
-		     OR lower(address) LIKE 'bc1%'
-		     OR (length(address) BETWEEN 26 AND 35 AND (address LIKE '1%' OR address LIKE '3%')))
+		   AND ${UTXO_WALLET_SQL}
 		 ORDER BY tenant_id, created_at ASC`,
 	);
 	const wallets = walletsResult.rows as Array<Record<string, unknown>>;
@@ -54,12 +53,14 @@ export const GET: APIRoute = async ({ request }) => {
 		const tenantId = String(row.tenant_id ?? '');
 		const address = String(row.address ?? '');
 		const label = String(row.label ?? address.slice(-8));
+		const chain = utxoChainOf(row.chains, address);
+		if (!chain) continue;
 
 		// BTC doesn't use wallet_sync_state — check wallet_snapshots instead
 		const lastSnapResult = await db.execute({
 			sql: `SELECT MAX(captured_at) AS last_snap FROM wallet_snapshots
-			      WHERE wallet_id = ? AND tenant_id = ? AND chain = 'bitcoin'`,
-			args: [walletId, tenantId],
+			      WHERE wallet_id = ? AND tenant_id = ? AND chain = ?`,
+			args: [walletId, tenantId, chain],
 		});
 		const lastSnap = (lastSnapResult.rows[0] as Record<string, unknown>)?.last_snap as string | null;
 		if (lastSnap && lastSnap > staleThreshold) {
@@ -70,9 +71,17 @@ export const GET: APIRoute = async ({ request }) => {
 
 		try {
 			console.log(`[cron/sync-btc] Syncing ${label} (tenant: ${tenantId})`);
-			const result = await syncBtcAddress(tenantId, address.toLowerCase());
-			console.log(`[cron/sync-btc] ${label} done — inserted: ${result.inserted}, txCount: ${result.txCount}`);
-			results.push({ walletId, label, status: 'synced', inserted: result.inserted });
+			if (chain === 'litecoin') {
+				const wrote = await snapshotUtxoBalance(tenantId, walletId, 'litecoin', address);
+				if (!wrote) throw new Error('litecoin balance unavailable');
+				results.push({ walletId, label, status: 'synced', inserted: 0 });
+			} else {
+				// The stored address as is: lowercasing a legacy 1…/3… address makes a different one.
+				const result = await syncBtcAddress(tenantId, address, walletId);
+				console.log(`[cron/sync-btc] ${label} done — inserted: ${result.inserted}, txCount: ${result.txCount}`);
+				if (!result.snapshotWritten) throw new Error('bitcoin balance unavailable');
+				results.push({ walletId, label, status: 'synced', inserted: result.inserted });
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			console.error(`[cron/sync-btc] Failed ${label}:`, message);

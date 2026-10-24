@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client';
 import { db as sharedDb } from './db';
 import { DEFAULT_ERC20_CHAINS } from './constants';
+import { canonicalAddress } from './wallets-service';
 
 export type Wallet = {
 	id: string;
@@ -46,7 +47,7 @@ export async function upsertWallets(db: Client, tenantId: string, wallets: Walle
           RETURNING id, user_id, tenant_id, address, label, chains, is_default, created_at`,
 		args: [
 			tenantId,
-			wallet.address.toLowerCase(),
+			canonicalAddress(wallet.address),
 			wallet.label && wallet.label.trim().length ? wallet.label.trim() : deriveDefaultLabel(wallet.address),
 			JSON.stringify(
 				wallet.chains && wallet.chains.length ? wallet.chains : DEFAULT_ERC20_CHAINS,
@@ -66,7 +67,7 @@ export async function insertWallet(tenantId: string, address: string, label?: st
         RETURNING id, user_id, tenant_id, address, label, chains, is_default, created_at`,
 		args: [
 			tenantId,
-			address.toLowerCase(),
+			canonicalAddress(address),
 			label && label.trim().length ? label.trim() : deriveDefaultLabel(address),
 			JSON.stringify(DEFAULT_ERC20_CHAINS),
 		],
@@ -82,7 +83,7 @@ export async function createWallet(opts: {
 	chains?: string[];
 	isDefault?: boolean;
 }) {
-	const address = opts.address.toLowerCase();
+	const address = canonicalAddress(opts.address);
 	const derivedId = opts.id ?? address.slice(-5).toUpperCase();
 	const derivedLabel = opts.label && opts.label.trim().length ? opts.label.trim() : deriveDefaultLabel(address);
 	const chainsJson = JSON.stringify(opts.chains ?? ['ethereum', 'avalanche']);

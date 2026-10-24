@@ -58,7 +58,10 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 		}),
 	]);
 
-	// Build maps: normalised_address → label
+	// Build maps: normalised_address → label. The key is lowercased for EVERY format, on both
+	// sides of each lookup, so the match is case-insensitive: base58 is stored with its real case
+	// (canonicalAddress), labels saved before that fix were lowercased, and both must still match
+	// a Blockstream vout address. Two real addresses differing only in case are vanishingly unlikely.
 	const ownAddresses      = new Map<string, string>(); // personal wallets
 	const exchangeAddresses = new Map<string, string>(); // CEX platform addresses
 
