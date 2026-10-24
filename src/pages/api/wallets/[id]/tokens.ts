@@ -4,12 +4,8 @@ import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
-import { discoverEvmBalances } from '@/lib/evmTokenDiscovery';
+import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
-
-const ETHEREUM_CHAIN_ID = 1;
-const POLYGON_CHAIN_ID = 137;
-const AVALANCHE_CHAIN_ID = 43114;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -26,33 +22,6 @@ function toDecimal(value: bigint, decimals: number) {
 	const num = Number(numStr);
 	if (!Number.isFinite(num)) return 0;
 	return negative ? -num : num;
-}
-
-async function buildAlchemySnapshot(
-	chainId: number,
-	walletId: string,
-	tenantId: string,
-	address: string,
-) {
-	const chain = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
-	const balances = await discoverEvmBalances(chain, address);
-	const tokens = balances
-		.map((balance) => ({
-			symbol: balance.tokenSymbol,
-			amount: toDecimal(balance.rawBalance, balance.decimals),
-			priceUsd: null,
-			valueUsd: null,
-			tokenAddress: balance.tokenAddress ?? 'native',
-		}))
-		.filter((token) => Number.isFinite(token.amount) && token.amount > 0);
-
-	return {
-		tenantId,
-		walletId,
-		chain: chain as SupportedChain,
-		tokens,
-		totalUsd: 0,
-	};
 }
 
 // ── Solana PDA derivation (no external library required) ─────────────────────
@@ -529,17 +498,17 @@ export const GET: APIRoute = async ({ params, request }) => {
 				if (isEvm) {
 					// Alchemy supports eth-mainnet and polygon-mainnet only.
 					// Avalanche balances come from the on-chain sync (not Alchemy snapshots).
-					const snapshotChains: Array<{ chainId: number }> = [
-						{ chainId: ETHEREUM_CHAIN_ID },
-						{ chainId: POLYGON_CHAIN_ID },
-					];
-					for (const { chainId } of snapshotChains) {
-						const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
-						await insertWalletSnapshotFromValueBreakdown(breakdown);
+					// Same function Sync Tins uses, so both write identical, priced snapshots.
+					const snapshotChains: SupportedChain[] = ['ethereum', 'polygon'];
+					for (const chain of snapshotChains) {
+						const [breakdown] = await computeWalletValue(tenantId, walletId, walletAddress, [chain]);
+						await insertWalletSnapshotFromValueBreakdown(
+							breakdown ?? { tenantId, walletId, chain, tokens: [], totalUsd: 0 },
+						);
 						console.log('[tokens.refreshMissing] EVM SNAPSHOT', {
-							chainId,
-							tokenCount: breakdown.tokens.length,
-							totalsUsd: breakdown.totalUsd ?? 0,
+							chain,
+							tokenCount: breakdown?.tokens.length ?? 0,
+							totalsUsd: breakdown?.totalUsd ?? 0,
 						});
 						await sleep(100);
 					}
