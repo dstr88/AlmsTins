@@ -712,9 +712,30 @@ export type WalletTokenResult = {
 	walletId: string;
 	address: string;
 	label: string | null;
-	snapshots: Array<{ id: string; chain: string; capturedAt: string; tokenCount: number }>;
+	snapshots: Array<{ id: string; chain: string; capturedAt: string; tokenCount: number; stale: boolean }>;
 	tokens: WalletTokenRow[];
 };
+
+// A chain's snapshot this far behind the wallet's newest one did not refresh with the others.
+export const SNAPSHOT_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+
+function snapshotTimeMs(capturedAt: string | null | undefined): number {
+	const text = String(capturedAt ?? '').trim();
+	if (!text) return NaN;
+	// Stored as UTC 'YYYY-MM-DD HH:MM:SS' with no zone.
+	return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text.replace(' ', 'T')}Z`);
+}
+
+/**
+ * True for each snapshot more than SNAPSHOT_STALE_AFTER_MS older than the wallet's newest. A chain
+ * whose read failed keeps its last good snapshot (never overwritten with an empty one), so without
+ * this a months-old row read exactly like a fresh one.
+ */
+export function staleSnapshotFlags(capturedAts: Array<string | null | undefined>): boolean[] {
+	const times = capturedAts.map(snapshotTimeMs);
+	const newest = Math.max(...times.filter(Number.isFinite));
+	return times.map((t) => Number.isFinite(newest) && Number.isFinite(t) && newest - t > SNAPSHOT_STALE_AFTER_MS);
+}
 
 export async function getWalletTokenBreakdown(tenantId: string, walletId: string): Promise<WalletTokenResult> {
 	const startedAt = Date.now();
@@ -1259,14 +1280,17 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		});
 	}
 
+	const staleFlags = staleSnapshotFlags(rows.map((row) => row.capturedAt));
+
 	return {
 		walletId: wallet.id ?? walletId,
 		address: wallet.address ?? '',
 		label: wallet.label ?? null,
-		snapshots: rows.map((row) => ({
+		snapshots: rows.map((row, i) => ({
 			id: row.id,
 			chain: row.chain,
 			capturedAt: row.capturedAt,
+			stale: staleFlags[i],
 			tokenCount: (() => {
 				try {
 					const parsed = JSON.parse(row.payloadJson ?? '[]');
