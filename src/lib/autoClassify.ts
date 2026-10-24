@@ -52,8 +52,9 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 			args: [tenantId],
 		}),
 		db.execute({
+			// 'personal' is how an earlier form saved an own wallet (see addressLabelCategory.ts).
 			sql: `SELECT address, label, category FROM address_labels
-			      WHERE tenant_id = ? AND category IN ('own_wallet', 'exchange')`,
+			      WHERE tenant_id = ? AND category IN ('own_wallet', 'personal', 'exchange')`,
 			args: [tenantId],
 		}),
 	]);
