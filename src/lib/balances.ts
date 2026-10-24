@@ -375,12 +375,99 @@ export async function getAllBalancesForWallet(chains: SupportedChain[], address:
 	const results: TokenBalance[] = [];
 
 	for (const chain of chains) {
+		if (chain === 'avalanche') {
+			try {
+				results.push(...(await getAvalancheBalancesViaRpc(address)));
+				continue;
+			} catch (err) {
+				console.warn('[balances] avalanche RPC read failed, trying Routescan', { address, error: String(err) });
+			}
+		}
 		const native = await getNativeBalance(chain, address);
 		const erc20 = await getErc20Balances(chain, address);
 		results.push(native, ...erc20);
 	}
 
 	return results;
+}
+
+// Public Avalanche C-Chain JSON-RPC endpoints, no key needed, tried in order. Avalanche balances
+// used to come only from Routescan's explorer API, which answered fine from a laptop but whose
+// read failed in production every time, so the chain was dropped and its months-old snapshot stood.
+export const AVALANCHE_RPC_URLS = [
+	'https://api.avax.network/ext/bc/C/rpc',
+	'https://avalanche-c-chain-rpc.publicnode.com',
+];
+
+const ERC20_BALANCE_OF = '0x70a08231';
+
+async function avalancheRpc(url: string, method: string, params: unknown[]): Promise<string> {
+	const response = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+	});
+	if (!response.ok) throw new Error(`Avalanche RPC HTTP ${response.status}`);
+	const payload = (await response.json()) as { result?: unknown; error?: { message?: string } };
+	if (payload?.error) throw new Error(`Avalanche RPC error: ${payload.error.message ?? 'unknown'}`);
+	if (typeof payload?.result !== 'string') throw new Error('Avalanche RPC returned no result');
+	return payload.result;
+}
+
+/**
+ * Native AVAX plus each tracked Avalanche ERC-20, read straight from the chain. Throws only when no
+ * endpoint can read the native balance; a single token call that fails is skipped, as in
+ * getErc20Balances.
+ */
+export async function getAvalancheBalancesViaRpc(address: string): Promise<TokenBalance[]> {
+	const chain: SupportedChain = 'avalanche';
+	const holder = address.trim().toLowerCase().replace(/^0x/, '').padStart(64, '0');
+	let lastError: unknown = null;
+
+	for (const url of AVALANCHE_RPC_URLS) {
+		let nativeHex: string;
+		try {
+			nativeHex = await avalancheRpc(url, 'eth_getBalance', [address, 'latest']);
+		} catch (err) {
+			lastError = err;
+			continue;
+		}
+
+		const results: TokenBalance[] = [
+			{
+				chain,
+				address,
+				tokenSymbol: NATIVE_TOKEN_META.avalanche?.symbol ?? 'AVAX',
+				tokenAddress: null,
+				decimals: NATIVE_TOKEN_META.avalanche?.decimals ?? 18,
+				rawBalance: toBigInt(nativeHex),
+			},
+		];
+
+		for (const token of TRACKED_TOKENS.avalanche ?? []) {
+			if (token.type !== 'erc20' || !token.contractAddress) continue;
+			try {
+				const hex = await avalancheRpc(url, 'eth_call', [
+					{ to: token.contractAddress, data: `${ERC20_BALANCE_OF}${holder}` },
+					'latest',
+				]);
+				results.push({
+					chain,
+					address,
+					tokenSymbol: token.symbol,
+					tokenAddress: token.contractAddress,
+					decimals: token.decimals,
+					rawBalance: toBigInt(hex === '0x' ? '0x0' : hex),
+				});
+			} catch (err) {
+				console.warn('[scan.skip]', { chain, address, symbol: token.symbol, error: String(err) });
+			}
+		}
+
+		return results;
+	}
+
+	throw lastError instanceof Error ? lastError : new Error('No Avalanche RPC endpoint answered');
 }
 
 async function fetchScan<T>(chain: SupportedChain, url: string): Promise<T> {
