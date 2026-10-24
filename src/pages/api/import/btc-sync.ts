@@ -9,6 +9,7 @@
  * Request body (JSON, optional):
  *   { address: "bc1q…" }   — sync a specific address
  *   {}                      — sync all bitcoin wallets stored for this tenant
+ *                             (Sync Tins), and snapshot every litecoin wallet's balance
  *
  * Blockstream API used:
  *   GET https://blockstream.info/api/address/{addr}
@@ -22,7 +23,8 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
 import { db } from '@/lib/db';
-import { syncBtcAddress } from '@/lib/sync/syncBtcAddress';
+import { snapshotUtxoBalance, syncBtcAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
+import { canonicalAddress } from '@/lib/wallets-service';
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
@@ -34,29 +36,33 @@ export const POST: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const body = await request.json().catch(() => ({}));
-	let addresses: string[] = [];
+	// walletId is set for a stored wallet, so the sync never looks it up (or creates it) by address.
+	let targets: Array<{ address: string; walletId?: string; chain: 'bitcoin' | 'litecoin' }> = [];
 
-	const requestedAddr = (body?.address as string | undefined)?.trim().toLowerCase() ?? '';
+	// Exact as given, apart from bech32: a legacy 1…/3… address is case-sensitive base58.
+	const requestedAddr = canonicalAddress(typeof body?.address === 'string' ? body.address : '');
 	if (requestedAddr) {
-		addresses = [requestedAddr];
+		targets = [{ address: requestedAddr, chain: 'bitcoin' }];
 	} else {
-		// Look up all Bitcoin wallets stored for this tenant:
-		// either tagged with the 'bitcoin' chain, or whose address looks like BTC.
+		// Every Bitcoin and Litecoin wallet stored for this tenant: tagged with the chain, or
+		// whose address looks like one.
 		const res = await db.execute({
-			sql: `SELECT address FROM wallets
+			sql: `SELECT id, address, chains FROM wallets
 			      WHERE tenant_id = ?
-			        AND (chains LIKE '%bitcoin%'
-			          OR lower(address) LIKE 'bc1%'
-			          OR (length(address) BETWEEN 26 AND 35 AND (address LIKE '1%' OR address LIKE '3%')))
+			        AND ${UTXO_WALLET_SQL}
+			      ORDER BY created_at ASC
 			      LIMIT 20`,
 			args: [tenantId],
 		});
-		addresses = (res.rows as any[])
-			.map(r => String(r.address ?? '').toLowerCase())
-			.filter(a => a.startsWith('bc1') || /^[13]/.test(a));
+		for (const r of res.rows as any[]) {
+			const address = String(r.address ?? '').trim();
+			const chain = utxoChainOf(r.chains, address);
+			if (chain) targets.push({ address, walletId: String(r.id ?? '') || undefined, chain });
+		}
 	}
+	const addresses = targets.filter(t => t.chain === 'bitcoin').map(t => t.address);
 
-	if (!addresses.length) {
+	if (!targets.length) {
 		return new Response(JSON.stringify({
 			error: 'No Bitcoin wallet found. Add a wallet with a bc1… address first, or pass { address: "bc1q…" } in the request body.',
 		}), { status: 400 });
@@ -67,16 +73,27 @@ export const POST: APIRoute = async ({ request }) => {
 	let totalTxCount  = 0;
 	const perWallet: Array<{ address: string; inserted: number; skipped: number }> = [];
 
-	for (const addr of addresses) {
+	let snapshots = 0;
+	let failed    = 0;
+
+	for (const t of targets) {
 		try {
-			const result = await syncBtcAddress(tenantId, addr);
+			if (t.chain === 'litecoin') {
+				if (t.walletId && await snapshotUtxoBalance(tenantId, t.walletId, 'litecoin', t.address)) snapshots += 1;
+				else failed += 1;
+				continue;
+			}
+			const result = await syncBtcAddress(tenantId, t.address, t.walletId);
 			totalInserted += result.inserted;
 			totalSkipped  += result.skipped;
 			totalTxCount  += result.txCount;
-			perWallet.push({ address: addr, inserted: result.inserted, skipped: result.skipped });
+			if (result.snapshotWritten) snapshots += 1;
+			else failed += 1;
+			perWallet.push({ address: t.address, inserted: result.inserted, skipped: result.skipped });
 		} catch (err) {
-			console.error('[btc-sync] failed for address', addr, err);
-			perWallet.push({ address: addr, inserted: 0, skipped: 0 });
+			console.error('[btc-sync] failed for address', t.address, err);
+			failed += 1;
+			perWallet.push({ address: t.address, inserted: 0, skipped: 0 });
 		}
 	}
 
@@ -89,6 +106,8 @@ export const POST: APIRoute = async ({ request }) => {
 		inserted:  totalInserted,
 		skipped:   totalSkipped,
 		fetched:   totalTxCount,
+		snapshots,
+		failed,
 		wallets:   addresses,
 		perWallet,
 	}), { status: 200, headers: { 'Content-Type': 'application/json' } });

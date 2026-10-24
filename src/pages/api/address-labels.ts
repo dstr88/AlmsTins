@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { canonicalAddress } from '../../lib/wallets-service';
 
 export const prerender = false;
 
@@ -35,7 +36,9 @@ export const POST: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const body = await request.json();
-	const address  = typeof body.address  === 'string' ? body.address.replace(/\s+/g, '').toLowerCase() : '';
+	// EVM and bech32 lowercased; base58 (Bitcoin 1…/3…, Solana) kept exact, since lowercasing it
+	// makes a different address that no wallet or transaction will ever match.
+	const address  = typeof body.address  === 'string' ? canonicalAddress(body.address.replace(/\s+/g, '')) : '';
 	const label    = typeof body.label    === 'string' ? body.label.trim() : '';
 	const category    = typeof body.category    === 'string' ? body.category.trim()    : 'counterparty';
 	const chain       = typeof body.chain       === 'string' ? body.chain.trim()       : null;
@@ -52,21 +55,24 @@ export const POST: APIRoute = async ({ request }) => {
 
 	try {
 		// Unique key is (tenant_id, address, COALESCE(phone_number, ''))
-		// — same address + same phone = update; same address + different phone = new row
+		// — same address + same phone = update; same address + different phone = new row.
+		// Matched case-insensitively so a label saved lowercased before base58 kept its case is
+		// updated (and its address corrected) rather than duplicated.
 		const existing = await db.execute({
 			sql: `SELECT id FROM address_labels
-			      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ?
+			      WHERE tenant_id = ? AND lower(address) = lower(?) AND COALESCE(phone_number, '') = ?
+			      ORDER BY CASE WHEN address = ? THEN 0 ELSE 1 END
 			      LIMIT 1`,
-			args: [tenantId, address, phone ?? ''],
+			args: [tenantId, address, phone ?? '', address],
 		});
 
 		if (existing.rows.length > 0) {
 			await db.execute({
 				sql: `UPDATE address_labels
-				      SET label = ?, source = 'user', category = ?, chain = ?, notes = ?, phone_number = ?,
+				      SET address = ?, label = ?, source = 'user', category = ?, chain = ?, notes = ?, phone_number = ?,
 				          updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
-				      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ?`,
-				args: [label, category, chain, notes, phone, tenantId, address, phone ?? ''],
+				      WHERE id = ? AND tenant_id = ?`,
+				args: [address, label, category, chain, notes, phone, String(existing.rows[0].id), tenantId],
 			});
 		} else {
 			await db.execute({

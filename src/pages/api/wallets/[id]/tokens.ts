@@ -5,6 +5,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
+import { snapshotUtxoBalance, utxoChainOf } from '@/lib/sync/syncBtcAddress';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -512,6 +513,17 @@ export const GET: APIRoute = async ({ params, request }) => {
 						});
 						await sleep(100);
 					}
+				}
+
+				// Bitcoin and Litecoin: the balance alone (one explorer call), so a wallet has a value
+				// as soon as it is added. Its history comes from Sync Tins and the weekly sync-btc cron.
+				const utxoChain = isBitcoin ? utxoChainOf(walletChains, walletAddress) : null;
+				if (utxoChain) {
+					const wrote = await snapshotUtxoBalance(tenantId, walletId, utxoChain, walletAddress).catch((err) => {
+						console.error('[tokens.refreshMissing] UTXO snapshot failed', { walletId, message: err?.message });
+						return false;
+					});
+					console.log('[tokens.refreshMissing] UTXO SNAPSHOT', { chain: utxoChain, wrote });
 				}
 
 				if (isSolana) {
