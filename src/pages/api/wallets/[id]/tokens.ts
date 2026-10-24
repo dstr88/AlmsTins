@@ -411,7 +411,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 		const walletAddress = String(walletRow?.address ?? '').trim();
 		const walletLabel = String(walletRow?.label ?? '').trim() || null;
 		let walletChains: string[] = [];
-		try { walletChains = JSON.parse(String(walletRow?.chains ?? '[]')); } catch { /* ignore */ }
+		// The driver may hand back the stored JSON already parsed; String() of an array is not JSON.
+		const rawChains: unknown = walletRow?.chains;
+		try { walletChains = Array.isArray(rawChains) ? rawChains.map(String) : JSON.parse(String(rawChains ?? '[]')); } catch { /* ignore */ }
 
 		// Demo shortcut: return mock tokens directly for pre-configured demo wallets.
 		// This avoids all Alchemy/DB snapshot logic that would fail or be meaningless.
@@ -496,19 +498,25 @@ export const GET: APIRoute = async ({ params, request }) => {
 				const isEvm       = !isSolana && !isSui && !isRootstock && !isBitcoin;
 
 				if (isEvm) {
-					// Alchemy supports eth-mainnet and polygon-mainnet only.
-					// Avalanche balances come from the on-chain sync (not Alchemy snapshots).
-					// Same function Sync Tins uses, so both write identical, priced snapshots.
+					// Same function Sync Tins uses, so both write identical, priced snapshots. Ethereum
+					// and Polygon read from Alchemy; Avalanche, refreshed here when the wallet lists it
+					// (it used to be left to Sync Tins alone), reads from balances.ts.
 					const snapshotChains: SupportedChain[] = ['ethereum', 'polygon'];
+					if (walletChains.includes('avalanche')) snapshotChains.push('avalanche');
 					for (const chain of snapshotChains) {
 						const [breakdown] = await computeWalletValue(tenantId, walletId, walletAddress, [chain]);
-						await insertWalletSnapshotFromValueBreakdown(
-							breakdown ?? { tenantId, walletId, chain, tokens: [], totalUsd: 0 },
-						);
+						// No breakdown means the chain read failed (a successful read of an empty wallet
+						// still returns one). Keep the last good snapshot rather than overwrite it with an
+						// empty one; the reader marks it stale once the other chains move on.
+						if (!breakdown) {
+							console.warn('[tokens.refreshMissing] chain read failed, keeping last snapshot', { walletId, chain });
+							continue;
+						}
+						await insertWalletSnapshotFromValueBreakdown(breakdown);
 						console.log('[tokens.refreshMissing] EVM SNAPSHOT', {
 							chain,
-							tokenCount: breakdown?.tokens.length ?? 0,
-							totalsUsd: breakdown?.totalUsd ?? 0,
+							tokenCount: breakdown.tokens.length,
+							totalsUsd: breakdown.totalUsd ?? 0,
 						});
 						await sleep(100);
 					}

@@ -55,6 +55,9 @@ export interface WalletSummaryLocale {
   // Unpriced majority banner (shown in both stale + ready)
   unpricedBanner: string;
 
+  // One chain's balances did not refresh with the wallet's other chains
+  chainNotRefreshed: (chain: string, date: string) => string;
+
   // Total label
   totalLabel: string;
 
@@ -100,6 +103,9 @@ export const en: WalletSummaryLocale = {
 
   unpricedBanner: 'Holdings loaded; most tokens are unpriced/unverified (likely spam).',
 
+  chainNotRefreshed: (chain, date) =>
+    `${chain} balances last updated ${date}. They did not refresh with this wallet's other chains, so they may be out of date.`,
+
   totalLabel: 'Total',
 
   neverSynced: 'never',
@@ -143,6 +149,9 @@ export const es: WalletSummaryLocale = {
 
   unpricedBanner: "Tenencias cargadas; la mayoría de los tokens no tienen precio/no están verificados (probablemente spam).",
 
+  chainNotRefreshed: (chain, date) =>
+    `Saldos de ${chain} actualizados por última vez el ${date}. No se actualizaron con las demás cadenas de esta billetera, así que pueden estar desactualizados.`,
+
   totalLabel: "Total",
 
   neverSynced: "nunca",
@@ -185,6 +194,9 @@ export const fr: WalletSummaryLocale = {
   staleBanner: "Données périmées : échec de l’actualisation. Affichage des derniers soldes connus.",
 
   unpricedBanner: "Avoirs chargés ; la plupart des tokens ne sont pas évalués/vérifiés (probablement du spam).",
+
+  chainNotRefreshed: (chain, date) =>
+    `Soldes ${chain} mis à jour pour la dernière fois le ${date}. Ils ne se sont pas actualisés avec les autres chaînes de ce portefeuille et peuvent donc être périmés.`,
 
   totalLabel: "Total",
 

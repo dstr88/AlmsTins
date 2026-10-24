@@ -98,6 +98,7 @@ type WalletSummaryState =
 					purchaseAt?: string | null;
 					purchasePriceUsd?: number | null;
 				}>;
+				staleChains?: Array<{ chain: string; capturedAt: string }>;
 			};
 	  }
 	| {
@@ -118,8 +119,19 @@ type WalletSummaryState =
 					purchaseAt?: string | null;
 					purchasePriceUsd?: number | null;
 				}>;
+				staleChains?: Array<{ chain: string; capturedAt: string }>;
 			};
 	  };
+
+const chainLabel = (chain: string) => (chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : chain);
+
+/** A stored UTC 'YYYY-MM-DD HH:MM:SS' as a short date, e.g. "Jul 24, 2026". */
+const formatSnapshotDate = (capturedAt: string) => {
+	const ms = Date.parse(/[zZ]$/.test(capturedAt) ? capturedAt : `${capturedAt.replace(' ', 'T')}Z`);
+	return Number.isFinite(ms)
+		? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+		: capturedAt;
+};
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
 	style: 'currency',
@@ -470,6 +482,9 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 								tokens: tokens.sort(
 									(a: TokenRow, b: TokenRow) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1),
 								),
+								staleChains: (Array.isArray(payload.snapshots) ? payload.snapshots : [])
+									.filter((snap: any) => snap?.stale === true)
+									.map((snap: any) => ({ chain: String(snap.chain ?? ''), capturedAt: String(snap.capturedAt ?? '') })),
 							},
 						},
 						'refresh.success',
@@ -649,6 +664,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 							</div>
 						) : null;
 					})()}
+					{(state.wallet.staleChains ?? []).map((stale) => (
+						<div key={stale.chain} className="wallet-summary__status">
+							{t.chainNotRefreshed(chainLabel(stale.chain), formatSnapshotDate(stale.capturedAt))}
+						</div>
+					))}
 					<div className="wallet-summary__total">
 						<span className="wallet-summary__total-label">{t.totalLabel}</span>
 						<span className="wallet-summary__total-value">
@@ -827,6 +847,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 							</div>
 						) : null;
 					})()}
+					{(state.wallet.staleChains ?? []).map((stale) => (
+						<div key={stale.chain} className="wallet-summary__status">
+							{t.chainNotRefreshed(chainLabel(stale.chain), formatSnapshotDate(stale.capturedAt))}
+						</div>
+					))}
 					<div className="wallet-summary__total">
 						<span className="wallet-summary__total-label">{t.totalLabel}</span>
 						<span className="wallet-summary__total-value">
