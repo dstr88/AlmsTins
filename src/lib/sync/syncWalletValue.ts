@@ -4,7 +4,8 @@ import { insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
 import { getAllBalancesForWallet, type TokenBalance } from '@/lib/balances';
 import { discoverEvmBalances } from '@/lib/evmTokenDiscovery';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
-import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+import { buildTickerPriceMap } from '@/lib/aave/pricing';
+import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
 
 export type TokenSnapshot = {
 	chain: SupportedChain;
@@ -109,6 +110,19 @@ async function getChainBalances(chain: SupportedChain, address: string, walletId
 	return getAllBalancesForWallet([chain], address);
 }
 
+/**
+ * Ticker prices for pricing a snapshot at write time. A feed outage returns an empty map, so every
+ * token is stored unpriced (null) rather than the whole wallet failing or anything reading as $0.
+ */
+export async function getWalletTickerPrices(walletId: string): Promise<Map<string, number>> {
+	try {
+		return buildTickerPriceMap(await getTickersUSD());
+	} catch (error) {
+		console.warn('[VALUE] ticker fetch failed, storing tokens unpriced', { walletId, error: String(error) });
+		return new Map();
+	}
+}
+
 export async function computeWalletValue(
 	tenantId: string,
 	walletId: string,
@@ -134,57 +148,15 @@ export async function computeWalletValue(
 
 	if (!balances.length) return [];
 
-	const normalizePriceSymbol = (value: string) => {
-		const upper = value.trim().toUpperCase();
-		if (upper === 'MATIC' || upper === 'WMATIC' || upper === 'WPOL') return 'POL';
-		if (upper === 'WETH') return 'ETH';
-		if (upper === 'WBTC') return 'BTC';
-		if (upper.endsWith('.E')) return upper.replace(/\.E$/, '');
-		return upper;
-	};
-
-	const symbolsToPrice = allowlistSymbols(
-		balances.map((b) => normalizePriceSymbol(b.tokenSymbol ?? '')).filter(Boolean),
-	);
-	console.log('[price.provider] using=coinpaprika symbolCount=' + symbolsToPrice.length); // TEMP DEBUG
-
-	const tickers = (await getTickersUSD()) as Array<{
-		id?: string;
-		symbol?: string;
-		rank?: number;
-		quotes?: { USD?: { price?: number } };
-	}>;
-	const symbolPriceMap: Record<string, number> = {};
-	const symbolSet = new Set(symbolsToPrice);
-	const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
-	for (const ticker of tickers) {
-		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
-		if (!symbol || !symbolSet.has(symbol)) continue;
-		const price = ticker.quotes?.USD?.price;
-		if (typeof price !== 'number' || price <= 0) continue;
-		const id = String(ticker.id ?? '').trim();
-		const rank = Number.isFinite(ticker.rank) ? (ticker.rank as number) : 999999;
-		const list = candidates.get(symbol) ?? [];
-		list.push({ id, price, rank });
-		candidates.set(symbol, list);
-	}
-	for (const symbol of symbolSet) {
-		const list = candidates.get(symbol);
-		if (!list?.length) continue;
-		list.sort((a, b) => a.rank - b.rank);
-		symbolPriceMap[symbol] = list[0].price;
-	}
-	console.log('[price.map] keys=' + Object.keys(symbolPriceMap).join(',') + ' ETH=' + (symbolPriceMap.ETH ?? 'null')); // TEMP DEBUG
-	if (!Object.keys(symbolPriceMap).length && balances.length) {
+	const tickerPrices = await getWalletTickerPrices(walletId);
+	if (!tickerPrices.size && balances.length) {
 		console.warn('[VALUE] price fetch returned no data', { walletId, address, tokenCount: balances.length });
 	}
 
 	const byChain = new Map<SupportedChain, WalletValueBreakdown>();
 
 	for (const balance of balances) {
-		const symbol = normalizePriceSymbol(balance.tokenSymbol ?? '');
-		const rawPriceUsd = symbol ? symbolPriceMap[symbol] : undefined;
-		const priceUsd = typeof rawPriceUsd === 'number' && rawPriceUsd > 0 ? rawPriceUsd : null;
+		const priceUsd = walletTokenUsdPrice(balance.tokenSymbol ?? '', tickerPrices);
 		const amount = balance.decimals ? Number(balance.rawBalance) / 10 ** balance.decimals : Number(balance.rawBalance);
 		const valueUsd = priceUsd !== null ? amount * priceUsd : null;
 

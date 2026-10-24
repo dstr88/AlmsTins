@@ -961,10 +961,11 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				'balance' in token
 					? Number((token as SnapshotToken).balance ?? 0)
 					: Number((token as SnapshotTokenEntry).amount ?? 0);
-			const usdValue =
-				'usdValue' in token
-					? Number((token as SnapshotToken).usdValue ?? 0)
-					: Number((token as SnapshotTokenEntry).valueUsd ?? 0);
+			// A stored null stays null: it means "no price", and reading it as 0 showed an unpriced
+			// token as worth $0 with no unpricedReason.
+			const rawUsd =
+				'usdValue' in token ? (token as SnapshotToken).usdValue : (token as SnapshotTokenEntry).valueUsd;
+			const usdValue = rawUsd === null || rawUsd === undefined ? NaN : Number(rawUsd);
 			const tokenAddress = String(
 				(token as any).tokenAddress ?? (token as any).contractAddress ?? '',
 			)
@@ -984,8 +985,9 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			}
 
 			const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-			let normalizedUsd: number | null = Number.isFinite(usdValue) ? usdValue : null;
+			let normalizedUsd: number | null = Number.isFinite(usdValue) && usdValue > 0 ? usdValue : null;
 			let unpricedReason: string | null = null;
+			let fallbackPriceUsed: number | null = null;
 
 			if (!isNative) {
 				const verifiedSet = VERIFIED_CONTRACTS_BY_CHAIN[tokenChain]?.[tokenSymbol];
@@ -1051,6 +1053,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'FISH')  fallbackPrice = 0.002;  // updated Apr 2026
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;
+					fallbackPriceUsed = fallbackPrice;
 					if (import.meta.env.WALLET_DEBUG === '1') {
 						console.log('[pricing] fallback price', {
 							walletId,
@@ -1075,6 +1078,11 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				continue;
 			}
 
+			// Held but no price from any source: UNPRICED, said so, never a silent $0.
+			if (!unpricedReason && normalizedAmount > 0 && normalizedUsd === null) {
+				unpricedReason = 'no_price';
+			}
+
 			const key = `${tokenChain}::${tokenSymbol}`;
 
 			const priceFromToken =
@@ -1083,7 +1091,10 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 					: normalizedUsd === null
 						? 0
 						: normalizedUsd / normalizedAmount;
-			const normalizedPrice = Number.isFinite(priceFromToken) && normalizedAmount > 0 ? priceFromToken : 0;
+			const normalizedPrice =
+				Number.isFinite(priceFromToken) && priceFromToken > 0 && normalizedAmount > 0
+					? priceFromToken
+					: (fallbackPriceUsed ?? 0);
 
 			const existing = accumulator.get(key) ?? {
 				tokenSymbol,
