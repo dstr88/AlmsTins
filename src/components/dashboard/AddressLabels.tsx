@@ -306,7 +306,7 @@ export function AddressLabels({ labels: initial }: Props) {
 						<option value="counterparty">{t.catCounterparty}</option>
 						<option value="defi">{t.catDefiProtocol}</option>
 						<option value="exchange">{t.catExchange}</option>
-						<option value="personal">{t.catPersonalWallet}</option>
+						<option value="own_wallet">{t.catPersonalWallet}</option>
 						<option value="bridge">{t.catBridge}</option>
 						<option value="other">{t.catOther}</option>
 					</select>
@@ -316,6 +316,7 @@ export function AddressLabels({ labels: initial }: Props) {
 						style={{ ...inputStyle, maxWidth: '150px' }}
 					>
 						<option value="">{t.allChains}</option>
+						<option value="bitcoin">Bitcoin</option>
 						<option value="ethereum">Ethereum</option>
 						<option value="polygon">Polygon</option>
 						<option value="avalanche">Avalanche</option>
@@ -419,12 +420,14 @@ export function AddressLabels({ labels: initial }: Props) {
 										defi:     '#a78bfa',
 										exchange: '#fbbf24',
 										personal: '#34d399',
+										own_wallet: '#34d399',
 										bridge:   '#60a5fa',
 									};
 									const catLabels: Record<string, string> = {
 										defi:     t.catBadgeDefi,
 										exchange: t.catBadgeExchange,
 										personal: t.catBadgePersonal,
+										own_wallet: t.catBadgePersonal,
 										bridge:   t.catBadgeBridge,
 										other:    t.catBadgeOther,
 									};

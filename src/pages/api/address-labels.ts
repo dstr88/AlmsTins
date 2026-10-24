@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { canonicalAddress } from '../../lib/wallets-service';
+import { normalizeLabelCategory } from '../../lib/addressLabelCategory';
 
 export const prerender = false;
 
@@ -40,7 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// makes a different address that no wallet or transaction will ever match.
 	const address  = typeof body.address  === 'string' ? canonicalAddress(body.address.replace(/\s+/g, '')) : '';
 	const label    = typeof body.label    === 'string' ? body.label.trim() : '';
-	const category    = typeof body.category    === 'string' ? body.category.trim()    : 'counterparty';
+	const category    = normalizeLabelCategory(body.category);
 	const chain       = typeof body.chain       === 'string' ? body.chain.trim()       : null;
 	const notes       = typeof body.notes       === 'string' ? body.notes.trim()       : null;
 	const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : null;
