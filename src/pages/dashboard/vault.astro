@@ -82,6 +82,30 @@ try {
 	// monthly_digests table may not exist yet — migration pending
 }
 
+// ── Exchange cards ─────────────────────────────────────────────────────────────
+// Crypto.com and Coinbase always show. Every other exchange shows in the same row once the
+// account has data for it, and only the unused ones stay under "More exchanges".
+const OTHER_EXCHANGES = [
+	{ source: 'kraken', title: 'Kraken' },
+	{ source: 'gemini', title: 'Gemini' },
+	{ source: 'robinhood', title: 'Robinhood' },
+	{ source: 'venmo', title: 'Venmo' },
+	{ source: 'cashapp', title: 'Cash App' },
+	{ source: 'exodus', title: 'Exodus' },
+] as const;
+let usedExchangeSources = new Set<string>();
+try {
+	const sourcesRes = await db.execute({
+		sql: `SELECT DISTINCT source FROM exchange_accounts WHERE tenant_id = ?`,
+		args: [tenantId],
+	});
+	usedExchangeSources = new Set(sourcesRes.rows.map((r) => String((r as Record<string, unknown>).source ?? '').toLowerCase()));
+} catch {
+	// Without the list every other exchange stays under "More exchanges", as before.
+}
+const usedOtherExchanges = OTHER_EXCHANGES.filter((e) => usedExchangeSources.has(e.source));
+const unusedOtherExchanges = OTHER_EXCHANGES.filter((e) => !usedExchangeSources.has(e.source));
+
 // Demo chrome (banner, tutorial, signup prompt) + the demo data path. Derived
 // from the SESSION, not the raw cookie: a logged-in user with a leftover demo
 // cookie must see their real vault, never the demo overlay (requireTenantSession
@@ -181,19 +205,17 @@ const getChainBadge = (chains: string[]): string => {
 			<div class="vault-lane vault-lane--row2 exchange-lane">
 				<CryptoComAccounts />
 				<ExchangeAccounts source="coinbase" title="Coinbase" />
+				{usedOtherExchanges.map((e) => <ExchangeAccounts source={e.source} title={e.title} />)}
 			</div>
 
-			<details class="other-exchanges">
-				<summary class="other-exchanges__toggle">{t.moreExchanges}</summary>
-				<div class="vault-lane vault-lane--row2 exchange-lane other-exchanges__lane">
-					<ExchangeAccounts source="kraken" title="Kraken" />
-					<ExchangeAccounts source="gemini" title="Gemini" />
-					<ExchangeAccounts source="robinhood" title="Robinhood" />
-					<ExchangeAccounts source="venmo" title="Venmo" />
-					<ExchangeAccounts source="cashapp" title="Cash App" />
-					<ExchangeAccounts source="exodus" title="Exodus" />
-				</div>
-			</details>
+			{unusedOtherExchanges.length > 0 && (
+				<details class="other-exchanges">
+					<summary class="other-exchanges__toggle">{t.moreExchanges}</summary>
+					<div class="vault-lane vault-lane--row2 exchange-lane other-exchanges__lane">
+						{unusedOtherExchanges.map((e) => <ExchangeAccounts source={e.source} title={e.title} />)}
+					</div>
+				</details>
+			)}
 
 			<div class="vault-section-divider vault-section-divider--onchain">
 				<span class="vault-section-divider__label">{t.dividerOnchain}</span>

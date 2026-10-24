@@ -10,6 +10,7 @@ import { computeHoldings, type ImportRow } from '@/lib/exchangeHoldings';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { fetchStockPrices } from '@/lib/stockPriceProvider';
+import { networthSummaryCacheKey, ON_CHAIN_IMPORT_SOURCES } from '@/lib/snapshotRows';
 
 const STOCK_SOURCES = new Set(['robinhood']);
 
@@ -98,6 +99,9 @@ export async function snapshotCexAccount(
 	source: string,
 	displayName: string,
 ): Promise<void> {
+	// An on-chain wallet's imported history (Bitcoin, Litecoin) is valued at the address's own
+	// balance; a snapshot here would count the same coins a second time.
+	if (ON_CHAIN_IMPORT_SOURCES.has(source.toLowerCase())) return;
 	try {
 		const result = await db.execute({
 			sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount,
@@ -167,7 +171,7 @@ export async function snapshotCexAccount(
 		try {
 			await db.execute({
 				sql: `DELETE FROM cache WHERE cache_key = ?`,
-				args: [`t:${tenantId}:networth:summary:v3`],
+				args: [networthSummaryCacheKey(tenantId)],
 			});
 		} catch {
 			// Cache invalidation is best-effort

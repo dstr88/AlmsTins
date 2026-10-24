@@ -24,6 +24,7 @@
  */
 
 import type { APIRoute } from 'astro';
+import { isOnChainImportMirror, onePerWalletChain } from '@/lib/snapshotRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
@@ -107,7 +108,7 @@ export const GET: APIRoute = async ({ request }) => {
 			        FROM wallet_snapshots WHERE tenant_id = ?
 			        GROUP BY wallet_id, chain
 			      )
-			      SELECT ws.payload_json
+			      SELECT ws.payload_json, ws.wallet_id, ws.chain, w.address
 			      FROM wallet_snapshots ws
 			      JOIN latest l
 			        ON l.wallet_id   = ws.wallet_id
@@ -121,7 +122,13 @@ export const GET: APIRoute = async ({ request }) => {
 		type SnapshotEntry = { qty: number; valueUsd: number; priceUsd: number | null };
 		const bySymbol = new Map<string, SnapshotEntry>();
 
-		for (const row of snapshotResult.rows) {
+		// One row per wallet and chain, and never an on-chain import's exchange mirror (snapshotRows.ts).
+		const snapshotRows = onePerWalletChain(
+			snapshotResult.rows.filter((row) => !isOnChainImportMirror(row.address as string | null)),
+			(row) => String(row.wallet_id ?? ''),
+			(row) => String(row.chain ?? ''),
+		);
+		for (const row of snapshotRows) {
 			if (!row.payload_json) continue;
 			let tokens: Array<{ symbol?: string; amount?: number | string; priceUsd?: number | null; valueUsd?: number | null }>;
 			try {

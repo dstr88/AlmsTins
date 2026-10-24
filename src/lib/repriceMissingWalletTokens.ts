@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { networthSummaryCacheKey } from '@/lib/snapshotRows';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
@@ -480,7 +481,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
       try {
         await db.execute({
           sql: 'DELETE FROM cache WHERE cache_key = ?',
-          args: [`t:${tenantId}:networth:summary:v2`],
+          args: [networthSummaryCacheKey(tenantId)],
         });
       } catch (err) {
         console.warn('[reprice] networth cache invalidation failed', err);

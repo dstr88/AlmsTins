@@ -4,6 +4,7 @@ import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 import { classifyContract } from '@/lib/knownContracts';
+import { isOnChainImportMirror, onePerWalletChain } from '@/lib/snapshotRows';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -210,7 +211,12 @@ export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSumm
 		[tenantId, tenantId, tenantId],
 	);
 
-	const rowsRaw = toNetWorthSnapshotRows(result.rows);
+	// One row per wallet and chain, and never an on-chain import's exchange mirror (snapshotRows.ts).
+	const rowsRaw = onePerWalletChain(
+		toNetWorthSnapshotRows(result.rows).filter((r) => !isOnChainImportMirror(r.address)),
+		(r) => r.walletId,
+		(r) => r.chain,
+	);
 
 	const aggregator = new Map<
 		string,
@@ -322,7 +328,12 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		[tenantId, tenantId, tenantId],
 	);
 
-	const rows = toLatestNetWorthRows(result.rows);
+	// One row per wallet and chain, and never an on-chain import's exchange mirror (snapshotRows.ts).
+	const rows = onePerWalletChain(
+		toLatestNetWorthRows(result.rows).filter((r) => !isOnChainImportMirror(r.walletAddress)),
+		(r) => r.walletId,
+		(r) => r.chain,
+	);
 
 	const walletMap = new Map<
 		string,

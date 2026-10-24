@@ -13,6 +13,7 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
+import { networthSummaryCacheKey } from '@/lib/snapshotRows';
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -104,7 +105,7 @@ export async function writeUtxoSnapshot(
 
 	await db.execute({
 		sql: `DELETE FROM cache WHERE cache_key = ?`,
-		args: [`t:${tenantId}:networth:summary:v3`],
+		args: [networthSummaryCacheKey(tenantId)],
 	}).catch(() => {});
 }
 
