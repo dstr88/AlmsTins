@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { networthSummaryCacheKey } from '@/lib/snapshotRows';
 import { getLatestNetWorthSummary, getLatestSnapshotCapturedAtByChain } from '@/lib/networth';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getCache, setCache } from '@/lib/tursoCache';
@@ -84,7 +85,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			});
 		}
 
-		const cacheKey = `t:${tenantId}:networth:summary:v5`;
+		const cacheKey = networthSummaryCacheKey(tenantId);
 		const lockKey = `lock:${cacheKey}`;
 		const memKey  = `networth:${tenantId}`;
 

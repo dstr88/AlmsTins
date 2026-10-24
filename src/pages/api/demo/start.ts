@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { networthSummaryCacheKey } from '@/lib/snapshotRows';
 import { safeNextPath } from '@/lib/safeNext';
 import type { APIRoute } from 'astro';
 import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
@@ -112,7 +113,7 @@ export const GET: APIRoute = async ({ request }) => {
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_ETH.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_AVAX.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_POL.toLowerCase()}`] },
-		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v3`] },
+		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [networthSummaryCacheKey(DEMO_TENANT_ID)] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v2`] },
 	]);
 	// Community trust tables may not exist yet — separate batch so failure here never blocks the main clear
