@@ -2,6 +2,7 @@ import type { SupportedChain } from '@/lib/constants';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
 import { getAllBalancesForWallet, type TokenBalance } from '@/lib/balances';
+import { discoverEvmBalances } from '@/lib/evmTokenDiscovery';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
@@ -88,6 +89,26 @@ export async function syncWalletValuesForAllWallets(tenantId: string): Promise<W
 	};
 }
 
+/**
+ * Ethereum and Polygon balances come from Alchemy's full token list, the same source the wallet
+ * card's refresh uses, so the two never disagree about what the wallet holds. The short list in
+ * balances.ts is the fallback when Alchemy is unreachable, and the only source for other chains.
+ */
+async function getChainBalances(chain: SupportedChain, address: string, walletId: string): Promise<TokenBalance[]> {
+	if (chain === 'ethereum' || chain === 'polygon') {
+		try {
+			return await discoverEvmBalances(chain, address);
+		} catch (error) {
+			console.warn('[VALUE] Alchemy discovery failed, using the tracked-token list', {
+				walletId,
+				chain,
+				error: String(error),
+			});
+		}
+	}
+	return getAllBalancesForWallet([chain], address);
+}
+
 export async function computeWalletValue(
 	tenantId: string,
 	walletId: string,
@@ -98,7 +119,7 @@ export async function computeWalletValue(
 
 	for (const chain of chains) {
 		try {
-			const perChain = await getAllBalancesForWallet([chain], address);
+			const perChain = await getChainBalances(chain, address, walletId);
 			balances.push(...perChain);
 		} catch (error) {
 			console.error('[VALUE] chain failed, skipping', {
@@ -115,7 +136,7 @@ export async function computeWalletValue(
 
 	const normalizePriceSymbol = (value: string) => {
 		const upper = value.trim().toUpperCase();
-		if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+		if (upper === 'MATIC' || upper === 'WMATIC' || upper === 'WPOL') return 'POL';
 		if (upper === 'WETH') return 'ETH';
 		if (upper === 'WBTC') return 'BTC';
 		if (upper.endsWith('.E')) return upper.replace(/\.E$/, '');

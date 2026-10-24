@@ -3,6 +3,7 @@ import type { SupportedChain } from '@/lib/constants';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
+import { classifyContract } from '@/lib/knownContracts';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -971,7 +972,14 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				.toLowerCase();
 			const isNative = !tokenAddress || tokenAddress === 'native';
 
-			if (!allowedSymbols.has(tokenSymbol) || !allowedChains.has(tokenChain)) {
+			// A symbol off the short list still counts when its contract is the known-good one for
+			// that symbol on this chain (BAND, WPOL): a real token is never hidden just for being
+			// missing from allowedSymbols.
+			if (!allowedChains.has(tokenChain)) continue;
+			if (
+				!allowedSymbols.has(tokenSymbol) &&
+				(isNative || classifyContract(tokenChain, tokenSymbol, tokenAddress) !== 'legitimate')
+			) {
 				continue;
 			}
 
@@ -1025,7 +1033,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'WBTC') fallbackPrice = 70000;
 				if (tokenSymbol === 'LINK') fallbackPrice = 8.85;
 				if (tokenSymbol === 'AAVE') fallbackPrice = 150; // updated Apr 2026; refresh via reprice job
-				if (tokenSymbol === 'WMATIC') fallbackPrice = 0.095;
+				if (tokenSymbol === 'WMATIC' || tokenSymbol === 'WPOL') fallbackPrice = 0.095;
 				if (tokenSymbol === 'SOL' || tokenSymbol === 'WSOL' || tokenSymbol === 'MSOL' || tokenSymbol === 'BSOL') fallbackPrice = 135; // updated Apr 2026
 				if (tokenSymbol === 'SUI')  fallbackPrice = 2.2;   // updated Apr 2026
 				if (tokenSymbol === 'PYTH') fallbackPrice = 0.25;  // updated Apr 2026

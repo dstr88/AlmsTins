@@ -6,7 +6,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
-import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
+import { getAllTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 import { sqlTimestamptz } from '@/lib/utcTimestamp';
 
@@ -267,15 +267,13 @@ async function fetchAlchemyTokenAggregates(
 	address: string,
 	requestId?: string,
 ) {
-	const balancesResult = await getTokenBalances(chain, address);
+	const rawBalances = await getAllTokenBalances(chain, address);
 
 	dbg('alchemy.raw', {
 		requestId,
 		alchemyChain: chain,
-		rawTotal: Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances.length : 0,
+		rawTotal: rawBalances.length,
 	});
-
-	const rawBalances = Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances : [];
 
 	dbg('alchemy.balances', {
 		requestId,

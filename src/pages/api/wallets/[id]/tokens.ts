@@ -3,10 +3,8 @@ import { getWalletTokenBreakdown, insertWalletSnapshotFromValueBreakdown } from 
 import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
-import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
-import { classifyContract, isSpamToken } from '@/lib/knownContracts';
-import { extractSpamDomains, savePhishingDomains } from '@/lib/phishingDomains';
+import { discoverEvmBalances } from '@/lib/evmTokenDiscovery';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
 
 const ETHEREUM_CHAIN_ID = 1;
@@ -14,22 +12,6 @@ const POLYGON_CHAIN_ID = 137;
 const AVALANCHE_CHAIN_ID = 43114;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function mapWithConcurrency<T, R>(
-	items: T[],
-	limit: number,
-	mapper: (item: T) => Promise<R>,
-): Promise<R[]> {
-	const results: R[] = [];
-	let index = 0;
-	while (index < items.length) {
-		const batch = items.slice(index, index + limit);
-		const batchResults = await Promise.all(batch.map(mapper));
-		results.push(...batchResults);
-		index += limit;
-	}
-	return results;
-}
 
 function toDecimal(value: bigint, decimals: number) {
 	if (decimals <= 0) return Number(value);
@@ -52,71 +34,17 @@ async function buildAlchemySnapshot(
 	tenantId: string,
 	address: string,
 ) {
-	const alchemyChain = chainId === ETHEREUM_CHAIN_ID ? 'eth-mainnet' : 'polygon-mainnet';
 	const chain = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
-	const balancesResult = await getTokenBalances(alchemyChain, address);
-	const rawBalances = Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances : [];
-	const nonZeroBalances = rawBalances.filter((entry) => {
-		try {
-			return BigInt(entry.tokenBalance ?? '0') > 0n;
-		} catch {
-			return false;
-		}
-	});
-
-	const contracts = nonZeroBalances
-		.map((entry) => String(entry.contractAddress ?? '').toLowerCase())
-		.filter(Boolean);
-
-	const metadataList = await mapWithConcurrency(contracts, 5, async (contract) => {
-		try {
-			const metadata = await getTokenMetadata(alchemyChain, contract);
-			return { contract, metadata };
-		} catch {
-			return { contract, metadata: { decimals: 18, name: null, symbol: null } };
-		}
-	});
-
-	const metadataByContract = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>();
-	for (const entry of metadataList) {
-		metadataByContract.set(entry.contract, entry.metadata);
-	}
-
-	const chainName = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
-
-	const tokens = nonZeroBalances
-		.map((entry) => {
-			const contract = String(entry.contractAddress ?? '').toLowerCase();
-			if (!contract) return null;
-			const metadata = metadataByContract.get(contract);
-			const decimals = typeof metadata?.decimals === 'number' ? metadata.decimals : 18;
-			if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) return null;
-			let balance = 0n;
-			try {
-				balance = BigInt(entry.tokenBalance ?? '0');
-			} catch {
-				return null;
-			}
-			if (balance <= 0n) return null;
-			const amount = toDecimal(balance, decimals);
-			if (!Number.isFinite(amount) || amount <= 0) return null;
-			const symbol = String(metadata?.symbol ?? '').trim().toUpperCase();
-			// Drop tokens whose contract address doesn't match the known-good address for
-			// their symbol on this chain (catches fake AAVE, fake USDC airdrops, etc.)
-			if (classifyContract(chainName, symbol, contract) === 'scam') return null;
-			// Drop phishing airdrop tokens whose name/symbol contains URLs or Telegram links
-			const tokenName = metadata?.name ?? null;
-			const tokenNameStr = typeof tokenName === 'string' ? tokenName : null;
-			if (isSpamToken(symbol, tokenNameStr)) {
-				const domains = extractSpamDomains(symbol, tokenNameStr);
-				if (domains.length) void savePhishingDomains(domains);
-				return null;
-			}
-			return { symbol, amount, priceUsd: null, valueUsd: null, tokenAddress: contract };
-		})
-		.filter((token): token is { symbol: string; amount: number; priceUsd: null; valueUsd: null; tokenAddress: string } =>
-			Boolean(token),
-		);
+	const balances = await discoverEvmBalances(chain, address);
+	const tokens = balances
+		.map((balance) => ({
+			symbol: balance.tokenSymbol,
+			amount: toDecimal(balance.rawBalance, balance.decimals),
+			priceUsd: null,
+			valueUsd: null,
+			tokenAddress: balance.tokenAddress ?? 'native',
+		}))
+		.filter((token) => Number.isFinite(token.amount) && token.amount > 0);
 
 	return {
 		tenantId,

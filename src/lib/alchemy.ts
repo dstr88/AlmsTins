@@ -40,16 +40,50 @@ export async function alchemyRpc(chain: AlchemyChain, body: AlchemyRpcBody) {
 	return payload?.result;
 }
 
-export async function getTokenBalances(chain: AlchemyChain, address: string) {
+/**
+ * One page of a wallet's ERC-20 balances. Alchemy returns at most 100 per page and a pageKey
+ * when there are more; a wallet full of spam airdrops runs to several pages, so a caller that
+ * wants every token must follow pageKey (see getAllTokenBalances).
+ */
+export async function getTokenBalances(chain: AlchemyChain, address: string, pageKey?: string) {
 	return alchemyRpc(chain, {
 		jsonrpc: '2.0',
 		id: 1,
 		method: 'alchemy_getTokenBalances',
-		params: [address, 'erc20'],
+		params: pageKey ? [address, 'erc20', { pageKey }] : [address, 'erc20'],
 	}) as Promise<{
 		address: string;
 		tokenBalances: Array<{ contractAddress: string; tokenBalance: string }>;
+		pageKey?: string;
 	}>;
+}
+
+// A runaway guard, not a real limit: 50 pages is 5,000 token contracts.
+const MAX_TOKEN_BALANCE_PAGES = 50;
+
+/** Every page of a wallet's ERC-20 balances, following pageKey to the end. */
+export async function getAllTokenBalances(chain: AlchemyChain, address: string) {
+	const tokenBalances: Array<{ contractAddress: string; tokenBalance: string }> = [];
+	let pageKey: string | undefined;
+	for (let page = 0; page < MAX_TOKEN_BALANCE_PAGES; page++) {
+		const result = await getTokenBalances(chain, address, pageKey);
+		if (Array.isArray(result?.tokenBalances)) tokenBalances.push(...result.tokenBalances);
+		pageKey = result?.pageKey || undefined;
+		if (!pageKey) return tokenBalances;
+	}
+	console.warn('[alchemy] getAllTokenBalances stopped at the page guard', { chain, pages: MAX_TOKEN_BALANCE_PAGES });
+	return tokenBalances;
+}
+
+/** The wallet's native coin balance (ETH on eth-mainnet, POL on polygon-mainnet), in wei. */
+export async function getNativeBalanceWei(chain: AlchemyChain, address: string): Promise<bigint> {
+	const result = await alchemyRpc(chain, {
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'eth_getBalance',
+		params: [address, 'latest'],
+	});
+	return BigInt(String(result ?? '0x0'));
 }
 
 export async function getTokenMetadata(chain: AlchemyChain, contractAddress: string) {
