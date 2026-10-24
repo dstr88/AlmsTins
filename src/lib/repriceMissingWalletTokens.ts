@@ -45,7 +45,7 @@ const normalizeSymbol = (value: unknown) => {
   if (typeof value !== 'string') return null;
   let upper = value.trim().toUpperCase();
   if (!upper) return null;
-  if (upper === 'MATIC' || upper === 'WMATIC') upper = 'POL';
+  if (upper === 'MATIC' || upper === 'WMATIC' || upper === 'WPOL') upper = 'POL';
   if (upper === 'WBTC') upper = 'BTC';
   if (upper === 'WETH') upper = 'ETH';
   if (upper.endsWith('.E')) upper = upper.slice(0, -2);

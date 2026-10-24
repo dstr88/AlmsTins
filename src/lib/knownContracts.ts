@@ -25,6 +25,7 @@ const CONTRACTS: Record<string, ChainContracts> = {
     WETH:  new Set(['0x7ceb23fd6bc0add59e62ac25578270cff1b9f619']),
     WBTC:  new Set(['0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6']),
     WMATIC:new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']),
+    WPOL:  new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']), // WMATIC's contract, renamed WPOL
     MATIC: new Set(['0x0000000000000000000000000000000000001010']), // native MATIC ERC-20 wrapper
     AAVE:  new Set(['0xd6df932a45c0f255f85145f286ea0b292b21c90b']),
     LINK:  new Set(['0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39']),
@@ -43,6 +44,7 @@ const CONTRACTS: Record<string, ChainContracts> = {
     AAVE:  new Set(['0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9']),
     LINK:  new Set(['0x514910771af9ca656af840dff83e8264ecf986ca']),
     UNI:   new Set(['0x1f9840a85d5af5bf1d1762f925bdaddc4201f984']),
+    BAND:  new Set(['0xba11d00c5f74255f56a5e366f4f77f5a186d7f55']),
     STETH: new Set(['0xae7ab96520de3a18e5e111b5eaab095312d7fe84']),
     WSTETH:new Set(['0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0']),
   },
@@ -143,8 +145,14 @@ const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
   /www\./i,                                               // www. prefix
   /fli\.so/i,                                             // fli.so shortener
   /\.(com|xyz|site|top|vip|cab|lat|io|org|to)\b/i,       // phishing domain TLDs
-  /\S+ \S+ \S+/,                                         // 3+ word "sentence" symbols — never legit
   /\|/,                                                   // pipe characters — not used in real token symbols
+];
+
+// Checked against the symbol alone. A real token's NAME is often three words once the
+// symbol is in front of it ("AAVE Aave Token", "WBTC Wrapped BTC", "WPOL Wrapped Polygon
+// Ecosystem Token"), so testing the combined string flagged real tokens as spam.
+const SYMBOL_SPAM_PATTERNS: RegExp[] = [
+  /\S+ \S+ \S+/,                                         // 3+ word "sentence" symbols — never legit
 ];
 
 /**
@@ -154,7 +162,7 @@ const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
  */
 export function isSpamToken(symbol: string, name?: string | null): boolean {
   const text = `${symbol} ${name ?? ''}`;
-  return FUNGIBLE_SPAM_PATTERNS.some(p => p.test(text));
+  return FUNGIBLE_SPAM_PATTERNS.some(p => p.test(text)) || SYMBOL_SPAM_PATTERNS.some(p => p.test(symbol));
 }
 
 /** Symbols that are stablecoins and should be auto-resolved at $1.00/token */

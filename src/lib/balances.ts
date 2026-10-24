@@ -93,10 +93,30 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 			contractAddress: '0x514910771AF9Ca656af840dff83E8264EcF986CA',
 			decimals: 18,
 			coingeckoId: 'chainlink',
+		},		{
+			symbol: 'AAVE',
+			type: 'erc20',
+			contractAddress: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',
+			decimals: 18,
+			coingeckoId: 'aave',
+		},
+		{
+			symbol: 'BAND',
+			type: 'erc20',
+			contractAddress: '0xBA11D00c5f74255f56a5E366F4F77f5A186d7f55',
+			decimals: 18,
+			coingeckoId: 'band-protocol',
 		},
 	],
 	polygon: [
 		{ symbol: 'MATIC', type: 'native', decimals: 18, coingeckoId: 'matic-network' },
+		{
+			symbol: 'WPOL',
+			type: 'erc20',
+			contractAddress: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
+			decimals: 18,
+			coingeckoId: 'wmatic',
+		},
 		{
 			symbol: 'WETH',
 			type: 'erc20',
@@ -107,7 +127,7 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 		{
 			symbol: 'WBTC',
 			type: 'erc20',
-			contractAddress: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD',
+			contractAddress: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6',
 			decimals: 8,
 			coingeckoId: 'wrapped-bitcoin',
 		},
@@ -193,6 +213,19 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 		},
 	],
 };
+
+/**
+ * The tracked ERC-20 at this contract on this chain, if any. Lets a caller that discovered a
+ * token by address recover its symbol and decimals when the metadata lookup failed.
+ */
+export function trackedTokenForContract(
+	chain: SupportedChain,
+	contractAddress: string,
+): { symbol: string; decimals: number } | null {
+	const addr = contractAddress.toLowerCase();
+	const token = TRACKED_TOKENS[chain]?.find((t) => t.contractAddress?.toLowerCase() === addr);
+	return token ? { symbol: token.symbol, decimals: token.decimals } : null;
+}
 
 /**
  * Fetches the native asset balance for a wallet on a given chain.
