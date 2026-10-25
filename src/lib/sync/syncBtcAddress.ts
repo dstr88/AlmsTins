@@ -23,7 +23,7 @@ import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
 import { canonicalAddress, safeParseChains } from '@/lib/wallets-service';
 import { buildTickerPriceMap } from '@/lib/aave/pricing';
 import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
-import { fillCounterparties, importCounterpartyUpdate } from '@/lib/counterpartyColumn';
+import { insertImportBatch } from '@/lib/importRows';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
 const SATS_PER_BTC = 100_000_000;
@@ -274,51 +274,31 @@ export async function syncBtcAddress(
 		});
 	}
 
-	const BATCH = 100;
-	// The table's columns are import_batch_id and row_json (migrations/0001_crypto_com.sql). This
-	// insert used to name batch_id and raw_json, which don't exist, so every sync threw here, after
-	// creating the wallet row and before the snapshot: no Bitcoin wallet ever got a balance.
-	const rawStmts = normRows.map(r => ({
-		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash, imported_at)
-		      VALUES (?, ?, ?, ?, 'bitcoin', ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
-	}));
-
-	const normStmts = normRows.map(r => ({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
-		       description, currency, amount,
-		       to_currency, to_amount,
-		       native_currency, native_amount, native_usd,
-		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'bitcoin', ?, ?, ?, ?,  ?, 'BTC', ?,  NULL, NULL,  'USD', NULL, ?,  ?, ?, ?, 'BTC', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
-			r.description,
-			r.direction === 'out' ? -r.amount : r.amount,
-			r.nativeUsd,
-			r.kind, r.txHash, r.direction, r.rowHash,
-		],
-	}));
-
-	let insertedNorm = 0;
-	for (let i = 0; i < rawStmts.length; i += BATCH) {
-		await db.batch(rawStmts.slice(i, i + BATCH), 'write');
-	}
-	for (let i = 0; i < normStmts.length; i += BATCH) {
-		const res = await db.batch(normStmts.slice(i, i + BATCH), 'write');
-		insertedNorm += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
-	}
-	// Every sync reads the whole history, so this also fills rows an earlier sync saved without one.
-	await fillCounterparties(normRows.flatMap((r) =>
-		r.counterparty ? [importCounterpartyUpdate(tenantId, 'bitcoin', accountId, r.rowHash, r.counterparty)] : []));
+	// Through the shared writer (src/lib/importRows.ts): an earlier inline copy of this insert named
+	// batch_id and raw_json, which don't exist, so every sync threw before the snapshot. Every sync
+	// reads the whole history, so the counterparty fill also covers rows an earlier sync saved.
+	const { insertedNormalized: insertedNorm } = await insertImportBatch({
+		tenantId, accountId, walletId, source: 'bitcoin', batchId,
+		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
+		rows: normRows.map((r) => ({
+			timestampUtc: r.timestamp,
+			description: r.description,
+			currency: 'BTC',
+			amount: r.direction === 'out' ? -r.amount : r.amount,
+			nativeCurrency: 'USD',
+			nativeUsd: r.nativeUsd,
+			kind: r.kind,
+			txHash: r.txHash,
+			direction: r.direction,
+			assetSymbol: 'BTC',
+			rowHash: r.rowHash,
+			counterparty: r.counterparty,
+		})),
+	});
 
 	return {
 		inserted: insertedNorm,
-		skipped:  normStmts.length - insertedNorm,
+		skipped:  normRows.length - insertedNorm,
 		txCount:  allTxs.length,
 		snapshotWritten,
 	};
