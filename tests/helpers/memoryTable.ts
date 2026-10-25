@@ -1,13 +1,15 @@
 /**
  * A few in-memory tables that answer the two statement shapes the chain syncs write with:
  *
- *   INSERT INTO t (a, b, …) VALUES (?, 'lit', NULL, to_char(…), …) ON CONFLICT DO NOTHING
- *   UPDATE t SET c = ? WHERE x = ? AND y = ? AND c IS NULL
+ *   INSERT INTO t (a, b, …) VALUES (?, 'lit', NULL, to_char(…), COALESCE(?, to_char(…)), …) ON CONFLICT DO NOTHING
+ *   UPDATE t SET c = ? WHERE x = ? AND y = 'lit' AND c IS NULL
  *
  * An INSERT is skipped (rowsAffected 0) when a row already holds the same values in every column
  * of one of `uniqueKeys` for that table, as Postgres does for ON CONFLICT DO NOTHING. An UPDATE
  * applies its SET to exactly the rows its WHERE matches, so a missing filter shows up as a
- * changed row. Anything else is not handled here (the caller answers it).
+ * changed row. An SQL expression is stored as its text in angle brackets (`<to_char(…)>`), and
+ * COALESCE(?, expr) as the argument, or that text when the argument is null. Anything else is not
+ * handled here (the caller answers it).
  */
 
 export type MemRow = Record<string, unknown>;
@@ -70,6 +72,11 @@ export class MemoryTables {
 		const row: MemRow = {};
 		cols.forEach((c, i) => {
 			const v = values[i];
+			const fallback = v.match(/^COALESCE\(\s*\?\s*,\s*([\s\S]+)\)$/i);
+			if (fallback) {
+				row[c] = args[next++] ?? `<${fallback[1].trim()}>`;
+				return;
+			}
 			row[c] = v === '?' ? args[next++] : /^NULL$/i.test(v) ? null : /^'.*'$/.test(v) ? v.slice(1, -1) : /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : `<${v}>`;
 		});
 		if (next !== args.length) throw new Error(`${args.length} args for ${next} placeholders`);
@@ -93,6 +100,8 @@ export class MemoryTables {
 				const v = args[next++];
 				return (r: MemRow) => r[eq[1]] === v;
 			}
+			const lit = c.match(/^(\w+)\s*=\s*'([^']*)'$/);
+			if (lit) return (r: MemRow) => r[lit[1]] === lit[2];
 			const isNull = c.match(/^(\w+)\s+IS NULL$/i);
 			if (isNull) return (r: MemRow) => r[isNull[1]] == null;
 			throw new Error(`unsupported WHERE ${c}`);
