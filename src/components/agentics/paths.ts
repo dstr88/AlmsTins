@@ -3,7 +3,8 @@
  * route it names (tests/agentics/agenticsUi.test.ts and vaultUi.test.ts check each one against the
  * files under src/pages).
  */
-import type { VaultChain } from '@/lib/agentVault/addresses';
+import { VAULT_CHAINS } from '@/lib/agentVault/addresses';
+import { explorerTxUrl } from '@/lib/explorerLinks';
 
 /** The Agentics home inside the app: the agents (and, for an account without the Vault, the welcome letter). */
 export const HOME_PATH = '/dashboard/agentics';
@@ -40,22 +41,14 @@ export const KEYS_PATH = '/verify/agent-keys';
 /** The public docs for the pre-send check an agent calls. */
 export const DOCS_PATH = '/agentics/docs';
 
-/** The transaction pages of the block explorers the Vault reads, by chain. */
-const EXPLORER_TX: Record<VaultChain, string> = {
-  ethereum: 'https://etherscan.io/tx/',
-  polygon: 'https://polygonscan.com/tx/',
-  avalanche: 'https://snowtrace.io/tx/',
-};
-
-const TX_HASH = /^0x[0-9a-f]{64}$/;
+/** The chains the Vault reads; only these get an explorer link here. */
+const VAULT_EXPLORER_CHAINS: ReadonlySet<string> = new Set<string>(VAULT_CHAINS);
 
 /**
  * The explorer page of a transaction, or null when there is no safe one to link: a chain the Vault
  * does not read, or a hash that is not 0x and 64 hex digits. The hash came from the chain's own
- * listing, so it is checked before it goes into an address.
+ * listing, so it is checked before it goes into an address (src/lib/explorerLinks.ts does the check).
  */
 export function explorerTxHref(chain: string | null | undefined, hash: string): string | null {
-  const base = typeof chain === 'string' && Object.prototype.hasOwnProperty.call(EXPLORER_TX, chain) ? EXPLORER_TX[chain as VaultChain] : null;
-  const h = String(hash ?? '').toLowerCase();
-  return base && TX_HASH.test(h) ? `${base}${h}` : null;
+  return typeof chain === 'string' && VAULT_EXPLORER_CHAINS.has(chain) ? explorerTxUrl(chain, hash) : null;
 }
