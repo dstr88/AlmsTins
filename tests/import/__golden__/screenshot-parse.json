@@ -1,0 +1,57 @@
+{
+	"response": {
+		"ok": true,
+		"duplicate": false,
+		"source": "coinbase",
+		"accountId": "acct-golden",
+		"transaction": {
+			"id": "<uuid:1>",
+			"timestampUtc": "2025-10-01T12:00:00.000Z",
+			"description": "Bitcoin Purchase",
+			"currency": "BTC",
+			"amount": 0.001,
+			"direction": "in",
+			"kind": "crypto_purchase",
+			"nativeUsd": 60
+		}
+	},
+	"import_raw_rows": [],
+	"import_transactions": [
+		{
+			"account_id": "acct-golden",
+			"amount": 0.001,
+			"asset_symbol": "BTC",
+			"category": null,
+			"counterparty_address": null,
+			"created_at": "<to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')>",
+			"currency": "BTC",
+			"description": "Bitcoin Purchase",
+			"direction": "in",
+			"duplicate_of": null,
+			"exchange_withdrawal_id": null,
+			"fee_currency": null,
+			"fee_native": null,
+			"fee_usd": null,
+			"gas_used": null,
+			"group_id": null,
+			"id": "<uuid:1>",
+			"import_batch_id": "<uuid:2>",
+			"is_duplicate": 0,
+			"kind": "crypto_purchase",
+			"native_amount": null,
+			"native_currency": null,
+			"native_usd": 60,
+			"notes": null,
+			"parent_tx_id": null,
+			"price_source": null,
+			"row_hash": "ff04a916f83ec37084f3c4590e4509226cd1e9f030504a44c90c4d83e28d891f",
+			"source": "coinbase",
+			"tenant_id": "tenant-golden",
+			"timestamp_utc": "2025-10-01T12:00:00.000Z",
+			"to_amount": null,
+			"to_currency": null,
+			"tx_hash": "cb-123",
+			"wallet_id": null
+		}
+	]
+}
