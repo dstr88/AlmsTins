@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../../lib/requireTenantSession';
 import { db } from '../../../../lib/db';
+import { insertImportBatch } from '../../../../lib/importRows';
 import { canonicalImportSource, importSourceDisplayName } from '../../../../lib/importSource';
 import { toUtcIso } from '../../../../lib/utcTimestamp';
 
@@ -157,34 +158,25 @@ If a field cannot be determined from the image, use null.`,
 	const batchId = randomUUID();
 	const txId = randomUUID();
 
-	const insertResult = await db.execute({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description,
-		       currency, amount, native_usd, kind, tx_hash, direction, asset_symbol, row_hash,
-		       fee_usd, created_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			txId,
-			tenantId,
-			source,
-			accountId,
-			batchId,
+	const insertResult = await insertImportBatch({
+		tenantId, accountId, source, batchId,
+		rows: [{
+			id: txId,
 			timestampUtc,
-			parsed.description || null,
-			parsed.currency,
-			parsed.amount,
-			parsed.nativeUsd,
-			parsed.kind || null,
-			parsed.txHash,
-			parsed.direction,
-			parsed.currency,
+			description: parsed.description || null,
+			currency: parsed.currency,
+			amount: parsed.amount,
+			nativeUsd: parsed.nativeUsd,
+			kind: parsed.kind || null,
+			txHash: parsed.txHash,
+			direction: parsed.direction,
+			assetSymbol: parsed.currency,
 			rowHash,
-			parsed.feeUsd,
-		],
+			feeUsd: parsed.feeUsd,
+		}],
 	});
 
-	const isDuplicate = (insertResult.rowsAffected ?? 0) === 0;
+	const isDuplicate = !insertResult.inserted[0];
 
 	// Delete the screenshot now that it's been processed
 	await db.execute({
