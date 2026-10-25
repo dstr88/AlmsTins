@@ -20,6 +20,11 @@ import { MemoryTables, type MemRow } from '../helpers/memoryTable';
  * Every address, amount and hash here is invented. No database, no network.
  */
 
+// Pinned to UTC, the zone the server and CI run in: some exports (Venmo) carry times without a
+// zone, which the importer reads in the process's local zone, so a recording made on a machine in
+// another zone would not match CI.
+process.env.TZ = 'UTC';
+
 const SCHEMA = migrationColumns();
 const TABLES = ['import_raw_rows', 'import_transactions'] as const;
 const NOW = `<to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')>`;
