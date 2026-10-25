@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { insertColumns } from '../helpers/migrationColumns';
 
 /**
  * Almstins is not tax software (owner rule, Oct 12 2026), so an Aave liquidation is recorded as
@@ -20,16 +21,20 @@ const state = vi.hoisted(() => ({
 	recipients: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock('@/lib/db', () => ({
-	db: {
-		execute: async (stmt: { sql: string; args?: unknown[] }) => {
-			state.calls.push({ sql: stmt.sql, args: stmt.args ?? [] });
-			if (/INSERT INTO import_transactions/.test(stmt.sql)) return { rows: [], rowsAffected: 1 };
-			if (/FROM tenant_memberships/.test(stmt.sql)) return { rows: state.recipients, rowsAffected: 0 };
-			return { rows: [], rowsAffected: 0 };
+vi.mock('@/lib/db', () => {
+	const execute = async (stmt: { sql: string; args?: unknown[] }) => {
+		state.calls.push({ sql: stmt.sql, args: stmt.args ?? [] });
+		if (/INSERT INTO import_transactions/.test(stmt.sql)) return { rows: [], rowsAffected: 1 };
+		if (/FROM tenant_memberships/.test(stmt.sql)) return { rows: state.recipients, rowsAffected: 0 };
+		return { rows: [], rowsAffected: 0 };
+	};
+	return {
+		db: {
+			execute,
+			batch: async (stmts: Array<{ sql: string; args?: unknown[] }>) => Promise.all(stmts.map(execute)),
 		},
-	},
-}));
+	};
+});
 
 const mail = vi.hoisted(() => ({ sendMail: vi.fn(async (_m: { to: string; subject: string; text: string }) => undefined) }));
 vi.mock('@/lib/email', () => mail);
@@ -92,10 +97,11 @@ describe('the liquidation sync records the event only', () => {
 		const rows = inserted();
 		expect(rows).toHaveLength(1);
 		const args = rows[0].args;
-		expect(args[1]).toBe('tenant-a');
+		const col = (name: string) => args[insertColumns(rows[0].sql)!.columns.indexOf(name)];
+		expect(col('tenant_id')).toBe('tenant-a');
 
-		const description = String(args[10]);
-		const notes = String(args[11]);
+		const description = String(col('description'));
+		const notes = String(col('notes'));
 		expect(description).toMatch(/0\.005000 WETH seized to repay USDC loan/);
 		expect(notes).toMatch(/Debt cleared: \$13\.30/);
 		expect(notes).toMatch(/Liquidation penalty: \$0\.70/);
