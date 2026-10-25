@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAddressLabels } from '@/i18n/components/addressLabels';
+import { addressNetwork } from '@/lib/addressNetwork';
 
 export type AddressLabel = {
 	id: string;
@@ -16,17 +17,6 @@ export type AddressLabel = {
 type Props = {
 	labels: AddressLabel[];
 };
-
-// ── Address type detection ─────────────────────────────────────────────────────
-function detectNetwork(address: string): string {
-	const a = address.toLowerCase();
-	if (a.startsWith('ltc1'))                              return 'LTC';
-	if (a.startsWith('bc1') || /^[13][a-z0-9]/i.test(a)) return 'BTC';
-	if (/^0x[a-f0-9]{64}$/.test(a))                       return 'SUI';
-	if (/^0x[a-f0-9]{40}$/.test(a))                       return 'EVM';
-	if (/^[1-9a-hj-np-za-km-z]{32,44}$/.test(address))   return 'SOL';
-	return '???';
-}
 
 function truncateAddress(addr: string): string {
 	if (addr.length <= 18) return addr;
@@ -379,7 +369,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			) : (
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 					{labels.map(l => {
-						const network = detectNetwork(l.address);
+						const network = addressNetwork(l.address)?.toUpperCase() ?? '???';
 						const netColor = NETWORK_COLORS[network] ?? 'var(--text-muted)';
 						return (
 							<div
