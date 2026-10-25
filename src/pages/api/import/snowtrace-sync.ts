@@ -13,6 +13,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
@@ -189,41 +190,22 @@ export const POST: APIRoute = async ({ request }) => {
 
 	// ── Insert ────────────────────────────────────────────────────────────────
 
-	const rawStmts = normRows.map(r => ({
-		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)
-ON CONFLICT DO NOTHING`,
-		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
-	}));
-
-	const normStmts = normRows.map(r => ({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
-		       description, currency, amount,
-		       to_currency, to_amount,
-		       native_currency, native_amount, native_usd,
-		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?, ?,  ?, 'AVAX', ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, 'AVAX', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
-			r.description,
-			r.direction === 'out' ? -r.amount : r.amount,
-			r.kind, r.txHash, r.direction, r.rowHash,
-		],
-	}));
-
-	const BATCH = 100;
-	let insertedRaw = 0, insertedNorm = 0;
-	for (let i = 0; i < rawStmts.length; i += BATCH) {
-		const res = await db.batch(rawStmts.slice(i, i + BATCH), 'write');
-		insertedRaw += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStmts.length; i += BATCH) {
-		const res = await db.batch(normStmts.slice(i, i + BATCH), 'write');
-		insertedNorm += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
-	}
+	const { insertedNormalized: insertedNorm } = await insertImportBatch({
+		tenantId, accountId, walletId, source: 'avalanche_cchain', batchId,
+		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
+		rows: normRows.map((r) => ({
+			timestampUtc: r.timestamp,
+			description: r.description,
+			currency: 'AVAX',
+			amount: r.direction === 'out' ? -r.amount : r.amount,
+			nativeCurrency: 'USD',
+			kind: r.kind,
+			txHash: r.txHash,
+			direction: r.direction,
+			assetSymbol: 'AVAX',
+			rowHash: r.rowHash,
+		})),
+	});
 
 	// Run tenant-wide (no accountId filter) so Coinbase OUTs are scanned
 	// against the newly imported Snowtrace INs, not just Snowtrace OUTs.
@@ -261,7 +243,7 @@ ON CONFLICT DO NOTHING`,
 
 	return new Response(JSON.stringify({
 		inserted:  insertedNorm,
-		skipped:   normStmts.length - insertedNorm,
+		skipped:   normRows.length - insertedNorm,
 		fetched:   allTxs.length,
 		wallet:    walletAddress,
 	}), { status: 200, headers: { 'Content-Type': 'application/json' } });

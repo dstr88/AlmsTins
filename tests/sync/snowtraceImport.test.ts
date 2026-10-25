@@ -62,7 +62,8 @@ function expectSavedRows(count: number) {
 	const txs = inserts('import_transactions');
 	expect(txs).toHaveLength(count);
 	expect(insertColumns(txs[0].sql)!.columns).toEqual(expect.arrayContaining(['source', 'import_batch_id', 'direction', 'row_hash']));
-	expect(txs[0].sql).toContain("'avalanche_cchain'");
+	const cols = insertColumns(txs[0].sql)!.columns;
+	expect(txs[0].args[cols.indexOf('source')]).toBe('avalanche_cchain');
 	// Every statement the route sends is scoped by the tenant.
 	for (const c of state.calls) expect(c.args).toContain(TENANT);
 }
