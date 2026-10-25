@@ -4,10 +4,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * GET /api/address-history?address=...: the signed-in user's own transactions with one address.
  *
  *   - Signed out is a 401; an empty or overlong address is a 400; neither reads the database.
- *   - An exchange account id is not_onchain; a Bitcoin, Litecoin, Solana or Sui address is
- *     not_kept_yet (only EVM rows keep full counterparties). Neither reads the database.
+ *   - An exchange account id is not_onchain; a Litecoin address is not_kept_yet (its history is
+ *     not imported). Neither reads the database.
  *   - An EVM address: every query is scoped by the session's tenant and sends the address
  *     lowercased; the totals match the rows; the answer has exactly the planned fields.
+ *   - A Bitcoin, Solana or Sui address: the tenant's imported and Sui rows whose stored
+ *     counterparty_address is that address, in its stored form (base58 exactly as typed).
  *   - The address never reaches the logs, and nothing is cached.
  *
  * Hermetic: the session and the database are stubs. The database stub answers from in-memory
@@ -20,6 +22,9 @@ const MINE = '0xabcdef0123456789abcdef0123456789abcdef01';
 const SECOND = '0x1111111111111111111111111111111111111111';
 const SHOP = '0x000000000000000000000000000000000000beef';
 const OTHERS_WALLET = '0x2222222222222222222222222222222222222222';
+const BTC_PEER = 'bc1qpeerpeerpeerpeerpeerpeerpeerpeerpeer0';
+const SOL_PEER = 'So1PeerMixedCase' + 'x'.repeat(28);
+const SUI_PEER = '0x' + 'cd'.repeat(32);
 
 type Row = Record<string, unknown>;
 
@@ -48,6 +53,17 @@ const fx = {
 		// Another tenant paid the same shop.
 		{ id: 't-other', tenant_id: OTHER, wallet_id: 'w-theirs', chain: 'polygon', hash: '0x' + '9'.repeat(64), timestamp: '2025-03-01T00:00:00.000Z', from_address: OTHERS_WALLET, to_address: SHOP, value: '999000000', token_symbol: 'SECRET', token_decimals: 6, tx_type: 'token_out', status: 'confirmed', usd_value: 999, is_duplicate: 0 },
 	] as Row[],
+	// Chain-synced imports with their counterparty_address (Bitcoin, Solana).
+	imports: [
+		{ id: 'i-btc', tenant_id: TENANT, source: 'bitcoin', account_id: 'a-btc', wallet_id: 'w-btc', timestamp_utc: '2025-08-01T00:00:00.000Z', asset_symbol: 'BTC', currency: 'BTC', amount: 0.002, direction: 'in', native_usd: 120, tx_hash: 'b'.repeat(64), counterparty_address: BTC_PEER },
+		{ id: 'i-sol', tenant_id: TENANT, source: 'solana', account_id: 'a-sol', wallet_id: 'w-sol', timestamp_utc: '2025-09-01T00:00:00.000Z', asset_symbol: 'USDC', currency: 'USDC', amount: -25, direction: 'out', native_usd: null, tx_hash: 'SolSig1', counterparty_address: SOL_PEER },
+		{ id: 'i-old', tenant_id: TENANT, source: 'bitcoin', account_id: 'a-btc', wallet_id: 'w-btc', timestamp_utc: '2024-01-01T00:00:00.000Z', asset_symbol: 'BTC', currency: 'BTC', amount: 1, direction: 'in', tx_hash: 'c'.repeat(64), counterparty_address: null },
+		{ id: 'i-theirs', tenant_id: OTHER, source: 'solana', account_id: 'a-x', wallet_id: 'w-x', timestamp_utc: '2025-09-02T00:00:00.000Z', asset_symbol: 'SECRET', currency: 'SECRET', amount: 9, direction: 'in', tx_hash: 'SolSig9', counterparty_address: SOL_PEER },
+	] as Row[],
+	sui: [
+		{ id: 'Dig1:sui', tenant_id: TENANT, wallet_id: 'w-sui', digest: 'Dig1', coin_type: '0x2::sui::SUI', symbol: 'SUI', amount: '3000000000', decimals: 9, timestamp: '2025-10-01T00:00:00.000Z', fee_mist: '0', status: 'success', counterparty_address: SUI_PEER },
+		{ id: 'Dig9:sui', tenant_id: OTHER, wallet_id: 'w-x', digest: 'Dig9', coin_type: '0x2::sui::SUI', symbol: 'SECRET', amount: '9', decimals: 9, timestamp: '2025-10-02T00:00:00.000Z', fee_mist: '0', status: 'success', counterparty_address: SUI_PEER },
+	] as Row[],
 };
 
 const COUNTERPARTY_SQL = 'AND (lower(t.from_address) = ? OR lower(t.to_address) = ?)';
@@ -59,7 +75,19 @@ function answer(stmt: { sql: string; args?: unknown[] }) {
 	if (state.fail) throw new Error(`connection lost while running ${sql} with ${JSON.stringify(args)}`);
 	const isCount = /^SELECT COUNT\(\*\) AS n FROM /.test(sql);
 	const rows = (r: Row[]) => ({ rows: isCount ? [{ n: String(r.length) }] : r, rowsAffected: 0 });
+	// counterparty_address is present on both tables (src/lib/counterpartyColumn.ts).
+	if (/column_name = 'counterparty_address'/.test(sql)) return rows([{ name: 'import_transactions' }, { name: 'sui_transactions' }]);
 	if (/information_schema\.columns/.test(sql)) return rows([]);
+	if (/FROM import_transactions/.test(sql)) {
+		let out = fx.imports.filter((r) => r.tenant_id === args[0]);
+		if (sql.includes('AND counterparty_address = ?')) out = out.filter((r) => r.counterparty_address === args.at(-1));
+		return rows(out);
+	}
+	if (/FROM sui_transactions s/.test(sql)) {
+		let out = fx.sui.filter((r) => r.tenant_id === args[0]);
+		if (sql.includes('AND s.counterparty_address = ?')) out = out.filter((r) => r.counterparty_address === args.at(-1));
+		return rows(out);
+	}
 	if (/FROM wallets WHERE tenant_id = \? AND lower\(address\) = \?/.test(sql)) {
 		return rows(fx.wallets.filter((w) => w.tenant_id === args[0] && String(w.address).toLowerCase() === args[1]));
 	}
@@ -131,10 +159,8 @@ describe('refusals, before any data is read', () => {
 	});
 
 	it.each([
-		['bc1q' + 'x3'.repeat(19), 'btc'],
 		['ltc1q' + 'w7'.repeat(19), 'ltc'],
-		['9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin', 'sol'],
-		['0x' + 'ab'.repeat(32), 'sui'],
+		['LTCLegacyAddr' + 'x'.repeat(21), 'ltc'],
 	])('%s: history is not kept yet for %s', async (address, network) => {
 		const res = await get(address);
 		expect(res.status).toBe(200);
@@ -220,6 +246,46 @@ describe('an EVM address', () => {
 		const res = await get(SHOP);
 		expect(res.headers.get('Cache-Control')).toBe('no-store');
 		expect(res.headers.get('Content-Type')).toBe('application/json');
+	});
+});
+
+describe('a Bitcoin, Solana or Sui address', () => {
+	it('returns the rows whose stored counterparty is the address, with explorer links', async () => {
+		const btc = await (await get(BTC_PEER.toUpperCase())).json();
+		expect(btc).toMatchObject({ supported: true, network: 'btc', ownWallet: null, truncated: false });
+		expect(btc.rows).toEqual([
+			{ date: '2025-08-01 00:00:00', direction: 'in', chain: 'bitcoin', asset: 'BTC', amount: '0.002', usdValue: '120', txHash: 'b'.repeat(64), txUrl: `https://blockstream.info/tx/${'b'.repeat(64)}`, failed: false },
+		]);
+		expect(btc.totals).toEqual([{ asset: 'BTC', chain: 'bitcoin', sent: '0', received: '0.002', count: 1, sentUsd: '', receivedUsd: '120' }]);
+
+		const sol = await (await get(SOL_PEER)).json();
+		expect(sol).toMatchObject({ supported: true, network: 'sol' });
+		expect(sol.rows.map((r: Row) => [r.direction, r.asset, r.amount, r.txHash])).toEqual([['out', 'USDC', '25', 'SolSig1']]);
+
+		const sui = await (await get(SUI_PEER)).json();
+		expect(sui).toMatchObject({ supported: true, network: 'sui' });
+		expect(sui.rows.map((r: Row) => [r.direction, r.asset, r.amount, r.txHash])).toEqual([['in', 'SUI', '3', 'Dig1']]);
+	});
+
+	it('every query is scoped by the session tenant and sends the address in its stored form', async () => {
+		await get(` ${BTC_PEER.toUpperCase()} `);
+		await get(SOL_PEER);
+		const calls = dataCalls();
+		for (const c of calls) {
+			expect(c.sql, c.sql).toMatch(/\btenant_id = \?/);
+			expect(c.args[0], c.sql).toBe(TENANT);
+		}
+		const filtered = calls.filter((c) => /counterparty_address = \?/.test(c.sql));
+		expect(filtered.map((c) => c.args.at(-1))).toEqual(expect.arrayContaining([BTC_PEER, SOL_PEER]));
+		// The EVM half is not read for these.
+		expect(calls.some((c) => /FROM transactions t/.test(c.sql))).toBe(false);
+	});
+
+	it('base58 is matched as written, and another tenant\'s rows with the same address never come back', async () => {
+		const lower = await (await get(SOL_PEER.toLowerCase())).json();
+		expect(lower.rows ?? []).toEqual([]);
+		const body = JSON.stringify(await (await get(SOL_PEER)).json()) + JSON.stringify(await (await get(SUI_PEER)).json());
+		expect(body).not.toContain('SECRET');
 	});
 });
 

@@ -42,6 +42,7 @@ const state = vi.hoisted(() => ({
 	plan: 'starter',
 	calls: [] as Array<{ sql: string; args: unknown[] }>,
 	identity: [] as Array<Record<string, unknown>>,
+	counterpartyFails: false,
 }));
 
 const fx = {
@@ -121,6 +122,11 @@ function filterRows(
 		const v = args[i++];
 		out = out.filter((r) => r.wallet_id === v);
 	}
+	// Exact, as SQL compares text.
+	if (/AND (s\.)?counterparty_address = \?/.test(sql)) {
+		const v = args[i++];
+		out = out.filter((r) => r.counterparty_address === v);
+	}
 	// Compared as SQL does: lower() of the column against the value as sent (not lowercased here).
 	if (sql.includes('AND (lower(t.from_address) = ? OR lower(t.to_address) = ?)')) {
 		const [from, to] = [args[i++], args[i++]];
@@ -143,6 +149,11 @@ function answer(stmt: string | { sql: string; args?: unknown[] }) {
 	// a count as text.
 	const isCount = /^SELECT COUNT\(\*\) AS n FROM /.test(sql);
 	const rows = (r: Row[]) => ({ rows: isCount ? [{ n: String(r.length) }] : r, rowsAffected: 0 });
+	// counterparty_address is ensured on both tables (src/lib/counterpartyColumn.ts).
+	if (/column_name = 'counterparty_address'/.test(sql)) {
+		if (state.counterpartyFails) throw new Error('permission denied');
+		return rows([{ name: 'import_transactions' }, { name: 'sui_transactions' }]);
+	}
 	if (/information_schema\.columns/.test(sql)) return rows(IMPORT_COLUMNS.map((name) => ({ name })));
 	if (/CREATE TABLE IF NOT EXISTS wallet_identity/.test(sql)) return rows([]);
 	if (/FROM wallets w WHERE w\.id = \? AND w\.tenant_id = \?/.test(sql)) {
@@ -226,6 +237,7 @@ beforeEach(() => {
 	state.plan = 'starter';
 	state.calls = [];
 	state.identity = [];
+	state.counterpartyFails = false;
 	dbExecute.mockReset();
 	dbExecute.mockImplementation(async (stmt) => answer(stmt));
 	vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -846,7 +858,7 @@ describe('history with one counterparty address (GET /api/address-history)', () 
 		}
 	});
 
-	it('the import and Sui halves are not read: they cannot match a full address', async () => {
+	it('for an EVM address the import and Sui halves are not read: they keep no EVM counterparty', async () => {
 		const rows = await loadHistoryRows(TENANT, { counterparty: DEAD });
 		expect(rows.some((r) => r.origin !== 'onchain')).toBe(false);
 		expect(state.calls.some((c) => /FROM import_transactions|FROM sui_transactions/.test(c.sql))).toBe(false);
@@ -877,5 +889,85 @@ describe('history with one counterparty address (GET /api/address-history)', () 
 		expect(counts).toHaveLength(1);
 		expect(counts[0].sql).toContain('lower(t.from_address) = ?');
 		await expect(loadHistoryRows(TENANT, { counterparty: DEAD }, 1)).rejects.toThrow(/more than 1/);
+	});
+});
+
+describe('history with one Bitcoin, Solana or Sui address (counterparty_address)', () => {
+	const BTC_PEER = 'bc1qpeerpeerpeerpeerpeerpeerpeerpeerpeer0';
+	const SOL_PEER = 'So1PeerMixedCase' + 'x'.repeat(28);
+	const SUI_PEER = '0x' + 'cd'.repeat(32);
+	const added = {
+		imports: [
+			{ id: 'c-btc', tenant_id: TENANT, source: 'bitcoin', account_id: ACCT_BTC, wallet_id: 'w-btc', timestamp_utc: '2025-08-01T00:00:00Z', asset_symbol: 'BTC', amount: 0.002, direction: 'in', tx_hash: 'b'.repeat(64), is_duplicate: 0, counterparty_address: BTC_PEER },
+			{ id: 'c-btc-dup', tenant_id: TENANT, source: 'bitcoin', account_id: ACCT_BTC, wallet_id: 'w-btc', timestamp_utc: '2025-08-01T00:00:00Z', asset_symbol: 'BTC', amount: 0.002, direction: 'in', tx_hash: 'b'.repeat(64), is_duplicate: 1, counterparty_address: BTC_PEER },
+			{ id: 'c-sol', tenant_id: TENANT, source: 'solana', account_id: null, wallet_id: 'w-sol', timestamp_utc: '2025-09-01T00:00:00Z', asset_symbol: 'USDC', amount: -25, direction: 'out', tx_hash: 'SolSig1', is_duplicate: 0, counterparty_address: SOL_PEER },
+			{ id: 'c-theirs', tenant_id: OTHER, source: 'solana', account_id: null, wallet_id: 'w-other', timestamp_utc: '2025-09-02T00:00:00Z', asset_symbol: 'SECRET', amount: 9, direction: 'in', tx_hash: 'SolSig9', is_duplicate: 0, counterparty_address: SOL_PEER },
+		] as Row[],
+		sui: [
+			{ id: 'c-sui', tenant_id: TENANT, wallet_id: 'w-sui', digest: 'Dig7', coin_type: '0x2::sui::SUI', symbol: 'SUI', amount: '3000000000', decimals: 9, timestamp: '2025-10-01T00:00:00.000Z', fee_mist: '0', status: 'success', counterparty_address: SUI_PEER },
+			{ id: 'c-sui-theirs', tenant_id: OTHER, wallet_id: 'w-other', digest: 'Dig9', coin_type: '0x2::sui::SUI', symbol: 'SECRET', amount: '9', decimals: 9, timestamp: '2025-10-02T00:00:00.000Z', fee_mist: '0', status: 'success', counterparty_address: SUI_PEER },
+		] as Row[],
+	};
+	beforeEach(() => {
+		fx.imports.push(...added.imports);
+		fx.sui.push(...added.sui);
+	});
+	afterEach(() => {
+		fx.imports.splice(-added.imports.length);
+		fx.sui.splice(-added.sui.length);
+	});
+
+	it("only the tenant's imported rows with that counterparty come back, duplicates skipped, bech32 without case", async () => {
+		const rows = await loadHistoryRows(TENANT, { counterparty: `  ${BTC_PEER.toUpperCase()} ` });
+		expect(rows.map((r) => r.id)).toEqual(['c-btc']);
+		expect(rows[0]).toMatchObject({ origin: 'import', chain: 'bitcoin', direction: 'in', amount: '0.002', counterparty: BTC_PEER });
+		// The EVM half is not read; the import and Sui halves get the canonical value.
+		expect(dataCalls().some((c) => /FROM transactions t/.test(c.sql))).toBe(false);
+		const filtered = dataCalls().filter((c) => /counterparty_address = \?/.test(c.sql));
+		expect(filtered).toHaveLength(2);
+		expect(filtered.every((c) => c.args.at(-1) === BTC_PEER)).toBe(true);
+	});
+
+	it('a Solana address is matched exactly as written, and another tenant\'s row never comes back', async () => {
+		expect((await loadHistoryRows(TENANT, { counterparty: SOL_PEER })).map((r) => r.id)).toEqual(['c-sol']);
+		expect(await loadHistoryRows(TENANT, { counterparty: SOL_PEER.toLowerCase() })).toEqual([]);
+		expect((await loadHistoryRows(OTHER, { counterparty: SOL_PEER })).map((r) => r.id)).toEqual(['c-theirs']);
+	});
+
+	it('a Sui address matches the Sui rows', async () => {
+		const rows = await loadHistoryRows(TENANT, { counterparty: SUI_PEER.toUpperCase().replace('0X', '0x') });
+		expect(rows.map((r) => [r.id, r.origin, r.direction, r.amount, r.counterparty])).toEqual([['c-sui', 'sui', 'in', '3', SUI_PEER]]);
+	});
+
+	it('every query is scoped by the tenant, the count included', async () => {
+		await loadHistoryRows(TENANT, { counterparty: SOL_PEER }, 10);
+		const calls = dataCalls();
+		expect(calls.some((c) => /^SELECT COUNT\(\*\)/.test(c.sql) && /counterparty_address = \?/.test(c.sql))).toBe(true);
+		for (const c of calls) {
+			expect(c.sql, c.sql).toMatch(/\btenant_id = \?/);
+			expect(c.args[0], c.sql).toBe(TENANT);
+		}
+	});
+
+	it('the plain CSV now shows the stored counterparty of an imported row', async () => {
+		const rows = await loadHistoryRows(TENANT, {});
+		expect(rows.find((r) => r.id === 'c-btc')?.counterparty).toBe(BTC_PEER);
+		expect(rows.find((r) => r.id === 'c-sui')?.counterparty).toBe(SUI_PEER);
+		expect(rows.find((r) => r.id === 'i1')?.counterparty).toBe('');
+	});
+
+	it('when the column cannot be ensured, these halves select nothing rather than everything', async () => {
+		vi.resetModules();
+		state.counterpartyFails = true;
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fresh = await import('../../src/lib/historyRows');
+		state.calls = [];
+		expect(await fresh.loadHistoryRows(TENANT, { counterparty: BTC_PEER })).toEqual([]);
+		expect(dataCalls()).toEqual([]);
+	});
+
+	it('anything that is not an address selects nothing and reads nothing', async () => {
+		expect(await loadHistoryRows(TENANT, { counterparty: '@burn' })).toEqual([]);
+		expect(dataCalls()).toEqual([]);
 	});
 });

@@ -8,6 +8,10 @@
  *   transactions         on-chain EVM rows and custom-wallet entries, with their annotation
  *   sui_transactions     Sui wallets
  *
+ * Counterparties: EVM rows store from_address / to_address; Bitcoin, Solana and Sui rows store
+ * counterparty_address (src/lib/counterpartyColumn.ts), filled by syncs since it was added, so
+ * older rows may have none.
+ *
  * Fixes over the old export: a wallet filter applies to every half (it used to filter only
  * the on-chain half, so a one-wallet file held every exchange row), rows flagged as
  * duplicates are skipped (the same predicate as /api/transactions/list), Sui is included,
@@ -25,6 +29,9 @@ import { getImportTransactionColumns, selectImportColumn, selectImportNotes } fr
 import { isChainSource, normalizeChain, parseWalletKey } from './walletKey';
 import type { WalletRef } from './walletIdentity';
 import { refOfImportRow, refOfOnchainRow, refOfSuiRow } from './tax/walletOfRow';
+import { addressNetwork } from './addressNetwork';
+import { ensureCounterpartyColumns } from './counterpartyColumn';
+import { canonicalAddress } from './wallets-service';
 
 export type HistoryOrigin = 'import' | 'onchain' | 'sui';
 export type HistoryDirection = 'in' | 'out' | 'lost' | '';
@@ -66,9 +73,11 @@ export interface HistoryQuery {
 	/** One wallet, already checked to belong to the tenant. Omitted = every wallet. */
 	wallet?: { id: string; address: string };
 	/**
-	 * Only rows sent to or received from this full EVM address (GET /api/address-history).
-	 * Matched without case. Only the on-chain half stores full counterparties, so with this set
-	 * the import and Sui halves select nothing; an empty value selects nothing at all.
+	 * Only rows sent to or received from this full address (GET /api/address-history). An EVM
+	 * address matches the on-chain half's from/to without case. Any other address matches the
+	 * import and Sui halves' counterparty_address exactly, in canonicalAddress form (base58 as
+	 * written, bech32 and hex lowercased); rows synced before that column existed have none.
+	 * An empty value, or one that is not an address, selects nothing at all.
 	 */
 	counterparty?: string;
 }
@@ -239,7 +248,7 @@ export function mapImportRow(r: DbRow): HistoryRow {
 		fee,
 		feeAsset,
 		txHash: str(r.tx_hash).trim(),
-		counterparty: '',
+		counterparty: str(r.counterparty_address).trim(),
 		category: (str(r.category) || str(r.kind)).trim(),
 		notes: (str(r.notes) || str(r.description)).trim(),
 		failed: false,
@@ -384,7 +393,7 @@ export function mapSuiRow(r: DbRow): HistoryRow | null {
 		fee,
 		feeAsset: fee ? 'SUI' : '',
 		txHash: str(r.digest).trim(),
-		counterparty: '',
+		counterparty: str(r.counterparty_address).trim(),
 		category: str(r.category).trim(),
 		notes: str(r.note).trim(),
 		failed,
@@ -438,19 +447,28 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 	// A cex: wallet with no account id cannot select anything: fail closed.
 	if (isMirror && !accountFilter) return [];
 	const walletFilter = query.wallet && !isMirror ? query.wallet.id : null;
-	const counterparty = query.counterparty === undefined ? null : query.counterparty.trim().toLowerCase();
-	if (counterparty === '') return [];
+	const typed = query.counterparty === undefined ? null : query.counterparty.trim();
+	const network = typed ? addressNetwork(typed) : null;
+	if (typed !== null && network === null) return [];
+	// An EVM counterparty is matched on the on-chain half (lowercased); any other on the import
+	// and Sui halves' counterparty_address (canonical). Each filter selects nothing in the others.
+	const counterparty = typed !== null && network === 'evm' ? typed.toLowerCase() : null;
+	const storedCounterparty = typed !== null && network !== 'evm' ? canonicalAddress(typed) : null;
+	const filtered = typed !== null;
 
 	const columns = await getImportTransactionColumns();
-	const has = (c: string) => columns.has(c);
+	// Ensured once per process; until then (or if it cannot be) these rows have no counterparty.
+	const kept = await ensureCounterpartyColumns();
+	const has = (c: string) => columns.has(c) || (kept && c === 'counterparty_address');
 
 	const out: HalfStatement[] = [];
 
 	// ── Imported rows ──
 	const importWallet = accountFilter !== null ? (has('account_id') ? 'AND account_id = ?' : null) : walletFilter !== null ? (has('wallet_id') ? 'AND wallet_id = ?' : null) : '';
 	// A wallet filter on a column this database does not have selects nothing, not everything.
-	// Imported rows keep no full counterparty address, so a counterparty filter selects none.
-	if (importWallet !== null && counterparty === null) {
+	// The same for a counterparty filter.
+	const importCounterparty = !filtered ? '' : storedCounterparty !== null && has('counterparty_address') ? 'AND counterparty_address = ?' : null;
+	if (importWallet !== null && importCounterparty !== null) {
 		const args: string[] = [tenantId];
 		let where = 'WHERE tenant_id = ?';
 		if (has('is_duplicate')) where += ` AND ${NOT_DUPLICATE('is_duplicate')}`;
@@ -462,6 +480,10 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			where += ` ${importWallet}`;
 			args.push((accountFilter ?? walletFilter)!);
 		}
+		if (importCounterparty) {
+			where += ` ${importCounterparty}`;
+			args.push(storedCounterparty!);
+		}
 		out.push({
 			from: 'import_transactions',
 			select: `id, source, timestamp_utc, description, currency, amount, to_currency, to_amount,
@@ -469,7 +491,8 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			        ${selectImportNotes(columns)}, ${selectImportColumn(columns, 'category')},
 			        ${selectImportColumn(columns, 'fee_usd')}, ${selectImportColumn(columns, 'fee_native')},
 			        ${selectImportColumn(columns, 'fee_currency')}, ${selectImportColumn(columns, 'account_id')},
-			        ${selectImportColumn(columns, 'wallet_id')}`,
+			        ${selectImportColumn(columns, 'wallet_id')},
+			        ${has('counterparty_address') ? 'counterparty_address' : 'NULL AS counterparty_address'}`,
 			joins: '',
 			where,
 			args,
@@ -478,7 +501,7 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 	}
 
 	// ── On-chain rows (and custom-wallet entries) ──
-	if (accountFilter === null) {
+	if (accountFilter === null && (!filtered || counterparty !== null)) {
 		const args: string[] = [tenantId];
 		let where = `WHERE t.tenant_id = ? AND ${NOT_DUPLICATE('t.is_duplicate')}`;
 		if (bounds) {
@@ -505,9 +528,10 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			args,
 			map: (rows) => rows.map(mapOnchainRow),
 		});
+	}
 
-		// ── Sui rows (no counterparty column, so a counterparty filter selects none) ──
-		if (counterparty !== null) return out;
+	// ── Sui rows ──
+	if (accountFilter === null && (!filtered || (storedCounterparty !== null && kept))) {
 		const suiArgs: string[] = [tenantId];
 		let suiWhere = 'WHERE s.tenant_id = ?';
 		if (bounds) {
@@ -518,10 +542,14 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			suiWhere += ' AND s.wallet_id = ?';
 			suiArgs.push(walletFilter);
 		}
+		if (storedCounterparty !== null) {
+			suiWhere += ' AND s.counterparty_address = ?';
+			suiArgs.push(storedCounterparty);
+		}
 		out.push({
 			from: 'sui_transactions s',
 			select: `s.id, s.wallet_id, s.digest, s.coin_type, s.symbol, s.amount, s.decimals, s.timestamp,
-			        s.fee_mist, s.status, s.note, s.category`,
+			        s.fee_mist, s.status, s.note, s.category, ${kept ? 's.counterparty_address' : 'NULL AS counterparty_address'}`,
 			joins: '',
 			where: suiWhere,
 			args: suiArgs,
@@ -550,8 +578,8 @@ function countStatements(statements: readonly HalfStatement[]): Promise<number> 
  * Every transaction row of the tenant, mapped and sorted. With `query.wallet`, only that
  * wallet's rows, in every half: an exchange mirror wallet (address cex:{source}:{accountId})
  * selects that account's imported rows; any other wallet selects its on-chain, Sui and
- * chain-synced import rows by wallet_id. With `query.counterparty`, only on-chain rows sent to or
- * received from that address.
+ * chain-synced import rows by wallet_id. With `query.counterparty`, only rows sent to or received
+ * from that address (see HistoryQuery).
  *
  * With `limit`, the halves are counted first, and more rows than the limit throws
  * HistoryTooLargeError before any row is loaded.
