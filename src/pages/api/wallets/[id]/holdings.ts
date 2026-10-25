@@ -5,12 +5,11 @@ import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { tryAcquireLock } from '@/lib/cacheLock';
-import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
+import { getTokentxPaged, getNativeBalanceWei, SNOWTRACE_BASE_URL } from '@/lib/etherscan';
 import { getAllTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 import { sqlTimestamptz } from '@/lib/utcTimestamp';
 
-const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
 const ETHEREUM_CHAIN_ID = 1;
 const AVALANCHE_CHAIN_ID = 43114;
@@ -404,7 +403,7 @@ async function fetchAlchemyTokenAggregates(
 }
 
 async function fetchTokenTransfers(address: string, chainId: number, requestId?: string): Promise<TokenTx[]> {
-	// Avalanche stays on Snowtrace (Etherscan-style but separate key/base URL)
+	// Avalanche goes to Routescan (Etherscan-style, its own key and base URL from etherscan.ts)
 	if (chainId === AVALANCHE_CHAIN_ID) {
 		const results: TokenTx[] = [];
 		for (let page = 1; page <= MAX_PAGES; page += 1) {
