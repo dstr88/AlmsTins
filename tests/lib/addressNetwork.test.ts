@@ -14,7 +14,8 @@ const BTC_BECH32 = `bc1q${'x3'.repeat(19)}`;
 const BTC_LEGACY = `1${'ex4mp'.repeat(6)}`;
 const BTC_P2SH = `3${'ex4mp'.repeat(6)}`;
 const LTC_BECH32 = `ltc1q${'w7'.repeat(19)}`;
-const SOL_ADDR = `so${'ex4mpe'.repeat(6)}`;
+const LTC_LEGACY = `L${'Ex4mp'.repeat(6)}`;
+const SOL_ADDR = `So${'Ex4mPe'.repeat(6)}`;
 
 describe('addressNetwork', () => {
 	it.each([
@@ -26,7 +27,10 @@ describe('addressNetwork', () => {
 		[BTC_LEGACY, 'btc'],
 		[BTC_P2SH, 'btc'],
 		[LTC_BECH32, 'ltc'],
+		[LTC_LEGACY, 'ltc'],
+		[`M${LTC_LEGACY.slice(1)}`, 'ltc'],
 		[SOL_ADDR, 'sol'],
+		[SOL_ADDR.toLowerCase(), 'sol'],
 	])('%s is %s', (address, network) => {
 		expect(addressNetwork(address)).toBe(network);
 	});
@@ -44,6 +48,12 @@ describe('addressNetwork', () => {
 		}
 	});
 
+	it('a real Solana key mixes upper and lower case, and still reads as Solana', () => {
+		expect(addressNetwork('9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin')).toBe('sol');
+		// 0, O, I and l are not base58.
+		expect(addressNetwork(`O${SOL_ADDR.slice(1)}`)).toBeNull();
+	});
+
 	it('Litecoin is checked before Bitcoin, and Sui (64 hex digits) before EVM (40)', () => {
 		expect(addressNetwork(LTC_BECH32)).toBe('ltc');
 		expect(addressNetwork(SUI_ADDR)).toBe('sui');
@@ -57,7 +67,7 @@ describe('addressNetwork', () => {
 	});
 
 	it('isOnchainAddress is true for every recognized network', () => {
-		for (const v of [EVM_ADDR, SUI_ADDR, BTC_BECH32, BTC_LEGACY, LTC_BECH32, SOL_ADDR]) {
+		for (const v of [EVM_ADDR, SUI_ADDR, BTC_BECH32, BTC_LEGACY, LTC_BECH32, LTC_LEGACY, SOL_ADDR]) {
 			expect(isOnchainAddress(v), v).toBe(true);
 		}
 	});
