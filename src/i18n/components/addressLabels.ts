@@ -165,7 +165,7 @@ export const en: AddressLabelsLocale = {
     'Tag exchange hot wallets, other people’s wallets, and services so they show up with a name in your history. These are not your wallets and are not added to the Vault.',
 
   formEyebrow: 'Tag an address',
-  scanBtnTitle: 'Upload a screenshot — Claude will read the wallet address for you',
+  scanBtnTitle: 'Upload a screenshot. Claude will read the wallet address for you',
   scanBtnLabel: 'Scan Screenshot',
   scanBtnScanning: 'Scanning…',
 
@@ -286,7 +286,7 @@ export const es: AddressLabelsLocale = {
     "Etiqueta billeteras de intercambios, billeteras de otras personas y servicios para que aparezcan con un nombre en tu historial. Estas no son tus billeteras y no se agregan al Vault.",
 
   formEyebrow: "Etiquetar una dirección",
-  scanBtnTitle: "Sube una captura de pantalla — Claude leerá la dirección de la billetera por ti",
+  scanBtnTitle: "Sube una captura de pantalla. Claude leerá la dirección de la billetera por ti",
   scanBtnLabel: "Escanear captura",
   scanBtnScanning: "Escaneando…",
 
@@ -407,7 +407,7 @@ export const fr: AddressLabelsLocale = {
     "Identifiez les portefeuilles des exchanges, les portefeuilles d'autres personnes et les services pour qu'ils apparaissent avec un nom dans votre historique. Ce ne sont pas vos portefeuilles et ils ne sont pas ajoutés au Vault.",
 
   formEyebrow: "Identifier une adresse",
-  scanBtnTitle: "Importez une capture d'écran — Claude lira l'adresse du portefeuille pour vous",
+  scanBtnTitle: "Importez une capture d'écran. Claude lira l'adresse du portefeuille pour vous",
   scanBtnLabel: "Scanner la capture",
   scanBtnScanning: "Analyse en cours…",
 
