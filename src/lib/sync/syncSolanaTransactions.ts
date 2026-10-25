@@ -22,7 +22,7 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { rebuildAssetLifecycles } from '@/lib/lifecycle';
 import { logActivity } from '@/lib/activityLog';
-import { fillCounterparties, importCounterpartyUpdate } from '@/lib/counterpartyColumn';
+import { insertImportBatch } from '@/lib/importRows';
 import { canonicalAddress } from '@/lib/wallets-service';
 import type { Wallet } from '@/lib/wallets';
 import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
@@ -271,45 +271,27 @@ export async function syncSolanaAddress(
 		normRows.push(...rowsFromTx(tx, sig.signature, address));
 	}
 
-	// Persist (mirror syncBtcAddress import_transactions + import_raw_rows shape).
-	const BATCH = 100;
-	// The table's columns are import_batch_id and row_json (migrations/0001_crypto_com.sql). This
-	// insert used to name batch_id and raw_json, which don't exist, so every sync threw here, before
-	// any transaction or the cursor was saved: no Solana history was ever stored.
-	const rawStmts = normRows.map((r) => ({
-		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash, imported_at)
-		      VALUES (?, ?, ?, ?, 'solana', ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
-	}));
-	const normStmts = normRows.map((r) => ({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
-		       description, currency, amount, to_currency, to_amount,
-		       native_currency, native_amount, native_usd,
-		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'solana', ?, ?, ?, ?,  ?, ?, ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
-			r.description, r.symbol,
-			r.direction === 'out' ? -r.amount : r.amount,
-			r.kind, r.signature, r.direction, r.symbol, r.rowHash,
-		],
-	}));
-
-	let inserted = 0;
-	for (let i = 0; i < rawStmts.length; i += BATCH) {
-		await db.batch(rawStmts.slice(i, i + BATCH), 'write');
-	}
-	for (let i = 0; i < normStmts.length; i += BATCH) {
-		const res = await db.batch(normStmts.slice(i, i + BATCH), 'write');
-		inserted += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
-	}
-	// Only the signatures fetched this run: rows an earlier sync saved (behind the cursor) keep NULL.
-	await fillCounterparties(normRows.flatMap((r) =>
-		r.counterparty ? [importCounterpartyUpdate(tenantId, 'solana', accountId, r.rowHash, r.counterparty)] : []));
+	// Persist through the shared writer (src/lib/importRows.ts): an earlier inline copy of this insert
+	// named batch_id and raw_json, which don't exist, so no Solana history was ever stored. The
+	// counterparty fill covers only the signatures fetched this run: rows an earlier sync saved
+	// (behind the cursor) keep NULL.
+	const { insertedNormalized: inserted } = await insertImportBatch({
+		tenantId, accountId, walletId, source: 'solana', batchId,
+		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
+		rows: normRows.map((r) => ({
+			timestampUtc: r.timestamp,
+			description: r.description,
+			currency: r.symbol,
+			amount: r.direction === 'out' ? -r.amount : r.amount,
+			nativeCurrency: 'USD',
+			kind: r.kind,
+			txHash: r.signature,
+			direction: r.direction,
+			assetSymbol: r.symbol,
+			rowHash: r.rowHash,
+			counterparty: r.counterparty,
+		})),
+	});
 
 	// Save cursor (newest signature) + last_run_at — used for cron staleness.
 	const now = new Date().toISOString();
@@ -322,7 +304,7 @@ ON CONFLICT DO NOTHING`,
 		args: [walletId, SOLANA_CHAIN, tenantId, newestSignature ?? now, now],
 	});
 
-	return { inserted, skipped: normStmts.length - inserted, txCount: sigs.length };
+	return { inserted, skipped: normRows.length - inserted, txCount: sigs.length };
 }
 
 /** Endpoint/cron-facing wrapper. Runs matching + classify + lifecycle rebuild, returns WalletSyncStats. */
