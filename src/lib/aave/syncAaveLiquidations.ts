@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
-import { randomUUID } from 'node:crypto';
+import { insertImportBatch, type ImportTxRow } from '@/lib/importRows';
 import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getLiquidationAlert } from '@/i18n/emails/liquidationAlert';
@@ -178,7 +178,8 @@ export async function syncLiquidationsToImportTransactions(
 	const events = await fetchAllLiquidationsForWallet(address);
 	if (!events.length) return 0;
 
-	let imported = 0;
+	// One import per chain: each chain's rows carry their own source and batch id.
+	const byChain = new Map<string, ImportTxRow[]>();
 	for (const event of events) {
 		const rowHash = `aave-liq:${event.txHash}:${event.chain}`;
 
@@ -189,32 +190,32 @@ export async function syncLiquidationsToImportTransactions(
 			`Debt cleared: $${event.debtUsd.toFixed(2)} · ` +
 			`Liquidation penalty: $${event.penaltyUsd.toFixed(2)}`;
 
-		const result = await db.execute({
-			sql: `INSERT INTO import_transactions
-			        (id, tenant_id, source, import_batch_id, timestamp_utc, direction,
-			         asset_symbol, amount, native_usd, kind, row_hash,
-			         tx_hash, description, notes, category)
-			      VALUES (?, ?, ?, ?, ?, 'out',
-			              ?, ?, ?, 'crypto_transfer', ?,
-			              ?, ?, ?, 'liquidation')
-ON CONFLICT DO NOTHING`,
-			args: [
-				randomUUID(),
-				tenantId,
-				`aave_${event.chain}`,
-				`aave-liq-${tenantId.slice(0, 8)}-${event.chain}`,
-				event.timestamp,
-				event.collateralSymbol,
-				event.collateralAmount,
-				event.collateralUsd,
-				rowHash,
-				event.txHash,
-				description,
-				notes,
-			],
+		const rows = byChain.get(event.chain) ?? byChain.set(event.chain, []).get(event.chain)!;
+		rows.push({
+			timestampUtc: event.timestamp,
+			direction: 'out',
+			assetSymbol: event.collateralSymbol,
+			amount: event.collateralAmount,
+			nativeUsd: event.collateralUsd,
+			kind: 'crypto_transfer',
+			rowHash,
+			txHash: event.txHash,
+			description,
+			notes,
+			category: 'liquidation',
 		});
+	}
 
-		if ((result as any).rowsAffected > 0) imported++;
+	let imported = 0;
+	for (const [chain, rows] of byChain) {
+		const result = await insertImportBatch({
+			tenantId,
+			accountId: null,
+			source: `aave_${chain}`,
+			batchId: `aave-liq-${tenantId.slice(0, 8)}-${chain}`,
+			rows,
+		});
+		imported += result.insertedNormalized;
 	}
 
 	if (imported > 0) {
