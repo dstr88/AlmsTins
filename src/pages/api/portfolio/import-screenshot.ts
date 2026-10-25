@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID, createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { insertImportBatch } from '../../../lib/importRows';
 import { canonicalImportSource, importSourceDisplayName } from '../../../lib/importSource';
 import { toUtcIso } from '../../../lib/utcTimestamp';
 
@@ -132,34 +133,26 @@ If a field cannot be determined from the image, use null.`,
 	const batchId = randomUUID();
 	const txId = randomUUID();
 
-	const insertResult = await db.execute({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description,
-		       currency, amount, native_usd, kind, tx_hash, direction, asset_symbol, row_hash,
-		       fee_usd, created_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			txId,
-			tenantId,
-			source,
-			accountId,
-			batchId,
+	const insertResult = await insertImportBatch({
+		tenantId, accountId, source, batchId,
+		rows: [{
+			id: txId,
 			timestampUtc,
-			parsed.description ?? null,
-			String(parsed.currency),
-			parsed.amount ?? null,
-			parsed.nativeUsd ?? null,
-			parsed.kind ?? null,
-			parsed.txHash ?? null,
-			String(parsed.direction),
-			String(parsed.currency),
+			// The model's values as it gave them (typed for the writer, not converted).
+			description: (parsed.description ?? null) as string | null,
+			currency: String(parsed.currency),
+			amount: (parsed.amount ?? null) as number | null,
+			nativeUsd: (parsed.nativeUsd ?? null) as number | null,
+			kind: (parsed.kind ?? null) as string | null,
+			txHash: (parsed.txHash ?? null) as string | null,
+			direction: String(parsed.direction),
+			assetSymbol: String(parsed.currency),
 			rowHash,
-			parsed.feeUsd ?? null,
-		],
+			feeUsd: (parsed.feeUsd ?? null) as number | null,
+		}],
 	});
 
-	const isDuplicate = (insertResult.rowsAffected ?? 0) === 0;
+	const isDuplicate = !insertResult.inserted[0];
 
 	return new Response(
 		JSON.stringify({

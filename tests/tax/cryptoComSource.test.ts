@@ -22,7 +22,8 @@ const { mockExecute, mockCreate } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/lib/db', () => ({
-  db: { execute: mockExecute, batch: vi.fn() },
+  // The shared import writer sends its INSERTs through db.batch; record them like the rest.
+  db: { execute: mockExecute, batch: vi.fn(async (stmts: unknown[]) => Promise.all(stmts.map((s) => mockExecute(s)))) },
 }));
 
 vi.mock('../../src/lib/requireTenantSession', () => ({
@@ -41,6 +42,7 @@ import { GET as listBatches, DELETE as deleteBatch } from '../../src/pages/api/i
 import { canonicalImportSource, importSourceDisplayName } from '../../src/lib/importSource';
 import { classifyImportTxPass1 } from '../../src/lib/yearEnd/pass1';
 import type { RawImportTx } from '../../src/lib/yearEnd/types';
+import { insertColumns } from '../helpers/migrationColumns';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +50,13 @@ type Call = { sql: string; args: unknown[] };
 
 function dbCalls(): Call[] {
   return mockExecute.mock.calls.map(([q]) => ({ sql: String(q.sql), args: q.args ?? [] }));
+}
+
+/** The value a statement gives one column of its INSERT. */
+function insertArg(call: Call, column: string): unknown {
+  const cols = insertColumns(call.sql)!.columns;
+  expect(cols).toContain(column);
+  return call.args[cols.indexOf(column)];
 }
 
 function dbCall(fragment: string): Call {
@@ -120,21 +129,19 @@ const WRITERS = [
 
 /** The import_transactions row a writer inserted, in the shape pass1 reads. */
 function insertedImportRow(): RawImportTx {
-  // Column order of both INSERTs: id, tenant_id, source, account_id, import_batch_id,
-  // timestamp_utc, description, currency, amount, native_usd, kind, tx_hash, direction,
-  // asset_symbol, row_hash, fee_usd.
-  const a = dbCall('INSERT INTO import_transactions').args;
+  const c = dbCall('INSERT INTO import_transactions');
+  const a = (column: string) => insertArg(c, column);
   return {
-    id:            String(a[0]),
-    source:        String(a[2]),
-    timestamp_utc: String(a[5]),
-    description:   a[6] as string | null,
-    amount:        a[8] as number | null,
-    native_usd:    a[9] as number | null,
-    kind:          a[10] as string | null,
-    tx_hash:       a[11] as string | null,
-    direction:     a[12] as string | null,
-    asset_symbol:  a[13] as string | null,
+    id:            String(a('id')),
+    source:        String(a('source')),
+    timestamp_utc: String(a('timestamp_utc')),
+    description:   a('description') as string | null,
+    amount:        a('amount') as number | null,
+    native_usd:    a('native_usd') as number | null,
+    kind:          a('kind') as string | null,
+    tx_hash:       a('tx_hash') as string | null,
+    direction:     a('direction') as string | null,
+    asset_symbol:  a('asset_symbol') as string | null,
     to_amount:     null,
     notes:         null,
     category:      null,
@@ -207,9 +214,9 @@ describe.each(WRITERS)('$name', ({ run }) => {
     await run();
 
     expect(dbCalls().some((c) => c.sql.includes('INSERT INTO exchange_accounts'))).toBe(false);
-    const a = dbCall('INSERT INTO import_transactions').args;
-    expect(a[2]).toBe('crypto_com');
-    expect(a[3]).toBe('acct-csv');
+    const c = dbCall('INSERT INTO import_transactions');
+    expect(insertArg(c, 'source')).toBe('crypto_com');
+    expect(insertArg(c, 'account_id')).toBe('acct-csv');
   });
 
   it('leaves unknown sources as the model named them', async () => {
