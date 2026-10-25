@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch, type ImportTxRow, type RawImportRow } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -217,9 +218,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const rows = parseCsv(content);
 	const batchId = randomUUID();
 
-	type DbStatement = { sql: string; args: unknown[] };
-	const rawStatements: DbStatement[] = [];
-	const normStatements: DbStatement[] = [];
+	const rawRows: RawImportRow[] = [];
+	const txRows: ImportTxRow[] = [];
 
 	for (const row of rows) {
 		const timestampUtc = normalizeTimestamp(row['Timestamp'] || '');
@@ -268,47 +268,31 @@ export const POST: APIRoute = async ({ request }) => {
 		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId('coinbase', normalized.assetSymbol, normalized.timestampUtc);
 
-		rawStatements.push({
-			sql: `INSERT INTO import_raw_rows
-				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [randomUUID(), tenantId, 'coinbase', resolvedAccountId, batchId, JSON.stringify(row), rowHash],
-		});
-
-		normStatements.push({
-			sql: `INSERT INTO import_transactions
-				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
-				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [
-				randomUUID(), tenantId, 'coinbase', resolvedAccountId, batchId,
-				normalized.timestampUtc, normalized.description || null, normalized.currency || null,
-				normalized.amount, normalized.toCurrency || null, normalized.toAmount,
-				normalized.nativeCurrency || null, normalized.nativeAmount, normalized.nativeUsd,
-				normalized.kind || null, normalized.txHash, normalized.direction,
-				normalized.assetSymbol, groupId, rowHash,
-			],
+		rawRows.push({ rowJson: JSON.stringify(row), rowHash });
+		txRows.push({
+			timestampUtc: normalized.timestampUtc,
+			description: normalized.description || null,
+			currency: normalized.currency || null,
+			amount: normalized.amount,
+			toCurrency: normalized.toCurrency || null,
+			toAmount: normalized.toAmount,
+			nativeCurrency: normalized.nativeCurrency || null,
+			nativeAmount: normalized.nativeAmount,
+			nativeUsd: normalized.nativeUsd,
+			kind: normalized.kind || null,
+			txHash: normalized.txHash,
+			direction: normalized.direction,
+			assetSymbol: normalized.assetSymbol,
+			groupId,
+			rowHash,
 		});
 	}
 
-	// Execute all statements in batches of 100 to avoid Render request timeouts.
-	// db.batch() sends each chunk as a single HTTP round-trip to Turso.
-	const BATCH_SIZE = 100;
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
+	const { insertedRaw, insertedNormalized } = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'coinbase', batchId, rawRows, rows: txRows,
+	});
 
-	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-
-	const skippedDuplicates = rawStatements.length - insertedRaw;
+	const skippedDuplicates = rawRows.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'coinbase', 'Coinbase');
 	void runTransferMatching(tenantId, resolvedAccountId);
