@@ -19,6 +19,7 @@ import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
 import { db } from '@/lib/db';
+import { insertImportBatch } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -289,53 +290,28 @@ ON CONFLICT DO NOTHING`,
 		}), { status: 400 });
 	}
 
-	// ── Build INSERT statements ───────────────────────────────────────────────
+	// ── Store (src/lib/importRows.ts) ──────────────────────────────────────────
 
-	const rawStatements  = normRows.map(r => ({
-		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)
-ON CONFLICT DO NOTHING`,
-		args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r), r.rowHash],
-	}));
+	const { insertedRaw, insertedNormalized } = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'avalanche_cchain', batchId,
+		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
+		rows: normRows.map((r) => ({
+			timestampUtc: r.timestamp,
+			description: r.description,
+			currency: 'AVAX',
+			amount: r.direction === 'out' ? -r.amount : r.amount,
+			nativeCurrency: 'USD',
+			nativeAmount: r.nativeUsd,
+			nativeUsd: r.nativeUsd,
+			kind: r.kind,
+			txHash: r.txHash,
+			direction: r.direction,
+			assetSymbol: 'AVAX',
+			rowHash: r.rowHash,
+		})),
+	});
 
-	const normStatements = normRows.map(r => ({
-		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
-		       description, currency, amount,
-		       to_currency, to_amount,
-		       native_currency, native_amount, native_usd,
-		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-		args: [
-			randomUUID(), tenantId, resolvedAccountId, batchId, r.timestamp,
-			r.description,
-			r.direction === 'out' ? -r.amount : r.amount,
-			r.nativeUsd, r.nativeUsd,
-			r.kind,
-			r.txHash,
-			r.direction,
-			r.rowHash,
-		],
-	}));
-
-	// ── Execute in batches ────────────────────────────────────────────────────
-
-	const BATCH_SIZE = 100;
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
-
-	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-
-	const skippedDuplicates = rawStatements.length - insertedRaw;
+	const skippedDuplicates = normRows.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'avalanche_cchain', 'Avalanche C-Chain');
 
