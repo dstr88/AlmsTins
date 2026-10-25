@@ -76,6 +76,80 @@ export interface AddressLabelsLocale {
   catBadgePersonal: string;
   catBadgeBridge: string;
   catBadgeOther: string;
+
+  // The address details modal (AddressDetailsModal.tsx)
+  details: AddressDetailsLocale;
+}
+
+/**
+ * The address details modal. No em dash anywhere; the Verify texts never call an address safe or
+ * unsafe, and nothing here names the person behind an address.
+ */
+export interface AddressDetailsLocale {
+  openDetails: (label: string) => string;
+  dialogTitle: string;
+  close: string;
+
+  // Section headings
+  secDetails: string;
+  secVerify: string;
+  secHistory: string;
+  secQr: string;
+
+  // Details
+  fieldLabel: string;
+  fieldCategory: string;
+  fieldChain: string;
+  fieldAddress: string;
+  fieldNotes: string;
+  fieldPhone: string;
+  chainNotSet: string;
+  copy: string;
+  copied: string;
+  openOn: (explorer: string) => string;
+  openOnPick: string;
+  noExplorer: string;
+  notOnchain: string;
+  notRecognized: string;
+
+  // Verify
+  verifyIntro: string;
+  verifyChecking: string;
+  verifyVerified: (domain: string, since: string | null) => string;
+  verifyCard: string;
+  verifyClaimed: (since: string | null) => string;
+  verifyNotClaimed: string;
+  verifyFailed: string;
+
+  // Your history
+  historyIntro: string;
+  historyLoading: string;
+  historyNotKept: string;
+  historyTooMany: string;
+  historyEmpty: string;
+  historyFailed: string;
+  ownWallet: (label: string | null) => string;
+  openWalletTx: string;
+  range: (first: string, last: string) => string;
+  sent: string;
+  received: string;
+  txCount: (n: number) => string;
+  youSent: string;
+  youReceived: string;
+  dirLost: string;
+  dirOther: string;
+  failedTx: string;
+  unknownAmount: string;
+  viewTx: string;
+  latest: (n: number) => string;
+
+  // QR code
+  qrAlt: string;
+  qrLoading: string;
+  qrFailed: string;
+  qrScanCheck: string;
+  qrEvmNetworks: (label: string) => string;
+  qrDownload: string;
 }
 
 export const en: AddressLabelsLocale = {
@@ -133,6 +207,68 @@ export const en: AddressLabelsLocale = {
   catBadgePersonal: 'Personal',
   catBadgeBridge: 'Bridge',
   catBadgeOther: 'Other',
+
+  details: {
+    openDetails: (label) => `Show details for ${label}`,
+    dialogTitle: 'Address details',
+    close: 'Close',
+
+    secDetails: 'Details',
+    secVerify: 'Verify',
+    secHistory: 'Your history',
+    secQr: 'QR code',
+
+    fieldLabel: 'Label',
+    fieldCategory: 'Category',
+    fieldChain: 'Chain',
+    fieldAddress: 'Address',
+    fieldNotes: 'Notes',
+    fieldPhone: 'Phone',
+    chainNotSet: 'Not set',
+    copy: 'Copy',
+    copied: 'Copied',
+    openOn: (explorer) => `Open on ${explorer}`,
+    openOnPick: 'Open on:',
+    noExplorer: 'No block explorer link for this value.',
+    notOnchain: 'This is an account inside an exchange, not a blockchain address.',
+    notRecognized: 'This is not a blockchain address Almstins recognizes.',
+
+    verifyIntro: 'Whether the owner of this address has proven it with Almstins Verify. It never shows who the owner is.',
+    verifyChecking: 'Checking…',
+    verifyVerified: (domain, since) => (since ? `Verified by ${domain} since ${since}` : `Verified by ${domain}`),
+    verifyCard: 'See the public card',
+    verifyClaimed: (since) => (since ? `Claimed since ${since}` : 'Claimed'),
+    verifyNotClaimed: 'Not claimed with Almstins Verify.',
+    verifyFailed: 'Couldn’t check right now.',
+
+    historyIntro: 'Only your own records with this address.',
+    historyLoading: 'Loading your history…',
+    historyNotKept: 'History with Bitcoin, Litecoin, Solana and Sui addresses isn’t kept yet.',
+    historyTooMany: 'You have more than 5,000 transactions with this address, too many to show here.',
+    historyEmpty: 'No transactions with this address in your records.',
+    historyFailed: 'Couldn’t load your history right now.',
+    ownWallet: (label) => (label ? `This is your wallet ${label}.` : 'This is one of your wallets.'),
+    openWalletTx: 'Open this wallet’s transactions',
+    range: (first, last) => (first === last ? first : `${first} to ${last}`),
+    sent: 'Sent',
+    received: 'Received',
+    txCount: (n) => (n === 1 ? '1 transaction' : `${n} transactions`),
+    youSent: 'You sent',
+    youReceived: 'You received',
+    dirLost: 'Left your account',
+    dirOther: 'Moved',
+    failedTx: 'Failed',
+    unknownAmount: 'not known',
+    viewTx: 'View',
+    latest: (n) => `Showing the latest ${n}.`,
+
+    qrAlt: 'QR code of this address',
+    qrLoading: 'Drawing the QR code…',
+    qrFailed: 'Couldn’t draw the QR code.',
+    qrScanCheck: 'After scanning, check that the first and last characters match.',
+    qrEvmNetworks: (label) => `This address works on Ethereum, Polygon, Avalanche and BSC. Send on the network ${label} expects.`,
+    qrDownload: 'Download PNG',
+  },
 };
 
 export const es: AddressLabelsLocale = {
@@ -190,6 +326,68 @@ export const es: AddressLabelsLocale = {
   catBadgePersonal: "Personal",
   catBadgeBridge: "Bridge",
   catBadgeOther: "Otro",
+
+  details: {
+    openDetails: (label) => `Ver detalles de ${label}`,
+    dialogTitle: "Detalles de la dirección",
+    close: "Cerrar",
+
+    secDetails: "Detalles",
+    secVerify: "Verify",
+    secHistory: "Tu historial",
+    secQr: "Código QR",
+
+    fieldLabel: "Etiqueta",
+    fieldCategory: "Categoría",
+    fieldChain: "Red",
+    fieldAddress: "Dirección",
+    fieldNotes: "Notas",
+    fieldPhone: "Teléfono",
+    chainNotSet: "Sin indicar",
+    copy: "Copiar",
+    copied: "Copiado",
+    openOn: (explorer) => `Abrir en ${explorer}`,
+    openOnPick: "Abrir en:",
+    noExplorer: "No hay enlace a un explorador de bloques para este valor.",
+    notOnchain: "Esta es una cuenta dentro de un exchange, no una dirección de blockchain.",
+    notRecognized: "Esta no es una dirección de blockchain que Almstins reconozca.",
+
+    verifyIntro: "Si el dueño de esta dirección la ha demostrado con Almstins Verify. Nunca muestra quién es el dueño.",
+    verifyChecking: "Comprobando…",
+    verifyVerified: (domain, since) => (since ? `Verificada por ${domain} desde ${since}` : `Verificada por ${domain}`),
+    verifyCard: "Ver la ficha pública",
+    verifyClaimed: (since) => (since ? `Reclamada desde ${since}` : "Reclamada"),
+    verifyNotClaimed: "No reclamada con Almstins Verify.",
+    verifyFailed: "No se pudo comprobar ahora.",
+
+    historyIntro: "Solo tus propios registros con esta dirección.",
+    historyLoading: "Cargando tu historial…",
+    historyNotKept: "Aún no se guarda el historial con direcciones de Bitcoin, Litecoin, Solana y Sui.",
+    historyTooMany: "Tienes más de 5.000 transacciones con esta dirección, demasiadas para mostrarlas aquí.",
+    historyEmpty: "No hay transacciones con esta dirección en tus registros.",
+    historyFailed: "No se pudo cargar tu historial ahora.",
+    ownWallet: (label) => (label ? `Esta es tu billetera ${label}.` : "Esta es una de tus billeteras."),
+    openWalletTx: "Abrir las transacciones de esta billetera",
+    range: (first, last) => (first === last ? first : `${first} a ${last}`),
+    sent: "Enviado",
+    received: "Recibido",
+    txCount: (n) => (n === 1 ? "1 transacción" : `${n} transacciones`),
+    youSent: "Enviaste",
+    youReceived: "Recibiste",
+    dirLost: "Salió de tu cuenta",
+    dirOther: "Movimiento",
+    failedTx: "Fallida",
+    unknownAmount: "desconocido",
+    viewTx: "Ver",
+    latest: (n) => `Se muestran las ${n} más recientes.`,
+
+    qrAlt: "Código QR de esta dirección",
+    qrLoading: "Generando el código QR…",
+    qrFailed: "No se pudo generar el código QR.",
+    qrScanCheck: "Después de escanear, comprueba que los primeros y últimos caracteres coincidan.",
+    qrEvmNetworks: (label) => `Esta dirección funciona en Ethereum, Polygon, Avalanche y BSC. Envía en la red que espera ${label}.`,
+    qrDownload: "Descargar PNG",
+  },
 };
 
 export const fr: AddressLabelsLocale = {
@@ -247,6 +445,68 @@ export const fr: AddressLabelsLocale = {
   catBadgePersonal: "Personnel",
   catBadgeBridge: "Bridge",
   catBadgeOther: "Autre",
+
+  details: {
+    openDetails: (label) => `Afficher les détails de ${label}`,
+    dialogTitle: "Détails de l'adresse",
+    close: "Fermer",
+
+    secDetails: "Détails",
+    secVerify: "Verify",
+    secHistory: "Votre historique",
+    secQr: "Code QR",
+
+    fieldLabel: "Libellé",
+    fieldCategory: "Catégorie",
+    fieldChain: "Chaîne",
+    fieldAddress: "Adresse",
+    fieldNotes: "Notes",
+    fieldPhone: "Téléphone",
+    chainNotSet: "Non précisée",
+    copy: "Copier",
+    copied: "Copiée",
+    openOn: (explorer) => `Ouvrir sur ${explorer}`,
+    openOnPick: "Ouvrir sur :",
+    noExplorer: "Aucun lien vers un explorateur de blocs pour cette valeur.",
+    notOnchain: "C'est un compte dans un exchange, pas une adresse de blockchain.",
+    notRecognized: "Ce n'est pas une adresse de blockchain reconnue par Almstins.",
+
+    verifyIntro: "Si le propriétaire de cette adresse l'a prouvée avec Almstins Verify. Cela n'indique jamais qui est le propriétaire.",
+    verifyChecking: "Vérification…",
+    verifyVerified: (domain, since) => (since ? `Vérifiée par ${domain} depuis le ${since}` : `Vérifiée par ${domain}`),
+    verifyCard: "Voir la fiche publique",
+    verifyClaimed: (since) => (since ? `Revendiquée depuis le ${since}` : "Revendiquée"),
+    verifyNotClaimed: "Non revendiquée avec Almstins Verify.",
+    verifyFailed: "Vérification impossible pour le moment.",
+
+    historyIntro: "Uniquement vos propres enregistrements avec cette adresse.",
+    historyLoading: "Chargement de votre historique…",
+    historyNotKept: "L'historique avec les adresses Bitcoin, Litecoin, Solana et Sui n'est pas encore conservé.",
+    historyTooMany: "Vous avez plus de 5 000 transactions avec cette adresse, trop pour les afficher ici.",
+    historyEmpty: "Aucune transaction avec cette adresse dans vos enregistrements.",
+    historyFailed: "Impossible de charger votre historique pour le moment.",
+    ownWallet: (label) => (label ? `C'est votre portefeuille ${label}.` : "C'est l'un de vos portefeuilles."),
+    openWalletTx: "Ouvrir les transactions de ce portefeuille",
+    range: (first, last) => (first === last ? first : `du ${first} au ${last}`),
+    sent: "Envoyé",
+    received: "Reçu",
+    txCount: (n) => (n === 1 ? "1 transaction" : `${n} transactions`),
+    youSent: "Vous avez envoyé",
+    youReceived: "Vous avez reçu",
+    dirLost: "Sorti de votre compte",
+    dirOther: "Mouvement",
+    failedTx: "Échouée",
+    unknownAmount: "inconnu",
+    viewTx: "Voir",
+    latest: (n) => `Affichage des ${n} plus récentes.`,
+
+    qrAlt: "Code QR de cette adresse",
+    qrLoading: "Création du code QR…",
+    qrFailed: "Impossible de créer le code QR.",
+    qrScanCheck: "Après le scan, vérifiez que les premiers et derniers caractères correspondent.",
+    qrEvmNetworks: (label) => `Cette adresse fonctionne sur Ethereum, Polygon, Avalanche et BSC. Envoyez sur le réseau qu'attend ${label}.`,
+    qrDownload: "Télécharger le PNG",
+  },
 };
 
 const MAP: Record<Lang, AddressLabelsLocale> = { en, es, fr };
