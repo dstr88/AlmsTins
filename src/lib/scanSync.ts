@@ -23,7 +23,7 @@ const ETHERSCAN_CHAIN_IDS: Record<EtherscanChain, number> = {
 	polygon: 137,
 };
 
-// Snowtrace was rebranded to Routescan in 2023; api.snowtrace.io is dead (404).
+// Snowtrace was rebranded to Routescan in 2023; Snowtrace's old API host is dead (404).
 const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 
 export type ScanChain = SupportedChain;
