@@ -125,6 +125,10 @@ export interface AddressDetailsLocale {
   historyIntro: string;
   historyLoading: string;
   historyNotKept: string;
+  /** Bitcoin, Solana and Sui rows keep their counterparty only from syncs after it was added. */
+  historySyncedOnly: string;
+  /** Bitcoin: one counterparty per transaction, the first that isn't the user's. */
+  historyBtcFirst: string;
   historyTooMany: string;
   historyEmpty: string;
   historyFailed: string;
@@ -243,7 +247,9 @@ export const en: AddressLabelsLocale = {
 
     historyIntro: 'Only your own records with this address.',
     historyLoading: 'Loading your history…',
-    historyNotKept: 'History with Bitcoin, Litecoin, Solana and Sui addresses isn’t kept yet.',
+    historyNotKept: 'History with Litecoin addresses isn’t kept yet.',
+    historySyncedOnly: 'For Bitcoin, Solana and Sui, only transactions saved by a wallet sync since October 2026 show here, so older ones may be missing.',
+    historyBtcFirst: 'A Bitcoin transaction can have several senders and receivers. It shows here under the first one that isn’t your wallet.',
     historyTooMany: 'You have more than 5,000 transactions with this address, too many to show here.',
     historyEmpty: 'No transactions with this address in your records.',
     historyFailed: 'Couldn’t load your history right now.',
@@ -362,7 +368,9 @@ export const es: AddressLabelsLocale = {
 
     historyIntro: "Solo tus propios registros con esta dirección.",
     historyLoading: "Cargando tu historial…",
-    historyNotKept: "Aún no se guarda el historial con direcciones de Bitcoin, Litecoin, Solana y Sui.",
+    historyNotKept: "Aún no se guarda el historial con direcciones de Litecoin.",
+    historySyncedOnly: "En Bitcoin, Solana y Sui solo aparecen aquí las transacciones guardadas por una sincronización de la billetera desde octubre de 2026, así que pueden faltar las más antiguas.",
+    historyBtcFirst: "Una transacción de Bitcoin puede tener varios remitentes y destinatarios. Aparece aquí con el primero que no es tu billetera.",
     historyTooMany: "Tienes más de 5.000 transacciones con esta dirección, demasiadas para mostrarlas aquí.",
     historyEmpty: "No hay transacciones con esta dirección en tus registros.",
     historyFailed: "No se pudo cargar tu historial ahora.",
@@ -481,7 +489,9 @@ export const fr: AddressLabelsLocale = {
 
     historyIntro: "Uniquement vos propres enregistrements avec cette adresse.",
     historyLoading: "Chargement de votre historique…",
-    historyNotKept: "L'historique avec les adresses Bitcoin, Litecoin, Solana et Sui n'est pas encore conservé.",
+    historyNotKept: "L'historique avec les adresses Litecoin n'est pas encore conservé.",
+    historySyncedOnly: "Pour Bitcoin, Solana et Sui, seules les transactions enregistrées par une synchronisation du portefeuille depuis octobre 2026 apparaissent ici, les plus anciennes peuvent donc manquer.",
+    historyBtcFirst: "Une transaction Bitcoin peut avoir plusieurs expéditeurs et destinataires. Elle apparaît ici avec le premier qui n'est pas votre portefeuille.",
     historyTooMany: "Vous avez plus de 5 000 transactions avec cette adresse, trop pour les afficher ici.",
     historyEmpty: "Aucune transaction avec cette adresse dans vos enregistrements.",
     historyFailed: "Impossible de charger votre historique pour le moment.",

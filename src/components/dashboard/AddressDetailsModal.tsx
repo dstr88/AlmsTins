@@ -293,6 +293,17 @@ function Amount({ value, asset, usd, t }: { value: string; asset: string; usd: s
 	);
 }
 
+/** Bitcoin, Solana and Sui rows keep their counterparty only from syncs since it was added. */
+function SyncedOnlyNote({ network, t }: { network: string; t: AddressLabelsLocale['details'] }) {
+	if (network !== 'btc' && network !== 'sol' && network !== 'sui') return null;
+	return (
+		<p style={mutedText}>
+			{t.historySyncedOnly}
+			{network === 'btc' && <> {t.historyBtcFirst}</>}
+		</p>
+	);
+}
+
 function HistoryList({ data, t }: { data: Extract<HistoryAnswer, { supported: true }>; t: AddressLabelsLocale['details'] }) {
 	if (data.ownWallet) {
 		return (
@@ -304,13 +315,21 @@ function HistoryList({ data, t }: { data: Extract<HistoryAnswer, { supported: tr
 			</div>
 		);
 	}
-	if (data.rows.length === 0 && data.totals.length === 0) return <p style={mutedText}>{t.historyEmpty}</p>;
+	if (data.rows.length === 0 && data.totals.length === 0) {
+		return (
+			<div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+				<p style={mutedText}>{t.historyEmpty}</p>
+				<SyncedOnlyNote network={data.network} t={t} />
+			</div>
+		);
+	}
 
 	const direction = (d: HistoryRow['direction']) =>
 		d === 'out' ? t.youSent : d === 'in' ? t.youReceived : d === 'lost' ? t.dirLost : t.dirOther;
 
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+			<SyncedOnlyNote network={data.network} t={t} />
 			{data.firstDate && <p style={mutedText}>{t.range(day(data.firstDate), day(data.lastDate || data.firstDate))}</p>}
 
 			<ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
