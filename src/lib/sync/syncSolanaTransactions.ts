@@ -22,6 +22,8 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { rebuildAssetLifecycles } from '@/lib/lifecycle';
 import { logActivity } from '@/lib/activityLog';
+import { fillCounterparties, importCounterpartyUpdate } from '@/lib/counterpartyColumn';
+import { canonicalAddress } from '@/lib/wallets-service';
 import type { Wallet } from '@/lib/wallets';
 import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
 
@@ -126,7 +128,28 @@ type NormRow = {
 	kind: string;
 	description: string;
 	rowHash: string;
+	/** The other party, when the transaction names exactly one (soleCounterparty). */
+	counterparty: string | null;
 };
+
+/**
+ * The one other party whose balance of the same asset moved the opposite way (beyond `min`),
+ * or null when none or several did: a swap through several pools, a payout to many, or a
+ * transfer that also funded new accounts names no single counterparty, so none is kept.
+ */
+export function soleCounterparty(deltas: ReadonlyMap<string, number>, own: string, delta: number, min: number): string | null {
+	let found: string | null = null;
+	for (const [who, d] of deltas) {
+		if (!who || who === own || Math.abs(d) < min || Math.sign(d) === Math.sign(delta)) continue;
+		if (found !== null) return null;
+		found = who;
+	}
+	return found ? canonicalAddress(found) : null;
+}
+
+function addDelta(map: Map<string, number>, key: string, d: number) {
+	map.set(key, (map.get(key) ?? 0) + d);
+}
 
 /** Diff one transaction's pre/post balances into per-asset rows for `address`. */
 function rowsFromTx(tx: ParsedTx, signature: string, address: string): NormRow[] {
@@ -147,24 +170,34 @@ function rowsFromTx(tx: ParsedTx, signature: string, address: string): NormRow[]
 	for (const b of post) {
 		deltaByMint.set(b.mint, (deltaByMint.get(b.mint) ?? 0) + (b.uiTokenAmount.uiAmount ?? 0));
 	}
+	// Every owner's delta per mint, to name the other side of each of ours.
+	const ownerDeltas = new Map<string, Map<string, number>>();
+	const ownerMap = (mint: string) => ownerDeltas.get(mint) ?? ownerDeltas.set(mint, new Map()).get(mint)!;
+	for (const b of meta.preTokenBalances ?? []) if (b.owner) addDelta(ownerMap(b.mint), b.owner, -(b.uiTokenAmount.uiAmount ?? 0));
+	for (const b of meta.postTokenBalances ?? []) if (b.owner) addDelta(ownerMap(b.mint), b.owner, b.uiTokenAmount.uiAmount ?? 0);
 	for (const [mint, delta] of deltaByMint) {
 		if (Math.abs(delta) < 1e-9) continue;
-		rows.push(makeRow(signature, timestamp, delta, symbolForMint(mint), mint));
+		const counterparty = soleCounterparty(ownerMap(mint), address, delta, 1e-9);
+		rows.push(makeRow(signature, timestamp, delta, symbolForMint(mint), mint, counterparty));
 	}
 
 	// ── Native SOL: delta on our account index (fee-inclusive; dust filtered) ──
-	const keys = tx.transaction?.message?.accountKeys ?? [];
-	const idx = keys.findIndex((k) => (typeof k === 'string' ? k : k.pubkey) === address);
+	const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) => (typeof k === 'string' ? k : k.pubkey));
+	const idx = keys.indexOf(address);
 	if (idx >= 0 && Array.isArray(meta.preBalances) && Array.isArray(meta.postBalances)) {
 		const deltaSol = ((meta.postBalances[idx] ?? 0) - (meta.preBalances[idx] ?? 0)) / 1e9;
 		if (Math.abs(deltaSol) >= SOL_DUST) {
-			rows.push(makeRow(signature, timestamp, deltaSol, 'SOL', 'native'));
+			// Below SOL_DUST is fee noise: a fee payer that only paid the fee is not the counterparty.
+			const solDeltas = new Map<string, number>();
+			keys.forEach((k, i) => addDelta(solDeltas, k, ((meta.postBalances![i] ?? 0) - (meta.preBalances![i] ?? 0)) / 1e9));
+			const counterparty = soleCounterparty(solDeltas, address, deltaSol, SOL_DUST);
+			rows.push(makeRow(signature, timestamp, deltaSol, 'SOL', 'native', counterparty));
 		}
 	}
 	return rows;
 }
 
-function makeRow(signature: string, timestamp: string, delta: number, symbol: string, mintKey: string): NormRow {
+function makeRow(signature: string, timestamp: string, delta: number, symbol: string, mintKey: string, counterparty: string | null): NormRow {
 	const direction: 'in' | 'out' = delta > 0 ? 'in' : 'out';
 	const amount = Math.abs(delta);
 	const kind = direction === 'in' ? 'receive' : 'send';
@@ -175,6 +208,7 @@ function makeRow(signature: string, timestamp: string, delta: number, symbol: st
 		signature, timestamp, direction, amount, symbol, kind,
 		description: `${kind} ${symbol} (Solana)`,
 		rowHash,
+		counterparty,
 	};
 }
 
@@ -273,6 +307,9 @@ ON CONFLICT DO NOTHING`,
 		const res = await db.batch(normStmts.slice(i, i + BATCH), 'write');
 		inserted += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
 	}
+	// Only the signatures fetched this run: rows an earlier sync saved (behind the cursor) keep NULL.
+	await fillCounterparties(normRows.flatMap((r) =>
+		r.counterparty ? [importCounterpartyUpdate(tenantId, 'solana', accountId, r.rowHash, r.counterparty)] : []));
 
 	// Save cursor (newest signature) + last_run_at — used for cron staleness.
 	const now = new Date().toISOString();

@@ -8,6 +8,8 @@ import {
 	type SuiBalanceChange,
 } from '@/lib/sui';
 import type { Wallet } from '@/lib/wallets';
+import { fillCounterparties, suiCounterpartyUpdate } from '@/lib/counterpartyColumn';
+import { canonicalAddress } from '@/lib/wallets-service';
 
 const SUI_CHAIN = 'sui';
 
@@ -27,6 +29,39 @@ function resolveDecimals(coinType: string): number {
 	return isSuiType(coinType) ? SUI_DECIMALS : 9;
 }
 
+function signOf(amount: string): -1 | 0 | 1 {
+	try {
+		const n = BigInt(amount);
+		return n < 0n ? -1 : n > 0n ? 1 : 0;
+	} catch {
+		return 0;
+	}
+}
+
+/**
+ * The other side of one of our balance changes: the one other address whose balance of the same
+ * coin moved the opposite way. When none or several did, an incoming change falls back to the
+ * transaction's sender (it sent this to us); otherwise null. Lowercase hex.
+ */
+export function suiCounterparty(
+	all: readonly SuiBalanceChange[],
+	own: string,
+	change: SuiBalanceChange,
+	sender: string | undefined,
+): string | null {
+	const sign = signOf(change.amount);
+	if (sign === 0) return null;
+	const others = new Set<string>();
+	for (const c of all) {
+		const who = resolveOwner(c.owner);
+		if (who && who !== own && c.coinType === change.coinType && signOf(c.amount) === -sign) others.add(who);
+	}
+	if (others.size === 1) return canonicalAddress([...others][0]);
+	const from = (sender ?? '').toLowerCase();
+	if (sign > 0 && from && from !== own) return canonicalAddress(from);
+	return null;
+}
+
 export async function syncSuiTransactions(
 	tenantId: string,
 	wallet: Wallet,
@@ -34,6 +69,7 @@ export async function syncSuiTransactions(
 	const address = wallet.address.toLowerCase();
 	let inserted = 0;
 	let skipped = 0;
+	const counterparties: ReturnType<typeof suiCounterpartyUpdate>[] = [];
 
 	// Load cursor from last sync (stored in last_timestamp column)
 	const stateResult = await db.execute({
@@ -147,6 +183,8 @@ ON CONFLICT DO NOTHING`,
 						],
 					});
 					inserted++;
+					const counterparty = suiCounterparty(tx.balanceChanges ?? [], address, change, tx.transaction?.data?.sender);
+					if (counterparty) counterparties.push(suiCounterpartyUpdate(tenantId, wallet.id, id, counterparty));
 				} catch {
 					skipped++;
 				}
@@ -157,6 +195,9 @@ ON CONFLICT DO NOTHING`,
 		nextCursor = page.nextCursor;
 		if (!hasMore) break;
 	}
+
+	// Only the transactions fetched this run: rows behind the saved cursor keep NULL.
+	await fillCounterparties(counterparties);
 
 	// Save sync state
 	const now = new Date().toISOString();
