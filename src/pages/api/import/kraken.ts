@@ -16,6 +16,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch, type ImportTxRow, type RawImportRow } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -278,9 +279,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 	// ── Second pass: build DB statements ─────────────────────────────────────
 
-	type DbStatement = { sql: string; args: unknown[] };
-	const rawStatements:  DbStatement[] = [];
-	const normStatements: DbStatement[] = [];
+	const rawRows: RawImportRow[] = [];
+	const txRows:  ImportTxRow[] = [];
 	const batchId = randomUUID();
 
 	for (const r of parsed) {
@@ -303,58 +303,33 @@ export const POST: APIRoute = async ({ request }) => {
 		const datePart = r.time.slice(0, 10);
 		const groupId  = buildGroupId(r.symbol, datePart);
 
-		rawStatements.push({
-			sql: `INSERT INTO import_raw_rows
-				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, 'kraken', ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r.rawRow), rowHash],
-		});
-
-		normStatements.push({
-			sql: `INSERT INTO import_transactions
-				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
-				 description, currency, amount, to_currency, to_amount,
-				 native_currency, native_amount, native_usd,
-				 kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, 'kraken', ?, ?, ?,
-				        ?, ?, ?, ?, ?,
-				        ?, ?, ?,
-				        ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [
-				randomUUID(), tenantId, resolvedAccountId, batchId, r.time,
-				r.type || null,                          // description
-				r.symbol,                                // currency
-				direction === 'out' ? -absAmount : absAmount,  // amount (signed)
-				null, null,                              // to_currency, to_amount
-				'USD', nativeUsd, nativeUsd,             // native_currency, native_amount, native_usd
-				kind,                                    // kind
-				r.txid || null,                          // tx_hash (Kraken txid serves as tx hash)
-				direction,
-				r.symbol,                                // asset_symbol
-				groupId,
-				rowHash,
-			],
+		rawRows.push({ rowJson: JSON.stringify(r.rawRow), rowHash });
+		txRows.push({
+			timestampUtc:   r.time,
+			description:    r.type || null,
+			currency:       r.symbol,
+			amount:         direction === 'out' ? -absAmount : absAmount,  // signed
+			toCurrency:     null,
+			toAmount:       null,
+			nativeCurrency: 'USD',
+			nativeAmount:   nativeUsd,
+			nativeUsd,
+			kind,
+			txHash:         r.txid || null,   // Kraken txid serves as tx hash
+			direction,
+			assetSymbol:    r.symbol,
+			groupId,
+			rowHash,
 		});
 	}
 
-	// ── Execute in batches of 100 ─────────────────────────────────────────────
+	// ── Store (src/lib/importRows.ts) ─────────────────────────────────────────
 
-	const BATCH_SIZE = 100;
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
+	const { insertedRaw, insertedNormalized } = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'kraken', batchId, rawRows, rows: txRows,
+	});
 
-	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-
-	const skippedDuplicates = rawStatements.length - insertedRaw;
+	const skippedDuplicates = rawRows.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'kraken', 'Kraken');
 	void runTransferMatching(tenantId, resolvedAccountId);
