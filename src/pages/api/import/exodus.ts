@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch, type ImportTxRow, type RawImportRow } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -329,9 +330,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const csvRows = parseCsv(content);
 	const batchId = randomUUID();
 
-	type DbStatement = { sql: string; args: unknown[] };
-	const rawStatements: DbStatement[] = [];
-	const normStatements: DbStatement[] = [];
+	const rawRows: RawImportRow[] = [];
+	const txRows: ImportTxRow[] = [];
 
 	for (const csvRow of csvRows) {
 		const normalizedRows = buildRows(csvRow);
@@ -344,47 +344,32 @@ export const POST: APIRoute = async ({ request }) => {
 			const rowHash = buildRowHash('exodus', norm, suffix);
 			const groupId = buildGroupId('exodus', norm.assetSymbol, norm.timestampUtc);
 
-			rawStatements.push({
-				sql: `INSERT INTO import_raw_rows
-					(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-				args: [randomUUID(), tenantId, 'exodus', resolvedAccountId, batchId, rawRowJson, rowHash],
-			});
-
-			normStatements.push({
-				sql: `INSERT INTO import_transactions
-					(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount,
-					to_currency, to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction,
-					asset_symbol, group_id, row_hash, created_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-				args: [
-					randomUUID(), tenantId, 'exodus', resolvedAccountId, batchId,
-					norm.timestampUtc, norm.description || null, norm.currency,
-					norm.amount, norm.toCurrency, norm.toAmount,
-					norm.nativeCurrency, norm.nativeAmount, norm.nativeUsd,
-					norm.kind || null, norm.txHash, norm.direction,
-					norm.assetSymbol, groupId, rowHash,
-				],
+			rawRows.push({ rowJson: rawRowJson, rowHash });
+			txRows.push({
+				timestampUtc: norm.timestampUtc,
+				description: norm.description || null,
+				currency: norm.currency,
+				amount: norm.amount,
+				toCurrency: norm.toCurrency,
+				toAmount: norm.toAmount,
+				nativeCurrency: norm.nativeCurrency,
+				nativeAmount: norm.nativeAmount,
+				nativeUsd: norm.nativeUsd,
+				kind: norm.kind || null,
+				txHash: norm.txHash,
+				direction: norm.direction,
+				assetSymbol: norm.assetSymbol,
+				groupId,
+				rowHash,
 			});
 		}
 	}
 
-	const BATCH_SIZE = 100;
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
+	const { insertedRaw, insertedNormalized } = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'exodus', batchId, rawRows, rows: txRows,
+	});
 
-	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-
-	const skippedDuplicates = rawStatements.length - insertedRaw;
+	const skippedDuplicates = rawRows.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'exodus', 'Exodus');
 	void runTransferMatching(tenantId, resolvedAccountId);
