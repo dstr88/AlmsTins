@@ -239,9 +239,13 @@ export async function syncSolanaAddress(
 
 	// Persist (mirror syncBtcAddress import_transactions + import_raw_rows shape).
 	const BATCH = 100;
+	// The table's columns are import_batch_id and row_json (migrations/0001_crypto_com.sql). This
+	// insert used to name batch_id and raw_json, which don't exist, so every sync threw here, before
+	// any transaction or the cursor was saved: no Solana history was ever stored.
 	const rawStmts = normRows.map((r) => ({
-		sql: `INSERT INTO import_raw_rows (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'solana', ?, ?)
+		sql: `INSERT INTO import_raw_rows
+		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash, imported_at)
+		      VALUES (?, ?, ?, ?, 'solana', ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
 	}));

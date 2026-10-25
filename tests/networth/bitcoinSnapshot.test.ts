@@ -339,10 +339,9 @@ describe('autoClassify Pass 3 (Bitcoin outputs)', () => {
 });
 
 describe('every import_raw_rows / import_transactions insert in src names real columns', () => {
-	// Same bug, other chains, out of this fix's scope (follow-up): Solana's on-chain sync and the
-	// Snowtrace (Avalanche) imports still name batch_id / raw_json.
+	// Same bug, other chains, out of this fix's scope (follow-up): the Snowtrace (Avalanche)
+	// imports still name batch_id / raw_json. Solana's sync was fixed (tests/sync/solanaSync.test.ts).
 	const KNOWN_BROKEN = new Set([
-		'src/lib/sync/syncSolanaTransactions.ts',
 		'src/pages/api/import/snowtrace.ts',
 		'src/pages/api/import/snowtrace-sync.ts',
 	]);
