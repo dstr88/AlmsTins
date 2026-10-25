@@ -293,7 +293,7 @@ ON CONFLICT DO NOTHING`,
 
 	const rawStatements  = normRows.map(r => ({
 		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
+		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash)
 		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)
 ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r), r.rowHash],
@@ -301,12 +301,12 @@ ON CONFLICT DO NOTHING`,
 
 	const normStatements = normRows.map(r => ({
 		sql: `INSERT INTO import_transactions
-		      (id, tenant_id, account_id, import_batch_id, timestamp_utc,
+		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
 		       description, currency, amount,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, resolvedAccountId, batchId, r.timestamp,
@@ -334,6 +334,8 @@ ON CONFLICT DO NOTHING`,
 		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
 		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
 	}
+
+	const skippedDuplicates = rawStatements.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'avalanche_cchain', 'Avalanche C-Chain');
 
@@ -366,7 +368,7 @@ ON CONFLICT DO NOTHING`,
 			accountId: resolvedAccountId,
 			insertedRaw,
 			insertedNormalized,
-			skippedDuplicates: rawStatements.length - insertedRaw,
+			skippedDuplicates,
 			walletAddress,
 		}),
 		{ status: 200, headers: { 'Content-Type': 'application/json' } },

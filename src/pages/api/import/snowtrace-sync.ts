@@ -191,7 +191,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const rawStmts = normRows.map(r => ({
 		sql: `INSERT INTO import_raw_rows
-		      (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
+		      (id, tenant_id, account_id, import_batch_id, source, row_json, row_hash)
 		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)
 ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
