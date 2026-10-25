@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { explorerAddressUrl, explorerName, explorerTxUrl } from '@/lib/explorerLinks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,27 +107,39 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// 0x + 64 hex = could be EVM tx hash OR Sui address — treat as EVM tx hash
-// 0x + 40 hex = EVM wallet address → link to Etherscan address page
-// anything else = unknown identifier, show as plain monospace text
-function hashType(hash: string): 'evm-tx' | 'evm-address' | 'other' {
-  if (/^0x[0-9a-fA-F]{64}$/.test(hash)) return 'evm-tx';
-  if (/^0x[0-9a-fA-F]{40}$/.test(hash)) return 'evm-address';
-  return 'other';
+// The explorer page of a hash on its chain: a transaction, else an address. Null when the chain is
+// unknown or the hash does not have that chain's shape (a Sui address and an EVM transaction hash
+// look alike, so only the chain tells them apart); the caller then shows plain text.
+function explorerUrl(chain: string | null, hash: string): string | null {
+  return explorerTxUrl(chain, hash) ?? explorerAddressUrl(chain, hash);
 }
 
-function explorerUrl(hash: string): string {
-  const t = hashType(hash);
-  if (t === 'evm-tx')      return `https://etherscan.io/tx/${hash}`;
-  if (t === 'evm-address') return `https://etherscan.io/address/${hash}`;
-  return '';
+// The whole address, linked to its chain's explorer; with no safe link, plain text and a copy button.
+function FullAddress({ chain, address }: { chain: string | null; address: string }) {
+  const url = explorerAddressUrl(chain, address);
+  const style: React.CSSProperties = { fontFamily: 'monospace', fontSize: '0.68rem', wordBreak: 'break-all' };
+  return url ? (
+    <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...style, color: 'var(--accent)', textDecoration: 'none' }}>
+      {address} ↗
+    </a>
+  ) : (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+      <span style={{ ...style, color: 'var(--text-muted)' }}>{address}</span>
+      <CopyButton text={address} />
+    </span>
+  );
 }
 
-function explorerLabel(hash: string): string {
-  const t = hashType(hash);
-  if (t === 'evm-tx')      return 'tx';
-  if (t === 'evm-address') return 'address';
-  return '';
+// An address on its chain's explorer, or the truncated text alone when there is no safe link.
+function AddressLink({ chain, address, style }: { chain: string | null | undefined; address: string; style: React.CSSProperties }) {
+  const url = explorerAddressUrl(chain, address);
+  return url ? (
+    <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...style, textDecoration: 'none' }}>
+      {truncateHash(address)} ↗
+    </a>
+  ) : (
+    <span style={{ ...style, color: 'var(--text-muted)' }}>{truncateHash(address)}</span>
+  );
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -601,19 +614,6 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             const lastOutInBook = !!lastOutLabel;
             const lastOutChain  = lastOut?.chain ?? null;
 
-            function explorerBaseFor(chain: string | null) {
-              if (chain === 'avalanche') return 'https://snowtrace.io';
-              if (chain === 'polygon')   return 'https://polygonscan.com';
-              if (chain === 'bsc')       return 'https://bscscan.com';
-              if (chain === 'litecoin')  return 'https://blockexplorer.one/litecoin/mainnet';
-              return 'https://etherscan.io';
-            }
-
-            function addrUrl(chain: string | null, addr: string) {
-              if (chain === 'litecoin') return `https://blockexplorer.one/litecoin/mainnet/address/${addr}`;
-              return `${explorerBaseFor(chain)}/address/${addr}`;
-            }
-
             function eventIcon(evt: HistoryEvent) {
               if (evt.direction === 'in')  return '';
               if (evt.direction === 'out') return '';
@@ -729,13 +729,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                               ) : (
                                 <span style={{ fontSize: '0.73rem', color: 'var(--loss)', fontWeight: 600 }}>✗ Not in your address book</span>
                               )}
-                              <a
-                                href={addrUrl(chain, destAddr)}
-                                target="_blank" rel="noopener noreferrer"
-                                style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--accent)', textDecoration: 'none', wordBreak: 'break-all' }}
-                              >
-                                {destAddr} ↗
-                              </a>
+                              <FullAddress chain={chain} address={destAddr} />
                               {/* Inline label form for unknown last-out destination */}
                               {isLastOutEvt && !lastOutInBook && (
                                 <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
@@ -788,13 +782,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
                           {/* Source address (IN events) */}
                           {evt.from_address && evt.direction === 'in' && !evt.from_label && (
-                            <a
-                              href={addrUrl(chain, evt.from_address)}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--accent)', textDecoration: 'none', wordBreak: 'break-all' }}
-                            >
-                              {evt.from_address} ↗
-                            </a>
+                            <FullAddress chain={chain} address={evt.from_address} />
                           )}
                         </div>
                       </div>
@@ -1106,7 +1094,13 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
           {item.transactionClass === 'other' && (() => {
             const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
             const txHash = item.txHash;
-            const polygonscanUrl = txHash ? `https://polygonscan.com/tx/${txHash}` : null;
+            // The drawer item carries no chain: take it from the loaded history event with the same
+            // hash. No match, no explorer link: the hash shows as text with its copy button instead.
+            const txChain = txHash
+              ? history.find(e => e.tx_hash != null && e.tx_hash.toLowerCase() === txHash.toLowerCase())?.chain ?? null
+              : null;
+            const txExplorerUrl = txHash ? explorerTxUrl(txChain, txHash) : null;
+            const txExplorerName = explorerName(txChain);
             const dexscreenerUrl = `https://dexscreener.com/search?q=${encodeURIComponent(item.asset)}`;
             const coinGeckoUrl = `https://www.coingecko.com/en/search?query=${encodeURIComponent(item.asset)}`;
             return (
@@ -1133,7 +1127,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 {/* How to tell if it's worthless */}
                 <div style={{ fontSize: '0.77rem', opacity: 0.85, marginBottom: '0.65rem', lineHeight: 1.6 }}>
                   <strong>How to tell if it's worthless:</strong><br />
-                  1. Click <em>Polygonscan</em> below → open the "ERC-20 Token Txns" tab → click the token name.<br />
+                  1. {txExplorerUrl
+                    ? <>Click <em>{txExplorerName}</em> below → open the token transfers → click the token name.</>
+                    : <>Look up the transaction hash on its chain's block explorer → open the token transfers → click the token name.</>}<br />
                   2. Check for a red <strong>"Scam Token"</strong> banner on its contract page — that's definitive.<br />
                   3. Search <em>DexScreener</em> — no liquidity / no trading pairs = likely worthless.<br />
                   4. If the token appeared without you buying it, it's almost certainly a scam airdrop.
@@ -1141,15 +1137,21 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
                 {/* Quick-check links */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                  {polygonscanUrl && (
+                  {txExplorerUrl && (
                     <a
-                      href={polygonscanUrl}
+                      href={txExplorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={checkLinkStyle}
                     >
-                      Polygonscan ↗
+                      {txExplorerName} ↗
                     </a>
+                  )}
+                  {txHash && !txExplorerUrl && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                      {truncateHash(txHash)}
+                      <CopyButton text={txHash} />
+                    </span>
                   )}
                   <a href={dexscreenerUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
                     DexScreener ↗
@@ -1532,28 +1534,21 @@ function AddrRow({
   chain?: string | null;
   addressLabel?: string | null;
 }) {
-  const url = chain === 'avalanche'
-    ? `https://snowtrace.io/address/${address}`
-    : chain === 'polygon'
-    ? `https://polygonscan.com/address/${address}`
-    : chain === 'bsc'
-    ? `https://bscscan.com/address/${address}`
-    : `https://etherscan.io/address/${address}`;
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem', flexWrap: 'wrap' }}>
       <span style={{ opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem', flexShrink: 0 }}>{label}</span>
       {addressLabel && (
         <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{addressLabel}</span>
       )}
-      <a href={url} target="_blank" rel="noopener noreferrer"
+      <AddressLink
+        chain={chain}
+        address={address}
         style={{
           color: addressLabel ? 'var(--accent-dim)' : 'var(--accent)',
-          textDecoration: 'none',
           fontFamily: 'monospace',
           fontSize: addressLabel ? '0.66rem' : '0.73rem',
-        }}>
-        {truncateHash(address)} ↗
-      </a>
+        }}
+      />
       <CopyButton text={address} />
     </span>
   );
@@ -1572,6 +1567,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
   const walletName = evt.wallet_label || (evt.wallet_address ? truncateHash(evt.wallet_address) : null);
   const counterparty = isIn ? evt.from_address : evt.to_address;
   const myWalletAddr = isIn ? evt.to_address : evt.from_address;
+  const txUrl = evt.tx_hash ? explorerUrl(evt.chain, evt.tx_hash) : null;
 
   return (
     <div
@@ -1616,10 +1612,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
               {walletName && (
                 <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: '0.2rem' }}>{walletName}</span>
               )}
-              <a href={`https://etherscan.io/address/${myWalletAddr}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
-                {truncateHash(myWalletAddr)} ↗
-              </a>
+              <AddressLink chain={evt.chain} address={myWalletAddr} style={{ color: 'var(--accent)', fontFamily: 'monospace' }} />
               <CopyButton text={myWalletAddr} />
             </span>
           )}
@@ -1643,8 +1636,8 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
       {evt.tx_hash && (
         <span style={{ fontSize: '0.73rem', paddingLeft: '3.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
           <span style={{ opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>tx</span>
-          {explorerUrl(evt.tx_hash) ? (
-            <a href={explorerUrl(evt.tx_hash)} target="_blank" rel="noopener noreferrer"
+          {txUrl ? (
+            <a href={txUrl} target="_blank" rel="noopener noreferrer"
               style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
               {truncateHash(evt.tx_hash)} ↗
             </a>

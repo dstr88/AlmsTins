@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { isContract as checkIsContract, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
+import { explorerAddressUrl } from '@/lib/explorerLinks';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_800_000; // 30 min
@@ -11,12 +12,6 @@ const interactionsCache = new Map<string, { expiresAt: number; payload: { ok: bo
 const contractCache = new Map<string, { expiresAt: number; isContract: boolean }>();
 
 type DbRow = Record<string, unknown>;
-
-const CHAIN_EXPLORERS: Record<string, string> = {
-	ethereum: 'https://etherscan.io/address',
-	polygon:  'https://polygonscan.com/address',
-	avalanche: 'https://snowtrace.io/address',
-};
 
 const chainId = (chain: string) =>
 	chain === 'polygon' ? 137 : chain === 'avalanche' ? 43114 : 1;
@@ -237,12 +232,13 @@ export const GET: APIRoute = async ({ params, request }) => {
 			}
 
 			seenAddresses.add(address);
-			const explorer = CHAIN_EXPLORERS[chain] ?? CHAIN_EXPLORERS.ethereum;
+			// An unknown chain was checked on Ethereum (chainId above), so it links there too.
+			const url = explorerAddressUrl(chain, address) ?? explorerAddressUrl('ethereum', address) ?? '';
 			const verifiedName = await fetchContractName(cId, address).catch(() => null);
 			items.push({
 				name: verifiedName || `${address.slice(0, 6)}…${address.slice(-4)}`,
 				address,
-				url: `${explorer}/${address}`,
+				url,
 				chain,
 				txCount,
 				lastSeen,
