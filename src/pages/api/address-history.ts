@@ -5,10 +5,12 @@
  * modal on the Wallets page's Address Labels list. Only the user's own records: never the
  * address's on-chain history, and nothing here calls an explorer or any outside service.
  *
- * Only EVM rows store full counterparties today, so:
+ * EVM rows store full counterparties; Bitcoin, Solana and Sui rows store one since
+ * counterparty_address was added (rows synced before that have none). Litecoin history is not
+ * imported at all. So:
  *   - an exchange account id (cex:...) or anything that is not an address → not_onchain
- *   - a Bitcoin, Litecoin, Solana or Sui address → not_kept_yet, with its network
- *   - an EVM address → the rows and totals
+ *   - a Litecoin address → not_kept_yet, with its network
+ *   - an EVM, Bitcoin, Solana or Sui address → the rows and totals
  *
  * Totals cover every matching row (up to MAX_ADDRESS_ROWS, counted before any row is loaded);
  * the list shows the newest MAX_LISTED_ROWS, with truncated set when there are more. Above
@@ -27,6 +29,8 @@ import { summarizeAddressHistory } from '@/lib/addressHistory';
 import { explorerTxUrl } from '@/lib/explorerLinks';
 
 const MAX_ADDRESS_LENGTH = 128;
+/** Networks whose rows keep a counterparty (src/lib/historyRows.ts). */
+const KEPT_NETWORKS = new Set(['evm', 'btc', 'sol', 'sui']);
 /** Rows the list shows, newest first. */
 export const MAX_LISTED_ROWS = 500;
 /** Rows the totals read; more is refused before any row is loaded. */
@@ -48,18 +52,18 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const network = addressNetwork(address);
 	if (network === null) return json({ supported: false, reason: 'not_onchain' }, 200);
-	if (network !== 'evm') return json({ supported: false, reason: 'not_kept_yet', network }, 200);
+	if (!KEPT_NETWORKS.has(network)) return json({ supported: false, reason: 'not_kept_yet', network }, 200);
 
-	const counterparty = address.toLowerCase();
 	try {
 		const walletRes = await db.execute({
 			sql: 'SELECT id, label FROM wallets WHERE tenant_id = ? AND lower(address) = ? ORDER BY id LIMIT 1',
-			args: [tenantId, counterparty],
+			args: [tenantId, address.toLowerCase()],
 		});
 		const wallet = walletRes.rows[0] as Record<string, unknown> | undefined;
 		const ownWallet = wallet ? { id: String(wallet.id), label: wallet.label == null ? null : String(wallet.label) } : null;
 
-		const rows = await loadHistoryRows(tenantId, { counterparty }, MAX_ADDRESS_ROWS);
+		// As typed: base58 is case-sensitive; historyRows puts each network's value in its stored form.
+		const rows = await loadHistoryRows(tenantId, { counterparty: address }, MAX_ADDRESS_ROWS);
 		const { totals, firstDate, lastDate } = summarizeAddressHistory(rows);
 		const listed = rows.slice(-MAX_LISTED_ROWS).reverse();
 
