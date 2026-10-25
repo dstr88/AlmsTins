@@ -23,6 +23,7 @@ import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
 import { canonicalAddress, safeParseChains } from '@/lib/wallets-service';
 import { buildTickerPriceMap } from '@/lib/aave/pricing';
 import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
+import { fillCounterparties, importCounterpartyUpdate } from '@/lib/counterpartyColumn';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
 const SATS_PER_BTC = 100_000_000;
@@ -148,6 +149,22 @@ ON CONFLICT DO NOTHING`,
 	return id;
 }
 
+// ── Counterparty ─────────────────────────────────────────────────────────────
+
+/**
+ * The full address on the other side of a transaction, from this wallet's view: for a receive the
+ * first input that is not this wallet, for a send the first output that is not this wallet (its
+ * change). A transaction can have several of each; only the first is kept. null when there is none.
+ * In canonicalAddress form: bech32 lowercased, base58 exactly as the explorer wrote it.
+ */
+export function btcCounterparty(tx: any, ownKey: string, direction: 'in' | 'out'): string | null {
+	const addrs: string[] = direction === 'in'
+		? (tx?.vin ?? []).map((i: any) => String(i?.prevout?.scriptpubkey_address ?? ''))
+		: (tx?.vout ?? []).map((o: any) => String(o?.scriptpubkey_address ?? ''));
+	const other = addrs.find((a) => a.trim() !== '' && a.toLowerCase() !== ownKey);
+	return other ? canonicalAddress(other) : null;
+}
+
 // ── Sync one address ─────────────────────────────────────────────────────────
 
 export async function syncBtcAddress(
@@ -179,6 +196,7 @@ export async function syncBtcAddress(
 		kind:      string;
 		description: string;
 		rowHash:   string;
+		counterparty: string | null;
 	}> = [];
 
 	for (const tx of allTxs) {
@@ -228,7 +246,10 @@ export async function syncBtcAddress(
 			.update(JSON.stringify(['bitcoin', txHash, timestamp, direction, String(amountBtc)]))
 			.digest('hex');
 
-		normRows.push({ txHash, timestamp, direction, amount: amountBtc, nativeUsd, kind, description, rowHash });
+		normRows.push({
+			txHash, timestamp, direction, amount: amountBtc, nativeUsd, kind, description, rowHash,
+			counterparty: btcCounterparty(tx, ownKey, direction),
+		});
 	}
 
 	// Resolve or create exchange_account row for BTC
@@ -291,6 +312,9 @@ ON CONFLICT DO NOTHING`,
 		const res = await db.batch(normStmts.slice(i, i + BATCH), 'write');
 		insertedNorm += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
 	}
+	// Every sync reads the whole history, so this also fills rows an earlier sync saved without one.
+	await fillCounterparties(normRows.flatMap((r) =>
+		r.counterparty ? [importCounterpartyUpdate(tenantId, 'bitcoin', accountId, r.rowHash, r.counterparty)] : []));
 
 	return {
 		inserted: insertedNorm,

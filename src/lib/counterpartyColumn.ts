@@ -39,3 +39,47 @@ export async function ensureCounterpartyColumns(): Promise<boolean> {
 	}
 	return ensured;
 }
+
+type Stmt = { sql: string; args: Array<string | null> };
+
+/**
+ * Fills counterparty_address on the tenant's own imported row (the account and row_hash its
+ * per-account unique index keys on), only while it is NULL. Nothing else on the row changes.
+ * Runs after the row's `INSERT … ON CONFLICT DO NOTHING`, so it covers a new row and one saved
+ * by an earlier sync alike. (Not an ON CONFLICT DO UPDATE: that needs one conflict target, and
+ * import_transactions may still carry a global row_hash unique besides the per-account one, see
+ * src/scripts/checkImportRowHashUnique.mjs; a conflict on the other one would throw and fail the
+ * whole batch.)
+ */
+export function importCounterpartyUpdate(tenantId: string, source: string, accountId: string, rowHash: string, counterparty: string): Stmt {
+	return {
+		sql: `UPDATE import_transactions SET counterparty_address = ?
+		      WHERE tenant_id = ? AND source = ? AND account_id = ? AND row_hash = ? AND counterparty_address IS NULL`,
+		args: [counterparty, tenantId, source, accountId, rowHash],
+	};
+}
+
+/** The same for one of the tenant's Sui rows (the id is digest:coin, unique across tenants). */
+export function suiCounterpartyUpdate(tenantId: string, walletId: string, id: string, counterparty: string): Stmt {
+	return {
+		sql: `UPDATE sui_transactions SET counterparty_address = ?
+		      WHERE tenant_id = ? AND wallet_id = ? AND id = ? AND counterparty_address IS NULL`,
+		args: [counterparty, tenantId, walletId, id],
+	};
+}
+
+/**
+ * Runs those updates after a sync has saved its rows. Never throws: a counterparty that cannot
+ * be saved leaves the column NULL and costs the sync nothing. Logs no address.
+ */
+export async function fillCounterparties(stmts: readonly Stmt[]): Promise<void> {
+	if (stmts.length === 0 || !(await ensureCounterpartyColumns())) return;
+	const BATCH = 100;
+	try {
+		for (let i = 0; i < stmts.length; i += BATCH) {
+			await db.batch(stmts.slice(i, i + BATCH), 'write');
+		}
+	} catch {
+		console.warn('[counterparty] could not save counterparty addresses');
+	}
+}
