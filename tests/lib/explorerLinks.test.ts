@@ -171,3 +171,14 @@ describe('no explorer list outside explorerLinks.ts', () => {
     }
   });
 });
+
+describe('the wallets page loads every label detail', () => {
+  it('selects category, chain, notes and phone_number for Address Labels', () => {
+    const page = read('src/pages/dashboard/wallets.astro');
+    const query = page.slice(page.indexOf('FROM address_labels') - 200, page.indexOf('FROM address_labels'));
+    for (const col of ['category', 'chain', 'notes', 'phone_number']) {
+      expect(query, col).toContain(col);
+      expect(page, col).toMatch(new RegExp(`${col}:\\s+row\\.${col}`));
+    }
+  });
+});
