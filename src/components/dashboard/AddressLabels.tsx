@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAddressLabels } from '@/i18n/components/addressLabels';
 import { addressNetwork } from '@/lib/addressNetwork';
+import { AddressDetailsModal } from './AddressDetailsModal';
 
 export type AddressLabel = {
 	id: string;
@@ -85,6 +86,7 @@ export function AddressLabels({ labels: initial }: Props) {
 	const [phoneNumber,  setPhoneNumber]  = useState('');
 	const [scanning,     setScanning]     = useState(false);
 	const [scanResult,   setScanResult]   = useState<string | null>(null);
+	const [selected,     setSelected]     = useState<AddressLabel | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	async function handleScanUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -461,18 +463,7 @@ export function AddressLabels({ labels: initial }: Props) {
 									</span>
 								)}
 
-								{/* Label */}
-								<span style={{
-									fontWeight: 600,
-									fontSize: '0.9rem',
-									color: 'var(--text-secondary)',
-									minWidth: '100px',
-									flex: '0 0 auto',
-								}}>
-									{l.label}
-								</span>
-
-								{/* Address + optional phone number */}
+								{/* Label + address: one button that opens the details modal. Copy and Remove keep their own behavior. */}
 								<div style={{
 									display: 'flex',
 									flexDirection: 'column',
@@ -480,15 +471,47 @@ export function AddressLabels({ labels: initial }: Props) {
 									flex: 1,
 									minWidth: '120px',
 								}}>
-									<span style={{
-										display: 'flex',
-										alignItems: 'center',
-										gap: '0.2rem',
-										fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-										fontSize: '0.75rem',
-										color: 'var(--text-muted)',
-									}}>
-										{truncateAddress(l.address)}
+									<span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexWrap: 'wrap' }}>
+										<button
+											type="button"
+											aria-label={t.details.openDetails(l.label)}
+											onClick={e => { e.currentTarget.focus(); setSelected(l); }}
+											style={{
+												display: 'flex',
+												alignItems: 'baseline',
+												gap: '0.75rem',
+												flexWrap: 'wrap',
+												background: 'none',
+												border: 'none',
+												padding: 0,
+												margin: 0,
+												font: 'inherit',
+												textAlign: 'left',
+												cursor: 'pointer',
+												color: 'inherit',
+											}}
+										>
+											{/* Label */}
+											<span style={{
+												fontWeight: 600,
+												fontSize: '0.9rem',
+												color: 'var(--text-secondary)',
+												minWidth: '100px',
+												textDecoration: 'underline',
+												textDecorationColor: 'var(--border-bright)',
+												textUnderlineOffset: '3px',
+											}}>
+												{l.label}
+											</span>
+											{/* Shortened address */}
+											<span style={{
+												fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+												fontSize: '0.75rem',
+												color: 'var(--text-muted)',
+											}}>
+												{truncateAddress(l.address)}
+											</span>
+										</button>
 										<CopyButton text={l.address} />
 									</span>
 									{l.phone_number && (
@@ -544,6 +567,8 @@ export function AddressLabels({ labels: initial }: Props) {
 					})}
 				</div>
 			)}
+
+			{selected && <AddressDetailsModal label={selected} onClose={() => setSelected(null)} />}
 		</div>
 	);
 }

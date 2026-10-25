@@ -11,7 +11,11 @@ const t = getTransactions(lang);
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const wallets = await getAllActiveWallets(tenantId);
-const defaultWalletId = wallets[0]?.id ?? '';
+// ?wallet= (the address details modal links here) preselects that wallet, but only when it is one
+// of this tenant's wallets; anything else falls back to the first.
+const requestedWalletId = Astro.url.searchParams.get('wallet') ?? '';
+const requestedWallet = requestedWalletId ? wallets.find((w) => String(w.id) === requestedWalletId) : undefined;
+const defaultWalletId = requestedWallet?.id ?? wallets[0]?.id ?? '';
 const walletPayload = JSON.stringify(wallets);
 ---
 
