@@ -15,6 +15,7 @@ import { safeNextPath } from '@/lib/safeNext';
 import type { APIRoute } from 'astro';
 import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
+import { insertImportBatch, type ImportBatch, type ImportTxRow } from '../../../lib/importRows';
 import { hashWithSalt } from '../../../lib/analytics/hash';
 import { setCache } from '../../../lib/tursoCache';
 import { getAuthSession } from '../../../lib/authSession';
@@ -35,6 +36,29 @@ const batch = async (label: string, stmts: Stmt[]): Promise<boolean> => {
 		return false;
 	}
 };
+
+/** Store groups of demo imported transactions through the shared writer. Logs errors but never throws. */
+const importBatches = async (
+	label: string,
+	groups: Array<Pick<ImportBatch, 'source' | 'batchId' | 'accountId' | 'rows'>>,
+): Promise<boolean> => {
+	try {
+		for (const g of groups) await insertImportBatch({ tenantId: DEMO_TENANT_ID, ...g });
+		return true;
+	} catch (e) {
+		console.error(`[demo-seed] batch "${label}" failed:`, String(e));
+		return false;
+	}
+};
+
+/** One demo imported transaction; created_at is its own timestamp, as the demo has always stored. */
+const demoImport = (
+	id: string, timestampUtc: string, description: string, symbol: string,
+	amount: number, nativeUsd: number, kind: string, rowHash: string, direction: 'in' | 'out' = 'in',
+): ImportTxRow => ({
+	id, timestampUtc, description, currency: symbol, amount, nativeUsd, direction, kind,
+	assetSymbol: symbol, rowHash, createdAt: timestampUtc,
+});
 
 /** Tables to clear on each new demo session (order avoids FK issues). */
 const DEMO_TABLES = [
@@ -499,47 +523,47 @@ ON CONFLICT (wallet_id) DO UPDATE SET tenant_id = excluded.tenant_id, last_defi_
 		]),
 
 		// all import transactions (need ACCT_CB, ACCT_CRY)
-		batch('import-transactions', [
+		importBatches('import-transactions', [
 			// Coinbase USDC buys
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'coinbase', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cb-usdc-1',  BATCH_CB, ACCT_CB, DEMO_TENANT_ID, '2022-03-10T09:00:00.000Z', 'Buy USDC', 'USDC', 150, 150, 'in', 'trade', 'USDC', 'demo-rh-cb-usdc-1',  '2022-03-10T09:00:00.000Z'] },
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'coinbase', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cb-usdc-2',  BATCH_CB, ACCT_CB, DEMO_TENANT_ID, '2023-07-22T14:30:00.000Z', 'Buy USDC', 'USDC',  65,  65, 'in', 'trade', 'USDC', 'demo-rh-cb-usdc-2',  '2023-07-22T14:30:00.000Z'] },
+			{ source: 'coinbase', batchId: BATCH_CB, accountId: ACCT_CB, rows: [
+				demoImport('demo-itx-cb-usdc-1', '2022-03-10T09:00:00.000Z', 'Buy USDC', 'USDC', 150, 150, 'trade', 'demo-rh-cb-usdc-1'),
+				demoImport('demo-itx-cb-usdc-2', '2023-07-22T14:30:00.000Z', 'Buy USDC', 'USDC',  65,  65, 'trade', 'demo-rh-cb-usdc-2'),
+			] },
 			// Crypto.com interest income
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cry-usdc-i1', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 24.12, 24.12, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1', '2024-02-01T00:00:00.000Z'] },
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cry-usdc-i2', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 37.84, 37.84, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2', '2024-05-01T00:00:00.000Z'] },
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cry-usdc-i3', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 62.82, 62.82, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3', '2024-08-01T00:00:00.000Z'] },
+			{ source: 'crypto_com', batchId: BATCH_CRY, accountId: ACCT_CRY, rows: [
+				demoImport('demo-itx-cry-usdc-i1', '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 24.12, 24.12, 'crypto_earn_interest_paid', 'demo-rh-cry-usdc-i1'),
+				demoImport('demo-itx-cry-usdc-i2', '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 37.84, 37.84, 'crypto_earn_interest_paid', 'demo-rh-cry-usdc-i2'),
+				demoImport('demo-itx-cry-usdc-i3', '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 62.82, 62.82, 'crypto_earn_interest_paid', 'demo-rh-cry-usdc-i3'),
+			] },
 			// AVAX staking income
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'AVAX', ?, ?, 'in', 'Staking Income', 'AVAX', ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-avax-stk-1', 'demo-batch-avax-staking-000000000000000', DEMO_TENANT_ID, '2024-05-01T00:00:00.000Z', 0.12, 2.16, 'demo-rh-avax-stk-1', '2024-05-01T00:00:00.000Z'] },
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'AVAX', ?, ?, 'in', 'Staking Income', 'AVAX', ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-avax-stk-2', 'demo-batch-avax-staking-000000000000000', DEMO_TENANT_ID, '2024-08-01T00:00:00.000Z', 0.10, 1.80, 'demo-rh-avax-stk-2', '2024-08-01T00:00:00.000Z'] },
+			{ source: 'wallet', batchId: 'demo-batch-avax-staking-000000000000000', accountId: null, rows: [
+				demoImport('demo-itx-avax-stk-1', '2024-05-01T00:00:00.000Z', 'Staking Reward', 'AVAX', 0.12, 2.16, 'Staking Income', 'demo-rh-avax-stk-1'),
+				demoImport('demo-itx-avax-stk-2', '2024-08-01T00:00:00.000Z', 'Staking Reward', 'AVAX', 0.10, 1.80, 'Staking Income', 'demo-rh-avax-stk-2'),
+			] },
 			// Crypto.com 2025 continuation
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cry-2025-1', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-02-01T00:00:00.000Z', 41.56, 41.56, 'demo-rh-cry-2025-1', '2025-02-01T00:00:00.000Z'] },
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-itx-cry-2025-2', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-05-01T00:00:00.000Z', 38.92, 38.92, 'demo-rh-cry-2025-2', '2025-05-01T00:00:00.000Z'] },
+			{ source: 'crypto_com', batchId: BATCH_CRY_2025, accountId: ACCT_CRY, rows: [
+				demoImport('demo-itx-cry-2025-1', '2025-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 41.56, 41.56, 'crypto_earn_interest_paid', 'demo-rh-cry-2025-1'),
+				demoImport('demo-itx-cry-2025-2', '2025-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 38.92, 38.92, 'crypto_earn_interest_paid', 'demo-rh-cry-2025-2'),
+			] },
 			// Aave V3 Ethereum liquidation — March 14 2025
 			// ETH dropped sharply; health factor fell to 0.97; 0.005 WETH collateral seized to repay $13.30 USDC
 			// The note describes the event only (Almstins is not tax software): what was seized and what it was
 			// worth at the time ($14.00 at $2,800/ETH). It draws no tax conclusion.
-			{ sql: `INSERT INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, category, notes, row_hash, created_at) VALUES (?, 'aave', ?, NULL, ?, ?, ?, ?, ?, ?, 'out', 'liquidation', 'WETH', 'liquidation', ?, ?, ?)
-ON CONFLICT DO NOTHING`, args: [
-				'demo-itx-aave-liq-eth-1',
-				'demo-batch-aave-liq-0000000000000000001',
-				DEMO_TENANT_ID,
-				'2025-03-14T08:23:41.000Z',
-				'Aave V3 Liquidation — 0.005 WETH collateral seized to repay $13.30 USDC debt (5% liquidation penalty)',
-				'WETH',
-				0.005,
-				14.00,
-				'Aave liquidated part of your WETH collateral after your health factor dropped below 1.0. Seized: 0.005 WETH, about $14.00 at the time ($2,800 per ETH).',
-				'demo-rh-aave-liq-eth-1',
-				'2025-03-14T08:23:41.000Z',
-			] },
+			{ source: 'aave', batchId: 'demo-batch-aave-liq-0000000000000000001', accountId: null, rows: [{
+				...demoImport(
+					'demo-itx-aave-liq-eth-1',
+					'2025-03-14T08:23:41.000Z',
+					'Aave V3 Liquidation — 0.005 WETH collateral seized to repay $13.30 USDC debt (5% liquidation penalty)',
+					'WETH',
+					0.005,
+					14.00,
+					'liquidation',
+					'demo-rh-aave-liq-eth-1',
+					'out',
+				),
+				category: 'liquidation',
+				notes: 'Aave liquidated part of your WETH collateral after your health factor dropped below 1.0. Seized: 0.005 WETH, about $14.00 at the time ($2,800 per ETH).',
+			}] },
 		]),
 	]);
 
