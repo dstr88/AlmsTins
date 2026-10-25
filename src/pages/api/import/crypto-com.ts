@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch, type ImportTxRow, type RawImportRow } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -259,31 +260,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	const rows = parseCsv(content);
 	const batchId = randomUUID();
 
-	type DbStatement = { sql: string; args: unknown[] };
-	const rawStatements: DbStatement[] = [];
-	const normStatements: DbStatement[] = [];
+	const rawRows: RawImportRow[] = [];
+	const txRows: ImportTxRow[] = [];
 	let skippedFiatRows = 0;
 
-	// Build a statement object for one normalized row (no await — collected for batch execution)
-	const buildNormStatement = (norm: NormalizedRow, leg = ''): DbStatement => {
-		const rowHash = buildRowHash(norm, leg);
-		const groupId = buildGroupId('crypto_com', norm.assetSymbol, norm.timestampUtc);
-		return {
-			sql: `INSERT INTO import_transactions
-				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
-				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [
-				randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId,
-				norm.timestampUtc, norm.description || null, norm.currency || null,
-				norm.amount, norm.toCurrency || null, norm.toAmount,
-				norm.nativeCurrency || null, norm.nativeAmount, norm.nativeUsd,
-				norm.kind || null, norm.txHash, norm.direction, norm.assetSymbol,
-				groupId, rowHash,
-			],
-		};
-	};
+	// One normalized row, collected for the batched write
+	const buildTxRow = (norm: NormalizedRow, leg = ''): ImportTxRow => ({
+		timestampUtc: norm.timestampUtc,
+		description: norm.description || null,
+		currency: norm.currency || null,
+		amount: norm.amount,
+		toCurrency: norm.toCurrency || null,
+		toAmount: norm.toAmount,
+		nativeCurrency: norm.nativeCurrency || null,
+		nativeAmount: norm.nativeAmount,
+		nativeUsd: norm.nativeUsd,
+		kind: norm.kind || null,
+		txHash: norm.txHash,
+		direction: norm.direction,
+		assetSymbol: norm.assetSymbol,
+		groupId: buildGroupId('crypto_com', norm.assetSymbol, norm.timestampUtc),
+		rowHash: buildRowHash(norm, leg),
+	});
 
 	for (const row of rows) {
 		const timestampUtc = normalizeTimestamp(row['Timestamp (UTC)'] || '');
@@ -304,15 +302,8 @@ ON CONFLICT DO NOTHING`,
 			assetSymbol: null,
 		};
 
-		// Raw row — queue one statement per CSV row
-		const rawHash = buildRowHash(normalized, '');
-		rawStatements.push({
-			sql: `INSERT INTO import_raw_rows
-				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId, JSON.stringify(row), rawHash],
-		});
+		// Raw row — one per CSV row
+		rawRows.push({ rowJson: JSON.stringify(row), rowHash: buildRowHash(normalized, '') });
 
 		// Crypto↔crypto swap: both sides are real (non-stable) assets.
 		// Queue two normalized rows — one 'out' for the sold asset, one 'in' for the received asset —
@@ -325,12 +316,12 @@ ON CONFLICT DO NOTHING`,
 
 		if (isCryptoCryptoSwap) {
 			// OUT leg: the asset being sold
-			normStatements.push(buildNormStatement(
+			txRows.push(buildTxRow(
 				{ ...normalized, direction: 'out', assetSymbol: normalized.currency },
 				'out',
 			));
 			// IN leg: the asset being received
-			normStatements.push(buildNormStatement(
+			txRows.push(buildTxRow(
 				{
 					...normalized,
 					direction: 'in',
@@ -345,29 +336,18 @@ ON CONFLICT DO NOTHING`,
 		} else {
 			const { direction, assetSymbol } = detectDirection(normalized);
 			if (assetSymbol) {
-				normStatements.push(buildNormStatement({ ...normalized, direction, assetSymbol }));
+				txRows.push(buildTxRow({ ...normalized, direction, assetSymbol }));
 			} else {
 				skippedFiatRows += 1; // pure fiat/stable row — nothing to track
 			}
 		}
 	}
 
-	// Execute all statements in batches of 100 to avoid Render request timeouts.
-	// db.batch() sends each chunk as a single HTTP round-trip to Turso.
-	const BATCH_SIZE = 100;
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
+	const { insertedRaw, insertedNormalized } = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'crypto_com', batchId, rawRows, rows: txRows,
+	});
 
-	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
-		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
-		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
-	}
-
-	const skippedDuplicates = (rawStatements.length - insertedRaw) + skippedFiatRows;
+	const skippedDuplicates = (rawRows.length - insertedRaw) + skippedFiatRows;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'crypto_com', 'Crypto.com');
 	void runTransferMatching(tenantId, resolvedAccountId);
