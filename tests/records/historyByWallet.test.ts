@@ -121,6 +121,11 @@ function filterRows(
 		const v = args[i++];
 		out = out.filter((r) => r.wallet_id === v);
 	}
+	// Compared as SQL does: lower() of the column against the value as sent (not lowercased here).
+	if (sql.includes('AND (lower(t.from_address) = ? OR lower(t.to_address) = ?)')) {
+		const [from, to] = [args[i++], args[i++]];
+		out = out.filter((r) => String(r.from_address).toLowerCase() === from || String(r.to_address).toLowerCase() === to);
+	}
 	return out;
 }
 
@@ -171,7 +176,7 @@ import { DEMO_TENANT_ID } from '../../src/lib/demo';
 import { GET as historyGET } from '../../src/pages/api/records/history-by-wallet';
 import { GET as exportGET } from '../../src/pages/api/transactions/export';
 import { en, es, fr } from '../../src/i18n/historyExport';
-import { MAX_HISTORY_ROWS } from '../../src/lib/historyRows';
+import { MAX_HISTORY_ROWS, loadHistoryRows } from '../../src/lib/historyRows';
 
 const call = async (handler: typeof historyGET, path: string, lang?: string) => {
 	const headers: Record<string, string> = {};
@@ -813,5 +818,64 @@ describe('one file at a time for each account', () => {
 		expect((await call(historyGET, '/api/records/history-by-wallet')).status).toBe(500);
 		dbExecute.mockImplementation(async (stmt) => answer(stmt));
 		expect((await call(historyGET, '/api/records/history-by-wallet')).status).toBe(200);
+	});
+});
+
+describe('history with one counterparty address (GET /api/address-history)', () => {
+	it("only the tenant's on-chain rows sent to or received from the address come back", async () => {
+		const rows = await loadHistoryRows(TENANT, { counterparty: DEAD });
+		// t1 and t3 (failed) went to DEAD; t4 is a duplicate; t-other is another tenant's.
+		expect(rows.map((r) => r.id)).toEqual(['t1', 't3']);
+		expect(rows.every((r) => r.origin === 'onchain' && r.counterparty.toLowerCase() === DEAD)).toBe(true);
+		expect(rows.find((r) => r.id === 't3')).toMatchObject({ failed: true, amount: '0' });
+
+		const received = await loadHistoryRows(TENANT, { counterparty: FEED });
+		expect(received.map((r) => r.id)).toEqual(['t2']);
+		expect(received[0]).toMatchObject({ direction: 'in', counterparty: FEED, asset: 'USDC', amount: '2.5' });
+	});
+
+	it('every query is scoped by the tenant, and the address is sent lowercased', async () => {
+		await loadHistoryRows(TENANT, { counterparty: DEAD });
+		const calls = dataCalls();
+		expect(calls.length).toBeGreaterThan(0);
+		for (const c of calls) {
+			expect(c.sql, c.sql).toMatch(/\btenant_id = \?/);
+			expect(c.args[0], c.sql).toBe(TENANT);
+			expect(c.sql).toContain('AND (lower(t.from_address) = ? OR lower(t.to_address) = ?)');
+			expect(c.args.slice(-2)).toEqual([DEAD, DEAD]);
+		}
+	});
+
+	it('the import and Sui halves are not read: they cannot match a full address', async () => {
+		const rows = await loadHistoryRows(TENANT, { counterparty: DEAD });
+		expect(rows.some((r) => r.origin !== 'onchain')).toBe(false);
+		expect(state.calls.some((c) => /FROM import_transactions|FROM sui_transactions/.test(c.sql))).toBe(false);
+	});
+
+	it('an EVM address typed in upper case still matches', async () => {
+		const upper = `0x${DEAD.slice(2).toUpperCase()}`;
+		const rows = await loadHistoryRows(TENANT, { counterparty: `  ${upper} ` });
+		expect(rows.map((r) => r.id)).toEqual(['t1', 't3']);
+		expect(dataCalls().every((c) => c.args.slice(-2).every((a) => a === DEAD))).toBe(true);
+	});
+
+	it("another tenant's rows with the same address never come back", async () => {
+		const rows = await loadHistoryRows(OTHER, { counterparty: DEAD });
+		expect(rows.map((r) => r.id)).toEqual(['t-other']);
+		expect(await loadHistoryRows(TENANT, { counterparty: '0x' + '7'.repeat(40) })).toEqual([]);
+	});
+
+	it('an empty address selects nothing and reads nothing, not the whole history', async () => {
+		expect(await loadHistoryRows(TENANT, { counterparty: '   ' })).toEqual([]);
+		expect(dataCalls()).toEqual([]);
+	});
+
+	it('with a row limit, the count uses the same filter', async () => {
+		const rows = await loadHistoryRows(TENANT, { counterparty: DEAD }, 2);
+		expect(rows).toHaveLength(2);
+		const counts = state.calls.filter((c) => /^SELECT COUNT\(\*\)/.test(c.sql));
+		expect(counts).toHaveLength(1);
+		expect(counts[0].sql).toContain('lower(t.from_address) = ?');
+		await expect(loadHistoryRows(TENANT, { counterparty: DEAD }, 1)).rejects.toThrow(/more than 1/);
 	});
 });

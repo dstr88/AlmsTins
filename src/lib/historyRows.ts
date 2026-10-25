@@ -65,6 +65,12 @@ export interface HistoryQuery {
 	year?: number;
 	/** One wallet, already checked to belong to the tenant. Omitted = every wallet. */
 	wallet?: { id: string; address: string };
+	/**
+	 * Only rows sent to or received from this full EVM address (GET /api/address-history).
+	 * Matched without case. Only the on-chain half stores full counterparties, so with this set
+	 * the import and Sui halves select nothing; an empty value selects nothing at all.
+	 */
+	counterparty?: string;
 }
 
 // ── Pure formatting helpers ──────────────────────────────────────────────────
@@ -432,6 +438,8 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 	// A cex: wallet with no account id cannot select anything: fail closed.
 	if (isMirror && !accountFilter) return [];
 	const walletFilter = query.wallet && !isMirror ? query.wallet.id : null;
+	const counterparty = query.counterparty === undefined ? null : query.counterparty.trim().toLowerCase();
+	if (counterparty === '') return [];
 
 	const columns = await getImportTransactionColumns();
 	const has = (c: string) => columns.has(c);
@@ -441,7 +449,8 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 	// ── Imported rows ──
 	const importWallet = accountFilter !== null ? (has('account_id') ? 'AND account_id = ?' : null) : walletFilter !== null ? (has('wallet_id') ? 'AND wallet_id = ?' : null) : '';
 	// A wallet filter on a column this database does not have selects nothing, not everything.
-	if (importWallet !== null) {
+	// Imported rows keep no full counterparty address, so a counterparty filter selects none.
+	if (importWallet !== null && counterparty === null) {
 		const args: string[] = [tenantId];
 		let where = 'WHERE tenant_id = ?';
 		if (has('is_duplicate')) where += ` AND ${NOT_DUPLICATE('is_duplicate')}`;
@@ -480,6 +489,10 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			where += ' AND t.wallet_id = ?';
 			args.push(walletFilter);
 		}
+		if (counterparty !== null) {
+			where += ' AND (lower(t.from_address) = ? OR lower(t.to_address) = ?)';
+			args.push(counterparty, counterparty);
+		}
 		out.push({
 			from: 'transactions t',
 			select: `t.id, t.wallet_id, t.chain, t.hash, t.timestamp, t.from_address, t.to_address, t.value,
@@ -493,7 +506,8 @@ async function historyStatements(tenantId: string, query: HistoryQuery): Promise
 			map: (rows) => rows.map(mapOnchainRow),
 		});
 
-		// ── Sui rows ──
+		// ── Sui rows (no counterparty column, so a counterparty filter selects none) ──
+		if (counterparty !== null) return out;
 		const suiArgs: string[] = [tenantId];
 		let suiWhere = 'WHERE s.tenant_id = ?';
 		if (bounds) {
@@ -536,7 +550,8 @@ function countStatements(statements: readonly HalfStatement[]): Promise<number> 
  * Every transaction row of the tenant, mapped and sorted. With `query.wallet`, only that
  * wallet's rows, in every half: an exchange mirror wallet (address cex:{source}:{accountId})
  * selects that account's imported rows; any other wallet selects its on-chain, Sui and
- * chain-synced import rows by wallet_id.
+ * chain-synced import rows by wallet_id. With `query.counterparty`, only on-chain rows sent to or
+ * received from that address.
  *
  * With `limit`, the halves are counted first, and more rows than the limit throws
  * HistoryTooLargeError before any row is loaded.
