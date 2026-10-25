@@ -181,7 +181,7 @@ describe('Solana counterparty', () => {
 			expect(c.args.slice(1, 4)).toEqual([TENANT, 'solana', 'acct-sol']);
 		}
 		// Each update targets a row this run inserted.
-		const hashes = inserts('import_transactions').map((c) => c.args[c.args.length - 1]);
+		const hashes = inserts('import_transactions').map((c) => c.args[insertColumns(c.sql)!.columns.indexOf('row_hash')]);
 		expect(u.map((c) => c.args[4]).sort()).toEqual([...hashes].sort());
 	});
 
