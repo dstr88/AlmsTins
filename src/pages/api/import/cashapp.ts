@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { insertImportBatch, type ImportTxRow, type RawImportRow } from '@/lib/importRows';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
@@ -242,9 +243,8 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const batchId = randomUUID();
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
-	let skippedDuplicates = 0;
+	const rawRows: RawImportRow[] = [];
+	const txRows: ImportTxRow[] = [];
 
 	for (const row of rows) {
 		const timestampUtc = normalizeTimestamp(row['Date'] || '');
@@ -302,39 +302,33 @@ export const POST: APIRoute = async ({ request }) => {
 		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId(normalized.assetSymbol, normalized.timestampUtc);
 
-		const rawResult = await db.execute({
-			sql: `INSERT INTO import_raw_rows
-				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, 'cashapp', ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(row), rowHash],
+		rawRows.push({ rowJson: JSON.stringify(row), rowHash });
+		txRows.push({
+			timestampUtc: normalized.timestampUtc,
+			description: normalized.description || null,
+			currency: normalized.currency || null,
+			amount: normalized.amount,
+			toCurrency: normalized.toCurrency || null,
+			toAmount: normalized.toAmount,
+			nativeCurrency: normalized.nativeCurrency || null,
+			nativeAmount: normalized.nativeAmount,
+			nativeUsd: normalized.nativeUsd,
+			kind: normalized.kind || null,
+			txHash: normalized.txHash,
+			direction: normalized.direction,
+			assetSymbol: normalized.assetSymbol,
+			groupId,
+			rowHash,
+			feeUsd: normalized.feeUsd,
 		});
-
-		const normalizedResult = await db.execute({
-			sql: `INSERT INTO import_transactions
-				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount,
-				to_currency, to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction,
-				asset_symbol, group_id, row_hash, fee_usd, created_at)
-				VALUES (?, ?, 'cashapp', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-ON CONFLICT DO NOTHING`,
-			args: [
-				randomUUID(), tenantId, resolvedAccountId, batchId,
-				normalized.timestampUtc, normalized.description || null,
-				normalized.currency || null, normalized.amount,
-				normalized.toCurrency || null, normalized.toAmount,
-				normalized.nativeCurrency || null, normalized.nativeAmount,
-				normalized.nativeUsd, normalized.kind || null,
-				normalized.txHash, normalized.direction,
-				normalized.assetSymbol, groupId, rowHash, normalized.feeUsd,
-			],
-		});
-
-		insertedRaw += rawResult.rowsAffected ?? 0;
-		insertedNormalized += normalizedResult.rowsAffected ?? 0;
-		if ((rawResult.rowsAffected ?? 0) === 0 && (normalizedResult.rowsAffected ?? 0) === 0) {
-			skippedDuplicates += 1;
-		}
 	}
+
+	const result = await insertImportBatch({
+		tenantId, accountId: resolvedAccountId, source: 'cashapp', batchId, rawRows, rows: txRows,
+	});
+	const { insertedRaw, insertedNormalized } = result;
+	// A row counts as skipped when neither its raw row nor its transaction was new.
+	const skippedDuplicates = result.rawInserted.filter((raw, i) => !raw && !result.inserted[i]).length;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'cashapp', 'Cash App');
 	void runTransferMatching(tenantId, resolvedAccountId);
