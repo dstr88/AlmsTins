@@ -2,18 +2,21 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * The columns each table has, read from migrations/*.sql: every CREATE TABLE's column list plus
- * every later ALTER TABLE … ADD COLUMN. Only tables that have a CREATE TABLE there are known; the
- * rest (wallets, wallet_snapshots) predate the migrations folder. Trust it only for tables with
- * a plain history: one rebuilt through a copy table (address_labels) reads short here.
+ * The columns each table has, read from migrations/*.sql and then migrations-pg/*.sql (the
+ * Postgres-only additions): every CREATE TABLE's column list plus every later ALTER TABLE … ADD
+ * COLUMN. Only tables that have a CREATE TABLE there are known; the rest (wallets,
+ * wallet_snapshots) predate the migrations folder. Trust it only for tables with a plain history:
+ * one rebuilt through a copy table (address_labels) reads short here.
  */
 export function migrationColumns(): Map<string, Set<string>> {
-	const dir = path.resolve(__dirname, '../../migrations');
-	const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+	const files = ['migrations', 'migrations-pg'].flatMap((d) => {
+		const dir = path.resolve(__dirname, '../..', d);
+		return readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => path.join(dir, f));
+	});
 	const created = new Map<string, Set<string>>();
 	const added: Array<[string, string]> = [];
 	for (const f of files) {
-		const sql = readFileSync(path.join(dir, f), 'utf8').replace(/--[^\n]*/g, '');
+		const sql = readFileSync(f, 'utf8').replace(/--[^\n]*/g, '');
 		for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\n\s*\);/gi)) {
 			const cols = created.get(m[1]) ?? new Set<string>();
 			for (const line of m[2].split('\n')) {
