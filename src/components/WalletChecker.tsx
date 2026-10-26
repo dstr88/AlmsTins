@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import jsQR from 'jsqr';
+import { decodeQrFromImageData } from '@/lib/qrScan';
 import type { WalletCheckResult } from '@/lib/walletChecker';
 import type { WalletActivity } from '@/lib/walletActivity';
 import type { WalletCheckerLocale } from '@/i18n/walletChecker';
@@ -687,10 +687,9 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         try {
-          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-          if (code?.data) {
-            const { kind, value } = classifyScan(code.data);
+          const payload = decodeQrFromImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+          if (payload) {
+            const { kind, value } = classifyScan(payload);
             // A scanned website / dApp URL is checked by the dApp checker (lives in the
             // page script) — hand it off via an event and close the camera.
             if (kind === 'url') {

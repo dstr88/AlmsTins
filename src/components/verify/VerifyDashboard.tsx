@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import jsQR from 'jsqr';
-import { decodeQrFromImageFile } from '../../lib/qrScan';
+import { decodeQrFromImageData, decodeQrFromImageFile } from '../../lib/qrScan';
 import { hasAnchor, merchantAddressAssurance, staleCutoffUtc } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
@@ -11,6 +10,7 @@ import { findEvmAddress } from '@/lib/addressFormats';
 import { VERIFY_ADDRESS_RAILS, VERIFY_EVM_RAILS } from '@/lib/chains';
 import { formatDateTime, formatTime } from '@/lib/format';
 import { CopyButton } from '@/components/ui/CopyButton';
+import { QrImage } from '@/components/ui/QrImage';
 import type { Lang } from '@/lib/i18n/locale';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -495,36 +495,22 @@ function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }
 
 // A proven address gets a shareable QR badge. It encodes the public scan URL, so a
 // customer scanning it lands on /verify/scan and sees "✓ Verified". Generated in the
-// browser (qrcode, lazy-loaded) and downloadable as a PNG to print or display.
+// browser (<QrImage>, src/lib/qrMake.ts) and downloadable as a PNG to print or display.
 function QrBadge({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
-  const [dataUrl, setDataUrl] = useState('');
-  useEffect(() => {
-    let alive = true;
-    const scanUrl = `https://almstins.com/verify/scan?address=${encodeURIComponent(d.value)}`;
-    (async () => {
-      try {
-        const mod = (await import('qrcode')) as unknown as {
-          toDataURL?: (text: string, opts?: unknown) => Promise<string>;
-          default?: { toDataURL: (text: string, opts?: unknown) => Promise<string> };
-        };
-        const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
-        if (!toDataURL) return;
-        const url = await toDataURL(scanUrl, { width: 220, margin: 1 });
-        if (alive) setDataUrl(url);
-      } catch { /* ignore — the badge just won't render */ }
-    })();
-    return () => { alive = false; };
-  }, [d.value]);
-
+  const scanUrl = `https://almstins.com/verify/scan?address=${encodeURIComponent(d.value)}`;
   return (
     <div className="vd-qr">
-      {dataUrl
-        ? <img className="vd-qr__img" src={dataUrl} alt="Verification QR" width={220} height={220} />
-        : <div className="vd-qr__img vd-qr__img--loading" />}
-      <p className="vd-qr__hint">{t.qrBadgeHint}</p>
-      {dataUrl && (
-        <a className="vd-qr__dl" href={dataUrl} download={`almstins-verified-${d.rail}.png`}>{t.qrBadgeDownload}</a>
-      )}
+      <QrImage
+        text={scanUrl}
+        size={220}
+        margin={1}
+        alt="Verification QR"
+        className="vd-qr__img"
+        placeholder={() => <div className="vd-qr__img vd-qr__img--loading" />}
+        download={{ filename: `almstins-verified-${d.rail}.png`, label: t.qrBadgeDownload, className: 'vd-qr__dl' }}
+      >
+        <p className="vd-qr__hint">{t.qrBadgeHint}</p>
+      </QrImage>
     </div>
   );
 }
@@ -542,35 +528,21 @@ function qrPayload(d: Destination): string | null {
 // registered (no proof needed; it's just their own address/link). Same in-browser PNG
 // generation as QrBadge, but it encodes the destination itself, not the verify URL.
 function PaymentQr({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
-  const [dataUrl, setDataUrl] = useState('');
   const payload = qrPayload(d);
-  useEffect(() => {
-    if (!payload) return;
-    let alive = true;
-    (async () => {
-      try {
-        const mod = (await import('qrcode')) as unknown as {
-          toDataURL?: (text: string, opts?: unknown) => Promise<string>;
-          default?: { toDataURL: (text: string, opts?: unknown) => Promise<string> };
-        };
-        const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
-        if (!toDataURL) return;
-        const url = await toDataURL(payload, { width: 220, margin: 1 });
-        if (alive) setDataUrl(url);
-      } catch { /* ignore — the QR just won't render */ }
-    })();
-    return () => { alive = false; };
-  }, [payload]);
-
+  if (!payload) return null; // DestRow shows it only when there is one (canPayQr)
   return (
     <div className="vd-qr">
-      {dataUrl
-        ? <img className="vd-qr__img" src={dataUrl} alt="Payment QR" width={220} height={220} />
-        : <div className="vd-qr__img vd-qr__img--loading" />}
-      <p className="vd-qr__hint">{t.paymentQrHint}</p>
-      {dataUrl && (
-        <a className="vd-qr__dl" href={dataUrl} download={`almstins-payment-${d.rail}.png`}>{t.qrBadgeDownload}</a>
-      )}
+      <QrImage
+        text={payload}
+        size={220}
+        margin={1}
+        alt="Payment QR"
+        className="vd-qr__img"
+        placeholder={() => <div className="vd-qr__img vd-qr__img--loading" />}
+        download={{ filename: `almstins-payment-${d.rail}.png`, label: t.qrBadgeDownload, className: 'vd-qr__dl' }}
+      >
+        <p className="vd-qr__hint">{t.paymentQrHint}</p>
+      </QrImage>
     </div>
   );
 }
@@ -1199,7 +1171,7 @@ type SafetyState =
 
 // Scan or paste a payment QR/address and check it against the tenant's OWN
 // registered destinations — "✓ still yours" vs "⚠ swapped". The QR is decoded
-// on-device (jsQR via qrScan.ts); only the decoded string is sent.
+// on-device (qrScan.ts); only the decoded string is sent.
 function VerifySign({ t }: { t: VerifyDashboardLocale }) {
   const [value, setValue] = useState('');
   const [state, setState] = useState<CheckState>({ status: 'idle' });
@@ -1227,13 +1199,12 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         try {
-          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-          if (code?.data) {
+          const payload = decodeQrFromImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+          if (payload) {
             cancelled = true;
-            setValue(code.data);
+            setValue(payload);
             setCameraOn(false);
-            void check(code.data);
+            void check(payload);
             return;
           }
         } catch { /* getImageData can throw mid-teardown; ignore */ }
