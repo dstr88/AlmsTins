@@ -8,7 +8,7 @@ import { MemoryTables, type MemRow } from '../helpers/memoryTable';
  *
  *   - The Litecoin sync reads litecoinspace.org, never Blockstream, and stores each transaction in
  *     import_transactions with source `litecoin`, LTC, a signed amount, its USD value at the LTC
- *     price, a `litecoin` row_hash and its counterparty (the first input that is not the wallet on a
+ *     price of its day, a `litecoin` row_hash and its counterparty (the first input that is not the wallet on a
  *     receive, the first output that is not the wallet on a send; bech32 lowercased, base58 kept).
  *   - The rows are filed under the tenant's `litecoin` exchange account, never the `bitcoin` one, so
  *     a Bitcoin and a Litecoin transaction never collide.
@@ -96,6 +96,12 @@ vi.mock('@/lib/coinpaprikaProvider', () => ({
 		{ symbol: 'BTC', quotes: { USD: { price: BTC_PRICE } } },
 		{ symbol: 'LTC', quotes: { USD: { price: LTC_PRICE } } },
 	],
+}));
+// Each row's day price (src/lib/sync/utxoHistoricalPrice.ts): the same as the spot price here.
+vi.mock('@/lib/coingeckoHistorical', () => ({
+	getCoingeckoIdBySymbol: async (symbol: string) => ({ BTC: 'bitcoin', LTC: 'litecoin' } as Record<string, string>)[symbol] ?? null,
+	getUsdUnitPriceAtTimestampCoinGecko: async ({ coinId }: { coinId: string }) =>
+		({ unitPriceUsd: coinId === 'litecoin' ? LTC_PRICE : BTC_PRICE, pricedAtIso: '', source: 'coingecko:range', confidence: 'historical' }),
 }));
 vi.mock('@/lib/transferMatcher', () => ({ runTransferMatching: vi.fn(async () => {}) }));
 vi.mock('@/lib/autoClassify', () => ({ autoClassifyOwnWalletTransfers: vi.fn(async () => 0) }));
