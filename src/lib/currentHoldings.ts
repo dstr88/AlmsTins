@@ -17,6 +17,7 @@ import { getAavePositionsForWallet, type AaveChainSummary, type AavePositionsRes
 import { aaveSymbolUsdPrice } from '@/lib/aave/pricing';
 import { isSpamToken } from './knownContracts';
 import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export type HeldQty = { qty: number; valueUsd: number | null };
 /** Keyed by UPPERCASE symbol. */
@@ -52,7 +53,7 @@ export function parseSnapshotHoldings(payloads: Array<string | null | undefined>
     if (!Array.isArray(tokens)) continue;
     for (const t of tokens) {
       if (!t || typeof t !== 'object') continue;
-      const sym = String(t.symbol ?? '').trim().toUpperCase();
+      const sym = currentCoinSymbol(String(t.symbol ?? '').trim().toUpperCase());
       if (!sym || isSpamToken(sym)) continue;
       const qty = num(t.amount);
       const valueUsd = num(t.valueUsd);
