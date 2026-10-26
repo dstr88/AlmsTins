@@ -10,8 +10,8 @@ import * as copy from '../../src/i18n/components/addressLabels';
  *
  *   - The copy is EN/ES/FR with the same keys and no em dash; the Verify texts never call an
  *     address safe or unsafe.
- *   - The modal is an accessible dialog (role, aria-modal, a title, Escape, a focus trap, a
- *     scroll lock, focus back to the opener) and renders user-typed text as React text only.
+ *   - The modal is an accessible dialog (the shared <Modal> shell, named by its title, focus on
+ *     Close) and renders user-typed text as React text only.
  *   - It calls /api/verify/lookup and /api/address-history and nothing else; Verify and the QR
  *     code sit behind isOnchainAddress, and the QR encodes the bare address.
  *   - Each Address Labels row opens it from a button; copy and Remove stay their own buttons.
@@ -72,22 +72,14 @@ describe('the copy', () => {
 });
 
 describe('the modal', () => {
-	it('is an accessible dialog', () => {
-		expect(modal).toMatch(/role="dialog"/);
-		expect(modal).toMatch(/aria-modal="true"/);
-		expect(modal).toMatch(/aria-labelledby=\{titleId\}/);
+	it('is an accessible dialog, through the shared <Modal> shell', () => {
+		// Role, aria-modal, Escape, the focus trap, the scroll lock, focus back to the opener, the
+		// bottom sheet and the backdrop click live in src/components/ui (tests/lib/dialog.test.ts).
+		expect(modal).toMatch(/import \{ Modal \} from '@\/components\/ui\/Modal'/);
+		expect(modal).toMatch(/<Modal onClose=\{onClose\} labelledBy=\{titleId\} initialFocus=\{closeRef\}>/);
 		expect(modal).toMatch(/<h2 id=\{titleId\}/);
-		expect(modal).toMatch(/e\.key === 'Escape'/);
-		expect(modal).toMatch(/e\.key !== 'Tab'/);
-		expect(modal).toMatch(/closeRef\.current\?\.focus\(\)/);
-		expect(modal).toMatch(/opener\?\.focus\(\)/);
-		expect(modal).toMatch(/document\.body\.style\.overflow = 'hidden'/);
-		expect(modal).toMatch(/max-width: 639px/);
-	});
-
-	it('closes on a backdrop click that also started on the backdrop', () => {
-		expect(modal).toMatch(/downOnBackdrop\.current = e\.target === e\.currentTarget/);
-		expect(modal).toMatch(/if \(downOnBackdrop\.current && e\.target === e\.currentTarget\) onClose\(\)/);
+		expect(modal).toMatch(/<button ref=\{closeRef\} type="button" onClick=\{onClose\}/);
+		expect(modal).not.toMatch(/role="dialog"|keydown|document\.body\.style/);
 	});
 
 	it('renders user text as React text only', () => {
