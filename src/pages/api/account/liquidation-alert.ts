@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import { json } from '@/lib/http';
 
 export const GET: APIRoute = async ({ request }) => {
 	const session = await getAuthSession(request).catch(() => null);
@@ -51,10 +52,3 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: false, error: 'Failed to save' }, 500);
 	}
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

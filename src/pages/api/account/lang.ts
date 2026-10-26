@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getAuthSession } from '@/lib/authSession';
 import { isLang } from '@/lib/i18n/locale';
 import { setUserLang } from '@/lib/i18n/userLang';
+import { json } from '@/lib/http';
 
 // Persist the dashboard language switch to the user's account so emails
 // (digests, price/health alerts, promo expiry, receipts) match it. Called
@@ -30,10 +31,3 @@ export const POST: APIRoute = async ({ request }) => {
 	await setUserLang(session.user.id, raw);
 	return json({ ok: true, lang: raw });
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

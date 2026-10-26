@@ -21,6 +21,7 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { PLANS } from '@/lib/subscriptions';
+import { json } from '@/lib/http';
 
 export const POST: APIRoute = async ({ request }) => {
   await requireAdminSession(request);   // throws 401/403 if not admin
@@ -91,10 +92,3 @@ export const GET: APIRoute = async ({ request }) => {
 
   return json({ ok: true, codes: rows }, 200);
 };
-
-function json(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

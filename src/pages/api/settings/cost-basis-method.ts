@@ -18,15 +18,9 @@ import {
   setCostBasisMethod,
   isUserCostBasisMethod,
 } from '@/lib/costBasisMethodSetting';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
