@@ -140,10 +140,10 @@ describe('the modal', () => {
 	});
 
 	it('the QR code is the bare address, drawn in the browser, saved without the label', () => {
-		expect(modal).toMatch(/await import\('qrcode'\)/);
-		expect(modal).toMatch(/toDataURL\(address, \{ width: 240, margin: 1 \}\)/);
-		expect(modal).toMatch(/download=\{`almstins-address-\$\{network\}\.png`\}/);
-		expect(modal).not.toMatch(/download=\{`[^`]*label/);
+		expect(modal).toMatch(/from '@\/components\/ui\/QrImage'/);
+		expect(modal).toMatch(/<QrImage\s[^>]*?text=\{address\}\s+size=\{240\}\s+margin=\{1\}/);
+		expect(modal).toMatch(/filename: `almstins-address-\$\{network\}\.png`/);
+		expect(modal).not.toMatch(/filename: `[^`]*label/);
 	});
 
 	it('an EVM address with no chain gets one link per EVM explorer', () => {

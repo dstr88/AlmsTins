@@ -20,6 +20,7 @@ import { evmExplorerLinks, explorerAddressUrl, explorerName } from '@/lib/explor
 import type { AddressLabel } from './AddressLabels';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
+import { QrImage } from '@/components/ui/QrImage';
 import { formatUsd, toFiniteNumber } from '@/lib/format';
 
 type Props = {
@@ -405,49 +406,28 @@ function HistorySection({ address, onchain, notOnchainText, t }: { address: stri
 // ── 4. QR code ────────────────────────────────────────────────────────────────
 
 function QrSection({ address, network, label, t }: { address: string; network: AddressNetwork; label: string; t: AddressLabelsLocale['details'] }) {
-	const [dataUrl, setDataUrl] = useState('');
-	const [failed, setFailed] = useState(false);
-	useEffect(() => {
-		let alive = true;
-		setDataUrl('');
-		setFailed(false);
-		(async () => {
-			try {
-				const mod = (await import('qrcode')) as unknown as {
-					toDataURL?: (text: string, opts?: unknown) => Promise<string>;
-					default?: { toDataURL: (text: string, opts?: unknown) => Promise<string> };
-				};
-				const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
-				if (!toDataURL) throw new Error('qrcode');
-				// The bare address, the same choice Verify's payment QR makes.
-				const url = await toDataURL(address, { width: 240, margin: 1 });
-				if (alive) setDataUrl(url);
-			} catch {
-				if (alive) setFailed(true);
-			}
-		})();
-		return () => { alive = false; };
-	}, [address]);
-
 	return (
 		<Section title={t.secQr}>
 			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', textAlign: 'center' }}>
-				{dataUrl ? (
-					<img src={dataUrl} alt={t.qrAlt} width={240} height={240} style={{ borderRadius: '8px', maxWidth: '100%', height: 'auto' }} />
-				) : (
-					<div style={{ width: 240, maxWidth: '100%', aspectRatio: '1', borderRadius: '8px', background: 'var(--surface-card-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-						<span style={mutedText}>{failed ? t.qrFailed : t.qrLoading}</span>
-					</div>
-				)}
-				<code style={{ fontFamily: MONO, fontSize: '0.78rem', color: 'var(--text-primary)', overflowWrap: 'anywhere', maxWidth: '100%' }}>{address}</code>
-				<p style={mutedText}>{t.qrScanCheck}</p>
-				{network === 'evm' && <p style={mutedText}>{t.qrEvmNetworks(label)}</p>}
-				{dataUrl && (
+				<QrImage
+					// The bare address, the same choice Verify's payment QR makes.
+					text={address}
+					size={240}
+					margin={1}
+					alt={t.qrAlt}
+					style={{ borderRadius: '8px', maxWidth: '100%', height: 'auto' }}
+					placeholder={(state) => (
+						<div style={{ width: 240, maxWidth: '100%', aspectRatio: '1', borderRadius: '8px', background: 'var(--surface-card-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+							<span style={mutedText}>{state === 'failed' ? t.qrFailed : t.qrLoading}</span>
+						</div>
+					)}
 					// The label stays out of the file name: it can be a person's name.
-					<a href={dataUrl} download={`almstins-address-${network}.png`} style={linkStyle}>
-						{t.qrDownload}
-					</a>
-				)}
+					download={{ filename: `almstins-address-${network}.png`, label: t.qrDownload, style: linkStyle }}
+				>
+					<code style={{ fontFamily: MONO, fontSize: '0.78rem', color: 'var(--text-primary)', overflowWrap: 'anywhere', maxWidth: '100%' }}>{address}</code>
+					<p style={mutedText}>{t.qrScanCheck}</p>
+					{network === 'evm' && <p style={mutedText}>{t.qrEvmNetworks(label)}</p>}
+				</QrImage>
 			</div>
 		</Section>
 	);

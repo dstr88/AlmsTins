@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import jsQR from 'jsqr';
-import { decodeQrFromImageFile } from '../../lib/qrScan';
+import { decodeQrFromImageData, decodeQrFromImageFile } from '../../lib/qrScan';
 import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, type PublicVerifyCard } from '../../lib/verifyPublicCard';
 import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } from '../../i18n/verifyScan';
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
@@ -154,11 +153,10 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         try {
-          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-          if (code?.data) {
+          const payload = decodeQrFromImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+          if (payload) {
             cancelled = true;
-            const scanned = extractScanned(code.data);
+            const scanned = extractScanned(payload);
             setValue(scanned);
             setCameraOn(false);
             void check(scanned);
