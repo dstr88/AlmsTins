@@ -25,11 +25,12 @@ import { copy } from './copy';
 import { clearStage, enqueue, initialPlayer, isFlagged, nextDelay, pause, resume, tick, waiting, type Card, type PlayerState } from './feedPlayer';
 import { createFeedPoller, type ConnState, type FeedPoller } from './feedPoller';
 import { createFeedReader, type FeedReader, type ReaderState, type ReadResult } from './feedReader';
-import { addRows, clockOrDate, mergeRows, parseFeedRows, releaseRows, shortAddress, visibleRows, writtenIso, type ListState } from './feedRows';
+import { addRows, clockOrDate, mergeRows, parseFeedRows, releaseRows, visibleRows, writtenIso, type ListState } from './feedRows';
 import { ANSWER_CLASS, LedgerItem } from './LedgerPanel';
 import { HOME_PATH } from './paths';
 import { describeRefresh, passOf } from './refresh';
 import { Status } from './ui';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 const PREF_KEY = 'ag-feed-read';
 
@@ -65,7 +66,7 @@ export function StageCard({ card }: { card: Card }) {
   const tx = row.kind === 'transaction' ? row.tx : null;
   const kind = tx ? (tx.direction === 'in' ? copy.ledger.kind.in : copy.ledger.kind.out) : copy.ledger.kind.checked;
   const answer = row.answer ? VERIFY_STATUS_TITLE[row.answer] : copy.ledger.noAnswer;
-  const short = shortAddress(row.address);
+  const short = shortenAddress(row.address);
   return (
     <div className={`ag-feed__card${isFlagged(row) ? ' ag-feed__card--flag' : ''}`}>
       <div className="ag-feed__top">

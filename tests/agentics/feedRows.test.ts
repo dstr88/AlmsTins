@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FEED_KEEP_MAX, FEED_KEEP_PER_AGENT, FEED_LIST_MAX, addRows, clockOrDate, emptyList, mergeRows, newestFirst, parseFeedRows, releaseRows, shortAddress, toFeedRow, visibleRows, writtenIso, type FeedRow } from '../../src/components/agentics/feedRows';
+import { FEED_KEEP_MAX, FEED_KEEP_PER_AGENT, FEED_LIST_MAX, addRows, clockOrDate, emptyList, mergeRows, newestFirst, parseFeedRows, releaseRows, toFeedRow, visibleRows, writtenIso, type FeedRow } from '../../src/components/agentics/feedRows';
 import { addr } from '../helpers/agentVault';
 
 /**
@@ -147,15 +147,6 @@ describe('the list on the page', () => {
     const merged = mergeRows([], rows);
     expect(merged).toHaveLength(FEED_KEEP_MAX);
     expect(merged[0].writtenAt >= merged[merged.length - 1].writtenAt).toBe(true);
-  });
-});
-
-describe('an address on a card', () => {
-  it('is cut in the middle when it is long, and shown whole when it is short', () => {
-    expect(shortAddress(addr(1))).toMatch(/^0xc0ffee.{0}…[0-9a-f]{6}$/);
-    expect(shortAddress(addr(1)).length).toBeLessThan(addr(1).length);
-    expect(shortAddress('0x1234')).toBe('0x1234');
-    expect(shortAddress('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh')).toContain('…');
   });
 });
 

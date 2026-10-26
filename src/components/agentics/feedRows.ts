@@ -137,7 +137,3 @@ export function clockOrDate(iso: string, ref: string): string {
   return day.test(iso) && day.test(ref) && iso.slice(0, 10) !== ref.slice(0, 10) ? `${iso.slice(0, 10)} ${clock}` : clock;
 }
 
-/** An address a card can hold: `0x1234abcd…89abcd`. A short one is shown whole. */
-export function shortAddress(address: string): string {
-  return address.length > 18 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
-}

@@ -12,7 +12,7 @@ import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import type { AgentWallet } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
-import { ConfirmRemove, CopyButton, shouldTakeFocus, Status } from './ui';
+import { ConfirmRemove, VaultCopyButton, shouldTakeFocus, Status } from './ui';
 
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
 
@@ -154,7 +154,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
               <div className="ag-dest__main">
                 <span className="ag-pill">{chainName(w.chain)}</span>
                 <span className="ag-addr ag-mono">{w.address}</span>
-                <CopyButton value={w.address} />
+                <VaultCopyButton value={w.address} />
               </div>
               <div className="ag-dest__actions">
                 <ConfirmRemove

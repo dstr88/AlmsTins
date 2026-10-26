@@ -8,6 +8,8 @@
  * A status is always a word: color adds to it and never replaces it.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { CopyButton as SharedCopyButton } from '@/components/ui/CopyButton';
+import { shortenAddress } from '@/lib/addressDisplay';
 import type { Destination } from '@/lib/agentVault/store';
 import { formatUtc } from '@/lib/agentVault/reportFormat';
 import { copy } from './copy';
@@ -108,52 +110,21 @@ export function Readout({ id, d }: { id: string; d: Pick<Destination, 'trust'> }
 // ── Copy an address ──────────────────────────────────────────────────────────
 
 /**
- * Puts text on the clipboard with the page's clipboard API, and says whether it worked. Where the API
- * is missing (a page that is not served securely) or the browser refuses, it says no, and the button
- * says "Copy failed": the address is on the page in full, to select by hand.
+ * A button that copies an address and says it did: the shared <CopyButton> (src/components/ui), in
+ * the Agent Vault's words and classes. The button's name stays the same ("Copy address
+ * 0x1234ab…89abcd"), so the result is also said in a live region next to it ("Copied", "Copy
+ * failed"), which is announced without moving focus.
  */
-export async function copyText(value: string): Promise<boolean> {
-  try {
-    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * A button that copies an address and says it did. The address in the label is cut short: a screen
- * reader does not need all 42 characters. The button's name stays the same ("Copy address 0x12...ab"),
- * which hides the word on the button from a screen reader, so the result is also said in a live region
- * next to it ("Copied", "Copy failed"), which is announced without moving focus.
- */
-export function CopyButton({ value }: { value: string }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-  const short = value.length > 12 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
-  const said = state === 'copied' ? copy.registry.copied : state === 'failed' ? copy.registry.copyFailed : '';
+export function VaultCopyButton({ value }: { value: string }) {
   return (
-    <>
-      <button
-        type="button"
-        className="ag-btn ag-btn--small"
-        aria-label={copy.registry.copyLabel(short)}
-        onClick={async () => {
-          setState((await copyText(value)) ? 'copied' : 'failed');
-          if (timer.current) clearTimeout(timer.current);
-          timer.current = setTimeout(() => setState('idle'), 1800);
-        }}
-      >
-        {said || copy.registry.copy}
-      </button>
-      <span className="ag-sr" role="status" aria-live="polite">
-        {said}
-      </span>
-    </>
+    <SharedCopyButton
+      value={value}
+      lang="en"
+      className="ag-btn ag-btn--small"
+      srClassName="ag-sr"
+      label={copy.registry.copyLabel(shortenAddress(value))}
+      words={{ idle: copy.registry.copy, copied: copy.registry.copied, failed: copy.registry.copyFailed }}
+    />
   );
 }
 
