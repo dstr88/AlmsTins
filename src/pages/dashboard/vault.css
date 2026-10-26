@@ -462,6 +462,21 @@
 	font-variant-numeric: tabular-nums;
 }
 
+/* Closed DeFi tin: every chain's health factor side by side. */
+.wallet-stack .tin-summary__value--multi {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.25rem 1rem;
+}
+
+.wallet-stack .tin-summary__hf-chain {
+	font-size: var(--font-md2);
+	font-weight: 600;
+	opacity: 0.85;
+	margin-right: 0.35rem;
+}
+
 .wallet-empty {
 	display: inline-flex;
 	align-items: center;
@@ -544,6 +559,22 @@
 	height: 1px;
 	margin: var(--space-md) 0;
 	background: var(--border-bright);
+}
+
+/* One Aave position per chain, each in its own white-bordered box. */
+.defi-summary-tin .aave-position {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+	border: 1px solid #fff;
+	border-radius: 8px;
+	padding: var(--space-md);
+}
+
+.defi-summary-tin .aave-position__title {
+	font-size: var(--font-md2);
+	font-weight: 700;
+	letter-spacing: 0.02em;
 }
 
 /* ── Collateral breakdown ─────────────────────────────────────────────────── */

@@ -205,25 +205,49 @@ type HealthResponse = {
 	error?: string;
 };
 
+type CollateralRow = {
+	symbol: string;
+	amount: number | null;
+	usdValue: number | null;
+	priceUsd: number | null;
+	purchasePriceUsd: number | null;
+	purchaseAt: string | null;
+};
+
+/**
+ * One Aave market the wallet has a position in. Each chain's market is a separate position with its own health
+ * factor (Aave computes it per market), so the tin shows one bordered box per chain and never merges assets
+ * across chains.
+ */
+type ChainPosition = {
+	chain: string;
+	healthFactor: string | number | null;
+	totalCollateralBase: number;
+	totalDebtBase: number;
+	collateralBreakdown: CollateralRow[];
+};
+
 type FetchState =
 	| { status: 'loading' }
 	| { status: 'error'; message?: string }
 	| {
 			status: 'ready';
-			healthByChain: Array<{ chain: string; healthFactor: string | number | null }>;
-			totalCollateralBase: number;
-			totalDebtBase: number;
-			collateralBreakdown: Array<{
-				symbol: string;
-				amount: number | null;
-				usdValue: number | null;
-				priceUsd: number | null;
-				purchasePriceUsd: number | null;
-				purchaseAt: string | null;
-			}>;
+			positions: ChainPosition[];
 			isStale?: boolean;
 			unavailableMessage?: string | null;
 	  };
+
+/** "ethereum_v4" → "Ethereum v4". Chain names stay English in every language. */
+function chainDisplayName(chain: string): string {
+	const spaced = chain.replace(/_/g, ' ');
+	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function healthColor(value: string | number | null): string | undefined {
+	const hf = value != null ? Number(value) : null;
+	if (hf === null || !Number.isFinite(hf)) return undefined;
+	return hf < 1.5 ? 'var(--loss)' : hf < 2.0 ? 'var(--warning)' : 'var(--gain)';
+}
 
 function formatHealthFactor(value: string | number | null) {
 	if (value === null || value === undefined) return '---';
@@ -396,13 +420,9 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				}
 
 				const chainEntries = data.chains ? Object.entries(data.chains) : [];
-				const healthByChain = chainEntries.map(([chain, summary]) => ({
-					chain,
-					healthFactor: summary.healthFactor ?? null,
-				}));
-				// Aggregate positions from ALL chains that have active supplies or borrows.
-				// A wallet can have positions on Ethereum, Polygon, and Avalanche simultaneously —
-				// picking only one active chain would hide the others.
+				// Every chain with active supplies or borrows is its own position. A wallet can have positions on
+				// Ethereum, Polygon and Avalanche at once, each with its own health factor; picking one chain would
+				// hide the others, and merging them would mix separate markets.
 				const activeChainEntries = chainEntries.filter(([, summary]) =>
 					(summary.userSupplies ?? []).length > 0 || (summary.userBorrows ?? []).length > 0
 				);
@@ -447,86 +467,78 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				}
 				const oraclePrices: Record<string, number> = {};
 
-				const collateralBreakdown = supplies.reduce<
-					Array<{
-						symbol: string;
-						amount: number | null;
-						usdValue: number | null;
-						priceUsd: number | null;
-						purchasePriceUsd: number | null;
-						purchaseAt: string | null;
-					}>
-				>((acc, entry) => {
-					const symbol = entry.currency?.symbol?.toUpperCase();
-					if (!symbol) return acc;
-					const amount = Number(entry.balance?.amount?.value ?? 0);
-					const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-					const usdFromAave = typeof entry.balanceUsd === 'number' ? entry.balanceUsd : null;
-					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
-					const priceKey = normalizePriceSymbol(symbol);
-					const priceFromCached = typeof cachedPrices[priceKey] === 'number' ? cachedPrices[priceKey] : null;
-					const priceFromOracle = typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
-					const usdValue =
-						usdFromAave ??
-						(priceFromAave ? normalizedAmount * priceFromAave : null) ??
-						(priceFromCached ? normalizedAmount * priceFromCached : null) ??
-						(priceFromOracle ? normalizedAmount * priceFromOracle : null);
-
-					const resolvedPrice = priceFromAave ?? priceFromCached ?? priceFromOracle ?? null;
-					const existing = acc.find((row) => row.symbol === symbol);
-					if (existing) {
-						existing.amount = (existing.amount ?? 0) + normalizedAmount;
-						existing.usdValue =
-							existing.usdValue !== null && usdValue !== null ? existing.usdValue + usdValue : null;
-						if (!existing.priceUsd && resolvedPrice) existing.priceUsd = resolvedPrice;
-					} else {
-						acc.push({
-							symbol,
-							amount: normalizedAmount || null,
-							usdValue,
-							priceUsd: resolvedPrice,
-							purchasePriceUsd: null,
-							purchaseAt: null,
-						});
-					}
-					return acc;
-				}, []);
-
-				const computedCollateralUsd = collateralBreakdown.reduce(
-					(sum, row) => sum + (typeof row.usdValue === 'number' ? row.usdValue : 0),
-					0,
-				);
-				const computedDebtUsd = borrows.reduce((sum, entry) => {
-					const amount = Number(entry.debt?.amount?.value ?? 0);
-					const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-					const symbol = entry.currency?.symbol?.toUpperCase() ?? '';
-					const usdFromAave = typeof entry.debtUsd === 'number' ? entry.debtUsd : null;
-					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
-					const debtPriceKey = symbol ? normalizePriceSymbol(symbol) : '';
-					const priceFromCached = debtPriceKey && typeof cachedPrices[debtPriceKey] === 'number' ? cachedPrices[debtPriceKey] : null;
+				const usdOf = (amount: number, symbol: string, usdFromAave: number | null, priceFromAave: number | null) => {
+					const priceKey = symbol ? normalizePriceSymbol(symbol) : '';
+					const priceFromCached = priceKey && typeof cachedPrices[priceKey] === 'number' ? cachedPrices[priceKey] : null;
 					const priceFromOracle = symbol && typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
 					const usdValue =
 						usdFromAave ??
-						(priceFromAave ? normalizedAmount * priceFromAave : null) ??
-						(priceFromCached ? normalizedAmount * priceFromCached : null) ??
-						(priceFromOracle ? normalizedAmount * priceFromOracle : null);
-					return sum + (typeof usdValue === 'number' ? usdValue : 0);
-				}, 0);
-
-				const totalCollateralFromState = activeChainEntries.reduce(
-					(sum, [, s]) => sum + Number(s.totalCollateralBase ?? 0), 0
-				);
-				const totalDebtFromState = activeChainEntries.reduce(
-					(sum, [, s]) => sum + Number(s.totalDebtBase ?? 0), 0
-				);
-				const totals = {
-					totalCollateralBase:
-						Number.isFinite(totalCollateralFromState) && totalCollateralFromState > 0
-							? totalCollateralFromState
-							: computedCollateralUsd,
-					totalDebtBase:
-						Number.isFinite(totalDebtFromState) && totalDebtFromState > 0 ? totalDebtFromState : computedDebtUsd,
+						(priceFromAave ? amount * priceFromAave : null) ??
+						(priceFromCached ? amount * priceFromCached : null) ??
+						(priceFromOracle ? amount * priceFromOracle : null);
+					return { usdValue, resolvedPrice: priceFromAave ?? priceFromCached ?? priceFromOracle ?? null };
 				};
+
+				// One position per chain: its own collateral rows (merged by symbol within the chain only), debt and totals.
+				const positions: ChainPosition[] = activeChainEntries.map(([chain, summary]) => {
+					const collateralBreakdown = (summary.userSupplies ?? []).reduce<CollateralRow[]>((acc, entry) => {
+						const symbol = entry.currency?.symbol?.toUpperCase();
+						if (!symbol) return acc;
+						const amount = Number(entry.balance?.amount?.value ?? 0);
+						const normalizedAmount = Number.isFinite(amount) ? amount : 0;
+						const { usdValue, resolvedPrice } = usdOf(
+							normalizedAmount,
+							symbol,
+							typeof entry.balanceUsd === 'number' ? entry.balanceUsd : null,
+							typeof entry.priceUsd === 'number' ? entry.priceUsd : null,
+						);
+						const existing = acc.find((row) => row.symbol === symbol);
+						if (existing) {
+							existing.amount = (existing.amount ?? 0) + normalizedAmount;
+							existing.usdValue =
+								existing.usdValue !== null && usdValue !== null ? existing.usdValue + usdValue : null;
+							if (!existing.priceUsd && resolvedPrice) existing.priceUsd = resolvedPrice;
+						} else {
+							acc.push({
+								symbol,
+								amount: normalizedAmount || null,
+								usdValue,
+								priceUsd: resolvedPrice,
+								purchasePriceUsd: null,
+								purchaseAt: null,
+							});
+						}
+						return acc;
+					}, []);
+
+					const computedCollateralUsd = collateralBreakdown.reduce(
+						(sum, row) => sum + (typeof row.usdValue === 'number' ? row.usdValue : 0),
+						0,
+					);
+					const computedDebtUsd = (summary.userBorrows ?? []).reduce((sum, entry) => {
+						const amount = Number(entry.debt?.amount?.value ?? 0);
+						const normalizedAmount = Number.isFinite(amount) ? amount : 0;
+						const { usdValue } = usdOf(
+							normalizedAmount,
+							entry.currency?.symbol?.toUpperCase() ?? '',
+							typeof entry.debtUsd === 'number' ? entry.debtUsd : null,
+							typeof entry.priceUsd === 'number' ? entry.priceUsd : null,
+						);
+						return sum + (typeof usdValue === 'number' ? usdValue : 0);
+					}, 0);
+
+					// Aave's own per-market totals when it gave them, else the sum of the priced rows.
+					const collateralFromState = Number(summary.totalCollateralBase ?? 0);
+					const debtFromState = Number(summary.totalDebtBase ?? 0);
+					return {
+						chain,
+						healthFactor: summary.healthFactor ?? null,
+						totalCollateralBase:
+							Number.isFinite(collateralFromState) && collateralFromState > 0 ? collateralFromState : computedCollateralUsd,
+						totalDebtBase: Number.isFinite(debtFromState) && debtFromState > 0 ? debtFromState : computedDebtUsd,
+						collateralBreakdown,
+					};
+				});
 
 				// Enrich collateral with cost basis + purchase date from wallet tokens
 				try {
@@ -538,7 +550,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 							for (const t of tokensData.tokens) {
 								bySymbol.set(String(t.tokenSymbol ?? '').toUpperCase(), t);
 							}
-							for (const item of collateralBreakdown) {
+							for (const item of positions.flatMap((p) => p.collateralBreakdown)) {
 								// Try exact match first, then normalized (BTC.B→BTC, SAVAX→AVAX, etc.)
 								const t = bySymbol.get(item.symbol.toUpperCase())
 									?? bySymbol.get(normalizePriceSymbol(item.symbol));
@@ -557,10 +569,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				if (!cancelled) {
 					setState({
 						status: 'ready',
-						healthByChain,
-						totalCollateralBase: totals.totalCollateralBase,
-						totalDebtBase: totals.totalDebtBase,
-						collateralBreakdown,
+						positions,
 						isStale: data.stale === true,
 						unavailableMessage,
 					});
@@ -578,46 +587,22 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 		};
 	}, [walletId]);
 
-	const healthRows = useMemo(() => {
-		if (state.status !== 'ready') return [];
-		return state.healthByChain
-			.map((entry) => {
-				const hf = entry.healthFactor != null ? Number(entry.healthFactor) : null;
-				const color =
-					hf === null || !Number.isFinite(hf)
-						? undefined
-						: hf < 1.5
-						? 'var(--loss)'
-						: hf < 2.0
-						? 'var(--warning)'
-						: 'var(--gain)';
-				return {
-					chain: entry.chain,
-					value: formatHealthFactor(entry.healthFactor),
-					color,
-				};
-			})
-			.filter((entry) => entry.value !== '---');
-	}, [state]);
+	// Dust (under $0.01) is a rounding remnant Aave still reports as an open supply; it is not shown.
+	const positions = useMemo(
+		() =>
+			state.status === 'ready'
+				? state.positions.map((p) => ({ ...p, rows: p.collateralBreakdown.filter((item) => (item.usdValue ?? 0) >= 0.01) }))
+				: [],
+		[state],
+	);
 
-
-	const totalCollateral = state.status === 'ready' ? state.totalCollateralBase : 0;
-	const totalDebt = state.status === 'ready' ? state.totalDebtBase : 0;
-	const net = totalCollateral - totalDebt;
-
-	const collateralValue = formatUsd(totalCollateral);
-	const debtValue = formatUsd(totalDebt);
-	const netValue = formatUsd(net);
-	// Filter out dust positions (less than $0.01 USD value) — these are rounding
-	// remnants that Aave still reports as open supply positions.
-	const breakdownItems = state.status === 'ready'
-		? state.collateralBreakdown.filter((item) => (item.usdValue ?? 0) >= 0.01)
-		: [];
+	// One quantity column width across every box, so the boxes line up.
 	const qtyWidthStyle = useMemo(() => {
-		if (state.status !== 'ready' || !breakdownItems.length) {
+		const rows = positions.flatMap((p) => p.rows);
+		if (!rows.length) {
 			return { ['--qty-int-width' as any]: '1ch', ['--qty-frac-width' as any]: '4ch' } as React.CSSProperties;
 		}
-		const { maxInt, maxFrac } = breakdownItems.reduce(
+		const { maxInt, maxFrac } = rows.reduce(
 			(acc, item) => {
 				const qtyText = formatTokenAmountBySymbol(item.symbol, item.amount);
 				const parts = splitAmountForDisplay(qtyText);
@@ -634,35 +619,72 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 			['--qty-int-width' as any]: `${maxInt}ch`,
 			['--qty-frac-width' as any]: `${Math.max(maxFrac, 4)}ch`,
 		} as React.CSSProperties;
-	}, [state.status, breakdownItems]);
+	}, [positions]);
+
+	const gridStyle = { display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' } as const;
+
+	const renderBreakdownRow = (item: CollateralRow, key: string) => {
+		const acquiredMs = item.purchaseAt ? Date.parse(item.purchaseAt) : NaN;
+		const daysHeld = Number.isFinite(acquiredMs)
+			? Math.max(0, Math.floor((Date.now() - acquiredMs) / 86400000))
+			: null;
+
+		const currentPrice = item.priceUsd ?? null;
+		const basisPrice   = item.purchasePriceUsd ?? null;
+		const plPct =
+			currentPrice !== null && basisPrice !== null && basisPrice > 0
+				? ((currentPrice - basisPrice) / basisPrice) * 100
+				: null;
+		const plAbsolute =
+			plPct !== null && item.amount != null
+				? (currentPrice! - basisPrice!) * item.amount
+				: null;
+		const plColor = plPct === null ? undefined : plPct >= 0 ? 'var(--gain)' : 'var(--loss)';
+		const plLabel = plPct !== null
+			? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+			: '—';
+
+		return (
+			<div className="breakdown-row" key={key} style={gridStyle}>
+				<span className="col-days">{daysHeld ?? '—'}</span>
+				<span className="col-token">{item.symbol}</span>
+				<span className="col-qty">
+					{(() => {
+						const qtyText = formatTokenAmountBySymbol(item.symbol, item.amount);
+						const parts = splitAmountForDisplay(qtyText);
+						if (!parts) return qtyText;
+						const fracWidth = Math.max(4, parts.fracPart.length);
+						const paddedFrac = parts.fracPart.padEnd(fracWidth, '0');
+						return (
+							<span className="qty">
+								<span className="qty-whole">{parts.intPart}</span>
+								<span className="qty-dot">.</span>
+								<span className="qty-decimal">{paddedFrac}</span>
+							</span>
+						);
+					})()}
+				</span>
+				<span className="col-price">
+					{currentPrice != null ? formatUsd(currentPrice) : '—'}
+				</span>
+				<span className="col-usd">
+					{item.usdValue != null ? formatUsd(item.usdValue) : '—'}
+				</span>
+				<span
+					className="col-pl"
+					style={{ color: plColor }}
+					title={plAbsolute !== null
+						? `${plAbsolute >= 0 ? '+' : ''}${formatUsd(plAbsolute)}`
+						: undefined}
+				>
+					{plLabel}
+				</span>
+			</div>
+		);
+	};
 
 	return (
 		<div className="defi-stats">
-			{healthRows.length ? (
-				healthRows.map((entry, i) => (
-					<div
-						key={entry.chain}
-						className="stat-row health"
-						style={showHealthRow ? undefined : { display: 'none' }}
-						data-health-color={entry.color ?? ''}
-					>
-						<span className="label">
-							{t.chainHealthLabel(entry.chain.charAt(0).toUpperCase() + entry.chain.slice(1))}
-						</span>
-						<span className="value" style={entry.color ? { color: entry.color } : undefined}>
-							{entry.value}
-						</span>
-					</div>
-				))
-			) : (
-				<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color="">
-					<span className="label">{t.healthLabel}</span>
-					<span className="value">---</span>
-				</div>
-			)}
-
-			<div className="spacer spacer--lg" style={showHealthRow ? undefined : { display: 'none' }}></div>
-
 			{showAlertPill && (
 				<div className="stat-row health-alert-row">
 					<span className="label">{t.healthAlertLabel}</span>
@@ -672,102 +694,74 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 
 			{showAlertPill && <LiquidationAlertToggle />}
 
-			<div className="stat-row">
-				<span className="label">{t.collateralLabel}</span>
-				<span className="value">{collateralValue}</span>
-			</div>
+			{positions.length ? (
+				positions.map((p) => {
+					const chainName = chainDisplayName(p.chain);
+					const hfText = formatHealthFactor(p.healthFactor);
+					const color = healthColor(p.healthFactor);
+					return (
+						<section className="aave-position" key={p.chain} data-chain={p.chain} aria-label={chainName}>
+							<div className="aave-position__title">{chainName}</div>
 
-			<div className="stat-row debt">
-				<span className="label">{t.debtLabel}</span>
-				<span className="value">{debtValue}</span>
-			</div>
-
-			<div className="stat-row net">
-				<span className="label">{t.netLabel}</span>
-				<span className="value">{netValue}</span>
-			</div>
-
-			<div className="spacer spacer--md"></div>
-
-			<div className="divider"></div>
-
-			<div className="spacer spacer--sm"></div>
-
-			<div className="breakdown-title">{t.breakdownTitle}</div>
-
-			<div className="breakdown" style={qtyWidthStyle}>
-				<div className="breakdown-row breakdown-header" style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' }}>
-					<span className="col-days">{t.colDays}</span>
-					<span className="col-token">{t.colAsset}</span>
-					<span className="col-qty">{t.colQty}</span>
-					<span className="col-price">{t.colPrice}</span>
-					<span className="col-usd">USD</span>
-					<span className="col-pl">P/L</span>
-				</div>
-				{breakdownItems.length ? (
-					breakdownItems.map((item) => {
-						const acquiredMs = item.purchaseAt ? Date.parse(item.purchaseAt) : NaN;
-						const daysHeld = Number.isFinite(acquiredMs)
-							? Math.max(0, Math.floor((Date.now() - acquiredMs) / 86400000))
-							: null;
-
-						const currentPrice = item.priceUsd ?? null;
-						const basisPrice   = item.purchasePriceUsd ?? null;
-						const plPct =
-							currentPrice !== null && basisPrice !== null && basisPrice > 0
-								? ((currentPrice - basisPrice) / basisPrice) * 100
-								: null;
-						const plAbsolute =
-							plPct !== null && item.amount != null
-								? (currentPrice! - basisPrice!) * item.amount
-								: null;
-						const plColor = plPct === null ? undefined : plPct >= 0 ? 'var(--gain)' : 'var(--loss)';
-						const plLabel = plPct !== null
-							? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
-							: '—';
-
-						return (
-							<div className="breakdown-row" key={item.symbol} style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' }}>
-								<span className="col-days">{daysHeld ?? '—'}</span>
-								<span className="col-token">{item.symbol}</span>
-								<span className="col-qty">
-									{(() => {
-										const qtyText = formatTokenAmountBySymbol(item.symbol, item.amount);
-										const parts = splitAmountForDisplay(qtyText);
-										if (!parts) return qtyText;
-										const fracWidth = Math.max(4, parts.fracPart.length);
-										const paddedFrac = parts.fracPart.padEnd(fracWidth, '0');
-										return (
-											<span className="qty">
-												<span className="qty-whole">{parts.intPart}</span>
-												<span className="qty-dot">.</span>
-												<span className="qty-decimal">{paddedFrac}</span>
-											</span>
-										);
-									})()}
-								</span>
-								<span className="col-price">
-									{currentPrice != null ? formatUsd(currentPrice) : '—'}
-								</span>
-								<span className="col-usd">
-									{item.usdValue != null ? formatUsd(item.usdValue) : '—'}
-								</span>
-								<span
-									className="col-pl"
-									style={{ color: plColor }}
-									title={plAbsolute !== null
-										? `${plAbsolute >= 0 ? '+' : ''}${formatUsd(plAbsolute)}`
-										: undefined}
-								>
-									{plLabel}
-								</span>
+							{/* Read by the Vault page's closed-tin summary, which lists every chain's health factor. */}
+							<div
+								className="stat-row health"
+								style={showHealthRow ? undefined : { display: 'none' }}
+								data-chain-name={chainName}
+								data-health-color={color ?? ''}
+							>
+								<span className="label">{t.chainHealthLabel(chainName)}</span>
+								<span className="value" style={color ? { color } : undefined}>{hfText}</span>
 							</div>
-						);
-					})
-				) : (
-					<div className="breakdown-empty">{t.breakdownEmpty}</div>
-				)}
-			</div>
+
+							<div className="stat-row">
+								<span className="label">{t.collateralLabel}</span>
+								<span className="value">{formatUsd(p.totalCollateralBase)}</span>
+							</div>
+
+							<div className="stat-row debt">
+								<span className="label">{t.debtLabel}</span>
+								<span className="value">{formatUsd(p.totalDebtBase)}</span>
+							</div>
+
+							<div className="stat-row net">
+								<span className="label">{t.netLabel}</span>
+								<span className="value">{formatUsd(p.totalCollateralBase - p.totalDebtBase)}</span>
+							</div>
+
+							<div className="spacer spacer--md"></div>
+
+							<div className="divider"></div>
+
+							<div className="spacer spacer--sm"></div>
+
+							<div className="breakdown-title">{t.breakdownTitle}</div>
+
+							<div className="breakdown" style={qtyWidthStyle}>
+								<div className="breakdown-row breakdown-header" style={gridStyle}>
+									<span className="col-days">{t.colDays}</span>
+									<span className="col-token">{t.colAsset}</span>
+									<span className="col-qty">{t.colQty}</span>
+									<span className="col-price">{t.colPrice}</span>
+									<span className="col-usd">USD</span>
+									<span className="col-pl">P/L</span>
+								</div>
+								{p.rows.length
+									? p.rows.map((item) => renderBreakdownRow(item, `${p.chain}-${item.symbol}`))
+									: <div className="breakdown-empty">{t.breakdownEmpty}</div>}
+							</div>
+						</section>
+					);
+				})
+			) : (
+				<>
+					<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color="">
+						<span className="label">{t.healthLabel}</span>
+						<span className="value">---</span>
+					</div>
+					{state.status === 'ready' ? <div className="breakdown-empty">{t.breakdownEmpty}</div> : null}
+				</>
+			)}
 			{state.status === 'ready' && state.unavailableMessage ? (
 				<div className="defi-status defi-status--warning">{state.unavailableMessage}</div>
 			) : null}
