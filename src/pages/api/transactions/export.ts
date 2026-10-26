@@ -27,32 +27,27 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildPlainHistory, HistoryBusyError, parseYearParam } from '@/lib/historyExport';
 import { HistoryTooLargeError } from '@/lib/historyRows';
 import { getLang } from '@/lib/i18n/locale';
-
-const json = (body: unknown, status: number) =>
-	new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-	});
+import { json } from '@/lib/http';
 
 export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
-	if (!session) return json({ error: 'Unauthorized' }, 401);
+	if (!session) return json({ error: 'Unauthorized' }, 401, { noStore: true });
 	const { tenantId } = session;
 
 	const params = new URL(request.url).searchParams;
 	const parsed = parseYearParam(params.get('year'));
-	if (!parsed.ok) return json({ error: 'Invalid year.' }, 400);
+	if (!parsed.ok) return json({ error: 'Invalid year.' }, 400, { noStore: true });
 
 	let wallet: { id: string; address: string; label: string | null } | undefined;
 	const walletId = params.get('walletId');
 	if (walletId !== null) {
-		if (!walletId.trim()) return json({ error: 'Wallet id is required.' }, 400);
+		if (!walletId.trim()) return json({ error: 'Wallet id is required.' }, 400, { noStore: true });
 		const res = await db.execute({
 			sql: 'SELECT w.id, w.address, w.label FROM wallets w WHERE w.id = ? AND w.tenant_id = ? LIMIT 1',
 			args: [walletId, tenantId],
 		});
 		const row = res.rows[0] as Record<string, unknown> | undefined;
-		if (!row) return json({ error: 'Wallet not found.' }, 404);
+		if (!row) return json({ error: 'Wallet not found.' }, 404, { noStore: true });
 		wallet = {
 			id: String(row.id),
 			address: String(row.address ?? ''),
@@ -72,12 +67,12 @@ export const GET: APIRoute = async ({ request }) => {
 		});
 	} catch (err) {
 		if (err instanceof HistoryTooLargeError) {
-			return json({ error: 'Too many rows for one file. Choose a year.', tooManyRows: true, limit: err.limit }, 413);
+			return json({ error: 'Too many rows for one file. Choose a year.', tooManyRows: true, limit: err.limit }, 413, { noStore: true });
 		}
 		if (err instanceof HistoryBusyError) {
-			return json({ error: 'A download is already being prepared for this account.' }, 429);
+			return json({ error: 'A download is already being prepared for this account.' }, 429, { noStore: true });
 		}
 		console.error('[transactions/export] build failed', err);
-		return json({ error: 'The download could not be prepared. Please try again.' }, 500);
+		return json({ error: 'The download could not be prepared. Please try again.' }, 500, { noStore: true });
 	}
 };

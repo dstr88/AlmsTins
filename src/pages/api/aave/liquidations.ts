@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { fetchAllLiquidationsForWallet } from '@/lib/aave/syncAaveLiquidations';
 import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -20,10 +21,3 @@ export const GET: APIRoute = async ({ request }) => {
 		return json({ ok: false, error: 'Unable to load liquidations.' }, 500);
 	}
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

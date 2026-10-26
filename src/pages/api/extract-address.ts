@@ -10,6 +10,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -17,13 +18,6 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']);
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const POST: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);

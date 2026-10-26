@@ -25,16 +25,11 @@ import { canDownloadHistoryByWallet } from '@/lib/historyAccess';
 import { buildHistoryByWallet, HistoryBusyError, parseYearParam } from '@/lib/historyExport';
 import { HistoryTooLargeError } from '@/lib/historyRows';
 import { getLang } from '@/lib/i18n/locale';
-
-const json = (body: unknown, status: number) =>
-	new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-	});
+import { json } from '@/lib/http';
 
 export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
-	if (!session) return json({ error: 'Unauthorized' }, 401);
+	if (!session) return json({ error: 'Unauthorized' }, 401, { noStore: true });
 	const { tenantId } = session;
 
 	const plan = await getActivePlan(tenantId);
@@ -46,11 +41,12 @@ export const GET: APIRoute = async ({ request }) => {
 				currentPlan: plan.id,
 			},
 			403,
+			{ noStore: true },
 		);
 	}
 
 	const parsed = parseYearParam(new URL(request.url).searchParams.get('year'));
-	if (!parsed.ok) return json({ error: 'Invalid year.' }, 400);
+	if (!parsed.ok) return json({ error: 'Invalid year.' }, 400, { noStore: true });
 
 	try {
 		const { filename, bytes } = await buildHistoryByWallet(tenantId, { year: parsed.year, lang: getLang(request) });
@@ -65,12 +61,12 @@ export const GET: APIRoute = async ({ request }) => {
 		});
 	} catch (err) {
 		if (err instanceof HistoryTooLargeError) {
-			return json({ error: 'Too many rows for one file. Choose a year.', tooManyRows: true, limit: err.limit }, 413);
+			return json({ error: 'Too many rows for one file. Choose a year.', tooManyRows: true, limit: err.limit }, 413, { noStore: true });
 		}
 		if (err instanceof HistoryBusyError) {
-			return json({ error: 'A download is already being prepared for this account.' }, 429);
+			return json({ error: 'A download is already being prepared for this account.' }, 429, { noStore: true });
 		}
 		console.error('[records/history-by-wallet] build failed', err);
-		return json({ error: 'The download could not be prepared. Please try again.' }, 500);
+		return json({ error: 'The download could not be prepared. Please try again.' }, 500, { noStore: true });
 	}
 };

@@ -3,6 +3,7 @@ import { checkLocalPhishingDb } from '@/lib/phishingDomains';
 import { recordCheck } from '@/lib/checkLog';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { siteVerdict, type SourceResult } from '@/lib/siteVerdict';
+import { json } from '@/lib/http';
 
 /**
  * /api/dapp-check?url={url}
@@ -386,10 +387,3 @@ export const GET: APIRoute = async ({ url, request }) => {
     },
   );
 };
-
-function json(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

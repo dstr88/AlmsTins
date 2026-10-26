@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { json } from '@/lib/http';
 
 // ── The Graph hosted-service endpoints for Aave v3 subgraphs ──────────────────
 // These are free to query without an API key (rate-limited for heavy use).
@@ -42,7 +43,7 @@ export const GET: APIRoute = async ({ url }) => {
 	const reserveId = url.searchParams.get('reserveId') ?? '';
 
 	if (!poolId || !reserveId) {
-		return json({ error: true, message: 'poolId and reserveId are required' }, 400);
+		return json({ error: true, message: 'poolId and reserveId are required' }, 400, { headers: corsHeaders() });
 	}
 
 	const subgraphUrl = SUBGRAPH_URLS[poolId];
@@ -53,6 +54,7 @@ export const GET: APIRoute = async ({ url }) => {
 				message: `Unknown poolId "${poolId}". Supported values: ${Object.keys(SUBGRAPH_URLS).join(', ')}`,
 			},
 			400,
+			{ headers: corsHeaders() },
 		);
 	}
 
@@ -78,6 +80,7 @@ export const GET: APIRoute = async ({ url }) => {
 			return json(
 				{ error: true, message: `Subgraph responded with HTTP ${response.status}` },
 				response.status,
+				{ headers: corsHeaders() },
 			);
 		}
 
@@ -88,6 +91,7 @@ export const GET: APIRoute = async ({ url }) => {
 			return json(
 				{ error: true, message: payload.errors[0]?.message ?? 'GraphQL error' },
 				502,
+				{ headers: corsHeaders() },
 			);
 		}
 
@@ -100,18 +104,11 @@ export const GET: APIRoute = async ({ url }) => {
 		console.error('[aave-rates] fetch failed', error);
 		const message = error instanceof Error ? error.message : 'Unable to reach subgraph';
 		const status  = message.includes('aborted') ? 504 : 500;
-		return json({ error: true, message }, status);
+		return json({ error: true, message }, status, { headers: corsHeaders() });
 	}
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: corsHeaders(),
-	});
-}
 
 function corsHeaders() {
 	return {

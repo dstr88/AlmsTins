@@ -12,12 +12,7 @@ import {
 	loadMonthlyReconciliation,
 	getAvailableReconciliationMonths,
 } from '@/lib/monthlyReconciliation';
-
-const json = (data: unknown, status = 200) =>
-	new Response(JSON.stringify(data), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
+import { json } from '@/lib/http';
 
 export const GET: APIRoute = async ({ request }) => {
 	const tenant = await requireTenantSession(request);
