@@ -8,7 +8,8 @@ import { describe, expect, it, vi } from 'vitest';
  *     receive or send, a tx hash and a batch, a value and no price_source, and the batch's one
  *     spot price (|amount| × price in cents); anything else is left alone and counted;
  *   - prices each row at its own UTC day, one lookup per coin and day, as the sync does; a day
- *     with no price leaves the row as it is;
+ *     with no price keeps the row's value and marks it price_source = 'sync_date_estimate', and a
+ *     later run re-prices a marked row when it can;
  *   - writes one tenant in one transaction, each UPDATE naming the tenant, the value read and a
  *     NULL price_source, and rolls back the tenant if any row changed since it was read.
  *
@@ -21,7 +22,7 @@ vi.mock('@/lib/coingeckoHistorical', () => ({
 }));
 
 import {
-	CANDIDATE_SQL, UPDATE_SQL, applyCorrections, planCorrections, selectSyncPricedRows,
+	CANDIDATE_SQL, ESTIMATE_SOURCE, MARK_SQL, UPDATE_SQL, applyCorrections, planCorrections, selectSyncPricedRows,
 	type CandidateRow, type Queryable,
 } from '../../src/lib/sync/utxoPriceCorrection';
 
@@ -101,7 +102,31 @@ describe('planCorrections', () => {
 			['BTC', '2024-03-14', 22_500, 17_500, 'coingecko:range'],
 		]);
 		expect(plan.unchanged).toBe(1); // 2024-06-01 was the sync day
-		expect(plan.unpriced.map((r) => r.day)).toEqual(['2017-01-01']); // left as it is
+		expect(plan.unpriced.map((r) => r.day)).toEqual(['2017-01-01']); // value kept
+		expect(plan.marks).toEqual([{ id: plan.unpriced[0].id, oldUsd: 180_000 }]); // marked as an estimate
+	});
+
+	it('a row already marked as an estimate is not marked again, and is re-priced once a price exists', async () => {
+		const { rows } = selectSyncPricedRows([
+			row({ amount: 1, timestamp_utc: '2017-01-01T09:00:00Z', price_source: ESTIMATE_SOURCE, import_batch_id: 'm1' }),
+			row({ amount: 1, timestamp_utc: '2018-01-01T09:00:00Z', price_source: ESTIMATE_SOURCE, import_batch_id: 'm2' }),
+			row({ amount: 1, timestamp_utc: '2019-01-01T09:00:00Z', price_source: ESTIMATE_SOURCE, import_batch_id: 'm3' }),
+		]);
+		const prices: Record<string, number> = { 'BTC|2018-01-01': 13_000, 'BTC|2019-01-01': SPOT };
+		const plan = await planCorrections(rows, {
+			lookup: async (symbol, day) => {
+				const p = prices[`${symbol}|${day}`];
+				return p ? { unitPriceUsd: p, source: 'coingecko:range' } : null;
+			},
+		});
+		expect(plan.unpriced.map((r) => r.day)).toEqual(['2017-01-01']);
+		expect(plan.marks).toEqual([]); // already marked
+		// Re-priced: a new value, and a right value that only loses its estimate mark.
+		expect(plan.changes.map((c) => [c.day, c.oldUsd, c.newUsd, c.priorSource])).toEqual([
+			['2018-01-01', SPOT, 13_000, ESTIMATE_SOURCE],
+			['2019-01-01', SPOT, SPOT, ESTIMATE_SOURCE],
+		]);
+		expect(plan.unchanged).toBe(0);
 	});
 });
 
@@ -117,9 +142,15 @@ function fakeClient(table: Array<{ id: string; tenant_id: string; native_usd: nu
 			if (text === 'ROLLBACK') { table.splice(0, table.length, ...snapshot!); return { rows: [], rowCount: null }; }
 			if (text.includes('set_config')) return { rows: [{}], rowCount: 1 };
 			if (text === UPDATE_SQL) {
-				const [usd, source, id, tenant, old] = values;
-				const hit = table.filter((r) => r.id === id && r.tenant_id === tenant && r.native_usd === old && r.price_source === null);
+				const [usd, source, id, tenant, old, prior] = values;
+				const hit = table.filter((r) => r.id === id && r.tenant_id === tenant && r.native_usd === old && r.price_source === (prior ?? null));
 				for (const r of hit) { r.native_usd = usd as number; r.price_source = source as string; }
+				return { rows: [], rowCount: hit.length };
+			}
+			if (text === MARK_SQL) {
+				const [source, id, tenant, old] = values;
+				const hit = table.filter((r) => r.id === id && r.tenant_id === tenant && r.native_usd === old && r.price_source === null);
+				for (const r of hit) r.price_source = source as string;
 				return { rows: [], rowCount: hit.length };
 			}
 			throw new Error(`unexpected query ${text}`);
@@ -129,7 +160,8 @@ function fakeClient(table: Array<{ id: string; tenant_id: string; native_usd: nu
 }
 
 describe('applyCorrections', () => {
-	const change = (id: string, oldUsd: number, newUsd: number) => ({ id, day: '2024-03-14', symbol: 'BTC', amount: 1, oldUsd, newUsd, source: 'coingecko:range' });
+	const change = (id: string, oldUsd: number, newUsd: number, priorSource: string | null = null) =>
+		({ id, day: '2024-03-14', symbol: 'BTC', amount: 1, oldUsd, newUsd, source: 'coingecko:range', priorSource });
 
 	it('writes native_usd and price_source in one transaction for the tenant', async () => {
 		const table = [
@@ -138,7 +170,7 @@ describe('applyCorrections', () => {
 			{ id: 'a2', tenant_id: 't2', native_usd: 90_000, price_source: null },
 		];
 		const { client, log } = fakeClient(table);
-		expect(await applyCorrections(client, 't1', [change('a', 90_000, 70_000), change('b', 45_000, 35_000)])).toBe(2);
+		expect(await applyCorrections(client, 't1', [change('a', 90_000, 70_000), change('b', 45_000, 35_000)])).toEqual({ changed: 2, marked: 0 });
 		expect(log).toEqual(['BEGIN', 'SELECT', 'UPDATE', 'UPDATE', 'COMMIT']);
 		expect(table).toEqual([
 			{ id: 'a', tenant_id: 't1', native_usd: 70_000, price_source: 'coingecko:range' },
@@ -159,9 +191,46 @@ describe('applyCorrections', () => {
 		expect(table).toEqual(before);
 	});
 
-	it('does nothing without changes', async () => {
+	it('marks unpriced rows as estimates in the same transaction, keeping their values', async () => {
+		const table = [
+			{ id: 'a', tenant_id: 't1', native_usd: 90_000, price_source: null },
+			{ id: 'old', tenant_id: 't1', native_usd: 180_000, price_source: null },
+			{ id: 'old2', tenant_id: 't2', native_usd: 180_000, price_source: null },
+		];
+		const { client, log } = fakeClient(table);
+		expect(await applyCorrections(client, 't1', [change('a', 90_000, 70_000)], [{ id: 'old', oldUsd: 180_000 }])).toEqual({ changed: 1, marked: 1 });
+		expect(log).toEqual(['BEGIN', 'SELECT', 'UPDATE', 'UPDATE', 'COMMIT']);
+		expect(table).toEqual([
+			{ id: 'a', tenant_id: 't1', native_usd: 70_000, price_source: 'coingecko:range' },
+			{ id: 'old', tenant_id: 't1', native_usd: 180_000, price_source: ESTIMATE_SOURCE },
+			{ id: 'old2', tenant_id: 't2', native_usd: 180_000, price_source: null },
+		]);
+	});
+
+	it('re-prices a marked row only while it still carries the mark and the value read', async () => {
+		const table = [{ id: 'm', tenant_id: 't1', native_usd: 90_000, price_source: ESTIMATE_SOURCE as string | null }];
+		const { client } = fakeClient(table);
+		expect(await applyCorrections(client, 't1', [change('m', 90_000, 13_000, ESTIMATE_SOURCE)])).toEqual({ changed: 1, marked: 0 });
+		expect(table[0]).toEqual({ id: 'm', tenant_id: 't1', native_usd: 13_000, price_source: 'coingecko:range' });
+
+		// Read as an estimate, but priced by someone else since: rolled back.
+		const t2 = [{ id: 'm', tenant_id: 't1', native_usd: 90_000, price_source: 'coingecko:history' as string | null }];
+		const f2 = fakeClient(t2);
+		await expect(applyCorrections(f2.client, 't1', [change('m', 90_000, 13_000, ESTIMATE_SOURCE)])).rejects.toThrow(/row m changed/);
+		expect(t2[0].price_source).toBe('coingecko:history');
+	});
+
+	it('rolls back if a row to mark was priced since it was read', async () => {
+		const table = [{ id: 'old', tenant_id: 't1', native_usd: 180_000, price_source: 'coingecko:history' as string | null }];
+		const { client, log } = fakeClient(table);
+		await expect(applyCorrections(client, 't1', [], [{ id: 'old', oldUsd: 180_000 }])).rejects.toThrow(/row old changed/);
+		expect(log.at(-1)).toBe('ROLLBACK');
+		expect(table[0].price_source).toBe('coingecko:history');
+	});
+
+	it('does nothing without changes or marks', async () => {
 		const { client, log } = fakeClient([]);
-		expect(await applyCorrections(client, 't1', [])).toBe(0);
+		expect(await applyCorrections(client, 't1', [])).toEqual({ changed: 0, marked: 0 });
 		expect(log).toEqual([]);
 	});
 });
@@ -170,7 +239,10 @@ describe('the statements', () => {
 	it('select one tenant\'s unsourced, valued Bitcoin and Litecoin rows, and update only with the value read', () => {
 		expect(CANDIDATE_SQL).toMatch(/tenant_id = \$1/);
 		expect(CANDIDATE_SQL).toMatch(/source IN \('bitcoin', 'litecoin'\)/);
-		expect(CANDIDATE_SQL).toMatch(/native_usd IS NOT NULL AND price_source IS NULL/);
-		expect(UPDATE_SQL).toMatch(/SET native_usd = \$1, price_source = \$2\s+WHERE id = \$3 AND tenant_id = \$4 AND native_usd = \$5 AND price_source IS NULL$/);
+		expect(CANDIDATE_SQL).toMatch(/native_usd IS NOT NULL AND \(price_source IS NULL OR price_source = 'sync_date_estimate'\)/);
+		expect(UPDATE_SQL).toMatch(/SET native_usd = \$1, price_source = \$2\s+WHERE id = \$3 AND tenant_id = \$4 AND native_usd = \$5 AND price_source IS NOT DISTINCT FROM \$6::text$/);
+		expect(MARK_SQL).toMatch(/SET price_source = \$1\s+WHERE id = \$2 AND tenant_id = \$3 AND native_usd = \$4 AND price_source IS NULL$/);
+		expect(MARK_SQL).not.toMatch(/SET native_usd/); // marking never changes the value
+		expect(ESTIMATE_SOURCE).toBe('sync_date_estimate');
 	});
 });

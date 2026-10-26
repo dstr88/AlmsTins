@@ -8,33 +8,44 @@
  * A row is a candidate only when all of these hold, so a value anyone else wrote is never touched:
  *   - source bitcoin or litecoin, that chain's coin (BTC or LTC), kind receive or send, a tx hash,
  *     an amount, an import batch;
- *   - a value, and no price_source (the import price backfill and the fixed sync both set one;
- *     neither the app nor a user writes native_usd any other way);
+ *   - a value, and either no price_source (the import price backfill and the fixed sync both set
+ *     one; neither the app nor a user writes native_usd any other way) or the mark this
+ *     correction leaves on a row it could not price (ESTIMATE_SOURCE), so a later run, e.g. with a
+ *     COINGECKO_API_KEY that reaches older days, can still price it;
  *   - the sync's fingerprint: one sync priced its whole batch at one spot price, so every row of
  *     the batch is |amount| × that price, in cents. A row that disagrees with its batch's price is
  *     left alone and counted.
- * Each tenant's updates run in one transaction; every UPDATE also requires the value it read and
- * a NULL price_source, and the transaction rolls back unless each changes exactly one row.
+ * A row with no price for its day keeps its value and gets price_source = ESTIMATE_SOURCE, so
+ * reports keep working and every figure still resting on the old sync-date price can be found.
+ * Each tenant's updates run in one transaction; every UPDATE also requires the value and the
+ * price_source it read, and the transaction rolls back unless each changes exactly one row.
  */
 
 import { CHAINS } from '@/lib/chains';
 import { usdAt, utcDay, dailyUsdPrice, type DayPrice, type DayPriceLookup } from './utxoHistoricalPrice';
 
+/** price_source of a row whose sync-date value is kept because no price for its own day was found. */
+export const ESTIMATE_SOURCE = 'sync_date_estimate';
+
 /** The coin each sync source stores (BTC, LTC). */
 const COIN: Record<string, string> = { bitcoin: CHAINS.bitcoin.native.symbol, litecoin: CHAINS.litecoin.native.symbol };
 
 /** The rows of one tenant that could be sync-priced. $1 is the tenant. */
-export const CANDIDATE_SQL = `SELECT id, source, asset_symbol, kind, tx_hash, amount, native_usd, timestamp_utc, import_batch_id
+export const CANDIDATE_SQL = `SELECT id, source, asset_symbol, kind, tx_hash, amount, native_usd, timestamp_utc, import_batch_id, price_source
 	FROM import_transactions
 	WHERE tenant_id = $1 AND source IN ('bitcoin', 'litecoin')
-	  AND native_usd IS NOT NULL AND price_source IS NULL
+	  AND native_usd IS NOT NULL AND (price_source IS NULL OR price_source = '${ESTIMATE_SOURCE}')
 	ORDER BY timestamp_utc, id`;
 
 /** Tenants with Bitcoin or Litecoin sync rows. */
 export const TENANTS_SQL = `SELECT DISTINCT tenant_id FROM import_transactions WHERE source IN ('bitcoin', 'litecoin') ORDER BY tenant_id`;
 
 export const UPDATE_SQL = `UPDATE import_transactions SET native_usd = $1, price_source = $2
-	WHERE id = $3 AND tenant_id = $4 AND native_usd = $5 AND price_source IS NULL`;
+	WHERE id = $3 AND tenant_id = $4 AND native_usd = $5 AND price_source IS NOT DISTINCT FROM $6::text`;
+
+/** Marks a row with no price for its day: the value stays, price_source says it is an estimate. */
+export const MARK_SQL = `UPDATE import_transactions SET price_source = $1
+	WHERE id = $2 AND tenant_id = $3 AND native_usd = $4 AND price_source IS NULL`;
 
 export type CandidateRow = {
 	id: string;
@@ -46,9 +57,11 @@ export type CandidateRow = {
 	native_usd: number | string | null;
 	timestamp_utc: string | null;
 	import_batch_id: string | null;
+	price_source?: string | null;
 };
 
-export type SyncRow = { id: string; symbol: string; amount: number; usd: number; timestamp: string; day: string };
+/** priorSource: the row's price_source as read, null or ESTIMATE_SOURCE. */
+export type SyncRow = { id: string; symbol: string; amount: number; usd: number; timestamp: string; day: string; priorSource: string | null };
 
 export type Selection = {
 	rows: SyncRow[];
@@ -78,7 +91,7 @@ export function selectSyncPricedRows(input: readonly CandidateRow[]): Selection 
 		if (!shaped) { notSyncShape++; continue; }
 		const key = `${r.source}|${r.import_batch_id}`;
 		const list = batches.get(key) ?? [];
-		list.push({ id: String(r.id), symbol, amount: Math.abs(amount), usd, timestamp: String(r.timestamp_utc), day });
+		list.push({ id: String(r.id), symbol, amount: Math.abs(amount), usd, timestamp: String(r.timestamp_utc), day, priorSource: r.price_source ?? null });
 		batches.set(key, list);
 	}
 
@@ -97,14 +110,23 @@ export function selectSyncPricedRows(input: readonly CandidateRow[]): Selection 
 	return { rows, notSyncShape, offBatchPrice };
 }
 
-export type Change = { id: string; day: string; symbol: string; amount: number; oldUsd: number; newUsd: number; source: string };
+export type Change = {
+	id: string; day: string; symbol: string; amount: number; oldUsd: number; newUsd: number; source: string;
+	/** price_source as read (null or ESTIMATE_SOURCE); the UPDATE requires it unchanged. */
+	priorSource: string | null;
+};
+
+/** A row with no price for its day, not yet marked: it keeps its value and gets ESTIMATE_SOURCE. */
+export type Mark = { id: string; oldUsd: number };
 
 export type Plan = {
 	changes: Change[];
-	/** Already at its day's price (to the cent). */
+	/** Already at its day's price (to the cent), and not marked as an estimate. */
 	unchanged: number;
-	/** No price for the row's day: left as it is. */
+	/** No price for the row's day: the value stays (already marked rows included). */
 	unpriced: SyncRow[];
+	/** The unpriced rows not yet marked as estimates. */
+	marks: Mark[];
 };
 
 /**
@@ -117,7 +139,7 @@ export async function planCorrections(
 ): Promise<Plan> {
 	const { lookup = dailyUsdPrice, beforeLookup } = opts;
 	const prices = new Map<string, DayPrice | null>();
-	const plan: Plan = { changes: [], unchanged: 0, unpriced: [] };
+	const plan: Plan = { changes: [], unchanged: 0, unpriced: [], marks: [] };
 	for (const r of rows) {
 		const key = `${r.symbol}|${r.day}`;
 		if (!prices.has(key)) {
@@ -125,10 +147,15 @@ export async function planCorrections(
 			prices.set(key, await lookup(r.symbol, r.day));
 		}
 		const p = prices.get(key);
-		if (!p) { plan.unpriced.push(r); continue; }
+		if (!p) {
+			plan.unpriced.push(r);
+			if (r.priorSource === null) plan.marks.push({ id: r.id, oldUsd: r.usd });
+			continue;
+		}
 		const newUsd = usdAt(r.amount, p.unitPriceUsd);
-		if (newUsd === r.usd) { plan.unchanged++; continue; }
-		plan.changes.push({ id: r.id, day: r.day, symbol: r.symbol, amount: r.amount, oldUsd: r.usd, newUsd, source: p.source });
+		// A marked row whose value turns out right still gets the real source, so it stops reading as an estimate.
+		if (newUsd === r.usd && r.priorSource === null) { plan.unchanged++; continue; }
+		plan.changes.push({ id: r.id, day: r.day, symbol: r.symbol, amount: r.amount, oldUsd: r.usd, newUsd, source: p.source, priorSource: r.priorSource });
 	}
 	return plan;
 }
@@ -139,21 +166,30 @@ export type Queryable = {
 };
 
 /**
- * Writes one tenant's changes in one transaction. Throws (after ROLLBACK, nothing changed) if any
- * row no longer holds the value that was read, or already has a price_source.
+ * Writes one tenant's changes and estimate marks in one transaction. Throws (after ROLLBACK,
+ * nothing changed) if any row no longer holds the value and price_source that were read.
  */
-export async function applyCorrections(client: Queryable, tenantId: string, changes: readonly Change[]): Promise<number> {
-	if (changes.length === 0) return 0;
+export async function applyCorrections(
+	client: Queryable,
+	tenantId: string,
+	changes: readonly Change[],
+	marks: readonly Mark[] = [],
+): Promise<{ changed: number; marked: number }> {
+	if (changes.length === 0 && marks.length === 0) return { changed: 0, marked: 0 };
 	await client.query('BEGIN');
 	try {
 		// Scope row-level security to this tenant too, should the role be subject to it.
 		await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
 		for (const c of changes) {
-			const { rowCount } = await client.query(UPDATE_SQL, [c.newUsd, c.source, c.id, tenantId, c.oldUsd]);
+			const { rowCount } = await client.query(UPDATE_SQL, [c.newUsd, c.source, c.id, tenantId, c.oldUsd, c.priorSource]);
 			if (rowCount !== 1) throw new Error(`row ${c.id} changed since it was read`);
 		}
+		for (const m of marks) {
+			const { rowCount } = await client.query(MARK_SQL, [ESTIMATE_SOURCE, m.id, tenantId, m.oldUsd]);
+			if (rowCount !== 1) throw new Error(`row ${m.id} changed since it was read`);
+		}
 		await client.query('COMMIT');
-		return changes.length;
+		return { changed: changes.length, marked: marks.length };
 	} catch (err) {
 		await client.query('ROLLBACK');
 		throw err;

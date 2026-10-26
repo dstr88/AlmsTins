@@ -17,9 +17,11 @@
 //
 // Safety: the dry run writes nothing (the price cache aside: lookups are cached in the app's cache
 // table, as the app caches them). --apply writes each tenant in its own transaction; it rolls
-// back that tenant if any row changed since it was read. A day with no price leaves its row as it
-// is (counted as "no price"). Re-running is safe: a corrected row has a price_source and is not
-// selected again. Prints counts and a few rows (date, amount, old and new value), never an address.
+// back that tenant if any row changed since it was read. A row with no price for its day keeps its
+// value and is marked price_source = 'sync_date_estimate', so the figures still resting on the old
+// sync-date price can be found; a later run (e.g. with a COINGECKO_API_KEY that reaches older days)
+// re-prices marked rows when it can. Re-running is safe: a corrected row has a real price_source and
+// is not selected again. Prints counts and a few rows (date, amount, old and new value), never an address.
 //
 // Afterwards: cost basis and gains read these values once the tenant's lifecycles are rebuilt (Sync
 // Tins, the sync buttons on Bookkeeping, Annual Records and Year Summary, Fill Missing Prices) and
@@ -28,7 +30,7 @@ import pg from 'pg';
 import { DEMO_TENANT_ID } from '@/lib/demo';
 import { formatUsd } from '@/lib/format';
 import {
-	CANDIDATE_SQL, TENANTS_SQL, applyCorrections, planCorrections, selectSyncPricedRows, type CandidateRow,
+	CANDIDATE_SQL, ESTIMATE_SOURCE, TENANTS_SQL, applyCorrections, planCorrections, selectSyncPricedRows, type CandidateRow,
 } from '@/lib/sync/utxoPriceCorrection';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
@@ -60,7 +62,7 @@ async function main(): Promise<number> {
 
 		const tenants = ONLY.length ? ONLY : (await c.query(TENANTS_SQL)).rows.map((r) => String(r.tenant_id));
 		console.log(`${APPLY ? 'APPLY' : 'DRY RUN (read-only)'}: ${tenants.length} tenant(s)`);
-		const total = { candidates: 0, changes: 0, unchanged: 0, unpriced: 0, notSyncShape: 0, offBatchPrice: 0, applied: 0, failed: 0 };
+		const total = { candidates: 0, changes: 0, unchanged: 0, unpriced: 0, marks: 0, notSyncShape: 0, offBatchPrice: 0, applied: 0, marked: 0, failed: 0 };
 
 		for (const tenantId of tenants) {
 			if (tenantId === DEMO_TENANT_ID) continue;
@@ -71,25 +73,28 @@ async function main(): Promise<number> {
 			total.changes += plan.changes.length;
 			total.unchanged += plan.unchanged;
 			total.unpriced += plan.unpriced.length;
+			total.marks += plan.marks.length;
 			total.notSyncShape += sel.notSyncShape;
 			total.offBatchPrice += sel.offBatchPrice;
 
 			const delta = plan.changes.reduce((s, ch) => s + ch.newUsd - ch.oldUsd, 0);
 			console.log(`tenant ${tenantId}: sync rows=${sel.rows.length} to change=${plan.changes.length} (net ${delta >= 0 ? '+' : '-'}${usd(Math.abs(delta))})`
-				+ ` already right=${plan.unchanged} no price=${plan.unpriced.length}`
+				+ ` already right=${plan.unchanged} no price=${plan.unpriced.length} (to mark as estimate=${plan.marks.length})`
 				+ ` left alone: not sync shape=${sel.notSyncShape} off batch price=${sel.offBatchPrice}`);
 			for (const ch of plan.changes.slice(0, SAMPLE)) {
 				console.log(`    ${ch.day} ${ch.amount} ${ch.symbol}: ${usd(ch.oldUsd)} -> ${usd(ch.newUsd)} (${ch.source})`);
 			}
 			if (plan.unpriced.length) {
 				const days = plan.unpriced.map((r) => r.day).sort();
-				console.log(`    no price for ${plan.unpriced.length} row(s), ${days[0]} to ${days[days.length - 1]}; left as they are`);
+				console.log(`    no price for ${plan.unpriced.length} row(s), ${days[0]} to ${days[days.length - 1]}; values kept, marked ${ESTIMATE_SOURCE}`);
 			}
 
-			if (APPLY && plan.changes.length) {
+			if (APPLY && (plan.changes.length || plan.marks.length)) {
 				try {
-					total.applied += await applyCorrections(c, tenantId, plan.changes);
-					console.log(`    applied ${plan.changes.length}`);
+					const done = await applyCorrections(c, tenantId, plan.changes, plan.marks);
+					total.applied += done.changed;
+					total.marked += done.marked;
+					console.log(`    applied ${done.changed}, marked ${done.marked} as estimates`);
 				} catch (e) {
 					total.failed++;
 					console.log(`    ROLLED BACK, nothing changed for this tenant: ${e instanceof Error ? e.message : String(e)}`);
@@ -98,8 +103,8 @@ async function main(): Promise<number> {
 		}
 
 		console.log(`total: sync rows=${total.candidates} to change=${total.changes} already right=${total.unchanged}`
-			+ ` no price=${total.unpriced} not sync shape=${total.notSyncShape} off batch price=${total.offBatchPrice}`
-			+ (APPLY ? ` applied=${total.applied} tenants rolled back=${total.failed}` : ''));
+			+ ` no price=${total.unpriced} (to mark=${total.marks}) not sync shape=${total.notSyncShape} off batch price=${total.offBatchPrice}`
+			+ (APPLY ? ` applied=${total.applied} marked=${total.marked} tenants rolled back=${total.failed}` : ''));
 		if (APPLY && total.applied) {
 			console.log('next: lifecycles pick these values up on each tenant\'s next rebuild (Sync Tins and the other sync buttons); re-run Year-End for the years affected');
 		}
