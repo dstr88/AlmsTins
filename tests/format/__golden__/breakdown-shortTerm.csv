@@ -1,0 +1,9 @@
+attachment; filename="almstins-2024-short-term.csv"
+Short-Term Capital Gains & Losses — 2024
+"Generated: October 20, 2026"
+
+Asset,Qty,Acquired,Sold,Days Held,Cost Basis,Proceeds,Gain / Loss,Basis Source,Origin / Trace
+ETH,1.5,"Jan 2, 2024","Jun 1, 2024",151,"$3,450.00","$5,600.26","$2,150.26",recorded,Coinbase buy
+AVAX,40,"Feb 10, 2024","Sep 15, 2024",218,,$980.40,$980.40,missing,
+DOGE,1000000.123456789,"Mar 3, 2024","Dec 31, 2024",303,"$120,000.50","$98,765.43","-$21,235.07",estimated,
+USDC,0,Invalid Date,"May 5, 2024",0,$0.00,$0.00,$0.00,manual,
