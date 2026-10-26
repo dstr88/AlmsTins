@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthWalletCard } from '@/i18n/components/netWorthWalletCard';
 import { formatUsd } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 type Token = {
 	tokenSymbol: string;
@@ -150,7 +151,3 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 	);
 }
 
-function shortenAddress(address: string) {
-	if (!address) return '';
-	return address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
-}

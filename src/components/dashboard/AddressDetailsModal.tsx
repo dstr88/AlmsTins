@@ -18,6 +18,8 @@ import { getAddressLabels, type AddressLabelsLocale } from '@/i18n/components/ad
 import { addressNetwork, isOnchainAddress, type AddressNetwork } from '@/lib/addressNetwork';
 import { evmExplorerLinks, explorerAddressUrl, explorerName } from '@/lib/explorerLinks';
 import type { AddressLabel } from './AddressLabels';
+import { shortenAddress } from '@/lib/addressDisplay';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { formatUsd, toFiniteNumber } from '@/lib/format';
 
 type Props = {
@@ -54,10 +56,6 @@ function categoryLabel(t: AddressLabelsLocale, cat: string | null | undefined): 
 /** A stored dollar value as text, or null when there is none (the row then shows no amount). */
 function usdText(value: string): string | null {
 	return toFiniteNumber(value) === null ? null : formatUsd(value);
-}
-
-function shortHash(hash: string): string {
-	return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-6)}`;
 }
 
 /** True below 640px wide: the modal becomes a bottom sheet. */
@@ -123,27 +121,6 @@ function Field({ name, children }: { name: string; children: React.ReactNode }) 
 			<span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '5.5rem' }}>{name}</span>
 			<span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{children}</span>
 		</div>
-	);
-}
-
-function CopyAddress({ text, t }: { text: string; t: AddressLabelsLocale['details'] }) {
-	const [copied, setCopied] = useState(false);
-	return (
-		<button
-			type="button"
-			style={{ ...smallButton, color: copied ? 'var(--gain)' : 'var(--text-secondary)' }}
-			onClick={() => {
-				navigator.clipboard?.writeText(text).then(
-					() => {
-						setCopied(true);
-						setTimeout(() => setCopied(false), 1500);
-					},
-					() => { /* clipboard refused: the address is on screen to select */ },
-				);
-			}}
-		>
-			{copied ? `✓ ${t.copied}` : t.copy}
-		</button>
 	);
 }
 
@@ -374,7 +351,7 @@ function HistoryList({ data, t }: { data: Extract<HistoryAnswer, { supported: tr
 								{t.viewTx} ↗
 							</a>
 						) : r.txHash ? (
-							<span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{shortHash(r.txHash)}</span>
+							<span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{shortenAddress(r.txHash)}</span>
 						) : null}
 					</li>
 				))}
@@ -598,7 +575,11 @@ export function AddressDetailsModal({ label, onClose }: Props) {
 						<code style={{ fontFamily: MONO, fontSize: '0.8rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{label.address}</code>
 					</Field>
 					<div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-						<CopyAddress text={label.address} t={t} />
+						<CopyButton
+							value={label.address}
+							words={{ idle: t.copy, copied: `✓ ${t.copied}` }}
+							style={(state) => ({ ...smallButton, color: state === 'copied' ? 'var(--gain)' : 'var(--text-secondary)' })}
+						/>
 						{onchain ? <ExplorerLinks label={label} network={network} t={t} /> : <p style={mutedText}>{notOnchainText}</p>}
 					</div>
 					{label.notes && <Field name={t.fieldNotes}>{label.notes}</Field>}

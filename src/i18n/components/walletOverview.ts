@@ -22,7 +22,6 @@ export interface WalletOverviewLocale {
   unnamed: string;
 
   // Copy button
-  copyAddressTitle: string;
 
   // Action buttons (editing mode)
   btnSave: string;
@@ -69,7 +68,6 @@ export const en: WalletOverviewLocale = {
 
   unnamed: 'Unnamed',
 
-  copyAddressTitle: 'Copy address',
 
   btnSave: 'Save',
   btnCancel: 'Cancel',
@@ -112,7 +110,6 @@ export const es: WalletOverviewLocale = {
 
   unnamed: "Sin nombre",
 
-  copyAddressTitle: "Copiar dirección",
 
   btnSave: "Guardar",
   btnCancel: "Cancelar",
@@ -155,7 +152,6 @@ export const fr: WalletOverviewLocale = {
 
   unnamed: "Sans nom",
 
-  copyAddressTitle: "Copier l'adresse",
 
   btnSave: "Enregistrer",
   btnCancel: "Annuler",

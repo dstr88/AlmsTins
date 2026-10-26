@@ -10,6 +10,7 @@ import './VerifyDashboard.css';
 import { findEvmAddress } from '@/lib/addressFormats';
 import { VERIFY_ADDRESS_RAILS, VERIFY_EVM_RAILS } from '@/lib/chains';
 import { formatDateTime, formatTime } from '@/lib/format';
+import { CopyButton } from '@/components/ui/CopyButton';
 import type { Lang } from '@/lib/i18n/locale';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -45,10 +46,6 @@ const CHAIN_LABEL: Record<string, string> = {
 };
 function railLabel(rail: string, t: VerifyDashboardLocale): string {
   return rail === 'url' ? t.railUrl : (CHAIN_LABEL[rail] ?? rail);
-}
-
-function short(v: string): string {
-  return v.length <= 24 ? v : `${v.slice(0, 12)}…${v.slice(-8)}`;
 }
 
 // Localized three-tier badge label. The raw status still drives the CSS class.
@@ -427,7 +424,7 @@ function EntityCard({ e, t, onChange, approved }: {
           <p className="vd-prove__steps">{t.proveStep1.replace('{url}', wkUrl)}</p>
           <pre className="vd-prove__pre">{file}</pre>
           <div className="vd-prove__row">
-            <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file); }}>{t.proveCopyBtn}</button>
+            <CopyButton value={file} kind="value" className="vd-prove__copy" lang={t.lang} words={{ idle: t.proveCopyBtn, copied: t.copied }} />
             <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
           </div>
         </div>
@@ -584,13 +581,6 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   const [showBadge, setShowBadge] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [monitoring, setMonitoring] = useState(false);
-  const [copied, setCopied] = useState(false);
-  function copyValue() {
-    void navigator.clipboard?.writeText(d.value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    }).catch(() => {});
-  }
   // Domain attestation proves a domain vouches for an address — only meaningful for
   // address destinations, until one is proven AND anchored to a domain. A wallet proven by
   // self-send (Claimed) can still be listed in the domain file to become Verified, unless its
@@ -621,16 +611,23 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
     <div className="vd-rowwrap">
       <div className="vd-row">
         <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
-        <span className="vd-row__value" title={d.value}>{d.displayHint ? short(d.displayHint) : short(d.value)}</span>
+        {/* A receiving address, shown whole (D4): someone may send money to it. */}
+        <span className="vd-row__value" title={d.value}>{d.displayHint ?? d.value}</span>
         {d.label && <span className="vd-row__label">{d.label}</span>}
-        <button type="button" className="vd-row__copy" onClick={copyValue}
-          aria-label={`${t.copyAria} ${d.label ?? d.value}`} title={copied ? t.copied : t.copyAria}>
-          {copied ? '✓' : (
+        <CopyButton
+          value={d.value}
+          variant="icon"
+          className="vd-row__copy"
+          lang={t.lang}
+          label={`${t.copyAria} ${d.label ?? d.value}`}
+          title={(state) => (state === 'copied' ? t.copied : t.copyAria)}
+          words={{ copied: t.copied }}
+          icon={
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
             </svg>
-          )}
-        </button>
+          }
+        />
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
           title={fresh && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
@@ -804,7 +801,6 @@ function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardL
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [retryAt, setRetryAt] = useState<string | null>(null); // when a new amount can be drawn
-  const [copied, setCopied] = useState(false);
   const inFlight = useRef(false);
   const done = useRef(false);
   const pollUntil = useRef(0);
@@ -881,14 +877,6 @@ function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardL
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [armed]);
-
-  function copyAmount() {
-    if (!challenge) return;
-    void navigator.clipboard?.writeText(challenge.amount).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    }).catch(() => {});
-  }
 
   const chain = railLabel(d.rail, t);
   const last = d.value.slice(-4);
@@ -983,7 +971,7 @@ function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardL
       <div className="vd-ss__amount">
         <span className="vd-ss__amount-label">{t.ssAmountLabel}</span>
         <span className="vd-ss__amount-value">{challenge.amount} {challenge.unit}</span>
-        <button className="vd-prove__copy" onClick={copyAmount}>{copied ? t.copied : t.ssCopyAmountBtn}</button>
+        <CopyButton value={challenge.amount} kind="value" className="vd-prove__copy" lang={t.lang} words={{ idle: t.ssCopyAmountBtn, copied: t.copied }} />
       </div>
       {challenge.baseUnit && (
         <p className="vd-ss__note">
@@ -1121,14 +1109,14 @@ function ProvePanel({ d, t, onProven, mode = 'prove' }: {
               <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
               <pre className="vd-prove__pre">{file.file}</pre>
               <div className="vd-prove__row">
-                <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
+                <CopyButton value={file.file} kind="value" className="vd-prove__copy" lang={t.lang} words={{ idle: t.proveCopyBtn, copied: t.copied }} />
               </div>
               {challenge && !domainOnly && (
                 <>
                   <p className="vd-prove__steps">{t.proveDnsOr}</p>
                   <p className="vd-prove__hint">{t.proveDnsStep}</p>
                   <pre className="vd-prove__pre">{challenge}</pre>
-                  <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(challenge); }}>{t.proveCopyBtn}</button>
+                  <CopyButton value={challenge} kind="value" className="vd-prove__copy" lang={t.lang} words={{ idle: t.proveCopyBtn, copied: t.copied }} />
                 </>
               )}
               <div className="vd-prove__row" style={{ marginTop: '0.5rem' }}>

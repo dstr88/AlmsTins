@@ -175,7 +175,7 @@ describe('the Address Labels row', () => {
 	it('keeps copy and Remove outside the button that opens the modal', () => {
 		const start = labels.indexOf('aria-label={t.details.openDetails(l.label)}');
 		const button = labels.slice(start, labels.indexOf('</button>', start));
-		expect(button).toContain('{truncateAddress(l.address)}');
+		expect(button).toContain('{shortenAddress(l.address)}');
 		expect(button).toContain('{l.label}');
 		expect(button).not.toContain('<CopyButton');
 		expect(button).not.toContain('handleDelete');

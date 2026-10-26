@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTinAssetsCard } from '@/i18n/components/tinAssetsCard';
 import { formatUsd } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 export type TinAssetsCardProps = {
 	walletId: string;
@@ -37,9 +38,7 @@ function getDisplayLabel(wallet: { walletLabel?: string | null; walletAddress?: 
 			? wallet.walletAddress.slice(-5)
 			: wallet.walletId;
 
-	const shortAddr = wallet.walletAddress
-		? wallet.walletAddress.slice(0, 6) + '...' + wallet.walletAddress.slice(-4)
-		: null;
+	const shortAddr = wallet.walletAddress ? shortenAddress(wallet.walletAddress) : null;
 
 	return shortAddr ? `${baseLabel} (${shortAddr})` : baseLabel;
 }

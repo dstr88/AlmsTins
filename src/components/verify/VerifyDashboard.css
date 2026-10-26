@@ -96,7 +96,7 @@
   font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--accent); white-space: nowrap;
 }
-.vd-row__value { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.85rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
+.vd-row__value { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.85rem; color: var(--text-primary); min-width: 0; overflow-wrap: anywhere; }
 .vd-row__label { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .vd-badge {
   margin-left: auto; font-size: 0.66rem; font-weight: 700; text-transform: none;

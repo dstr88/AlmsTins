@@ -3,6 +3,8 @@ import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAddressLabels } from '@/i18n/components/addressLabels';
 import { addressNetwork } from '@/lib/addressNetwork';
 import { AddressDetailsModal } from './AddressDetailsModal';
+import { shortenAddress } from '@/lib/addressDisplay';
+import { CopyButton } from '@/components/ui/CopyButton';
 
 export type AddressLabel = {
 	id: string;
@@ -18,11 +20,6 @@ export type AddressLabel = {
 type Props = {
 	labels: AddressLabel[];
 };
-
-function truncateAddress(addr: string): string {
-	if (addr.length <= 18) return addr;
-	return `${addr.slice(0, 9)}…${addr.slice(-7)}`;
-}
 
 const NETWORK_COLORS: Record<string, string> = {
 	// Distinct per-network series colors (chart-readability exception, see CLAUDE.md)
@@ -46,31 +43,6 @@ const inputStyle: React.CSSProperties = {
 	outline: 'none',
 	boxSizing: 'border-box' as const,
 };
-
-function CopyButton({ text }: { text: string }) {
-	const t = getAddressLabels(getClientLang());
-	const [copied, setCopied] = useState(false);
-	return (
-		<button
-			type="button"
-			onClick={() => {
-				navigator.clipboard.writeText(text).then(() => {
-					setCopied(true);
-					setTimeout(() => setCopied(false), 1500);
-				});
-			}}
-			title={t.copyTitle}
-			style={{
-				background: 'none', border: 'none', cursor: 'pointer',
-				padding: '0 0.2rem',
-				color: copied ? 'var(--gain)' : 'var(--text-muted)',
-				fontSize: '0.8rem', lineHeight: 1, transition: 'color 0.15s', flexShrink: 0,
-			}}
-		>
-			{copied ? '✓' : '⧉'}
-		</button>
-	);
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function AddressLabels({ labels: initial }: Props) {
@@ -509,10 +481,10 @@ export function AddressLabels({ labels: initial }: Props) {
 												fontSize: '0.75rem',
 												color: 'var(--text-muted)',
 											}}>
-												{truncateAddress(l.address)}
+												{shortenAddress(l.address)}
 											</span>
 										</button>
-										<CopyButton text={l.address} />
+										<CopyButton value={l.address} variant="icon" />
 									</span>
 									{l.phone_number && (
 										<span style={{
