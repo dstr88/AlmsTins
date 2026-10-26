@@ -37,6 +37,7 @@ import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource 
 import { getCache, setCache } from '@/lib/tursoCache';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
+import { formatAmount, formatFileDate } from '@/lib/format';
 
 export const prerender = false;
 
@@ -68,16 +69,8 @@ function json(body: unknown, status = 200) {
 	});
 }
 
-function fmtDate(iso: string): string {
-	try {
-		const d = new Date(iso);
-		if (isNaN(d.getTime())) return iso;
-		const m = d.getUTCMonth() + 1;
-		const day = d.getUTCDate();
-		const y = d.getUTCFullYear();
-		return `${m}/${day}/${y}`;
-	} catch { return iso; }
-}
+// M/D/YYYY in UTC; an unreadable date is written as given (src/lib/format.ts).
+const fmtDate = (iso: string): string => formatFileDate(iso, { style: 'numeric', empty: iso });
 
 function boxTotals(rows: Form8949Row[]) {
 	return {
@@ -134,7 +127,7 @@ export const GET: APIRoute = async ({ request }) => {
 			const gainLoss  = proceeds - costBasis;
 			const codes     = lot.costUsd == null ? 'BO' : '';  // "BO" = basis not reported
 			boxC.push({
-				description:  `${lot.amount.toLocaleString('en-US', { maximumFractionDigits: 8 })} ${lot.asset}`,
+				description:  `${formatAmount(lot.amount, 8, { empty: String(lot.amount) })} ${lot.asset}`,
 				dateAcquired: fmtDate(lot.buyDate),
 				dateSold:     fmtDate(lot.sellDate),
 				proceeds,
@@ -152,7 +145,7 @@ export const GET: APIRoute = async ({ request }) => {
 			const gainLoss  = proceeds - costBasis;
 			const codes     = lot.costUsd == null ? 'BO' : '';
 			boxF.push({
-				description:  `${lot.amount.toLocaleString('en-US', { maximumFractionDigits: 8 })} ${lot.asset}`,
+				description:  `${formatAmount(lot.amount, 8, { empty: String(lot.amount) })} ${lot.asset}`,
 				dateAcquired: fmtDate(lot.buyDate),
 				dateSold:     fmtDate(lot.sellDate),
 				proceeds,
