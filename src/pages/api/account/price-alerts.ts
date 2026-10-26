@@ -11,15 +11,9 @@ import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
 import { getLang } from '@/lib/i18n/locale';
 import { getAccountErrors } from '@/i18n/apiErrors/account';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 export const GET: APIRoute = async ({ request }) => {

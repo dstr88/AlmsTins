@@ -5,13 +5,7 @@ import { db } from '@/lib/db';
 import { invalidateUserAuthFacts } from '@/lib/sessionGate';
 import { deleteVerifyAccountData } from '@/lib/verifyAccountDelete';
 import { TENANT_TABLES, USER_TABLES } from '@/lib/accountDeleteTables';
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+import { json } from '@/lib/http';
 
 const COOKIE_NAMES = [
   'authjs.session-token',

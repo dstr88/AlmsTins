@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
 import { getLang } from '@/lib/i18n/locale';
 import { getAccountErrors } from '@/i18n/apiErrors/account';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -119,10 +120,3 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: false, error: 'Database error' }, 500);
 	}
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

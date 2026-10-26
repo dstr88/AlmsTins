@@ -10,12 +10,7 @@ import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
 import { hashWithSalt } from '@/lib/analytics/hash';
 import { getClientIp } from '@/lib/analytics/ip';
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+import { json } from '@/lib/http';
 
 // Admin notification address — same source as admin guard
 const ADMIN_EMAIL = (process.env.ADMIN_EMAILS ?? process.env.ADMIN_EMAIL ?? '')

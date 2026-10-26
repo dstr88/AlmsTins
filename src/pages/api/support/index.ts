@@ -10,6 +10,7 @@ import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
 import { randomUUID } from 'node:crypto';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -105,10 +106,3 @@ export const POST: APIRoute = async ({ request }) => {
 
   return json({ ok: true, id });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

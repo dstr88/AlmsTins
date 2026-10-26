@@ -23,6 +23,7 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { countOpeningWaiting, OPENING_BATCH_DEFAULT, sendOpeningNotices } from '@/lib/agenticsSignup';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -32,16 +33,13 @@ export const prerender = false;
  */
 export const OPENING_CALL_BUDGET_MS = 12_000;
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-
 /** The admin check, as a response to return instead of a throw (requireAdminSession throws one). */
 async function refuseNonAdmin(request: Request): Promise<Response | null> {
   try {
     await requireAdminSession(request);
     return null;
   } catch (e) {
-    return e instanceof Response ? json({ ok: false, error: e.status === 401 ? 'unauthorized' : 'forbidden' }, e.status) : json({ ok: false, error: 'forbidden' }, 403);
+    return e instanceof Response ? json({ ok: false, error: e.status === 401 ? 'unauthorized' : 'forbidden' }, e.status, { noStore: true }) : json({ ok: false, error: 'forbidden' }, 403, { noStore: true });
   }
 }
 
@@ -49,10 +47,10 @@ export const GET: APIRoute = async ({ request }) => {
   const refused = await refuseNonAdmin(request);
   if (refused) return refused;
   try {
-    return json({ ok: true, vaultOpen: AGENTICS_VAULT_PUBLIC, waiting: await countOpeningWaiting() });
+    return json({ ok: true, vaultOpen: AGENTICS_VAULT_PUBLIC, waiting: await countOpeningWaiting() }, 200, { noStore: true });
   } catch (err) {
     console.error('[admin] agentics opening count failed', { name: String((err as { name?: unknown })?.name ?? 'Error') });
-    return json({ ok: false, error: 'unavailable' }, 500);
+    return json({ ok: false, error: 'unavailable' }, 500, { noStore: true });
   }
 };
 
@@ -64,20 +62,20 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const parsed: unknown = await request.json();
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) body = parsed as Record<string, unknown>;
-    else return json({ ok: false, error: 'invalid_body' }, 400);
+    else return json({ ok: false, error: 'invalid_body' }, 400, { noStore: true });
   } catch {
     // An empty body is a dry run.
   }
   const apply = body.apply === true;
   const limit = body.limit === undefined ? OPENING_BATCH_DEFAULT : Number(body.limit);
-  if (!Number.isFinite(limit) || limit < 1) return json({ ok: false, error: 'invalid_limit' }, 400);
-  if (apply && !AGENTICS_VAULT_PUBLIC) return json({ ok: false, error: 'vault_not_open' }, 409);
+  if (!Number.isFinite(limit) || limit < 1) return json({ ok: false, error: 'invalid_limit' }, 400, { noStore: true });
+  if (apply && !AGENTICS_VAULT_PUBLIC) return json({ ok: false, error: 'vault_not_open' }, 409, { noStore: true });
 
   try {
     const report = await sendOpeningNotices({ apply, limit, deadlineAt: Date.now() + OPENING_CALL_BUDGET_MS });
-    return json({ ok: true, ...report });
+    return json({ ok: true, ...report }, 200, { noStore: true });
   } catch (err) {
     console.error('[admin] agentics opening failed', { name: String((err as { name?: unknown })?.name ?? 'Error') });
-    return json({ ok: false, error: 'unavailable' }, 500);
+    return json({ ok: false, error: 'unavailable' }, 500, { noStore: true });
   }
 };

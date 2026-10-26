@@ -15,18 +15,12 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { findMailboxForAdmin } from '@/lib/mailboxes';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 /** Enough to autocomplete from; far past what a person actually corresponds with. */
 const MAX_CONTACTS = 300;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 /** 'Ama Mensah <ama@example.com>, ops@x.com' → ['ama@example.com', 'ops@x.com'] */
 function splitAddresses(raw: string): Array<{ address: string; name: string | null }> {
