@@ -430,8 +430,9 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 					freeAssetsUsd: Number(chain.totalUsd ?? 0),
 					debtUsd: 0,
 				})),
+				// Grouped by blockchain: a market beyond the main three (Ethereum Lido) counts under its chain (ethereum).
 				...aaveTotals.chains.map((chain) => ({
-					chain: chain.chain,
+					chain: chain.network ?? chain.chain,
 					totalUsd: Number(chain.suppliedUsd ?? 0),
 					assetsUsd: Number(chain.suppliedUsd ?? 0),
 					freeAssetsUsd: 0,
@@ -441,8 +442,9 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 			];
 
 			for (const chain of aaveTotals.chains) {
-				const prev = chainTotals.get(chain.chain) ?? { assetsUsd: 0, freeAssetsUsd: 0, debtUsd: 0 };
-				chainTotals.set(chain.chain, {
+				const chainKey = chain.network ?? chain.chain;
+				const prev = chainTotals.get(chainKey) ?? { assetsUsd: 0, freeAssetsUsd: 0, debtUsd: 0 };
+				chainTotals.set(chainKey, {
 					assetsUsd: prev.assetsUsd + Number(chain.suppliedUsd ?? 0),
 					freeAssetsUsd: prev.freeAssetsUsd,
 					debtUsd: prev.debtUsd + Number(chain.debtUsd ?? 0),

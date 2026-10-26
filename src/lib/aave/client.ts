@@ -11,6 +11,14 @@ import {
 import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
 import { CHAINS } from '@/lib/chains';
 
+/** The app's chain key for an EVM chain id (1 → 'ethereum'), or null when the app does not know the chain. */
+function chainKeyOf(chainId: number): string | null {
+	const hit = Object.entries(CHAINS).find(([, c]) => c.evmChainId === chainId);
+	return hit ? hit[0] : null;
+}
+import { findMarketsWithPositions, loadAaveMarkets } from './accountHealth';
+import { marketKey, marketLabel } from './markets';
+
 // ── Aave v3 ───────────────────────────────────────────────────────────────────
 const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
 
@@ -73,7 +81,18 @@ export type AaveReported = {
 };
 
 export type AaveChainSummary = {
-	chain: 'ethereum' | 'polygon' | 'avalanche' | 'ethereum_v4';
+	/**
+	 * The market's key: 'ethereum', 'polygon', 'avalanche' for the three main markets, 'ethereum_v4', and for every
+	 * other Aave market the key the DeFi tin uses ('ethereum_lido', 'arbitrum'; see src/lib/aave/markets.ts).
+	 */
+	chain: string;
+	/** Display name of a market beyond the main three ("Ethereum Lido"). */
+	label?: string;
+	/**
+	 * The blockchain a market beyond the main three lives on ('ethereum' for Ethereum Lido), for breakdowns by chain;
+	 * its market key when the app does not know the chain. Absent on the main markets, whose `chain` is already one.
+	 */
+	network?: string;
 	suppliedUsd: number;
 	debtUsd: number;
 	suppliedUsdTotal: number;
@@ -464,12 +483,72 @@ function buildMissingMarketSummary(
 	};
 }
 
+/**
+ * Aave's other markets: every live market beyond the three main ones, from the same list the DeFi tin uses
+ * (src/lib/aave/accountHealth.ts). One bulk call finds the markets the wallet has a position in, and only those are
+ * read in full, like the main three. A wallet with a position in the Ethereum Lido market used to be short that
+ * position in its portfolio total. A market that could not be asked, or Aave failing to list its markets, comes back
+ * as a failed summary, so the totals say they are partial instead of silently leaving it out.
+ */
+async function otherMarketSummaries(
+	user: string,
+	mainMarkets: ReadonlyArray<{ chainId: number; address: string | null }>,
+	withReported: boolean,
+): Promise<AaveChainSummary[]> {
+	const failedSummary = (chain: string, label: string | undefined, error: string, market: string | null = null): AaveChainSummary => ({
+		chain,
+		...(label ? { label } : {}),
+		suppliedUsd: 0,
+		debtUsd: 0,
+		suppliedUsdTotal: 0,
+		debtUsdTotal: 0,
+		positions: [],
+		ok: false,
+		market,
+		error,
+	});
+
+	try {
+		const { markets, complete } = await loadAaveMarkets();
+		const isMain = (chainId: number, address: string) =>
+			mainMarkets.some((m) => m.chainId === chainId && m.address?.toLowerCase() === address.toLowerCase());
+		const others = markets.filter((m) => !isMain(m.chainId, m.address));
+
+		const { active, failed } = await findMarketsWithPositions(user, others);
+		const reported = withReported && active.length ? await fetchReportedTotals(user, active) : null;
+
+		const summaries: AaveChainSummary[] = await Promise.all(
+			active.map(async (m): Promise<AaveChainSummary> => {
+				const summary = await fetchUserPositionsForMarket(user, m.address, m.chainId, marketKey(m.name));
+				return {
+					...summary,
+					label: marketLabel(m.name),
+					network: chainKeyOf(m.chainId) ?? marketKey(m.name),
+					...(reported ? { reported: reported.get(reportedKey(m.chainId, m.address)) ?? null } : {}),
+				};
+			}),
+		);
+		for (const m of failed) {
+			summaries.push({
+				...failedSummary(marketKey(m.name), marketLabel(m.name), 'Positions lookup failed', m.address),
+				network: chainKeyOf(m.chainId) ?? marketKey(m.name),
+			});
+		}
+		if (!complete) summaries.push(failedSummary('other_markets', 'Other Aave markets', 'Aave market list unavailable'));
+		return summaries;
+	} catch (err: any) {
+		console.error('[AAVE other markets] lookup failed', err);
+		return [failedSummary('other_markets', 'Other Aave markets', err?.message ?? 'Unknown error')];
+	}
+}
+
 // --- Public function used by /api/aave/positions ---
 
 const EVM_ADDRESS_RE = EVM_ADDRESS_ANY_PREFIX;
 
 /**
- * Every Aave v3 position the wallet has on Ethereum, Polygon and Avalanche (and v4 when configured), each with
+ * Every Aave v3 position the wallet has: the main markets on Ethereum, Polygon and Avalanche, every other Aave market
+ * it holds a position in (Ethereum Lido, Arbitrum, ...), and v4 when configured, each with
  * Aave's own USD figure when the API gave one. withReported also asks Aave for its own collateral and debt
  * totals (one extra request per market), which getAaveTotalsForWallet checks its sums against.
  */
@@ -493,6 +572,17 @@ export async function getAavePositionsForWallet(
 		const avalancheMarket = await resolveMarketAddress(AVALANCHE_CHAIN_ID, {
 			fallback: AVALANCHE_MARKET_ADDRESS,
 		});
+
+		// Every other Aave market, read while the main three are.
+		const othersLookup = otherMarketSummaries(
+			normalized,
+			[
+				{ chainId: ETHEREUM_CHAIN_ID, address: ethereumMarket.address },
+				{ chainId: POLYGON_CHAIN_ID, address: polygonMarket.address },
+				{ chainId: AVALANCHE_CHAIN_ID, address: avalancheMarket.address },
+			],
+			Boolean(options.withReported),
+		);
 
 		// Aave's own collateral and debt totals, for the sanity check: one request per market, started now so they run
 		// while the chains are read, and only when asked for (callers that just need amounts, like Memory Lane, do not pay).
@@ -564,10 +654,12 @@ export async function getAavePositionsForWallet(
 				? { ...summary, reported: reported?.get(reportedKey(chainIdOf[summary.chain], summary.market)) ?? null }
 				: summary;
 
+		const others = await othersLookup;
+
 		return {
 			ok: true,
 			address: normalized,
-			chains: [ethereum, polygon, avalanche, ethereumV4].map(withReported),
+			chains: [...[ethereum, polygon, avalanche, ethereumV4].map(withReported), ...others],
 		};
 	} catch (err: any) {
 		console.error('[AAVE] getAavePositionsForWallet failed', err);
