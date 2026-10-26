@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getCustomWalletCard } from '@/i18n/components/customWalletCard';
 import { formatDate, formatUsd, toLang } from '@/lib/format';
+import AddressText from '@/components/ui/AddressText.astro';
 
 interface Props {
 	wallet: Wallet;
@@ -17,9 +18,6 @@ const { wallet } = Astro.props;
 
 const displayLabel = wallet.label?.trim() || wallet.address.slice(-5);
 const hasRealAddress = wallet.address && !wallet.address.startsWith('custom_');
-const shortAddress = hasRealAddress
-	? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
-	: null;
 
 // Load transactions for this wallet
 type TxRow = { id: string; token_symbol: string | null; tx_type: string | null; timestamp: string | null; metadata_json: string | null };
@@ -47,9 +45,7 @@ const parseMeta = (raw: string | null) => {
 <div class="custom-wallet-card">
 	<div class="cwc-label-pill">{displayLabel}</div>
 
-	{shortAddress && (
-		<p class="cwc-address" title={wallet.address}>{shortAddress}</p>
-	)}
+	{hasRealAddress && <AddressText as="p" class="cwc-address" value={wallet.address} />}
 
 	<div class="cwc-meta">
 		<span class="cwc-meta__item">

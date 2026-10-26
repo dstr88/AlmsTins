@@ -14,6 +14,7 @@ import { getLang } from '@/lib/i18n/locale';
 import { getAnnualRecords } from '@/i18n/dashboard/annual-records';
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import { formatDate, formatUsd, toLang } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 export const prerender = false;
 
@@ -262,7 +263,7 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
                     <li class="check-item">
                       <input type="checkbox" class="check-box" data-key={`wallet_${w.id}_${selectedYear}`} />
                       <span class="check-label">
-                        {w.label ? `${w.label} · ${w.address.slice(0, 12)}...` : w.address.slice(0, 12) + '...'}
+                        {w.label ? `${w.label} · ${shortenAddress(w.address)}` : shortenAddress(w.address)}
                       </span>
                     </li>
                   ))}
@@ -381,7 +382,7 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
                   return (
                     <li class="sync-item" data-wallet-id={w.id} style="cursor:pointer">
                       <span class={`sync-dot ${stale ? 'sync-dot--stale' : 'sync-dot--ok'}`}></span>
-                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || w.address.slice(0,14) + '…'}</span>
+                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || shortenAddress(w.address)}</span>
                       <span class="sync-date">{fmtDate(w.lastSynced)}</span>
                     </li>
                   );

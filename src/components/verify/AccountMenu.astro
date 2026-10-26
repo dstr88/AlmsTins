@@ -214,14 +214,13 @@ const backTo = current === 'landing' ? '/receivables' : `/verify/login?next=${cu
 </style>
 
 <script>
+  import { copyText } from '@/lib/clipboard';
   document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       const el = e.currentTarget as HTMLElement;
-      try {
-        await navigator.clipboard.writeText(el.dataset.copy ?? '');
-        el.style.color = 'var(--accent)';
-        setTimeout(() => { el.style.color = ''; }, 1200);
-      } catch { /* clipboard unavailable — the code stays selectable */ }
+      if (!(await copyText(el.dataset.copy ?? ''))) return; // clipboard unavailable: the code stays selectable
+      el.style.color = 'var(--accent)';
+      setTimeout(() => { el.style.color = ''; }, 1200);
     });
   });
 

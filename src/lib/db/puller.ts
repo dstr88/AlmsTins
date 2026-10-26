@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 // Cache config (seconds) -> ms.
 const DEFAULT_CACHE_TTL_MS = 180_000;
@@ -223,12 +224,6 @@ const computeDaysHeld = (from: string | null) => {
 	if (!Number.isFinite(stamp)) return null;
 	const diffMs = nowMs() - stamp;
 	return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-};
-
-const addressShort = (address: string) => {
-	if (!address) return 'Unknown';
-	const trimmed = address.toLowerCase();
-	return `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`;
 };
 
 const chainOrder = new Map(DEFAULT_ERC20_CHAINS.map((chain, index) => [chain, index]));
@@ -595,7 +590,7 @@ export async function getWalletInteractions(
 		const address = String(row.address ?? '').toLowerCase();
 		const known = KNOWN_DAPPS[address];
 		return {
-			name: known?.name ?? addressShort(address),
+			name: known?.name ?? (shortenAddress(address) || 'Unknown'),
 			domain: known?.domain,
 			lastSeen: String(row.lastSeen ?? ''),
 			count: Number(row.count ?? 0),

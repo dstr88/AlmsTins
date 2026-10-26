@@ -2,6 +2,7 @@
 import './SolanaWalletTin.css';
 import { getLang } from '@/lib/i18n/locale';
 import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
+import AddressText from '@/components/ui/AddressText.astro';
 type Props = {
 	walletId: string;
 	label: string;
@@ -15,7 +16,7 @@ const t = getWalletSyncTin(getLang(Astro.request));
 <section class="sol-tin" data-wallet-id={walletId} data-address={address}>
 	<div class="sol-tin__header">
 		<span class="sol-tin__label">{label}</span>
-		<span class="sol-tin__address">{address.slice(0, 6)}…{address.slice(-4)}</span>
+		<AddressText class="sol-tin__address" value={address} />
 	</div>
 	<div class="sol-tin__balance" aria-live="polite">
 		<span class="sol-tin__balance-value" data-sol-balance>—</span>

@@ -17,6 +17,7 @@ import { isOwner } from '@/lib/owner';
 import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 import { formatDate, formatUsd } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 export const prerender = false;
 
@@ -324,7 +325,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
                     <li class="check-item">
                       <input type="checkbox" class="check-box" data-key={`wallet_${w.id}_${selectedYear}`} />
                       <span class="check-label">
-                        {w.label ? `${w.label} · ${w.address.slice(0, 12)}...` : w.address.slice(0, 12) + '...'}
+                        {w.label ? `${w.label} · ${shortenAddress(w.address)}` : shortenAddress(w.address)}
                       </span>
                     </li>
                   ))}
@@ -443,7 +444,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
                   return (
                     <li class="sync-item" data-wallet-id={w.id} style="cursor:pointer">
                       <span class={`sync-dot ${stale ? 'sync-dot--stale' : 'sync-dot--ok'}`}></span>
-                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || w.address.slice(0,14) + '…'}</span>
+                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || shortenAddress(w.address)}</span>
                       <span class="sync-date">{fmtDate(w.lastSynced)}</span>
                     </li>
                   );

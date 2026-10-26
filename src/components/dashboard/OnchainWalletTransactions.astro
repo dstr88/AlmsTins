@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getOnchainWalletTransactions } from '@/i18n/components/onchainWalletTransactions';
+import { shortenAddress } from '@/lib/addressDisplay';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -160,13 +161,6 @@ const resolveDirection = (row: TxRow) => {
 	return type.includes('out') ? 'out' : 'in';
 };
 
-const shortenHash = (value: string | null) => {
-	if (!value) return '—';
-	const trimmed = value.trim();
-	if (trimmed.length <= 5) return trimmed;
-	return `…${trimmed.slice(-5)}`;
-};
-
 const rowsWithDividers: Array<
 	| { type: 'divider'; year: number; asset: string }
 	| { type: 'row'; row: TxRow }
@@ -222,7 +216,7 @@ for (const row of rows) {
 							title={item.row.hash || '—'}
 						>
 							<span class="tx-label">{t.labelHash}</span>
-							<span class="tx-value">{shortenHash(item.row.hash)}</span>
+							<span class="tx-value">{shortenAddress(item.row.hash) || '—'}</span>
 						</span>
 						<span class="txCol--dir">
 							{resolveDirection(item.row) === 'out' ? (

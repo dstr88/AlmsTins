@@ -4,6 +4,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { CHAIN_IDS, isContract as checkIsContract, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { explorerAddressUrl } from '@/lib/explorerLinks';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_800_000; // 30 min
@@ -237,7 +238,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			const url = explorerAddressUrl(chain, address) ?? explorerAddressUrl('ethereum', address) ?? '';
 			const verifiedName = await fetchContractName(cId, address).catch(() => null);
 			items.push({
-				name: verifiedName || `${address.slice(0, 6)}…${address.slice(-4)}`,
+				name: verifiedName || shortenAddress(address),
 				address,
 				url,
 				chain,

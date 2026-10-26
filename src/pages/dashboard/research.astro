@@ -12,6 +12,7 @@ import { runNeedsAttentionQueries } from '../../lib/getNeedsAttention';
 import { getCache, setCache } from '../../lib/tursoCache';
 import { getLang } from '@/lib/i18n/locale';
 import { getResearch } from '@/i18n/dashboard/research';
+import AddressText from '@/components/ui/AddressText.astro';
 
 const lang = getLang(Astro.request);
 const t = getResearch(lang);
@@ -213,7 +214,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
                       data-wallet-address={w.address}
                     >
                       <span class="wpi-label">{w.label || <span style="opacity:0.5">{t.walletUnnamed}</span>}</span>
-                      <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
+                      <AddressText class="wpi-addr" value={w.address} />
                     </button>
                   ))
                 )}
@@ -584,6 +585,8 @@ import { EVM_ADDRESS, EVM_ADDRESS_SOURCE, SUI_ADDRESS } from '../../lib/addressF
 import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '../../lib/chains';
 import { formatDate, formatTime, formatUsd } from '../../lib/format';
 import { getClientLang } from '../../lib/i18n/clientLang';
+import { shortenAddress } from '../../lib/addressDisplay';
+import { copyText } from '../../lib/clipboard';
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
@@ -1531,7 +1534,7 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
   const walletOptions = walletItems.map(el => {
     const label = el.getAttribute('data-wallet-label') ?? '';
     const addr  = el.getAttribute('data-wallet-address') ?? '';
-    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+    return `<option value="${label}">${label}${addr ? '  (' + shortenAddress(addr) + ')' : ''}</option>`;
   }).join('');
 
   const disposeOptions = DISPOSAL_TYPES_ONLY.map(d =>
@@ -1679,7 +1682,7 @@ function openForwardForm(e, btn) {
   const walletOptions = walletItems.map(el => {
     const label = el.getAttribute('data-wallet-label') ?? '';
     const addr  = el.getAttribute('data-wallet-address') ?? '';
-    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+    return `<option value="${label}">${label}${addr ? '  (' + shortenAddress(addr) + ')' : ''}</option>`;
   }).join('');
 
   formEl.innerHTML = `
@@ -2502,7 +2505,7 @@ function renderAddressPanel(data) {
   // Copy-button row: [□ address] [□ label] whenever we have a label
   html += `<div class="addr-copy-row">
     <button class="addr-copy-btn" data-copy="${escapeHtml(data.address)}" title="Copy address">
-      ⧉ <span class="addr-copy-text">${escapeHtml(data.address.slice(0,10))}…${escapeHtml(data.address.slice(-6))}</span>
+      ⧉ <span class="addr-copy-text">${escapeHtml(shortenAddress(data.address))}</span>
     </button>`;
   if (resolvedLabel) {
     html += `<button class="addr-copy-btn" data-copy="${escapeHtml(resolvedLabel)}" title="Copy label">
@@ -2517,7 +2520,7 @@ function renderAddressPanel(data) {
   // Chips row
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
-    const lbl = escapeHtml(data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…');
+    const lbl = escapeHtml(data.ownWallet.label || shortenAddress(data.ownWallet.address));
     html += '<span class="addr-info-chip own">' + i18n('addrYourWallet','Your wallet: __L__').replace('__L__',lbl) + '</span>';
   }
   if (data.knownExchange) {
@@ -2574,7 +2577,7 @@ function renderAddressPanel(data) {
   // Copy buttons via data-copy + attached handler (no inline onclick → a malicious
   // community/global label can't break out of a JS-string/attribute context).
   inner.querySelectorAll('.addr-copy-btn[data-copy]').forEach((b) => {
-    b.addEventListener('click', () => { navigator.clipboard?.writeText((b as HTMLElement).getAttribute('data-copy') || ''); });
+    b.addEventListener('click', () => { void copyText((b as HTMLElement).getAttribute('data-copy') || ''); });
   });
 
   // Wire add-wallet buttons after innerHTML is set

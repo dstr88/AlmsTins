@@ -7,6 +7,7 @@ import walletOut from '@/assets/walletOut.webp';
 import { getLang } from '@/lib/i18n/locale';
 import { getSuiWalletTransactions } from '@/i18n/components/suiWalletTransactions';
 import { formatDate, toLang } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 type Props = {
 	walletId: string;
@@ -88,11 +89,6 @@ const formatAmount = (raw: string, decimals: number) => {
 
 const isOut = (amount: string) => amount.startsWith('-');
 
-const shortenDigest = (digest: string) => {
-	if (!digest || digest.length <= 8) return digest;
-	return `${digest.slice(0, 4)}…${digest.slice(-4)}`;
-};
-
 // Group by date
 const withDividers: Array<{ type: 'divider'; date: string } | { type: 'row'; row: SuiTxRow }> = [];
 let lastDate: string | null = null;
@@ -130,7 +126,7 @@ for (const row of rows) {
 						<span class="txCol--date">{formatRowDate(item.row.timestamp)}</span>
 						<span class="txCol--digest" title={item.row.digest}>
 							<span class="tx-label">{t.labelDigest}</span>
-							<span class="tx-value">{shortenDigest(item.row.digest)}</span>
+							<span class="tx-value">{shortenAddress(item.row.digest)}</span>
 						</span>
 						<span class="txCol--dir">
 							{isOut(item.row.amount) ? (

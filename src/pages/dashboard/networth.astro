@@ -14,6 +14,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getNetworth } from '@/i18n/dashboard/networth';
 import { formatUsd } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 type SliceType = 'asset' | 'stable' | 'debt';
 
@@ -81,9 +82,6 @@ const wallets = walletsResult.rows.map((row: Record<string, any>) => ({
 	address: String(row.address),
 	label: row.label ? String(row.label) : null,
 }));
-
-const shortenAddress = (address: string) =>
-	address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
 
 const latestSummary = await getLatestNetWorthSummary(tenantId).catch((err) => {
 	console.warn('[networth] failed to load latest summary for tins', err);
