@@ -2,22 +2,15 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAllActiveWallets } from '@/lib/wallets';
+import { AAVE_CHAIN_BY_ID, AAVE_CHAIN_IDS, AAVE_POOL_BY_CHAIN_ID } from '@/lib/chains';
 
 export const prerender = false;
 
 const AAVE_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
-const CHAIN_IDS = [1, 137, 43114];
-const CHAIN_KEYS: Record<number, string> = {
-	1: 'ethereum',
-	137: 'polygon',
-	43114: 'avalanche',
-};
-
-const MARKET_ADDRESSES: Record<number, string> = {
-	1: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
-	137: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
-	43114: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
-};
+// The Aave V3 markets, from src/lib/chains.ts.
+const CHAIN_IDS = AAVE_CHAIN_IDS;
+const CHAIN_KEYS = AAVE_CHAIN_BY_ID;
+const MARKET_ADDRESSES = AAVE_POOL_BY_CHAIN_ID;
 
 const USER_MARKET_STATE_QUERY = `
   query UserMarketState($request: UserMarketStateRequest!) {

@@ -24,6 +24,7 @@ import { canonicalAddress, safeParseChains } from '@/lib/wallets-service';
 import { buildTickerPriceMap } from '@/lib/aave/pricing';
 import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
 import { insertImportBatch } from '@/lib/importRows';
+import { CHAINS } from '@/lib/chains';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
 const SATS_PER_BTC = 100_000_000;
@@ -34,7 +35,7 @@ const ESPLORA: Record<UtxoChain, string> = {
 	bitcoin: BLOCKSTREAM,
 	litecoin: 'https://litecoinspace.org/api',
 };
-const UTXO_SYMBOL: Record<UtxoChain, string> = { bitcoin: 'BTC', litecoin: 'LTC' };
+const UTXO_SYMBOL = (chain: UtxoChain): string => CHAINS[chain].native.symbol;
 
 // ── Blockstream helpers ───────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export async function fetchAllTxs(addr: string): Promise<any[]> {
 
 export async function fetchUtxoPriceUsd(chain: UtxoChain): Promise<number | null> {
 	try {
-		return walletTokenUsdPrice(UTXO_SYMBOL[chain], buildTickerPriceMap(await getTickersUSD()));
+		return walletTokenUsdPrice(UTXO_SYMBOL(chain), buildTickerPriceMap(await getTickersUSD()));
 	} catch {
 		return null;
 	}
@@ -93,7 +94,7 @@ export async function writeUtxoSnapshot(
 ): Promise<void> {
 	const valueUsd = priceUsd !== null ? balance * priceUsd : null;
 	const totalUsd = valueUsd ?? 0;
-	const tokens = [{ symbol: UTXO_SYMBOL[chain], amount: balance, priceUsd, valueUsd, tokenAddress: null }];
+	const tokens = [{ symbol: UTXO_SYMBOL(chain), amount: balance, priceUsd, valueUsd, tokenAddress: null }];
 
 	await db.execute({
 		sql: `INSERT INTO wallet_snapshots

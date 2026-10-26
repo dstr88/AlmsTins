@@ -1,11 +1,9 @@
 import type { SupportedChain } from './constants';
-import { buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
+import { CHAIN_IDS, SNOWTRACE_BASE_URL, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
+import { AAVE_POOL_ADDRESSES } from '@/lib/chains';
 
-// Aave V3 Pool contract addresses (all lowercase) for Aave call detection
-const AAVE_POOL_ADDRESSES = new Set([
-	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3
-	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Avalanche V3 (also Polygon V3)
-]);
+// Aave V3 Pool contract addresses (all lowercase) for Aave call detection: AAVE_POOL_ADDRESSES
+// from src/lib/chains.ts.
 
 // Aave V3 function 4-byte selectors → action label
 const AAVE_SELECTORS = new Map<string, string>([
@@ -17,14 +15,11 @@ const AAVE_SELECTORS = new Map<string, string>([
 
 type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon'>;
 
-const ETHEREUM_CHAIN_ID = 1;
+const ETHEREUM_CHAIN_ID = CHAIN_IDS.ethereum;
 const ETHERSCAN_CHAIN_IDS: Record<EtherscanChain, number> = {
-	ethereum: ETHEREUM_CHAIN_ID,
-	polygon: 137,
+	ethereum: CHAIN_IDS.ethereum,
+	polygon: CHAIN_IDS.polygon,
 };
-
-// Snowtrace was rebranded to Routescan in 2023; Snowtrace's old API host is dead (404).
-const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 
 export type ScanChain = SupportedChain;
 

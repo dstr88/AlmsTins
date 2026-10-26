@@ -19,10 +19,10 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
-import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
+import { CHAINS, DEFAULT_WALLET_CHAINS } from '@/lib/chains';
+import { SNOWTRACE_BASE_URL as ROUTESCAN_BASE } from '@/lib/etherscan';
 
-const ROUTESCAN_BASE = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
-const AVAX_DECIMALS  = 18n;
+const AVAX_DECIMALS  = BigInt(CHAINS.avalanche.native.decimals);
 const PAGE_SIZE      = 1000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

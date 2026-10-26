@@ -1,16 +1,14 @@
 import type { APIRoute } from 'astro';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { tryAcquireLock } from '@/lib/cacheLock';
+import { AAVE_CHAIN_BY_ID, AAVE_CHAIN_IDS } from '@/lib/chains';
 
 export const prerender = false;
 
 const AAVE_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
-const CHAIN_IDS = [1, 137, 43114];
-const CHAIN_KEYS: Record<number, string> = {
-	1: 'ethereum',
-	137: 'polygon',
-	43114: 'avalanche',
-};
+// The Aave V3 markets, from src/lib/chains.ts.
+const CHAIN_IDS = AAVE_CHAIN_IDS;
+const CHAIN_KEYS = AAVE_CHAIN_BY_ID;
 const HEALTH_TTL_SECONDS = 120;
 const HEALTH_STALE_MAX_SECONDS = 600;
 const REFRESH_LOCK_SECONDS = 20;

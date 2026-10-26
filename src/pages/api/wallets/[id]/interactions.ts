@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { isContract as checkIsContract, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
+import { CHAIN_IDS, isContract as checkIsContract, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { explorerAddressUrl } from '@/lib/explorerLinks';
 
@@ -13,8 +13,9 @@ const contractCache = new Map<string, { expiresAt: number; isContract: boolean }
 
 type DbRow = Record<string, unknown>;
 
+// Polygon and Avalanche by name; anything else reads Ethereum.
 const chainId = (chain: string) =>
-	chain === 'polygon' ? 137 : chain === 'avalanche' ? 43114 : 1;
+	chain === 'polygon' || chain === 'avalanche' ? CHAIN_IDS[chain] : CHAIN_IDS.ethereum;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Known DeFi / protocol contracts → { name, url }
