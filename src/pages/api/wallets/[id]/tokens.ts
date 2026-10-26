@@ -525,7 +525,8 @@ export const GET: APIRoute = async ({ params, request }) => {
 				}
 
 				// Bitcoin and Litecoin: the balance alone (one explorer call), so a wallet has a value
-				// as soon as it is added. Its history comes from Sync Tins and the weekly sync-btc cron.
+				// as soon as it is added. Its history comes from Sync Tins, the wallet's own sync and the
+				// weekly sync-btc cron.
 				const utxoChain = isBitcoin ? utxoChainOf(walletChains, walletAddress) : null;
 				if (utxoChain) {
 					const wrote = await snapshotUtxoBalance(tenantId, walletId, utxoChain, walletAddress).catch((err) => {
