@@ -21,6 +21,7 @@ import type { AddressLabel } from './AddressLabels';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { QrImage } from '@/components/ui/QrImage';
+import { Modal } from '@/components/ui/Modal';
 import { formatUsd, toFiniteNumber } from '@/lib/format';
 
 type Props = {
@@ -57,20 +58,6 @@ function categoryLabel(t: AddressLabelsLocale, cat: string | null | undefined): 
 /** A stored dollar value as text, or null when there is none (the row then shows no amount). */
 function usdText(value: string): string | null {
 	return toFiniteNumber(value) === null ? null : formatUsd(value);
-}
-
-/** True below 640px wide: the modal becomes a bottom sheet. */
-function useNarrow(): boolean {
-	const query = '(max-width: 639px)';
-	const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
-	useEffect(() => {
-		const mq = window.matchMedia(query);
-		const update = () => setNarrow(mq.matches);
-		update();
-		mq.addEventListener('change', update);
-		return () => mq.removeEventListener('change', update);
-	}, []);
-	return narrow;
 }
 
 // ── Small pieces ──────────────────────────────────────────────────────────────
@@ -435,147 +422,62 @@ function QrSection({ address, network, label, t }: { address: string; network: A
 
 // ── The modal ─────────────────────────────────────────────────────────────────
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 export function AddressDetailsModal({ label, onClose }: Props) {
 	const all = getAddressLabels(getClientLang());
 	const t = all.details;
 	const titleId = useId();
-	const dialogRef = useRef<HTMLDivElement>(null);
 	const closeRef = useRef<HTMLButtonElement>(null);
-	const downOnBackdrop = useRef(false);
-	const onCloseRef = useRef(onClose);
-	onCloseRef.current = onClose;
-	const narrow = useNarrow();
 
 	const network = addressNetwork(label.address);
 	const onchain = isOnchainAddress(label.address);
 	const notOnchainText = label.address.toLowerCase().startsWith('cex:') ? t.notOnchain : t.notRecognized;
 
-	// Focus the close button on open, give it back to the opener on close, lock the page scroll.
-	useEffect(() => {
-		const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		const overflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-		closeRef.current?.focus();
-		return () => {
-			document.body.style.overflow = overflow;
-			opener?.focus();
-		};
-	}, []);
-
-	// Escape closes; Tab stays inside the dialog.
-	useEffect(() => {
-		function onKeyDown(e: KeyboardEvent) {
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				onCloseRef.current();
-				return;
-			}
-			if (e.key !== 'Tab' || !dialogRef.current) return;
-			const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-			if (items.length === 0) return;
-			const first = items[0];
-			const last = items[items.length - 1];
-			const active = document.activeElement;
-			if (!dialogRef.current.contains(active)) {
-				e.preventDefault();
-				first.focus();
-			} else if (e.shiftKey && active === first) {
-				e.preventDefault();
-				last.focus();
-			} else if (!e.shiftKey && active === last) {
-				e.preventDefault();
-				first.focus();
-			}
-		}
-		document.addEventListener('keydown', onKeyDown);
-		return () => document.removeEventListener('keydown', onKeyDown);
-	}, []);
-
+	// <Modal> closes on Escape and a backdrop click, keeps Tab inside, locks the page scroll and
+	// gives focus back to the row that opened it. Focus starts on Close.
 	return (
-		<div
-			onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
-			onClick={(e) => {
-				if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
-				downOnBackdrop.current = false;
-			}}
-			style={{
-				position: 'fixed',
-				inset: 0,
-				zIndex: 1000,
-				background: 'color-mix(in srgb, var(--surface-bg) 78%, transparent)',
-				backdropFilter: 'blur(3px)',
-				display: 'flex',
-				alignItems: narrow ? 'flex-end' : 'center',
-				justifyContent: 'center',
-				padding: narrow ? 0 : '1.5rem',
-			}}
-		>
-			<div
-				ref={dialogRef}
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby={titleId}
-				style={{
-					width: '100%',
-					maxWidth: narrow ? '100%' : '560px',
-					maxHeight: narrow ? '88vh' : '90vh',
-					overflowY: 'auto',
-					background: 'var(--surface-card)',
-					border: '1px solid var(--border-bright)',
-					borderRadius: narrow ? '16px 16px 0 0' : '16px',
-					padding: narrow ? '1rem 1rem 1.5rem' : '1.35rem 1.5rem 1.5rem',
-					boxSizing: 'border-box',
-					display: 'flex',
-					flexDirection: 'column',
-					gap: '1rem',
-					color: 'var(--text-secondary)',
-				}}
-			>
-				<header style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-					<div style={{ flex: 1, minWidth: 0 }}>
-						<p style={{ ...headingStyle, marginBottom: '0.2rem' }}>{t.dialogTitle}</p>
-						<h2 id={titleId} style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
-							{label.label}
-						</h2>
-					</div>
-					<button ref={closeRef} type="button" onClick={onClose} style={smallButton}>
-						{t.close}
-					</button>
-				</header>
+		<Modal onClose={onClose} labelledBy={titleId} initialFocus={closeRef}>
+			<header style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+				<div style={{ flex: 1, minWidth: 0 }}>
+					<p style={{ ...headingStyle, marginBottom: '0.2rem' }}>{t.dialogTitle}</p>
+					<h2 id={titleId} style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+						{label.label}
+					</h2>
+				</div>
+				<button ref={closeRef} type="button" onClick={onClose} style={smallButton}>
+					{t.close}
+				</button>
+			</header>
 
-				{/* 1. Details */}
-				<section style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-					<h3 style={headingStyle}>{t.secDetails}</h3>
-					<Field name={t.fieldLabel}>{label.label}</Field>
-					<Field name={t.fieldCategory}>{categoryLabel(all, label.category)}</Field>
-					<Field name={t.fieldChain}>{label.chain || t.chainNotSet}</Field>
-					<Field name={t.fieldAddress}>
-						<code style={{ fontFamily: MONO, fontSize: '0.8rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{label.address}</code>
-					</Field>
-					<div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-						<CopyButton
-							value={label.address}
-							words={{ idle: t.copy, copied: `✓ ${t.copied}` }}
-							style={(state) => ({ ...smallButton, color: state === 'copied' ? 'var(--gain)' : 'var(--text-secondary)' })}
-						/>
-						{onchain ? <ExplorerLinks label={label} network={network} t={t} /> : <p style={mutedText}>{notOnchainText}</p>}
-					</div>
-					{label.notes && <Field name={t.fieldNotes}>{label.notes}</Field>}
-					{label.phone_number && <Field name={t.fieldPhone}>{label.phone_number}</Field>}
-				</section>
+			{/* 1. Details */}
+			<section style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+				<h3 style={headingStyle}>{t.secDetails}</h3>
+				<Field name={t.fieldLabel}>{label.label}</Field>
+				<Field name={t.fieldCategory}>{categoryLabel(all, label.category)}</Field>
+				<Field name={t.fieldChain}>{label.chain || t.chainNotSet}</Field>
+				<Field name={t.fieldAddress}>
+					<code style={{ fontFamily: MONO, fontSize: '0.8rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{label.address}</code>
+				</Field>
+				<div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+					<CopyButton
+						value={label.address}
+						words={{ idle: t.copy, copied: `✓ ${t.copied}` }}
+						style={(state) => ({ ...smallButton, color: state === 'copied' ? 'var(--gain)' : 'var(--text-secondary)' })}
+					/>
+					{onchain ? <ExplorerLinks label={label} network={network} t={t} /> : <p style={mutedText}>{notOnchainText}</p>}
+				</div>
+				{label.notes && <Field name={t.fieldNotes}>{label.notes}</Field>}
+				{label.phone_number && <Field name={t.fieldPhone}>{label.phone_number}</Field>}
+			</section>
 
-				{/* 2. Verify: only a real on-chain address can be claimed. */}
-				{onchain && <VerifySection address={label.address} t={t} />}
+			{/* 2. Verify: only a real on-chain address can be claimed. */}
+			{onchain && <VerifySection address={label.address} t={t} />}
 
-				{/* 3. Your history */}
-				<HistorySection address={label.address} onchain={onchain} notOnchainText={notOnchainText} t={t} />
+			{/* 3. Your history */}
+			<HistorySection address={label.address} onchain={onchain} notOnchainText={notOnchainText} t={t} />
 
-				{/* 4. QR code: never for an exchange account id or an unrecognized value. */}
-				{onchain && network && <QrSection address={label.address} network={network} label={label.label} t={t} />}
-			</div>
-		</div>
+			{/* 4. QR code: never for an exchange account id or an unrecognized value. */}
+			{onchain && network && <QrSection address={label.address} network={network} label={label.label} t={t} />}
+		</Modal>
 	);
 }
 
