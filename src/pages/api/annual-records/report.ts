@@ -15,6 +15,7 @@
 
 import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
+import { formatAmount, formatFileDate, formatUsd } from '@/lib/format';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { requireTaxOwner } from '@/lib/taxAuth';
@@ -38,28 +39,11 @@ const LIGHT    = BODY;
 const WHITE    = HEADING;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function fDate(iso: string | null): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    });
-  } catch { return iso; }
-}
-
-function fUsd(v: number | null, showSign = false): string {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
-  return `${sign}$${Math.abs(v).toLocaleString('en-US', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })}`;
-}
-
-function fQty(v: number): string {
-  return Number.isFinite(v)
-    ? v.toLocaleString('en-US', { maximumFractionDigits: 6 })
-    : '—';
-}
+// Files keep their fixed English formats, dates in UTC (src/lib/format.ts). An unreadable date
+// prints as "Invalid Date", as it always has.
+const fDate = (iso: string | null): string => formatFileDate(iso, { invalid: 'Invalid Date' });
+const fUsd = (v: number | null, showSign = false): string => formatUsd(v, { signed: showSign });
+const fQty = (v: number): string => formatAmount(v, 6);
 
 // ── PDF builder ───────────────────────────────────────────────────────────────
 function buildPdf(
@@ -107,7 +91,7 @@ function buildPdf(
         .font('Helvetica')
         .text(`  ·  ${year} Annual Records  ·  ${tenantLabel}`, { align: 'left' })
         .fillColor(MID_GRAY)
-        .text(`Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+        .text(`Generated ${formatFileDate(new Date(), { style: 'long' })}`,
           MARGIN, 10, { align: 'right', width: CONTENT_W });
       doc.moveDown(2);
     };
@@ -195,7 +179,7 @@ function buildPdf(
       .fillColor(MID_GRAY)
       .text(tenantLabel, MARGIN, doc.y + 4)
       .text(
-        `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+        `Generated ${formatFileDate(new Date(), { style: 'long' })}`,
         MARGIN, doc.y + 2,
       );
 

@@ -21,6 +21,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/a
 import { getActivePlan } from '../../../lib/subscriptions';
 import { requireTaxOwner } from '../../../lib/taxAuth';
 import { getCostBasisMethod } from '../../../lib/costBasisMethodSetting';
+import { formatFileDate, formatUsd as formatUsdShared } from '../../../lib/format';
 
 const PAGE_SIZE = 50; // rows before repeating the page header
 
@@ -47,21 +48,10 @@ function row(...cells: (string | number | null | undefined)[]): string {
   return cells.map(esc).join(',');
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function formatUsd(v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return '';
-  const sign = v >= 0 ? '' : '-';
-  return `${sign}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+// Fixed English formats, dates in UTC (src/lib/format.ts). An unreadable date prints as
+// "Invalid Date" and a missing dollar value as an empty cell, as they always have.
+const formatDate = (iso: string): string => formatFileDate(iso, { invalid: 'Invalid Date' });
+const formatUsd = (v: number | null): string => formatUsdShared(v, { empty: '' });
 
 function buildCsv(
   label: string,
@@ -69,9 +59,7 @@ function buildCsv(
   headers: string[],
   dataRows: CsvRow[],
 ): string {
-  const genDate = new Date().toLocaleDateString('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
-  });
+  const genDate = formatFileDate(new Date(), { style: 'long' });
 
   const pageHeader = (): string =>
     [
@@ -221,15 +209,8 @@ export const GET: APIRoute = async ({ request, url }) => {
         // No extra header rows, no $ signs, dates as MM/DD/YYYY.
         filename = `turbotax-form8949-${year}.csv`;
 
-        function ttDate(iso: string): string {
-          try {
-            const d = new Date(iso);
-            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-            const dd = String(d.getUTCDate()).padStart(2, '0');
-            const yyyy = d.getUTCFullYear();
-            return `${mm}/${dd}/${yyyy}`;
-          } catch { return iso; }
-        }
+        // MM/DD/YYYY in UTC; an unreadable date has always come out as NaN/NaN/NaN.
+        const ttDate = (iso: string): string => formatFileDate(iso, { style: 'short', empty: 'NaN/NaN/NaN', invalid: 'NaN/NaN/NaN' });
 
         function ttNum(v: number | null): string {
           if (v == null || !Number.isFinite(v)) return '0.00';

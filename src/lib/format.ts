@@ -152,6 +152,17 @@ export function formatQty(value: unknown, opts: QtyOptions = {}): string {
 	return negative && /[1-9]/.test(body) ? `-${body}` : body;
 }
 
+/**
+ * A number rounded to at most `maxDecimals`, en-US digits (`1,234,567.891234`): how the tax files
+ * write token amounts. It rounds the floating-point value, so prefer formatQty on screens; this one
+ * exists so those files keep their bytes. A value that is not a finite number shows `empty`.
+ */
+export function formatAmount(value: unknown, maxDecimals: number, opts: { empty?: string } = {}): string {
+	const n = toFiniteNumber(value);
+	if (n === null) return opts.empty ?? EM;
+	return nf(`a${maxDecimals}`, { maximumFractionDigits: maxDecimals }).format(n);
+}
+
 // ─── Numbers and percents in the user's language ──────────────────────────────
 
 /** The BCP 47 locale each language formats dates and plain numbers with. */
@@ -189,15 +200,17 @@ export function formatPercent(fraction: number, lang: Lang, maximumFractionDigit
  *   medium   Oct 25, 2026 · 25 oct 2026 · 25 oct. 2026
  *   long     October 25, 2026 · 25 de octubre de 2026 · 25 octobre 2026
  *   short    10/25/2026 · 25/10/2026 · 25/10/2026
+ *   numeric  10/25/2026 · 25/10/2026 · 25/10/2026 (no leading zeros: 1/2/2026 · 2/1/2026)
  *   dayMonth Oct 25 · 25 oct · 25 oct.
  *   monthYear Oct 2026 · oct 2026 · oct. 2026
  */
-export type DateStyle = 'medium' | 'long' | 'short' | 'dayMonth' | 'monthYear';
+export type DateStyle = 'medium' | 'long' | 'short' | 'numeric' | 'dayMonth' | 'monthYear';
 
 const DATE_STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {
 	medium: { year: 'numeric', month: 'short', day: 'numeric' },
 	long: { year: 'numeric', month: 'long', day: 'numeric' },
 	short: { year: 'numeric', month: '2-digit', day: '2-digit' },
+	numeric: { year: 'numeric', month: 'numeric', day: 'numeric' },
 	dayMonth: { month: 'short', day: 'numeric' },
 	monthYear: { year: 'numeric', month: 'short' },
 };
@@ -207,8 +220,10 @@ export interface DateOptions {
 	style?: DateStyle;
 	/** `UTC` for a stored calendar day or a file; default: the reader's own zone. */
 	timeZone?: 'UTC';
-	/** What a missing value shows. Default `—`. An unreadable non-empty value is shown as it is. */
+	/** What a missing value (null, undefined, '') shows. Default `—`. */
 	empty?: string;
+	/** What an unreadable value shows. Default: the text as given (or `empty` for a non-string). */
+	invalid?: string;
 }
 
 export interface DateTimeOptions extends DateOptions {
@@ -246,15 +261,16 @@ function dtf(lang: Lang, key: string, opts: Intl.DateTimeFormatOptions): Intl.Da
 	return f;
 }
 
-function emptyOrRaw(value: unknown, empty: string | undefined): string {
-	if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return empty ?? EM;
-	return typeof value === 'string' ? value : empty ?? EM;
+function notADate(value: unknown, opts: DateOptions): string {
+	if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return opts.empty ?? EM;
+	if (opts.invalid !== undefined) return opts.invalid;
+	return typeof value === 'string' ? value : opts.empty ?? EM;
 }
 
 /** A day on a screen, in the user's language (D2): `Oct 25, 2026` / `25 oct 2026` / `25 oct. 2026`. */
 export function formatDate(value: unknown, lang: Lang, opts: DateOptions = {}): string {
 	const d = toDate(value);
-	if (!d) return emptyOrRaw(value, opts.empty);
+	if (!d) return notADate(value, opts);
 	const style = opts.style ?? 'medium';
 	return dtf(lang, `d:${style}`, { ...DATE_STYLES[style], timeZone: opts.timeZone }).format(d);
 }
@@ -265,7 +281,7 @@ export function formatDate(value: unknown, lang: Lang, opts: DateOptions = {}): 
  */
 export function formatDateTime(value: unknown, lang: Lang, opts: DateTimeOptions = {}): string {
 	const d = toDate(value);
-	if (!d) return emptyOrRaw(value, opts.empty);
+	if (!d) return notADate(value, opts);
 	const style = opts.style ?? 'medium';
 	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
 	return dtf(lang, `dt:${style}:${opts.seconds ? 's' : ''}`, { ...DATE_STYLES[style], ...time, timeZone: opts.timeZone }).format(d);
@@ -274,12 +290,20 @@ export function formatDateTime(value: unknown, lang: Lang, opts: DateTimeOptions
 /** A time of day on a screen, in the user's language: `3:04 PM` / `15:04`. */
 export function formatTime(value: unknown, lang: Lang, opts: Omit<DateTimeOptions, 'style'> = {}): string {
 	const d = toDate(value);
-	if (!d) return emptyOrRaw(value, opts.empty);
+	if (!d) return notADate(value, opts);
 	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
 	return dtf(lang, `t:${opts.seconds ? 's' : ''}`, { ...time, timeZone: opts.timeZone }).format(d);
 }
 
 // ─── Dates in files (fixed, English, UTC) ─────────────────────────────────────
+
+/**
+ * A day in a report, CSV or PDF: always English, always UTC (D2 leaves files as they are), in
+ * any of the screen styles: `Oct 25, 2026`, `October 25, 2026`, `10/25/2026`, `1/2/2026`.
+ */
+export function formatFileDate(value: unknown, opts: Omit<DateOptions, 'timeZone'> = {}): string {
+	return formatDate(value, 'en', { ...opts, timeZone: 'UTC' });
+}
 
 const ISO = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/;
 
