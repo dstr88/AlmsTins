@@ -12,6 +12,7 @@
  */
 import type { APIRoute } from 'astro';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { json as sharedJson } from '@/lib/http';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import type { Failure, VaultError } from './vault';
 
@@ -19,10 +20,7 @@ import type { Failure, VaultError } from './vault';
 export const MAX_BODY_CHARS = 60_000;
 
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}): Response =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', ...headers },
-  });
+  sharedJson(body, status, { headers: { 'Cache-Control': 'private, no-store', ...headers } });
 
 /** What a throttled caller is told to wait, in whole seconds: the length of the throttle's window. */
 export const RETRY_AFTER_SECONDS = 60;
