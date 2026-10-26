@@ -9,6 +9,7 @@ import {
 	type AaveTotals,
 } from './pricing';
 import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
+import { CHAINS } from '@/lib/chains';
 
 // ── Aave v3 ───────────────────────────────────────────────────────────────────
 const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
@@ -19,11 +20,11 @@ const AAVE_GRAPHQL_ENDPOINT = AAVE_V3_GRAPHQL_ENDPOINT;
 // Pool addresses sourced from @bgd-labs/aave-address-book — always up to date.
 // No more hardcoded addresses to manually track.
 const ETHEREUM_MARKET_ADDRESS = AaveV3Ethereum.POOL;
-const ETHEREUM_CHAIN_ID = 1;
+const ETHEREUM_CHAIN_ID: number = CHAINS.ethereum.evmChainId;
 const POLYGON_MARKET_ADDRESS = AaveV3Polygon.POOL;
-const POLYGON_CHAIN_ID = 137;
+const POLYGON_CHAIN_ID: number = CHAINS.polygon.evmChainId;
 const AVALANCHE_MARKET_ADDRESS = AaveV3Avalanche.POOL;
-const AVALANCHE_CHAIN_ID = 43114;
+const AVALANCHE_CHAIN_ID: number = CHAINS.avalanche.evmChainId;
 
 // ── Aave v4 ───────────────────────────────────────────────────────────────────
 // AaveV4Ethereum is not yet in @bgd-labs/aave-address-book — v4 has not been

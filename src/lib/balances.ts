@@ -54,7 +54,7 @@ type ChainToken = {
 // Core L1 + blue-chip tokens we track across chains and Aave markets.
 const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 	ethereum: [
-		{ symbol: 'ETH', type: 'native', decimals: 18, coingeckoId: 'ethereum' },
+		{ symbol: CHAINS.ethereum.native.symbol, type: 'native', decimals: 18, coingeckoId: 'ethereum' },
 		{
 			symbol: 'WETH',
 			type: 'erc20',
@@ -112,7 +112,7 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 		},
 	],
 	polygon: [
-		{ symbol: 'POL', type: 'native', decimals: 18, coingeckoId: 'polygon-ecosystem-token' },
+		{ symbol: CHAINS.polygon.native.symbol, type: 'native', decimals: 18, coingeckoId: 'polygon-ecosystem-token' },
 		{
 			symbol: 'WPOL',
 			type: 'erc20',
@@ -164,7 +164,7 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 		},
 	],
 	avalanche: [
-		{ symbol: 'AVAX', type: 'native', decimals: 18, coingeckoId: 'avalanche-2' },
+		{ symbol: CHAINS.avalanche.native.symbol, type: 'native', decimals: 18, coingeckoId: 'avalanche-2' },
 		{
 			symbol: 'WAVAX',
 			type: 'erc20',

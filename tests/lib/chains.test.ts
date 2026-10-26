@@ -161,7 +161,7 @@ describe('chains: names a form or a pasted list may use', () => {
 		expect(chainsForSymbol('BNB')).toBeNull();
 		expect(chainsForSymbol('')).toBeNull();
 		const a = chainsForSymbol('ETH')!;
-		a.push('mutated');
+		(a as string[]).push('mutated');
 		expect(chainsForSymbol('ETH')).toEqual(['ethereum', 'polygon', 'avalanche']);
 	});
 });

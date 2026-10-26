@@ -9,10 +9,11 @@ import { getTokentxPaged, getNativeBalanceWei, SNOWTRACE_BASE_URL } from '@/lib/
 import { getAllTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 import { sqlTimestamptz } from '@/lib/utcTimestamp';
+import { CHAINS } from '@/lib/chains';
 
-const POLYGON_CHAIN_ID = 137;
-const ETHEREUM_CHAIN_ID = 1;
-const AVALANCHE_CHAIN_ID = 43114;
+const POLYGON_CHAIN_ID: number = CHAINS.polygon.evmChainId;
+const ETHEREUM_CHAIN_ID: number = CHAINS.ethereum.evmChainId;
+const AVALANCHE_CHAIN_ID: number = CHAINS.avalanche.evmChainId;
 const CACHE_TTL_MS = 60_000;
 const PAGE_SIZE = 100;
 const MAX_PAGES = 25;
@@ -150,10 +151,16 @@ function toWalletRow(row: unknown): { id?: string; address?: string; label?: str
 	return { id, address, label };
 }
 
+// Symbol and name from src/lib/chains.ts; the CoinGecko id is this file's price lookup.
+const nativeMeta = (chain: 'ethereum' | 'polygon' | 'avalanche', coingeckoId: string) => ({
+	symbol: CHAINS[chain].native.symbol as string,
+	name: CHAINS[chain].name as string,
+	coingeckoId,
+});
 const NATIVE_META: Record<number, { symbol: string; name: string; coingeckoId: string }> = {
-	[ETHEREUM_CHAIN_ID]: { symbol: 'ETH', name: 'Ethereum', coingeckoId: 'ethereum' },
-	[POLYGON_CHAIN_ID]: { symbol: 'POL', name: 'Polygon', coingeckoId: 'polygon-ecosystem-token' },
-	[AVALANCHE_CHAIN_ID]: { symbol: 'AVAX', name: 'Avalanche', coingeckoId: 'avalanche-2' },
+	[ETHEREUM_CHAIN_ID]: nativeMeta('ethereum', 'ethereum'),
+	[POLYGON_CHAIN_ID]: nativeMeta('polygon', 'polygon-ecosystem-token'),
+	[AVALANCHE_CHAIN_ID]: nativeMeta('avalanche', 'avalanche-2'),
 };
 
 const normalizeSymbol = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase();

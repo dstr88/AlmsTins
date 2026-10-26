@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { getAavePositionsForWallet } from '@/lib/aave/client';
+import { AAVE_CHAIN_BY_ID, AAVE_CHAIN_IDS } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -8,12 +9,9 @@ const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { expiresAt: number; health: any; positions: any }>();
 
 const AAVE_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
-const CHAIN_IDS = [1, 137, 43114];
-const CHAIN_KEYS: Record<number, string> = {
-	1: 'ethereum',
-	137: 'polygon',
-	43114: 'avalanche',
-};
+// The Aave V3 markets, from src/lib/chains.ts.
+const CHAIN_IDS = AAVE_CHAIN_IDS;
+const CHAIN_KEYS = AAVE_CHAIN_BY_ID;
 
 const MARKETS_QUERY = `
   query Markets($chainIds: [ChainId!]!, $user: EvmAddress) {

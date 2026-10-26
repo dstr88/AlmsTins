@@ -16,17 +16,20 @@
 
 import { BACKGROUND_MAX_WAIT_MS, GATE_PRIORITY, gateForUrl } from './explorerGates';
 import { RateGateTimeout } from './rateGate';
+import { CHAINS } from './chains';
 
+/** EIP-155 ids of the chains the explorer APIs here read (from src/lib/chains.ts). */
 export const CHAIN_IDS = {
-  ethereum: 1,
-  polygon: 137,
-  avalanche: 43114,
+  ethereum: CHAINS.ethereum.evmChainId,
+  polygon: CHAINS.polygon.evmChainId,
+  avalanche: CHAINS.avalanche.evmChainId,
 } as const;
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 // Snowtrace was rebranded to Routescan in 2023; Snowtrace's old API host is dead (404).
 // The replacement endpoint is Etherscan-compatible — same query params, new URL.
 // API key: get a free key at https://routescan.io/apis (SNOWTRACE_API_KEY env var)
+// The one place this address is written (tests/ci/chainFactsGuard.test.ts).
 export const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 
 // Defaults (override per call if needed)
