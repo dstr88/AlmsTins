@@ -18,6 +18,7 @@
  */
 
 import { canonicalImportSource } from './importSource';
+import { EVM_ADDRESS, isEvmAddress } from './addressFormats';
 
 export const UNASSIGNED = 'unassigned';
 
@@ -48,8 +49,6 @@ const CHAIN_ALIASES: Readonly<Record<string, string>> = Object.freeze({
 /** Sources stored in import_transactions / exchange_accounts that are blockchains, not exchanges. */
 const CHAIN_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'solana', 'avalanche_cchain', 'litecoin']);
 
-const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-
 /** Lowercase, trim, drop an `onchain_` prefix, and map aliases: 'AVALANCHE_CCHAIN' → 'avalanche'. */
 export function normalizeChain(chain: unknown): string {
 	const c = String(chain ?? '')
@@ -60,9 +59,7 @@ export function normalizeChain(chain: unknown): string {
 	return CHAIN_ALIASES[c] ?? c;
 }
 
-export function isEvmAddress(address: unknown): boolean {
-	return typeof address === 'string' && EVM_ADDRESS.test(address.trim());
-}
+export { isEvmAddress };
 
 /** Trim; lowercase only an EVM address. Everything else keeps its case. */
 export function normalizeWalletAddress(address: unknown): string {

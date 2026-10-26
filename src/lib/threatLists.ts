@@ -18,6 +18,7 @@
  */
 import crypto from 'node:crypto';
 import { db } from '@/lib/db';
+import { EVM_ADDRESS_LOWER } from '@/lib/addressFormats';
 
 const METAMASK_URL    = 'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json';
 const SCAMSNIFFER_URL = 'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json';
@@ -191,7 +192,7 @@ export async function refreshThreatLists(opts?: { force?: boolean }): Promise<Th
 					if (!raw || raw.startsWith('#')) continue;
 					if (src.evm) {
 						const v = raw.toLowerCase();
-						if (/^0x[0-9a-f]{40}$/.test(v)) entries.push({ kind: 'sanctioned', value: v });
+						if (EVM_ADDRESS_LOWER.test(v)) entries.push({ kind: 'sanctioned', value: v });
 					} else if (!/\s/.test(raw) && raw.length >= 16 && raw.length <= 128) {
 						entries.push({ kind: 'sanctioned', value: raw });
 					}

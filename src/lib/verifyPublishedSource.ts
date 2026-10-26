@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto';
 import { safeFetchPublicUrl } from './verifyProof';
 import { normalizeDestinationValue, type DestinationKind } from './verifyRegistry';
+import { EVM_ADDRESS_SOURCE } from './addressFormats';
 
 export type MonitorOutcome =
   | 'present'      // the registered value still appears on the page
@@ -43,7 +44,7 @@ const PAGE_MAX_BYTES = 512 * 1024; // real pages are bigger than a proof file
 // base58 string is a syntactically valid pubkey — so declaring a Solana "conflict" would
 // false-positive on any 44-char base58 token (analytics IDs, bundle hashes) and fire a
 // bogus swap alert. Under-claim, never over-claim: Solana relies on the presence check.
-const EVM_RE = /0x[a-fA-F0-9]{40}/g;
+const EVM_RE = new RegExp(EVM_ADDRESS_SOURCE, 'g');
 const BTC_BECH32_RE = /\bbc1[02-9ac-hj-np-z]{8,87}\b/gi;
 const LTC_BECH32_RE = /\bltc1[02-9ac-hj-np-z]{8,87}\b/gi;
 const BTC_LEGACY_RE = /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g; // P2PKH (0x00) / P2SH (0x05)

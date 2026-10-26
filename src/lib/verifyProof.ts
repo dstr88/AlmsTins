@@ -23,6 +23,7 @@ import { randomBytes } from 'node:crypto';
 import { lookup, resolveTxt } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { decryptRosterDocument } from './verifyEncryption';
+import { EVM_ADDRESS } from '@/lib/addressFormats';
 
 /** Where the owner publishes the proof. The path is fixed; the file is per-domain. */
 export const WELL_KNOWN_PATH = '/.well-known/almstins-verify.json';
@@ -415,7 +416,7 @@ export function validateEntityEndpoint(endpoint: string, verifiedDomain: string)
 
 function normalizeEvm(a: string): string {
   const s = a.trim();
-  return /^0x[a-fA-F0-9]{40}$/.test(s) ? s.toLowerCase() : s;
+  return EVM_ADDRESS.test(s) ? s.toLowerCase() : s;
 }
 
 /** Tolerant parser: {addresses:[{address,chain}]} | {addresses:["0x…"]} | ["0x…"]. */

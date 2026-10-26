@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { fetchAllLiquidationsForWallet } from '@/lib/aave/syncAaveLiquidations';
+import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
 
 export const prerender = false;
 
@@ -7,7 +8,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const url = new URL(request.url);
 	const address = url.searchParams.get('address') ?? '';
 
-	if (!address || !/^0x[0-9a-f]{40}$/i.test(address)) {
+	if (!address || !EVM_ADDRESS_ANY_PREFIX.test(address)) {
 		return json({ ok: false, error: 'Invalid address' }, 400);
 	}
 

@@ -7,6 +7,7 @@ import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
 import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
+import { findEvmAddress } from '@/lib/addressFormats';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
 interface Destination {
@@ -92,8 +93,8 @@ const NAME_SERVICE_TLD = /\.(eth|sol|crypto|nft|wallet|bnb|x|dao|zil|blockchain|
 function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   const s = raw.trim();
   if (/^https?:\/\//i.test(s)) return { kind: 'url', value: s };
-  const evm = s.match(/0x[a-fA-F0-9]{40}/);
-  if (evm) return { kind: 'address', value: evm[0] };
+  const evm = findEvmAddress(s);
+  if (evm) return { kind: 'address', value: evm };
   const host = s.split(/[/?#\s]/)[0];
   if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host) && !NAME_SERVICE_TLD.test(host)) {
     return { kind: 'url', value: s };

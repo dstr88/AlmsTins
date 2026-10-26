@@ -31,6 +31,7 @@ import { importSourceDisplayName, canonicalImportSource } from './importSource';
 import { deriveDefaultLabel } from './wallets';
 import { cexWalletKey, chainWalletKey, isChainSource, normalizeChain, parseWalletKey } from './walletKey';
 import type { HistoryFileStrings } from '@/i18n/historyExport';
+import { EVM_ADDRESS } from '@/lib/addressFormats';
 
 export type AccountType = 'onchain' | 'custom' | 'exchange' | 'unassigned';
 
@@ -123,7 +124,7 @@ const strOrNull = (v: unknown): string | null => {
 /** Address key for lookups: EVM lowercased, everything else as stored, trimmed. */
 export function addressLookupKey(address: unknown): string {
 	const a = str(address).trim();
-	return /^0x[0-9a-fA-F]{40}$/.test(a) ? a.toLowerCase() : a;
+	return EVM_ADDRESS.test(a) ? a.toLowerCase() : a;
 }
 
 /**

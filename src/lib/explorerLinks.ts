@@ -10,6 +10,15 @@
  * No database or server imports: React islands use this too.
  */
 
+import {
+  BASE58_CHAR,
+  EVM_ADDRESS_LOWER,
+  EVM_TX_HASH_LOWER,
+  SOLANA_ADDRESS,
+  SUI_ADDRESS_LOWER,
+  bech32Pattern,
+} from './addressFormats';
+
 export type ExplorerChain = 'ethereum' | 'polygon' | 'avalanche' | 'bsc' | 'bitcoin' | 'litecoin' | 'solana' | 'sui';
 
 interface ExplorerRule {
@@ -22,16 +31,11 @@ interface ExplorerRule {
   normalizeTx: (v: string) => string | null;
 }
 
-const EVM_ADDRESS = /^0x[0-9a-f]{40}$/;
 const HEX_64 = /^[0-9a-f]{64}$/;
-const HEX_TX = /^0x[0-9a-f]{64}$/;
-const BASE58 = '[1-9A-HJ-NP-Za-km-z]';
-const BTC_LEGACY = new RegExp(`^[13]${BASE58}{25,34}$`);
-const LTC_LEGACY = new RegExp(`^[LM3]${BASE58}{26,33}$`);
-const SOLANA_ADDRESS = new RegExp(`^${BASE58}{32,44}$`);
-const SOLANA_SIGNATURE = new RegExp(`^${BASE58}{32,88}$`);
-const SUI_DIGEST = new RegExp(`^${BASE58}{32,44}$`);
-const BECH32_CHARS = '[02-9ac-hj-np-z]';
+const BTC_LEGACY = new RegExp(`^[13]${BASE58_CHAR}{25,34}$`);
+const LTC_LEGACY = new RegExp(`^[LM3]${BASE58_CHAR}{26,33}$`);
+const SOLANA_SIGNATURE = new RegExp(`^${BASE58_CHAR}{32,88}$`);
+const SUI_DIGEST = new RegExp(`^${BASE58_CHAR}{32,44}$`);
 
 /** Hex is case-free, so EVM values are lowercased; anything else is refused. */
 function hexOr(pattern: RegExp) {
@@ -51,7 +55,7 @@ function exact(pattern: RegExp) {
  * address, so it goes into the link lowercase.
  */
 function bech32(hrp: string) {
-  const pattern = new RegExp(`^${hrp}1${BECH32_CHARS}{6,87}$`);
+  const pattern = bech32Pattern(hrp);
   return (v: string): string | null => {
     if (v !== v.toLowerCase() && v !== v.toUpperCase()) return null;
     const lower = v.toLowerCase();
@@ -74,8 +78,8 @@ function evm(name: string, host: string): ExplorerRule {
     name,
     address: `https://${host}/address/`,
     tx: `https://${host}/tx/`,
-    normalizeAddress: hexOr(EVM_ADDRESS),
-    normalizeTx: hexOr(HEX_TX),
+    normalizeAddress: hexOr(EVM_ADDRESS_LOWER),
+    normalizeTx: hexOr(EVM_TX_HASH_LOWER),
   };
 }
 
@@ -112,7 +116,7 @@ const EXPLORERS = new Map<ExplorerChain, ExplorerRule>([
     tx: 'https://suiscan.xyz/mainnet/tx/',
     // A Sui address is 0x and 64 hex digits, the same shape as an EVM transaction hash; only the
     // chain tells them apart.
-    normalizeAddress: hexOr(HEX_TX),
+    normalizeAddress: hexOr(SUI_ADDRESS_LOWER),
     normalizeTx: exact(SUI_DIGEST),
   }],
 ]);

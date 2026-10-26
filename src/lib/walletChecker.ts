@@ -14,6 +14,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { EVM_ADDRESS, SOLANA_ADDRESS, SUI_ADDRESS, bech32Pattern } from './addressFormats';
 import { lookupSanctionedAddress } from './threatLists';
 import { fetchEvmActivity } from './evmActivity';
 import { etherscanGate, GATE_PRIORITY } from './explorerGates';
@@ -21,16 +22,17 @@ import { emptyActivity, isUnread, summarizeChains, type ActivityChain, type Wall
 
 // ─── Address detection ────────────────────────────────────────────────────────
 
-const EVM_REGEX     = /^0x[0-9a-fA-F]{40}$/;
-const SUI_REGEX     = /^0x[0-9a-fA-F]{64}$/;
+const EVM_REGEX     = EVM_ADDRESS;
+const SUI_REGEX     = SUI_ADDRESS;
 // Segwit (bech32/bech32m), matched on the lowercased value: the prefix is exact and the
 // data part uses only the bech32 charset (no '1', 'b', 'i', 'o'), so a base58 Solana key
 // that happens to start with "bc1" is not mistaken for one. Checksum validation is a
-// separate, stricter step (not here).
-const BTC_BECH32_REGEX = /^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
-const LTC_BECH32_REGEX = /^ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+// separate, stricter step (not here). Mainnet only: the scan reads mainnet chains, so a test
+// network address (tb1, tltc1) is not reported as Bitcoin or Litecoin.
+const BTC_BECH32_REGEX = bech32Pattern('bc');
+const LTC_BECH32_REGEX = bech32Pattern('ltc');
 
-const SOLANA_SHAPE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const SOLANA_SHAPE = SOLANA_ADDRESS;
 
 // What isValidAddress() has always accepted, kept verbatim: the lookup, check, mail and
 // address-activity endpoints validate with it, so fixing chain detection must neither

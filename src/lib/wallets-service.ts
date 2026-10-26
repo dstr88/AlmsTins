@@ -1,4 +1,5 @@
 import { DEFAULT_ERC20_CHAINS } from './constants';
+import { BECH32_ADDRESS, EVM_ADDRESS } from './addressFormats';
 
 export type WalletRow = Record<string, any>;
 
@@ -7,7 +8,7 @@ export function sanitizeAddress(input: unknown): string | null {
 	const value = input.trim();
 	const lower = value.toLowerCase();
 	// EVM address: 0x + 40 hex chars
-	if (/^0x[a-f0-9]{40}$/.test(lower)) return lower;
+	if (EVM_ADDRESS.test(lower)) return lower;
 	// Sui address: 0x + 1–64 hex chars → canonicalize to 0x + 64 chars
 	if (/^0x[a-f0-9]{1,64}$/.test(lower)) return '0x' + lower.slice(2).padStart(64, '0');
 	// Bitcoin native SegWit bech32 (bc1q...) and Taproot bech32m (bc1p...)
@@ -20,9 +21,6 @@ export function sanitizeAddress(input: unknown): string | null {
 	if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return value;
 	return null;
 }
-
-// The bech32 data alphabet (BIP-173), shared by bc1 / ltc1 / tb1 addresses.
-const BECH32_ADDRESS = /^(bc1|ltc1|tb1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
 
 /**
  * How an address is stored and compared. EVM hex and bech32 (bc1…, ltc1…) are case-insensitive,

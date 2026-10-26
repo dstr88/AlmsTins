@@ -24,6 +24,7 @@ import { normalizeName, registrableLabel, nameMatchesDomain } from './verifyName
 import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
 import { detectChain } from './walletChecker';
 import { encryptRosterPayload, decryptRosterDocument, getDecryptablePublicJwk } from './verifyEncryption';
+import { BECH32_ADDRESS, EVM_ADDRESS_LOWER, findEvmAddress } from './addressFormats';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -478,17 +479,11 @@ export function normalizeDestinationValue(raw: string): string {
   }
   if (/^upi:\/\//i.test(s)) { const r = parseUpi(s); return r ? `upi:${sha256hex(r.vpa)}` : ''; }
   if (/^https?:\/\//i.test(s)) return normalizeUrl(s);
-  const evm = s.match(/0x[a-fA-F0-9]{40}/);
-  if (evm) return evm[0].toLowerCase();
+  const evm = findEvmAddress(s);
+  if (evm) return evm.toLowerCase();
   const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
   return noScheme.split(/[?@\s]/)[0].trim();
 }
-
-// A segwit (bech32 / bech32m) address, matched on the lowercased value: a known human-readable
-// part, the '1' separator, then data in the bech32 charset only (no '1', 'b', 'i' or 'o'). The
-// charset check, not the prefix alone, is what keeps a base58 (Solana) string that happens to
-// start with "bc1" from being folded.
-const BECH32_ADDRESS = /^(bc|tb|bcrt|ltc|tltc)1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
 
 /**
  * The comparison key of an ADDRESS value: normalizeDestinationValue, with a segwit address
@@ -520,8 +515,6 @@ export function addressKey(value: string): string {
 // accounts' proven rows first (isClaimedElsewhere). S5b later moves the index itself
 // onto canonical columns; until then this guard is the arbiter.
 
-const EVM_CANONICAL = /^0x[0-9a-f]{40}$/;
-
 export interface ClaimIdentity {
   /** An address: addressKey(value). A payment link/QR: normalizeDestinationValue(value).
    *  '' when the value has no usable form. */
@@ -543,7 +536,7 @@ export interface ClaimIdentity {
  */
 export function claimFamily(kind: DestinationKind, canonical: string): string {
   if (kind === 'qr') return 'qr';
-  return EVM_CANONICAL.test(canonical) ? 'evm' : 'addr';
+  return EVM_ADDRESS_LOWER.test(canonical) ? 'evm' : 'addr';
 }
 
 /** Canonical claim identity of a stored or entered destination. Pure; the rail it was

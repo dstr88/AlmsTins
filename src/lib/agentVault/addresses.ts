@@ -10,6 +10,8 @@
  * stored half-understood.
  */
 
+import { EVM_ADDRESS_ANY_PREFIX, EVM_ADDRESS_ANY_PREFIX_SOURCE } from '@/lib/addressFormats';
+
 export const VAULT_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const;
 export type VaultChain = (typeof VAULT_CHAINS)[number];
 
@@ -34,8 +36,7 @@ interface ChainRule {
 // An EVM address is the same 20 bytes on every EVM chain, written as 0x plus 40 hex digits. The
 // letter case carries only an optional checksum, never identity, so the lowercase form is the
 // canonical one (the same form Verify's registry and lookups key on).
-const EVM_ADDRESS = /^0[xX][0-9a-fA-F]{40}$/;
-const evm: ChainRule = { normalize: (raw) => (EVM_ADDRESS.test(raw) ? raw.toLowerCase() : null) };
+const evm: ChainRule = { normalize: (raw) => (EVM_ADDRESS_ANY_PREFIX.test(raw) ? raw.toLowerCase() : null) };
 
 const CHAIN_RULES: Record<VaultChain, ChainRule> = {
   ethereum: evm,
@@ -85,7 +86,7 @@ export interface ParsedDestinations {
 
 // An EVM address as a token of its own: no letter or digit on either side, so the first 40 digits
 // of a longer hex value (a 32-byte address, a transaction hash) are never read as an address.
-const ADDRESS_TOKEN = /(?<![0-9A-Za-z])0[xX][0-9A-Fa-f]{40}(?![0-9A-Za-z])/g;
+const ADDRESS_TOKEN = new RegExp(`(?<![0-9A-Za-z])${EVM_ADDRESS_ANY_PREFIX_SOURCE}(?![0-9A-Za-z])`, 'g');
 // Any 0x-prefixed token, to tell "an address with a typo" from "no address on this line".
 const HEX_TOKEN = /(?<![0-9A-Za-z])0[xX][0-9A-Za-z]*/;
 // A long single word of letters and digits: what an address on another chain looks like.

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletOverview } from '@/i18n/components/walletOverview';
 import { getOwnerLabel } from '@/i18n/components/ownerLabel';
+import { EVM_ADDRESS, SUI_ADDRESS } from '@/lib/addressFormats';
 
 // The same limit the server applies (src/lib/walletOwnerLabel.ts OWNER_LABEL_MAX).
 const OWNER_LABEL_MAX = 60;
@@ -38,7 +39,7 @@ function symbolToChains(symbol: string, address: string): string[] {
 		const l = address.toLowerCase();
 		if (l.startsWith('ltc1'))                           return ['litecoin'];
 		if (l.startsWith('bc1') || /^[13]/.test(address))  return ['bitcoin'];
-		if (/^0x[a-f0-9]{64}$/.test(l))                    return ['sui'];
+		if (SUI_ADDRESS.test(l))                           return ['sui'];
 	}
 	return s ? [s.toLowerCase()] : ['ethereum', 'polygon', 'avalanche'];
 }
@@ -47,8 +48,8 @@ function detectChainLabel(address: string): { label: string; icon: string } {
 	const a = address.toLowerCase();
 	if (a.startsWith('ltc1'))                              return { label: 'Litecoin', icon: 'Ł' };
 	if (a.startsWith('bc1') || /^[13][a-z0-9]/i.test(a)) return { label: 'Bitcoin',  icon: '₿' };
-	if (/^0x[a-f0-9]{64}$/.test(a))                       return { label: 'Sui',      icon: '✦' };
-	if (/^0x[a-f0-9]{40}$/.test(a))                       return { label: 'EVM',      icon: 'Ξ' };
+	if (SUI_ADDRESS.test(a))                              return { label: 'Sui',      icon: '✦' };
+	if (EVM_ADDRESS.test(a))                              return { label: 'EVM',      icon: 'Ξ' };
 	if (/^[1-9a-hj-np-za-km-z]{32,44}$/.test(address))   return { label: 'Solana',   icon: '◎' };
 	return { label: 'Wallet', icon: '◈' };
 }

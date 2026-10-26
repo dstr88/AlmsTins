@@ -19,9 +19,9 @@
  * No database or server imports: React islands use this too.
  */
 
-const BASE58 = '[1-9A-HJ-NP-Za-km-z]';
-const LTC_LEGACY = new RegExp(`^[LM]${BASE58}{26,33}$`);
-const SOLANA = new RegExp(`^${BASE58}{32,44}$`);
+import { BASE58_CHAR, EVM_ADDRESS, SOLANA_ADDRESS, SUI_ADDRESS } from './addressFormats';
+
+const LTC_LEGACY = new RegExp(`^[LM]${BASE58_CHAR}{26,33}$`);
 
 export type AddressNetwork = 'evm' | 'btc' | 'ltc' | 'sol' | 'sui';
 
@@ -31,9 +31,9 @@ export function addressNetwork(address: string): AddressNetwork | null {
 	if (a.startsWith('cex:'))                              return null;
 	if (a.startsWith('ltc1') || LTC_LEGACY.test(address)) return 'ltc';
 	if (a.startsWith('bc1') || /^[13][a-z0-9]/i.test(a)) return 'btc';
-	if (/^0x[a-f0-9]{64}$/.test(a))                       return 'sui';
-	if (/^0x[a-f0-9]{40}$/.test(a))                       return 'evm';
-	if (SOLANA.test(address))                              return 'sol';
+	if (SUI_ADDRESS.test(a))                               return 'sui';
+	if (EVM_ADDRESS.test(a))                               return 'evm';
+	if (SOLANA_ADDRESS.test(address))                      return 'sol';
 	return null;
 }
 
