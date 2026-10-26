@@ -1,9 +1,8 @@
 import { getCache, setCache } from '@/lib/tursoCache';
+import { coingeckoConfig } from '@/lib/coingeckoApi';
 
-const BASE_URL = 'https://api.coingecko.com/api/v3';
-const env = process.env;
-const apiKey = env.COINGECKO_API_KEY;
-const headers = apiKey ? { 'x-cg-pro-api-key': apiKey } : undefined;
+// Host and key header per plan (src/lib/coingeckoApi.ts).
+const { baseUrl: BASE_URL, headers, fullHistory } = coingeckoConfig();
 
 // ────────────────────────────────────────────────
 // Cache / rate-limit settings
@@ -381,6 +380,16 @@ const getHistoryPrice = async (opts: {
 };
 
 /**
+ * Whether CoinGecko can be asked for this timestamp's price: always on the Pro plan, otherwise only
+ * within the past 365 days (older days are no price, without a request).
+ */
+export function coingeckoReaches(timestampUtcIso: string): boolean {
+  if (fullHistory) return true;
+  const ts = Date.parse(timestampUtcIso);
+  return !(Number.isFinite(ts) && Date.now() - ts > 365 * 24 * 60 * 60 * 1000);
+}
+
+/**
  * CoinGecko range endpoint preferred; history is fallback.
  * Returns null for known “can’t price” cases.
  */
@@ -388,14 +397,8 @@ export async function getUsdUnitPriceAtTimestampCoinGecko(opts: {
   coinId: string;
   timestampUtcIso: string;
 }): Promise<HistoricalPriceResult | null> {
-  const now = Date.now();
-  const ts = Date.parse(opts.timestampUtcIso);
-  const days365 = 365 * 24 * 60 * 60 * 1000;
-
-  if (!apiKey && Number.isFinite(ts) && now - ts > days365) {
-    // Public CoinGecko API only allows historical queries within 365 days.
-    // Older timestamps require a paid plan.
-    // Public plan cannot access this range.
+  if (!coingeckoReaches(opts.timestampUtcIso)) {
+    // The public and demo plans only allow historical queries within 365 days.
     return null;
   }
 
