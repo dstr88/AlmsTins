@@ -38,6 +38,7 @@ import { getCache, setCache } from '@/lib/tursoCache';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 import { formatAmount, formatFileDate } from '@/lib/format';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -60,13 +61,6 @@ export interface Form8949Box {
 	term:     'short' | 'long';
 	rows:     Form8949Row[];
 	totals:   { proceeds: number; basis: number; gainLoss: number };
-}
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
 }
 
 // M/D/YYYY in UTC; an unreadable date is written as given (src/lib/format.ts).
