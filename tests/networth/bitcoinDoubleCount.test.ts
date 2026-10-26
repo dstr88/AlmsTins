@@ -72,6 +72,17 @@ describe('the Vault total counts a bitcoin wallet once', () => {
 
 		expect(summary.totalUsd).toBeCloseTo(8080, 6);
 	});
+
+	it('ignores the cex:litecoin mirror now that Litecoin history is imported too', async () => {
+		state.rows = [
+			row('ltc', 'ltc1qcoreaddressxxxxxxxxxxxxxxxxxxxxxxxxx', 'litecoin', 120),
+			row('mirror', 'cex:litecoin:00000000-0000-0000-0000-000000000002', 'exchange', 120),
+		];
+
+		const summary = await getLatestNetWorthSummary('t1');
+
+		expect(summary.totalUsd).toBeCloseTo(120, 6);
+	});
 });
 
 describe('the exchange snapshot pass skips on-chain import accounts', () => {

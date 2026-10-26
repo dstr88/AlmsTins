@@ -4,11 +4,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * GET /api/address-history?address=...: the signed-in user's own transactions with one address.
  *
  *   - Signed out is a 401; an empty or overlong address is a 400; neither reads the database.
- *   - An exchange account id is not_onchain; a Litecoin address is not_kept_yet (its history is
- *     not imported). Neither reads the database.
+ *   - An exchange account id is not_onchain, without reading the database. No address is
+ *     not_kept_yet any more: Litecoin history is imported too.
  *   - An EVM address: every query is scoped by the session's tenant and sends the address
  *     lowercased; the totals match the rows; the answer has exactly the planned fields.
- *   - A Bitcoin, Solana or Sui address: the tenant's imported and Sui rows whose stored
+ *   - A Bitcoin, Litecoin, Solana or Sui address: the tenant's imported and Sui rows whose stored
  *     counterparty_address is that address, in its stored form (base58 exactly as typed).
  *   - The address never reaches the logs, and nothing is cached.
  *
@@ -25,6 +25,8 @@ const OTHERS_WALLET = '0x2222222222222222222222222222222222222222';
 const BTC_PEER = 'bc1qpeerpeerpeerpeerpeerpeerpeerpeerpeer0';
 const SOL_PEER = 'So1PeerMixedCase' + 'x'.repeat(28);
 const SUI_PEER = '0x' + 'cd'.repeat(32);
+const LTC_PEER = 'ltc1qpeerpeerpeerpeerpeerpeerpeerpeerpeer0';
+const LTC_LEGACY_PEER = 'LPeerMixedCaseLegacy' + 'x'.repeat(14);
 
 type Row = Record<string, unknown>;
 
@@ -58,6 +60,10 @@ const fx = {
 		{ id: 'i-btc', tenant_id: TENANT, source: 'bitcoin', account_id: 'a-btc', wallet_id: 'w-btc', timestamp_utc: '2025-08-01T00:00:00.000Z', asset_symbol: 'BTC', currency: 'BTC', amount: 0.002, direction: 'in', native_usd: 120, tx_hash: 'b'.repeat(64), counterparty_address: BTC_PEER },
 		{ id: 'i-sol', tenant_id: TENANT, source: 'solana', account_id: 'a-sol', wallet_id: 'w-sol', timestamp_utc: '2025-09-01T00:00:00.000Z', asset_symbol: 'USDC', currency: 'USDC', amount: -25, direction: 'out', native_usd: null, tx_hash: 'SolSig1', counterparty_address: SOL_PEER },
 		{ id: 'i-old', tenant_id: TENANT, source: 'bitcoin', account_id: 'a-btc', wallet_id: 'w-btc', timestamp_utc: '2024-01-01T00:00:00.000Z', asset_symbol: 'BTC', currency: 'BTC', amount: 1, direction: 'in', tx_hash: 'c'.repeat(64), counterparty_address: null },
+		{ id: 'i-ltc-in', tenant_id: TENANT, source: 'litecoin', account_id: 'a-ltc', wallet_id: 'w-ltc', timestamp_utc: '2025-04-01T00:00:00.000Z', asset_symbol: 'LTC', currency: 'LTC', amount: 1.5, direction: 'in', native_usd: 150, tx_hash: 'd'.repeat(64), counterparty_address: LTC_PEER },
+		{ id: 'i-ltc-out', tenant_id: TENANT, source: 'litecoin', account_id: 'a-ltc', wallet_id: 'w-ltc', timestamp_utc: '2025-05-01T00:00:00.000Z', asset_symbol: 'LTC', currency: 'LTC', amount: -0.25, direction: 'out', native_usd: 25, tx_hash: 'e'.repeat(64), counterparty_address: LTC_PEER },
+		{ id: 'i-ltc-legacy', tenant_id: TENANT, source: 'litecoin', account_id: 'a-ltc', wallet_id: 'w-ltc', timestamp_utc: '2025-06-01T00:00:00.000Z', asset_symbol: 'LTC', currency: 'LTC', amount: 2, direction: 'in', native_usd: 200, tx_hash: 'f'.repeat(64), counterparty_address: LTC_LEGACY_PEER },
+		{ id: 'i-ltc-theirs', tenant_id: OTHER, source: 'litecoin', account_id: 'a-y', wallet_id: 'w-y', timestamp_utc: '2025-04-02T00:00:00.000Z', asset_symbol: 'SECRET', currency: 'SECRET', amount: 7, direction: 'in', tx_hash: '7'.repeat(64), counterparty_address: LTC_PEER },
 		{ id: 'i-theirs', tenant_id: OTHER, source: 'solana', account_id: 'a-x', wallet_id: 'w-x', timestamp_utc: '2025-09-02T00:00:00.000Z', asset_symbol: 'SECRET', currency: 'SECRET', amount: 9, direction: 'in', tx_hash: 'SolSig9', counterparty_address: SOL_PEER },
 	] as Row[],
 	sui: [
@@ -158,14 +164,37 @@ describe('refusals, before any data is read', () => {
 		expect(await (await get('@burn')).json()).toEqual({ supported: false, reason: 'not_onchain' });
 	});
 
-	it.each([
-		['ltc1q' + 'w7'.repeat(19), 'ltc'],
-		['LTCLegacyAddr' + 'x'.repeat(21), 'ltc'],
-	])('%s: history is not kept yet for %s', async (address, network) => {
-		const res = await get(address);
+});
+
+describe('a Litecoin address', () => {
+	it('answers the tenant’s own Litecoin rows with that counterparty, with totals and links', async () => {
+		const res = await get(LTC_PEER.toUpperCase());
 		expect(res.status).toBe(200);
-		expect(await res.json()).toEqual({ supported: false, reason: 'not_kept_yet', network });
-		expect(state.calls).toEqual([]);
+		const body = await res.json();
+		expect(body.supported).toBe(true);
+		expect(body.network).toBe('ltc');
+		expect(body.ownWallet).toBeNull();
+		expect(body.rows.map((r: { txHash: string }) => r.txHash)).toEqual(['e'.repeat(64), 'd'.repeat(64)]);
+		expect(body.rows[0]).toMatchObject({ direction: 'out', chain: 'litecoin', asset: 'LTC', amount: '0.25', usdValue: '25', txUrl: `https://litecoinspace.org/tx/${'e'.repeat(64)}` });
+		expect(body.totals).toEqual([{ asset: 'LTC', chain: 'litecoin', sent: '0.25', received: '1.5', count: 2, sentUsd: '25', receivedUsd: '150' }]);
+		expect(JSON.stringify(body)).not.toContain('SECRET');
+
+		// bech32 is sent lowercased, every query is scoped by the tenant, and only the import half
+		// (the one with counterparty_address) is read beside the own-wallet lookup.
+		const data = dataCalls();
+		for (const c of data) expect(c.args[0]).toBe(TENANT);
+		const imports = data.filter((c) => /FROM import_transactions/.test(c.sql));
+		expect(imports.length).toBeGreaterThan(0);
+		for (const c of imports) expect(c.args.at(-1)).toBe(LTC_PEER);
+		expect(data.some((c) => /FROM transactions t/.test(c.sql))).toBe(false);
+	});
+
+	it('matches a legacy L… address exactly as typed (base58 is case-sensitive)', async () => {
+		const body = await (await get(LTC_LEGACY_PEER)).json();
+		expect(body.network).toBe('ltc');
+		expect(body.rows.map((r: { txHash: string }) => r.txHash)).toEqual(['f'.repeat(64)]);
+		const changedCase = await (await get(LTC_LEGACY_PEER.replace('Peer', 'pEER'))).json();
+		expect(changedCase.rows).toEqual([]);
 	});
 });
 

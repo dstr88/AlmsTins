@@ -1,15 +1,15 @@
 /**
  * POST /api/import/btc-sync
  *
- * Fetches native BTC transactions for one or more wallet addresses from the
- * Blockstream API (free, no key required) and imports any new rows into
- * import_transactions.  Also writes a wallet_snapshot so the Portfolio tin
- * reflects the current BTC balance.
+ * Fetches native BTC and LTC transactions for one or more wallet addresses from
+ * Blockstream and litecoinspace.org (free, no key required) and imports any new
+ * rows into import_transactions.  Also writes a wallet_snapshot so the Portfolio
+ * tin reflects the current balance.
  *
  * Request body (JSON, optional):
- *   { address: "bc1q…" }   — sync a specific address
- *   {}                      — sync all bitcoin wallets stored for this tenant
- *                             (Sync Tins), and snapshot every litecoin wallet's balance
+ *   { address: "bc1q…" }   — sync a specific address (ltc1… is synced as Litecoin)
+ *   {}                      — sync all Bitcoin and Litecoin wallets stored for this
+ *                             tenant (Sync Tins)
  *
  * Blockstream API used:
  *   GET https://blockstream.info/api/address/{addr}
@@ -23,7 +23,7 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
 import { db } from '@/lib/db';
-import { snapshotUtxoBalance, syncBtcAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
+import { syncUtxoAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
 import { canonicalAddress } from '@/lib/wallets-service';
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// Exact as given, apart from bech32: a legacy 1…/3… address is case-sensitive base58.
 	const requestedAddr = canonicalAddress(typeof body?.address === 'string' ? body.address : '');
 	if (requestedAddr) {
-		targets = [{ address: requestedAddr, chain: 'bitcoin' }];
+		targets = [{ address: requestedAddr, chain: utxoChainOf([], requestedAddr) === 'litecoin' ? 'litecoin' : 'bitcoin' }];
 	} else {
 		// Every Bitcoin and Litecoin wallet stored for this tenant: tagged with the chain, or
 		// whose address looks like one.
@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ request }) => {
 			if (chain) targets.push({ address, walletId: String(r.id ?? '') || undefined, chain });
 		}
 	}
-	const addresses = targets.filter(t => t.chain === 'bitcoin').map(t => t.address);
+	const addresses = targets.map(t => t.address);
 
 	if (!targets.length) {
 		return new Response(JSON.stringify({
@@ -78,12 +78,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	for (const t of targets) {
 		try {
-			if (t.chain === 'litecoin') {
-				if (t.walletId && await snapshotUtxoBalance(tenantId, t.walletId, 'litecoin', t.address)) snapshots += 1;
-				else failed += 1;
-				continue;
-			}
-			const result = await syncBtcAddress(tenantId, t.address, t.walletId);
+			const result = await syncUtxoAddress(tenantId, t.chain, t.address, t.walletId);
 			totalInserted += result.inserted;
 			totalSkipped  += result.skipped;
 			totalTxCount  += result.txCount;

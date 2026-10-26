@@ -4,8 +4,10 @@
  * the wallet card's refresh.
  *
  * Uses Blockstream (no key required) to fetch transactions and balance,
- * Coinpaprika for BTC/USD price. Litecoin gets a balance snapshot only, from
- * litecoinspace.org (the same Esplora API); its history is not imported.
+ * Coinpaprika for BTC/USD price. Litecoin goes through the same code with
+ * litecoinspace.org (the same Esplora API) and LTC/USD: its rows are stored
+ * under source `litecoin`, its own exchange_accounts row and its own row_hash
+ * prefix, so a Bitcoin and a Litecoin transaction never collide.
  *
  * Addresses are passed exactly as stored (canonicalAddress): a legacy 1… or
  * 3… address is base58 and case-sensitive, so lowercasing it asks Blockstream
@@ -27,6 +29,7 @@ import { insertImportBatch } from '@/lib/importRows';
 import { CHAINS } from '@/lib/chains';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
+/** Satoshis per BTC; litoshis per LTC are the same (both have 8 decimals, src/lib/chains.ts). */
 const SATS_PER_BTC = 100_000_000;
 
 export type UtxoChain = 'bitcoin' | 'litecoin';
@@ -52,14 +55,14 @@ export async function fetchAddressInfo(addr: string, chain: UtxoChain = 'bitcoin
 	}
 }
 
-export async function fetchAllTxs(addr: string): Promise<any[]> {
+export async function fetchAllTxs(addr: string, chain: UtxoChain = 'bitcoin'): Promise<any[]> {
 	const all: any[] = [];
 	let lastSeen: string | null = null;
 
 	while (true) {
 		const url = lastSeen
-			? `${BLOCKSTREAM}/address/${addr}/txs/chain/${lastSeen}`
-			: `${BLOCKSTREAM}/address/${addr}/txs`;
+			? `${ESPLORA[chain]}/address/${addr}/txs/chain/${lastSeen}`
+			: `${ESPLORA[chain]}/address/${addr}/txs`;
 
 		const res = await fetch(url);
 		if (!res.ok) break;
@@ -132,7 +135,7 @@ export async function snapshotUtxoBalance(
 
 // ── Resolve or create wallet row ──────────────────────────────────────────────
 
-export async function ensureBtcWallet(tenantId: string, address: string): Promise<string> {
+export async function ensureBtcWallet(tenantId: string, address: string, chain: UtxoChain = 'bitcoin'): Promise<string> {
 	const existing = await db.execute({
 		sql: `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
 		args: [tenantId, address],
@@ -140,12 +143,12 @@ export async function ensureBtcWallet(tenantId: string, address: string): Promis
 	if (existing.rows?.length) return String(existing.rows[0].id ?? '');
 
 	const id = randomUUID();
-	const label = `Bitcoin Wallet (${address.slice(0, 12)}…)`;
+	const label = `${CHAINS[chain].name} Wallet (${address.slice(0, 12)}…)`;
 	await db.execute({
 		sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
 		      VALUES (?, ?, ?, ?, ?, 0, 'onchain')
 ON CONFLICT DO NOTHING`,
-		args: [id, tenantId, address, label, JSON.stringify(['bitcoin'])],
+		args: [id, tenantId, address, label, JSON.stringify([chain])],
 	});
 	return id;
 }
@@ -168,23 +171,36 @@ export function btcCounterparty(tx: any, ownKey: string, direction: 'in' | 'out'
 
 // ── Sync one address ─────────────────────────────────────────────────────────
 
-export async function syncBtcAddress(
+export type UtxoSyncResult = { inserted: number; skipped: number; txCount: number; snapshotWritten: boolean };
+
+export function syncBtcAddress(tenantId: string, rawAddress: string, knownWalletId?: string): Promise<UtxoSyncResult> {
+	return syncUtxoAddress(tenantId, 'bitcoin', rawAddress, knownWalletId);
+}
+
+/**
+ * Store a Bitcoin or Litecoin address's balance snapshot, then import its whole history. Every
+ * sync reads the full history: rows already stored are skipped (same account and row_hash), and
+ * their counterparty is filled if it is still empty.
+ */
+export async function syncUtxoAddress(
 	tenantId: string,
+	chain: UtxoChain,
 	rawAddress: string,
 	knownWalletId?: string,
-): Promise<{ inserted: number; skipped: number; txCount: number; snapshotWritten: boolean }> {
+): Promise<UtxoSyncResult> {
 	const address   = canonicalAddress(rawAddress);
 	const ownKey    = address.toLowerCase(); // explorer output compared case-insensitively, as autoClassify does
-	const walletId  = knownWalletId || await ensureBtcWallet(tenantId, address);
+	const walletId  = knownWalletId || await ensureBtcWallet(tenantId, address, chain);
 	const batchId   = randomUUID();
-	const [allTxs, btcPrice] = await Promise.all([
-		fetchAllTxs(address),
-		fetchUtxoPriceUsd('bitcoin'),
+	const symbol    = UTXO_SYMBOL(chain);
+	const [allTxs, coinPrice] = await Promise.all([
+		fetchAllTxs(address, chain),
+		fetchUtxoPriceUsd(chain),
 	]);
 
 	// Balance first: a failure importing the history must never cost the wallet its balance.
-	const snapshotWritten = await snapshotUtxoBalance(tenantId, walletId, 'bitcoin', address, btcPrice).catch(err => {
-		console.error('[btc-sync] snapshot failed', err);
+	const snapshotWritten = await snapshotUtxoBalance(tenantId, walletId, chain, address, coinPrice).catch(err => {
+		console.error(`[${chain === 'bitcoin' ? 'btc' : 'ltc'}-sync] snapshot failed`, err);
 		return false;
 	});
 
@@ -226,7 +242,7 @@ export async function syncBtcAddress(
 
 		const direction: 'in' | 'out' = netSats > 0 ? 'in' : 'out';
 		const amountBtc = Math.abs(netSats) / SATS_PER_BTC;
-		const nativeUsd = btcPrice !== null ? Math.round(amountBtc * btcPrice * 100) / 100 : null;
+		const nativeUsd = coinPrice !== null ? Math.round(amountBtc * coinPrice * 100) / 100 : null;
 
 		const txHash = String(tx.txid ?? '');
 		const kind   = direction === 'in' ? 'receive' : 'send';
@@ -244,7 +260,7 @@ export async function syncBtcAddress(
 		const description = counterparty ? `${kind} ${counterparty}` : kind;
 
 		const rowHash = createHash('sha256')
-			.update(JSON.stringify(['bitcoin', txHash, timestamp, direction, String(amountBtc)]))
+			.update(JSON.stringify([chain, txHash, timestamp, direction, String(amountBtc)]))
 			.digest('hex');
 
 		normRows.push({
@@ -253,25 +269,27 @@ export async function syncBtcAddress(
 		});
 	}
 
-	// Resolve or create exchange_account row for BTC
+	// Resolve or create the exchange_accounts row the chain's rows are filed under. Its source is
+	// in ON_CHAIN_IMPORT_SOURCES (src/lib/chains.ts), so neither it nor its mirror wallet is valued:
+	// the coins are counted once, at the address's snapshot above.
 	const accRes = await db.execute({
-		sql: `SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'bitcoin' AND lower(name) = ? LIMIT 1`,
-		args: [tenantId, ownKey],
+		sql: `SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = ? AND lower(name) = ? LIMIT 1`,
+		args: [tenantId, chain, ownKey],
 	});
 	let accountId = String(accRes.rows[0]?.id ?? '');
 	if (!accountId) {
 		const fallback = await db.execute({
-			sql: `SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'bitcoin' LIMIT 1`,
-			args: [tenantId],
+			sql: `SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = ? LIMIT 1`,
+			args: [tenantId, chain],
 		});
 		accountId = String(fallback.rows[0]?.id ?? '');
 	}
 	if (!accountId) {
 		accountId = randomUUID();
-		const label = `Bitcoin Wallet (${address.slice(0, 12)}…)`;
+		const label = `${CHAINS[chain].name} Wallet (${address.slice(0, 12)}…)`;
 		await db.execute({
-			sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name) VALUES (?, ?, 'bitcoin', ?)`,
-			args: [accountId, tenantId, label],
+			sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name) VALUES (?, ?, ?, ?)`,
+			args: [accountId, tenantId, chain, label],
 		});
 	}
 
@@ -279,19 +297,19 @@ export async function syncBtcAddress(
 	// batch_id and raw_json, which don't exist, so every sync threw before the snapshot. Every sync
 	// reads the whole history, so the counterparty fill also covers rows an earlier sync saved.
 	const { insertedNormalized: insertedNorm } = await insertImportBatch({
-		tenantId, accountId, walletId, source: 'bitcoin', batchId,
+		tenantId, accountId, walletId, source: chain, batchId,
 		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
 		rows: normRows.map((r) => ({
 			timestampUtc: r.timestamp,
 			description: r.description,
-			currency: 'BTC',
+			currency: symbol,
 			amount: r.direction === 'out' ? -r.amount : r.amount,
 			nativeCurrency: 'USD',
 			nativeUsd: r.nativeUsd,
 			kind: r.kind,
 			txHash: r.txHash,
 			direction: r.direction,
-			assetSymbol: 'BTC',
+			assetSymbol: symbol,
 			rowHash: r.rowHash,
 			counterparty: r.counterparty,
 		})),
@@ -305,14 +323,19 @@ export async function syncBtcAddress(
 	};
 }
 
-// ── Sync BTC wallet and return WalletSyncStats-compatible result ──────────────
+// ── Sync a BTC or LTC wallet and return WalletSyncStats-compatible result ─────
 
-export async function syncBtcWallet(
+export function syncBtcWallet(tenantId: string, walletId: string, address: string): Promise<WalletSyncStats> {
+	return syncUtxoWallet(tenantId, walletId, address, 'bitcoin');
+}
+
+export async function syncUtxoWallet(
 	tenantId: string,
 	walletId: string,
 	address: string,
+	chain: UtxoChain,
 ): Promise<WalletSyncStats> {
-	const result = await syncBtcAddress(tenantId, address, walletId);
+	const result = await syncUtxoAddress(tenantId, chain, address, walletId);
 
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
@@ -321,7 +344,7 @@ export async function syncBtcWallet(
 		'import',
 		`${result.inserted} imported, ${result.skipped} skipped`,
 		{ walletId, inserted: result.inserted, skipped: result.skipped },
-		{ source: 'btc_sync', chain: 'bitcoin' },
+		{ source: 'btc_sync', chain },
 	);
 
 	return {
@@ -330,7 +353,7 @@ export async function syncBtcWallet(
 		totalSkipped:  result.skipped,
 		chains: [{
 			walletId,
-			chain: 'bitcoin',
+			chain,
 			fetched: result.txCount,
 			fetchedNative: result.txCount,
 			fetchedToken: 0,

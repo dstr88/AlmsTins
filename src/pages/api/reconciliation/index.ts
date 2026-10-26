@@ -15,7 +15,7 @@ import {
   type ReconciliationItem,
   type SourceBreakdown,
 } from '../../../lib/reconciliation';
-import { currentCoinSymbol } from '@/lib/chains';
+import { currentCoinSymbol, ON_CHAIN_IMPORT_SOURCES } from '@/lib/chains';
 import { shortenAddress } from '@/lib/addressDisplay';
 
 export const prerender = false;
@@ -142,11 +142,15 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     // ── 3. Exchange imports → computeHoldings per account ──────────────────
+    // An on-chain wallet's imported history (Bitcoin, Litecoin) is filed under an exchange_accounts
+    // row too, but its coins are already in step 2 at the address's snapshot: skip it, or the live
+    // amount counts them twice.
     type ExRow = { account_id: unknown; source: unknown; name: unknown } & ImportRow;
     const byAccount = new Map<string, { name: string; rows: ImportRow[] }>();
     for (const raw of exchangeRows.rows as ExRow[]) {
       const accountId = String(raw.account_id ?? '');
       if (!accountId) continue;
+      if (ON_CHAIN_IMPORT_SOURCES.has(String(raw.source ?? '').toLowerCase())) continue;
       if (!byAccount.has(accountId)) {
         byAccount.set(accountId, {
           name: String(raw.name ?? raw.source ?? accountId),

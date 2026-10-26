@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
-import { syncBtcWallet, isBitcoinWallet } from '@/lib/sync/syncBtcAddress';
+import { syncUtxoWallet, utxoChainOf } from '@/lib/sync/syncBtcAddress';
 import { syncSolanaWallet, isSolanaWallet } from '@/lib/sync/syncSolanaTransactions';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
@@ -44,9 +44,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 			return respond({ ok: true, walletId, totalInserted: 0, totalSkipped: 0, chains: [{ chain: config.chain, inserted: 0, skipped: 0 }] }, 200);
 		}
 
-		const isBtc = isBitcoinWallet(wallet.chains, wallet.address);
-		const stats = isBtc
-			? await syncBtcWallet(tenantId, walletId, wallet.address)
+		// Bitcoin or Litecoin (the same rule Sync Tins and the weekly cron use): a Litecoin wallet
+		// used to fall through to the EVM sync, which reads nothing for it.
+		const utxoChain = utxoChainOf(wallet.chains, wallet.address);
+		const stats = utxoChain
+			? await syncUtxoWallet(tenantId, walletId, wallet.address, utxoChain)
 			: isSolanaWallet(wallet.chains)
 				? await syncSolanaWallet(tenantId, wallet)
 				: await syncWalletTransactions(tenantId, wallet);

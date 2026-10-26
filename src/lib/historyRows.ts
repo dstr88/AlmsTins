@@ -4,11 +4,11 @@
  * (GET /api/records/history-by-wallet, paid plans).
  *
  * Three halves, each scoped by the session's tenant_id:
- *   import_transactions  exchange CSVs and chain-synced imports (bitcoin, solana, avalanche_cchain)
+ *   import_transactions  exchange CSVs and chain-synced imports (bitcoin, litecoin, solana, avalanche_cchain)
  *   transactions         on-chain EVM rows and custom-wallet entries, with their annotation
  *   sui_transactions     Sui wallets
  *
- * Counterparties: EVM rows store from_address / to_address; Bitcoin, Solana and Sui rows store
+ * Counterparties: EVM rows store from_address / to_address; Bitcoin, Litecoin, Solana and Sui rows store
  * counterparty_address (src/lib/counterpartyColumn.ts), filled by syncs since it was added, so
  * older rows may have none.
  *

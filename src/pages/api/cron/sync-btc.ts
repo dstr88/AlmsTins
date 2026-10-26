@@ -2,8 +2,8 @@
  * GET /api/cron/sync-btc
  *
  * Called weekly by GitHub Actions (.github/workflows/sync-btc.yml, Monday 04:00 UTC).
- * Re-syncs BTC transactions and balance snapshots for every Bitcoin wallet
- * across all tenants, and the balance snapshot for every Litecoin wallet.
+ * Re-syncs transactions and balance snapshots for every Bitcoin and Litecoin
+ * wallet across all tenants.
  * Skips wallets whose snapshot is less than 6 days old.
  *
  * Protected by CRON_SECRET header — never exposes user sessions.
@@ -11,7 +11,7 @@
 
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
-import { snapshotUtxoBalance, syncBtcAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
+import { syncUtxoAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -72,17 +72,11 @@ export const GET: APIRoute = async ({ request }) => {
 
 		try {
 			console.log(`[cron/sync-btc] Syncing ${label} (tenant: ${tenantId})`);
-			if (chain === 'litecoin') {
-				const wrote = await snapshotUtxoBalance(tenantId, walletId, 'litecoin', address);
-				if (!wrote) throw new Error('litecoin balance unavailable');
-				results.push({ walletId, label, status: 'synced', inserted: 0 });
-			} else {
-				// The stored address as is: lowercasing a legacy 1…/3… address makes a different one.
-				const result = await syncBtcAddress(tenantId, address, walletId);
-				console.log(`[cron/sync-btc] ${label} done — inserted: ${result.inserted}, txCount: ${result.txCount}`);
-				if (!result.snapshotWritten) throw new Error('bitcoin balance unavailable');
-				results.push({ walletId, label, status: 'synced', inserted: result.inserted });
-			}
+			// The stored address as is: lowercasing a legacy 1…/3… address makes a different one.
+			const result = await syncUtxoAddress(tenantId, chain, address, walletId);
+			console.log(`[cron/sync-btc] ${label} done — inserted: ${result.inserted}, txCount: ${result.txCount}`);
+			if (!result.snapshotWritten) throw new Error(`${chain} balance unavailable`);
+			results.push({ walletId, label, status: 'synced', inserted: result.inserted });
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			console.error(`[cron/sync-btc] Failed ${label}:`, message);

@@ -5,12 +5,11 @@
  * modal on the Wallets page's Address Labels list. Only the user's own records: never the
  * address's on-chain history, and nothing here calls an explorer or any outside service.
  *
- * EVM rows store full counterparties; Bitcoin, Solana and Sui rows store one since
- * counterparty_address was added (rows synced before that have none). Litecoin history is not
- * imported at all. So:
+ * EVM rows store full counterparties; Bitcoin, Litecoin, Solana and Sui rows store one since
+ * counterparty_address was added (rows synced before that have none; the Bitcoin and Litecoin
+ * syncs refetch the whole history, so their rows get one on the next sync). So:
  *   - an exchange account id (cex:...) or anything that is not an address → not_onchain
- *   - a Litecoin address → not_kept_yet, with its network
- *   - an EVM, Bitcoin, Solana or Sui address → the rows and totals
+ *   - an EVM, Bitcoin, Litecoin, Solana or Sui address → the rows and totals
  *
  * Totals cover every matching row (up to MAX_ADDRESS_ROWS, counted before any row is loaded);
  * the list shows the newest MAX_LISTED_ROWS, with truncated set when there are more. Above
@@ -30,8 +29,6 @@ import { explorerTxUrl } from '@/lib/explorerLinks';
 import { json } from '@/lib/http';
 
 const MAX_ADDRESS_LENGTH = 128;
-/** Networks whose rows keep a counterparty (src/lib/historyRows.ts). */
-const KEPT_NETWORKS = new Set(['evm', 'btc', 'sol', 'sui']);
 /** Rows the list shows, newest first. */
 export const MAX_LISTED_ROWS = 500;
 /** Rows the totals read; more is refused before any row is loaded. */
@@ -47,7 +44,6 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const network = addressNetwork(address);
 	if (network === null) return json({ supported: false, reason: 'not_onchain' }, 200, { noStore: true });
-	if (!KEPT_NETWORKS.has(network)) return json({ supported: false, reason: 'not_kept_yet', network }, 200, { noStore: true });
 
 	try {
 		const walletRes = await db.execute({
