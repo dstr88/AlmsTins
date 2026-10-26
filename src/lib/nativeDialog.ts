@@ -35,11 +35,16 @@ export function isBackdropClick(dialog: unknown, downTarget: unknown, clickTarge
 	return downTarget === dialog && clickTarget === dialog;
 }
 
-/** Opens a dialog modally and remembers the opener (default: whatever has focus now). */
-export function openDialog(dialog: HTMLDialogElement, opener: Element | null = document.activeElement) {
+/**
+ * Opens a dialog and remembers the opener (default: whatever has focus now). Modal by default;
+ * { modal: false } opens it with show() for a panel the page stays usable around (no backdrop,
+ * no Escape from the browser).
+ */
+export function openDialog(dialog: HTMLDialogElement, opener: Element | null = document.activeElement, { modal = true } = {}) {
 	if (dialog.open) return;
 	remember(dialog, opener);
-	dialog.showModal();
+	if (modal) dialog.showModal();
+	else dialog.show();
 }
 
 /** Adds backdrop closing and focus return to one dialog. Safe to call twice. */

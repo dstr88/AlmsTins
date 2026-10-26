@@ -22,10 +22,17 @@ class FakeElement extends EventTarget {
 class FakeDialog extends FakeElement {
 	open = false;
 	dataset: Record<string, string> = {};
+	modal = false;
 	showModal() {
 		this.dispatchEvent(Object.assign(new Event('beforetoggle'), { newState: 'open' }));
 		this.open = true;
+		this.modal = true;
 		doc.activeElement = this;
+	}
+	show() {
+		this.dispatchEvent(Object.assign(new Event('beforetoggle'), { newState: 'open' }));
+		this.open = true;
+		this.modal = false;
 	}
 	close() {
 		if (!this.open) return;
@@ -148,6 +155,17 @@ describe('openDialog and wireDialogs', () => {
 		openDialog(d as unknown as HTMLDialogElement, button as unknown as Element);
 		expect(d.open).toBe(true);
 		openDialog(d as unknown as HTMLDialogElement, new FakeElement() as unknown as Element);
+		d.close();
+		expect(button.focused).toBe(1);
+	});
+
+	it('openDialog opens a panel without a backdrop with { modal: false }, and still gives focus back', () => {
+		const button = new FakeElement();
+		const d = new FakeDialog();
+		wireDialog(d as unknown as HTMLDialogElement);
+		openDialog(d as unknown as HTMLDialogElement, button as unknown as Element, { modal: false });
+		expect(d.open).toBe(true);
+		expect(d.modal).toBe(false);
 		d.close();
 		expect(button.focused).toBe(1);
 	});
