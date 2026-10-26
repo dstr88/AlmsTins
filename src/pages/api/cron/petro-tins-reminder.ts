@@ -27,6 +27,7 @@ import { sendMail } from '@/lib/email';
 import { OWNER_TENANT_ID, isOwner } from '@/lib/owner';
 import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
 import { formatUsd } from '@/lib/format';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -35,13 +36,6 @@ export const prerender = false;
 const DASHBOARD_LINK = PETRO_TINS_PUBLIC
   ? 'https://almstins.com/dashboard/petro-tins'
   : 'https://almstins.com/login?next=%2Fdashboard%2Fpetro-tins';
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const GET: APIRoute = async ({ request }) => {
   // ── Auth ──────────────────────────────────────────────────────────────────

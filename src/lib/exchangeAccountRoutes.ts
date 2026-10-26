@@ -25,9 +25,7 @@ import {
 	parseOwnerLabel,
 	writeAccountOwnerLabel,
 } from './walletOwnerLabel';
-
-const json = (body: unknown, status = 200) =>
-	new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+import { json } from '@/lib/http';
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
 	const body = await request.json().catch(() => null);
