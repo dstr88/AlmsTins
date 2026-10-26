@@ -377,12 +377,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { WITHDRAW_BUTTON_TITLE, WITHDRAW_CONFIRM } from '@/lib/receivables/copy/withdrawn';
+    import { formatMoney } from '@/lib/receivables/client/money';
     const $ = (id: string) => document.getElementById(id) as HTMLElement;
     const val = (id: string) => ($(id) as HTMLInputElement).value.trim();
     const esc = (s: unknown) => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const fmtNum = (n: number, ccy: string) =>
-      `${ccy} ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    // en-US digits in every language, like every other receivables page; no forced cents.
+    const fmtNum = (n: number, ccy: string) => formatMoney(n, ccy, { minDecimals: 0 });
 
     function show(el: HTMLElement, html: string) { el.innerHTML = html; el.classList.add('show'); }
 
