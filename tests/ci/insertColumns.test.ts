@@ -4,12 +4,14 @@ import path from 'node:path';
 import { appSchema, type AppTable } from '../helpers/appSchema';
 
 /**
- * Every literal `INSERT INTO <table> (…)` in src names only columns the table has.
+ * Every literal `INSERT INTO <table> (…)` in src names only columns the table has, and leaves out
+ * none of the columns it requires.
  *
  * Four importers wrote import_raw_rows with batch_id and raw_json, columns that never existed
  * (the table has import_batch_id and row_json), so the Bitcoin sync, the Solana sync and both
- * Avalanche importers saved nothing. Postgres refuses such an INSERT only when it runs; this test
- * refuses it when it is written.
+ * Avalanche importers saved nothing. The Avalanche CSV route also left out import_transactions'
+ * source, which is NOT NULL with no default. Postgres refuses such an INSERT only when it runs;
+ * this test refuses it when it is written.
  *
  * A table's columns are what tests/helpers/appSchema.ts reads from migrations/, migrations-pg/
  * and the SQL strings in src, where the app creates many tables itself on first use (petro_*,
@@ -49,11 +51,20 @@ const SKIPPED: Record<string, string> = {
  */
 const READER_SKIPS = ['address_labels', 'manual_cost_basis'];
 
+/** Tables whose column names are checked but whose required columns differ between definitions. */
+const REQUIRED_SKIPS = ['petro_tins'];
+
 /**
  * KNOWN BUGS: INSERTs that name a column the table really does not have, found by this test and
  * not fixed yet, as 'file table.column'. Each fails whenever it runs. This list only shrinks.
  */
 const KNOWN_BUGS: string[] = [];
+
+/**
+ * KNOWN MISSING: INSERTs that leave out a required column, found by this test and not fixed yet,
+ * as 'file table.column'. Each fails whenever it runs. This list only shrinks.
+ */
+const KNOWN_MISSING: string[] = [];
 
 const SRC_FILES = walk(path.join(ROOT, 'src'));
 
@@ -87,15 +98,23 @@ const literalInserts = (): Insert[] => SRC_FILES.flatMap((f) => insertsIn(readFi
 /** 'file table.column' for each column the insert names that the table does not have. */
 const unknownColumns = (i: Insert, t: AppTable) => i.columns.filter((c) => !t.columns.has(c)).map((c) => ({ key: `${i.file} ${i.table}.${c}`, line: i.line }));
 
+/** 'file table.column' for each required column the insert leaves out. */
+const missingColumns = (i: Insert, t: AppTable) => (t.requiredSkip ? [] : [...t.required].filter((c) => !i.columns.includes(c)).map((c) => ({ key: `${i.file} ${i.table}.${c}`, line: i.line })));
 
 describe('INSERT column lists', () => {
 	const schema = appSchema();
 	const inserts = literalInserts();
 	const checked = inserts.filter((i) => schema.has(i.table) && !schema.get(i.table)!.skip && !(i.table in SKIPPED));
 	const unknown = () => checked.flatMap((i) => unknownColumns(i, schema.get(i.table)!));
+	const missing = () => checked.flatMap((i) => missingColumns(i, schema.get(i.table)!));
 
 	it('name only columns the table has', () => {
 		const bad = unknown().filter((b) => !KNOWN_BUGS.includes(b.key)).map((b) => `${b.key} (line ${b.line})`);
+		expect(bad).toEqual([]);
+	});
+
+	it('leave out no column the table requires', () => {
+		const bad = missing().filter((b) => !KNOWN_MISSING.includes(b.key)).map((b) => `${b.key} (line ${b.line})`);
 		expect(bad).toEqual([]);
 	});
 
@@ -106,6 +125,7 @@ describe('INSERT column lists', () => {
 		for (const t of ['petro_tins', 'petro_splits', 'receivables', 'receivable_claims', 'cairn_projects', 'cairn_milestones', 'verify_destinations', 'verify_deposit_challenges']) expect(tables).toContain(t);
 		expect(tables.size).toBeGreaterThan(110);
 		expect(checked.length).toBeGreaterThan(200);
+		expect(schema.get('import_transactions')!.required).toContain('source');
 	});
 
 	it('every table with a literal insert is either checked or skipped with a reason', () => {
@@ -117,11 +137,15 @@ describe('INSERT column lists', () => {
 		for (const t of Object.keys(SKIPPED)) expect(inserts.some((i) => i.table === t)).toBe(true);
 		const readerSkips = [...schema].filter(([t, s]) => s.skip && inserts.some((i) => i.table === t)).map(([t, s]) => `${t}: ${s.skip}`);
 		expect(readerSkips.map((s) => s.split(':')[0]).sort(), readerSkips.join('\n')).toEqual([...READER_SKIPS].sort());
+		const requiredSkips = [...schema].filter(([t, s]) => !s.skip && s.requiredSkip && inserts.some((i) => i.table === t)).map(([t]) => t);
+		expect(requiredSkips.sort()).toEqual([...REQUIRED_SKIPS].sort());
 		const unknownKeys = unknown().map((b) => b.key);
 		for (const k of KNOWN_BUGS) expect(unknownKeys, `${k} is fixed; take it off KNOWN_BUGS`).toContain(k);
+		const missingKeys = missing().map((b) => b.key);
+		for (const k of KNOWN_MISSING) expect(missingKeys, `${k} is fixed; take it off KNOWN_MISSING`).toContain(k);
 	});
 
-	it('would have caught the Avalanche CSV route column names', () => {
+	it('would have caught both Avalanche CSV route bugs', () => {
 		// src/pages/api/import/snowtrace.ts as it was before #19, the two statements verbatim.
 		const old = `
 	const rawStatements  = normRows.map(r => ({
@@ -146,6 +170,11 @@ ON CONFLICT DO NOTHING\`,
 		expect(found.flatMap((i) => unknownColumns(i, schema.get(i.table)!)).map((b) => b.key)).toEqual([
 			'snowtrace.ts import_raw_rows.batch_id',
 			'snowtrace.ts import_raw_rows.raw_json',
+		]);
+		expect(found.flatMap((i) => missingColumns(i, schema.get(i.table)!)).map((b) => b.key)).toEqual([
+			'snowtrace.ts import_raw_rows.import_batch_id',
+			'snowtrace.ts import_raw_rows.row_json',
+			'snowtrace.ts import_transactions.source',
 		]);
 	});
 });
