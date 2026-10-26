@@ -3,11 +3,12 @@
  * thousands separators, and times in UTC. Pure, so the page and the PDF agree to the character.
  * Every time in a report is UTC and says so.
  */
-const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { formatUsd as sharedUsd, formatUtc } from '@/lib/format';
+
 const COUNT = new Intl.NumberFormat('en-US');
 
-/** `$1,270.56`. */
-export const formatUsd = (usd: number): string => USD.format(usd);
+/** `$1,270.56`, `-$5.00` (src/lib/format.ts). */
+export const formatUsd = (usd: number): string => sharedUsd(usd);
 
 /** `1,284`. */
 export const formatCount = (n: number): string => COUNT.format(n);
@@ -17,11 +18,8 @@ export const plural = (n: number, one: string, many: string): string => `${forma
 
 const ISO = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/;
 
-/** `2026-10-18 09:10:00 UTC` from an ISO-8601 UTC time. Anything that is not one is shown as it is. */
-export function formatUtc(iso: string): string {
-  const m = ISO.exec(iso);
-  return m ? `${m[1]} ${m[2]} UTC` : iso;
-}
+/** `2026-10-18 09:10:00 UTC`: moved to src/lib/format.ts, re-exported for the report and PDF. */
+export { formatUtc };
 
 /** `09:10:00` from an ISO-8601 UTC time. Anything that is not one is shown as it is. */
 export function formatClock(iso: string): string {
