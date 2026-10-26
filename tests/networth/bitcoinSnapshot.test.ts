@@ -105,6 +105,10 @@ import { POST as labelsPOST } from '../../src/pages/api/address-labels';
 const ONCHAIN: Record<string, { sats: number; txs: unknown[] }> = {};
 const VOUTS: Record<string, string[]> = {};
 const fetched: string[] = [];
+/** Requests to the explorers; the rest are day-price lookups (src/lib/sync/utxoHistoricalPrice.ts). */
+const EXPLORER = /^https:\/\/(blockstream\.info|litecoinspace\.org)\//;
+const explorerCalls = () => fetched.filter((u) => EXPLORER.test(u));
+const priceCalls = () => fetched.filter((u) => !EXPLORER.test(u));
 
 function receiveTx(to: string, sats: number) {
 	return {
@@ -201,8 +205,9 @@ describe('syncBtcAddress', () => {
 
 	it('asks the explorer about the exact base58 spelling and never adds a wallet row for a known wallet', async () => {
 		await syncBtcAddress('t1', LEGACY, 'w-legacy');
-		expect(fetched.length).toBeGreaterThan(0);
-		expect(fetched.every((u) => u.includes(LEGACY))).toBe(true);
+		expect(explorerCalls().length).toBeGreaterThan(0);
+		expect(explorerCalls().every((u) => u.includes(LEGACY))).toBe(true);
+		expect(priceCalls().some((u) => u.includes(LEGACY))).toBe(false); // a price request never names the address
 		expect(walletInserts()).toHaveLength(0);
 	});
 
@@ -251,8 +256,9 @@ describe('Sync Tins (POST /api/import/btc-sync)', () => {
 
 	it('an address passed in the body keeps its base58 case', async () => {
 		await btcSyncPOST({ request: json({ address: ` ${LEGACY} ` }) } as never);
-		expect(fetched.length).toBeGreaterThan(0);
-		expect(fetched.every((u) => u.includes(LEGACY))).toBe(true);
+		expect(explorerCalls().length).toBeGreaterThan(0);
+		expect(explorerCalls().every((u) => u.includes(LEGACY))).toBe(true);
+		expect(priceCalls().some((u) => u.includes(LEGACY))).toBe(false); // a price request never names the address
 	});
 });
 

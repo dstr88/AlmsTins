@@ -102,6 +102,7 @@ vi.mock('@/lib/coingeckoHistorical', () => ({
 	getCoingeckoIdBySymbol: async (symbol: string) => ({ BTC: 'bitcoin', LTC: 'litecoin' } as Record<string, string>)[symbol] ?? null,
 	getUsdUnitPriceAtTimestampCoinGecko: async ({ coinId }: { coinId: string }) =>
 		({ unitPriceUsd: coinId === 'litecoin' ? LTC_PRICE : BTC_PRICE, pricedAtIso: '', source: 'coingecko:range', confidence: 'historical' }),
+	coingeckoReaches: () => true,
 }));
 vi.mock('@/lib/transferMatcher', () => ({ runTransferMatching: vi.fn(async () => {}) }));
 vi.mock('@/lib/autoClassify', () => ({ autoClassifyOwnWalletTransfers: vi.fn(async () => 0) }));

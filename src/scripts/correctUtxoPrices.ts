@@ -5,10 +5,13 @@
 //   npx vite-node --config vitest.config.ts src/scripts/correctUtxoPrices.ts -- --apply           # write
 //
 // Needs DATABASE_URL (the owner connection, as the other scripts here; without it the app's db module
-// stops the script before anything connects) and, for days over 365 days old, COINGECKO_API_KEY.
+// stops the script before anything connects). Prices: CoinGecko for the days it reaches (the past
+// 365 days without a Pro key), Coinbase Exchange's public candles for older days (Bitcoin from
+// 2015-07-20, Litecoin from 2016-08-17); no key needed.
 // vite-node resolves the app's '@/' imports through vitest.config.ts.
 // Options: --tenant <id> (repeatable), --sample <n> (rows printed per tenant, default 5),
-// --delay-ms <n> (wait before each price lookup, default 2000, for CoinGecko's rate limit).
+// --delay-ms <n> (wait before each day CoinGecko is asked for, default 2000, for its rate limit;
+// Coinbase requests pace themselves).
 //
 // Until the sync priced rows on their own day, it stored every Bitcoin and Litecoin row at the
 // price on the day of that sync. This re-prices those rows at their transaction's UTC day, the
@@ -19,8 +22,9 @@
 // table, as the app caches them). --apply writes each tenant in its own transaction; it rolls
 // back that tenant if any row changed since it was read. A row with no price for its day keeps its
 // value and is marked price_source = 'sync_date_estimate', so the figures still resting on the old
-// sync-date price can be found; a later run (e.g. with a COINGECKO_API_KEY that reaches older days)
-// re-prices marked rows when it can. Re-running is safe: a corrected row has a real price_source and
+// sync-date price can be found (with the Coinbase fallback, essentially only Bitcoin days before
+// 2015-07-20 and Litecoin days before 2016-08-17, or a day a request failed); a later run re-prices
+// marked rows when it can. Re-running is safe: a corrected row has a real price_source and
 // is not selected again. Prints counts and a few rows (date, amount, old and new value), never an address.
 //
 // Afterwards: cost basis and gains read these values once the tenant's lifecycles are rebuilt (Sync
@@ -29,6 +33,7 @@
 import pg from 'pg';
 import { DEMO_TENANT_ID } from '@/lib/demo';
 import { formatUsd } from '@/lib/format';
+import { coingeckoReachesDay } from '@/lib/sync/utxoHistoricalPrice';
 import {
 	CANDIDATE_SQL, ESTIMATE_SOURCE, TENANTS_SQL, applyCorrections, planCorrections, selectSyncPricedRows, type CandidateRow,
 } from '@/lib/sync/utxoPriceCorrection';
@@ -68,7 +73,9 @@ async function main(): Promise<number> {
 			if (tenantId === DEMO_TENANT_ID) continue;
 			const rows = (await c.query(CANDIDATE_SQL, [tenantId])).rows as CandidateRow[];
 			const sel = selectSyncPricedRows(rows);
-			const plan = await planCorrections(sel.rows, { beforeLookup: () => sleep(DELAY_MS) });
+			const plan = await planCorrections(sel.rows, {
+				beforeLookup: async (_symbol, day) => { if (coingeckoReachesDay(day)) await sleep(DELAY_MS); },
+			});
 			total.candidates += sel.rows.length;
 			total.changes += plan.changes.length;
 			total.unchanged += plan.unchanged;
