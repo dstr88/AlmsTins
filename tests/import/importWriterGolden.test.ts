@@ -265,10 +265,14 @@ describe('chain syncs', () => {
 		state.fetch = async (url) => {
 			if (url.endsWith(`/address/${own}`)) return new Response(JSON.stringify({ chain_stats: { funded_txo_sum: 50_000, spent_txo_sum: 30_000 } }));
 			if (url.endsWith(`/address/${own}/txs`)) return new Response(JSON.stringify(txs));
+			// Each row's day price (CoinGecko, src/lib/sync/utxoHistoricalPrice.ts), the same $50,000.
+			if (url.includes('/coins/bitcoin/market_chart/range')) return new Response(JSON.stringify({ prices: [[1_760_011_200_000, 50_000]] }));
 			return new Response('[]');
 		};
 		const { syncBtcAddress } = await import('../../src/lib/sync/syncBtcAddress');
-		const result = await syncBtcAddress(TENANT, own, 'wallet-btc');
+		// Within the public CoinGecko API's 365 days, so the day price is looked up.
+		vi.useFakeTimers({ toFake: ['Date'], now: new Date('2025-10-20T00:00:00Z') });
+		const result = await syncBtcAddress(TENANT, own, 'wallet-btc').finally(() => vi.useRealTimers());
 		expectGolden('sync-bitcoin', stored(result));
 	});
 

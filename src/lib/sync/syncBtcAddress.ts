@@ -4,7 +4,8 @@
  * the wallet card's refresh.
  *
  * Uses Blockstream (no key required) to fetch transactions and balance,
- * Coinpaprika for BTC/USD price. Litecoin goes through the same code with
+ * Coinpaprika for the BTC/USD price of the balance snapshot, and each transaction's own day's price
+ * for its row (src/lib/sync/utxoHistoricalPrice.ts). Litecoin goes through the same code with
  * litecoinspace.org (the same Esplora API) and LTC/USD: its rows are stored
  * under source `litecoin`, its own exchange_accounts row and its own row_hash
  * prefix, so a Bitcoin and a Litecoin transaction never collide.
@@ -26,6 +27,8 @@ import { canonicalAddress, safeParseChains } from '@/lib/wallets-service';
 import { buildTickerPriceMap } from '@/lib/aave/pricing';
 import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
 import { insertImportBatch } from '@/lib/importRows';
+import { ensurePriceSourceColumn } from '@/lib/priceSourceColumn';
+import { priceDays, usdAt, utcDay, type DayPrice } from '@/lib/sync/utxoHistoricalPrice';
 import { CHAINS } from '@/lib/chains';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
@@ -242,7 +245,6 @@ export async function syncUtxoAddress(
 
 		const direction: 'in' | 'out' = netSats > 0 ? 'in' : 'out';
 		const amountBtc = Math.abs(netSats) / SATS_PER_BTC;
-		const nativeUsd = coinPrice !== null ? Math.round(amountBtc * coinPrice * 100) / 100 : null;
 
 		const txHash = String(tx.txid ?? '');
 		const kind   = direction === 'in' ? 'receive' : 'send';
@@ -264,7 +266,7 @@ export async function syncUtxoAddress(
 			.digest('hex');
 
 		normRows.push({
-			txHash, timestamp, direction, amount: amountBtc, nativeUsd, kind, description, rowHash,
+			txHash, timestamp, direction, amount: amountBtc, nativeUsd: null, kind, description, rowHash,
 			counterparty: btcCounterparty(tx, ownKey, direction),
 		});
 	}
@@ -293,10 +295,29 @@ export async function syncUtxoAddress(
 		});
 	}
 
+	// Each row's USD value at its own UTC day's price, never the sync day's: it is the row's cost
+	// basis or proceeds. Only rows not stored yet are priced, plus a stored row of this account
+	// whose value is still empty; a value stored by an older sync is left alone (it is corrected
+	// once by src/scripts/correctUtxoPrices.ts). A day with no price stores NULL.
+	const stored = await db.execute({
+		sql: `SELECT row_hash, native_usd FROM import_transactions WHERE tenant_id = ? AND source = ? AND account_id = ?`,
+		args: [tenantId, chain, accountId],
+	});
+	const storedUsd = new Map(stored.rows.map((r) => [String((r as { row_hash?: unknown }).row_hash ?? ''), (r as { native_usd?: unknown }).native_usd ?? null]));
+	const toPrice = normRows.filter((r) => storedUsd.get(r.rowHash) == null);
+	const dayPrices = await priceDays(symbol, toPrice.flatMap((r) => utcDay(r.timestamp) ?? []));
+	const priced = new Map<string, DayPrice>();
+	for (const r of toPrice) {
+		const p = dayPrices.get(utcDay(r.timestamp) ?? '');
+		if (!p) continue;
+		priced.set(r.rowHash, p);
+		r.nativeUsd = usdAt(r.amount, p.unitPriceUsd);
+	}
+
 	// Through the shared writer (src/lib/importRows.ts): an earlier inline copy of this insert named
 	// batch_id and raw_json, which don't exist, so every sync threw before the snapshot. Every sync
 	// reads the whole history, so the counterparty fill also covers rows an earlier sync saved.
-	const { insertedNormalized: insertedNorm } = await insertImportBatch({
+	const { inserted, insertedNormalized: insertedNorm } = await insertImportBatch({
 		tenantId, accountId, walletId, source: chain, batchId,
 		rawRows: normRows.map((r) => ({ rowJson: JSON.stringify(r), rowHash: r.rowHash })),
 		rows: normRows.map((r) => ({
@@ -315,12 +336,52 @@ export async function syncUtxoAddress(
 		})),
 	});
 
+	await recordRowPrices({ tenantId, chain, accountId, rows: normRows, inserted, storedUsd, priced });
+
 	return {
 		inserted: insertedNorm,
 		skipped:  normRows.length - insertedNorm,
 		txCount:  allTxs.length,
 		snapshotWritten,
 	};
+}
+
+/**
+ * After the insert: tags each newly stored priced row with its price_source, and gives a stored row
+ * whose value was still empty its price. Never throws: a price that cannot be saved leaves the row
+ * as the insert stored it, for the next sync or "Fill Missing Prices".
+ */
+async function recordRowPrices(opts: {
+	tenantId: string;
+	chain: UtxoChain;
+	accountId: string;
+	rows: ReadonlyArray<{ rowHash: string; nativeUsd: number | null }>;
+	inserted: readonly boolean[];
+	storedUsd: ReadonlyMap<string, unknown>;
+	priced: ReadonlyMap<string, DayPrice>;
+}): Promise<void> {
+	const { tenantId, chain, accountId, rows, inserted, storedUsd, priced } = opts;
+	if (priced.size === 0) return;
+	const withSource = await ensurePriceSourceColumn();
+	const where = `tenant_id = ? AND source = ? AND account_id = ? AND row_hash = ?`;
+	const stmts: Array<{ sql: string; args: Array<string | number | null> }> = [];
+	rows.forEach((r, i) => {
+		const p = priced.get(r.rowHash);
+		if (!p || r.nativeUsd === null) return;
+		const key = [tenantId, chain, accountId, r.rowHash];
+		if (inserted[i]) {
+			if (withSource) stmts.push({ sql: `UPDATE import_transactions SET price_source = ? WHERE ${where} AND price_source IS NULL`, args: [p.source, ...key] });
+		} else if (storedUsd.has(r.rowHash)) {
+			stmts.push(withSource
+				? { sql: `UPDATE import_transactions SET native_usd = ?, price_source = ? WHERE ${where} AND native_usd IS NULL`, args: [r.nativeUsd, p.source, ...key] }
+				: { sql: `UPDATE import_transactions SET native_usd = ? WHERE ${where} AND native_usd IS NULL`, args: [r.nativeUsd, ...key] });
+		}
+	});
+	try {
+		for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100), 'write');
+	} catch (err) {
+		console.warn(`[${chain === 'bitcoin' ? 'btc' : 'ltc'}-sync] could not record row prices`, err);
+	}
 }
 
 // ── Sync a BTC or LTC wallet and return WalletSyncStats-compatible result ─────
