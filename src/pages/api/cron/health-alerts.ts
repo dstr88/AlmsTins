@@ -16,6 +16,7 @@ import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getHealthAlert } from '@/i18n/emails/healthAlert';
 import { json } from '@/lib/http';
+import { chainHealths, pickAlertChain, type AlertDirection, type ChainHealth } from '@/lib/aave/healthAlertChain';
 
 export const prerender = false;
 
@@ -96,52 +97,44 @@ export const GET: APIRoute = async ({ request }) => {
 			}
 		}
 
-		// ── Fetch health factor ───────────────────────────────────────────────
-		let hf: number | null = null;
-		let hfChain = 'unknown';
+		// ── Fetch every chain's health factor ─────────────────────────────────
+		let healths: ChainHealth[];
 		try {
 			const res  = await fetch(
 				`${AAVE_HEALTH_BASE}/api/aave/health?address=${encodeURIComponent(address)}`,
 			);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const data = await res.json() as { ok?: boolean; chains?: Record<string, { healthFactor?: unknown }> };
-
-			// Find the first chain with a real health factor
-			for (const [chain, summary] of Object.entries(data.chains ?? {})) {
-				const raw = Number(summary?.healthFactor ?? NaN);
-				if (Number.isFinite(raw) && raw > 0) {
-					hf      = raw;
-					hfChain = chain;
-					break;
-				}
-			}
+			healths = chainHealths(data.chains);
 		} catch (err) {
 			console.error(`[cron/health-alerts] Failed to fetch HF for ${label}`, err);
 			results.push({ walletId, status: 'fetch-error' });
 			continue;
 		}
 
-		if (hf === null) {
+		// ── Threshold check, on every chain (each Aave market has its own health factor) ──
+		// Any other stored direction never triggers, as before.
+		const pick = pickAlertChain(healths, threshold, direction as AlertDirection);
+
+		if (pick.status === 'no-positions') {
 			console.log(`[cron/health-alerts] No active positions for ${label}`);
 			results.push({ walletId, status: 'no-positions' });
 			continue;
 		}
 
-		// ── Threshold check ───────────────────────────────────────────────────
-		const triggered =
-			direction === 'below' ? hf < threshold :
-			direction === 'above' ? hf > threshold : false;
-
 		console.log(
-			`[cron/health-alerts] ${label} HF=${hf.toFixed(2)} threshold=${direction} ${threshold} triggered=${triggered}`,
+			`[cron/health-alerts] ${label} HF=${healths.map((h) => `${h.chain}:${h.healthFactor.toFixed(2)}`).join(',')}`
+			+ ` threshold=${direction} ${threshold} triggered=${pick.status === 'triggered' ? pick.chain.chain : 'no'}`,
 		);
 
-		if (!triggered) {
-			results.push({ walletId, status: 'ok', hf });
+		if (pick.status === 'ok') {
+			results.push({ walletId, status: 'ok', hf: pick.lowest.healthFactor });
 			continue;
 		}
 
-		// ── Send alert email ──────────────────────────────────────────────────
+		// ── Send alert email, about the chain most past the threshold ─────────
+		const hf = pick.chain.healthFactor;
+		const hfChain = pick.chain.chain;
 		const hfFormatted = hf.toFixed(2);
 		const chainLabel  = hfChain.charAt(0).toUpperCase() + hfChain.slice(1);
 		const lang        = typeof pref.lang === 'string' && isLang(pref.lang) ? pref.lang : 'en';
