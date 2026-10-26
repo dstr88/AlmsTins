@@ -11,15 +11,17 @@
  */
 
 import { EVM_ADDRESS_ANY_PREFIX, EVM_ADDRESS_ANY_PREFIX_SOURCE } from '@/lib/addressFormats';
+import { CHAINS, VAULT_CHAINS } from '@/lib/chains';
 
-export const VAULT_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const;
+export { VAULT_CHAINS };
 export type VaultChain = (typeof VAULT_CHAINS)[number];
 
 /** What a pasted list or a client may call each chain. A Map, so a name like "constructor" is never a hit. */
 const CHAIN_NAMES = new Map<string, VaultChain>([
-  ['ethereum', 'ethereum'], ['eth', 'ethereum'],
-  ['polygon', 'polygon'], ['matic', 'polygon'], ['pol', 'polygon'],
-  ['avalanche', 'avalanche'], ['avax', 'avalanche'],
+  // Each chain's name and its coin's symbol: ethereum/eth, polygon/pol, avalanche/avax.
+  ...VAULT_CHAINS.flatMap((c): Array<[string, VaultChain]> => [[c, c], [CHAINS[c].native.symbol.toLowerCase(), c]]),
+  // Polygon's coin before the 2024 rename.
+  ['matic', 'polygon'],
 ]);
 
 /** The canonical chain for a name (case and surrounding spaces ignored), or null if the Vault does not track it. */

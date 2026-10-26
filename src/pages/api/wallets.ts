@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
-import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../lib/wallets-service';
+import { parseWalletChains, sanitizeAddress, transformWalletRow } from '../../lib/wallets-service';
 import { deriveDefaultLabel } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { checkWalletLimit } from '../../lib/subscriptions';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '../../lib/demo';
+import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -81,7 +82,7 @@ export const POST: APIRoute = async ({ request }) => {
 			// Address is optional for custom wallets — generate a stable placeholder if omitted.
 			const rawAddress = typeof body.address === 'string' ? body.address.trim() : '';
 			const address = sanitizeAddress(rawAddress) || `custom_${crypto.randomUUID().replace(/-/g, '')}`;
-			const chains = normalizeChains(body.chains ?? []);
+			const chains = parseWalletChains(body.chains ?? []);
 
 			const inserted = await db.execute({
 				sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default, wallet_type)
@@ -164,7 +165,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const label =
 			typeof body.label === 'string' && body.label.trim().length ? body.label.trim() : deriveDefaultLabel(address);
-		const chains = normalizeChains(body.chains ?? ['ethereum', 'polygon', 'avalanche']);
+		const chains = parseWalletChains(body.chains ?? DEFAULT_WALLET_CHAINS);
 		const isDefault = body.isDefault === true ? 1 : 0;
 
 		const inserted = await db.execute({

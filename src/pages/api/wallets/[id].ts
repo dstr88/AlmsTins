@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
-import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../../lib/wallets-service';
+import { parseWalletChains, sanitizeAddress, transformWalletRow } from '../../../lib/wallets-service';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import {
@@ -135,7 +135,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 		}
 
 		if ('chains' in body) {
-			const chains = normalizeChains(body.chains);
+			const chains = parseWalletChains(body.chains);
 			updates.push('chains = ?');
 			args.push(JSON.stringify(chains));
 		}

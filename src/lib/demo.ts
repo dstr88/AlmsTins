@@ -6,6 +6,8 @@
  * No auth session required.  All write operations are blocked at middleware.
  */
 
+import { DEFAULT_WALLET_CHAINS } from './chains';
+
 export const DEMO_TENANT_ID = 'demo-00000000000000000000000000000001';
 export const DEMO_COOKIE_NAME = 'almstins-demo';
 export const DEMO_COOKIE_VALUE = '1';
@@ -49,7 +51,7 @@ export const DEMO_WALLET_CONFIGS: Record<string, DemoWalletConfig> = {
 	'1': {
 		label:  'Ethereum Wallet',
 		chain:  'ethereum',
-		chains: ['ethereum', 'polygon', 'avalanche'],
+		chains: [...DEFAULT_WALLET_CHAINS],
 		tokens: [
 			{ symbol: 'ETH',  amount: 0.02, priceUsd: 3100, valueUsd: 62, tokenAddress: null },
 			{ symbol: 'USDC', amount: 20,   priceUsd: 1,    valueUsd: 20, tokenAddress: null },
@@ -67,7 +69,7 @@ export const DEMO_WALLET_CONFIGS: Record<string, DemoWalletConfig> = {
 	'3': {
 		label:  'DeFi Wallet',
 		chain:  'avalanche',
-		chains: ['ethereum', 'polygon', 'avalanche'],
+		chains: [...DEFAULT_WALLET_CHAINS],
 		tokens: [
 			{ symbol: 'WETH', amount: 0.015, priceUsd: 3100, valueUsd: 46.50, tokenAddress: null },
 			{ symbol: 'AVAX', amount: 1.5,   priceUsd: 25,   valueUsd: 37.50, tokenAddress: null },

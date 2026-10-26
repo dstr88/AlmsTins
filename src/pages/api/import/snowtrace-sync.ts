@@ -19,6 +19,7 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
+import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
 
 const ROUTESCAN_BASE = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 const AVAX_DECIMALS  = 18n;
@@ -229,7 +230,7 @@ ON CONFLICT DO NOTHING`,
 					tenantId,
 					walletAddress,
 					`Avalanche Wallet (${walletAddress.slice(0, 10)}…)`,
-					JSON.stringify(['ethereum', 'polygon', 'avalanche']),
+					JSON.stringify(DEFAULT_WALLET_CHAINS),
 				],
 			}).catch(() => { /* already exists — race condition or duplicate is fine */ });
 		}

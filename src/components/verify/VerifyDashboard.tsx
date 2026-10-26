@@ -8,6 +8,7 @@ import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
 import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
 import { findEvmAddress } from '@/lib/addressFormats';
+import { VERIFY_ADDRESS_RAILS, VERIFY_EVM_RAILS } from '@/lib/chains';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
 interface Destination {
@@ -32,7 +33,7 @@ interface Destination {
   needsReproof?: boolean;
 }
 
-const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'];
+const ADDRESS_RAILS: readonly string[] = VERIFY_ADDRESS_RAILS;
 const LIMITS = { address: 2, qr: 1 } as const;
 // Chain names are proper nouns (kept across languages); only the URL rail is localized.
 const CHAIN_LABEL: Record<string, string> = {
@@ -760,7 +761,7 @@ interface SelfSendChallenge {
   expired: boolean;
 }
 
-const EVM_RAILS = new Set(['ethereum', 'polygon', 'avalanche']);
+const EVM_RAILS = VERIFY_EVM_RAILS;
 const SS_POLL_MS = 20_000;
 const SS_POLL_FOR_MS = 15 * 60_000;
 // Outcomes after which checking again can't help until the merchant acts. Not

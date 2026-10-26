@@ -13,6 +13,7 @@ import {
 import type { SupportedChain } from '@/lib/constants';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
 import { fetchAndStoreAaveLiquidations } from '@/lib/sync/syncAaveLiquidations';
+import { WALLET_SYNC_EVM_CHAINS, normalizeChain } from '@/lib/chains';
 
 const MAX_OFFSET = 100;
 const MAX_PAGES = 100;
@@ -207,7 +208,7 @@ export async function fetchTransactionsSince(wallet: Wallet, chain: ScanChain, m
  * Syncs a single wallet + chain combination.
  */
 export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: string): Promise<WalletSyncChainStats> {
-	const normalizedChain = normalizeChain(chain);
+	const normalizedChain = walletSyncChain(chain);
 	if (!normalizedChain) {
 		console.warn(`Skipping unsupported chain "${chain}" for wallet ${wallet.id}`);
 		return {
@@ -286,7 +287,7 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 /**
  * Syncs all chains for a wallet and aggregates stats.
  */
-const EVM_CHAINS = new Set(['ethereum', 'polygon', 'avalanche']);
+const EVM_CHAINS: ReadonlySet<string> = new Set(WALLET_SYNC_EVM_CHAINS);
 
 export async function syncWalletTransactions(tenantId: string, wallet: Wallet): Promise<WalletSyncStats> {
 	const baseChains =
@@ -401,12 +402,10 @@ async function callScanApi(chain: ScanChain, params: Record<string, string | num
 	return payload;
 }
 
-function normalizeChain(chain: string): SupportedChain | null {
-	const lowered = chain?.toLowerCase?.() ?? '';
-	if (lowered === 'ethereum' || lowered === 'eth' || lowered === 'mainnet') return 'ethereum';
-	if (lowered === 'polygon' || lowered === 'matic') return 'polygon';
-	if (lowered === 'avalanche' || lowered === 'avax') return 'avalanche';
-	return null;
+/** The chain name if the EVM sync reads it (aliases such as 'eth' and 'matic' included), else null. */
+function walletSyncChain(chain: string): SupportedChain | null {
+	const c = normalizeChain(chain);
+	return EVM_CHAINS.has(c) ? (c as SupportedChain) : null;
 }
 
 type SyncTask = {

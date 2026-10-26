@@ -27,14 +27,16 @@
  */
 import { weiToDecimalString } from '@/lib/etherscan';
 import type { VaultChain } from './addresses';
+import { CHAINS, VAULT_CHAINS } from '@/lib/chains';
 import { EVM_ADDRESS_LOWER, EVM_TX_HASH_LOWER } from '@/lib/addressFormats';
 
 export type ExplorerAction = 'txlist' | 'txlistinternal' | 'tokentx';
 export const EXPLORER_ACTIONS: readonly ExplorerAction[] = ['txlist', 'txlistinternal', 'tokentx'];
 
-/** The symbol of each chain's own coin. All three have 18 decimals. */
-export const NATIVE_SYMBOL: Readonly<Record<VaultChain, string>> = { ethereum: 'ETH', polygon: 'POL', avalanche: 'AVAX' };
-const NATIVE_DECIMALS = 18;
+/** The symbol of each chain's own coin (src/lib/chains.ts). */
+export const NATIVE_SYMBOL: Readonly<Record<VaultChain, string>> = Object.fromEntries(
+  VAULT_CHAINS.map((c) => [c, CHAINS[c].native.symbol]),
+) as Record<VaultChain, string>;
 
 export interface Transfer {
   chain: VaultChain;
@@ -144,7 +146,7 @@ export function normalizeTransfers(chain: VaultChain, wallet: string, action: Ex
       identity = `token:${contract}:${from}:${to}:${value}`;
     } else {
       asset = NATIVE_SYMBOL[chain];
-      amount = weiToDecimalString(value, NATIVE_DECIMALS);
+      amount = weiToDecimalString(value, CHAINS[chain].native.decimals);
       if (action === 'txlist') {
         identity = `native:${from}:${to}:${value}`;
       } else {

@@ -19,47 +19,13 @@
 
 import { canonicalImportSource } from './importSource';
 import { EVM_ADDRESS, isEvmAddress } from './addressFormats';
+import { CHAIN_IMPORT_SOURCES, normalizeChain } from './chains';
 
 export const UNASSIGNED = 'unassigned';
 
-// Every spelling the app stores or receives for a chain, mapped to one name.
-const CHAIN_ALIASES: Readonly<Record<string, string>> = Object.freeze({
-	eth: 'ethereum',
-	mainnet: 'ethereum',
-	'ethereum-mainnet': 'ethereum',
-	ethereum_mainnet: 'ethereum',
-	matic: 'polygon',
-	'polygon-pos': 'polygon',
-	polygon_pos: 'polygon',
-	avax: 'avalanche',
-	avalanche_cchain: 'avalanche',
-	'avalanche-cchain': 'avalanche',
-	'avalanche-c': 'avalanche',
-	avalanche_c: 'avalanche',
-	cchain: 'avalanche',
-	'c-chain': 'avalanche',
-	btc: 'bitcoin',
-	xbt: 'bitcoin',
-	sol: 'solana',
-	ltc: 'litecoin',
-	rsk: 'rootstock',
-	trx: 'tron',
-});
-
-/** Sources stored in import_transactions / exchange_accounts that are blockchains, not exchanges. */
-const CHAIN_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'solana', 'avalanche_cchain', 'litecoin']);
-
-/** Lowercase, trim, drop an `onchain_` prefix, and map aliases: 'AVALANCHE_CCHAIN' → 'avalanche'. */
-export function normalizeChain(chain: unknown): string {
-	const c = String(chain ?? '')
-		.trim()
-		.toLowerCase()
-		.replace(/^onchain_/, '');
-	if (!c) return 'unknown';
-	return CHAIN_ALIASES[c] ?? c;
-}
-
-export { isEvmAddress };
+// Chain names (normalizeChain) and the EVM address check live in ./chains and ./addressFormats;
+// re-exported because the wallet-key callers import them from here.
+export { isEvmAddress, normalizeChain };
 
 /** Trim; lowercase only an EVM address. Everything else keeps its case. */
 export function normalizeWalletAddress(address: unknown): string {
@@ -82,7 +48,7 @@ export function guessChainFromAddress(address: string): string {
 
 /** True when an import source is a blockchain (bitcoin, solana, avalanche_cchain, ...), not an exchange. */
 export function isChainSource(source: unknown): boolean {
-	return CHAIN_SOURCES.has(canonicalImportSource(source));
+	return CHAIN_IMPORT_SOURCES.has(canonicalImportSource(source));
 }
 
 /** cex:{source}:{account_id}, or cex:{source}:unassigned when the row has no account. */

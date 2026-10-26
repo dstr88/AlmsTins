@@ -32,6 +32,7 @@ import { refOfImportRow, refOfOnchainRow, refOfSuiRow } from './tax/walletOfRow'
 import { addressNetwork } from './addressNetwork';
 import { ensureCounterpartyColumns } from './counterpartyColumn';
 import { canonicalAddress } from './wallets-service';
+import { evmNativeSymbol } from './chains';
 
 export type HistoryOrigin = 'import' | 'onchain' | 'sui';
 export type HistoryDirection = 'in' | 'out' | 'lost' | '';
@@ -159,19 +160,9 @@ export function toUtcDate(v: unknown): { date: string; sortKey: string } {
 	return { date: `${iso.slice(0, 10)} ${iso.slice(11, 19)}`, sortKey: iso };
 }
 
-const NATIVE_SYMBOL: Readonly<Record<string, string>> = {
-	ethereum: 'ETH',
-	polygon: 'POL',
-	avalanche: 'AVAX',
-	rootstock: 'RBTC',
-	base: 'ETH',
-	arbitrum: 'ETH',
-	optimism: 'ETH',
-	bsc: 'BNB',
-};
-
+/** The native coin of an EVM chain (src/lib/chains.ts); '' off EVM, where rows name their asset. */
 export function nativeSymbol(chain: unknown): string {
-	return NATIVE_SYMBOL[normalizeChain(chain)] ?? '';
+	return evmNativeSymbol(chain);
 }
 
 const compareSymbol = (s: unknown) => {

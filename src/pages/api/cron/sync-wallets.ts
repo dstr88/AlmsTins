@@ -11,6 +11,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
+import { SYNC_CRON_FALLBACK_CHAINS } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -80,7 +81,7 @@ export const GET: APIRoute = async ({ request }) => {
 				? chainsRaw
 				: typeof chainsRaw === 'string'
 					? JSON.parse(chainsRaw)
-					: ['ethereum', 'polygon'];
+					: [...SYNC_CRON_FALLBACK_CHAINS];
 
 			const wallet = {
 				id: walletId,

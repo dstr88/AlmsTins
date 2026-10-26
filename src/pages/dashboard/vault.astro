@@ -1,5 +1,6 @@
 ---
 import './vault.css';
+import { TIN_BADGE_EVM_CHAINS } from '@/lib/chains';
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import SalmonTin from '@/components/dashboard/SalmonTin.astro';
@@ -142,7 +143,7 @@ const getChainBadge = (chains: string[]): string => {
 	if (chains.includes('litecoin'))  return 'LTC';
 	if (chains.includes('rootstock')) return 'RBTC';
 	// EVM: label by most-specific single chain, or 'ETH' for multi-chain
-	const evmOnly = chains.filter(c => ['ethereum','polygon','avalanche','arbitrum'].includes(c));
+	const evmOnly = chains.filter(c => (TIN_BADGE_EVM_CHAINS as readonly string[]).includes(c));
 	if (evmOnly.length === 1) {
 		if (evmOnly[0] === 'avalanche') return 'AVAX';
 		if (evmOnly[0] === 'polygon')   return 'POL';

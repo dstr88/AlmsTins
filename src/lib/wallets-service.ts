@@ -43,7 +43,12 @@ export function sanitizeSuiAddress(input: unknown): string | null {
 	return '0x' + value.slice(2).padStart(64, '0');
 }
 
-export function normalizeChains(input: unknown): string[] {
+/**
+ * The chains field of a wallet request (an array, or a comma-separated string), trimmed, at most
+ * six, or the default EVM chains when it names none. Names are kept as given; this is not
+ * chains.normalizeChain.
+ */
+export function parseWalletChains(input: unknown): string[] {
 	if (Array.isArray(input)) {
 		const cleaned = input
 			.map((entry) => (typeof entry === 'string' ? entry.trim() : ''))

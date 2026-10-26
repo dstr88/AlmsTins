@@ -18,8 +18,9 @@ import {
   SUI_ADDRESS_LOWER,
   bech32Pattern,
 } from './addressFormats';
+import { CHAINS, EXPLORER_EVM_CHAINS, type ExplorerChain } from './chains';
 
-export type ExplorerChain = 'ethereum' | 'polygon' | 'avalanche' | 'bsc' | 'bitcoin' | 'litecoin' | 'solana' | 'sui';
+export type { ExplorerChain };
 
 interface ExplorerRule {
   /** The explorer's name, as a link's text shows it. */
@@ -73,56 +74,26 @@ function either(...checks: Array<(v: string) => string | null>) {
   };
 }
 
-function evm(name: string, host: string): ExplorerRule {
-  return {
-    name,
-    address: `https://${host}/address/`,
-    tx: `https://${host}/tx/`,
-    normalizeAddress: hexOr(EVM_ADDRESS_LOWER),
-    normalizeTx: hexOr(EVM_TX_HASH_LOWER),
-  };
+/** A chain's explorer pages (from src/lib/chains.ts) with the checks a value must pass to go into a link. */
+function rule(chain: ExplorerChain, normalizeAddress: ExplorerRule['normalizeAddress'], normalizeTx: ExplorerRule['normalizeTx']): ExplorerRule {
+  const { name, address, tx } = CHAINS[chain].explorer;
+  return { name, address, tx, normalizeAddress, normalizeTx };
 }
 
-const EXPLORERS = new Map<ExplorerChain, ExplorerRule>([
-  ['ethereum', evm('Etherscan', 'etherscan.io')],
-  ['polygon', evm('Polygonscan', 'polygonscan.com')],
-  // snowtrace.io is run by Routescan.
-  ['avalanche', evm('Snowtrace', 'snowtrace.io')],
-  ['bsc', evm('BscScan', 'bscscan.com')],
-  ['bitcoin', {
-    name: 'Blockstream',
-    address: 'https://blockstream.info/address/',
-    tx: 'https://blockstream.info/tx/',
-    normalizeAddress: either(bech32('bc'), exact(BTC_LEGACY)),
-    normalizeTx: hexOr(HEX_64),
-  }],
-  ['litecoin', {
-    name: 'Litecoin Space',
-    address: 'https://litecoinspace.org/address/',
-    tx: 'https://litecoinspace.org/tx/',
-    normalizeAddress: either(bech32('ltc'), exact(LTC_LEGACY)),
-    normalizeTx: hexOr(HEX_64),
-  }],
-  ['solana', {
-    name: 'Solana Explorer',
-    address: 'https://explorer.solana.com/address/',
-    tx: 'https://explorer.solana.com/tx/',
-    normalizeAddress: exact(SOLANA_ADDRESS),
-    normalizeTx: exact(SOLANA_SIGNATURE),
-  }],
-  ['sui', {
-    name: 'Suiscan',
-    address: 'https://suiscan.xyz/mainnet/account/',
-    tx: 'https://suiscan.xyz/mainnet/tx/',
-    // A Sui address is 0x and 64 hex digits, the same shape as an EVM transaction hash; only the
-    // chain tells them apart.
-    normalizeAddress: hexOr(SUI_ADDRESS_LOWER),
-    normalizeTx: exact(SUI_DIGEST),
-  }],
-]);
+const evm = (chain: ExplorerChain) => rule(chain, hexOr(EVM_ADDRESS_LOWER), hexOr(EVM_TX_HASH_LOWER));
 
-/** The EVM chains, in the order a picker shows them. */
-const EVM_CHAINS: readonly ExplorerChain[] = ['ethereum', 'polygon', 'avalanche', 'bsc'];
+const EXPLORERS = new Map<ExplorerChain, ExplorerRule>([
+  ['ethereum', evm('ethereum')],
+  ['polygon', evm('polygon')],
+  ['avalanche', evm('avalanche')],
+  ['bsc', evm('bsc')],
+  ['bitcoin', rule('bitcoin', either(bech32('bc'), exact(BTC_LEGACY)), hexOr(HEX_64))],
+  ['litecoin', rule('litecoin', either(bech32('ltc'), exact(LTC_LEGACY)), hexOr(HEX_64))],
+  ['solana', rule('solana', exact(SOLANA_ADDRESS), exact(SOLANA_SIGNATURE))],
+  // A Sui address is 0x and 64 hex digits, the same shape as an EVM transaction hash; only the
+  // chain tells them apart.
+  ['sui', rule('sui', hexOr(SUI_ADDRESS_LOWER), exact(SUI_DIGEST))],
+]);
 
 function ruleFor(chain: string | null | undefined): ExplorerRule | null {
   if (typeof chain !== 'string') return null;
@@ -155,7 +126,7 @@ export function explorerTxUrl(chain: string | null | undefined, hash: string): s
 /** EVM address with no known chain: one link per EVM chain, so the user picks. Empty when it is not an EVM address. */
 export function evmExplorerLinks(address: string): { chain: ExplorerChain; url: string }[] {
   const links: { chain: ExplorerChain; url: string }[] = [];
-  for (const chain of EVM_CHAINS) {
+  for (const chain of EXPLORER_EVM_CHAINS) {
     const url = explorerAddressUrl(chain, address);
     if (url) links.push({ chain, url });
   }

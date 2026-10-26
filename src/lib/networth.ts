@@ -5,6 +5,7 @@ import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 import { classifyContract } from '@/lib/knownContracts';
 import { isOnChainImportMirror, onePerWalletChain } from '@/lib/snapshotRows';
+import { NETWORTH_CHAINS } from '@/lib/chains';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -918,7 +919,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			FISH:  new Set(['0x055a902303746382fbb7d18f6ae0df56efdc5213']),
 		},
 	};
-	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin']);
+	const allowedChains: ReadonlySet<string> = new Set(NETWORTH_CHAINS);
 
 	function normalizeSymbol(symbol: string) {
 		const upper = symbol.toUpperCase();
@@ -926,7 +927,10 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		return upper;
 	}
 
-	function normalizeChain(chain: string) {
+	// Not chains.normalizeChain on purpose: a snapshot token's chain field carries provider
+	// network names ('eth-mainnet', 'polygon-mainnet', 'sol-mainnet'), so this matches by
+	// substring. Anything with 'eth' in it is Ethereum here.
+	function snapshotTokenChain(chain: string) {
 		const lower = chain.toLowerCase();
 		if (lower.includes('polygon') || lower.includes('matic')) return 'polygon';
 		if (lower.includes('avax') || lower.includes('avalanche')) return 'avalanche';
@@ -984,7 +988,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		}
 		for (const token of tokens) {
 			const tokenSymbol = normalizeSymbol(((token as any).symbol ?? 'UNKNOWN').toUpperCase());
-			const tokenChain = normalizeChain(String((token as any).chain ?? row.chain ?? ''));
+			const tokenChain = snapshotTokenChain(String((token as any).chain ?? row.chain ?? ''));
 			const tokenSource = String((token as any).source ?? '').toLowerCase();
 			if (tokenSource === 'aave' || tokenSource === 'defi') {
 				continue;

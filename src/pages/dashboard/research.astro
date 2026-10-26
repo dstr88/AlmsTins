@@ -579,6 +579,8 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <script>
 import { escapeHtml } from '../../lib/escapeHtml';
+import { EVM_ADDRESS, EVM_ADDRESS_SOURCE, SUI_ADDRESS } from '../../lib/addressFormats';
+import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '../../lib/chains';
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
@@ -2449,14 +2451,16 @@ window.helpQuickSave          = helpQuickSave;
 window.helpSaveNote           = helpSaveNote;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
-const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;
+// Starts the address lookup. Loose on purpose: an EVM address or anything longer in hex (a Sui
+// address), bech32 and legacy Bitcoin, Litecoin bech32.
+const ADDRESS_RE = new RegExp(`^(${EVM_ADDRESS_SOURCE}[0-9a-fA-F]*|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$`, 'i');
 
 function detectNetwork(address) {
   const lower = address.toLowerCase();
   if (lower.startsWith('ltc1'))                          return { symbol: 'LTC', chains: ['litecoin'] };
   if (lower.startsWith('bc1') || /^[13]/.test(address)) return { symbol: 'BTC', chains: ['bitcoin'] };
-  if (/^0x[a-f0-9]{64}$/.test(lower))                   return { symbol: 'SUI', chains: ['sui'] };
-  if (/^0x[a-f0-9]{40}$/.test(lower))                   return { symbol: 'ETH', chains: ['ethereum', 'polygon', 'avalanche'] };
+  if (SUI_ADDRESS.test(lower))                          return { symbol: 'SUI', chains: ['sui'] };
+  if (EVM_ADDRESS.test(lower))                          return { symbol: 'ETH', chains: [...DEFAULT_WALLET_CHAINS] };
   return { symbol: '', chains: [] };
 }
 
@@ -2607,11 +2611,8 @@ function renderAddressPanel(data) {
 
 function symbolToChains(symbol, address) {
   const s = symbol.trim().toUpperCase();
-  const knownMap = {
-    LTC: ['litecoin'], BTC: ['bitcoin'], ETH: ['ethereum', 'polygon', 'avalanche'],
-    SOL: ['solana'], SUI: ['sui'], AVAX: ['avalanche'], MATIC: ['polygon'],
-  };
-  if (knownMap[s]) return knownMap[s];
+  const known = chainsForSymbol(s);
+  if (known) return known;
   // Fall back to auto-detected chains if user left symbol blank or unknown
   if (!s) return detectNetwork(address).chains;
   return [s.toLowerCase()];
