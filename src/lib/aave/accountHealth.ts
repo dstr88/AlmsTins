@@ -131,7 +131,18 @@ export function resetMarketListCache() {
 
 /** Every live Aave V3 market (no testnets), from Aave's API; the three main markets if that fails. */
 export async function listAaveMarkets(post: GraphQLPost = postAaveGraphQL, now = Date.now()): Promise<AaveMarketRef[]> {
-	if (marketListCache && now - marketListCache.at < MARKET_LIST_TTL_MS) return marketListCache.markets;
+	return (await loadAaveMarkets(post, now)).markets;
+}
+
+/**
+ * The market list, saying whether it is Aave's full list (`complete`) or only the three main markets because
+ * Aave could not list its markets. The portfolio total marks itself partial on the latter.
+ */
+export async function loadAaveMarkets(
+	post: GraphQLPost = postAaveGraphQL,
+	now = Date.now(),
+): Promise<{ markets: AaveMarketRef[]; complete: boolean }> {
+	if (marketListCache && now - marketListCache.at < MARKET_LIST_TTL_MS) return { markets: marketListCache.markets, complete: true };
 	try {
 		const chains = await post(CHAINS_QUERY, {});
 		if (failed(chains)) throw new Error(`chains lookup failed (${chains.status})`);
@@ -148,10 +159,10 @@ export async function listAaveMarkets(post: GraphQLPost = postAaveGraphQL, now =
 		if (!list.length) throw new Error('no markets');
 
 		marketListCache = { at: now, markets: list };
-		return list;
+		return { markets: list, complete: true };
 	} catch (err) {
 		console.error('[aave/health] market list unavailable, checking the main markets only', err);
-		return MAIN_MARKETS;
+		return { markets: MAIN_MARKETS, complete: false };
 	}
 }
 
@@ -204,6 +215,24 @@ async function positionsByMarket(post: GraphQLPost, user: string, markets: AaveM
 		});
 	}));
 	return out;
+}
+
+/**
+ * Which of `markets` the wallet has a supply or borrow in (one bulk call; per market in parallel if that fails),
+ * and which could not be asked at all. Used by the portfolio total to find positions beyond the main markets.
+ */
+export async function findMarketsWithPositions(
+	address: string,
+	markets: AaveMarketRef[],
+	post: GraphQLPost = postAaveGraphQL,
+): Promise<{ active: AaveMarketRef[]; failed: AaveMarketRef[] }> {
+	if (!markets.length) return { active: [], failed: [] };
+	const positions = await positionsByMarket(post, address.toLowerCase(), markets);
+	const active = markets.filter((m) => {
+		const p = positions.get(m);
+		return p && (p.supplies.length > 0 || p.borrows.length > 0);
+	});
+	return { active, failed: markets.filter((m) => !positions.has(m)) };
 }
 
 function isZeroLike(value: unknown) {
