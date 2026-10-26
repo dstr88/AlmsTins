@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
@@ -101,7 +102,7 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
   </section>
 
   <!-- Add / Edit Tin Modal -->
-  <div class="dt-modal-overlay" id="dt-modal" style="display:none" aria-modal="true" role="dialog">
+  <dialog class="dialog-shell dialog-shell--layer dt-modal-overlay" id="dt-modal" aria-labelledby="dt-modal-title">
     <div class="dt-modal">
       <h2 id="dt-modal-title">Add Tin</h2>
       <form id="dt-modal-form">
@@ -147,12 +148,12 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
         </div>
       </form>
     </div>
-  </div>
+  </dialog>
 
   <!-- Add Splits Modal -->
-  <div class="dt-modal-overlay" id="dt-splits-modal" style="display:none" aria-modal="true" role="dialog">
+  <dialog class="dialog-shell dialog-shell--layer dt-modal-overlay" id="dt-splits-modal" aria-labelledby="dt-splits-modal-title">
     <div class="dt-modal">
-      <h2>Create Splits Tin</h2>
+      <h2 id="dt-splits-modal-title">Create Splits Tin</h2>
       <p class="dt-splits-modal-desc">A splits tin tracks shared expenses between roommates, travel partners, or anyone splitting costs.</p>
       <form id="dt-splits-form">
         <label class="dt-label">
@@ -165,10 +166,10 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
         </div>
       </form>
     </div>
-  </div>
+  </dialog>
 
   <!-- Add Entry Modal -->
-  <div class="dt-modal-overlay" id="dt-entry-modal" style="display:none" aria-modal="true" role="dialog">
+  <dialog class="dialog-shell dialog-shell--layer dt-modal-overlay" id="dt-entry-modal" aria-labelledby="dt-entry-modal-title">
     <div class="dt-modal">
       <h2 id="dt-entry-modal-title">Add Entry</h2>
       <form id="dt-entry-form">
@@ -211,7 +212,7 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
         </div>
       </form>
     </div>
-  </div>
+  </dialog>
 
   <style>
     .dt-page {
@@ -905,12 +906,9 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
     }
     .dt-add-entry-btn:hover { background: var(--accent-glow); }
 
-    /* Modal */
+    /* Modal: the <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
     .dt-modal-overlay {
-      position: fixed;
-      inset: 0;
       background: rgba(0,0,0,0.6);
-      z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1462,19 +1460,28 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
       return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // ── Modals ────────────────────────────────────────────────────────────────
+    // Native <dialog>s: showModal() gives Escape and keeps Tab inside. This inline script cannot
+    // import, so the bundled script after it adds backdrop closing and focus return.
+    function dtShowDialog(id) {
+      const d = document.getElementById(id);
+      if (d && !d.open) d.showModal();
+    }
+    function dtCloseDialog(id) {
+      document.getElementById(id)?.close();
+    }
+
     // ── Modal: Add / Edit Tin ─────────────────────────────────────────────────
     function openAddTin(type) {
       // Splits tins use a dedicated modal
       if (type === 'splits') {
-        const modal = document.getElementById('dt-splits-modal');
         const input = document.getElementById('dt-splits-name');
         input.value = '';
-        modal.style.display = 'flex';
+        dtShowDialog('dt-splits-modal');
         setTimeout(() => input.focus(), 50);
         return;
       }
 
-      const modal = document.getElementById('dt-modal');
       document.getElementById('dt-modal-id').value = '';
       document.getElementById('dt-modal-type').value = type;
       document.getElementById('dt-modal-title').textContent = type === 'debt' ? 'Add Debt Tin' : type === 'budget' ? 'Add Budget' : 'Add Business Tin';
@@ -1486,7 +1493,7 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
       document.getElementById('dt-biz-goal').value = '';
       document.querySelector('.dt-fields-debt').style.display     = type === 'debt'     ? 'flex' : 'none';
       document.querySelector('.dt-fields-business').style.display = type === 'business' ? 'flex' : 'none';
-      modal.style.display = 'flex';
+      dtShowDialog('dt-modal');
       document.getElementById('dt-modal-name').focus();
     }
 
@@ -1504,17 +1511,17 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
       document.getElementById('dt-biz-goal').value = tin.goalRevenue ?? '';
       document.querySelector('.dt-fields-debt').style.display     = tin.type === 'debt'     ? 'flex' : 'none';
       document.querySelector('.dt-fields-business').style.display = tin.type === 'business' ? 'flex' : 'none';
-      document.getElementById('dt-modal').style.display = 'flex';
+      dtShowDialog('dt-modal');
       document.getElementById('dt-modal-name').focus();
     }
 
     document.getElementById('dt-modal-cancel')?.addEventListener('click', () => {
-      document.getElementById('dt-modal').style.display = 'none';
+      dtCloseDialog('dt-modal');
     });
 
     // ── Splits modal ───────────────────────────────────────────────────────────
     document.getElementById('dt-splits-cancel')?.addEventListener('click', () => {
-      document.getElementById('dt-splits-modal').style.display = 'none';
+      dtCloseDialog('dt-splits-modal');
     });
 
     document.getElementById('dt-splits-form')?.addEventListener('submit', async e => {
@@ -1531,7 +1538,7 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
           body: JSON.stringify({ action: 'create_splits', name }),
         });
         if (res.ok) {
-          document.getElementById('dt-splits-modal').style.display = 'none';
+          dtCloseDialog('dt-splits-modal');
           window.dispatchEvent(new Event('petro-tins-changed'));
           location.reload();
         } else {
@@ -1571,14 +1578,14 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
         if (res.status === 403) {
           const data = await res.json().catch(() => ({}));
           if (data.error === 'upgrade_required') {
-            document.getElementById('dt-modal').style.display = 'none';
+            dtCloseDialog('dt-modal');
             window.location.href = '/dashboard/petro-tins/upgrade';
             return;
           }
         }
       }
 
-      document.getElementById('dt-modal').style.display = 'none';
+      dtCloseDialog('dt-modal');
       await loadTins();
       // Notify React component to refresh
       window.dispatchEvent(new Event('petro-tins-changed'));
@@ -1613,13 +1620,13 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
       const kindSel = document.getElementById('dt-entry-kind');
       kindSel.value = tinType === 'debt' ? 'payment' : 'income';
 
-      document.getElementById('dt-entry-modal').style.display = 'flex';
+      dtShowDialog('dt-entry-modal');
       document.getElementById('dt-entry-amount').focus();
     }
     window.openAddEntry = openAddEntry;
 
     document.getElementById('dt-entry-cancel')?.addEventListener('click', () => {
-      document.getElementById('dt-entry-modal').style.display = 'none';
+      dtCloseDialog('dt-entry-modal');
     });
 
     document.getElementById('dt-entry-form')?.addEventListener('submit', async e => {
@@ -1637,7 +1644,7 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
         body: JSON.stringify({ tinId, kind, amount, entryDate, description, url }),
       });
 
-      document.getElementById('dt-entry-modal').style.display = 'none';
+      dtCloseDialog('dt-entry-modal');
       await loadTins();
       window.dispatchEvent(new Event('petro-tins-changed'));
     });
@@ -1857,13 +1864,10 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
       btn.addEventListener('click', () => openAddTin(btn.dataset.addType));
     });
 
-    // ── Close modals on overlay click ──────────────────────────────────────────
+    // ── Modal keys (a click on the backdrop closes them: src/lib/nativeDialog.ts) ──
     ['dt-modal', 'dt-entry-modal', 'dt-splits-modal'].forEach(modalId => {
       const modalEl = document.getElementById(modalId);
       if (modalEl) {
-        modalEl.addEventListener('click', e => {
-          if (e.target.id === modalId) e.target.style.display = 'none';
-        });
         // Prevent backspace from closing modal when typing in inputs
         modalEl.addEventListener('keydown', e => {
           if (e.key === 'Backspace' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
@@ -1919,5 +1923,12 @@ const logoutRedirect = PETRO_TINS_PUBLIC ? '/petro-tins' : undefined;
 
     // ── Boot ───────────────────────────────────────────────────────────────────
     loadTins();
+  </script>
+
+  <script>
+    // The inline script above opens its native <dialog>s with showModal(); this adds backdrop
+    // closing and focus return (src/lib/nativeDialog.ts), which it cannot import.
+    import { wireDialogs } from '@/lib/nativeDialog';
+    wireDialogs();
   </script>
 </Layout>
