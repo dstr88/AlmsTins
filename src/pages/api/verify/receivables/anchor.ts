@@ -16,6 +16,7 @@ import { getRecordForAnchor, setRecordAnchor, type AnchorRecordKind } from '@/li
 import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
 import type { AnchorReceipt } from '@/lib/rwaProof/types';
 import { createFixedWindowLimiter } from '@/lib/rateLimit';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -25,9 +26,6 @@ export const prerender = false;
 // so upgrades get a larger budget of their own.
 const stampLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 30 });
 const upgradeLimiter = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 240 });
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const KINDS: AnchorRecordKind[] = ['receivable', 'claim', 'attestation'];
 

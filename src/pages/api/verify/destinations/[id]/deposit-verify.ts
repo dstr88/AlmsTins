@@ -18,11 +18,9 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { verifyMicroDeposit } from '@/lib/verifyRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);

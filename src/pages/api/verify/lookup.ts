@@ -23,9 +23,7 @@ import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { isEmvPayload } from '@/lib/paymentQr';
 import { displayableName } from '@/lib/verifyPublicCard';
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+import { json } from '@/lib/http';
 
 // Lightweight per-client limiter, separate from /api/wallet-check's budget. 30 req/min,
 // keyed on the Cloudflare-set client IP (an IPv6 client by its /64), bounded.

@@ -6,13 +6,11 @@ import type { APIRoute } from 'astro';
 import { verifyBundle, type PublishedKey } from '@/lib/recordProof/verify';
 import { getPublicKeyHex, getSigningKeyId } from '@/lib/recordProof/signing';
 import type { ProofBundle } from '@/lib/recordProof/buildProof';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const MAX_LEAVES = 200_000; // DoS guard
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body, null, 2), { status, headers: { 'Content-Type': 'application/json' } });
 
 function publishedKeys(): PublishedKey[] {
   const pub = getPublicKeyHex();
@@ -22,16 +20,16 @@ function publishedKeys(): PublishedKey[] {
 
 export const POST: APIRoute = async ({ request }) => {
   let body: unknown = null;
-  try { body = await request.json(); } catch { return json({ ok: false, error: 'Invalid JSON.' }, 400); }
+  try { body = await request.json(); } catch { return json({ ok: false, error: 'Invalid JSON.' }, 400, { pretty: true }); }
   const bundle = ((body as { bundle?: ProofBundle })?.bundle ?? body) as ProofBundle;
   if (!bundle || typeof bundle !== 'object' || !bundle.manifest || !Array.isArray(bundle.leaves)) {
-    return json({ ok: false, error: 'Provide a proof bundle (manifest + leaves).' }, 400);
+    return json({ ok: false, error: 'Provide a proof bundle (manifest + leaves).' }, 400, { pretty: true });
   }
-  if (bundle.leaves.length > MAX_LEAVES) return json({ ok: false, error: 'Bundle too large.' }, 413);
+  if (bundle.leaves.length > MAX_LEAVES) return json({ ok: false, error: 'Bundle too large.' }, 413, { pretty: true });
 
   const outcome = verifyBundle(bundle, publishedKeys());
-  return json({ ok: true, outcome, manifest: bundle.manifest });
+  return json({ ok: true, outcome, manifest: bundle.manifest }, 200, { pretty: true });
 };
 
 export const GET: APIRoute = () =>
-  json({ ok: false, error: 'POST a proof bundle to verify, or verify in your browser at /verify-record.' }, 405);
+  json({ ok: false, error: 'POST a proof bundle to verify, or verify in your browser at /verify-record.' }, 405, { pretty: true });

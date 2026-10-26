@@ -19,11 +19,9 @@ import {
   listConfirmRequests, listCountersignRequests, listOutstandingForTenant, listRecordRequests,
   type InviteRole,
 } from '@/lib/receivablesRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const ROLES: InviteRole[] = ['borrower', 'buyer', 'financier'];
 

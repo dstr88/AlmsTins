@@ -12,11 +12,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { connectEntity } from '@/lib/verifyEntities';
 import { canPublishEntities, entityNotApprovedResponse, ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import { WELL_KNOWN_ADDRESSES_PATH } from '@/lib/verifyProof';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);
