@@ -21,7 +21,7 @@ const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get(
 const req = token ? await readAttestRequest(token) : { ok: false as const, error: 'not_found' as const };
 
 // Milestone amounts drop trailing zeros (NGN 1,234 and NGN 1,234.5), unlike the other receivables pages.
-const money = (n: number, ccy: string) => formatMoney(n, ccy, { minDecimals: 0 });
+const money = (n: number, ccy: string) => formatMoney(n, ccy);
 
 const ERRORS: Record<string, string> = {
   not_found: 'This link is not valid. Ask whoever sent it for a new one.',

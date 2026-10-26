@@ -223,7 +223,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     }
     function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
     // Milestone amounts drop trailing zeros (NGN 1,234 and NGN 1,234.5), unlike the other receivables pages.
-    const money = (n: number, ccy: string) => formatMoney(n, ccy, { minDecimals: 0 });
+    const money = (n: number, ccy: string) => formatMoney(n, ccy);
 
     let currentProject: string | null = null;
     let currentTotal = 0;

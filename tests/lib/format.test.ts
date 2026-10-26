@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	formatDate,
@@ -67,9 +69,17 @@ describe('formatMoney (receivables)', () => {
 		expect(formatMoney(1234, 'NGN')).toBe('NGN 1,234.00');
 		expect(formatMoney(1234.567, 'USD')).toBe('USD 1,234.57');
 	});
-	it('minDecimals 0 drops trailing zeros (the milestone pages)', () => {
+	it('minDecimals 0 drops trailing zeros (registry only)', () => {
 		expect(formatMoney(1234, 'NGN', { minDecimals: 0 })).toBe('NGN 1,234');
 		expect(formatMoney(1234.5, 'NGN', { minDecimals: 0 })).toBe('NGN 1,234.5');
+	});
+	it('the milestone pages show cents like every other receivables page', () => {
+		const ROOT = path.resolve(__dirname, '../..');
+		for (const page of ['src/pages/verify/cairn.astro', 'src/pages/verify/cairn-attest.astro']) {
+			const src = readFileSync(path.join(ROOT, page), 'utf8');
+			expect(src).toMatch(/formatMoney\(n, ccy\)/);
+			expect(src).not.toMatch(/minDecimals/);
+		}
 	});
 	it('a missing amount shows 0, as the pages always have', () => {
 		expect(formatMoney(null, 'KES')).toBe('KES 0.00');
