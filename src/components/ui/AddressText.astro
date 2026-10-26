@@ -1,0 +1,24 @@
+---
+/**
+ * An address on a server-rendered page (Area 4): shortened per D4 (`0x1234ab…89abcd`,
+ * src/lib/addressDisplay.ts) with the whole address as hover text, or whole with `short={false}`
+ * wherever someone might send money to it. React islands use <Address> (./Address.tsx).
+ *
+ * Renders one element (a <span> by default, or the tag given in `as`) so the page's own class keeps
+ * styling it as before. Other attributes pass through, including the page's data-astro-cid, which
+ * its scoped styles need.
+ */
+import { shortenAddress } from '@/lib/addressDisplay';
+
+interface Props {
+	value: string;
+	short?: boolean;
+	as?: 'span' | 'code' | 'p';
+	class?: string;
+	[attr: string]: unknown;
+}
+
+const { value, short = true, as: Tag = 'span', class: className, ...rest } = Astro.props;
+const text = short ? shortenAddress(value) : value;
+---
+<Tag {...rest} class={className} title={short && text !== value ? value : undefined}>{text}</Tag>
