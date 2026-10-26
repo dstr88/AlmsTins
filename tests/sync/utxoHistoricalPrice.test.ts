@@ -9,6 +9,9 @@ import { MemoryTables, type MemRow } from '../helpers/memoryTable';
  *
  *   - A transaction from months ago gets that day's price (CoinGecko at 12:00 UTC, the import
  *     backfill's convention) and price_source names it; the balance snapshot keeps today's price.
+ *   - A day CoinGecko cannot price (older than 365 days without a Pro key, or an error) gets
+ *     Coinbase's price for that day (price_source 'coinbase:candles'); CoinGecko wins when it has
+ *     one. Days beyond CoinGecko's reach are not held to the per-sync cap.
  *   - A day with no price stores NULL, never another day's price, and no price_source.
  *   - Each day is looked up once per sync, newest first, at most MAX_PRICE_DAYS_PER_SYNC days; a
  *     second sync looks nothing up for rows already priced, and the provider's cache answers a
@@ -38,6 +41,9 @@ const state = vi.hoisted(() => ({
 	lookups: [] as Array<{ coinId: string; ts: string }>,
 	snapshots: [] as unknown[][],
 	failAll: false,
+	/** The first day CoinGecko is asked for (older days: only the fallback); default: every day. */
+	reachFrom: '2000-01-01',
+	fallbackLookups: [] as string[],
 }));
 
 vi.mock('@/lib/db', () => {
@@ -85,6 +91,16 @@ vi.mock('@/lib/coingeckoHistorical', () => ({
 		const p = DAY_PRICE[timestampUtcIso.slice(0, 10)];
 		return p ? { unitPriceUsd: p, pricedAtIso: timestampUtcIso, source: 'coingecko:range', confidence: 'historical' } : null;
 	},
+	coingeckoReaches: (iso: string) => iso.slice(0, 10) >= state.reachFrom,
+}));
+// Coinbase's candles, asked only when CoinGecko has no price (src/lib/coinbaseHistorical.ts).
+const FALLBACK_PRICE: Record<string, number> = { '2017-01-01': 1_000, '2026-06-01': 69_000 };
+vi.mock('@/lib/coinbaseHistorical', () => ({
+	COINBASE_SOURCE: 'coinbase:candles',
+	coinbaseDayUsdPrice: async (symbol: string, day: string) => {
+		state.fallbackLookups.push(`${symbol}|${day}`);
+		return symbol === 'BTC' || symbol === 'LTC' ? FALLBACK_PRICE[day] ?? null : null;
+	},
 }));
 
 const at = (iso: string) => Date.parse(iso) / 1000;
@@ -109,6 +125,8 @@ beforeEach(() => {
 	state.lookups = [];
 	state.snapshots = [];
 	state.failAll = false;
+	state.reachFrom = '2000-01-01';
+	state.fallbackLookups = [];
 	state.txs = [];
 	vi.stubGlobal('fetch', vi.fn(async (input: string) => {
 		const url = String(input);
@@ -201,6 +219,35 @@ describe('the Bitcoin sync prices each row on its own day', () => {
 	});
 });
 
+describe('days CoinGecko cannot price come from Coinbase', () => {
+	it('an old day gets the fallback price, and price_source says so', async () => {
+		state.reachFrom = '2025-10-26'; // CoinGecko's 365 days without a Pro key
+		state.txs = [receive('e1'.repeat(32), '2017-01-01T22:00:00Z', 50_000_000)];
+		await sync();
+		expect(priceOf(byTx('e1'.repeat(32)))).toEqual({ native_usd: 500, price_source: 'coinbase:candles' });
+		expect(state.fallbackLookups).toEqual(['BTC|2017-01-01']);
+	});
+
+	it('CoinGecko still wins when it has a price', async () => {
+		state.txs = [receive('e2'.repeat(32), '2026-06-01T09:00:00Z', 100_000_000)];
+		await sync();
+		expect(priceOf(byTx('e2'.repeat(32)))).toEqual({ native_usd: 70_000, price_source: 'coingecko:range' });
+		expect(state.fallbackLookups).toEqual([]);
+	});
+
+	it('days beyond CoinGecko\'s reach are not held to the per-sync cap', async () => {
+		const { MAX_PRICE_DAYS_PER_SYNC } = await import('../../src/lib/sync/utxoHistoricalPrice');
+		state.reachFrom = '2025-10-26';
+		const start = Date.parse('2016-12-01T06:00:00Z');
+		const n = MAX_PRICE_DAYS_PER_SYNC + 10;
+		state.txs = Array.from({ length: n }, (_, i) =>
+			receive((i + 1000).toString(16).padStart(64, '0'), new Date(start + i * 86_400_000).toISOString(), 1_000_000));
+		await sync();
+		expect(state.fallbackLookups).toHaveLength(n); // every old day, in one sync
+		expect(rows().filter((r) => r.price_source === 'coinbase:candles')).toHaveLength(1); // only 2017-01-01 has a price here
+	});
+});
+
 describe('utxoHistoricalPrice helpers', () => {
 	it('utcDay, usdAt and priceDays', async () => {
 		const { utcDay, usdAt, priceDays } = await import('../../src/lib/sync/utxoHistoricalPrice');
@@ -223,7 +270,8 @@ describe('utxoHistoricalPrice helpers', () => {
 		expect(await dailyUsdPrice('BTC', '2026-06-01')).toEqual({ unitPriceUsd: 70_000, source: 'coingecko:range' });
 		expect(state.lookups).toEqual([{ coinId: 'bitcoin', ts: '2026-06-01T12:00:00Z' }]);
 		expect(await dailyUsdPrice('NOPE', '2026-06-01')).toBeNull();
-		state.failAll = true;
-		expect(await dailyUsdPrice('BTC', '2026-06-01')).toBeNull();
+		state.failAll = true; // a CoinGecko error: the fallback answers, or nothing does
+		expect(await dailyUsdPrice('BTC', '2026-06-01')).toEqual({ unitPriceUsd: 69_000, source: 'coinbase:candles' });
+		expect(await dailyUsdPrice('BTC', '2026-03-14')).toBeNull();
 	});
 });

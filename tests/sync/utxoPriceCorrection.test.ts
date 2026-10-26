@@ -10,6 +10,8 @@ import { describe, expect, it, vi } from 'vitest';
  *   - prices each row at its own UTC day, one lookup per coin and day, as the sync does; a day
  *     with no price keeps the row's value and marks it price_source = 'sync_date_estimate', and a
  *     later run re-prices a marked row when it can;
+ *   - by default prices through CoinGecko, then Coinbase's candles for days CoinGecko cannot price,
+ *     so a row marked as an estimate is re-priced with price_source 'coinbase:candles';
  *   - writes one tenant in one transaction, each UPDATE naming the tenant, the value read and a
  *     NULL price_source, and rolls back the tenant if any row changed since it was read.
  *
@@ -19,6 +21,12 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/coingeckoHistorical', () => ({
 	getCoingeckoIdBySymbol: async () => { throw new Error('the tests pass their own lookup'); },
 	getUsdUnitPriceAtTimestampCoinGecko: async () => { throw new Error('the tests pass their own lookup'); },
+}));
+// The fallback behind CoinGecko (src/lib/coinbaseHistorical.ts): here CoinGecko never answers.
+const COINBASE_PRICE: Record<string, number> = { 'BTC|2017-01-01': 1_000, 'LTC|2017-01-01': 4 };
+vi.mock('@/lib/coinbaseHistorical', () => ({
+	COINBASE_SOURCE: 'coinbase:candles',
+	coinbaseDayUsdPrice: async (symbol: string, day: string) => COINBASE_PRICE[`${symbol}|${day}`] ?? null,
 }));
 
 import {
@@ -96,6 +104,7 @@ describe('planCorrections', () => {
 		});
 		expect(lookups.sort()).toEqual(['BTC|2017-01-01', 'BTC|2024-03-14', 'BTC|2024-06-01', 'LTC|2024-03-14']);
 		expect(waits).toHaveBeenCalledTimes(4);
+		expect(waits.mock.calls.map((c) => (c as unknown[]).join('|')).sort()).toEqual(lookups.sort()); // told the coin and day
 		expect(plan.changes.map((c) => [c.symbol, c.day, c.oldUsd, c.newUsd, c.source])).toEqual([
 			['BTC', '2024-03-14', 45_000, 35_000, 'coingecko:range'],
 			['LTC', '2024-03-14', 400, 360, 'coingecko:range'],
@@ -127,6 +136,30 @@ describe('planCorrections', () => {
 			['2019-01-01', SPOT, SPOT, ESTIMATE_SOURCE],
 		]);
 		expect(plan.unchanged).toBe(0);
+	});
+});
+
+describe('the default lookup reaches older days through Coinbase', () => {
+	it('re-prices rows marked as estimates, and new sync rows, with price_source coinbase:candles', async () => {
+		const { rows } = selectSyncPricedRows([
+			row({ amount: 2, timestamp_utc: '2017-01-01T09:00:00Z', price_source: ESTIMATE_SOURCE, import_batch_id: 'e1' }),
+			row({ amount: 4, source: 'litecoin', asset_symbol: 'LTC', native_usd: 400, timestamp_utc: '2017-01-01T20:00:00Z', import_batch_id: 'e2' }),
+			row({ amount: 1, timestamp_utc: '2014-06-01T09:00:00Z', import_batch_id: 'e3' }), // before Coinbase's history
+		]);
+		const plan = await planCorrections(rows); // CoinGecko (no answer here), then Coinbase
+		expect(plan.changes.map((c) => [c.symbol, c.day, c.oldUsd, c.newUsd, c.source, c.priorSource])).toEqual([
+			['BTC', '2017-01-01', 180_000, 2_000, 'coinbase:candles', ESTIMATE_SOURCE],
+			['LTC', '2017-01-01', 400, 16, 'coinbase:candles', null],
+		]);
+		expect(plan.unpriced.map((r) => r.day)).toEqual(['2014-06-01']);
+		expect(plan.marks).toHaveLength(1);
+
+		const table = [
+			{ id: plan.changes[0].id, tenant_id: 't1', native_usd: 180_000, price_source: ESTIMATE_SOURCE },
+			{ id: plan.changes[1].id, tenant_id: 't1', native_usd: 400, price_source: null },
+		];
+		await applyCorrections(fakeClient(table).client, 't1', plan.changes);
+		expect(table.map((r) => [r.native_usd, r.price_source])).toEqual([[2_000, 'coinbase:candles'], [16, 'coinbase:candles']]);
 	});
 });
 

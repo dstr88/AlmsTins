@@ -3,13 +3,15 @@
  * Uses public APIs and returns 4-decimal USD prices.
  */
 import { sanitizeSymbols } from './sanitizeSymbols';
+import { coingeckoConfig } from '@/lib/coingeckoApi';
 
 const COINGECKO_CACHE_TTL_MS = 60_000;
 const COINGECKO_MIN_INTERVAL_MS = 10_000;
 const COINGECKO_MAX_RETRIES = 3;
 const COINGECKO_BASE_BACKOFF_MS = 10_000;
 const COINGECKO_TIMEOUT_MS = 2_500;
-const COINGECKO_API_KEY = import.meta.env.COINGECKO_API_KEY;
+// Host and key header per plan (src/lib/coingeckoApi.ts); the key is only read on the server.
+const COINGECKO = coingeckoConfig(import.meta.env);
 
 const coingeckoCache = new Map<string, { expiresAt: number; payload: any }>();
 let lastCoingeckoCallAt = 0;
@@ -44,9 +46,7 @@ async function fetchCoingeckoJson(url: string) {
 			const headers: Record<string, string> = { Accept: 'application/json' };
 			if (!isBrowser) {
 				headers['User-Agent'] = 'ledgerlense/1.0';
-				if (COINGECKO_API_KEY) {
-					headers['x-cg-pro-api-key'] = COINGECKO_API_KEY;
-				}
+				Object.assign(headers, COINGECKO.headers);
 			}
 			const response = await fetch(url, { signal: controller.signal, headers });
 			clearTimeout(timer);
@@ -111,7 +111,7 @@ export async function resolveTokenIds(
 		try {
 			const url = isBrowser
 				? `/api/market/coingecko-search?query=${encodeURIComponent(query)}`
-				: `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`;
+				: `${COINGECKO.baseUrl}/search?query=${encodeURIComponent(query)}`;
 			const payload = isBrowser
 				? ((await fetch(url).then((res) => res.json())) as { coins?: Array<{ id?: string; symbol?: string }> })
 				: ((await fetchCoingeckoJson(url)) as { coins?: Array<{ id?: string; symbol?: string }> } | null);
@@ -146,7 +146,7 @@ export async function getSimpleTokenPricesById(tokens: ResolvedToken[]): Promise
 
 	const url = isBrowser
 		? `/api/market/coingecko-prices-by-id?ids=${encodeURIComponent(ids.join(','))}`
-		: `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
+		: `${COINGECKO.baseUrl}/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
 	console.debug('[coingecko] fetching prices by id', { count: ids.length });
 
 	try {
@@ -177,7 +177,7 @@ export async function getSimpleTokenPricesById(tokens: ResolvedToken[]): Promise
 export async function searchCoingecko(query: string): Promise<{ coins: Array<{ id?: string; symbol?: string }> }> {
 	const normalized = query.normalize('NFKC').trim().toUpperCase();
 	if (!isStrictSymbolCandidate(normalized)) return { coins: [] };
-	const url = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(normalized)}`;
+	const url = `${COINGECKO.baseUrl}/search?query=${encodeURIComponent(normalized)}`;
 	const payload = (await fetchCoingeckoJson(url)) as { coins?: Array<{ id?: string; symbol?: string }> } | null;
 	return { coins: payload?.coins ?? [] };
 }
@@ -185,7 +185,7 @@ export async function searchCoingecko(query: string): Promise<{ coins: Array<{ i
 export async function getSimplePricesById(ids: string[]): Promise<Record<string, { usd?: number }>> {
 	const normalized = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
 	if (!normalized.length) return {};
-	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(normalized.join(','))}&vs_currencies=usd`;
+	const url = `${COINGECKO.baseUrl}/simple/price?ids=${encodeURIComponent(normalized.join(','))}&vs_currencies=usd`;
 	const payload = (await fetchCoingeckoJson(url)) as Record<string, { usd?: number }> | null;
 	return payload ?? {};
 }
@@ -206,7 +206,7 @@ export async function getSimpleTokenPrices(symbols: string[]): Promise<Record<st
 		return {};
 	}
 
-	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
+	const url = `${COINGECKO.baseUrl}/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
 	console.debug('[coingecko] fetching prices for symbols', { count: normalized.length });
 
 	try {

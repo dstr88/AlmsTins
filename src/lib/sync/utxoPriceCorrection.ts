@@ -10,13 +10,16 @@
  *     an amount, an import batch;
  *   - a value, and either no price_source (the import price backfill and the fixed sync both set
  *     one; neither the app nor a user writes native_usd any other way) or the mark this
- *     correction leaves on a row it could not price (ESTIMATE_SOURCE), so a later run, e.g. with a
- *     COINGECKO_API_KEY that reaches older days, can still price it;
+ *     correction leaves on a row it could not price (ESTIMATE_SOURCE), so a later run can still
+ *     price it (e.g. once a price source answers for its day);
  *   - the sync's fingerprint: one sync priced its whole batch at one spot price, so every row of
  *     the batch is |amount| × that price, in cents. A row that disagrees with its batch's price is
  *     left alone and counted.
- * A row with no price for its day keeps its value and gets price_source = ESTIMATE_SOURCE, so
- * reports keep working and every figure still resting on the old sync-date price can be found.
+ * Prices come from CoinGecko, then Coinbase's public candles for the days CoinGecko cannot reach
+ * (src/lib/sync/utxoHistoricalPrice.ts); together they cover Bitcoin from 2015-07-20 and Litecoin
+ * from 2016-08-17. A row with no price for its day keeps its value and gets
+ * price_source = ESTIMATE_SOURCE, so reports keep working and every figure still resting on the old
+ * sync-date price can be found.
  * Each tenant's updates run in one transaction; every UPDATE also requires the value and the
  * price_source it read, and the transaction rolls back unless each changes exactly one row.
  */
@@ -131,11 +134,12 @@ export type Plan = {
 
 /**
  * Prices each row at its own UTC day, one lookup per coin and day. `beforeLookup` runs before
- * each lookup (the script waits there, to stay under the provider's rate limit).
+ * each lookup with its coin and day (the script waits there before a day CoinGecko is asked for,
+ * to stay under its rate limit).
  */
 export async function planCorrections(
 	rows: readonly SyncRow[],
-	opts: { lookup?: DayPriceLookup; beforeLookup?: () => Promise<void> } = {},
+	opts: { lookup?: DayPriceLookup; beforeLookup?: (symbol: string, day: string) => Promise<void> } = {},
 ): Promise<Plan> {
 	const { lookup = dailyUsdPrice, beforeLookup } = opts;
 	const prices = new Map<string, DayPrice | null>();
@@ -143,7 +147,7 @@ export async function planCorrections(
 	for (const r of rows) {
 		const key = `${r.symbol}|${r.day}`;
 		if (!prices.has(key)) {
-			if (beforeLookup) await beforeLookup();
+			if (beforeLookup) await beforeLookup(r.symbol, r.day);
 			prices.set(key, await lookup(r.symbol, r.day));
 		}
 		const p = prices.get(key);

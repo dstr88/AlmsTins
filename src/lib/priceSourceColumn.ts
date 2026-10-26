@@ -1,7 +1,9 @@
 /**
  * import_transactions.price_source: how a row's USD value was priced after the fact
- * ('coingecko:range', 'coingecko:history', 'inferred:stablecoin-peg'). NULL means the value came
- * with the row: the imported file carried it, or a chain sync stored it before it recorded a source.
+ * ('coingecko:range', 'coingecko:history', 'coinbase:candles', 'inferred:stablecoin-peg', and
+ * 'sync_date_estimate' for a sync value the price correction could not re-price). NULL means the
+ * value came with the row: the imported file carried it, or a chain sync stored it before it
+ * recorded a source.
  *
  * Not in the base schema: added lazily, once per process, before the first write that names it;
  * mirrored by migrations-pg/0045_import_price_source.sql. The schema is read first so the ALTER

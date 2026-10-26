@@ -5,6 +5,7 @@ import {
 	getUsdUnitPriceAtTimestampCoinGecko,
 } from './coingeckoHistorical';
 import { ensurePriceSourceColumn } from './priceSourceColumn';
+import { COINBASE_SOURCE, coinbaseDayUsdPrice, coinbaseProduct } from './coinbaseHistorical';
 
 const MAX_ROWS = 500;
 const STABLECOINS = new Set(['USDC', 'USDT', 'DAI', 'TUSD', 'FDUSD', 'USDP', 'GUSD', 'USDE', 'BUSD']);
@@ -78,20 +79,33 @@ export async function priceMissingImportTransactions(tenantId: string): Promise<
 				source = 'inferred:stablecoin-peg';
 			} else {
 				const coinId = coinIdMap.get(sym);
-				if (!coinId) { skipped += list.length; continue; }
-
-				try {
-					const result = await getUsdUnitPriceAtTimestampCoinGecko({
-						coinId,
-						timestampUtcIso: `${day}T12:00:00Z`,
-					});
-					if (!result || !Number.isFinite(result.unitPriceUsd) || result.unitPriceUsd <= 0) {
-						skipped += list.length; continue;
+				let result: Awaited<ReturnType<typeof getUsdUnitPriceAtTimestampCoinGecko>> = null;
+				let failed = false;
+				if (coinId) {
+					try {
+						result = await getUsdUnitPriceAtTimestampCoinGecko({
+							coinId,
+							timestampUtcIso: `${day}T12:00:00Z`,
+						});
+					} catch {
+						failed = true;
 					}
+				}
+
+				if (result && Number.isFinite(result.unitPriceUsd) && result.unitPriceUsd > 0) {
 					unitPrice = result.unitPriceUsd;
 					source    = result.source;
-				} catch {
-					skipped += list.length; errors++; continue;
+				} else {
+					// Bitcoin and Litecoin days CoinGecko can't price (older than 365 days without a
+					// Pro key): Coinbase's public candles, same day, 12:00 UTC (src/lib/coinbaseHistorical.ts).
+					const fallback = coinbaseProduct(sym) ? await coinbaseDayUsdPrice(sym, day) : null;
+					if (fallback === null) {
+						skipped += list.length;
+						if (failed) errors++;
+						continue;
+					}
+					unitPrice = fallback;
+					source    = COINBASE_SOURCE;
 				}
 			}
 
