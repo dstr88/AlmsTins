@@ -10,17 +10,11 @@ import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const GET: APIRoute = async ({ request }) => {
 	const denied = await requireTaxOwner(request); // tax documents: owner only

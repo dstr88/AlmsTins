@@ -5,6 +5,7 @@
 import type { APIRoute } from 'astro';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -21,10 +22,3 @@ export const GET: APIRoute = async ({ request }) => {
   const unread = Number((row.rows[0] as any)?.cnt ?? 0);
   return json({ ok: true, unread });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

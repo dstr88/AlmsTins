@@ -18,11 +18,9 @@
 import type { APIRoute } from 'astro';
 import { cronSecretMatches } from '@/lib/agentVault/cronAuth';
 import { defaultWatchDeps, runAllTins } from '@/lib/agentVault/watcher';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 /** The workflow gives the request ten minutes; the run stops starting work a minute before that. */
 const RUN_BUDGET_MS = 9 * 60_000;
@@ -30,15 +28,15 @@ const RUN_BUDGET_MS = 9 * 60_000;
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;
   const provided = request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
-  if (!cronSecretMatches(secret, provided)) return json({ ok: false, error: 'unauthorized' }, 401);
+  if (!cronSecretMatches(secret, provided)) return json({ ok: false, error: 'unauthorized' }, 401, { noStore: true });
 
   const started = Date.now();
   try {
     const summary = await runAllTins(defaultWatchDeps, { deadlineAt: started + RUN_BUDGET_MS });
-    return json({ ok: true, elapsed_ms: Date.now() - started, ...summary });
+    return json({ ok: true, elapsed_ms: Date.now() - started, ...summary }, 200, { noStore: true });
   } catch (err) {
     const e = err as { name?: unknown; code?: unknown } | null;
     console.error('[cron/sync-agent-wallets] run failed', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
-    return json({ ok: false, error: 'run_failed' }, 500);
+    return json({ ok: false, error: 'run_failed' }, 500, { noStore: true });
   }
 };

@@ -11,11 +11,9 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { createProject, listProjects, getProjectForOwner } from '@/lib/cairnRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await requireTenantSession(request);

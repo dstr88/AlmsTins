@@ -14,15 +14,9 @@ import { requireTaxOwner } from '@/lib/taxAuth';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 async function auth(request: Request) {
 	const sess = await requireTenantSession(request);

@@ -22,11 +22,9 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { reverifyReceivable } from '@/lib/receivablesRegistry';
 import { isVerifiedViewer } from '@/lib/receivables/server/viewerTier';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);

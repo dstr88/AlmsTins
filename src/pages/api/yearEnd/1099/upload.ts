@@ -23,15 +23,9 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { randomUUID } from 'node:crypto';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 // ── CSV parser (no dependencies) ─────────────────────────────────────────────
 function parseCsv(text: string): Array<Record<string, string>> {

@@ -18,18 +18,12 @@ import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getPromoExpiry } from '@/i18n/emails/promoExpiry';
 import { formatDate } from '@/lib/format';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const APP_BASE = process.env.AUTH_URL ?? 'https://almstins.com';
 const SENTINEL = '9999-12-31T23:59:59Z';
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 function daysUntil(isoDate: string): number {
   const ms = new Date(isoDate).getTime() - Date.now();
@@ -47,7 +41,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   if (!secret || provided !== secret) {
     console.warn('[cron/promo-expiry] Unauthorized');
-    return json({ error: 'Unauthorized' }, 401);
+    return json({ error: 'Unauthorized' }, 401, { pretty: true });
   }
 
   console.log('[cron/promo-expiry] Starting promo expiry check');
@@ -138,5 +132,5 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   console.log(`[cron/promo-expiry] Done — processed ${results.length} warning(s)`);
-  return json({ ok: true, checked: rows.length, sent: results.filter(r => r.sent).length, results });
+  return json({ ok: true, checked: rows.length, sent: results.filter(r => r.sent).length, results }, 200, { pretty: true });
 };

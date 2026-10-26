@@ -19,6 +19,7 @@ import { db } from '@/lib/db';
 import { findMailboxForAdmin } from '@/lib/mailboxes';
 import { sendFromMailbox } from '@/lib/mailSync';
 import { ensureMailTables } from '@/lib/mailTables';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -27,13 +28,6 @@ const MAX_LIMIT = 200;
 /** Same ceiling the support inbox uses. Long enough for real mail, short of abuse. */
 const MAX_BODY = 10_000;
 const MAX_SUBJECT = 300;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 /** Resolves the admin, or returns the Response to send back. */
 async function admin(request: Request): Promise<{ userId: string; email: string } | Response> {

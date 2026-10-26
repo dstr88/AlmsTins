@@ -11,11 +11,9 @@ import { getStoredRecord, getLatestRecordId, getLatestRoot, persistRecordProof }
 import { buildRecordProof, PROOF_FORMAT, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body, null, 2), { status, headers: { 'Content-Type': 'application/json', ...extra } });
 
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
@@ -24,7 +22,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const plan = await getActivePlan(tenantId);
   if (!canDownloadYearSummaryPdf(plan.id, tenantId)) {
-    return json({ error: 'The verification bundle comes with the Year Summary PDF, on the Unlimited plan.', planRequired: 'unlimited' }, 403);
+    return json({ error: 'The verification bundle comes with the Year Summary PDF, on the Unlimited plan.', planRequired: 'unlimited' }, 403, { pretty: true });
   }
 
   const url = new URL(request.url);
@@ -33,7 +31,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (!recordId && yearParam) {
     const year = Number(yearParam);
     if (!Number.isFinite(year) || year < 2015 || year > new Date().getFullYear() + 1) {
-      return json({ error: 'Invalid year.' }, 400);
+      return json({ error: 'Invalid year.' }, 400, { pretty: true });
     }
     recordId = await getLatestRecordId(tenantId, year);
     if (!recordId) {
@@ -44,13 +42,13 @@ export const GET: APIRoute = async ({ request }) => {
       const prevRoot = await getLatestRoot(tenantId, year).catch(() => null);
       const fresh = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
       await persistRecordProof(tenantId, fresh).catch((e) => console.error('[proof-bundle] persist failed', e));
-      return json(fresh, 200, { 'Content-Disposition': `attachment; filename="almstins-${year}-proof.json"` });
+      return json(fresh, 200, { pretty: true, headers: { 'Content-Disposition': `attachment; filename="almstins-${year}-proof.json"` } });
     }
   }
-  if (!recordId) return json({ error: 'Provide ?year= or ?id=.' }, 400);
+  if (!recordId) return json({ error: 'Provide ?year= or ?id=.' }, 400, { pretty: true });
 
   const rec = await getStoredRecord(tenantId, recordId);
-  if (!rec) return json({ error: 'Record not found.' }, 404);
+  if (!rec) return json({ error: 'Record not found.' }, 404, { pretty: true });
 
   const bundle: ProofBundle = {
     manifest: rec.manifest,
@@ -63,6 +61,7 @@ export const GET: APIRoute = async ({ request }) => {
   };
 
   return json(bundle, 200, {
-    'Content-Disposition': `attachment; filename="almstins-${rec.manifest.period}-proof.json"`,
+    pretty: true,
+    headers: { 'Content-Disposition': `attachment; filename="almstins-${rec.manifest.period}-proof.json"` },
   });
 };

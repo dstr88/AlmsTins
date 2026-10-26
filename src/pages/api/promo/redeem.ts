@@ -20,6 +20,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { PLANS, type PlanId } from '@/lib/subscriptions';
 import { randomUUID } from 'node:crypto';
+import { json } from '@/lib/http';
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request).catch(() => null);
@@ -108,10 +109,3 @@ export const POST: APIRoute = async ({ request }) => {
     expiresAt: accessExpiresIso,
   }, 200);
 };
-
-function json(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

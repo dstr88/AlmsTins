@@ -25,15 +25,9 @@ import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { findMailboxForAdmin } from '@/lib/mailboxes';
 import { createMailFolder, deleteMessage, destroyMessage, moveMessage } from '@/lib/mailSync';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const POST: APIRoute = async ({ request }) => {
 	let who;

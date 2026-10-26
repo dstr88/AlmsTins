@@ -5,6 +5,7 @@ import { getLang } from '@/lib/i18n/locale';
 import { getAccountErrors } from '@/i18n/apiErrors/account';
 import { normalizeSignupEmail } from '@/lib/emailAddress';
 import { isVerifiedUser } from '@/lib/sessionGate';
+import { json } from '@/lib/http';
 
 /**
  * GET returns what verify-monitor's getOwner() would actually mail today: the explicit
@@ -77,10 +78,3 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: false, error: 'Failed to save' }, 500);
 	}
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

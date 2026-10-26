@@ -17,18 +17,12 @@ import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getPriceAlertEmail } from '@/i18n/emails/priceAlert';
 import { formatUsd } from '@/lib/format';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const RATE_LIMIT_HOURS = 4;
 const APP_BASE = process.env.AUTH_URL ?? 'https://almstins.com';
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body, null, 2), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const GET: APIRoute = async ({ request }) => {
 	// ── Auth ─────────────────────────────────────────────────────────────────
@@ -39,7 +33,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 	if (!secret || provided !== secret) {
 		console.warn('[cron/price-alerts] Unauthorized');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	const startedAt = Date.now();
@@ -77,7 +71,7 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log(`[cron/price-alerts] ${prefs.length} active alert(s)`);
 
 	if (prefs.length === 0) {
-		return json({ ok: true, elapsed_ms: Date.now() - startedAt, alerted: 0, skipped: 0, errored: 0 });
+		return json({ ok: true, elapsed_ms: Date.now() - startedAt, alerted: 0, skipped: 0, errored: 0 }, 200, { pretty: true });
 	}
 
 	// ── Fetch current prices once for all alerts ──────────────────────────────
@@ -86,7 +80,7 @@ export const GET: APIRoute = async ({ request }) => {
 		tickers = (await getTickersUSD()) as typeof tickers;
 	} catch (err) {
 		console.error('[cron/price-alerts] CoinPaprika fetch failed', err);
-		return json({ ok: false, error: 'Price feed unavailable' }, 503);
+		return json({ ok: false, error: 'Price feed unavailable' }, 503, { pretty: true });
 	}
 
 	const priceMap = new Map<string, number>();
@@ -168,5 +162,5 @@ export const GET: APIRoute = async ({ request }) => {
 	const errored  = results.filter(r => r.status.includes('error')).length;
 
 	console.log(`[cron/price-alerts] Done in ${elapsed}ms — alerted: ${alerted}, skipped: ${skipped}, errors: ${errored}`);
-	return json({ ok: true, elapsed_ms: elapsed, alerted, skipped, errored, results });
+	return json({ ok: true, elapsed_ms: elapsed, alerted, skipped, errored, results }, 200, { pretty: true });
 };

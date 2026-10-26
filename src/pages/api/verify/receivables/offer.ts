@@ -10,11 +10,9 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { createOffer, listOffers, readOfferRequest, ownsReceivable, type Recourse } from '@/lib/receivablesRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const GET: APIRoute = async ({ request, url }) => {
   const token = url.searchParams.get('t');

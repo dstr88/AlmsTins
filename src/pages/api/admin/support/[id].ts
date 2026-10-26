@@ -4,6 +4,7 @@
 import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -21,10 +22,3 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 
   return json({ ok: true });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

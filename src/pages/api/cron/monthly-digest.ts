@@ -24,6 +24,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { currentCoinSymbol } from '@/lib/chains';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -53,7 +54,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 	if (!secret || provided !== secret) {
 		console.warn('[cron/monthly-digest] Unauthorized attempt');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	// ── Determine prior calendar month ──────────────────────────────────────
@@ -374,12 +375,5 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 	}
 
-	return json({ ok: true, yearMonth, tenants: results.length, results }, 200);
+	return json({ ok: true, yearMonth, tenants: results.length, results }, 200, { pretty: true });
 };
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body, null, 2), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

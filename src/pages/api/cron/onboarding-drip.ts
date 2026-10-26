@@ -13,6 +13,7 @@ import {
 } from '@/lib/onboardingDrip';
 import { renderDrip } from '@/i18n/emails/dripTemplate';
 import { sendCampaignEmail, campaignEmailAvailable } from '@/lib/campaignEmail';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -25,13 +26,13 @@ export const GET: APIRoute = async ({ request }) => {
     request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
   if (!secret || provided !== secret) {
     console.warn('[cron/onboarding-drip] Unauthorized attempt');
-    return json({ error: 'Unauthorized' }, 401);
+    return json({ error: 'Unauthorized' }, 401, { pretty: true });
   }
 
   const startedAt = Date.now();
   if (!campaignEmailAvailable()) {
     console.warn('[cron/onboarding-drip] RESEND_API_KEY not set — nothing sent');
-    return json({ ok: false, error: 'resend_not_configured' }, 200);
+    return json({ ok: false, error: 'resend_not_configured' }, 200, { pretty: true });
   }
 
   const campaigns: Record<string, { enrolled: number; sent: number; failed: number }> = {};
@@ -69,12 +70,5 @@ export const GET: APIRoute = async ({ request }) => {
 
   const elapsed_ms = Date.now() - startedAt;
   console.log(`[cron/onboarding-drip] done in ${elapsed_ms}ms —`, campaigns);
-  return json({ ok: true, elapsed_ms, campaigns });
+  return json({ ok: true, elapsed_ms, campaigns }, 200, { pretty: true });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

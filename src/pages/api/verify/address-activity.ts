@@ -21,14 +21,9 @@
 import type { APIRoute } from 'astro';
 import { isValidAddress } from '@/lib/walletChecker';
 import { getAddressActivity, type ActivityResult } from '@/lib/addressActivity';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
 
 // Small in-memory cache — protects the explorer from repeated identical lookups
 // (the same girl's page reloading). 60s TTL; resets on restart.
@@ -38,10 +33,10 @@ const CACHE_TTL_MS = 60_000;
 export const GET: APIRoute = async ({ request, url }) => {
   const secret = import.meta.env.ADDRESS_ACTIVITY_SECRET;
   const provided = request.headers.get('x-activity-secret') ?? '';
-  if (!secret || provided !== secret) return json({ ok: false, error: 'unauthorized' }, 401);
+  if (!secret || provided !== secret) return json({ ok: false, error: 'unauthorized' }, 401, { noStore: true });
 
   const address = (url.searchParams.get('address') ?? '').trim();
-  if (!address || !isValidAddress(address)) return json({ ok: false, error: 'invalid_address' }, 400);
+  if (!address || !isValidAddress(address)) return json({ ok: false, error: 'invalid_address' }, 400, { noStore: true });
   const network = url.searchParams.get('network')?.trim() || undefined;
 
   const key = `${address.toLowerCase()}:${network ?? ''}`;
@@ -57,7 +52,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   if (!result.ok) {
     const status = result.reason === 'unsupported' ? 422 : 502;
-    return json({ ok: false, error: result.reason }, status);
+    return json({ ok: false, error: result.reason }, status, { noStore: true });
   }
   return json({
     ok: true,
@@ -66,5 +61,5 @@ export const GET: APIRoute = async ({ request, url }) => {
     address,
     activity: result.activity,
     truncated: result.truncated,
-  });
+  }, 200, { noStore: true });
 };

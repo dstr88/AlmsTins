@@ -16,11 +16,9 @@ import {
   addDocument, listDocuments, readDocumentByToken, ownsReceivableRecord,
   DOC_MAX_SIZE_BYTES, DOC_ALLOWED_TYPES,
 } from '@/lib/receivablesRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url);

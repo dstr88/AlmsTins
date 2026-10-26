@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getPetroSubscription } from '@/lib/petroSubscription';
 import { randomUUID } from 'crypto';
+import { json } from '@/lib/http';
 
 const FREE_LIMITS: Record<string, number> = { debt: 1, budget: 1, business: 0 };
 
@@ -59,13 +60,6 @@ async function ensureTables() {
   // Income entries added before this migration default is_default=1; fix them to 0
   await db.execute({ sql: `UPDATE petro_tin_entries SET is_default = 0 WHERE kind = 'income' AND is_default = 1`, args: [] }).catch(() => {});
   tablesEnsured = true;
-}
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
 }
 
 /** Return YYYY-MM for a given offset from today (0 = this month, -1 = last month). */

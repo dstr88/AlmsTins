@@ -17,11 +17,9 @@ import { getSendableCairnRequest, countRecentCairnInvites } from '@/lib/cairnReg
 import { sendMail } from '@/lib/email';
 import { isVerifiedUser } from '@/lib/sessionGate';
 import { claimOutboundEmail, releaseOutboundEmail, SEND_REFUSAL_DETAIL } from '@/lib/outboundEmailQuota';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 // A working desk sends a handful a day; this only stops the thing being used as a cannon.
 const MAX_PER_HOUR = 50;

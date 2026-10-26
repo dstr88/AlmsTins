@@ -23,11 +23,9 @@ import { getSendableRequest, countRecentInvites } from '@/lib/receivablesRegistr
 import { sendMail } from '@/lib/email';
 import { isVerifiedUser } from '@/lib/sessionGate';
 import { claimOutboundEmail, releaseOutboundEmail, SEND_REFUSAL_DETAIL } from '@/lib/outboundEmailQuota';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 // A working desk sends a handful a day. This only has to stop the thing being used as a
 // cannon; it should never be reachable by legitimate use.

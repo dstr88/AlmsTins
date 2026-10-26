@@ -21,9 +21,7 @@ import type { APIRoute } from 'astro';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
 import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
 import type { AnchorReceipt } from '@/lib/rwaProof/types';
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+import { json } from '@/lib/http';
 
 // Per-client limiter — calendar submissions are cheap but external, so keep it modest.
 // Keyed on the Cloudflare-set client IP (an IPv6 client by its /64), never on Astro's

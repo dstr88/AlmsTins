@@ -19,11 +19,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { addAttestation, type AttesterRole } from '@/lib/receivablesRegistry';
 import { hasReservedPrefix } from '@/lib/receivables/attestationClass';
 import { RESERVED_PREFIX_MESSAGE } from '@/lib/receivables/copy/attest';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 // 'buyer' is deliberately excluded. It must only ever come from the token-gated
 // debtor confirmation (confirmByToken, backing /verify/authenticate), where the

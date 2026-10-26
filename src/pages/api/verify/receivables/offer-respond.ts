@@ -9,11 +9,9 @@
  */
 import type { APIRoute } from 'astro';
 import { respondToOffer } from '@/lib/receivablesRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request }) => {
   let body: any = {};

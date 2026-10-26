@@ -12,6 +12,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncUtxoAddress, utxoChainOf, UTXO_WALLET_SQL } from '@/lib/sync/syncBtcAddress';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -22,7 +23,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const provided = request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
 	if (!secret || provided !== secret) {
 		console.warn('[cron/sync-btc] Unauthorized attempt');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	const startedAt = Date.now();
@@ -92,9 +93,5 @@ export const GET: APIRoute = async ({ request }) => {
 
 	console.log(`[cron/sync-btc] Done in ${elapsed}ms — synced: ${synced}, skipped: ${skipped}, failed: ${failed}`);
 
-	return json({ ok: true, elapsed_ms: elapsed, total: wallets.length, synced, skipped, failed, results }, 200);
+	return json({ ok: true, elapsed_ms: elapsed, total: wallets.length, synced, skipped, failed, results }, 200, { pretty: true });
 };
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body, null, 2), { status, headers: { 'Content-Type': 'application/json' } });
-}

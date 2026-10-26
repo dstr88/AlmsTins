@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { json } from '@/lib/http';
 
 const DEFILLAMA_BASE = 'https://api.llama.fi';
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -90,13 +91,6 @@ export const GET: APIRoute = async () => {
 		return json({ error: true, message }, 500);
 	}
 };
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 async function fetchWithTimeout(url: string, timeoutMs: number) {
 	const controller = new AbortController();

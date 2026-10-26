@@ -26,6 +26,7 @@ import { addressNetwork } from '@/lib/addressNetwork';
 import { HistoryTooLargeError, loadHistoryRows } from '@/lib/historyRows';
 import { summarizeAddressHistory } from '@/lib/addressHistory';
 import { explorerTxUrl } from '@/lib/explorerLinks';
+import { json } from '@/lib/http';
 
 const MAX_ADDRESS_LENGTH = 128;
 /** Rows the list shows, newest first. */
@@ -33,22 +34,16 @@ export const MAX_LISTED_ROWS = 500;
 /** Rows the totals read; more is refused before any row is loaded. */
 export const MAX_ADDRESS_ROWS = 5_000;
 
-const json = (body: unknown, status: number) =>
-	new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-	});
-
 export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
-	if (!session) return json({ error: 'Unauthorized' }, 401);
+	if (!session) return json({ error: 'Unauthorized' }, 401, { noStore: true });
 	const { tenantId } = session;
 
 	const address = (new URL(request.url).searchParams.get('address') ?? '').trim();
-	if (!address || address.length > MAX_ADDRESS_LENGTH) return json({ error: 'A valid address is required.' }, 400);
+	if (!address || address.length > MAX_ADDRESS_LENGTH) return json({ error: 'A valid address is required.' }, 400, { noStore: true });
 
 	const network = addressNetwork(address);
-	if (network === null) return json({ supported: false, reason: 'not_onchain' }, 200);
+	if (network === null) return json({ supported: false, reason: 'not_onchain' }, 200, { noStore: true });
 
 	try {
 		const walletRes = await db.execute({
@@ -85,13 +80,14 @@ export const GET: APIRoute = async ({ request }) => {
 				truncated: rows.length > MAX_LISTED_ROWS,
 			},
 			200,
+			{ noStore: true },
 		);
 	} catch (err) {
 		if (err instanceof HistoryTooLargeError) {
-			return json({ supported: false, reason: 'too_many' }, 200);
+			return json({ supported: false, reason: 'too_many' }, 200, { noStore: true });
 		}
 		// Generic on purpose: the address never reaches the logs.
 		console.error('[address-history] lookup failed');
-		return json({ error: 'Could not load this history.' }, 500);
+		return json({ error: 'Could not load this history.' }, 500, { noStore: true });
 	}
 };

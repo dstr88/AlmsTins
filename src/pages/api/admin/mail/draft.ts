@@ -17,18 +17,12 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { findMailboxForAdmin } from '@/lib/mailboxes';
 import { deleteDraft, saveDraft } from '@/lib/mailSync';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const MAX_BODY = 10_000;
 const MAX_SUBJECT = 300;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 async function resolve(request: Request) {
 	const who = await requireAdminSession(request);

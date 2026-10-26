@@ -25,6 +25,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -70,13 +71,6 @@ function gradeFrom(score: number): { grade: string; label: string } {
 
 function pillarOk(label: string, detail: string, link: string): Pillar {
 	return { key: '', label, score: PILLAR_MAX, maxScore: PILLAR_MAX, status: 'ok', issueCount: 0, detail, issues: [], link };
-}
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
 }
 
 export const GET: APIRoute = async ({ request }) => {

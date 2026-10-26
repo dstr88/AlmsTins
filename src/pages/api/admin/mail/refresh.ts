@@ -15,6 +15,7 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { findMailboxForAdmin, getMailboxesForAdmin, mailConfigStatus } from '@/lib/mailboxes';
 import { pollMailbox, type PollResult } from '@/lib/mailSync';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -25,13 +26,6 @@ export const prerender = false;
  */
 const COOLDOWN_MS = 15_000;
 const lastPoll = new Map<string, number>();
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const POST: APIRoute = async ({ request }) => {
 	let who: { userId: string; email: string };

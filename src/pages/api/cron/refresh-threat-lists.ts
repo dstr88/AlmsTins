@@ -17,12 +17,9 @@ import type { APIRoute } from 'astro';
 import { refreshThreatLists } from '@/lib/threatLists';
 import { claimStaleAlerts } from '@/lib/cronHeartbeat';
 import { sendMail } from '@/lib/email';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
 
 export const GET: APIRoute = async ({ request }) => {
   const secret = import.meta.env.CRON_SECRET;

@@ -20,15 +20,9 @@ import {
   MAX_SIZE_BYTES,
 } from '@/lib/petroReceipts';
 import { randomUUID } from 'crypto';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 const DESC_MAX = 200;
 const CAT_MAX = 80;

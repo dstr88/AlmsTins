@@ -7,6 +7,7 @@ import type { APIRoute } from 'astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -71,10 +72,3 @@ export const POST: APIRoute = async ({ request }) => {
 
   return json({ ok: true, id });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

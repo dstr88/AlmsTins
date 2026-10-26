@@ -9,15 +9,9 @@ import { requireTaxOwner } from '@/lib/taxAuth';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 export const GET: APIRoute = async ({ params, request }) => {
 	const denied = await requireTaxOwner(request); // tax documents: owner only
