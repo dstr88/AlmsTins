@@ -97,14 +97,14 @@ export const GET: APIRoute = async ({ request }) => {
 			}
 		}
 
-		// ── Fetch every chain's health factor ─────────────────────────────────
+		// ── Fetch every market's health factor ────────────────────────────────
 		let healths: ChainHealth[];
 		try {
 			const res  = await fetch(
 				`${AAVE_HEALTH_BASE}/api/aave/health?address=${encodeURIComponent(address)}`,
 			);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const data = await res.json() as { ok?: boolean; chains?: Record<string, { healthFactor?: unknown }> };
+			const data = await res.json() as { ok?: boolean; chains?: Record<string, { healthFactor?: unknown; label?: unknown }> };
 			healths = chainHealths(data.chains);
 		} catch (err) {
 			console.error(`[cron/health-alerts] Failed to fetch HF for ${label}`, err);
@@ -112,7 +112,7 @@ export const GET: APIRoute = async ({ request }) => {
 			continue;
 		}
 
-		// ── Threshold check, on every chain (each Aave market has its own health factor) ──
+		// ── Threshold check, on every market (each Aave market has its own health factor) ──
 		// Any other stored direction never triggers, as before.
 		const pick = pickAlertChain(healths, threshold, direction as AlertDirection);
 
@@ -132,11 +132,10 @@ export const GET: APIRoute = async ({ request }) => {
 			continue;
 		}
 
-		// ── Send alert email, about the chain most past the threshold ─────────
+		// ── Send alert email, about the market most past the threshold ────────
 		const hf = pick.chain.healthFactor;
-		const hfChain = pick.chain.chain;
 		const hfFormatted = hf.toFixed(2);
-		const chainLabel  = hfChain.charAt(0).toUpperCase() + hfChain.slice(1);
+		const chainLabel  = pick.chain.label;  // "Polygon", "Ethereum Lido"
 		const lang        = typeof pref.lang === 'string' && isLang(pref.lang) ? pref.lang : 'en';
 		const { subject, text } = getHealthAlert(lang).render({
 			label,

@@ -474,7 +474,7 @@ const getChainBadge = (chains: string[]): string => {
 			const labelEl = tin.querySelector('[data-defi-summary-label]');
 			const valueEl = tin.querySelector('[data-defi-summary-value]');
 
-			// Aave: one health row per chain position. Show every chain's health factor in a row (a second chain's
+			// Aave: one health row per market position. Show every market's health factor in a row (a second market's
 			// health must not hide behind the first). The label keeps its server-rendered "Health".
 			const chainRows = Array.from(tin.querySelectorAll('.stat-row.health[data-chain-name]')) as HTMLElement[];
 			if (chainRows.length && valueEl instanceof HTMLElement) {

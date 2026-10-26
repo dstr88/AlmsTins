@@ -181,6 +181,9 @@ type HealthResponse = {
 		{
 			chainId?: number;
 			market?: string | null;
+			/** Aave's market name ("AaveV3EthereumLido") and its display name ("Ethereum Lido"). */
+			marketName?: string;
+			label?: string;
 			status?: string;
 			message?: string;
 			reason?: string;
@@ -215,12 +218,14 @@ type CollateralRow = {
 };
 
 /**
- * One Aave market the wallet has a position in. Each chain's market is a separate position with its own health
- * factor (Aave computes it per market), so the tin shows one bordered box per chain and never merges assets
- * across chains.
+ * One Aave market the wallet has a position in. Each market is a separate position with its own health factor
+ * (Aave computes it per market, and Ethereum alone has several: main, Lido, EtherFi, Horizon), so the tin shows
+ * one bordered box per market and never merges assets across markets. `chain` is the market's key in the health
+ * response ('polygon', 'ethereum_lido'); `label` is its display name ("Ethereum Lido").
  */
 type ChainPosition = {
 	chain: string;
+	label: string;
 	healthFactor: string | number | null;
 	totalCollateralBase: number;
 	totalDebtBase: number;
@@ -420,9 +425,9 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				}
 
 				const chainEntries = data.chains ? Object.entries(data.chains) : [];
-				// Every chain with active supplies or borrows is its own position. A wallet can have positions on
-				// Ethereum, Polygon and Avalanche at once, each with its own health factor; picking one chain would
-				// hide the others, and merging them would mix separate markets.
+				// Every market with active supplies or borrows is its own position. A wallet can have positions in
+				// several Aave markets at once (Polygon and Ethereum Lido, say), each with its own health factor;
+				// picking one would hide the others, and merging them would mix separate markets.
 				const activeChainEntries = chainEntries.filter(([, summary]) =>
 					(summary.userSupplies ?? []).length > 0 || (summary.userBorrows ?? []).length > 0
 				);
@@ -479,7 +484,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 					return { usdValue, resolvedPrice: priceFromAave ?? priceFromCached ?? priceFromOracle ?? null };
 				};
 
-				// One position per chain: its own collateral rows (merged by symbol within the chain only), debt and totals.
+				// One position per market: its own collateral rows (merged by symbol within the market only), debt and totals.
 				const positions: ChainPosition[] = activeChainEntries.map(([chain, summary]) => {
 					const collateralBreakdown = (summary.userSupplies ?? []).reduce<CollateralRow[]>((acc, entry) => {
 						const symbol = entry.currency?.symbol?.toUpperCase();
@@ -532,6 +537,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 					const debtFromState = Number(summary.totalDebtBase ?? 0);
 					return {
 						chain,
+						label: summary.label || chainDisplayName(chain),
 						healthFactor: summary.healthFactor ?? null,
 						totalCollateralBase:
 							Number.isFinite(collateralFromState) && collateralFromState > 0 ? collateralFromState : computedCollateralUsd,
@@ -696,7 +702,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 
 			{positions.length ? (
 				positions.map((p) => {
-					const chainName = chainDisplayName(p.chain);
+					const chainName = p.label;
 					const hfText = formatHealthFactor(p.healthFactor);
 					const color = healthColor(p.healthFactor);
 					return (

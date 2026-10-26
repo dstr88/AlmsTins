@@ -29,39 +29,39 @@ import { sendMail } from '@/lib/email';
 
 describe('pickAlertChain', () => {
   const two = [
-    { chain: 'ethereum', healthFactor: 3.0 },
-    { chain: 'polygon', healthFactor: 1.05 },
+    { chain: 'ethereum', label: 'Ethereum', healthFactor: 3.0 },
+    { chain: 'polygon', label: 'Polygon', healthFactor: 1.05 },
   ];
 
   it('below: finds a risky second chain behind a safe first one', () => {
     expect(pickAlertChain(two, 1.2, 'below')).toEqual({
       status: 'triggered',
-      chain: { chain: 'polygon', healthFactor: 1.05 },
+      chain: { chain: 'polygon', label: 'Polygon', healthFactor: 1.05 },
       others: [],
     });
   });
 
   it('below: with two chains past the threshold, names the lowest and lists the other', () => {
     const pick = pickAlertChain(
-      [{ chain: 'ethereum', healthFactor: 1.15 }, { chain: 'polygon', healthFactor: 1.05 }, { chain: 'avalanche', healthFactor: 4 }],
+      [{ chain: 'ethereum', label: 'Ethereum', healthFactor: 1.15 }, { chain: 'polygon', label: 'Polygon', healthFactor: 1.05 }, { chain: 'avalanche', label: 'Avalanche', healthFactor: 4 }],
       1.2,
       'below',
     );
     expect(pick).toEqual({
       status: 'triggered',
-      chain: { chain: 'polygon', healthFactor: 1.05 },
-      others: [{ chain: 'ethereum', healthFactor: 1.15 }],
+      chain: { chain: 'polygon', label: 'Polygon', healthFactor: 1.05 },
+      others: [{ chain: 'ethereum', label: 'Ethereum', healthFactor: 1.15 }],
     });
   });
 
   it('below: every chain safe is ok, reporting the closest one', () => {
-    expect(pickAlertChain(two, 1.0, 'below')).toEqual({ status: 'ok', lowest: { chain: 'polygon', healthFactor: 1.05 } });
+    expect(pickAlertChain(two, 1.0, 'below')).toEqual({ status: 'ok', lowest: { chain: 'polygon', label: 'Polygon', healthFactor: 1.05 } });
   });
 
   it('above: names the highest chain over the threshold', () => {
     expect(pickAlertChain(two, 2, 'above')).toEqual({
       status: 'triggered',
-      chain: { chain: 'ethereum', healthFactor: 3.0 },
+      chain: { chain: 'ethereum', label: 'Ethereum', healthFactor: 3.0 },
       others: [],
     });
   });
@@ -78,8 +78,18 @@ describe('pickAlertChain', () => {
       avalanche: { healthFactor: 0 },
       ethereum_v4: { healthFactor: 'x' },
       base: undefined,
-    })).toEqual([{ chain: 'ethereum', healthFactor: 2.5 }]);
+    })).toEqual([{ chain: 'ethereum', label: 'Ethereum', healthFactor: 2.5 }]);
     expect(chainHealths(undefined)).toEqual([]);
+  });
+
+  it('chainHealths uses the market label from the health response', () => {
+    expect(chainHealths({
+      ethereum_lido: { healthFactor: '1.9', label: 'Ethereum Lido' },
+      polygon: { healthFactor: 1.5 },
+    })).toEqual([
+      { chain: 'ethereum_lido', label: 'Ethereum Lido', healthFactor: 1.9 },
+      { chain: 'polygon', label: 'Polygon', healthFactor: 1.5 },
+    ]);
   });
 });
 
@@ -120,6 +130,24 @@ describe('health-alerts cron with two chains', () => {
     expect(`${mail.subject}\n${mail.text}`).toContain('Polygon');
     expect(`${mail.subject}\n${mail.text}`).toContain('1.05');
     expect(state.calls.some((s) => /UPDATE alert_preferences SET last_alerted_at/.test(s))).toBe(true);
+  });
+
+  it('names the Ethereum Lido market when it is the one past the threshold', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      chains: {
+        ethereum_lido: { healthFactor: '1.10', label: 'Ethereum Lido' },
+        polygon: { healthFactor: '1.51', label: 'Polygon' },
+      },
+    }), { status: 200 })));
+    const res = await GET({
+      request: new Request('https://app.test/api/cron/health-alerts', { headers: { 'x-cron-secret': 'test-secret' } }),
+    } as never);
+    const body = await res.json();
+    expect(body.results[0]).toMatchObject({ status: 'alerted', hf: 1.1 });
+    const mail = vi.mocked(sendMail).mock.calls[0][0] as { subject: string; text: string };
+    expect(`${mail.subject}\n${mail.text}`).toContain('Ethereum Lido');
+    expect(`${mail.subject}\n${mail.text}`).toContain('1.10');
   });
 
   it('sends nothing when every chain is above the threshold', async () => {
