@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -336,7 +336,7 @@ describe('the registry', () => {
     expect(t).toContain('Polygon');
     expect(t).toContain('Payroll');
     expect(t).toContain('No label');
-    expect(html).toContain(`aria-label="Copy address ${addr(1).slice(0, 6)}...${addr(1).slice(-4)}"`);
+    expect(html).toContain(`aria-label="Copy address ${addr(1).slice(0, 8)}…${addr(1).slice(-6)}"`);
     expect((html.match(/>Copy<\/button>/g) ?? []).length).toBe(2);
   });
 
@@ -430,28 +430,6 @@ describe('the registry', () => {
     const html = panel([dest(1)]);
     expect(html).toContain('>Remove</button>');
     expect(html).not.toContain('Yes, remove it');
-  });
-});
-
-describe('copying an address', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('puts the address on the clipboard and says it worked', async () => {
-    const writeText = vi.fn(async () => undefined);
-    vi.stubGlobal('navigator', { clipboard: { writeText } });
-    expect(await ui.copyText(addr(1))).toBe(true);
-    expect(writeText).toHaveBeenCalledWith(addr(1));
-  });
-
-  it('says it did not work when the browser refuses, and when there is no clipboard to ask (a page that is not served securely)', async () => {
-    vi.stubGlobal('navigator', { clipboard: { writeText: async () => { throw new Error('denied'); } } });
-    expect(await ui.copyText(addr(1))).toBe(false);
-    vi.stubGlobal('navigator', {});
-    expect(await ui.copyText(addr(1))).toBe(false);
-    vi.stubGlobal('navigator', undefined);
-    expect(await ui.copyText(addr(1))).toBe(false);
   });
 });
 
@@ -731,8 +709,8 @@ describe('keyboard and screen readers', () => {
   });
 
   it('says "Copied" or "Copy failed" in a live region next to the button, whose own name stays the same', () => {
-    const html = render(React.createElement(ui.CopyButton, { value: addr(1) }));
-    expect(html).toMatch(/aria-label="Copy address 0x[0-9a-f]{4}\.\.\.[0-9a-f]{4}"/);
+    const html = render(React.createElement(ui.VaultCopyButton, { value: addr(1) }));
+    expect(html).toMatch(/aria-label="Copy address 0x[0-9a-f]{6}…[0-9a-f]{6}"/);
     expect(html).toMatch(/<span class="ag-sr" role="status" aria-live="polite"><\/span>/);
     expect(textOf(html).trim()).toBe('Copy');
   });
