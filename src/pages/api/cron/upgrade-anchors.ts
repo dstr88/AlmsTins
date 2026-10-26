@@ -43,11 +43,9 @@ import { OpenTimestampsAnchor } from '@/lib/rwaProof/anchorOpenTimestamps';
 import type { AnchorReceipt } from '@/lib/rwaProof/types';
 import { anchorNow, newCronStampLimiter, CRON_STAMPS_PER_TENANT } from '@/lib/receivables/server/anchorNow';
 import { backfillWithin } from '@/lib/receivables/server/fingerprintBackfill';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const MAX_PER_RUN = 50;
 /** Records stamped per run. Each is one request to the public calendars. */

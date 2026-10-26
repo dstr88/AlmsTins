@@ -12,6 +12,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { SYNC_CRON_FALLBACK_CHAINS } from '@/lib/chains';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -24,7 +25,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 	if (!secret || provided !== secret) {
 		console.warn('[cron/sync-wallets] Unauthorized attempt');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	const startedAt = Date.now();
@@ -122,12 +123,5 @@ export const GET: APIRoute = async ({ request }) => {
 		skipped_fresh: skipped,
 		failed,
 		results,
-	}, 200);
+	}, 200, { pretty: true });
 };
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body, null, 2), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

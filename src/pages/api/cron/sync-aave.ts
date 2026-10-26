@@ -14,6 +14,7 @@ import { syncLiquidationsToImportTransactions } from '@/lib/aave/syncAaveLiquida
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
 import { EVM_ADDRESS } from '@/lib/addressFormats';
 import { AAVE_CHAIN_BY_ID, AAVE_CHAIN_IDS, AAVE_POOL_BY_CHAIN_ID } from '@/lib/chains';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -161,7 +162,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const provided = request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
 	if (!secret || provided !== secret) {
 		console.warn('[cron/sync-aave] Unauthorized attempt');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	const startedAt = Date.now();
@@ -238,9 +239,5 @@ export const GET: APIRoute = async ({ request }) => {
 
 	console.log(`[cron/sync-aave] Done in ${elapsed}ms — synced: ${synced}, skipped: ${skipped}, failed: ${failed}`);
 
-	return json({ ok: true, elapsed_ms: elapsed, total: wallets.length, synced, skipped, failed, results }, 200);
+	return json({ ok: true, elapsed_ms: elapsed, total: wallets.length, synced, skipped, failed, results }, 200, { pretty: true });
 };
-
-function json(body: unknown, status: number) {
-	return new Response(JSON.stringify(body, null, 2), { status, headers: { 'Content-Type': 'application/json' } });
-}

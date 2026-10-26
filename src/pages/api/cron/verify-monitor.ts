@@ -43,6 +43,7 @@ import {
 import { verifyDomainProof, verifyRosterDocument } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
 import { recordCronSuccess } from '@/lib/cronHeartbeat';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -56,7 +57,7 @@ export const GET: APIRoute = async ({ request }) => {
     request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
   if (!secret || provided !== secret) {
     console.warn('[cron/verify-monitor] Unauthorized attempt');
-    return json({ error: 'Unauthorized' }, 401);
+    return json({ error: 'Unauthorized' }, 401, { pretty: true });
   }
 
   const startedAt = Date.now();
@@ -217,12 +218,5 @@ export const GET: APIRoute = async ({ request }) => {
 
   const elapsed_ms = Date.now() - startedAt;
   console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant, 'watch:', watch);
-  return json({ ok: true, elapsed_ms, entity, merchant, watch });
+  return json({ ok: true, elapsed_ms, entity, merchant, watch }, 200, { pretty: true });
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

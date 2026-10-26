@@ -15,6 +15,7 @@ import { sendMail } from '@/lib/email';
 import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getHealthAlert } from '@/i18n/emails/healthAlert';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -30,7 +31,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 	if (!secret || provided !== secret) {
 		console.warn('[cron/health-alerts] Unauthorized attempt');
-		return json({ error: 'Unauthorized' }, 401);
+		return json({ error: 'Unauthorized' }, 401, { pretty: true });
 	}
 
 	const startedAt = Date.now();
@@ -181,12 +182,5 @@ export const GET: APIRoute = async ({ request }) => {
 
 	console.log(`[cron/health-alerts] Done in ${elapsed}ms — alerted: ${alerted}, skipped: ${skipped}, errors: ${errored}`);
 
-	return json({ ok: true, elapsed_ms: elapsed, alerted, skipped, errored, results });
+	return json({ ok: true, elapsed_ms: elapsed, alerted, skipped, errored, results }, 200, { pretty: true });
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body, null, 2), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
