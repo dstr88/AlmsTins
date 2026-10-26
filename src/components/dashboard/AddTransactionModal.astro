@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './AddTransactionModal.css';
 import { getLang } from '@/lib/i18n/locale';
 import { getAddTransactionModal } from '@/i18n/components/addTransactionModal';
@@ -15,7 +16,7 @@ const lang = getLang(Astro.request);
 const t = getAddTransactionModal(lang);
 ---
 
-<div class="atm-overlay is-hidden" id="add-tx-modal" role="dialog" aria-modal="true" aria-labelledby="atm-title">
+<dialog class="dialog-shell dialog-shell--layer atm-overlay" id="add-tx-modal" aria-labelledby="atm-title">
 	<div class="atm-dialog">
 		<header class="atm-header">
 			<h2 class="atm-title" id="atm-title">{t.title}</h2>
@@ -175,7 +176,7 @@ const t = getAddTransactionModal(lang);
 			<p class="atm-message" data-manual-message aria-live="polite"></p>
 		</div>
 	</div>
-</div>
+</dialog>
 
 <script is:inline define:vars={{ addTxI18n: {
 	enterHashFirst:      t.scriptEnterHashFirst,
@@ -198,8 +199,9 @@ const t = getAddTransactionModal(lang);
 	import { formatDateTime } from '@/lib/format';
 	import { getClientLang } from '@/lib/i18n/clientLang';
 	import { shortenAddress } from '@/lib/addressDisplay';
+	import { openDialog, wireDialog } from '@/lib/nativeDialog';
 	const overlay = document.getElementById('add-tx-modal');
-	if (overlay instanceof HTMLElement) {
+	if (overlay instanceof HTMLDialogElement) {
 		let currentWalletId: string | null = null;
 
 		// Strings injected by the <script is:inline define:vars> island above.
@@ -215,29 +217,25 @@ const t = getAddTransactionModal(lang);
 		} = {};
 
 		// ── Open / close ──────────────────────────────────────────────────
+		// A native <dialog> (src/lib/nativeDialog.ts): Escape and a backdrop click close it too,
+		// so the reset runs on its 'close' event, however it closed.
+		wireDialog(overlay);
 		const open = (walletId: string, walletLabel: string) => {
 			currentWalletId = walletId;
 			const nameEl = overlay.querySelector('#atm-wallet-name');
 			if (nameEl) nameEl.textContent = walletLabel;
-			overlay.classList.remove('is-hidden');
-			document.body.style.overflow = 'hidden';
+			openDialog(overlay);
 		};
 
-		const close = () => {
-			overlay.classList.add('is-hidden');
-			document.body.style.overflow = '';
+		const close = () => overlay.close();
+
+		overlay.addEventListener('close', () => {
 			currentWalletId = null;
 			hashPrefillData = {};
 			resetMessages();
-		};
+		});
 
 		overlay.querySelector('#atm-close')?.addEventListener('click', close);
-		overlay.addEventListener('click', (e) => {
-			if (e.target === overlay) close();
-		});
-		document.addEventListener('keydown', (e) => {
-			if (e.key === 'Escape' && !overlay.classList.contains('is-hidden')) close();
-		});
 
 		// Listen for open events from CustomWalletCard buttons
 		document.addEventListener('open-add-tx', (e: Event) => {
