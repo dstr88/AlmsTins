@@ -26,18 +26,13 @@ import {
   type Chain,
 } from '@/lib/walletChecker';
 import { recordCheck } from '@/lib/checkLog';
+import { json } from '@/lib/http';
 
 // Short chain labels for the check counter (check_log.chain). evm/btc/sol/unknown are the
 // labels already stored; the rest are new.
 const ANALYTICS_CHAIN: Record<Chain, string> = {
   evm: 'evm', sui: 'sui', solana: 'sol', bitcoin: 'btc', litecoin: 'ltc', tron: 'trx', unknown: 'unknown',
 };
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   // ── Parse body ──────────────────────────────────────────────────────────────

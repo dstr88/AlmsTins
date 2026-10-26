@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getResearchErrors } from '@/i18n/apiErrors/research';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -65,13 +66,6 @@ const KNOWN_EXCHANGES: Record<string, string> = {
   // MEXC
   '0x75e89d5979e4f6fba9f97c104f2f4ccd700a6be6': 'MEXC',
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);

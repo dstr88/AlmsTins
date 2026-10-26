@@ -12,6 +12,7 @@
 import type { APIRoute } from 'astro';
 import { inflateRawSync } from 'node:zlib';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { json } from '@/lib/http';
 
 // ── ZIP extraction (Snowtrace wraps its CSV in a deflate ZIP) ────────────────
 function extractCsvFromZip(buf: Buffer): string | null {
@@ -168,10 +169,3 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'Detection failed.' }, 500);
   }
 };
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

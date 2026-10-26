@@ -24,6 +24,7 @@ import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { isSpamToken } from '@/lib/knownContracts';
 import { currentCoinSymbol } from '@/lib/chains';
+import { json } from '@/lib/http';
 
 // Keep WBTC/WETH as-is (they match on-chain snapshot symbols).
 // Only unwrap wrappers that differ between Aave and Alchemy naming.
@@ -61,13 +62,6 @@ type ReconciliationPayload = {
 /** The threshold hides small holdings, never a holding whose value is unknown. */
 const isVisible = (item: ReconciliationItem, threshold: number) =>
 	item.snapValueUsd >= threshold || item.valueUnpriced === true;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 /** Round to 8 decimal places to avoid IEEE-754 false mismatches. */
 const round8 = (n: number) => Math.round(n * 1e8) / 1e8;

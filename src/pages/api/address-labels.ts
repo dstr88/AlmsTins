@@ -3,15 +3,9 @@ import { db } from '../../lib/db';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { canonicalAddress } from '../../lib/wallets-service';
 import { normalizeLabelCategory } from '../../lib/addressLabelCategory';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 // GET  /api/address-labels  — list all user-created labels for this tenant
 export const GET: APIRoute = async ({ request }) => {

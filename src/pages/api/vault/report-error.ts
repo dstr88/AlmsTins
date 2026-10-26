@@ -10,6 +10,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { sendMail } from '@/lib/email';
 import { db } from '@/lib/db';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -131,10 +132,3 @@ export const POST: APIRoute = async ({ request }) => {
 	console.log(`[vault/report-error] owner alert for wallet …${walletId.slice(-5)}, ref ${refCode}`);
 	return json({ ok: true, reported: true, refCode });
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}

@@ -32,6 +32,7 @@ import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { isSpamToken } from '@/lib/knownContracts';
 import { currentCoinSymbol } from '@/lib/chains';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -61,13 +62,6 @@ interface AssetRow {
 	lastAcquiredAt:  string | null;
 	priceSource:     'snapshot' | 'aave' | 'none';
 	isCollateral:    boolean;   // true when any quantity comes from Aave supply
-}
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
 }
 
 export const GET: APIRoute = async ({ request }) => {

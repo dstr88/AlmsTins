@@ -12,6 +12,7 @@ import {
 	removeWalletIdentity,
 	writeWalletOwnerLabel,
 } from '@/lib/walletOwnerLabel';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
@@ -213,13 +214,6 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 		return responseWithError('Unable to delete wallet.', 500);
 	}
 };
-
-function json(body: unknown, status = 200) {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	});
-}
 
 function responseWithError(message: string, status = 400) {
 	return new Response(JSON.stringify({ error: true, message }), {
