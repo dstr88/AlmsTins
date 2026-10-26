@@ -8,15 +8,9 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { randomUUID } from 'crypto';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 async function ensureTable() {
   await db.execute({ sql: `CREATE TABLE IF NOT EXISTS petro_shared_cc (

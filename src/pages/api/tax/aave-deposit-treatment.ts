@@ -12,11 +12,9 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireTaxOwner } from '@/lib/taxAuth';
 import { setAaveDepositTax, type AaveDepositTax } from '@/lib/jurisdictionProfile';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const VALID: readonly AaveDepositTax[] = ['tax_event', 'undecided', 'not_tax_event'];
 
