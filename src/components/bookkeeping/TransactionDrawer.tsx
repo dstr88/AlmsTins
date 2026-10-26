@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { explorerAddressUrl, explorerName, explorerTxUrl } from '@/lib/explorerLinks';
+import { shortenAddress } from '@/lib/addressDisplay';
+import { Address } from '@/components/ui/Address';
+import { CopyButton } from '@/components/ui/CopyButton';
 import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
 import { getClientLang } from '@/lib/i18n/clientLang';
 
@@ -53,32 +56,8 @@ function fQty(v: number | null): string {
   return Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
 
-function truncateHash(hash: string): string {
-  if (hash.length <= 16) return hash;
-  return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      title="Copy to clipboard"
-      style={{
-        background: 'none', border: 'none', cursor: 'pointer',
-        padding: '0 0.15rem', color: copied ? 'var(--gain)' : 'var(--text-muted)',
-        fontSize: '0.85rem', lineHeight: 1, transition: 'color 0.15s',
-      }}
-    >
-      {copied ? '✓' : '⧉'}
-    </button>
-  );
-}
+// The drawer's copy icons are a touch larger than the shared default.
+const COPY_ICON: React.CSSProperties = { padding: '0 0.15rem', fontSize: '0.85rem' };
 
 // The explorer page of a hash on its chain: a transaction, else an address. Null when the chain is
 // unknown or the hash does not have that chain's shape (a Sui address and an EVM transaction hash
@@ -89,29 +68,15 @@ function explorerUrl(chain: string | null, hash: string): string | null {
 
 // The whole address, linked to its chain's explorer; with no safe link, plain text and a copy button.
 function FullAddress({ chain, address }: { chain: string | null; address: string }) {
-  const url = explorerAddressUrl(chain, address);
-  const style: React.CSSProperties = { fontFamily: 'monospace', fontSize: '0.68rem', wordBreak: 'break-all' };
-  return url ? (
-    <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...style, color: 'var(--accent)', textDecoration: 'none' }}>
-      {address} ↗
-    </a>
-  ) : (
-    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-      <span style={{ ...style, color: 'var(--text-muted)' }}>{address}</span>
-      <CopyButton text={address} />
-    </span>
-  );
-}
-
-// An address on its chain's explorer, or the truncated text alone when there is no safe link.
-function AddressLink({ chain, address, style }: { chain: string | null | undefined; address: string; style: React.CSSProperties }) {
-  const url = explorerAddressUrl(chain, address);
-  return url ? (
-    <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...style, textDecoration: 'none' }}>
-      {truncateHash(address)} ↗
-    </a>
-  ) : (
-    <span style={{ ...style, color: 'var(--text-muted)' }}>{truncateHash(address)}</span>
+  return (
+    <Address
+      value={address}
+      chain={chain}
+      short={false}
+      copy={!explorerAddressUrl(chain, address)}
+      style={{ fontSize: '0.68rem' }}
+      copyStyle={COPY_ICON}
+    />
   );
 }
 
@@ -636,7 +601,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   {sorted.map((evt, idx) => {
                     const isLast = idx === sorted.length - 1;
                     const isLastOutEvt = evt === lastOut;
-                    const walletName = evt.wallet_label || (evt.wallet_address ? truncateHash(evt.wallet_address) : null);
+                    const walletName = evt.wallet_label || (evt.wallet_address ? shortenAddress(evt.wallet_address) : null);
                     const destAddr = evt.to_address;
                     const destLabel = (trailLabelSaved && isLastOutEvt) ? trailLabelText : (evt.to_label ?? null);
                     const destInBook = !!destLabel;
@@ -685,7 +650,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                               Wallet: <span style={{ fontWeight: 700 }}>{walletName}</span>
                               {evt.wallet_address && (
                                 <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', opacity: 0.45, marginLeft: '0.35rem' }}>
-                                  ({truncateHash(evt.wallet_address)})
+                                  ({shortenAddress(evt.wallet_address)})
                                 </span>
                               )}
                             </div>
@@ -1122,8 +1087,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   )}
                   {txHash && !txExplorerUrl && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontFamily: 'monospace', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                      {truncateHash(txHash)}
-                      <CopyButton text={txHash} />
+                      {shortenAddress(txHash)}
+                      <CopyButton value={txHash} kind="value" variant="icon" style={COPY_ICON} />
                     </span>
                   )}
                   <a href={dexscreenerUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
@@ -1509,16 +1474,15 @@ function AddrRow({
       {addressLabel && (
         <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{addressLabel}</span>
       )}
-      <AddressLink
+      <Address
+        value={address}
         chain={chain}
-        address={address}
         style={{
           color: addressLabel ? 'var(--accent-dim)' : 'var(--accent)',
-          fontFamily: 'monospace',
           fontSize: addressLabel ? '0.66rem' : '0.73rem',
         }}
+        copyStyle={COPY_ICON}
       />
-      <CopyButton text={address} />
     </span>
   );
 }
@@ -1533,7 +1497,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
   const fromIsMe = myAddr && evt.from_address?.toLowerCase() === myAddr;
   const toIsMe   = myAddr && evt.to_address?.toLowerCase()   === myAddr;
 
-  const walletName = evt.wallet_label || (evt.wallet_address ? truncateHash(evt.wallet_address) : null);
+  const walletName = evt.wallet_label || (evt.wallet_address ? shortenAddress(evt.wallet_address) : null);
   const counterparty = isIn ? evt.from_address : evt.to_address;
   const myWalletAddr = isIn ? evt.to_address : evt.from_address;
   const txUrl = evt.tx_hash ? explorerUrl(evt.chain, evt.tx_hash) : null;
@@ -1581,8 +1545,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
               {walletName && (
                 <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: '0.2rem' }}>{walletName}</span>
               )}
-              <AddressLink chain={evt.chain} address={myWalletAddr} style={{ color: 'var(--accent)', fontFamily: 'monospace' }} />
-              <CopyButton text={myWalletAddr} />
+              <Address value={myWalletAddr} chain={evt.chain} style={{ color: 'var(--accent)' }} copyStyle={COPY_ICON} />
             </span>
           )}
           {counterparty && (
@@ -1608,12 +1571,12 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
           {txUrl ? (
             <a href={txUrl} target="_blank" rel="noopener noreferrer"
               style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
-              {truncateHash(evt.tx_hash)} ↗
+              {shortenAddress(evt.tx_hash)} ↗
             </a>
           ) : (
-            <span style={{ opacity: 0.4, fontFamily: 'monospace' }}>{truncateHash(evt.tx_hash)}</span>
+            <span style={{ opacity: 0.4, fontFamily: 'monospace' }}>{shortenAddress(evt.tx_hash)}</span>
           )}
-          <CopyButton text={evt.tx_hash} />
+          <CopyButton value={evt.tx_hash} kind="value" variant="icon" style={COPY_ICON} />
         </span>
       )}
     </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTransactionsTable } from '@/i18n/components/transactionsTable';
 import { formatDateTime } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 type TransactionWithAnnotation = {
 	id: string;
@@ -140,9 +141,6 @@ export default function TransactionsTable({ walletId }: Props) {
 
 	const formatDate = (iso: string) => formatDateTime(iso, lang, { style: 'numeric', seconds: true });
 
-	const shorten = (addr: string | null) =>
-		addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
-
 	function renderFlags(tx: TransactionWithAnnotation) {
 		const tags = tx.riskTags ?? [];
 		if (!tags.length) return t.flagsNone;
@@ -229,9 +227,9 @@ export default function TransactionsTable({ walletId }: Props) {
 								)}
 							</td>
 							<td className="py-1 pr-4">
-								<div>{shorten(tx.fromAddress)}</div>
+								<div>{shortenAddress(tx.fromAddress)}</div>
 								<div className="text-xs text-gray-500">↓</div>
-								<div>{shorten(tx.toAddress)}</div>
+								<div>{shortenAddress(tx.toAddress)}</div>
 							</td>
 							<td className="px-3 py-2 text-right font-mono text-sm whitespace-nowrap">
 								{formatTokenAmount(tx.value, tx.tokenDecimals)} {tx.tokenSymbol ?? ''}

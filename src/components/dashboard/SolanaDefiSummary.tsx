@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getSolanaDefiSummary } from '@/i18n/components/solanaDefiSummary';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 console.log('[island.mount]', 'SolanaDefiSummary');
 
@@ -76,7 +77,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 						{unnamed.map((p) => (
 							<div className="stat-row" key={p.programId}>
 								<span className="label" style={{ fontFamily: 'monospace', fontSize: '0.75em', color: 'var(--text-secondary)' }}>
-									{p.programId.slice(0, 8)}…{p.programId.slice(-4)}
+									{shortenAddress(p.programId)}
 								</span>
 							</div>
 						))}

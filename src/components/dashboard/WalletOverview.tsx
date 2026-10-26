@@ -4,6 +4,8 @@ import { getWalletOverview } from '@/i18n/components/walletOverview';
 import { getOwnerLabel } from '@/i18n/components/ownerLabel';
 import { EVM_ADDRESS, SUI_ADDRESS } from '@/lib/addressFormats';
 import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '@/lib/chains';
+import { shortenAddress } from '@/lib/addressDisplay';
+import { CopyButton } from '@/components/ui/CopyButton';
 
 // The same limit the server applies (src/lib/walletOwnerLabel.ts OWNER_LABEL_MAX).
 const OWNER_LABEL_MAX = 60;
@@ -46,11 +48,6 @@ function detectChainLabel(address: string): { label: string; icon: string } {
 	return { label: 'Wallet', icon: '◈' };
 }
 
-function truncateAddress(addr: string): string {
-	if (addr.length <= 20) return addr;
-	return `${addr.slice(0, 10)}…${addr.slice(-8)}`;
-}
-
 // ── Vibrant card accent palette ────────────────────────────────────────────────
 const PALETTE = [
 	{ accent: 'var(--accent)', glow: 'var(--accent-glow)', soft: 'var(--accent-soft)' }, // coral salmon
@@ -75,35 +72,6 @@ const inputStyle: React.CSSProperties = {
 	transition: 'border-color 0.15s',
 	boxSizing: 'border-box' as const,
 };
-
-function CopyButton({ text, title }: { text: string; title: string }) {
-	const [copied, setCopied] = useState(false);
-	return (
-		<button
-			type="button"
-			onClick={() => {
-				navigator.clipboard.writeText(text).then(() => {
-					setCopied(true);
-					setTimeout(() => setCopied(false), 1500);
-				});
-			}}
-			title={title}
-			style={{
-				background: 'none',
-				border: 'none',
-				cursor: 'pointer',
-				padding: '0 0.2rem',
-				color: copied ? 'var(--gain)' : 'var(--text-muted)',
-				fontSize: '0.8rem',
-				lineHeight: 1,
-				transition: 'color 0.15s',
-				flexShrink: 0,
-			}}
-		>
-			{copied ? '✓' : '⧉'}
-		</button>
-	);
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function WalletOverview({ wallets: initialWallets }: Props) {
@@ -392,9 +360,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 										textOverflow: 'ellipsis',
 										whiteSpace: 'nowrap',
 									}}>
-										{truncateAddress(wallet.address)}
+										{shortenAddress(wallet.address)}
 									</span>
-									<CopyButton text={wallet.address} title={t.copyAddressTitle} />
+									<CopyButton value={wallet.address} variant="icon" />
 								</div>
 
 								{/* Actions */}

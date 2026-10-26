@@ -508,12 +508,6 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 		walletCreatedAt && Number.isFinite(Date.parse(walletCreatedAt))
 			? Math.max(0, Math.floor((Date.now() - Date.parse(walletCreatedAt)) / (1000 * 60 * 60 * 24)))
 			: null;
-	const shortenedAddress =
-		walletData?.address
-			? `${walletData.address.slice(0, 8).toUpperCase()}...${walletData.address
-					.slice(-6)
-					.toUpperCase()}`
-			: null;
 	const buildChainGroups = (tokens: any[]) => {
 		const sorted = tokens.sort((a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1));
 		const groups = new Map<string, any[]>();

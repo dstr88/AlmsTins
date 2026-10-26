@@ -61,9 +61,6 @@ export interface AddressLabelsLocale {
   // Empty state
   emptyState: string;
 
-  // Copy button
-  copyTitle: string;
-
   // Source badge for auto-labeled addresses
   sourceCommunity: string;
 
@@ -200,7 +197,6 @@ export const en: AddressLabelsLocale = {
 
   emptyState: 'No address labels yet.',
 
-  copyTitle: 'Copy address',
 
   sourceCommunity: 'automatic',
 
@@ -321,7 +317,6 @@ export const es: AddressLabelsLocale = {
 
   emptyState: "Aún no hay etiquetas de direcciones.",
 
-  copyTitle: "Copiar dirección",
 
   sourceCommunity: "automática",
 
@@ -442,7 +437,6 @@ export const fr: AddressLabelsLocale = {
 
   emptyState: "Aucun libellé d'adresse pour l'instant.",
 
-  copyTitle: "Copier l'adresse",
 
   sourceCommunity: "automatique",
 
