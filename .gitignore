@@ -59,3 +59,6 @@ MARKETING-READINESS-PLAN.md
 # leak-scan private patterns — real names, NEVER commit
 .scan-patterns
 .scan-patterns.local
+
+# Report golden test: a changed file is written next to its copy for diffing
+tests/format/__golden__/*.actual

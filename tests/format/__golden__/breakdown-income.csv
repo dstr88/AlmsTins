@@ -1,0 +1,7 @@
+attachment; filename="almstins-2024-income.csv"
+"Income — Interest, Staking & Rewards — 2024"
+"Generated: October 20, 2026"
+
+Asset,Amount,USD Value,Date,Type,Description
+ETH,0.0123,$41.07,"Aug 1, 2024",staking,Staking reward
+USDC,25,,"Feb 29, 2024",referral,
