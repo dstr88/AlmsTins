@@ -9,11 +9,9 @@
  */
 import type { APIRoute } from 'astro';
 import { confirmRecordByToken, readRecordRequest, type RecordOutcome } from '@/lib/receivablesRegistry';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const GET: APIRoute = async ({ url }) => {
   const token = url.searchParams.get('t') ?? '';

@@ -12,11 +12,9 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getCachedRoster } from '@/lib/verifyRegistry';
 import { normalizeProofDomain } from '@/lib/verifyProof';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await requireTenantSession(request);

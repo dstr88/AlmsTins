@@ -19,11 +19,9 @@ import {
   CAIRN_DOC_MAX_SIZE_BYTES, CAIRN_DOC_ALLOWED_TYPES,
 } from '@/lib/cairnRegistry';
 import { db } from '@/lib/db';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const fileResponse = (found: { meta: { mimeType: string; filename: string }; data: Buffer }) =>
   new Response(new Uint8Array(found.data), {

@@ -53,6 +53,7 @@ import { displayableName } from '@/lib/verifyPublicCard';
 import { isEmvPayload } from '@/lib/paymentQr';
 import { authenticateAgentKey } from '@/lib/agentKeys';
 import type { VaultBlock } from '@/lib/agentVault/checkLog';
+import { json } from '@/lib/http';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -60,8 +61,6 @@ const HEADERS = {
   // Public read-only API: browser-based agents and demos may call cross-origin.
   'Access-Control-Allow-Origin': '*',
 };
-const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { ...HEADERS, ...extra } });
 
 // Own budget, separate from /lookup's — an agent hammering the check must not starve
 // the badge lookups (or vice versa). Anonymous callers get a per-IP budget; a
@@ -96,22 +95,22 @@ function domainMatches(proving: string, expect: string): boolean {
 
 export const GET: APIRoute = async ({ request, url }) => {
   const raw = (url.searchParams.get('value') ?? url.searchParams.get('address') ?? '').trim();
-  if (!raw) return json({ ok: false, error: 'value is required' }, 400);
+  if (!raw) return json({ ok: false, error: 'value is required' }, 400, { headers: HEADERS });
 
   // Same input discrimination as /lookup: a payment link / EMV / UPI payload vs a
   // crypto address, with the same bounds.
   const isQrValue = /^https?:\/\//i.test(raw) || /^upi:\/\//i.test(raw) || isEmvPayload(raw);
   if (isQrValue) {
-    if (raw.length > 1024) return json({ ok: false, error: 'value too long' }, 400);
+    if (raw.length > 1024) return json({ ok: false, error: 'value too long' }, 400, { headers: HEADERS });
   } else {
-    if (raw.length > 128) return json({ ok: false, error: 'value too long' }, 400);
-    if (!isValidAddress(raw)) return json({ ok: false, error: 'invalid address format' }, 400);
+    if (raw.length > 128) return json({ ok: false, error: 'value too long' }, 400, { headers: HEADERS });
+    if (!isValidAddress(raw)) return json({ ok: false, error: 'invalid address format' }, 400, { headers: HEADERS });
   }
 
   const expectRaw = url.searchParams.get('expect');
   const expect = expectRaw != null && expectRaw.trim() !== '' ? normDomain(expectRaw) : null;
   if (expectRaw != null && expectRaw.trim() !== '' && !expect) {
-    return json({ ok: false, error: 'expect must be a domain' }, 400);
+    return json({ ok: false, error: 'expect must be a domain' }, 400, { headers: HEADERS });
   }
 
   // A presented key must be valid — a dead or malformed key gets 401, never a silent
@@ -121,13 +120,13 @@ export const GET: APIRoute = async ({ request, url }) => {
   let keyId: string | null = null;
   if (bearer) {
     const key = await authenticateAgentKey(bearer);
-    if (!key) return json({ ok: false, error: 'invalid key' }, 401);
+    if (!key) return json({ ok: false, error: 'invalid key' }, 401, { headers: HEADERS });
     keyId = key.id;
   }
 
   const limited = keyId ? keyedLimiter.hit(`k:${keyId}`) : anonLimiter.hit(clientIpKey(request));
   if (limited) {
-    return json({ ok: false, error: 'rate limited' }, 429, { 'Retry-After': '60' });
+    return json({ ok: false, error: 'rate limited' }, 429, { headers: { ...HEADERS, 'Retry-After': '60' } });
   }
 
   let hit;
@@ -135,7 +134,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     hit = isQrValue ? await lookupVerifiedUrl(raw) : await lookupVerifiedAddress(raw);
   } catch (err) {
     console.error('[verify-check] error:', err instanceof Error ? err.message : err);
-    return json({ ok: false, error: 'check unavailable' }, 503, { 'Retry-After': '30' });
+    return json({ ok: false, error: 'check unavailable' }, 503, { headers: { ...HEADERS, 'Retry-After': '30' } });
   }
 
   // The domain that actually vouches for this destination right now, never the account's
@@ -195,7 +194,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     proofAgeDays,
     checkedAt: checkedAt.toISOString(),
     ...(vault ? { vault } : {}),
-  });
+  }, 200, { headers: HEADERS });
 };
 
 // CORS preflight (Authorization header in slice 2 will trigger these).
@@ -210,5 +209,5 @@ export const OPTIONS: APIRoute = () =>
     },
   });
 
-export const POST: APIRoute = () => json({ ok: false, error: 'method not allowed' }, 405);
-export const PUT: APIRoute = () => json({ ok: false, error: 'method not allowed' }, 405);
+export const POST: APIRoute = () => json({ ok: false, error: 'method not allowed' }, 405, { headers: HEADERS });
+export const PUT: APIRoute = () => json({ ok: false, error: 'method not allowed' }, 405, { headers: HEADERS });

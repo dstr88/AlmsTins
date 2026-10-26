@@ -20,11 +20,9 @@ import { isVerifiedViewer } from '@/lib/receivables/server/viewerTier';
 import { kickFingerprintBackfill } from '@/lib/receivables/server/fingerprintBackfill';
 import { createFixedWindowLimiter, clientIpKey } from '@/lib/rateLimit';
 import { admitByKey } from '@/lib/http/publicApi';
+import { json } from '@/lib/http';
 
 export const prerender = false;
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const HOUR_MS = 3_600_000;
 const tenantLimiter = createFixedWindowLimiter({ windowMs: HOUR_MS, max: 120 });

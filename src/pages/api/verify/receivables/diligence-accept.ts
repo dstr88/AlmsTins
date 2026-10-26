@@ -20,13 +20,11 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { acceptDiligence, type DiligenceMethod } from '@/lib/receivablesRegistry';
 import { anchorNow, evidenceStampLimiter } from '@/lib/receivables/server/anchorNow';
+import { json } from '@/lib/http';
 
 export const prerender = false;
 
 const METHODS: DiligenceMethod[] = ['phone', 'relationship', 'correspondence', 'other'];
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
