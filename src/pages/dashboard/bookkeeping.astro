@@ -17,6 +17,7 @@ import { getBookkeeping } from '@/i18n/dashboard/bookkeeping';
 import { getHistoryExport } from '@/i18n/historyExport';
 import HistoryDownload from '../../components/dashboard/HistoryDownload.astro';
 import { canDownloadBookkeepingCsv, canDownloadHistoryByWallet } from '../../lib/historyAccess';
+import { formatUsd } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getBookkeeping(lang);
@@ -128,18 +129,10 @@ const fDate = (iso: string | null) => {
 };
 const fQty = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
-const fUsd = (v: number | null) => {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const sign = v < 0 ? '-' : '';
-  return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+const fUsd = (v: number | null) => formatUsd(v);
 const fGain = (v: number | null) => {
   if (v == null || !Number.isFinite(v)) return { text: '—', cls: '' };
-  const sign = v >= 0 ? '+' : '-';
-  return {
-    text: `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    cls: v >= 0 ? 'gain-pos' : 'gain-neg',
-  };
+  return { text: formatUsd(v, { signed: true }), cls: v >= 0 ? 'gain-pos' : 'gain-neg' };
 };
 // CSV downloads. The gain/loss and lot sections (stillHolding, shortTerm, longTerm) are
 // tax documents, so their buttons render for the owner only and the API refuses everyone

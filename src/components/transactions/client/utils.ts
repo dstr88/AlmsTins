@@ -1,4 +1,6 @@
 // src/components/dashboard/transactions/client/utils.ts
+import { formatUsd as formatUsdShared } from '@/lib/format';
+
 export function normalizePriceSymbol(symbol?: string | null): string {
   if (!symbol) return '';
   const upper = symbol.toUpperCase();
@@ -21,10 +23,7 @@ export function parseAmount(raw: string, decimals: number): number {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+/** A positive dollar value (src/lib/format.ts); zero, negative or missing shows `—`. */
 export function formatUsd(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '—';
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return Number.isFinite(value) && value > 0 ? formatUsdShared(value) : '—';
 }

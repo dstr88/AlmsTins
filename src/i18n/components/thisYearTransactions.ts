@@ -22,7 +22,7 @@ export interface ThisYearTransactionsLocale {
   labelMostRecent: string;
 
   // Interpolated summary sentence
-  summaryText: (txCount: number, contractCount: number, gasUsd: string) => string;
+  summaryText: (txCount: number, contractCount: number, gasUsd: string) => string; // already formatted: $1,234.56
 
   // Quarter row — transaction count
   quarterTransactions: (count: number) => string;
@@ -41,7 +41,7 @@ export const en: ThisYearTransactionsLocale = {
   labelMostRecent: 'Most recent',
 
   summaryText: (txCount, contractCount, gasUsd) =>
-    `${txCount} transactions, ${contractCount} unique contracts, gas $${gasUsd}.`,
+    `${txCount} transactions, ${contractCount} unique contracts, gas ${gasUsd}.`,
 
   quarterTransactions: (count) => `${count} transactions`,
 };
@@ -59,7 +59,7 @@ export const es: ThisYearTransactionsLocale = {
   labelMostRecent: "Más reciente",
 
   summaryText: (txCount, contractCount, gasUsd) =>
-    `${txCount} transacciones, ${contractCount} contratos únicos, gas $${gasUsd}.`,
+    `${txCount} transacciones, ${contractCount} contratos únicos, gas ${gasUsd}.`,
 
   quarterTransactions: (count) => `${count} transacciones`,
 };
@@ -77,7 +77,7 @@ export const fr: ThisYearTransactionsLocale = {
   labelMostRecent: "Plus récente",
 
   summaryText: (txCount, contractCount, gasUsd) =>
-    `${txCount} transactions, ${contractCount} contrats uniques, gas $${gasUsd}.`,
+    `${txCount} transactions, ${contractCount} contrats uniques, gas ${gasUsd}.`,
 
   quarterTransactions: (count) => `${count} transactions`,
 };

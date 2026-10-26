@@ -319,6 +319,7 @@ const getChainBadge = (chains: string[]): string => {
 	<AddTransactionModal />
 
 	<script>
+		import { formatUsd } from '@/lib/format';
 		const initWalletAccordion = (stack: HTMLElement): void => {
 			if (stack.dataset.accordionInit === 'true') return;
 			stack.dataset.accordionInit = 'true';
@@ -464,7 +465,7 @@ const getChainBadge = (chains: string[]): string => {
 				total += num;
 			});
 			valueEl.textContent = hasValue
-				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				? formatUsd(total)
 				: '—';
 		};
 

@@ -12,6 +12,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import { getLang } from '@/lib/i18n/locale';
 import { getLots } from '@/i18n/dashboard/yearEnd/lots';
+import { formatUsd } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getLots(lang);
@@ -88,7 +89,7 @@ const groups = [...groupMap.values()]
 
 const missingCount = groups.reduce((acc, g) => acc + g.disposals.filter(d => d.gainLoss === null).length, 0);
 
-const fmt     = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const fmt     = (n: number) => formatUsd(n);
 const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString(dateLang, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
 const fmtQty  = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
 

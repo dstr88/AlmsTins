@@ -3,6 +3,7 @@ import React from 'react';
 import { TinAssetsCard } from '@/components/dashboard/TinAssetsCard';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTinColumn } from '@/i18n/components/tinColumn';
+import { formatUsd } from '@/lib/format';
 
 export type TinColumnProps = {
 	tinId: string;
@@ -14,8 +15,6 @@ export type TinColumnProps = {
 	walletLabel?: string | null;
 };
 
-const formatUsd = (value: number) =>
-	`$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, walletLabel }: TinColumnProps) {
 	const t = getTinColumn(getClientLang());
@@ -69,7 +68,7 @@ export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, wal
 						color: 'var(--loss)',
 					}}
 				>
-					{formatUsd(debtUsd)}
+					{formatUsd(debtUsd || 0)}
 				</p>
 				<p
 					style={{

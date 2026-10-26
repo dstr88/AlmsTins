@@ -3,6 +3,7 @@ import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getPriceWatchlist } from '@/i18n/components/priceWatchlist';
+import { formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'PriceWatchlist');
 
@@ -407,10 +408,7 @@ export function PriceWatchlist() {
 							const showNoData = !priceEntry || !(entry.priceUsd > 0);
 							const formattedPrice = showNoData
 								? '—'
-								: `$${entry.priceUsd.toLocaleString(undefined, {
-										minimumFractionDigits: 4,
-										maximumFractionDigits: 4,
-								  })}`;
+								: formatUsd(entry.priceUsd, { cents: 4 });
 
 							const changeLabel = '—';
 							const changeColor = 'var(--text-secondary)';

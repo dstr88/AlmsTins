@@ -408,6 +408,7 @@ const defaultYear = currentYear - 1;
 } }}>window.__sdI18n = sdI18n;</script>
 
 <script>
+import { formatUsd } from '@/lib/format';
 // Localized strings injected by the inline define:vars block above.
 interface SdI18n {
 	localeFmt: string;
@@ -467,7 +468,7 @@ const L: SdI18n = (window as unknown as { __sdI18n?: SdI18n }).__sdI18n ?? {
 	lineCarryNote: "Retain this amount for next year's Schedule D Worksheet.",
 };
 
-const USD = (n: number) => new Intl.NumberFormat(L.localeFmt, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const USD = (n: number) => formatUsd(n);
 const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
 const gainClass = (n: number) => n < -0.005 ? 'loss' : n > 0.005 ? 'gain' : 'zero';
 

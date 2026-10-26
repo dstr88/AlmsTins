@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './wallet-year-changes.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletYearChanges } from '@/i18n/components/walletYearChanges';
+import { formatUsd } from '@/lib/format';
 
 interface YearChangesData {
   ok: boolean;
@@ -47,7 +48,6 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
   }, [walletId, year]);
 
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 8 });
-  const fmtUsd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="wallet-modal-backdrop" onClick={onClose}>
@@ -122,7 +122,7 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
                             <td align="right" className={`wallet-modal__col-qty ${row.deltaQty > 0 ? 'wallet-modal__col--positive' : row.deltaQty < 0 ? 'wallet-modal__col--negative' : ''}`}>
                               {row.deltaQty > 0 ? '+' : ''}{fmt(row.deltaQty)}
                             </td>
-                            <td align="right" className="wallet-modal__col-usd">{fmtUsd(row.endValueUsd)}</td>
+                            <td align="right" className="wallet-modal__col-usd">{formatUsd(row.endValueUsd)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -184,7 +184,7 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
                             </td>
                             <td className="wallet-modal__col-symbol">{tx.asset}</td>
                             <td align="right" className="wallet-modal__col-qty">{fmt(tx.amount)}</td>
-                            <td align="right" className="wallet-modal__col-usd">{fmtUsd(tx.usdValue)}</td>
+                            <td align="right" className="wallet-modal__col-usd">{formatUsd(tx.usdValue)}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -10,6 +10,7 @@ import { getHeldNow, settleAaveOnlyHoldings, aaveSymbolPrice, type HeldNow } fro
 import { getLang } from '@/lib/i18n/locale';
 import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
+import { formatUsd } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getMemoryLane(lang);
@@ -308,9 +309,7 @@ const totalRealized = closed.reduce((s: number, a: any) => s + a.netGain, 0);
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
 const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-function fmt(n: number) {
-	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-}
+const fmt = (n: number) => formatUsd(n, { cents: false });
 function fmtDate(d: string) {
 	if (!d) return '—';
 	try {
@@ -578,7 +577,7 @@ function timelineId(asset: string) {
 											<div class="pos-card__stats">
 												<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyHeld}</span><span class="pos-card__stat-v">{fmtQty(h.totalQty)}</span></div>
 												{h.currentPrice != null && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyPrice}</span><span class="pos-card__stat-v">${h.currentPrice.toLocaleString(dateLocale, { maximumFractionDigits: 2 })}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyPrice}</span><span class="pos-card__stat-v">{formatUsd(h.currentPrice)}</span></div>
 												)}
 												{h.shortTermQty > 0 && (
 													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyShortTermQty}</span><span class="pos-card__stat-v">{fmtQty(h.shortTermQty)}</span></div>

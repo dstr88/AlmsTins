@@ -3,6 +3,7 @@ import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTotalsTin } from '@/i18n/components/totalsTin';
 import PartialTotalNote from './PartialTotalNote';
+import { formatUsd } from '@/lib/format';
 
 type WalletRow = {
 	walletId: string;
@@ -35,9 +36,6 @@ type TotalsState =
 			status: 'ready';
 			summary: SummaryPayload;
 	  };
-
-const formatUsd = (value: number) =>
-	`$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 type Mode = 'wallet' | 'chain';
 

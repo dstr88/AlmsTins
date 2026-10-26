@@ -16,6 +16,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import { getLang } from '@/lib/i18n/locale';
 import { getReport } from '@/i18n/dashboard/yearEnd/report';
+import { formatUsd } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getReport(lang);
@@ -31,8 +32,7 @@ const taxYear = yearParam ? Number(yearParam) : currentYear - 1;
 type DbRow = Record<string, unknown>;
 const s  = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 const n  = (v: unknown) => (typeof v === 'number' ? v : null);
-const fmtUSD = (v: number | null) =>
-	v === null ? '—' : v.toLocaleString(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const fmtUSD = (v: number | null) => (v === null ? '—' : formatUsd(v));
 const fmtQty = (v: number | null) =>
 	v === null ? '—' : v.toLocaleString(locale, { maximumFractionDigits: 6 });
 const fmtDate = (v: string) => v.slice(0, 10);

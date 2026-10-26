@@ -14,6 +14,7 @@ import './reconciliation.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getReconciliationSnapshot } from '@/i18n/components/reconciliationSnapshot';
 import PartialTotalNote from './PartialTotalNote';
+import { formatUsd } from '@/lib/format';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -26,10 +27,6 @@ interface ReconciliationItem {
 	valueUnpriced?: boolean;
 }
 
-const USD = new Intl.NumberFormat('en-US', {
-	style: 'currency', currency: 'USD',
-	maximumFractionDigits: 2,
-});
 
 const fmtQty = (n: number): string => {
 	if (n === 0) return '0';
@@ -107,7 +104,7 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 									<div>
 										<div className="recon-symbol__name">{item.symbol}</div>
 										{item.snapValueUsd > 0 && (
-											<div className="recon-qty__usd">{USD.format(item.snapValueUsd)}</div>
+											<div className="recon-qty__usd">{formatUsd(item.snapValueUsd)}</div>
 										)}
 										{item.valueUnpriced && (
 											<div className="recon-qty__usd">{t.valueUnpriced}</div>

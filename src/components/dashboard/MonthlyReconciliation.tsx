@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getMonthlyReconciliation } from '@/i18n/components/monthlyReconciliation';
+import { formatUsd } from '@/lib/format';
 
 // ── Types (mirrors src/lib/monthlyReconciliation.ts) ─────────────────────────
 
@@ -47,10 +48,7 @@ type MonthlyReconciliation = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const usd = (n: number | null | undefined) =>
-	n == null
-		? '—'
-		: n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const usd = (n: number | null | undefined) => (n == null ? '—' : formatUsd(n, { cents: false }));
 
 const sign = (n: number) => (n >= 0 ? '+' : '');
 

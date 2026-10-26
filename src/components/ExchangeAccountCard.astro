@@ -118,6 +118,7 @@ const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '
 </div>
 
 <script>
+	import { formatUsd } from '@/lib/format';
 	// ── Batch management ─────────────────────────────────────────────────────
 	document.addEventListener('click', async (event) => {
 		const target = event.target;
@@ -291,7 +292,7 @@ const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '
 				total += value;
 			});
 			totalEl.textContent = hasValue
-				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				? formatUsd(total)
 				: 'No funds yet';
 		};
 

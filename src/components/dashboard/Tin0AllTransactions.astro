@@ -18,6 +18,7 @@ import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
 import Tin0AllTransactionsClient from '@/components/transactions/Tin0AllTransactionsClient';
 import { getLang } from '@/lib/i18n/locale';
 import { getTin0AllTransactions } from '@/i18n/components/tin0AllTransactions';
+import { formatUsd } from '@/lib/format';
 
 const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
@@ -283,10 +284,6 @@ const formatAmount = (
 	return new Intl.NumberFormat('en-US', options).format(num);
 };
 
-const formatUsd = (value: number | null | undefined) => {
-	if (value === null || value === undefined || !Number.isFinite(value)) return '—';
-	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
-};
 
 const formatDate = (value: string) => {
 	if (!value) return '';
@@ -362,7 +359,7 @@ const isUnwrapRow = (row: UnifiedRow) => {
 
 const resolveFee = (row: UnifiedRow) => {
 	if (row.fee_usd !== null && row.fee_usd !== undefined) {
-		return `$${formatAmount(row.fee_usd, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+		return formatUsd(row.fee_usd);
 	}
 	if (row.fee_native !== null && row.fee_native !== undefined) {
 		const symbol = row.fee_currency || pickSymbol(row) || '';
@@ -392,7 +389,6 @@ const rowsWithDividers = filteredRows.map((row) => ({ type: 'row' as const, row 
 const exportUrl = walletId
 	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
 	: '/api/transactions/export';
-
 ---
 
 <article class="tin0-all" id="all-transactions">

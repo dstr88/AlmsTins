@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getKeyPriceStrip } from '@/i18n/components/keyPriceStrip';
+import { formatUsd } from '@/lib/format';
 
 type SymbolCode = 'BTC' | 'ETH' | 'POL' | 'AVAX';
 
@@ -15,7 +16,6 @@ type KeyPriceRow = {
 	history?: KeyPriceHistoryPoint[];
 };
 
-const formatter = Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 const DEFAULT_HISTORY = (price: number) => [
 	{ timestamp: Date.now() - 4 * 3600000, priceUsd: price * 0.985 },
@@ -50,7 +50,7 @@ export default function KeyPriceStrip() {
 						onClick={() => setExpandedSymbol((prev) => (prev === row.symbol ? null : row.symbol))}
 					>
 						<div className="key-price-symbol">{row.symbol}</div>
-						<div className="key-price-value">{formatter.format(row.priceUsd)}</div>
+						<div className="key-price-value">{formatUsd(row.priceUsd)}</div>
 						<div className="key-price-sparkline">
 							{row.history ? (
 								<svg viewBox="0 0 60 16" preserveAspectRatio="none">

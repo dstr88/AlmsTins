@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { formatUsd } from '@/lib/format';
 
 interface Row {
   date: string;
@@ -16,10 +17,6 @@ function emptyRows(): Row[] {
 function parseNum(val: string): number {
   const n = parseFloat(val.replace(/[^0-9.]/g, ''));
   return isNaN(n) ? 0 : n;
-}
-
-function fmt(n: number): string {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
 export default function QuickCalcTable() {
@@ -95,12 +92,12 @@ export default function QuickCalcTable() {
           <tfoot>
             <tr className="qct-totals">
               <td colSpan={2} className="qct-totals__label">Total</td>
-              <td className="qct-totals__val loss">{fmt(totalExpense)}</td>
-              <td className="qct-totals__val gain">{fmt(totalIncome)}</td>
+              <td className="qct-totals__val loss">{formatUsd(totalExpense)}</td>
+              <td className="qct-totals__val gain">{formatUsd(totalIncome)}</td>
             </tr>
             <tr className="qct-net">
               <td colSpan={2} className="qct-net__label">Net</td>
-              <td colSpan={2} className={`qct-net__val ${net >= 0 ? 'gain' : 'loss'}`}>{fmt(Math.abs(net))}</td>
+              <td colSpan={2} className={`qct-net__val ${net >= 0 ? 'gain' : 'loss'}`}>{formatUsd(Math.abs(net))}</td>
             </tr>
           </tfoot>
         </table>

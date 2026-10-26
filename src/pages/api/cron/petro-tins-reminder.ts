@@ -26,6 +26,7 @@ import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
 import { OWNER_TENANT_ID, isOwner } from '@/lib/owner';
 import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
+import { formatUsd } from '@/lib/format';
 
 export const prerender = false;
 
@@ -130,8 +131,7 @@ export const GET: APIRoute = async ({ request }) => {
         return e.kind === 'expense' ? sum + Number(e.amount) : sum;
       }, 0);
 
-      const fmt = (n: number) =>
-        n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+      const fmt = (n: number) => formatUsd(n);
 
       const lineItems = unpaid
         .map((e: any) => {

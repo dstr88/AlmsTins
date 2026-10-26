@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import './ReceiptRegistry.css';
+import { formatUsd } from '@/lib/format';
 
 // Local shape (mirrors GET /api/petro-tins/receipts) — do NOT import the server
 // lib here, or its db code would be pulled into the client bundle.
@@ -19,9 +20,6 @@ interface Receipt {
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'];
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -170,7 +168,7 @@ export default function ReceiptRegistry({ isDemo = false }: { isDemo?: boolean }
       <div className="rcpt__bar">
         <div className="rcpt__totals">
           <span className="rcpt__count">{filtered.length} {filtered.length === 1 ? 'receipt' : 'receipts'}</span>
-          <span className="rcpt__total-amt">{fmt(total)}</span>
+          <span className="rcpt__total-amt">{formatUsd(total)}</span>
         </div>
         {years.length > 0 && (
           <label className="rcpt__year">
@@ -213,7 +211,7 @@ export default function ReceiptRegistry({ isDemo = false }: { isDemo?: boolean }
                     <td className="col-date">{r.receiptDate}</td>
                     <td className="col-desc">{r.description || <span className="rcpt__muted">—</span>}</td>
                     <td className="col-cat">{r.category || <span className="rcpt__muted">—</span>}</td>
-                    <td className="col-amt">{fmt(r.amount)}</td>
+                    <td className="col-amt">{formatUsd(r.amount)}</td>
                     <td className="col-photo">
                       {!r.hasPhoto ? (
                         <span className="rcpt__muted">—</span>

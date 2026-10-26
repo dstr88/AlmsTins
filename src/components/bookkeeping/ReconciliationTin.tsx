@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ReconciliationItem, ReconciliationStatus } from '../../lib/reconciliation';
+import { formatUsd } from '@/lib/format';
 
 // ── Colour maps ──────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<ReconciliationStatus, string> = {
@@ -47,10 +48,8 @@ function fmt(n: number, dp = 6): string {
   if (Math.abs(n) < 1e-8) return '0';
   return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: dp });
 }
-function fmtUsd(n: number | null): string {
-  if (n == null) return '—';
-  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+/** Dollars without a sign; the one caller writes + or - itself. */
+const fmtUsd = (n: number | null): string => (n == null ? '—' : formatUsd(Math.abs(n)));
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }

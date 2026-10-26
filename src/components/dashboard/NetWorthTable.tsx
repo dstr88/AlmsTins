@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthTable } from '@/i18n/components/netWorthTable';
 import PartialTotalNote from './PartialTotalNote';
+import { formatUsd } from '@/lib/format';
 
 type ChainBreakdown = { chain: string; totalUsd: number };
 
@@ -121,7 +122,7 @@ export default function NetWorthTable() {
 				<div className="flex flex-col gap-8 md:flex-row">
 					<div className="space-y-2">
 						<p className="text-xs uppercase tracking-wide text-muted-foreground">{t.aggregateLabel}</p>
-						<p className="text-3xl font-semibold">${formatUsd(totalUsd)}</p>
+						<p className="text-3xl font-semibold">{usd(totalUsd)}</p>
 						<PartialTotalNote partial={summary.partial} unpricedCount={summary.unpricedCount} />
 						<p className="text-sm text-muted-foreground">
 							{t.tinCountDescription(tinCount)}
@@ -138,7 +139,7 @@ export default function NetWorthTable() {
 											<span className="capitalize">{entry.chain}</span>
 										</span>
 										<span className="text-right font-medium">
-											${formatUsd(entry.totalUsd)} <span className="text-xs text-muted-foreground">({pct}%)</span>
+											{usd(entry.totalUsd)} <span className="text-xs text-muted-foreground">({pct}%)</span>
 										</span>
 									</li>
 								);
@@ -172,13 +173,13 @@ export default function NetWorthTable() {
 										<div className="font-medium">{wallet.walletLabel ?? wallet.walletId.slice(0, 10)}</div>
 										<div className="text-xs text-muted-foreground">{wallet.walletId}</div>
 									</td>
-									<td className="px-4 py-3 font-semibold">${formatUsd(wallet.totalUsd)}</td>
+									<td className="px-4 py-3 font-semibold">{usd(wallet.totalUsd)}</td>
 									<td className="px-4 py-3">
 										<div className="space-y-2">
 											{wallet.byChain.map((chain, index) => (
 												<div key={`${wallet.walletId}-${chain.chain}-${index}`} className="flex items-center justify-between">
 													<span className="capitalize text-xs text-muted-foreground">{chain.chain}</span>
-													<span className="text-sm font-medium">${formatUsd(chain.totalUsd)}</span>
+													<span className="text-sm font-medium">{usd(chain.totalUsd)}</span>
 												</div>
 											))}
 										</div>
@@ -256,7 +257,7 @@ function ChainDonut({ segments, totalUsd }: { segments: DonutSegment[]; totalUsd
 				{segments.map((segment) => {
 					const dash = segment.pct * circumference;
 					const pctText = `${(segment.pct * 100).toFixed(1)}%`;
-					const amountText = formatUsd(segment.value);
+					const amountText = usd(segment.value);
 					const circle = (
 						<circle
 							key={segment.chain}
@@ -349,8 +350,7 @@ type DonutCenterPanelProps = {
 
 function DonutCenterPanel({ totalUsd, selectedSegment }: DonutCenterPanelProps) {
 	const t = getNetWorthTable(getClientLang());
-	const amountFormatter = (value: number) =>
-		value.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+	const amountFormatter = (value: number) => formatUsd(value, { cents: false });
 
 	if (!selectedSegment) {
 		return (
@@ -415,6 +415,7 @@ function buildSegments(chains: ChainBreakdown[], total: number): DonutSegment[] 
 	});
 }
 
-function formatUsd(value: number) {
-	return value.toLocaleString(undefined, { maximumFractionDigits: value >= 1000 ? 0 : 2 });
+/** Whole dollars from $1,000 up, cents below. */
+function usd(value: number) {
+	return formatUsd(value, { cents: value < 1000 });
 }

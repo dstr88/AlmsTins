@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { explorerAddressUrl, explorerName, explorerTxUrl } from '@/lib/explorerLinks';
+import { formatUsd } from '@/lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,14 +67,6 @@ function fDateTime(iso: string): string {
   }
 }
 
-function fUsd(v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return '—';
-  const sign = v < 0 ? '-' : '';
-  return `${sign}$${Math.abs(v).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 function fQty(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -514,7 +507,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{ color: 'var(--accent)' }}
                     title="The USD value recorded at the time of this transaction."
                   >
-                    {fUsd(item.proceedsUsd)} proceeds
+                    {formatUsd(item.proceedsUsd)} proceeds
                   </span>
                 </>
               )}
@@ -701,7 +694,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
                               {fQty(evt.amount)} {item.asset}
                               {evt.native_usd != null && (
-                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {formatUsd(evt.native_usd)}</span>
                               )}
                             </div>
                           )}
@@ -891,7 +884,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                               {fQty(Math.abs(evt.amount))} {item.asset}
                               {evt.native_usd != null && (
-                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {formatUsd(evt.native_usd)}</span>
                               )}
                             </div>
                           )}
@@ -1248,7 +1241,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               >
                 <strong>Why does Polyscan show $0?</strong> ERC-20 transfers (USDC, USDT, etc.) always
                 show <em>Value: 0 MATIC</em> in the main tx view — the token amount is in the
-                "ERC-20 Token Txns" tab. The {fUsd(item.proceedsUsd)} above is correct.
+                "ERC-20 Token Txns" tab. The {formatUsd(item.proceedsUsd)} above is correct.
               </div>
             )}
 
@@ -1515,7 +1508,7 @@ function AccumulationRow({ group }: { group: AccumulationGroup }) {
         {group.totalUsd != null && (
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>
             <span style={{ opacity: 0.45, fontSize: '0.72rem', marginRight: '0.3rem' }}>cost</span>
-            {fUsd(group.totalUsd)}
+            {formatUsd(group.totalUsd)}
           </span>
         )}
       </div>
@@ -1594,7 +1587,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fQty(evt.amount)}</span>
         )}
         {evt.native_usd != null && (
-          <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{fUsd(evt.native_usd)}</span>
+          <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{formatUsd(evt.native_usd)}</span>
         )}
         <span style={{ fontSize: '0.72rem', opacity: 0.4, marginLeft: 'auto', fontStyle: 'italic' }}>
           {evt.transaction_class.replace(/_/g, ' ')}

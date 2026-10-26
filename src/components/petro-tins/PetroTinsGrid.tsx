@@ -8,10 +8,7 @@ import SlushTin from './SlushTin';
 import SharedSheet from './SharedSheet';
 import QuickCalcTable from './QuickCalcTable';
 import './PetroTinsGrid.css';
-
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
+import { formatUsd } from '@/lib/format';
 
 export default function PetroTinsGrid() {
   const [tins, setTins] = useState<PetroTin[]>([]);
@@ -132,29 +129,29 @@ export default function PetroTinsGrid() {
           <div className="pt-summary__title">Cash Flow Summary</div>
           <div className="pt-summary__row">
             <span className="pt-summary__label">Total Income</span>
-            <span className="pt-summary__val gain">{fmt(totalIncome)}</span>
+            <span className="pt-summary__val gain">{formatUsd(totalIncome)}</span>
           </div>
           <div className="pt-summary__row">
             <span className="pt-summary__label">Total Expenses</span>
-            <span className="pt-summary__val loss">{fmt(totalExpense)}</span>
+            <span className="pt-summary__val loss">{formatUsd(totalExpense)}</span>
           </div>
           <div className="pt-summary__divider" />
           <div className="pt-summary__row pt-summary__row--net">
             <span className="pt-summary__label">Net Cash Flow</span>
-            <span className={`pt-summary__val ${net >= 0 ? 'gain' : 'loss'}`}>{fmt(Math.abs(net))}</span>
+            <span className={`pt-summary__val ${net >= 0 ? 'gain' : 'loss'}`}>{formatUsd(Math.abs(net))}</span>
           </div>
           <div className="pt-summary__divider" />
           <div className="pt-summary__row">
             <span className="pt-summary__label">Total Debt</span>
-            <span className="pt-summary__val loss">{fmt(totalDebt)}</span>
+            <span className="pt-summary__val loss">{formatUsd(totalDebt)}</span>
           </div>
           <div className="pt-summary__row">
             <span className="pt-summary__label">Monthly Interest</span>
-            <span className="pt-summary__val loss">{fmt(monthlyInterest)}</span>
+            <span className="pt-summary__val loss">{formatUsd(monthlyInterest)}</span>
           </div>
           <div className="pt-summary__row">
             <span className="pt-summary__label">Est. Annual Interest</span>
-            <span className="pt-summary__val loss">{fmt(monthlyInterest * 12)}</span>
+            <span className="pt-summary__val loss">{formatUsd(monthlyInterest * 12)}</span>
           </div>
           <QuickCalcTable />
         </div>

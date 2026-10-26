@@ -20,6 +20,7 @@ import { getYearEndSummary, isValidSummaryYear, parseSummaryMethod } from '@/lib
 import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
 import { getLang } from '@/lib/i18n/locale';
 import { getGains } from '@/i18n/dashboard/yearEnd/gains';
+import { formatUsd } from '@/lib/format';
 
 // Tax documents are the owner's alone (src/lib/taxAuth.ts). Checked before anything else runs.
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
@@ -192,8 +193,7 @@ const availableYears = payload?.availableYears ?? [];
 // ── Helpers ────────────────────────────────────────────────────────────────
 const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
-const fmt = (n: number) =>
-	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const fmt = (n: number) => formatUsd(n);
 
 const fmtDate = (iso: string) => {
 	try { return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
@@ -202,7 +202,7 @@ const fmtDate = (iso: string) => {
 
 // Accounting notation: losses in parentheses, gains with + prefix
 const fmtGain = (n: number) => {
-	const abs = Math.abs(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+	const abs = formatUsd(Math.abs(n));
 	if (n < 0) return `(${abs})`;
 	if (n > 0) return `+${abs}`;
 	return abs;
@@ -1402,6 +1402,7 @@ const fmtGain = (n: number) => {
 } }}>window.__gainsI18n = pipelineI18n;</script>
 
 <script>
+import { formatUsd } from '@/lib/format';
 // ── 2024 / 2025 IRS Tax Brackets ─────────────────────────────────────────────
 // Ordinary income brackets [threshold, rate]  (marginal, single top of range)
 const ORDINARY: Record<string, [number, number][]> = {
@@ -1489,9 +1490,7 @@ function taxOnAmount(base: number, amount: number, brackets: [number, number][])
   return { tax, rate: tax / amount };
 }
 
-function fmtUsd(n: number): string {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-}
+const fmtUsd = (n: number): string => formatUsd(n, { cents: false });
 function fmtPct(r: number): string {
   return (r * 100).toFixed(1) + '%';
 }

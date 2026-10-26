@@ -1,10 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { PetroTin } from './types';
 import './SlushTin.css';
-
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
+import { formatUsd } from '@/lib/format';
 
 interface Props {
   tin: PetroTin;
@@ -67,7 +64,7 @@ export default function SlushTin({ tin, onDelete, onRefresh }: Props) {
       {/* Balance */}
       <div className="pt-slush-tin__balance-wrap">
         <div className={`pt-slush-tin__balance ${balance < 0 ? 'loss' : 'gain'}`}>
-          {fmt(balance)}
+          {formatUsd(balance)}
         </div>
         <div className="pt-slush-tin__balance-label">available</div>
       </div>
@@ -122,7 +119,7 @@ export default function SlushTin({ tin, onDelete, onRefresh }: Props) {
               <span className="pt-slush-history-date">{e.entryDate}</span>
               <span className="pt-slush-history-desc">{e.description || '—'}</span>
               <span className={`pt-slush-history-amt ${e.kind === 'income' ? 'gain' : 'loss'}`}>
-                {e.kind === 'income' ? '+' : '−'}{fmt(e.amount)}
+                {e.kind === 'income' ? '+' : '−'}{formatUsd(e.amount)}
               </span>
               <button
                 className="pt-slush-history-del"
