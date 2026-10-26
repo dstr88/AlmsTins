@@ -558,7 +558,8 @@ window.addEventListener('unhandledrejection', function(e) {
         var absAmt = Math.abs(Number(t.amount || 0));
         var amtDisp = (dir === 'out' ? '−' : '+') + absAmt.toLocaleString(undefined,{maximumFractionDigits:8}) + ' ' + sym;
         var src = escH(srcN(String(t.source || '')));
-        var usd = t.native_usd ? '<span class="tx-usd">$' + Number(t.native_usd).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>' : '';
+        // en-US like the shared formatter (D1); this inline renderer cannot import it.
+        var usd = t.native_usd ? '<span class="tx-usd">$' + Number(t.native_usd).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>' : '';
         html += '<div class="tx-card na-item dir-' + dClass + '" data-sym="' + escH(String(t.asset_symbol||'')) + '" data-dir="' + dir + '" data-id="' + escH(String(t.id||'')) + '" data-ts="' + escH(String(t.timestamp_utc||'')) + '" data-src="' + src + '" data-amount="' + absAmt + '" data-usd="' + escH(String(t.native_usd||'')) + '">' +
           '<div class="tx-badge-col"><span class="tx-dir ' + dClass + '">' + dLabel + '</span></div>' +
           '<div class="tx-body">' +
@@ -581,6 +582,7 @@ window.addEventListener('unhandledrejection', function(e) {
 import { escapeHtml } from '../../lib/escapeHtml';
 import { EVM_ADDRESS, EVM_ADDRESS_SOURCE, SUI_ADDRESS } from '../../lib/addressFormats';
 import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '../../lib/chains';
+import { formatUsd } from '../../lib/format';
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
@@ -597,7 +599,7 @@ let naContext     = null;   // { sym, dir } when search was triggered from NA cl
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
-const fmtUsd = n => n == null ? '' : '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtUsd = n => (n == null ? '' : formatUsd(n, { empty: '' }));
 
 const fmtDT = s => {
   if (!s) return '';
@@ -1992,7 +1994,7 @@ function renderHealthCheck(d) {
   const grid = $('health-grid');
   if (!grid) return;
 
-  const fmtV = n => n >= 1000 ? '$' + (n/1000).toFixed(0) + 'k' : '$' + n;
+  const fmtV = n => formatUsd(n, n >= 1000 ? { compact: true } : {});
 
   const cards = [];
 

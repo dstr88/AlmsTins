@@ -39,11 +39,11 @@ describe('formatUsd (D1: en-US in every language)', () => {
 		expect(formatUsd(-5, { signed: true })).toBe('-$5.00');
 	});
 
-	it('cents: false rounds to whole dollars; a number allows more decimals', () => {
+	it('cents: false rounds to whole dollars; a number is exactly that many decimals', () => {
 		expect(formatUsd(1234.5, { cents: false })).toBe('$1,235');
 		expect(formatUsd(-0.4, { cents: false })).toBe('-$0');
 		expect(formatUsd(0.012345, { cents: 4 })).toBe('$0.0123');
-		expect(formatUsd(3, { cents: 4 })).toBe('$3.00');
+		expect(formatUsd(3.1, { cents: 4 })).toBe('$3.1000');
 		expect(formatUsd(3.1, { cents: 1 })).toBe('$3.1');
 	});
 

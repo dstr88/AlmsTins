@@ -25,7 +25,13 @@ const t = getTradfi(lang);
 				</div>
 			</SalmonTin>
 			<SalmonTin label={t.tinAddLoan}>
-				<button type="button" class="add-loan-button" data-add-loan>{t.addLoanButton}</button>
+				<button
+					type="button"
+					class="add-loan-button"
+					data-add-loan
+					data-label-template={t.loanPayoffLabel(0).replace('0', '{n}')}
+					data-added-template={t.addedContract(0).replace('0', '{n}')}
+				>{t.addLoanButton}</button>
 				<p class="add-loan-status" data-add-loan-status></p>
 			</SalmonTin>
 			<SalmonTin label={t.tinLoanPayoff} class="loan-tin">
@@ -121,10 +127,12 @@ const t = getTradfi(lang);
 		}
 	</style>
 
-	<script define:vars={{ i18nLoanPayoffLabel: t.loanPayoffLabel(0).replace('0', '{n}'), i18nAddedContract: t.addedContract(0).replace('0', '{n}') }}>
-	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+	<script>
+	// Bundled (not define:vars) so it can use the shared dollar formatter; the two strings come
+	// from the Add loan button's data attributes.
+	import { formatUsd } from '@/lib/format';
 
-	function parseAmount(value) {
+	function parseAmount(value: string) {
 		if (!value) return 0;
 		const cleaned = value.replace(/[^0-9.]/g, '');
 		const parsed = Number.parseFloat(cleaned);
@@ -132,34 +140,36 @@ const t = getTradfi(lang);
 	}
 
 	function updateTotalDebt() {
-		const debtEls = document.querySelectorAll('[data-debt-value]');
+		const debtEls = document.querySelectorAll<HTMLElement>('[data-debt-value]');
 		let total = 0;
 		debtEls.forEach((el) => {
 			const amount = Number(el.dataset.debtValue || 0) || parseAmount(el.textContent || '');
 			total += amount;
 		});
 		const target = document.querySelector('[data-total-debt]');
-		if (target) target.textContent = formatter.format(total);
+		if (target) target.textContent = formatUsd(total);
 	}
 
 	document.addEventListener('debt-updated', updateTotalDebt);
 	document.addEventListener('DOMContentLoaded', updateTotalDebt);
 
-	const addLoanButton = document.querySelector('[data-add-loan]');
+	const addLoanButton = document.querySelector<HTMLElement>('[data-add-loan]');
 	const addLoanStatus = document.querySelector('[data-add-loan-status]');
+	const i18nLoanPayoffLabel = addLoanButton?.dataset.labelTemplate ?? '';
+	const i18nAddedContract = addLoanButton?.dataset.addedTemplate ?? '';
 	if (addLoanButton) {
 		addLoanButton.addEventListener('click', () => {
 			const grid = document.querySelector('.tins-grid');
 			const templateTin = document.querySelector('.loan-tin');
 			if (!grid || !templateTin) return;
 
-			const clone = templateTin.cloneNode(true);
+			const clone = templateTin.cloneNode(true) as HTMLElement;
 			const existingCount = grid.querySelectorAll('.loan-tin').length;
 			const nextIndex = existingCount + 1;
 			const label = clone.querySelector('.salmon-tin__label');
 			if (label) label.textContent = i18nLoanPayoffLabel.replace('{n}', String(nextIndex));
 
-			const loanRoot = clone.querySelector('[data-loan-payoff]');
+			const loanRoot = clone.querySelector<HTMLElement>('[data-loan-payoff]');
 			if (loanRoot) {
 				loanRoot.dataset.loanInit = '';
 				loanRoot.dataset.payments = '[]';
@@ -168,7 +178,7 @@ const t = getTradfi(lang);
 				lists.forEach((list) => {
 					list.innerHTML = '';
 				});
-				const saved = loanRoot.querySelector('[data-payment-saved]');
+				const saved = loanRoot.querySelector<HTMLElement>('[data-payment-saved]');
 				if (saved) {
 					saved.textContent = '';
 					saved.hidden = true;
@@ -176,8 +186,9 @@ const t = getTradfi(lang);
 			}
 
 			grid.insertBefore(clone, templateTin.nextSibling);
-			if (loanRoot && window.loanPayoffInit) {
-				window.loanPayoffInit(loanRoot);
+			const loanPayoffInit = (window as unknown as { loanPayoffInit?: (el: HTMLElement) => void }).loanPayoffInit;
+			if (loanRoot && loanPayoffInit) {
+				loanPayoffInit(loanRoot);
 			}
 			if (addLoanStatus) {
 				addLoanStatus.textContent = i18nAddedContract.replace('{n}', String(nextIndex));

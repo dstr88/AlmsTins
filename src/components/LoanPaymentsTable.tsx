@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getLoanPaymentsTable } from '@/i18n/components/loanPaymentsTable';
+import { formatUsd } from '@/lib/format';
 
 type LoanPayment = {
 	id: string;
@@ -11,7 +12,6 @@ type LoanPayment = {
 
 type ApiResponse = { ok: boolean; payments?: LoanPayment[]; error?: string };
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 export default function LoanPaymentsTable() {
 	const t = getLoanPaymentsTable(getClientLang());
@@ -130,7 +130,7 @@ export default function LoanPaymentsTable() {
 						<tr key={p.id}>
 							<td style={tdMuted}>{p.paymentDate}</td>
 							<td style={tdStyle}>{p.loanId}</td>
-							<td style={{ ...tdAmount, textAlign: 'right' }}>{usdFormatter.format(p.amountUsd)}</td>
+							<td style={{ ...tdAmount, textAlign: 'right' }}>{formatUsd(p.amountUsd)}</td>
 						</tr>
 					))}
 				</tbody>

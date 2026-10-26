@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthOverviewCard } from '@/i18n/components/netWorthOverviewCard';
+import { formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'NetWorthOverviewCard');
 
@@ -9,7 +10,6 @@ type Props = {
 	endpoint?: string;
 };
 
-const formatter = Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
@@ -63,7 +63,7 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 				{!open && (
 					<div className="overview-total">
 						<span>{t.total}</span>
-						<strong>{formatter.format(totalUsd)}</strong>
+						<strong>{formatUsd(totalUsd)}</strong>
 					</div>
 				)}
 
@@ -80,7 +80,7 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 											<span>{chain.chain.toUpperCase()}</span>
 										</div>
 										<div className="overview-token-value">
-											{formatter.format(chain.totalUsd || (chain.assetsUsd - chain.debtUsd))}
+											{formatUsd(chain.totalUsd || (chain.assetsUsd - chain.debtUsd))}
 										</div>
 									</li>
 								))}

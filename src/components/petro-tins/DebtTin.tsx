@@ -1,10 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { PetroTin, PetroTinEntry } from './types';
 import './DebtTin.css';
+import { formatUsd } from '@/lib/format';
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
 function fmtPct(r: number) {
   return (r * 100).toFixed(2) + '%';
 }
@@ -160,7 +158,7 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
             <div className="pt-debt-tin__progress-fill" style={{ width: `${pct.toFixed(1)}%` }} />
           </div>
           <div className="pt-debt-tin__progress-labels">
-            <span className="pt-debt-tin__progress-pct">{pct.toFixed(0)}% of {fmt(limit)}</span>
+            <span className="pt-debt-tin__progress-pct">{pct.toFixed(0)}% of {formatUsd(limit)}</span>
           </div>
         </div>
       )}
@@ -169,7 +167,7 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
       <div className="pt-debt-tin__nums">
         <div className="pt-debt-tin__num-row">
           <span className="pt-debt-tin__num-label">Balance</span>
-          <span className="pt-debt-tin__num-value loss">{fmt(bal)}</span>
+          <span className="pt-debt-tin__num-value loss">{formatUsd(bal)}</span>
         </div>
         <div className="pt-debt-tin__num-row">
           <span className="pt-debt-tin__num-label">APR</span>
@@ -177,12 +175,12 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
         </div>
         <div className="pt-debt-tin__num-row">
           <span className="pt-debt-tin__num-label">Monthly interest</span>
-          <span className="pt-debt-tin__num-value loss">{fmt(monthly)}</span>
+          <span className="pt-debt-tin__num-value loss">{formatUsd(monthly)}</span>
         </div>
         {tin.minPayment != null && (
           <div className="pt-debt-tin__num-row">
             <span className="pt-debt-tin__num-label">Min payment</span>
-            <span className="pt-debt-tin__num-value">{fmt(tin.minPayment)}</span>
+            <span className="pt-debt-tin__num-value">{formatUsd(tin.minPayment)}</span>
           </div>
         )}
       </div>
@@ -239,7 +237,7 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
                   </span>
                   <span className="pt-debt-register__amt pt-debt-register__editable loss"
                     onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>
-                    {fmt(e.amount)}
+                    {formatUsd(e.amount)}
                   </span>
                   <button className="pt-debt-register__del-btn" onClick={() => deleteEntry(e.id)} title="Remove">✕</button>
                 </>
@@ -297,7 +295,7 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
                     <span className="pt-debt-tin__entry-date">{e.entryDate}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span className={`pt-debt-tin__entry-amount ${e.kind}`}>{fmt(e.amount)}</span>
+                    <span className={`pt-debt-tin__entry-amount ${e.kind}`}>{formatUsd(e.amount)}</span>
                     <button className="pt-debt-register__del-btn" onClick={() => deleteEntry(e.id)} title="Delete">✕</button>
                   </div>
                 </div>

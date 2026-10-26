@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getThisYearTransactions } from '@/i18n/components/thisYearTransactions';
+import { formatUsd } from '@/lib/format';
 
 type WalletResponse = {
 	id: string;
@@ -171,7 +172,7 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 		}
 
 		const summaryText = truncateWords(
-			t.summaryText(txCount, uniqueContracts.size, gasUsdTotal.toFixed(2)),
+			t.summaryText(txCount, uniqueContracts.size, formatUsd(gasUsdTotal)),
 			20,
 		);
 
@@ -230,7 +231,7 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 				</div>
 				<div className="summary-row">
 					<span className="label">{t.labelGasSpent}</span>
-					<span className="value">${summary.gasUsdTotal.toFixed(2)}</span>
+					<span className="value">{formatUsd(summary.gasUsdTotal)}</span>
 				</div>
 				<div className="summary-row">
 					<span className="label">{t.labelMostRecent}</span>

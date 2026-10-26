@@ -388,6 +388,7 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 } }}>window.__1099I18n = i18n;</script>
 
 <script>
+import { formatUsd } from '@/lib/format';
 interface Locale1099 {
   dateLocale: string;
   pleaseSelectFile: string;
@@ -437,9 +438,7 @@ function fmtDiff(n: number)      { return fmt(I18N.tplCountDiff, n); }
 function fmtUnmatched(n: number) { return fmt(I18N.tplCountUnmatched, n); }
 function fmtSubtitle(n: number)  { return fmt(I18N.tplSubtitle, n); }
 
-const USD = (n: number | null) => n != null
-  ? new Intl.NumberFormat(I18N.dateLocale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
-  : '—';
+const USD = (n: number | null) => (n != null ? formatUsd(n) : '—');
 
 const DELTA = (n: number | null) => {
   if (n == null) return '—';

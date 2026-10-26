@@ -18,6 +18,7 @@ import { getAddressLabels, type AddressLabelsLocale } from '@/i18n/components/ad
 import { addressNetwork, isOnchainAddress, type AddressNetwork } from '@/lib/addressNetwork';
 import { evmExplorerLinks, explorerAddressUrl, explorerName } from '@/lib/explorerLinks';
 import type { AddressLabel } from './AddressLabels';
+import { formatUsd, toFiniteNumber } from '@/lib/format';
 
 type Props = {
 	label: AddressLabel;
@@ -50,11 +51,9 @@ function categoryLabel(t: AddressLabelsLocale, cat: string | null | undefined): 
 	}
 }
 
-function formatUsd(value: string): string | null {
-	if (!value) return null;
-	const n = Number(value);
-	if (!Number.isFinite(n)) return null;
-	return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+/** A stored dollar value as text, or null when there is none (the row then shows no amount). */
+function usdText(value: string): string | null {
+	return toFiniteNumber(value) === null ? null : formatUsd(value);
 }
 
 function shortHash(hash: string): string {
@@ -284,7 +283,7 @@ type HistoryState = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; 
 const day = (date: string) => date.slice(0, 10);
 
 function Amount({ value, asset, usd, t }: { value: string; asset: string; usd: string; t: AddressLabelsLocale['details'] }) {
-	const dollars = formatUsd(usd);
+	const dollars = usdText(usd);
 	return (
 		<span style={{ fontFamily: MONO, fontSize: '0.8rem', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
 			{value === '' ? t.unknownAmount : `${value} ${asset}`}

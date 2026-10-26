@@ -295,6 +295,7 @@ for (const row of rows) {
 
 <script>
 	import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+	import { formatUsd } from '@/components/transactions/client/utils';
 
 	// Strings injected by the <script is:inline define:vars> island above.
 	const I = (window as any).__onchainTxI18n ?? {};
@@ -315,13 +316,6 @@ for (const row of rows) {
 			return PRICE_SYMBOL_OVERRIDES[upper] || upper;
 		};
 
-		const formatUsd = (value) => {
-			if (!Number.isFinite(value) || value <= 0) return '—';
-			return `$${value.toLocaleString(undefined, {
-				minimumFractionDigits: 2,
-				maximumFractionDigits: 2,
-			})}`;
-		};
 
 		const formatToken = (value) => {
 			if (!Number.isFinite(value) || value <= 0) return '—';

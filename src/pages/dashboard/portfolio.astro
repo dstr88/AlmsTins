@@ -169,12 +169,9 @@ if (!_authSess) return Astro.redirect('/login');
 <script>
 import { partialTotalMessage } from '@/i18n/components/partialTotalNote';
 import type { Lang } from '@/lib/i18n/locale';
+import { formatUsd } from '@/lib/format';
 
 // ── Formatters ──────────────────────────────────────────────────────────── //
-const USD = new Intl.NumberFormat('en-US', {
-	style: 'currency', currency: 'USD',
-	minimumFractionDigits: 2, maximumFractionDigits: 2,
-});
 const PCT = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 const QTY = (n: number) => {
 	if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
@@ -189,7 +186,7 @@ function pillClass(n: number | null): string {
 
 function fmtPnl(n: number | null): string {
 	if (n == null) return '—';
-	const abs = USD.format(Math.abs(n));
+	const abs = formatUsd(Math.abs(n));
 	return n >= 0 ? `+${abs}` : `(${abs})`;
 }
 
@@ -285,7 +282,7 @@ function buildAllocBar(
 		seg.className = 'pf-alloc-bar__seg';
 		seg.style.flexGrow = String(share * 100);
 		seg.style.background = color;
-		seg.title = `${asset.symbol}: ${USD.format(val)}`;
+		seg.title = `${asset.symbol}: ${formatUsd(val)}`;
 		bar.appendChild(seg);
 	}
 }
@@ -360,7 +357,7 @@ async function loadPortfolio() {
 		const pnlVal    = hasPrices ? s.totalUnrealizedPnl : null;
 
 		const heroValue = document.getElementById('hero-value')!;
-		heroValue.textContent = hasPrices ? USD.format(s.totalCurrentValue) : '—';
+		heroValue.textContent = hasPrices ? formatUsd(s.totalCurrentValue) : '—';
 		if (pnlVal != null && pnlVal >= 0) heroValue.classList.add('pf-hero__value--gain');
 
 		const heroPnl = document.getElementById('hero-pnl')!;
@@ -373,14 +370,14 @@ async function loadPortfolio() {
 
 		// Use pricedCostBasis so "vs. X cost basis" reconciles with P&L and Current Value.
 		// (totalCostBasis includes unpriced assets that have no matching current value.)
-		(document.getElementById('hero-invested')!).textContent = USD.format(s.pricedCostBasis);
+		(document.getElementById('hero-invested')!).textContent = formatUsd(s.pricedCostBasis);
 
 		// If there are unpriced assets, show a note so the user understands the difference.
 		const unpricedCost = s.totalCostBasis - s.pricedCostBasis;
 		if (unpricedCost > 0.005) {
 			const noteEl = document.getElementById('hero-unpriced-note')!;
 			const textEl = document.getElementById('hero-unpriced-text')!;
-			textEl.textContent = interpolate(I18N.heroUnpriced, USD.format(unpricedCost));
+			textEl.textContent = interpolate(I18N.heroUnpriced, formatUsd(unpricedCost));
 			noteEl.hidden = false;
 		}
 
@@ -399,8 +396,8 @@ async function loadPortfolio() {
 		const cardPct   = document.getElementById('card-pct')!;
 
 		// Show priced cost basis so Total Invested reconciles with P&L and Current Value.
-		cardCost.textContent  = USD.format(s.pricedCostBasis);
-		cardValue.textContent = hasPrices ? USD.format(s.totalCurrentValue) : '—';
+		cardCost.textContent  = formatUsd(s.pricedCostBasis);
+		cardValue.textContent = hasPrices ? formatUsd(s.totalCurrentValue) : '—';
 
 		cardPnl.textContent = fmtPnl(pnlVal);
 		cardPnl.className   = metricClass(pnlVal);
@@ -434,10 +431,10 @@ async function loadPortfolio() {
 					</div>
 				</td>
 				<td class="pf-col--holdings">${QTY(a.quantity)}</td>
-				<td class="pf-col--avg-cost">${a.weightedAvgCost > 0 ? USD.format(a.weightedAvgCost) : '—'}</td>
-				<td>${USD.format(a.totalCostBasis)}</td>
-				<td class="pf-col--price-now">${hasPrice ? USD.format(a.currentPrice!) : '<span style="color:var(--pf-text-2)">—*</span>'}</td>
-				<td>${a.currentValue != null ? USD.format(a.currentValue) : '<span style="color:var(--pf-text-2)">—</span>'}</td>
+				<td class="pf-col--avg-cost">${a.weightedAvgCost > 0 ? formatUsd(a.weightedAvgCost) : '—'}</td>
+				<td>${formatUsd(a.totalCostBasis)}</td>
+				<td class="pf-col--price-now">${hasPrice ? formatUsd(a.currentPrice!) : '<span style="color:var(--pf-text-2)">—*</span>'}</td>
+				<td>${a.currentValue != null ? formatUsd(a.currentValue) : '<span style="color:var(--pf-text-2)">—</span>'}</td>
 				<td><span class="${pillClass(a.unrealizedPnl)}">${fmtPnl(a.unrealizedPnl)}</span></td>
 				<td><span class="${pillClass(a.pnlPercent)}">${a.pnlPercent != null ? PCT(a.pnlPercent) : '—'}</span></td>
 			`;
@@ -460,9 +457,9 @@ async function loadPortfolio() {
 					<td>${I18N.tableTotal}</td>
 					<td class="pf-col--holdings"></td>
 					<td class="pf-col--avg-cost"></td>
-					<td>${USD.format(footPricedCost)}</td>
+					<td>${formatUsd(footPricedCost)}</td>
 					<td class="pf-col--price-now"></td>
-					<td>${USD.format(footCurVal)}</td>
+					<td>${formatUsd(footCurVal)}</td>
 					<td><span class="${pillClass(footPnl)}">${fmtPnl(footPnl)}</span></td>
 					<td><span class="${pillClass(s.pnlPercent)}">${s.pnlPercent != null ? PCT(s.pnlPercent) : '—'}</span></td>
 				</tr>

@@ -228,7 +228,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 </div>
 
 <script>
-	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+	import { formatUsd } from '@/lib/format';
 
 	function parseNumber(value) {
 		if (!value) return 0;
@@ -362,14 +362,14 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 		const { debt, rate } = getLoanParams(container);
 		const payments = getStoredPayments(container);
 		const payoffData = calculatePayoff(debt, rate, payments, startDateValue);
-		valueEl.textContent = `Value of loan is ${formatter.format(payoffData.payoff)}`;
+		valueEl.textContent = `Value of loan is ${formatUsd(payoffData.payoff)}`;
 		valueEl.dataset.debtValue = String(payoffData.payoff);
 		valueEl.dispatchEvent(new CustomEvent('debt-updated', { bubbles: true }));
 		if (currentBalanceEl) {
-			currentBalanceEl.textContent = formatter.format(payoffData.balance);
+			currentBalanceEl.textContent = formatUsd(payoffData.balance);
 		}
 		if (debtField && document.activeElement !== debtField) {
-			debtField.value = formatter.format(debt);
+			debtField.value = formatUsd(debt);
 		}
 
 		let interestText = `${rate || 0}% interest`;
@@ -445,7 +445,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 		if (debtField) {
 			debtField.addEventListener('blur', () => {
 				const debt = parseNumber(debtField.value);
-				debtField.value = formatter.format(debt);
+				debtField.value = formatUsd(debt);
 			});
 		}
 
@@ -547,7 +547,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 		if (paymentAmount) {
 			paymentAmount.addEventListener('blur', () => {
 				const amount = parseNumber(paymentAmount.value);
-				paymentAmount.value = formatter.format(amount);
+				paymentAmount.value = formatUsd(amount);
 			});
 		}
 
@@ -562,11 +562,11 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 			item.className = 'loan-payments__item';
 			item.dataset.paymentId = payment.id;
 			const remainingText = Number.isFinite(payment.remainingBalance)
-				? formatter.format(payment.remainingBalance)
+				? formatUsd(payment.remainingBalance)
 				: '—';
 			item.innerHTML = `
 				<span>${payment.paymentDate}</span>
-				<span>${formatter.format(payment.amountUsd)}</span>
+				<span>${formatUsd(payment.amountUsd)}</span>
 				<span>${remainingText}</span>
 				<button type="button" class="loan-payment-delete" data-delete-payment>Delete</button>
 			`;
@@ -633,7 +633,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 					paymentModal.hidden = true;
 					const paymentSaved = container.querySelector('[data-payment-saved]');
 					if (paymentSaved) {
-						paymentSaved.textContent = `Payment: ${formatter.format(amountValue)}`;
+						paymentSaved.textContent = `Payment: ${formatUsd(amountValue)}`;
 						paymentSaved.hidden = false;
 					}
 					paymentAmount.hidden = true;

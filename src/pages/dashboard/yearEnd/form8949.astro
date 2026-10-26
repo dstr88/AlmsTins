@@ -558,6 +558,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 } }}>window.__f8i18n = f8i18n;</script>
 
 <script>
+import { formatUsd } from '@/lib/format';
 // i18n strings injected by the inline define:vars block above.
 // English fallbacks ensure the script works if that block ever fails to run.
 interface F8I18n {
@@ -623,7 +624,7 @@ const I18N: F8I18n = (window as unknown as { __f8i18n?: F8I18n }).__f8i18n ?? {
 	totalsPrefix: 'Totals (Box {box})',
 };
 
-const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const USD = (n: number) => formatUsd(n);
 const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
 
 interface Form8949Row {

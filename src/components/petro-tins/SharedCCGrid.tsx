@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { PetroTin } from './types';
 import './SharedCCGrid.css';
-
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
+import { formatUsd } from '@/lib/format';
 
 interface SharedItem {
   id: string;
@@ -122,11 +119,11 @@ export default function SharedCCGrid({ debtTins }: Props) {
                 <tr key={item.id} className={warning === 'over' ? 'scc-row--over' : warning === 'near' ? 'scc-row--near' : ''}>
                   <td className="scc-col-card">{tin?.name ?? '—'}</td>
                   <td>{item.description}</td>
-                  <td className="scc-col-amt scc-amount">{fmt(item.amount)}</td>
+                  <td className="scc-col-amt scc-amount">{formatUsd(item.amount)}</td>
                   <td className="scc-col-status">
                     {warning === 'over' ? (
                       <span className="scc-warning scc-warning--over"
-                        title={tin ? `Balance ${fmt(tin.balance ?? 0)} + ${fmt(item.amount)} = ${fmt((tin.balance ?? 0) + item.amount)} — exceeds ${fmt(tin.creditLimit ?? 0)} limit` : ''}>
+                        title={tin ? `Balance ${formatUsd(tin.balance ?? 0)} + ${formatUsd(item.amount)} = ${formatUsd((tin.balance ?? 0) + item.amount)} — exceeds ${formatUsd(tin.creditLimit ?? 0)} limit` : ''}>
                         ⚠ Over limit
                       </span>
                     ) : warning === 'near' ? (
@@ -145,7 +142,7 @@ export default function SharedCCGrid({ debtTins }: Props) {
           <tfoot>
             <tr>
               <td colSpan={2} className="scc-foot-label">Total</td>
-              <td className="scc-col-amt scc-foot-total">{fmt(totalAmount)}</td>
+              <td className="scc-col-amt scc-foot-total">{formatUsd(totalAmount)}</td>
               <td colSpan={2} />
             </tr>
           </tfoot>

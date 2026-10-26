@@ -4,6 +4,7 @@ import type { Wallet } from '@/lib/wallets';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getCustomWalletCard } from '@/i18n/components/customWalletCard';
+import { formatUsd } from '@/lib/format';
 
 interface Props {
 	wallet: Wallet;
@@ -40,10 +41,8 @@ const fDate = (iso: string | null) => {
 	try { return new Date(iso).toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
 	catch { return iso; }
 };
-const fUsd = (v: number | null) => {
-	if (v == null || !Number.isFinite(v)) return null;
-	return `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+// Dollars without a sign (the row's direction says in or out); null when there is no value.
+const fUsd = (v: number | null) => (v == null || !Number.isFinite(v) ? null : formatUsd(Math.abs(v)));
 const parseMeta = (raw: string | null) => {
 	try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
 };

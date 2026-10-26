@@ -13,6 +13,7 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getNetworth } from '@/i18n/dashboard/networth';
+import { formatUsd } from '@/lib/format';
 
 type SliceType = 'asset' | 'stable' | 'debt';
 
@@ -51,6 +52,8 @@ const donutSliceMeta = donutSlices.map((slice) => {
 		endPct,
 		midAngle,
 		amountUsd: slice.value * 1000,
+		// Formatted here: the inline script below cannot import the shared formatter.
+		amountText: formatUsd(slice.value * 1000, { cents: false }),
 	};
 });
 const donutGradient = donutSliceMeta.map((slice) => `${slice.color} ${slice.startPct}% ${slice.endPct}%`).join(', ');
@@ -63,7 +66,6 @@ const netValue = assetValue - debtValue;
 const assetAmount = assetValue * 1000;
 const debtAmount = debtValue * 1000;
 const netAmount = netValue * 1000;
-const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 const lang = getLang(Astro.request);
 const t = getNetworth(lang);
@@ -673,7 +675,6 @@ const walletTins = wallets.map((wallet) => {
 			const defaultValue = holeValue?.textContent ?? '';
 			const slices = JSON.parse(decodeURIComponent(chart.getAttribute('data-slices') || '[]'));
 			const labels = card.querySelectorAll('.token-donut-label');
-			const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 			let lockedIndex = null;
 
 			const showPercent = (slice) => {
@@ -686,7 +687,7 @@ const walletTins = wallets.map((wallet) => {
 			const showAmount = (slice) => {
 				if (!holeLabel || !holeValue) return;
 				holeLabel.textContent = `${slice.label} total`;
-				holeValue.textContent = usdFormatter.format(slice.amountUsd);
+				holeValue.textContent = slice.amountText;
 				holeValue.style.color = slice.color || '#fdfaf3';
 			};
 

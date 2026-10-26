@@ -1,3 +1,4 @@
+import { formatUsd } from '@/lib/format';
 export type ExchangeHoldingRow = {
 	symbol: string;
 	balance: number;
@@ -9,8 +10,8 @@ export type ExchangeHoldingRow = {
 export const formatNumber = (value: number, options?: Intl.NumberFormatOptions) =>
 	new Intl.NumberFormat('en-US', options).format(value);
 
-export const formatCurrency = (value: number) =>
-	`$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)}`;
+/** Dollars with cents, `$1,234.50` (src/lib/format.ts). */
+export const formatCurrency = (value: number) => formatUsd(value);
 
 export const formatDaysSince = (value: string | null) => {
 	if (!value) return null;

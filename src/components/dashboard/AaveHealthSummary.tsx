@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAaveHealthSummary } from '@/i18n/components/aaveHealthSummary';
+import { formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'AaveHealthSummary');
 
@@ -246,15 +247,6 @@ function splitAmountForDisplay(value: string) {
 	return { intPart, fracPart: fracPart ?? '' };
 }
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 2,
-});
-
-function formatUsd(value: number) {
-	return currencyFormatter.format(value);
-}
 
 type AaveLiquidation = {
 	txHash: string;
@@ -270,7 +262,6 @@ type AaveLiquidation = {
 	penaltyUsd: number;
 };
 
-const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 	const t = getAaveHealthSummary(getClientLang());
@@ -289,17 +280,17 @@ function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 			<div className="aave-liq-body">
 				<div className="aave-liq-row">
 					<span className="aave-liq-label">{t.loanCleared}</span>
-					<span className="aave-liq-value">{usdFmt.format(liq.debtUsd)} {liq.debtSymbol}</span>
+					<span className="aave-liq-value">{formatUsd(liq.debtUsd)} {liq.debtSymbol}</span>
 				</div>
 				<div className="aave-liq-row">
 					<span className="aave-liq-label">{t.collateralSeized}</span>
 					<span className="aave-liq-value aave-liq-loss">
-						{liq.collateralAmount.toFixed(6)} {liq.collateralSymbol} ({usdFmt.format(liq.collateralUsd)})
+						{liq.collateralAmount.toFixed(6)} {liq.collateralSymbol} ({formatUsd(liq.collateralUsd)})
 					</span>
 				</div>
 				<div className="aave-liq-row">
 					<span className="aave-liq-label">{t.penaltyToLiquidator}</span>
-					<span className="aave-liq-value aave-liq-loss">{usdFmt.format(liq.penaltyUsd)}</span>
+					<span className="aave-liq-value aave-liq-loss">{formatUsd(liq.penaltyUsd)}</span>
 				</div>
 				{liq.blockExplorerUrl && (
 					<div className="aave-liq-row">

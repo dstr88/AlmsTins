@@ -153,7 +153,7 @@ if (userId) {
 } }}>window.__alertsI18n = i18n;</script>
 
 <script>
-const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+import { formatUsd } from '@/lib/format';
 
 // Localized strings injected by the inline <script is:inline define:vars> above.
 // English fallbacks keep the script working if that block ever fails to run.
@@ -241,13 +241,13 @@ function renderAlerts() {
 		card.innerHTML = `
 			<span class="alerts__item-symbol">${alert.assetSymbol}</span>
 			<span class="alerts__item-pill">${dirLabel}</span>
-			<span class="alerts__item-price">${USD(alert.threshold)}</span>
+			<span class="alerts__item-price">${formatUsd(alert.threshold)}</span>
 			<button class="alerts__item-delete delete-btn" title="${I18N.deleteTitle}" type="button">×</button>
 		`;
 
 		const delBtn = card.querySelector<HTMLButtonElement>('.delete-btn')!;
 		delBtn.addEventListener('click', async () => {
-			if (!confirm(`${I18N.deleteBefore}${alert.assetSymbol} ${alert.direction} ${USD(alert.threshold)}${I18N.deleteSuffix}`)) return;
+			if (!confirm(`${I18N.deleteBefore}${alert.assetSymbol} ${alert.direction} ${formatUsd(alert.threshold)}${I18N.deleteSuffix}`)) return;
 			try {
 				const res = await fetch(`/api/account/price-alerts?id=${alert.id}`, { method: 'DELETE' });
 				if ((await res.json()).ok) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthWalletCard } from '@/i18n/components/netWorthWalletCard';
+import { formatUsd } from '@/lib/format';
 
 type Token = {
 	tokenSymbol: string;
@@ -112,7 +113,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 			{!loading && !error && (
 				<>
 					<p className="wallet-card-total" style={{ fontWeight: 700, margin: '0.5rem 0' }}>
-						{t.totalPrefix}{totalUsd.toFixed(2)}
+						{t.totalPrefix}{formatUsd(totalUsd)}
 					</p>
 
 					<table className="wallet-card-table" style={{ width: '100%', fontSize: '0.9rem', borderSpacing: 0 }}>
@@ -131,7 +132,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 										<td style={{ padding: '4px 0' }}>{t.tokenSymbol}</td>
 										<td style={{ padding: '4px 0' }}>{t.chain}</td>
 										<td style={{ padding: '4px 0', textAlign: 'right' }}>{t.amount}</td>
-										<td style={{ padding: '4px 0', textAlign: 'right' }}>${t.usdValue.toFixed(2)}</td>
+										<td style={{ padding: '4px 0', textAlign: 'right' }}>{formatUsd(t.usdValue)}</td>
 									</tr>
 								))
 							) : (

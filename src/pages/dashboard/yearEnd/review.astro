@@ -13,6 +13,7 @@ import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import YearEndTour from '../../../components/tours/YearEndTour.astro';
 import { getLang } from '@/lib/i18n/locale';
 import { getReview } from '@/i18n/dashboard/yearEnd/review';
+import { formatUsd } from '@/lib/format';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
 const { tenantId } = await requireTenantSession(Astro.request);
@@ -179,7 +180,7 @@ const CATEGORY_OPTIONS = t.categoryOptions;
 				<div class="group-items">
 					{groupItems.map((item) => {
 						const { sym, amt, usd, ts, autoCat, needsPrice } = item;
-						const usdFmt = usd ? `$${Number(usd).toLocaleString(localeDateLocale, {minimumFractionDigits:2, maximumFractionDigits:2})}` : '';
+						const usdFmt = usd ? formatUsd(usd) : '';
 
 						return (
 							<div class="review-item"

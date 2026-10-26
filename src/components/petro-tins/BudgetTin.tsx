@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import type { PetroTin, PetroTinEntry } from './types';
 import { writeToApi } from './saveResult';
 import './BudgetTin.css';
+import { formatUsd } from '@/lib/format';
 
 const BLANK_ROWS = 5;
 
@@ -20,9 +21,6 @@ const nextMonth = () => {
   return d.toISOString().slice(0, 7);
 };
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
 function monthLabel(ym: string) {
   const [y, m] = ym.split('-');
   return new Date(Number(y), Number(m) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -277,7 +275,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
                 onBlur={saveEditEntry} autoFocus />
             : e.kind === 'expense'
-              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{fmt(e.amount)}</span>
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{formatUsd(e.amount)}</span>
               : ''
           }
         </td>
@@ -288,7 +286,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
                 onBlur={saveEditEntry} autoFocus />
             : e.kind === 'income'
-              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{fmt(e.amount)}</span>
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{formatUsd(e.amount)}</span>
               : ''
           }
         </td>
@@ -330,11 +328,11 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
 
       {/* Summary row */}
       <div className="pt-budget-tin__meta">
-        <span>Income <strong className="gain">{fmt(totalIncome)}</strong></span>
-        <span>Bills <strong className="loss">{fmt(totalExpenses)}</strong></span>
-        <span>Net <strong className={surplus >= 0 ? 'gain' : 'loss'}>{fmt(surplus)}</strong></span>
+        <span>Income <strong className="gain">{formatUsd(totalIncome)}</strong></span>
+        <span>Bills <strong className="loss">{formatUsd(totalExpenses)}</strong></span>
+        <span>Net <strong className={surplus >= 0 ? 'gain' : 'loss'}>{formatUsd(surplus)}</strong></span>
         {carriedTotal > 0 && (
-          <span className="pt-carried-badge">⚠ {fmt(carriedTotal)} carried over</span>
+          <span className="pt-carried-badge">⚠ {formatUsd(carriedTotal)} carried over</span>
         )}
       </div>
 
@@ -343,7 +341,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
         <div className="pt-allpaid-banner">
           🎉 All bills paid for {monthLabel(curMonth)}!
           {tin.surplusMode === 'slush' && surplus > 0 && (
-            <span> {fmt(surplus)} swept to your Slush Fund.</span>
+            <span> {formatUsd(surplus)} swept to your Slush Fund.</span>
           )}
         </div>
       )}
@@ -446,7 +444,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                       disabled={saving[i]} />
                     {row.payment.trim().startsWith('=') && !isNaN(evalFormula(row.payment)) && (
                       <span style={{ position: 'absolute', bottom: '-1.1rem', left: 0, fontSize: '0.7rem', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                        = {fmt(evalFormula(row.payment))}
+                        = {formatUsd(evalFormula(row.payment))}
                       </span>
                     )}
                   </td>
@@ -459,7 +457,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                       disabled={saving[i]} />
                     {row.deposit.trim().startsWith('=') && !isNaN(evalFormula(row.deposit)) && (
                       <span style={{ position: 'absolute', bottom: '-1.1rem', left: 0, fontSize: '0.7rem', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-                        = {fmt(evalFormula(row.deposit))}
+                        = {formatUsd(evalFormula(row.deposit))}
                       </span>
                     )}
                   </td>
@@ -491,7 +489,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
             : curIncome.map(e => (
               <div key={e.id} className="pt-defaults-panel__row">
                 <span className="pt-defaults-panel__desc">{e.description || '(no description)'}</span>
-                <span className="pt-defaults-panel__amt gain">{fmt(e.amount)}</span>
+                <span className="pt-defaults-panel__amt gain">{formatUsd(e.amount)}</span>
                 <button
                   className={`pt-defaults-panel__btn${e.isDefault ? ' active' : ''}`}
                   onClick={() => toggleDefault(e.id, e.isDefault)}

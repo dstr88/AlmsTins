@@ -30,7 +30,7 @@ export interface UsdOptions {
 	signed?: boolean;
 	/**
 	 * true (default): two decimals, `$1,234.50`. false: whole dollars, `$1,235`.
-	 * A number: up to that many decimals and at least two (`$0.0123` with 4).
+	 * A number: exactly that many decimals (`$0.0123`, `$3.1000` with 4), for token prices.
 	 */
 	cents?: boolean | number;
 	/** What a missing value (null, undefined, NaN, Infinity) shows. Default `—`. */
@@ -64,8 +64,8 @@ export function toFiniteNumber(v: unknown): number | null {
 function usdDigits(cents: UsdOptions['cents']): { min: number; max: number } {
 	if (cents === false) return { min: 0, max: 0 };
 	if (typeof cents === 'number' && Number.isFinite(cents)) {
-		const max = Math.min(20, Math.max(0, Math.floor(cents)));
-		return { min: Math.min(2, max), max };
+		const n = Math.min(20, Math.max(0, Math.floor(cents)));
+		return { min: n, max: n };
 	}
 	return { min: 2, max: 2 };
 }

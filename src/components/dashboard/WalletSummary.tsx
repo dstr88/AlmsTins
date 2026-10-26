@@ -3,6 +3,7 @@ import './WalletSummary.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletSummary } from '@/i18n/components/walletSummary';
 import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
+import { formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'WalletSummary');
 
@@ -133,11 +134,6 @@ const formatSnapshotDate = (capturedAt: string) => {
 		: capturedAt;
 };
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 2,
-});
 const DUST_THRESHOLD_USD = 1;
 const WALLET_DEBUG =
 	String(import.meta.env.WALLET_DEBUG ?? import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
@@ -586,7 +582,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											</span>
 											<span className="wallet-summary__cell wallet-summary__cell--token">{token.symbol}</span>
 											<span className="wallet-summary__cell wallet-summary__cell--value">
-												{token.usdValue == null ? t.unpriced : currencyFormatter.format(Number(token.usdValue))}
+												{token.usdValue == null ? t.unpriced : formatUsd(Number(token.usdValue))}
 											</span>
 										</div>
 										<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
@@ -677,7 +673,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 								const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 								return state.wallet.totalUsd === 0 && unpricedCount > 0
 									? t.unpriced
-									: currencyFormatter.format(state.wallet.totalUsd);
+									: formatUsd(state.wallet.totalUsd);
 							})()}
 						</span>
 					</div>
@@ -724,7 +720,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										const valueNode = isUnverified ? (
 											<abbr title={t.unpricedContractTitle} className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
-											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
+											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{formatUsd(resolvedUsd)}</span>
 										) : (
 											<abbr title={t.unpricedDataTitle} className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
@@ -768,7 +764,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												: 'wallet-summary__cell--pl-none';
 										// Show dollar gain/loss; percentage moves to tooltip on hover
 										const plLabel = plAbsolute !== null
-											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
+											? formatUsd(plAbsolute, { signed: true })
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? '?'
 												: '—';
@@ -801,7 +797,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
 													<span />
 													<span className="wallet-summary__cell wallet-summary__cell--price">
-														{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
+														{currentPrice != null ? formatUsd(currentPrice) : '—'}
 													</span>
 													<span
 														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
@@ -860,7 +856,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 								const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 								return state.wallet.totalUsd === 0 && unpricedCount > 0
 									? t.unpriced
-									: currencyFormatter.format(state.wallet.totalUsd);
+									: formatUsd(state.wallet.totalUsd);
 							})()}
 						</span>
 					</div>
@@ -907,7 +903,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										const valueNode = isUnverified ? (
 											<abbr title={t.unpricedContractTitle} className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
-											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
+											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{formatUsd(resolvedUsd)}</span>
 										) : (
 											<abbr title={t.unpricedDataTitle} className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
@@ -951,7 +947,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												: 'wallet-summary__cell--pl-none';
 										// Show dollar gain/loss; percentage moves to tooltip on hover
 										const plLabel = plAbsolute !== null
-											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
+											? formatUsd(plAbsolute, { signed: true })
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? '?'
 												: '—';
@@ -984,7 +980,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
 													<span />
 													<span className="wallet-summary__cell wallet-summary__cell--price">
-														{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
+														{currentPrice != null ? formatUsd(currentPrice) : '—'}
 													</span>
 													<span
 														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}

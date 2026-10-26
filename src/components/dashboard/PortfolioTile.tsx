@@ -3,14 +3,12 @@ import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/s
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getPortfolioTile } from '@/i18n/components/portfolioTile';
 import PartialTotalNote from './PartialTotalNote';
+import { formatUsd } from '@/lib/format';
 
-const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 type UploadStatus = { ok: boolean; message: string } | null;
 type SyncStatus = { ok: boolean; processed: number; failed: number; failedNames?: string[] } | null;
 
-const fmtPnl = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, signDisplay: 'always' });
 
 function SyncIcon() {
 	return (
@@ -201,10 +199,10 @@ export default function PortfolioTile() {
 							<div className="pt-hero">
 								<span className="pt-hero__label">{t.marketValue}</span>
 								<div className="pt-hero__row">
-									<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
+									<strong className="pt-hero__value">{formatUsd(assetsTotal, { cents: false })}</strong>
 									{pnl != null && (
 										<span className="pt-hero__pnl" style={{ color: pnlColor }}>
-											{fmtPnl.format(pnl)}
+											{formatUsd(pnl, { signed: true, cents: false })}
 										</span>
 									)}
 								</div>
@@ -224,7 +222,7 @@ export default function PortfolioTile() {
 					{tins.map((t) => (
 						<li key={t.tinId} className="pt-wallet-row">
 							<span className="pt-wallet-name">{t.tinName}</span>
-							<span className="pt-wallet-value">{fmtFull.format(t.assetsUsd)}</span>
+							<span className="pt-wallet-value">{formatUsd(t.assetsUsd)}</span>
 						</li>
 					))}
 				</ul>
@@ -233,7 +231,7 @@ export default function PortfolioTile() {
 			{/* ── Aave debt footnote (not included above) ────────── */}
 			{debtTotal > 0 && (
 				<p className="pt-debt-note">
-					{t.aaveDebtNote(fmtFull.format(debtTotal))}
+					{t.aaveDebtNote(formatUsd(debtTotal))}
 				</p>
 			)}
 

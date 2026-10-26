@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTinAssetsCard } from '@/i18n/components/tinAssetsCard';
+import { formatUsd } from '@/lib/format';
 
 export type TinAssetsCardProps = {
 	walletId: string;
@@ -158,7 +159,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 								</div>
 								<div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
 									<span style={{ fontWeight: 500 }}>{formatAmount(token.amount)}</span>
-									<span style={{ fontSize: '0.85rem', opacity: 0.8 }}>${formatAmount(token.usdValue)}</span>
+									<span style={{ fontSize: '0.85rem', opacity: 0.8 }}>{formatUsd(Number(token.usdValue || 0))}</span>
 								</div>
 							</div>
 						))}
@@ -225,7 +226,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 											>
 												<span style={{ fontWeight: 500 }}>{formatAmount(token.amount)}</span>
 												<span style={{ fontSize: '0.85rem', opacity: 0.8 }}>
-													${formatAmount(token.usdValue)}
+													{formatUsd(Number(token.usdValue || 0))}
 												</span>
 											</div>
 										</div>

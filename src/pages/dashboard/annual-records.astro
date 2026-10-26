@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getAnnualRecords } from '@/i18n/dashboard/annual-records';
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { formatUsd } from '@/lib/format';
 
 export const prerender = false;
 
@@ -148,7 +149,7 @@ const t = getAnnualRecords(lang);
 const localeDateLang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 // Locale-aware date helpers
-const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmt = (n: number) => formatUsd(n, { cents: false });
 const fmtDate = (s: string | null) => {
   if (!s) return t.never;
   try { return new Date(s).toLocaleDateString(localeDateLang, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return s; }

@@ -16,6 +16,7 @@ import { sendMail } from '@/lib/email';
 import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getPriceAlertEmail } from '@/i18n/emails/priceAlert';
+import { formatUsd } from '@/lib/format';
 
 export const prerender = false;
 
@@ -140,8 +141,8 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 
 		// Send email
-		const fmtPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(currentPrice);
-		const fmtThreshold = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(threshold);
+		const fmtPrice = formatUsd(currentPrice);
+		const fmtThreshold = formatUsd(threshold);
 			const lang = typeof pref.lang === 'string' && isLang(pref.lang) ? pref.lang : 'en';
 			const rendered = getPriceAlertEmail(lang).render({ symbol, fmtPrice, fmtThreshold, direction, appBase: APP_BASE });
 

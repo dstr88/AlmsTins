@@ -1,9 +1,6 @@
 import type { PetroTin } from './types';
 import './CreditCardChargesGrid.css';
-
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
+import { formatUsd } from '@/lib/format';
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -55,11 +52,11 @@ export default function CreditCardChargesGrid({ debtTins }: Props) {
                 {entry.checked && <span className="cc-posted-badge">posted</span>}
               </td>
               <td className="cc-col-amt">
-                <span className="cc-amount loss">{fmt(entry.amount)}</span>
+                <span className="cc-amount loss">{formatUsd(entry.amount)}</span>
               </td>
               <td className="cc-col-status">
                 {overLimit ? (
-                  <span className="cc-warning cc-warning--over" title={`Balance ${fmt(tin.balance ?? 0)} + charge ${fmt(entry.amount)} = ${fmt((tin.balance ?? 0) + entry.amount)} — exceeds ${fmt(tin.creditLimit ?? 0)} limit`}>
+                  <span className="cc-warning cc-warning--over" title={`Balance ${formatUsd(tin.balance ?? 0)} + charge ${formatUsd(entry.amount)} = ${formatUsd((tin.balance ?? 0) + entry.amount)} — exceeds ${formatUsd(tin.creditLimit ?? 0)} limit`}>
                     ⚠ Over limit
                   </span>
                 ) : nearLimit ? (
@@ -76,7 +73,7 @@ export default function CreditCardChargesGrid({ debtTins }: Props) {
         <tfoot>
           <tr>
             <td colSpan={2} className="cc-foot-label">Total recurring this month</td>
-            <td className="cc-col-amt cc-foot-total loss">{fmt(rows.reduce((s, r) => s + r.entry.amount, 0))}</td>
+            <td className="cc-col-amt cc-foot-total loss">{formatUsd(rows.reduce((s, r) => s + r.entry.amount, 0))}</td>
             <td />
           </tr>
         </tfoot>
