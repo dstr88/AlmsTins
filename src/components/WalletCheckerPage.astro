@@ -1,5 +1,6 @@
 ---
 import type { WalletCheckerLocale } from '../i18n/walletChecker';
+import '@/styles/dialog.css';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import WalletChecker from './WalletChecker';
 import PoweredByGoPlus from './PoweredByGoPlus';
@@ -135,7 +136,7 @@ const { t, prefilledAddress } = Astro.props;
     </header>
 
     <!-- Modal: phishing -->
-    <div id="modal-phishing" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-phishing-title">
+    <dialog id="modal-phishing" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-phishing-title">
       <div class="threat-modal__box">
         <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
         <div class="threat-modal__icon">🌐</div>
@@ -148,10 +149,10 @@ const { t, prefilledAddress } = Astro.props;
           <div class="threat-modal__tip" set:html={t.modals.phishing.tip}></div>
         </div>
       </div>
-    </div>
+    </dialog>
 
     <!-- Modal: scam -->
-    <div id="modal-scam" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-scam-title">
+    <dialog id="modal-scam" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-scam-title">
       <div class="threat-modal__box">
         <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
         <div class="threat-modal__icon">💀</div>
@@ -164,10 +165,10 @@ const { t, prefilledAddress } = Astro.props;
           <div class="threat-modal__tip" set:html={t.modals.scam.tip}></div>
         </div>
       </div>
-    </div>
+    </dialog>
 
     <!-- Modal: approval -->
-    <div id="modal-approval" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-approval-title">
+    <dialog id="modal-approval" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-approval-title">
       <div class="threat-modal__box">
         <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
         <div class="threat-modal__icon">🔓</div>
@@ -180,7 +181,7 @@ const { t, prefilledAddress } = Astro.props;
           <div class="threat-modal__tip" set:html={t.modals.approval.tip}></div>
         </div>
       </div>
-    </div>
+    </dialog>
 
     <!-- GoPlus API License Agreement s.3: a visible credit and backlink for the GoPlus results the
          checker shows. Server-rendered, so it is in the HTML without JS and covers both tabs; the
@@ -575,8 +576,8 @@ const { t, prefilledAddress } = Astro.props;
   .approval-link__arrow { font-size: 0.9rem; color: rgba(165,180,252,0.6); }
 
   /* Threat modals */
-  .threat-modal { display: none; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); }
-  .threat-modal.open { display: flex; }
+  /* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
+  .threat-modal { display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); }
   .threat-modal__box { background: #1a1d2e; border: 1px solid rgba(165,180,252,0.2); border-radius: 16px; padding: 2rem; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 24px 64px rgba(0,0,0,0.6); }
   .threat-modal__close { position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: rgba(255,255,255,0.45); font-size: 1.4rem; cursor: pointer; line-height: 1; padding: 0.2rem 0.5rem; border-radius: 6px; transition: color 0.15s, background 0.15s; }
   .threat-modal__close:hover { color: #fff; background: rgba(255,255,255,0.08); }
@@ -702,6 +703,7 @@ const { t, prefilledAddress } = Astro.props;
   import { goplusRanForSite } from '@/lib/goplusCredit';
   import { escapeHtml } from '@/lib/escapeHtml';
   import { siteVerdictText } from '@/lib/siteVerdict';
+  import { openDialog, wireDialogs } from '@/lib/nativeDialog';
 
   // Read i18n runtime strings embedded in the page
   const _i18nEl = document.getElementById('wc-i18n');
@@ -730,16 +732,12 @@ const { t, prefilledAddress } = Astro.props;
   }
 
   // ── Threat modals ─────────────────────────────────────────────────────────
+  // Native <dialog>s (src/lib/nativeDialog.ts): Escape and a backdrop click close them, and focus
+  // starts on the close button (the first one inside) and goes back to the card.
+  wireDialogs();
   function openModal(id: string) {
     const modal = document.getElementById(id);
-    if (!modal) return;
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    modal.querySelector<HTMLButtonElement>('.threat-modal__close')?.focus();
-  }
-  function closeModal(modal: HTMLElement) {
-    modal.classList.remove('open');
-    document.body.style.overflow = '';
+    if (modal instanceof HTMLDialogElement) openDialog(modal);
   }
 
   document.querySelectorAll<HTMLButtonElement>('.threat-card__top').forEach((btn) => {
@@ -777,13 +775,8 @@ const { t, prefilledAddress } = Astro.props;
     });
   });
 
-  document.querySelectorAll<HTMLElement>('.threat-modal').forEach((modal) => {
-    modal.querySelector('.threat-modal__close')?.addEventListener('click', () => closeModal(modal));
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal); });
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') document.querySelectorAll<HTMLElement>('.threat-modal.open').forEach(closeModal);
+  document.querySelectorAll<HTMLDialogElement>('dialog.threat-modal').forEach((modal) => {
+    modal.querySelector('.threat-modal__close')?.addEventListener('click', () => modal.close());
   });
 
   // ── Tab switching ─────────────────────────────────────────────────────────
