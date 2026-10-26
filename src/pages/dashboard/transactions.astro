@@ -169,6 +169,12 @@ const walletPayload = JSON.stringify(wallets);
 		dateLocale: INTL_LOCALE[lang],
 	} }}>window.__txI18n = i18n;</script>
 
+	<script>
+		// The untyped inline module below cannot import, so it reads the shared address shortener here.
+		import { shortenAddress } from '@/lib/addressDisplay';
+		(window as unknown as { __shortenAddress: typeof shortenAddress }).__shortenAddress = shortenAddress;
+	</script>
+
 	<script type="module">
 		const walletDataEl = document.getElementById('wallet-data');
 		const walletSelect = document.getElementById('wallet-select');
@@ -388,9 +394,11 @@ const walletPayload = JSON.stringify(wallets);
 			}
 		}
 
+		// The shared shortener (src/lib/addressDisplay.ts, D4), published by the bundled script above;
+		// until it has loaded, the whole value.
 		function shorten(value) {
 			if (!value) return '—';
-			return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+			return window.__shortenAddress ? window.__shortenAddress(value) : value;
 		}
 
 		function formatAmount(value, decimals = 18) {

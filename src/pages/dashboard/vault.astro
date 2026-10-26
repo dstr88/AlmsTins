@@ -320,6 +320,7 @@ const getChainBadge = (chains: string[]): string => {
 
 	<script>
 		import { formatUsd } from '@/lib/format';
+		import { copyText } from '@/lib/clipboard';
 		const initWalletAccordion = (stack: HTMLElement): void => {
 			if (stack.dataset.accordionInit === 'true') return;
 			stack.dataset.accordionInit = 'true';
@@ -503,10 +504,11 @@ const getChainBadge = (chains: string[]): string => {
 				const box = (btn as HTMLElement).closest('.wallet-label-box') as HTMLElement | null;
 				const address = box?.dataset?.address ?? '';
 				if (!address) return;
-				navigator.clipboard.writeText(address).then(() => {
+				void copyText(address).then((ok) => {
+					if (!ok) return;
 					btn.classList.add('copied');
 					setTimeout(() => btn.classList.remove('copied'), 1500);
-				}).catch(() => {});
+				});
 			});
 		});
 

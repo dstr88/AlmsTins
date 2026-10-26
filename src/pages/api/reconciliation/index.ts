@@ -16,6 +16,7 @@ import {
   type SourceBreakdown,
 } from '../../../lib/reconciliation';
 import { currentCoinSymbol } from '@/lib/chains';
+import { shortenAddress } from '@/lib/addressDisplay';
 
 export const prerender = false;
 
@@ -121,7 +122,7 @@ export const GET: APIRoute = async ({ request }) => {
 
     for (const raw of walletRows.rows as WalletRow[]) {
       const address = String(raw.address ?? '');
-      const label   = String(raw.label ?? '').trim() || address.slice(0, 10) + '…';
+      const label   = String(raw.label ?? '').trim() || shortenAddress(address);
       let tokens: Array<Record<string, unknown>> = [];
       try { tokens = JSON.parse(String(raw.payload_json ?? '[]')); } catch { continue; }
 

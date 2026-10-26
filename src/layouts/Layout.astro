@@ -642,6 +642,7 @@ import { formatDateTime, toLang } from '@/lib/format';
 
 
 <script>
+	import { copyText } from '@/lib/clipboard';
 	// Copy-to-clipboard for tenant ID button
 	// Attach directly to each button so the click is treated as a user gesture
 	// (document-level delegation can lose transient activation in strict Chrome contexts).
@@ -666,9 +667,9 @@ import { formatDateTime, toLang } from '@/lib/format';
 				}, 2000);
 			};
 
-			if (navigator.clipboard?.writeText) {
-				navigator.clipboard.writeText(text).then(showFeedback).catch(() => {
-					// fallback
+			void copyText(text).then((ok) => {
+				if (!ok) {
+					// No clipboard API, or the browser refused: the older way still works on some pages.
 					const ta = document.createElement('textarea');
 					ta.value = text;
 					ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
@@ -676,18 +677,9 @@ import { formatDateTime, toLang } from '@/lib/format';
 					ta.select();
 					document.execCommand('copy');
 					document.body.removeChild(ta);
-					showFeedback();
-				});
-			} else {
-				const ta = document.createElement('textarea');
-				ta.value = text;
-				ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-				document.body.appendChild(ta);
-				ta.select();
-				document.execCommand('copy');
-				document.body.removeChild(ta);
+				}
 				showFeedback();
-			}
+			});
 		});
 	}
 

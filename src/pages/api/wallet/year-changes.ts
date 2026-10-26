@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { isSpamToken } from '@/lib/knownContracts';
 import { currentCoinSymbol } from '@/lib/chains';
 import { formatDate } from '@/lib/format';
+import { shortenAddress } from '@/lib/addressDisplay';
 import { getLang } from '@/lib/i18n/locale';
 
 export const prerender = false;
@@ -162,7 +163,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const response: YearChangesResponse = {
       ok: true,
       walletId,
-      walletLabel: wallet.label || wallet.address.slice(0, 12) + '…',
+      walletLabel: wallet.label || shortenAddress(wallet.address),
       year,
       startDate: formatDate(startDate, lang, { style: 'numeric', timeZone: 'UTC' }),
       endDate: formatDate(endDate, lang, { style: 'numeric', timeZone: 'UTC' }),

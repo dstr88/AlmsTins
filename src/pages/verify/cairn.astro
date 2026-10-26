@@ -211,6 +211,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
   <script>
     import { formatMoney } from '@/lib/format';
+    import { copyText } from '@/lib/clipboard';
     const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
     const val = (id: string) => ($(id)?.value ?? '').trim();
     function esc(s: unknown) {
@@ -700,11 +701,9 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         box.querySelectorAll('[data-copy]').forEach((el) =>
           el.addEventListener('click', async () => {
             const t = (el as HTMLElement).dataset.copy as string;
-            try {
-              await navigator.clipboard.writeText(`${location.origin}/verify/cairn-attest?token=${encodeURIComponent(t)}`);
-              (el as HTMLButtonElement).textContent = 'Copied';
-              setTimeout(() => ((el as HTMLButtonElement).textContent = 'Copy link'), 1500);
-            } catch { /* clipboard unavailable */ }
+            if (!(await copyText(`${location.origin}/verify/cairn-attest?token=${encodeURIComponent(t)}`))) return; // clipboard unavailable
+            (el as HTMLButtonElement).textContent = 'Copied';
+            setTimeout(() => ((el as HTMLButtonElement).textContent = 'Copy link'), 1500);
           }));
         box.querySelectorAll('[data-revoke]').forEach((el) =>
           el.addEventListener('click', async () => {
