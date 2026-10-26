@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './LoanPayoffCalculator.css';
 type Props = {
 	initialDebt?: number;
@@ -42,9 +43,9 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 	<div class="loan-years">
 		<div class="loan-year">
 			<button type="button" class="loan-add-payment" data-add-payment>Add a payment</button>
-			<div class="loan-modal" data-payment-modal hidden>
+			<dialog class="dialog-shell dialog-shell--layer loan-modal" data-payment-modal aria-labelledby={`${id}-payment-title`}>
 				<div class="loan-modal__panel">
-					<h4>Add a payment</h4>
+					<h4 id={`${id}-payment-title`}>Add a payment</h4>
 					<div class="loan-payment-entry" data-payment-entry>
 						<label class="loan-label" for={`${id}-payment-date`}>Payment date</label>
 						<input id={`${id}-payment-date`} type="date" class="loan-input loan-input--date" />
@@ -62,7 +63,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 						<p class="loan-payment-status" data-payment-status></p>
 					</div>
 				</div>
-			</div>
+			</dialog>
 			<img
 				class="loan-year__divider"
 				src={yearlyDivide2026.src}
@@ -83,42 +84,42 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 		</div>
 	</div>
 
-	<div class="loan-modal" data-penalty-modal hidden>
+	<dialog class="dialog-shell dialog-shell--layer loan-modal" data-penalty-modal aria-labelledby={`${id}-penalty-title`}>
 		<div class="loan-modal__panel">
-			<h4>Prepayment penalties</h4>
+			<h4 id={`${id}-penalty-title`}>Prepayment penalties</h4>
 			<p>
 				Some lenders charge a fee if you pay off a loan early or make extra payments above the scheduled
 				amount. This is meant to recoup interest the lender expected to earn.
 			</p>
 			<button type="button" class="loan-modal__close" data-penalty-close>Close</button>
 		</div>
-	</div>
+	</dialog>
 
-	<div class="loan-modal" data-expiry-modal hidden>
+	<dialog class="dialog-shell dialog-shell--layer loan-modal" data-expiry-modal aria-labelledby={`${id}-expiry-title`}>
 		<div class="loan-modal__panel">
-			<h4>Rate expires</h4>
+			<h4 id={`${id}-expiry-title`}>Rate expires</h4>
 			<p>
 				Some loans have a teaser or promotional rate that ends on a specific month/year. After it
 				expires, the interest rate can increase or reset to a different index.
 			</p>
 			<button type="button" class="loan-modal__close" data-expiry-close>Close</button>
 		</div>
-	</div>
+	</dialog>
 
-	<div class="loan-modal" data-loanvalue-modal hidden>
+	<dialog class="dialog-shell dialog-shell--layer loan-modal" data-loanvalue-modal aria-labelledby={`${id}-loanvalue-title`}>
 		<div class="loan-modal__panel">
-			<h4>Value of the loan</h4>
+			<h4 id={`${id}-loanvalue-title`}>Value of the loan</h4>
 			<p>
 				This is the total amount you will repay with the current balance and rate. It combines the
 				remaining principal plus the interest calculated from the current APR.
 			</p>
 			<button type="button" class="loan-modal__close" data-loanvalue-close>Close</button>
 		</div>
-	</div>
+	</dialog>
 
-	<div class="loan-modal" data-contract-modal hidden>
+	<dialog class="dialog-shell dialog-shell--layer loan-modal" data-contract-modal aria-labelledby={`${id}-contract-title`}>
 		<div class="loan-modal__panel">
-			<h4>Contract details</h4>
+			<h4 id={`${id}-contract-title`}>Contract details</h4>
 			<div class="loan-inputs">
 				<div class="loan-penalty loan-penalty--inline">
 					<span class="loan-label">Prepayment penalties</span>
@@ -224,11 +225,20 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 			</div>
 			<button type="button" class="loan-modal__close" data-contract-close>Close</button>
 		</div>
-	</div>
+	</dialog>
 </div>
 
 <script>
 	import { formatUsd } from '@/lib/format';
+	import { openDialog, wireDialog } from '@/lib/nativeDialog';
+
+	// The calculator's modals are native <dialog>s: the button opens one, its Close button, Escape and
+	// a backdrop click close it, and focus goes back to the button (src/lib/nativeDialog.ts).
+	function wireModal(opener, modal, closer) {
+		wireDialog(modal);
+		opener.addEventListener('click', () => openDialog(modal));
+		closer.addEventListener('click', () => modal.close());
+	}
 
 	function parseNumber(value) {
 		if (!value) return 0;
@@ -460,65 +470,13 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 			toggleTermFields();
 		}
 
-		if (penaltyInfo && penaltyModal && penaltyClose) {
-			const openModal = () => {
-				penaltyModal.hidden = false;
-			};
-			const closeModal = () => {
-				penaltyModal.hidden = true;
-			};
-			penaltyInfo.addEventListener('click', openModal);
-			penaltyClose.addEventListener('click', closeModal);
-			penaltyModal.addEventListener('click', (event) => {
-				if (event.target === penaltyModal) closeModal();
-			});
-			closeModal();
-		}
+		if (penaltyInfo && penaltyModal && penaltyClose) wireModal(penaltyInfo, penaltyModal, penaltyClose);
 
-		if (expiryInfo && expiryModal && expiryClose) {
-			const openModal = () => {
-				expiryModal.hidden = false;
-			};
-			const closeModal = () => {
-				expiryModal.hidden = true;
-			};
-			expiryInfo.addEventListener('click', openModal);
-			expiryClose.addEventListener('click', closeModal);
-			expiryModal.addEventListener('click', (event) => {
-				if (event.target === expiryModal) closeModal();
-			});
-			closeModal();
-		}
+		if (expiryInfo && expiryModal && expiryClose) wireModal(expiryInfo, expiryModal, expiryClose);
 
-		if (loanValueInfo && loanValueModal && loanValueClose) {
-			const openModal = () => {
-				loanValueModal.hidden = false;
-			};
-			const closeModal = () => {
-				loanValueModal.hidden = true;
-			};
-			loanValueInfo.addEventListener('click', openModal);
-			loanValueClose.addEventListener('click', closeModal);
-			loanValueModal.addEventListener('click', (event) => {
-				if (event.target === loanValueModal) closeModal();
-			});
-			closeModal();
-		}
+		if (loanValueInfo && loanValueModal && loanValueClose) wireModal(loanValueInfo, loanValueModal, loanValueClose);
 
-		if (contractOpen && contractModal && contractClose) {
-			const openModal = () => {
-				contractModal.hidden = false;
-			};
-			const closeModal = () => {
-				contractModal.hidden = true;
-			};
-			contractOpen.addEventListener('click', openModal);
-			contractClose.addEventListener('click', closeModal);
-			contractModal.addEventListener('click', (event) => {
-				if (event.target === contractModal) closeModal();
-			});
-			closeModal();
-		}
+		if (contractOpen && contractModal && contractClose) wireModal(contractOpen, contractModal, contractClose);
 
 		const addPaymentButton = container.querySelector('[data-add-payment]');
 		const paymentModal = container.querySelector('[data-payment-modal]');
@@ -528,18 +486,14 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 		const savePaymentButton = container.querySelector('[data-save-payment]');
 		const paymentStatus = container.querySelector('[data-payment-status]');
 		if (addPaymentButton && paymentModal && paymentDate) {
+			wireDialog(paymentModal);
 			addPaymentButton.addEventListener('click', () => {
-				paymentModal.hidden = false;
+				openDialog(paymentModal);
 				if (!paymentDate.value) {
 					const today = new Date();
 					const month = String(today.getMonth() + 1).padStart(2, '0');
 					const day = String(today.getDate()).padStart(2, '0');
 					paymentDate.value = `${today.getFullYear()}-${month}-${day}`;
-				}
-			});
-			paymentModal.addEventListener('click', (event) => {
-				if (event.target === paymentModal) {
-					paymentModal.hidden = true;
 				}
 			});
 		}
@@ -630,7 +584,7 @@ import yearlyDivide2026 from '../assets/2026yearlyDivide.webp';
 					}
 					paymentStatus.textContent = 'Saved.';
 					await loadPayments();
-					paymentModal.hidden = true;
+					paymentModal.close();
 					const paymentSaved = container.querySelector('[data-payment-saved]');
 					if (paymentSaved) {
 						paymentSaved.textContent = `Payment: ${formatUsd(amountValue)}`;
