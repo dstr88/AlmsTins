@@ -3,6 +3,7 @@ import { getAllTokenBalances, getNativeBalanceWei, getTokenMetadata } from '@/li
 import { trackedTokenForContract, type TokenBalance } from '@/lib/balances';
 import { classifyContract, isSpamToken } from '@/lib/knownContracts';
 import { extractSpamDomains, savePhishingDomains } from '@/lib/phishingDomains';
+import { CHAINS, type EVM_DISCOVERY_CHAINS } from '@/lib/chains';
 
 /**
  * Every token an Ethereum or Polygon wallet holds, read from Alchemy: the native coin plus each
@@ -15,18 +16,13 @@ import { extractSpamDomains, savePhishingDomains } from '@/lib/phishingDomains';
  * wallet's latest snapshot, so the same wallet showed different tokens depending on which
  * button had been pressed most recently, and neither list was complete.
  */
-export type EvmDiscoveryChain = 'ethereum' | 'polygon';
+export type EvmDiscoveryChain = (typeof EVM_DISCOVERY_CHAINS)[number];
 
 const ALCHEMY_CHAIN: Record<EvmDiscoveryChain, AlchemyChain> = {
 	ethereum: 'eth-mainnet',
 	polygon: 'polygon-mainnet',
 };
 
-// Same symbols balances.ts gives the native coins, so both paths store identical rows.
-const NATIVE_SYMBOL: Record<EvmDiscoveryChain, string> = {
-	ethereum: 'ETH',
-	polygon: 'MATIC',
-};
 
 const METADATA_CONCURRENCY = 5;
 const METADATA_RETRY_DELAY_MS = 250;
@@ -63,9 +59,11 @@ export async function discoverEvmBalances(chain: EvmDiscoveryChain, address: str
 		results.push({
 			chain,
 			address,
-			tokenSymbol: NATIVE_SYMBOL[chain],
+			// The chain's coin from src/lib/chains.ts, as balances.ts names it too, so both paths store
+			// identical rows. Polygon's is POL (until October 2026 it was stored as MATIC).
+			tokenSymbol: CHAINS[chain].native.symbol,
 			tokenAddress: null,
-			decimals: 18,
+			decimals: CHAINS[chain].native.decimals,
 			rawBalance: nativeWei,
 		});
 	}

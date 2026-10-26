@@ -182,7 +182,7 @@ describe('discoverEvmBalances', () => {
 		const wbtc = balances.find((b) => b.tokenAddress === POLY_WBTC);
 
 		expect(wbtc).toMatchObject({ tokenSymbol: 'WBTC', decimals: 8, rawBalance: 1234n });
-		expect(balances.map((b) => b.tokenSymbol).sort()).toEqual(['MATIC', 'WBTC', 'WPOL']);
+		expect(balances.map((b) => b.tokenSymbol).sort()).toEqual(['POL', 'WBTC', 'WPOL']);
 	});
 });
 

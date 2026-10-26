@@ -7,8 +7,9 @@
  * tests/ci/chainFactsGuard.test.ts fails on a chain list or native coin map written anywhere else.
  *
  * Polygon's native coin is POL (renamed from MATIC in 2024; owner decision D3, Oct 25 2026).
- * Rows stored before the change say MATIC; every price lookup and symbol comparison maps
- * MATIC to POL, so both spellings price and match the same.
+ * Snapshots stored before the change say MATIC. The price lookups already priced MATIC as POL,
+ * and the snapshot readers read it as POL (currentCoinSymbol), so both spellings price and
+ * match the same.
  *
  * Pure data and pure functions: React islands and bundled page scripts use this too.
  */
@@ -181,6 +182,19 @@ export function nativeSymbol(chain: unknown): string {
 export function evmNativeSymbol(chain: unknown): string {
 	const info = chainInfo(normalizeChain(chain));
 	return info?.family === 'evm' ? info.native.symbol : '';
+}
+
+/** Old symbols of a chain's coin that stored rows still carry, mapped to the current one. */
+const RENAMED_COIN_SYMBOLS: ReadonlyMap<string, string> = new Map([['MATIC', 'POL']]);
+
+/**
+ * A coin symbol as it is called now: MATIC (any case) is POL; any other symbol comes back exactly
+ * as given. Snapshots written before October 2026 store Polygon's coin as MATIC and later ones as
+ * POL; every reader that groups or compares snapshot tokens by symbol goes through this, so the two
+ * spellings are one holding.
+ */
+export function currentCoinSymbol(symbol: string): string {
+	return RENAMED_COIN_SYMBOLS.get(String(symbol ?? '').trim().toUpperCase()) ?? symbol;
 }
 
 /** The EIP-155 id of an EVM chain (by id, not alias), or null. */

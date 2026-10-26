@@ -31,6 +31,7 @@ import { getCache, setCache } from '@/lib/tursoCache';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { mergeCoverage, type AaveCoverage } from '@/lib/aave/pricing';
 import { isSpamToken } from '@/lib/knownContracts';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -138,7 +139,7 @@ export const GET: APIRoute = async ({ request }) => {
 				continue;
 			}
 			for (const t of tokens) {
-				const sym = (t.symbol ?? '').toString().trim().toUpperCase();
+				const sym = currentCoinSymbol((t.symbol ?? '').toString().trim().toUpperCase());
 				if (!sym) continue;
 				if (isSpamToken(sym)) continue;
 				const qty      = Number(t.amount  ?? 0);

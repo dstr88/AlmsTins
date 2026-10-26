@@ -23,6 +23,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -301,7 +302,7 @@ export const GET: APIRoute = async ({ request }) => {
 					} catch { continue; }
 
 					for (const t of tokens) {
-						const sym = (t.symbol ?? '').toString().trim().toUpperCase();
+						const sym = currentCoinSymbol((t.symbol ?? '').toString().trim().toUpperCase());
 						if (!sym) continue;
 						const qty = Number(t.amount ?? 0);
 						const val = Number(t.valueUsd ?? 0);

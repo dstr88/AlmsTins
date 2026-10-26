@@ -1,5 +1,6 @@
 import type { SupportedChain } from '@/lib/constants';
 import { buildScanUrl, fetchEthereumScan } from '@/lib/scanSync';
+import { CHAINS } from '@/lib/chains';
 
 export interface TokenBalance {
 	chain: SupportedChain;
@@ -34,10 +35,12 @@ async function scheduleScan<T>(fn: () => Promise<T>, delayMs = SCAN_DELAY_MS): P
 	return next;
 }
 
+// The native coins this file reads (src/lib/chains.ts). Polygon's is POL; until October 2026 it
+// was stored as MATIC.
 const NATIVE_TOKEN_META: Partial<Record<SupportedChain, { symbol: string; decimals: number }>> = {
-	ethereum: { symbol: 'ETH', decimals: 18 },
-	polygon: { symbol: 'MATIC', decimals: 18 },
-	avalanche: { symbol: 'AVAX', decimals: 18 },
+	ethereum: CHAINS.ethereum.native,
+	polygon: CHAINS.polygon.native,
+	avalanche: CHAINS.avalanche.native,
 };
 
 type ChainToken = {
@@ -109,7 +112,7 @@ const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 		},
 	],
 	polygon: [
-		{ symbol: 'MATIC', type: 'native', decimals: 18, coingeckoId: 'matic-network' },
+		{ symbol: 'POL', type: 'native', decimals: 18, coingeckoId: 'polygon-ecosystem-token' },
 		{
 			symbol: 'WPOL',
 			type: 'erc20',

@@ -6,6 +6,7 @@ import {
 	getCoingeckoIdBySymbol,
 	getUsdUnitPriceAtTimestampCoinGecko,
 } from '@/lib/coingeckoHistorical';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -290,7 +291,7 @@ export const GET: APIRoute = async ({ request }) => {
 			if (!Array.isArray(tokens)) continue;
 		} catch { continue; }
 		for (const t of tokens) {
-			const sym = String(t.symbol ?? '').toUpperCase();
+			const sym = currentCoinSymbol(String(t.symbol ?? '').toUpperCase());
 			if (!sym || FIAT_SYMBOLS.has(sym)) continue;
 			const qty = Math.abs(Number(t.amount ?? 0));
 			const usd = Math.abs(Number(t.valueUsd ?? 0));

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { isSpamToken } from '@/lib/knownContracts';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -63,7 +64,8 @@ export const GET: APIRoute = async ({ request, url }) => {
         const tokens = JSON.parse(payload.payload_json) as Array<{ symbol: string; amount: number }>;
         tokens.forEach(t => {
           if (isSpamToken(t.symbol)) return;
-          startHoldings.set(t.symbol, (startHoldings.get(t.symbol) ?? 0) + t.amount);
+          const symbol = currentCoinSymbol(t.symbol);
+          startHoldings.set(symbol, (startHoldings.get(symbol) ?? 0) + t.amount);
         });
       } catch {}
     }
@@ -85,8 +87,9 @@ export const GET: APIRoute = async ({ request, url }) => {
         const tokens = JSON.parse(payload.payload_json) as Array<{ symbol: string; amount: number; priceUsd?: number }>;
         tokens.forEach(t => {
           if (isSpamToken(t.symbol)) return;
-          const existing = endHoldings.get(t.symbol) || { qty: 0, priceUsd: 0 };
-          endHoldings.set(t.symbol, {
+          const symbol = currentCoinSymbol(t.symbol);
+          const existing = endHoldings.get(symbol) || { qty: 0, priceUsd: 0 };
+          endHoldings.set(symbol, {
             qty: existing.qty + t.amount,
             priceUsd: t.priceUsd ?? existing.priceUsd,
           });

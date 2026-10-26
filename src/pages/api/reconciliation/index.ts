@@ -15,6 +15,7 @@ import {
   type ReconciliationItem,
   type SourceBreakdown,
 } from '../../../lib/reconciliation';
+import { currentCoinSymbol } from '@/lib/chains';
 
 export const prerender = false;
 
@@ -125,7 +126,7 @@ export const GET: APIRoute = async ({ request }) => {
       try { tokens = JSON.parse(String(raw.payload_json ?? '[]')); } catch { continue; }
 
       for (const tok of tokens) {
-        const sym = String(tok.symbol ?? tok.tokenSymbol ?? '').trim().toUpperCase();
+        const sym = currentCoinSymbol(String(tok.symbol ?? tok.tokenSymbol ?? '').trim().toUpperCase());
         if (!sym || isAaveSymbol(sym)) continue;
         const amount = Number(tok.amount ?? tok.balance ?? 0);
         if (!Number.isFinite(amount) || amount <= 0) continue;
