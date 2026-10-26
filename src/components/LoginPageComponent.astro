@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import type { LoginPageLocale } from '../i18n/loginPage';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import LogoutButton from './LogoutButton.astro';
@@ -195,8 +196,8 @@ const isLockedOut = message === 'LOCKED_OUT';
   </main>
 
   {isLockedOut && (
-    <div class="session-overlay" id="session-overlay">
-      <div class="session-popup" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
+    <dialog class="dialog-shell dialog-shell--layer session-overlay" id="session-overlay" role="alertdialog" aria-labelledby="session-title" data-dialog-backdrop="stay">
+      <div class="session-popup">
         <div class="session-popup__icon">🔐</div>
         <h2 id="session-title">{t.sessionPopup.title}</h2>
         <p>{t.sessionPopup.body}</p>
@@ -205,11 +206,18 @@ const isLockedOut = message === 'LOCKED_OUT';
           <button class="session-popup__btn session-popup__btn--ghost" id="session-dismiss">{t.sessionPopup.dismissBtn}</button>
         </div>
       </div>
-    </div>
+    </dialog>
     <script is:inline>
-      document.getElementById('session-dismiss')?.addEventListener('click', function() {
-        document.getElementById('session-overlay')?.remove();
-      });
+      // A native <dialog>, open from page load: it needs one of its buttons (the backdrop does not
+      // close it), and Escape dismisses it like Dismiss.
+      (function () {
+        var dialog = document.getElementById('session-overlay');
+        if (!dialog || typeof dialog.showModal !== 'function') return;
+        dialog.showModal();
+        document.getElementById('session-dismiss')?.addEventListener('click', function () {
+          dialog.close();
+        });
+      })();
     </script>
   )}
 
@@ -1237,10 +1245,11 @@ const isLockedOut = message === 'LOCKED_OUT';
     .demo-invite-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
     /* ── Session popup ───────────────────────────────────────── */
+    /* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
     .session-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      background: rgba(0,0,0,0.65);
       backdrop-filter: blur(4px); display: flex;
-      align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+      align-items: center; justify-content: center; padding: 1rem;
     }
     .session-popup {
       background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
