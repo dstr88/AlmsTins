@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './Footer.css';
 import type { Lang } from "@/lib/i18n/locale";
 import { getFooter } from "@/i18n/footer";
@@ -73,32 +74,34 @@ const year = new Date().getFullYear();
     </section>
   </div>
 
-  <div class="footer-modal" id="privacy-modal" aria-hidden="true">
-    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.privacyAria}>
+  <dialog class="dialog-shell dialog-shell--layer footer-modal" id="privacy-modal" aria-label={t.privacyAria}>
+    <div class="footer-modal-content">
       <button class="footer-modal-close" type="button" data-footer-close="privacy-modal">×</button>
       <PrivacyPolicy variant="modal" lang={lang} />
     </div>
-  </div>
+  </dialog>
 
-  <div class="footer-modal" id="terms-modal" aria-hidden="true">
-    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.termsAria}>
+  <dialog class="dialog-shell dialog-shell--layer footer-modal" id="terms-modal" aria-label={t.termsAria}>
+    <div class="footer-modal-content">
       <button class="footer-modal-close" type="button" data-footer-close="terms-modal">×</button>
       <TermsOfService variant="modal" lang={lang} />
     </div>
-  </div>
+  </dialog>
 </footer>
 
 
 <script>
+  // Native <dialog>s (src/lib/nativeDialog.ts): Escape and a backdrop click close them too, and
+  // focus goes back to the link that opened them.
+  import { openDialog, wireDialogs } from "@/lib/nativeDialog";
+  wireDialogs();
+
   document.querySelectorAll("[data-footer-modal]").forEach((trigger) => {
     trigger.addEventListener("click", () => {
       const id = trigger.getAttribute("data-footer-modal");
       if (!id) return;
       const modal = document.getElementById(id);
-      if (modal) {
-        modal.classList.add("is-open");
-        modal.setAttribute("aria-hidden", "false");
-      }
+      if (modal instanceof HTMLDialogElement) openDialog(modal);
     });
   });
 
@@ -107,10 +110,7 @@ const year = new Date().getFullYear();
       const id = closeButton.getAttribute("data-footer-close");
       if (!id) return;
       const modal = document.getElementById(id);
-      if (modal) {
-        modal.classList.remove("is-open");
-        modal.setAttribute("aria-hidden", "true");
-      }
+      if (modal instanceof HTMLDialogElement) modal.close();
     });
   });
 </script>

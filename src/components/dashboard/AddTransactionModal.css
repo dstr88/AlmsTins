@@ -1,18 +1,12 @@
 /* ── Overlay / backdrop ──────────────────────────────────────────────── */
+/* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
 .atm-overlay {
-	position: fixed;
-	inset: 0;
 	background: rgba(0, 0, 0, 0.65);
-	z-index: 900;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	padding: 1rem;
 	backdrop-filter: blur(2px);
-}
-
-.atm-overlay.is-hidden {
-	display: none;
 }
 
 /* ── Dialog shell ────────────────────────────────────────────────────── */

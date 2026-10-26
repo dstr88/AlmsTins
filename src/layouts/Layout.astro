@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './Layout.css';
 import '../styles/dashboard.css';
 import Footer from "@/components/Footer.astro";
@@ -422,9 +423,10 @@ const memberSinceDisplay = memberSinceIso ? formatDate(memberSinceIso, navLang) 
 				</button>
 
 				<!-- ── Help drawer ───────────────────────────────────────────────── -->
-				<div id="help-drawer" class="help-drawer" role="dialog" aria-modal="true" aria-label="Support chat" hidden>
+				<!-- A non-modal <dialog> (opened with show()): the page stays usable around it. -->
+				<dialog id="help-drawer" class="dialog-shell help-drawer" aria-labelledby="help-drawer-title" data-dialog-backdrop="stay">
 					<div class="help-drawer__header">
-						<span class="help-drawer__title">{tNav.chrome.helpTitle}</span>
+						<span class="help-drawer__title" id="help-drawer-title">{tNav.chrome.helpTitle}</span>
 						<button id="help-drawer-close" class="help-drawer__close" aria-label={tNav.ui.close}>✕</button>
 					</div>
 					<div class="help-drawer__messages" id="help-messages">
@@ -443,7 +445,7 @@ const memberSinceDisplay = memberSinceIso ? formatDate(memberSinceIso, navLang) 
 							<button id="help-send" class="help-drawer__send">{tNav.chrome.helpSend}</button>
 						</div>
 					</div>
-				</div>
+				</dialog>
 			</>
 		)}
 	</body>
@@ -473,6 +475,7 @@ window.__chromeI18n = chromeI18n;
 
 <script>
 import { formatDateTime, toLang } from '@/lib/format';
+import { openDialog, wireDialog } from '@/lib/nativeDialog';
 // ── Mobile nav hamburger toggle ──────────────────────────────────────────
 (function () {
 	var toggle = document.getElementById('nav-toggle');
@@ -506,7 +509,7 @@ import { formatDateTime, toLang } from '@/lib/format';
 
 (function () {
 	const pill    = document.getElementById('help-pill');
-	const drawer  = document.getElementById('help-drawer');
+	const drawer  = document.getElementById('help-drawer') as HTMLDialogElement | null;
 	const closeBtn= document.getElementById('help-drawer-close');
 	const messages= document.getElementById('help-messages');
 	const input   = document.getElementById('help-input') as HTMLTextAreaElement | null;
@@ -574,28 +577,24 @@ import { formatDateTime, toLang } from '@/lib/format';
 		})
 		.catch(() => {});
 
-	let drawerOpen = false;
+	// A non-modal <dialog>: focus goes back to the pill when it closes (src/lib/nativeDialog.ts).
+	wireDialog(drawer);
 
 	pill.addEventListener('click', () => {
-		drawerOpen = !drawerOpen;
-		drawer!.hidden = !drawerOpen;
-		if (drawerOpen) {
-			loadThread();
-			setTimeout(() => input!.focus(), 60);
+		if (drawer!.open) {
+			drawer!.close();
+			return;
 		}
+		openDialog(drawer!, pill, { modal: false });
+		loadThread();
+		setTimeout(() => input!.focus(), 60);
 	});
 
-	closeBtn!.addEventListener('click', () => {
-		drawerOpen = false;
-		drawer!.hidden = true;
-	});
+	closeBtn!.addEventListener('click', () => drawer!.close());
 
-	// Close on Escape
+	// Close on Escape (the browser does this only for a modal dialog)
 	document.addEventListener('keydown', (e) => {
-		if (e.key === 'Escape' && drawerOpen) {
-			drawerOpen = false;
-			drawer!.hidden = true;
-		}
+		if (e.key === 'Escape' && drawer!.open) drawer!.close();
 	});
 
 	// Character counter

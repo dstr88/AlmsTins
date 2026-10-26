@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
@@ -244,14 +245,14 @@ const trust = [
 
     <!-- Modals for the trust cards -->
     {trust.map((p, i) => (
-      <div class="rmodal" id={`rmodal-${i}`} role="dialog" aria-modal="true" aria-labelledby={`rmodal-${i}-t`} hidden>
+      <dialog class="dialog-shell dialog-shell--layer rmodal" id={`rmodal-${i}`} aria-labelledby={`rmodal-${i}-t`}>
         <div class="rmodal__backdrop" data-rmodal-close></div>
         <div class="rmodal__panel">
-          <button class="rmodal__x" type="button" data-rmodal-close aria-label="Close">✕</button>
+          <button class="rmodal__x" type="button" data-rmodal-close aria-label="Close" autofocus>✕</button>
           <h3 class="rmodal__title" id={`rmodal-${i}-t`}>{p.title}</h3>
           {p.more.map((para) => <p class="rmodal__p">{para}</p>)}
         </div>
-      </div>
+      </dialog>
     ))}
 
     <!-- Footer -->
@@ -264,25 +265,19 @@ const trust = [
   </div>
 
   <script>
-    const closeModal = (m: Element | null) => {
-      if (!m) return;
-      (m as HTMLElement).hidden = true;
-      document.body.style.overflow = '';
-    };
+    // Native <dialog>s (src/lib/nativeDialog.ts): Escape closes them, focus starts on the close
+    // button (autofocus: the scrolling panel would take it first) and goes back to the card. The page's own backdrop layer
+    // (.rmodal__backdrop) closes them through data-rmodal-close.
+    import { openDialog, wireDialogs } from '@/lib/nativeDialog';
+    wireDialogs();
     document.querySelectorAll('[data-rmodal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const m = document.getElementById('rmodal-' + btn.getAttribute('data-rmodal'));
-        if (!m) return;
-        (m as HTMLElement).hidden = false;
-        document.body.style.overflow = 'hidden';
-        (m.querySelector('.rmodal__x') as HTMLElement | null)?.focus();
+        if (m instanceof HTMLDialogElement) openDialog(m);
       });
     });
     document.querySelectorAll('[data-rmodal-close]').forEach((el) => {
-      el.addEventListener('click', () => closeModal(el.closest('.rmodal')));
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') document.querySelectorAll('.rmodal:not([hidden])').forEach((m) => closeModal(m));
+      el.addEventListener('click', () => el.closest('dialog')?.close());
     });
   </script>
 </LoginLayout>
@@ -448,8 +443,8 @@ const trust = [
   .rcard__more { margin-top: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--accent); }
 
   /* Modal */
-  .rmodal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
-  .rmodal[hidden] { display: none; }
+  /* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
+  .rmodal { display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
   .rmodal__backdrop { position: absolute; inset: 0; background: var(--surface-bg); opacity: 0.82; }
   .rmodal__panel {
     position: relative; z-index: 1; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto;

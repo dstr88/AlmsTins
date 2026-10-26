@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import '../year-summary.css';
 /**
  * /dashboard/annual-records
@@ -158,7 +159,7 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
 
   <!-- ── Disclaimer modal (admin only) ───────────────────────────────────── -->
   {isAdmin && (
-    <div id="disclaimer-modal" class="disc-backdrop" role="dialog" aria-modal="true" aria-labelledby="disc-title" hidden>
+    <dialog id="disclaimer-modal" class="dialog-shell dialog-shell--layer disc-backdrop" aria-labelledby="disc-title" data-dialog-backdrop="stay">
       <div class="disc-box">
         <div class="disc-icon">⚖️</div>
         <h2 class="disc-title" id="disc-title">{t.disclaimerTitle}</h2>
@@ -166,7 +167,7 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
         <p class="disc-body" set:html={t.disclaimerBody2}></p>
         <button id="disc-ok" class="disc-btn">{t.disclaimerOk}</button>
       </div>
-    </div>
+    </dialog>
   )}
 
   <div class="year-summary">
@@ -796,6 +797,8 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
 } }}>window.__arI18n = i18nAR;</script>
 
 <script>
+  import { openDialog, wireDialog } from '@/lib/nativeDialog';
+
   // ── i18n strings (injected by inline define:vars above) ─────────────────────
   interface ArI18n {
     jsSyncing: string; jsSyncingWallets: string; jsRebuilding: string;
@@ -827,18 +830,19 @@ const fmtDate = (s: string | null) => formatDate(s, toLang(localeDateLang), { em
   // Feb 1 onwards = new filing season for the prior year
   const seasonYear = now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1;
   const discKey    = `tax_disclaimer_seen_${seasonYear}`;
-  const modal      = document.getElementById('disclaimer-modal') as HTMLElement;
+  // A native <dialog> (src/lib/nativeDialog.ts). It needs its button to be marked seen: the backdrop
+  // does not close it, and Escape closes it for this visit only.
+  const modal      = document.getElementById('disclaimer-modal');
 
-  if (!localStorage.getItem(discKey)) {
-    modal.hidden = false;
+  if (modal instanceof HTMLDialogElement) {
+    wireDialog(modal);
+    if (!localStorage.getItem(discKey)) openDialog(modal);
+    document.getElementById('disc-ok')?.addEventListener('click', () => {
+      localStorage.setItem(discKey, '1');
+      modal.close();
+    });
+    document.getElementById('disc-link-btn')?.addEventListener('click', () => openDialog(modal));
   }
-  document.getElementById('disc-ok')?.addEventListener('click', () => {
-    localStorage.setItem(discKey, '1');
-    modal.hidden = true;
-  });
-  document.getElementById('disc-link-btn')?.addEventListener('click', () => {
-    modal.hidden = false;
-  });
 
   // ── Restore checkbox state from localStorage ───────────────────────────────
   document.querySelectorAll<HTMLInputElement>('.check-box[data-key]').forEach(cb => {

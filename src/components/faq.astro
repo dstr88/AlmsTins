@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import type { Lang } from "@/lib/i18n/locale";
 import { getFaq } from "@/i18n/faq";
 
@@ -18,13 +19,13 @@ const t = getFaq(lang);
     </div>
 
     {t.items.map((it) => (
-      <div class="modal-overlay welcome-modal" id={it.id}>
+      <dialog class="dialog-shell dialog-shell--layer modal-overlay welcome-modal" id={it.id} aria-labelledby={`${it.id}-title`}>
         <div class="modal-content">
-          <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
-          <h2>{it.q}</h2>
+          <button class="modal-close" type="button" data-faq-close>×</button>
+          <h2 id={`${it.id}-title`}>{it.q}</h2>
           <Fragment set:html={it.a} />
         </div>
-      </div>
+      </dialog>
     ))}
   </div>
 
@@ -130,25 +131,12 @@ const t = getFaq(lang);
       transform: translateY(-1px);
     }
 
-    /* modal */
+    /* modal: the <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page) */
     .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      display: flex;
       background: rgba(0, 0, 0, 0.7);
       align-items: center;
       justify-content: center;
-      z-index: 9999;
-    }
-
-    .welcome-modal {
-      display: none;
-    }
-
-    .welcome-modal.is-open {
-      display: flex;
     }
 
     .modal-content {
@@ -191,29 +179,22 @@ const t = getFaq(lang);
   </style>
 
   <script>
-    const modals = Array.from(document.querySelectorAll(".welcome-modal"));
+    // Native <dialog>s (src/lib/nativeDialog.ts): the ×, Escape and a backdrop click close them,
+    // and focus goes back to the question.
+    import { openDialog, wireDialogs } from "@/lib/nativeDialog";
+    wireDialogs();
 
-    /** @param {Event} event */
-    function closeWelcomeModal(event:any) {
-      const targetModal =
-        event?.currentTarget instanceof HTMLElement
-          ? event.currentTarget.closest(".welcome-modal")
-          : null;
-
-      if (targetModal) {
-        targetModal.classList.remove("is-open");
-      }
-    }
-
-    document.querySelectorAll("[data-modal]").forEach((trigger) => {
+    document.querySelectorAll(".faq-question[data-modal]").forEach((trigger) => {
       trigger.addEventListener("click", () => {
         const id = trigger.getAttribute("data-modal");
         if (!id) return;
         const modal = document.getElementById(id);
-        if (modal) {
-          modal.classList.add("is-open");
-        }
+        if (modal instanceof HTMLDialogElement) openDialog(modal);
       });
+    });
+
+    document.querySelectorAll("[data-faq-close]").forEach((button) => {
+      button.addEventListener("click", () => button.closest("dialog")?.close());
     });
   </script>
 </section>

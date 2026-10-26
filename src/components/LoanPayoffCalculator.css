@@ -295,19 +295,13 @@
 	cursor: pointer;
 }
 
+/* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
 .loan-modal {
-	position: fixed;
-	inset: 0;
 	background: rgba(4, 6, 12, 0.7);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	padding: 1rem;
-	z-index: 20;
-}
-
-.loan-modal[hidden] {
-	display: none;
 }
 
 .loan-modal__panel {
