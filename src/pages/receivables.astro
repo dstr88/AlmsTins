@@ -248,7 +248,7 @@ const trust = [
       <dialog class="dialog-shell dialog-shell--layer rmodal" id={`rmodal-${i}`} aria-labelledby={`rmodal-${i}-t`}>
         <div class="rmodal__backdrop" data-rmodal-close></div>
         <div class="rmodal__panel">
-          <button class="rmodal__x" type="button" data-rmodal-close aria-label="Close">✕</button>
+          <button class="rmodal__x" type="button" data-rmodal-close aria-label="Close" autofocus>✕</button>
           <h3 class="rmodal__title" id={`rmodal-${i}-t`}>{p.title}</h3>
           {p.more.map((para) => <p class="rmodal__p">{para}</p>)}
         </div>
@@ -266,7 +266,7 @@ const trust = [
 
   <script>
     // Native <dialog>s (src/lib/nativeDialog.ts): Escape closes them, focus starts on the close
-    // button (the first one inside) and goes back to the card. The page's own backdrop layer
+    // button (autofocus: the scrolling panel would take it first) and goes back to the card. The page's own backdrop layer
     // (.rmodal__backdrop) closes them through data-rmodal-close.
     import { openDialog, wireDialogs } from '@/lib/nativeDialog';
     wireDialogs();

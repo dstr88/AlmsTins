@@ -138,7 +138,7 @@ const { t, prefilledAddress } = Astro.props;
     <!-- Modal: phishing -->
     <dialog id="modal-phishing" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-phishing-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
+        <button class="threat-modal__close" aria-label={t.modal.close} autofocus>&times;</button>
         <div class="threat-modal__icon">🌐</div>
         <h2 class="threat-modal__title" id="modal-phishing-title">{t.modals.phishing.title}</h2>
         <p class="threat-modal__subtitle">{t.modals.phishing.subtitle}</p>
@@ -154,7 +154,7 @@ const { t, prefilledAddress } = Astro.props;
     <!-- Modal: scam -->
     <dialog id="modal-scam" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-scam-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
+        <button class="threat-modal__close" aria-label={t.modal.close} autofocus>&times;</button>
         <div class="threat-modal__icon">💀</div>
         <h2 class="threat-modal__title" id="modal-scam-title">{t.modals.scam.title}</h2>
         <p class="threat-modal__subtitle">{t.modals.scam.subtitle}</p>
@@ -170,7 +170,7 @@ const { t, prefilledAddress } = Astro.props;
     <!-- Modal: approval -->
     <dialog id="modal-approval" class="dialog-shell dialog-shell--layer threat-modal" aria-labelledby="modal-approval-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label={t.modal.close}>&times;</button>
+        <button class="threat-modal__close" aria-label={t.modal.close} autofocus>&times;</button>
         <div class="threat-modal__icon">🔓</div>
         <h2 class="threat-modal__title" id="modal-approval-title">{t.modals.approval.title}</h2>
         <p class="threat-modal__subtitle">{t.modals.approval.subtitle}</p>
@@ -733,7 +733,8 @@ const { t, prefilledAddress } = Astro.props;
 
   // ── Threat modals ─────────────────────────────────────────────────────────
   // Native <dialog>s (src/lib/nativeDialog.ts): Escape and a backdrop click close them, and focus
-  // starts on the close button (the first one inside) and goes back to the card.
+  // starts on the close button (autofocus: the scrolling box would take it first) and goes back to
+  // the card.
   wireDialogs();
   function openModal(id: string) {
     const modal = document.getElementById(id);
