@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from './db';
 import { lookupDomainThreats, lookupSanctionedAddress } from './threatLists';
 import { canonicalAddress, isCompromisedAddress, isMixerAddress, isValidAddress } from './walletChecker';
+import { EVM_ADDRESS_SOURCE } from '@/lib/addressFormats';
 
 /** Addresses checked per message, so a footer full of addresses stays cheap. */
 const MAX_ADDRESSES_PER_MESSAGE = 5;
@@ -122,7 +123,10 @@ async function lookupKnownAddress(address: string, tenantId: string | null): Pro
 
 // EVM, Bitcoin (bech32 and legacy), and Solana base58. Deliberately broad: a false
 // candidate costs one cache lookup, a missed address costs the whole point.
-const ADDRESS_RE = /\b(0x[a-fA-F0-9]{40}|bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|[1-9A-HJ-NP-Za-km-z]{32,44})\b/g;
+const ADDRESS_RE = new RegExp(
+	`\\b(${EVM_ADDRESS_SOURCE}|bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|[1-9A-HJ-NP-Za-km-z]{32,44})\\b`,
+	'g',
+);
 const URL_RE = /\bhttps?:\/\/[^\s<>"')\]]+/gi;
 
 export function extractAddresses(text: string): string[] {

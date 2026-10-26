@@ -12,6 +12,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncLiquidationsToImportTransactions } from '@/lib/aave/syncAaveLiquidations';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
+import { EVM_ADDRESS } from '@/lib/addressFormats';
 
 export const prerender = false;
 
@@ -52,7 +53,6 @@ const USER_POSITIONS_QUERY = `
 `;
 
 const AAVE_CHAINS: readonly unknown[] = Object.values(CHAIN_KEYS);
-const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 /**
  * Whether a wallet row can hold Aave positions: an EVM address on at least one chain we query.

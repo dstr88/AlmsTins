@@ -27,6 +27,7 @@
  */
 import { weiToDecimalString } from '@/lib/etherscan';
 import type { VaultChain } from './addresses';
+import { EVM_ADDRESS_LOWER, EVM_TX_HASH_LOWER } from '@/lib/addressFormats';
 
 export type ExplorerAction = 'txlist' | 'txlistinternal' | 'tokentx';
 export const EXPLORER_ACTIONS: readonly ExplorerAction[] = ['txlist', 'txlistinternal', 'tokentx'];
@@ -67,8 +68,8 @@ export interface NormalizedTransfers {
 
 type Row = Record<string, unknown>;
 
-const HASH = /^0x[0-9a-f]{64}$/;
-const ADDRESS = /^0x[0-9a-f]{40}$/;
+const HASH = EVM_TX_HASH_LOWER;
+const ADDRESS = EVM_ADDRESS_LOWER;
 const TRACE = /^[A-Za-z0-9_.-]{0,64}$/;
 const lower = (v: unknown): string => String(v ?? '').trim().toLowerCase();
 

@@ -6,6 +6,7 @@ import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } fro
 import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
 import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyScan.css';
+import { findEvmAddress } from '@/lib/addressFormats';
 
 /**
  * Public customer-scan. A customer scans (or pastes) the address from a merchant's
@@ -27,7 +28,7 @@ function extractScanned(payload: string): string {
   const keepIntact = /^https?:\/\//i.test(p) || /^upi:\/\//i.test(p) || /^0002\d{2}/.test(p);
   return keepIntact
     ? p
-    : (p.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? p.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
+    : findEvmAddress(p) ?? p.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
 }
 
 /** Renders "text with an [[accountable domain]] in it" with the term explained on hover. */

@@ -1,10 +1,13 @@
 import { db } from '@/lib/db';
 import { getTxByHash, CHAIN_IDS } from '@/lib/etherscan';
+import { EVM_ADDRESS_SOURCE } from '@/lib/addressFormats';
 
 // Matches EVM (0x + 40 hex), Bitcoin bech32 (bc1...), legacy BTC (1... 3...),
 // and Solana base58 addresses embedded anywhere in a string.
-const ADDRESS_RE =
-	/\b(0x[a-fA-F0-9]{40}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|[A-HJ-NP-Za-km-z1-9]{32,44})\b/g;
+const ADDRESS_RE = new RegExp(
+	`\\b(${EVM_ADDRESS_SOURCE}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|[A-HJ-NP-Za-km-z1-9]{32,44})\\b`,
+	'g',
+);
 
 // Valid EVM transaction hash: 0x followed by 64 hex characters
 const EVM_TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;

@@ -8,6 +8,7 @@ import {
 	type AavePriceSource,
 	type AaveTotals,
 } from './pricing';
+import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
 
 // ── Aave v3 ───────────────────────────────────────────────────────────────────
 const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
@@ -464,7 +465,7 @@ function buildMissingMarketSummary(
 
 // --- Public function used by /api/aave/positions ---
 
-const EVM_ADDRESS_RE = /^0x[0-9a-f]{40}$/i;
+const EVM_ADDRESS_RE = EVM_ADDRESS_ANY_PREFIX;
 
 /**
  * Every Aave v3 position the wallet has on Ethereum, Polygon and Avalanche (and v4 when configured), each with

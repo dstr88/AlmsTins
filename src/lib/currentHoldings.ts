@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
 import { getAavePositionsForWallet, type AaveChainSummary, type AavePositionsResponse } from '@/lib/aave/client';
 import { aaveSymbolUsdPrice } from '@/lib/aave/pricing';
 import { isSpamToken } from './knownContracts';
+import { EVM_ADDRESS_ANY_PREFIX } from '@/lib/addressFormats';
 
 export type HeldQty = { qty: number; valueUsd: number | null };
 /** Keyed by UPPERCASE symbol. */
@@ -227,7 +228,7 @@ async function fetchAaveSupply(tenantId: string, stop: { requested: boolean }): 
     const address = String(row.address ?? '').trim();
     if (!address) continue;
     // EVM addresses are case-insensitive; a checksummed and a lowercase copy are one wallet.
-    const key = /^0x[0-9a-f]{40}$/i.test(address) ? address.toLowerCase() : address;
+    const key = EVM_ADDRESS_ANY_PREFIX.test(address) ? address.toLowerCase() : address;
     if (seen.has(key)) continue;
     seen.add(key);
     asked += 1;

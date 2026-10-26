@@ -22,9 +22,10 @@
  */
 import { promptScan } from '@/lib/qrScan';
 import { SAFETY_CHECK_I18N as I18N, addressVerdict, urlVerdict, type SafetyCheckLang as Lang } from '@/lib/safetyCheckText';
+import { EVM_ADDRESS } from '@/lib/addressFormats';
 
 // ── Classification ────────────────────────────────────────────────────────────
-const EVM_RE = /^0x[0-9a-fA-F]{40}$/;
+const EVM_RE = EVM_ADDRESS;
 const BTC_RE = /^(bc1[0-9a-z]{6,87}|[13][a-km-zA-HJ-NP-Z1-9]{25,39})$/;
 const LTC_RE = /^(ltc1[0-9a-z]{6,87}|[LM3][a-km-zA-HJ-NP-Z1-9]{26,33})$/;
 const SOL_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;

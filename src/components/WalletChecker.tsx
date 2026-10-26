@@ -7,6 +7,7 @@ import { publicVerifyCard, publisherText, fillTemplate, addressSafetyVerdict, ty
 import { goplusRanForAddress } from '@/lib/goplusCredit';
 import PoweredByGoPlus from './PoweredByGoPlus';
 import WalletActivityPanel from './WalletActivityPanel';
+import { findEvmAddress } from '@/lib/addressFormats';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,8 +48,8 @@ function withTip(text: string, tip: string) {
 function parseAddressFromQR(raw: string): string {
   const s = raw.trim();
   // EVM addresses are unambiguous — grab the first one if present (covers EIP-681 URIs too)
-  const evm = s.match(/0x[a-fA-F0-9]{40}/);
-  if (evm) return evm[0];
+  const evm = findEvmAddress(s);
+  if (evm) return evm;
   // Otherwise strip any URI scheme ("bitcoin:", "litecoin:", "solana:", …) and trailing params
   const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
   return noScheme.split(/[?@\s]/)[0].trim();
@@ -65,7 +66,7 @@ function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   // Explicit web URL → website / dApp check
   if (/^https?:\/\//i.test(s)) return { kind: 'url', value: s };
   // An EVM address anywhere wins (covers EIP-681 "ethereum:0x..@1?value=" URIs)
-  if (/0x[a-fA-F0-9]{40}/.test(s)) return { kind: 'address', value: parseAddressFromQR(s) };
+  if (findEvmAddress(s)) return { kind: 'address', value: parseAddressFromQR(s) };
   // A bare domain ("app.uniswap.org", "example.com/path") → website check, but never a
   // name-service handle like "vitalik.eth" (those resolve to an address).
   const host = s.split(/[/?#\s]/)[0];
