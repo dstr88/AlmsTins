@@ -187,6 +187,7 @@ async function ensureTable() {
 			quantity        REAL NOT NULL,
 			price_per_token REAL NOT NULL,
 			buy_date_iso    TEXT,
+			notes           TEXT,
 			created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')),
 			updated_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')),
 			PRIMARY KEY (id),

@@ -49,7 +49,7 @@ const SKIPPED: Record<string, string> = {
  * Tables the reader finds but does not trust, so their inserts are not checked. Pinned so a new
  * one shows up in review instead of quietly checking less. The reasons come from the reader.
  */
-const READER_SKIPS = ['address_labels', 'manual_cost_basis'];
+const READER_SKIPS = ['address_labels'];
 
 /** Tables whose column names are checked but whose required columns differ between definitions. */
 const REQUIRED_SKIPS = ['petro_tins'];
