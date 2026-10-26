@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ReconciliationItem, ReconciliationStatus } from '../../lib/reconciliation';
 import { formatDate, formatUsd } from '@/lib/format';
 import { getClientLang } from '@/lib/i18n/clientLang';
+import { Modal } from '@/components/ui/Modal';
 
 // ── Colour maps ──────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<ReconciliationStatus, string> = {
@@ -71,12 +72,6 @@ function NoteModal({
   const [flagged, setFlagged]     = useState(item.existingNote?.flaggedForSupport ?? false);
   const [status, setStatus]       = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const handleSave = async () => {
     setStatus('saving');
     try {
@@ -94,24 +89,20 @@ function NoteModal({
     }
   };
 
+  // <Modal> closes on Escape and a backdrop click, keeps Tab inside, locks the page scroll and
+  // gives focus back on close. Focus starts on the close button. Same look as before: no default
+  // look, and centered on a phone too.
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Note for ${item.asset}`}
-      style={{
+    <Modal
+      onClose={onClose}
+      label={`Note for ${item.asset}`}
+      unstyled
+      backdropStyle={{
         position: 'fixed', inset: 0, zIndex: 9999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
       }}
-    >
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-      />
-
-      {/* Panel */}
-      <div style={{
+      style={{
         position: 'relative', zIndex: 1,
         background: 'var(--surface-bg)',
         border: '1px solid var(--border-bright)',
@@ -119,108 +110,108 @@ function NoteModal({
         padding: '1.75rem',
         width: '100%', maxWidth: 480,
         boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
-      }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-          <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Reconciliation note
-            </div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              {item.asset}
-            </div>
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+        <div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Reconciliation note
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.25rem', cursor: 'pointer', padding: 4 }}
-            aria-label="Close"
-          >✕</button>
-        </div>
-
-        {/* Discrepancy summary */}
-        <div style={{
-          background: STATUS_BG[item.status],
-          border: `1px solid ${STATUS_COLOR[item.status]}33`,
-          borderRadius: 10, padding: '0.75rem 1rem',
-          marginBottom: '1.25rem',
-          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem',
-        }}>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Tin says</div>
-            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(item.tinAmount)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Wallet has</div>
-            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(item.liveAmount)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Difference</div>
-            <div style={{ fontWeight: 600, color: STATUS_COLOR[item.status] }}>
-              {item.deltaCoins >= 0 ? '+' : ''}{fmt(item.deltaCoins)}
-            </div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {item.asset}
           </div>
         </div>
-
-        {/* Note textarea */}
-        <label style={{ display: 'block', marginBottom: '1rem' }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
-            What do you think happened?
-          </div>
-          <textarea
-            value={noteText}
-            onChange={e => setNoteText(e.target.value)}
-            placeholder="e.g. This BTC was sent to a hardware wallet not yet connected…"
-            rows={4}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              background: 'var(--border-subtle)',
-              border: '1px solid var(--border-bright)',
-              borderRadius: 8, padding: '0.75rem',
-              color: 'var(--text-primary)', fontSize: '0.9rem',
-              resize: 'vertical', fontFamily: 'inherit',
-            }}
-          />
-        </label>
-
-        {/* Flag for support */}
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', marginBottom: '1.25rem', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={flagged}
-            onChange={e => setFlagged(e.target.checked)}
-            style={{ marginTop: 3, accentColor: 'salmon', cursor: 'pointer' }}
-          />
-          <div>
-            <div style={{ color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
-              Flag for support
-            </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: 2 }}>
-              Notify Donnie — he'll look at your data and follow up.
-            </div>
-          </div>
-        </label>
-
-        {/* Save button */}
         <button
-          onClick={handleSave}
-          disabled={status === 'saving' || status === 'success'}
-          style={{
-            width: '100%', padding: '0.75rem',
-            background: status === 'success' ? 'var(--gain)' : 'salmon',
-            color: status === 'success' ? 'var(--surface-bg)' : 'var(--text-primary)',
-            border: 'none', borderRadius: 10,
-            fontSize: '0.95rem', fontWeight: 600,
-            cursor: status === 'saving' ? 'wait' : 'pointer',
-            transition: 'background 0.2s',
-          }}
-        >
-          {status === 'saving'  ? 'Saving…'  :
-           status === 'success' ? '✓ Saved'  :
-           status === 'error'   ? 'Error — try again' :
-           'Save Note'}
-        </button>
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.25rem', cursor: 'pointer', padding: 4 }}
+          aria-label="Close"
+        >✕</button>
       </div>
-    </div>
+
+      {/* Discrepancy summary */}
+      <div style={{
+        background: STATUS_BG[item.status],
+        border: `1px solid ${STATUS_COLOR[item.status]}33`,
+        borderRadius: 10, padding: '0.75rem 1rem',
+        marginBottom: '1.25rem',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem',
+      }}>
+        <div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Tin says</div>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(item.tinAmount)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Wallet has</div>
+          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(item.liveAmount)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Difference</div>
+          <div style={{ fontWeight: 600, color: STATUS_COLOR[item.status] }}>
+            {item.deltaCoins >= 0 ? '+' : ''}{fmt(item.deltaCoins)}
+          </div>
+        </div>
+      </div>
+
+      {/* Note textarea */}
+      <label style={{ display: 'block', marginBottom: '1rem' }}>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+          What do you think happened?
+        </div>
+        <textarea
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          placeholder="e.g. This BTC was sent to a hardware wallet not yet connected…"
+          rows={4}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'var(--border-subtle)',
+            border: '1px solid var(--border-bright)',
+            borderRadius: 8, padding: '0.75rem',
+            color: 'var(--text-primary)', fontSize: '0.9rem',
+            resize: 'vertical', fontFamily: 'inherit',
+          }}
+        />
+      </label>
+
+      {/* Flag for support */}
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', marginBottom: '1.25rem', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={flagged}
+          onChange={e => setFlagged(e.target.checked)}
+          style={{ marginTop: 3, accentColor: 'salmon', cursor: 'pointer' }}
+        />
+        <div>
+          <div style={{ color: 'var(--text-primary)', fontSize: '0.875rem', fontWeight: 500 }}>
+            Flag for support
+          </div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', marginTop: 2 }}>
+            Notify Donnie — he'll look at your data and follow up.
+          </div>
+        </div>
+      </label>
+
+      {/* Save button */}
+      <button
+        onClick={handleSave}
+        disabled={status === 'saving' || status === 'success'}
+        style={{
+          width: '100%', padding: '0.75rem',
+          background: status === 'success' ? 'var(--gain)' : 'salmon',
+          color: status === 'success' ? 'var(--surface-bg)' : 'var(--text-primary)',
+          border: 'none', borderRadius: 10,
+          fontSize: '0.95rem', fontWeight: 600,
+          cursor: status === 'saving' ? 'wait' : 'pointer',
+          transition: 'background 0.2s',
+        }}
+      >
+        {status === 'saving'  ? 'Saving…'  :
+         status === 'success' ? '✓ Saved'  :
+         status === 'error'   ? 'Error — try again' :
+         'Save Note'}
+      </button>
+    </Modal>
   );
 }
 
