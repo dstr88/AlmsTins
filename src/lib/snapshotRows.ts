@@ -11,8 +11,9 @@
  *   address's on-chain balance, so valuing the mirror counts them twice.
  */
 
-/** exchange_accounts sources that hold an on-chain wallet's imported history, not an exchange balance. */
-export const ON_CHAIN_IMPORT_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'litecoin']);
+import { ON_CHAIN_IMPORT_SOURCES } from './chains';
+
+export { ON_CHAIN_IMPORT_SOURCES };
 
 /** True for the `cex:<source>:<id>` mirror wallet of an on-chain import account. */
 export function isOnChainImportMirror(address: string | null | undefined): boolean {

@@ -24,6 +24,8 @@
  * its insert to allocateTestAmount() as `tryClaim`.
  */
 import { randomInt } from 'crypto';
+import { BECH32_PREFIX } from '@/lib/addressFormats';
+import { CHAINS, VERIFY_EVM_RAILS, type ChainId } from '@/lib/chains';
 
 export interface TestAmountSpec {
   /** The chain's native coin, the only thing the test may be sent in. */
@@ -38,18 +40,21 @@ export interface TestAmountSpec {
   baseUnit: string | null;
 }
 
+/** The chain's coin symbol and decimals, from src/lib/chains.ts. */
+const coin = (chain: ChainId) => ({ unit: CHAINS[chain].native.symbol, decimals: CHAINS[chain].native.decimals });
+
 const EVM_STEP = 10_000_000_000n; // 10^10 wei: abcd x 10^10 wei = 0.0000abcd of the coin
 
 const SPECS: Record<string, TestAmountSpec> = {
-  bitcoin: { unit: 'BTC', decimals: 8, step: 1n, displayDecimals: 8, baseUnit: 'sats' },
-  litecoin: { unit: 'LTC', decimals: 8, step: 100n, displayDecimals: 6, baseUnit: 'litoshis' },
-  ethereum: { unit: 'ETH', decimals: 18, step: EVM_STEP, displayDecimals: 8, baseUnit: null },
-  polygon: { unit: 'POL', decimals: 18, step: EVM_STEP, displayDecimals: 8, baseUnit: null },
-  avalanche: { unit: 'AVAX', decimals: 18, step: EVM_STEP, displayDecimals: 8, baseUnit: null },
-  solana: { unit: 'SOL', decimals: 9, step: 10n, displayDecimals: 8, baseUnit: null },
+  bitcoin: { ...coin('bitcoin'), step: 1n, displayDecimals: 8, baseUnit: 'sats' },
+  litecoin: { ...coin('litecoin'), step: 100n, displayDecimals: 6, baseUnit: 'litoshis' },
+  ethereum: { ...coin('ethereum'), step: EVM_STEP, displayDecimals: 8, baseUnit: null },
+  polygon: { ...coin('polygon'), step: EVM_STEP, displayDecimals: 8, baseUnit: null },
+  avalanche: { ...coin('avalanche'), step: EVM_STEP, displayDecimals: 8, baseUnit: null },
+  solana: { ...coin('solana'), step: 10n, displayDecimals: 8, baseUnit: null },
 };
 
-const EVM_RAILS = new Set(['ethereum', 'polygon', 'avalanche']);
+const EVM_RAILS = VERIFY_EVM_RAILS;
 
 /** The four random digits: 1000-9999 inclusive. */
 export const DIGITS_MIN = 1000;
@@ -275,8 +280,6 @@ export function recentPerTenant(
   }
   return out;
 }
-
-const BECH32_PREFIX = /^(bc1|tb1|bcrt1|ltc1|tltc1)/i;
 
 /** True when letter case doesn't change the address (EVM hex, bech32 / bech32m). */
 export function isCaselessAddress(rail: string, value: string): boolean {

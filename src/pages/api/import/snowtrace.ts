@@ -25,6 +25,7 @@ import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { logActivity } from '@/lib/activityLog';
+import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
 
 type CsvRow = Record<string, string>;
 
@@ -327,7 +328,7 @@ ON CONFLICT DO NOTHING`,
 				tenantId,
 				walletAddress,
 				`Avalanche Wallet (${walletAddress.slice(0, 8)}…)`,
-				JSON.stringify(['ethereum', 'polygon', 'avalanche']),
+				JSON.stringify(DEFAULT_WALLET_CHAINS),
 			],
 		}).catch(() => { /* already exists — fine */ });
 	}

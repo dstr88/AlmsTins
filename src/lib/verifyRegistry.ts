@@ -25,6 +25,7 @@ import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
 import { detectChain } from './walletChecker';
 import { encryptRosterPayload, decryptRosterDocument, getDecryptablePublicJwk } from './verifyEncryption';
 import { BECH32_ADDRESS, EVM_ADDRESS_LOWER, findEvmAddress } from './addressFormats';
+import { VERIFY_ADDRESS_RAILS } from './chains';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -46,7 +47,7 @@ export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
 export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'roster_encrypted' | 'micro_deposit' | 'account_claim';
 
 /** Rails offered for a receiving address (matches the chains the app already supports). */
-export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
+export const ADDRESS_RAILS = VERIFY_ADDRESS_RAILS;
 
 /** Free beta limits, per kind: 2 wallet addresses + 1 payment QR (3 destinations total,
  *  one of which can be a QR). One value = one destination; the same QR displayed in many

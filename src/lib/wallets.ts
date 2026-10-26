@@ -2,6 +2,7 @@ import type { Client } from '@libsql/client';
 import { db as sharedDb } from './db';
 import { DEFAULT_ERC20_CHAINS } from './constants';
 import { canonicalAddress } from './wallets-service';
+import { CREATE_WALLET_FALLBACK_CHAINS } from './chains';
 
 export type Wallet = {
 	id: string;
@@ -86,7 +87,7 @@ export async function createWallet(opts: {
 	const address = canonicalAddress(opts.address);
 	const derivedId = opts.id ?? address.slice(-5).toUpperCase();
 	const derivedLabel = opts.label && opts.label.trim().length ? opts.label.trim() : deriveDefaultLabel(address);
-	const chainsJson = JSON.stringify(opts.chains ?? ['ethereum', 'avalanche']);
+	const chainsJson = JSON.stringify(opts.chains ?? CREATE_WALLET_FALLBACK_CHAINS);
 	const isDefault = opts.isDefault ? 1 : 0;
 
 	const result = await sharedDb.execute({

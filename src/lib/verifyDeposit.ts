@@ -50,6 +50,8 @@
  * on "the wrong EVM network" still counts. Today only the registered rail is read.
  */
 import { buildEtherscanV2Url, requestEtherscan, CHAIN_IDS } from '@/lib/etherscan';
+import { BECH32_PREFIX } from '@/lib/addressFormats';
+import { VERIFY_EVM_RAILS } from '@/lib/chains';
 
 /** What a BTC/LTC address already showed on chain when its amount was issued. */
 export interface SelfSendBaseline {
@@ -83,7 +85,7 @@ export type TxVerdict = 'pass' | SelfSendHint | null;
 
 interface TimeWindow { start: number; end: number }
 
-const EVM_RAILS = new Set(['ethereum', 'polygon', 'avalanche']);
+const EVM_RAILS = VERIFY_EVM_RAILS;
 const ESPLORA_BASE: Record<string, string> = {
   bitcoin: 'https://blockstream.info/api',
   litecoin: 'https://litecoinspace.org/api',
@@ -242,7 +244,6 @@ async function detectEvm(ch: SelfSendChallenge): Promise<SelfSendOutcome> {
 
 // ── Bitcoin / Litecoin (esplora) ─────────────────────────────────────────────
 
-const BECH32_PREFIX = /^(bc1|tb1|bcrt1|ltc1|tltc1)/i;
 /** esplora reports bech32 lowercase; base58 stays exact. */
 function utxoAddress(v: unknown): string {
   const s = String(v ?? '').trim();

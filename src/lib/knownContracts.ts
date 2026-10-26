@@ -92,8 +92,10 @@ const CONTRACTS: Record<string, ChainContracts> = {
   },
 };
 
-// Normalise a chain string to our key
-function normaliseChain(chain: string): string {
+// The key of this file's CONTRACTS table for a chain string. Not chains.normalizeChain on
+// purpose: the table uses its own short keys ('eth', 'avax'), and transfers arrive with provider
+// spellings ('arbitrum_one', 'bnbchain', 'avaxc') that normalizeChain does not map.
+function contractTableChain(chain: string): string {
   const c = chain.toLowerCase();
   if (c === 'polygon' || c === 'matic') return 'polygon';
   if (c === 'eth' || c === 'ethereum' || c === 'mainnet') return 'eth';
@@ -123,7 +125,7 @@ export function classifyContract(
 ): ContractVerdict {
   if (!contractAddress) return 'unknown';
 
-  const chainKey = normaliseChain(chain);
+  const chainKey = contractTableChain(chain);
   const symKey   = symbol.toUpperCase();
   const addr     = contractAddress.toLowerCase();
 

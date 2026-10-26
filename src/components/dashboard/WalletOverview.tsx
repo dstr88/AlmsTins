@@ -3,6 +3,7 @@ import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletOverview } from '@/i18n/components/walletOverview';
 import { getOwnerLabel } from '@/i18n/components/ownerLabel';
 import { EVM_ADDRESS, SUI_ADDRESS } from '@/lib/addressFormats';
+import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '@/lib/chains';
 
 // The same limit the server applies (src/lib/walletOwnerLabel.ts OWNER_LABEL_MAX).
 const OWNER_LABEL_MAX = 60;
@@ -22,26 +23,17 @@ type Props = {
 type WalletState = WalletOverviewWallet[];
 
 // ── Chain detection ────────────────────────────────────────────────────────────
-const SYMBOL_CHAINS: Record<string, string[]> = {
-	LTC:  ['litecoin'],
-	BTC:  ['bitcoin'],
-	ETH:  ['ethereum', 'polygon', 'avalanche'],
-	SOL:  ['solana'],
-	SUI:  ['sui'],
-	AVAX: ['avalanche'],
-	MATIC:['polygon'],
-};
-
 function symbolToChains(symbol: string, address: string): string[] {
 	const s = symbol.trim().toUpperCase();
-	if (SYMBOL_CHAINS[s]) return SYMBOL_CHAINS[s];
+	const known = chainsForSymbol(s);
+	if (known) return known;
 	if (!s) {
 		const l = address.toLowerCase();
 		if (l.startsWith('ltc1'))                           return ['litecoin'];
 		if (l.startsWith('bc1') || /^[13]/.test(address))  return ['bitcoin'];
 		if (SUI_ADDRESS.test(l))                           return ['sui'];
 	}
-	return s ? [s.toLowerCase()] : ['ethereum', 'polygon', 'avalanche'];
+	return s ? [s.toLowerCase()] : [...DEFAULT_WALLET_CHAINS];
 }
 
 function detectChainLabel(address: string): { label: string; icon: string } {

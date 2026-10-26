@@ -88,3 +88,9 @@ export function bech32Pattern(...hrps: readonly string[]): RegExp {
  * string that happens to start with "bc1" from matching.
  */
 export const BECH32_ADDRESS = bech32Pattern(...BECH32_HRPS.mainnet, ...BECH32_HRPS.test);
+
+/**
+ * Starts like a segwit address (any of BECH32_HRPS, then '1'), either case. A prefix check only,
+ * for deciding how to fold a value's case, not whether it is a valid address.
+ */
+export const BECH32_PREFIX = new RegExp(`^(?:${[...BECH32_HRPS.mainnet, ...BECH32_HRPS.test].join('|')})1`, 'i');

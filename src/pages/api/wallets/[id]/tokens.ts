@@ -7,6 +7,7 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import { snapshotUtxoBalance, utxoChainOf } from '@/lib/sync/syncBtcAddress';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
+import { EVM_DISCOVERY_CHAINS } from '@/lib/chains';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -502,7 +503,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 					// Same function Sync Tins uses, so both write identical, priced snapshots. Ethereum
 					// and Polygon read from Alchemy; Avalanche, refreshed here when the wallet lists it
 					// (it used to be left to Sync Tins alone), reads from balances.ts.
-					const snapshotChains: SupportedChain[] = ['ethereum', 'polygon'];
+					const snapshotChains: SupportedChain[] = [...EVM_DISCOVERY_CHAINS];
 					if (walletChains.includes('avalanche')) snapshotChains.push('avalanche');
 					for (const chain of snapshotChains) {
 						const [breakdown] = await computeWalletValue(tenantId, walletId, walletAddress, [chain]);

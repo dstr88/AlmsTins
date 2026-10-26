@@ -3,10 +3,11 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { buildEtherscanV2Url, requestEtherscan, CHAIN_IDS } from '@/lib/etherscan';
+import { WALLET_TX_CHAINS } from '@/lib/chains';
 
 export const prerender = false;
 
-const SUPPORTED_CHAINS = ['ethereum', 'avalanche', 'polygon'] as const;
+const SUPPORTED_CHAINS = WALLET_TX_CHAINS;
 type Chain = (typeof SUPPORTED_CHAINS)[number];
 
 function chainId(chain: Chain): number {

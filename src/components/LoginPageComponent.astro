@@ -223,6 +223,7 @@ const isLockedOut = message === 'LOCKED_OUT';
 
   <script>
     import '@/lib/safetyCheck'; // wallet + URL scam checker (custom element)
+    import { EVM_ADDRESS } from '@/lib/addressFormats';
 
     // ── CSRF refresh ──────────────────────────────────────────────────
     (async () => {
@@ -405,7 +406,7 @@ const isLockedOut = message === 'LOCKED_OUT';
 
     // ── Wallet demo form ──────────────────────────────────────────────
     (() => {
-      const EVM_RE        = /^0x[a-fA-F0-9]{40}$/;
+      const EVM_RE        = EVM_ADDRESS;
       const BTC_BECH_RE   = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
       const BTC_LEGACY_RE = /^[13][a-zA-HJ-NP-Z0-9]{25,34}$/;
       const LTC_BECH_RE   = /^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/;

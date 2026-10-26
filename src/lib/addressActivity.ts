@@ -23,6 +23,7 @@ import {
   getTokentxPage,
 } from '@/lib/etherscan';
 import { canonicalAddress, detectChain } from '@/lib/walletChecker';
+import { nativeSymbol } from '@/lib/chains';
 
 export type ActivityItem = {
   direction: 'in' | 'out';
@@ -41,11 +42,6 @@ const EVM_NETWORKS: Record<string, number> = {
   ethereum: (CHAIN_IDS as Record<string, number>).ethereum,
   polygon: (CHAIN_IDS as Record<string, number>).polygon,
   avalanche: (CHAIN_IDS as Record<string, number>).avalanche,
-};
-const NATIVE_SYMBOL: Record<string, string> = {
-  ethereum: 'ETH',
-  polygon: 'POL',
-  avalanche: 'AVAX',
 };
 const ESPLORA_BASE: Record<string, string> = {
   bitcoin: 'https://blockstream.info/api',
@@ -80,7 +76,7 @@ async function evmActivity(network: string, address: string): Promise<ActivityRe
   const chainId = EVM_NETWORKS[network];
   if (!chainId) return { ok: false, reason: 'unsupported' };
   const addr = address.toLowerCase();
-  const nativeSym = NATIVE_SYMBOL[network] ?? 'ETH';
+  const nativeSym = nativeSymbol(network) || 'ETH';
   const items: ActivityItem[] = [];
   let reachedAny = false;
 

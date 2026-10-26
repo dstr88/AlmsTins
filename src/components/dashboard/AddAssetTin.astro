@@ -2,6 +2,8 @@
 import './AddAssetTin.css';
 import { getLang } from '@/lib/i18n/locale';
 import { getAddAssetTin } from '@/i18n/components/addAssetTin';
+import { EVM_ADDRESS } from '@/lib/addressFormats';
+import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
 /**
  * AddAssetTin — compact "Add +" control tin.
  *
@@ -15,7 +17,9 @@ const lang = getLang(Astro.request);
 const t = getAddAssetTin(lang);
 ---
 
-<div class="add-tin">
+{/* The inline script below cannot import modules: the EVM address pattern and the default
+    wallet chains come from src/lib in these attributes. */}
+<div class="add-tin" data-evm-address={EVM_ADDRESS.source} data-default-chains={JSON.stringify(DEFAULT_WALLET_CHAINS)}>
 	<div class="add-tin__heading">
 		<span class="add-tin__plus" aria-hidden="true">＋</span>
 		<span class="add-tin__title">{t.headingTitle}</span>
@@ -235,6 +239,11 @@ const t = getAddAssetTin(lang);
 		var submitBtn    = tin.querySelector('[data-add-submit]');
 		var messageEl    = tin.querySelector('[data-add-message]');
 
+		// From src/lib/addressFormats.ts and src/lib/chains.ts, through the tin's data attributes.
+		var EVM_ADDRESS_RE = new RegExp(tin.dataset.evmAddress || '(?!)');
+		var DEFAULT_CHAINS = [];
+		try { DEFAULT_CHAINS = JSON.parse(tin.dataset.defaultChains || '[]'); } catch (e) {}
+
 		// Cache of existing wallets: address (lowercased) → wallet id.
 		// Populated once on init, updated after adds/deletes.
 		var existingWallets = {};
@@ -287,7 +296,7 @@ const t = getAddAssetTin(lang);
 			var v = addr.trim();
 			var lower = v.toLowerCase();
 			// EVM: 0x + exactly 40 hex
-			if (/^0x[a-f0-9]{40}$/.test(lower)) return 'ethereum';
+			if (EVM_ADDRESS_RE.test(lower)) return 'ethereum';
 			// Sui: 0x + 1–64 hex (but not exactly 40)
 			if (/^0x[a-f0-9]{1,64}$/.test(lower)) return 'sui';
 			// Bitcoin native SegWit / Taproot
@@ -365,8 +374,8 @@ const t = getAddAssetTin(lang);
 				setMessage(I.saving || 'Saving\u2026');
 				var SINGLE_CHAIN = { bitcoin: true, litecoin: true, solana: true, sui: true };
 				var chains = SINGLE_CHAIN[chain] ? [chain]
-				           : chain ? [chain, 'ethereum', 'polygon', 'avalanche'].filter(function(c, i, a) { return a.indexOf(c) === i; })
-				           : ['ethereum', 'polygon', 'avalanche'];
+				           : chain ? [chain].concat(DEFAULT_CHAINS).filter(function(c, i, a) { return a.indexOf(c) === i; })
+				           : DEFAULT_CHAINS.slice();
 				fetch('/api/wallets', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
