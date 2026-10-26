@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './research.css';
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
@@ -277,7 +278,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
     </div>
 
   <!-- ── Dataset Questionnaire Wizard ───────────────────────────────────────── -->
-  <div id="intake-wizard-overlay" class="intake-wizard-overlay" style="display:none" aria-modal="true" role="dialog">
+  <dialog id="intake-wizard-overlay" class="dialog-shell dialog-shell--layer intake-wizard-overlay" aria-labelledby="btn-open-questionnaire">
     <div class="intake-wizard-modal">
       <button class="intake-wizard-close" id="intake-wizard-close" aria-label="Close">✕</button>
       <div class="intake-wizard-progress" id="intake-wizard-progress"></div>
@@ -287,7 +288,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
         <button class="btn-primary intake-wizard-next" id="intake-wizard-next" type="button">Next →</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   </section>
 
@@ -316,17 +317,17 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 </Layout>
 
 <!-- ── Suggested match confirmation modal ──────────────────────────────────── -->
-<div class="modal-overlay" id="match-modal" style="display:none">
+<dialog class="dialog-shell dialog-shell--layer modal-overlay" id="match-modal" aria-labelledby="match-modal-title">
   <div class="modal-content">
     <button class="modal-close" id="match-modal-close">×</button>
-    <h2>{t.matchModalTitle}</h2>
+    <h2 id="match-modal-title">{t.matchModalTitle}</h2>
     <div id="match-modal-body"></div>
     <div class="modal-actions">
       <button class="btn-danger"    id="match-reject">{t.matchModalReject}</button>
       <button class="btn-primary"   id="match-confirm">{t.matchModalConfirm}</button>
     </div>
   </div>
-</div>
+</dialog>
 
 {naData && (
   <div id="na-ssr-data" style="display:none" set:text={JSON.stringify(naData)}></div>
@@ -581,6 +582,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <script>
 import { escapeHtml } from '../../lib/escapeHtml';
+import { openDialog, wireDialogs } from '../../lib/nativeDialog';
 import { EVM_ADDRESS, EVM_ADDRESS_SOURCE, SUI_ADDRESS } from '../../lib/addressFormats';
 import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '../../lib/chains';
 import { formatDate, formatTime, formatUsd } from '../../lib/format';
@@ -593,6 +595,10 @@ import { copyText } from '../../lib/clipboard';
 // English fallbacks keep the script working if that block ever fails to run.
 const I18N = (window as any).__researchI18n ?? {};
 const i18n = (key: string, fallback: string) => (I18N[key] as string) ?? fallback;
+
+// The match and questionnaire modals are native <dialog>s: backdrop closing and focus return.
+wireDialogs();
+const dialog = (id: string) => document.getElementById(id) as HTMLDialogElement;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let activeChip    = '';
@@ -1401,11 +1407,11 @@ function openMatchModal(match) {
     <strong>${i18n('sent','Sent')}:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
     <strong>Confidence score:</strong> ${match.confidence_score}
   </div>`;
-  $('match-modal').style.display = 'flex';
+  openDialog(dialog('match-modal'));
 }
 
-$('match-modal-close')?.addEventListener('click', () => { $('match-modal').style.display = 'none'; });
-$('match-modal')?.addEventListener('click', e => { if (e.target === $('match-modal')) $('match-modal').style.display = 'none'; });
+// A native <dialog> (src/lib/nativeDialog.ts): Escape and a backdrop click close it too.
+$('match-modal-close')?.addEventListener('click', () => { dialog('match-modal').close(); });
 
 async function actOnMatch(action) {
   if (!pendingMatch) return;
@@ -1415,7 +1421,7 @@ async function actOnMatch(action) {
     body: JSON.stringify({ action }),
   });
   if (res.ok) {
-    $('match-modal').style.display = 'none';
+    dialog('match-modal').close();
     await loadNeedsAttention();
   }
 }
@@ -2275,16 +2281,15 @@ function updateCompletionBadge() {
   }
 }
 
+// A native <dialog> (src/lib/nativeDialog.ts): Escape and a backdrop click close it too.
 function openWizard() {
   wizardStep = 0;
   renderWizardStep();
-  $('intake-wizard-overlay').style.display = 'flex';
-  document.body.style.overflow = 'hidden';
+  openDialog(dialog('intake-wizard-overlay'));
 }
 
 function closeWizard() {
-  $('intake-wizard-overlay').style.display = 'none';
-  document.body.style.overflow = '';
+  dialog('intake-wizard-overlay').close();
 }
 
 function renderWizardStep() {
@@ -2406,10 +2411,6 @@ $('intake-wizard-back')?.addEventListener('click', () => {
 });
 
 $('intake-wizard-close')?.addEventListener('click', closeWizard);
-
-$('intake-wizard-overlay')?.addEventListener('click', e => {
-  if (e.target === $('intake-wizard-overlay')) closeWizard();
-});
 
 $('btn-open-questionnaire')?.addEventListener('click', openWizard);
 

@@ -754,11 +754,10 @@
 
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
+/* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
 .modal-overlay {
-  position: fixed; inset: 0;
   background: rgba(0,0,0,0.7);
   display: flex; align-items: center; justify-content: center;
-  z-index: 9999;
 }
 .modal-content {
   background: var(--surface-card);
@@ -1486,14 +1485,12 @@
 
 /* ── Wizard modal ─────────────────────────────────────────────────────────── */
 
+/* The <dialog> itself (dialog-shell--layer in src/styles/dialog.css places it over the page). */
 .intake-wizard-overlay {
-  position: fixed;
-  inset: 0;
   background: rgba(0,0,0,0.72);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
 }
 
 .intake-wizard-modal {
