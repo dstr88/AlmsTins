@@ -161,8 +161,10 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 	}
 
 	// 5. Bitcoin chain lookup pass — for unclassified OUTs with a BTC/LTC tx_hash,
-	//    fetch the on-chain outputs from Blockstream and match destination addresses.
-	//    Capped at 20 lookups per run.
+	//    fetch the on-chain outputs from Blockstream (litecoinspace for LTC) and match
+	//    destination addresses. An output back to one of the transaction's own inputs is
+	//    its change, not a transfer: a send with change to the sending wallet would
+	//    otherwise always match that wallet. Capped at 20 lookups per run.
 	const btcCandidates = (txRows.rows as any[])
 		.filter(row => {
 			if (alreadyUpdated.has(row.id)) return false;
@@ -182,10 +184,18 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 				signal: AbortSignal.timeout(8000),
 			});
 			if (!res.ok) continue;
-			const tx = await res.json() as { vout?: { scriptpubkey_address?: string }[] };
+			const tx = await res.json() as {
+				vin?: { prevout?: { scriptpubkey_address?: string } }[];
+				vout?: { scriptpubkey_address?: string }[];
+			};
+			const inputAddresses = new Set(
+				(tx.vin ?? [])
+					.map(i => i.prevout?.scriptpubkey_address?.toLowerCase())
+					.filter((a): a is string => !!a),
+			);
 			const outputAddresses = (tx.vout ?? [])
 				.map(o => o.scriptpubkey_address)
-				.filter((a): a is string => !!a);
+				.filter((a): a is string => !!a && !inputAddresses.has(a.toLowerCase()));
 
 			for (const addr of outputAddresses) {
 				if (exchangeAddresses.has(addr.toLowerCase())) break; // CEX deposit — leave for review
