@@ -1,4 +1,5 @@
 ---
+import '@/styles/dialog.css';
 import './transactions.css';
 import Layout from '../../layouts/Layout.astro';
 import { getAllActiveWallets } from '../../lib/wallets';
@@ -94,7 +95,7 @@ const walletPayload = JSON.stringify(wallets);
 	</section>
 
 	<!-- Screenshot modal -->
-	<div id="screenshot-modal" class="shot-modal" role="dialog" aria-modal="true" aria-labelledby="shot-modal-title">
+	<dialog id="screenshot-modal" class="dialog-shell dialog-shell--layer shot-modal" aria-labelledby="shot-modal-title">
 		<div class="shot-modal-box">
 			<div class="shot-modal-header">
 				<h2 id="shot-modal-title">{t.modalTitle}</h2>
@@ -118,7 +119,7 @@ const walletPayload = JSON.stringify(wallets);
 				</button>
 			</div>
 		</div>
-	</div>
+	</dialog>
 
 	<script type="application/json" id="wallet-data" set:html={walletPayload}></script>
 
@@ -173,6 +174,9 @@ const walletPayload = JSON.stringify(wallets);
 		// The untyped inline module below cannot import, so it reads the shared address shortener here.
 		import { shortenAddress } from '@/lib/addressDisplay';
 		(window as unknown as { __shortenAddress: typeof shortenAddress }).__shortenAddress = shortenAddress;
+		// It opens the screenshot <dialog> with showModal(); backdrop closing and focus return come from here.
+		import { wireDialogs } from '@/lib/nativeDialog';
+		wireDialogs();
 	</script>
 
 	<script type="module">
@@ -433,18 +437,12 @@ const walletPayload = JSON.stringify(wallets);
 		const shotStatus = document.getElementById('shot-status');
 		let currentScreenshots = [];
 
-		shotCloseBtn?.addEventListener('click', () => {
-			modal.classList.remove('open');
+		// A native <dialog>: the close button, Escape and a backdrop click all end in its 'close' event.
+		shotCloseBtn?.addEventListener('click', () => modal.close());
+
+		modal?.addEventListener('close', () => {
 			activeHash = null;
 			activeChain = null;
-		});
-
-		modal?.addEventListener('click', (e) => {
-			if (e.target === modal) {
-				modal.classList.remove('open');
-				activeHash = null;
-				activeChain = null;
-			}
 		});
 
 		shotUploadBtn?.addEventListener('click', () => shotUploadInput?.click());
@@ -470,7 +468,7 @@ const walletPayload = JSON.stringify(wallets);
 			modalTitle.textContent = `${_s("shotsTitle")} — ${shorten(activeHash)}`;
 			shotStatus.textContent = '';
 			shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsLoading")}</p>`;
-			modal.classList.add('open');
+			if (!modal.open) modal.showModal();
 			await refreshScreenshots();
 		}
 
