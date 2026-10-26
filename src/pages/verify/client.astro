@@ -254,6 +254,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
   <script>import '@/lib/receivables/client/pages/client';</script>
   <script>
+    import { formatMoney } from '@/lib/receivables/client/money';
     import * as hostBridge from '@/lib/receivables/client/hostBridge';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
     import { anchorAfterWrite } from '@/lib/receivables/client/anchorAfterWrite';
@@ -266,9 +267,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
       )[c]!);
     }
-    function money(n: number, ccy: string) {
-      return `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
+    const money = (n: number, ccy: string) => formatMoney(n, ccy);
     function show(el: HTMLElement, html: string, cls = 'note-info') { el.className = `note show ${cls}`; el.innerHTML = html; }
     function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
 

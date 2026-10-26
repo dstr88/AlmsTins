@@ -857,6 +857,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
   <script>import '@/lib/receivables/client/pages/desk';</script>
   <script>
+    import { formatMoney } from '@/lib/receivables/client/money';
     import * as hostBridge from '@/lib/receivables/client/hostBridge';
     import { submitClaim, type ClaimInput, type NoteTone } from '@/components/receivables/claimFlow.client';
     import { CLAIM_COPY_DESK, CLAIM_CHECK_FIRST, CLAIM_NEED_FIRM, CLAIM_NEED_AMOUNT } from '@/lib/receivables/copy/claim';
@@ -874,10 +875,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
       )[c]!);
     }
-    function money(n: number, ccy: string) {
-      const v = Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return `${ccy} ${v}`;
-    }
+    const money = (n: number, ccy: string) => formatMoney(n, ccy);
     function show(el: HTMLElement, html: string, cls = 'note-info') {
       el.className = `note show ${cls}`; el.innerHTML = html;
     }

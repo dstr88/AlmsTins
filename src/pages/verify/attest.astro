@@ -1,5 +1,6 @@
 ---
 import Analytics from '@/components/Analytics.astro';
+import { formatMoney } from '@/lib/format';
 // Almstins Verify — the client confirms his own deal was recorded correctly.
 //
 // The banker types everything in the banker-led flow: the client's name, the amount, the
@@ -23,8 +24,7 @@ const elsewhere = (!req.ok && req.error === 'wrong_kind' && token)
   ? await pathForToken(token)
   : null;
 
-const money = (n: number, ccy: string) =>
-  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number, ccy: string) => formatMoney(n, ccy);
 
 const ERRORS: Record<string, string> = {
   not_found: 'This link is not valid. Ask whoever sent it for a new one.',

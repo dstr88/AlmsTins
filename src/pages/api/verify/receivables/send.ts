@@ -15,6 +15,7 @@
  *
  * Tenant-scoped: you can only send a request you created, that is still open.
  */
+import { formatMoney } from '@/lib/format';
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -35,8 +36,7 @@ const MAX_PER_HOUR = 50;
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-const money = (n: number, ccy: string) =>
-  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number, ccy: string) => formatMoney(n, ccy);
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);

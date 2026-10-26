@@ -210,6 +210,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
   </div>
 
   <script>
+    import { formatMoney } from '@/lib/format';
     const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
     const val = (id: string) => ($(id)?.value ?? '').trim();
     function esc(s: unknown) {
@@ -221,8 +222,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       el.className = `note show ${cls}`; el.innerHTML = html;
     }
     function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
-    const money = (n: number, ccy: string) =>
-      `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    // Milestone amounts drop trailing zeros (NGN 1,234 and NGN 1,234.5), unlike the other receivables pages.
+    const money = (n: number, ccy: string) => formatMoney(n, ccy, { minDecimals: 0 });
 
     let currentProject: string | null = null;
     let currentTotal = 0;
