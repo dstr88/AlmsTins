@@ -582,7 +582,8 @@ window.addEventListener('unhandledrejection', function(e) {
 import { escapeHtml } from '../../lib/escapeHtml';
 import { EVM_ADDRESS, EVM_ADDRESS_SOURCE, SUI_ADDRESS } from '../../lib/addressFormats';
 import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '../../lib/chains';
-import { formatUsd } from '../../lib/format';
+import { formatDate, formatTime, formatUsd } from '../../lib/format';
+import { getClientLang } from '../../lib/i18n/clientLang';
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
@@ -601,22 +602,11 @@ const $  = id => document.getElementById(id);
 const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
 const fmtUsd = n => (n == null ? '' : formatUsd(n, { empty: '' }));
 
-const fmtDT = s => {
-  if (!s) return '';
-  try {
-    const d = new Date(s.replace(' UTC','Z').replace(' ','T'));
-    const date = d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
-    const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
-    return `${date} · ${time}`;
-  } catch { return s.slice(0,16); }
-};
-
-const fmtDate = s => {
-  if (!s) return '';
-  try {
-    return new Date(s.replace(' UTC','Z').replace(' ','T')).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
-  } catch { return s.slice(0,10); }
-};
+// Screen dates in the user's language (D2). Stored times may end in ' UTC'.
+const LANG = getClientLang();
+const utcText = (s: string) => s.replace(' UTC','Z').replace(' ','T');
+const fmtDT = s => (s ? `${formatDate(utcText(s), LANG)} · ${formatTime(utcText(s), LANG, { padHour: true })}` : '');
+const fmtDate = s => (s ? formatDate(utcText(s), LANG) : '');
 
 const srcName = s => ({
   coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
@@ -639,7 +629,7 @@ async function loadNeedsAttention(attempt = 1) {
         renderNeedsAttention(inlineData);
         const badge = $('na-synced');
         if (badge) {
-          const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+          const t = formatTime(new Date(), LANG, { padHour: true });
           badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
           badge.style.display = 'inline';
         }
@@ -664,7 +654,7 @@ async function loadNeedsAttention(attempt = 1) {
           renderNeedsAttention(embedded);
           const badge = $('na-synced');
           if (badge) {
-            const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            const t = formatTime(new Date(), LANG, { padHour: true });
             badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
             badge.style.display = 'inline';
           }
@@ -695,7 +685,7 @@ async function loadNeedsAttention(attempt = 1) {
     renderNeedsAttention(data);
     const badge = $('na-synced');
     if (badge) {
-      const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      const t = formatTime(new Date(), LANG, { padHour: true });
       badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
       badge.style.display = 'inline';
     }
@@ -984,7 +974,7 @@ async function runSearchNa(sym, direction, ts) {
     // Also pre-fill the date inputs so the user can see / adjust the window
     $('filter-from').value = toDate(before);
     $('filter-to').value   = toDate(after);
-    windowLabel = i18n('within7Days',' within 7 days of __D__').replace('__D__',center.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }));
+    windowLabel = i18n('within7Days',' within 7 days of __D__').replace('__D__',formatDate(center, LANG));
   }
 
   const list = $('results-list');
@@ -2427,7 +2417,7 @@ $('btn-run-health')?.addEventListener('click', async () => {
   const grid = $('health-grid');
   if (grid) grid.innerHTML = '<div class="health-empty">' + i18n('healthRunning','Running diagnostics…') + '</div>';
   await loadHealthCheck();
-  const now = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const now = formatTime(new Date(), LANG, { padHour: true });
   const lr = $('health-last-run');
   if (lr) lr.textContent = i18n('healthLastRun','Last run: __T__').replace('__T__',now);
   btn.textContent = i18n('btnRunDiagnostics','Run diagnostics');

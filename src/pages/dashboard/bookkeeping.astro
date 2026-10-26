@@ -17,7 +17,7 @@ import { getBookkeeping } from '@/i18n/dashboard/bookkeeping';
 import { getHistoryExport } from '@/i18n/historyExport';
 import HistoryDownload from '../../components/dashboard/HistoryDownload.astro';
 import { canDownloadBookkeepingCsv, canDownloadHistoryByWallet } from '../../lib/historyAccess';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getBookkeeping(lang);
@@ -120,13 +120,7 @@ function sourceIcon(source: string | null | undefined): { url: string; alt: stri
 }
 
 // ── Formatters ──────────────────────────────────────────────────────────────
-const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-const fDate = (iso: string | null) => {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch { return iso; }
-};
+const fDate = (iso: string | null) => formatDate(iso, lang);
 const fQty = (v: number) =>
   Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
 const fUsd = (v: number | null) => formatUsd(v);

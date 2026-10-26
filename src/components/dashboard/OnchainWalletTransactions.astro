@@ -10,6 +10,7 @@ import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
 import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
 import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+import { formatDate } from '@/lib/format';
 
 type Props = {
 	walletId: string;
@@ -88,13 +89,7 @@ const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
 const lastSynced = (syncRow?.last_synced as string | null) ?? null;
 const dataThroughRaw = (syncRow?.data_through as string | null) ?? null;
 
-const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-function fmtSyncDate(iso: string | null): string {
-	if (!iso) return '';
-	const d = new Date(iso);
-	if (isNaN(d.getTime())) return '';
-	return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
-}
+const fmtSyncDate = (iso: string | null): string => formatDate(iso, lang, { empty: '', invalid: '' });
 const syncLabel = lastSynced ? `${t.syncedPrefix}${fmtSyncDate(lastSynced)}` : null;
 const dataThroughLabel = dataThroughRaw ? `${t.dataThroughPrefix}${fmtSyncDate(dataThroughRaw)}` : null;
 
@@ -120,12 +115,7 @@ const yearDividerAssets: Record<number, string> = {
 
 const dividerForYear = (year: number) => yearDividerAssets[year] ?? yearDivideEarlier.src;
 
-const formatDate = (value: string) => {
-	if (!value) return '';
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-};
+const formatRowDate = (value: string) => formatDate(value, lang, { style: 'dayMonth', empty: '' });
 
 const formatTokenAmount = (value: string | null, decimals = 18) => {
 	if (!value) return '0';
@@ -221,7 +211,7 @@ for (const row of rows) {
 					data-timestamp={item.row.timestamp}
 				>
 					<div class="txRow">
-						<span class="txCol--date">{formatDate(item.row.timestamp)}</span>
+						<span class="txCol--date">{formatRowDate(item.row.timestamp)}</span>
 						<span class="txCol--chain">
 							<span class="tx-label">{t.labelChain}</span>
 							<span class="tx-value">{item.row.chain || '—'}</span>

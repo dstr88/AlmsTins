@@ -269,7 +269,8 @@ try {
 </Layout>
 
 <script>
-  import { formatUsd } from '@/lib/format';
+  // This page is English only.
+  import { formatDate, formatUsd } from '@/lib/format';
   import Chart from 'chart.js/auto';
 
   type TvlData = {
@@ -402,7 +403,7 @@ try {
     const filtered = data.tvlHistory.filter((p) => p.date >= cutoff);
 
     const labels = filtered.map((p) =>
-      new Date(p.date * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      formatDate(p.date * 1000, 'en', { style: 'dayMonth' }),
     );
     const values = filtered.map((p) => p.totalLiquidityUSD);
 
@@ -607,7 +608,7 @@ try {
           return {
             label:           meta.label,
             data:            c.history.map((p) => ({
-              x: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+              x: formatDate(p.date, 'en', { style: 'dayMonth' }),
               y: Number(p.apy.toFixed(3)),
             })),
             borderColor:     meta.color,

@@ -388,7 +388,7 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 } }}>window.__1099I18n = i18n;</script>
 
 <script>
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd, toLang } from '@/lib/format';
 interface Locale1099 {
   dateLocale: string;
   pleaseSelectFile: string;
@@ -615,7 +615,7 @@ async function loadHistory() {
             ${u.formType.toUpperCase()} · ${u.taxYear}
             ${u.exchangeName ? ` · ${u.exchangeName}` : ''}
             · ${u.rowCount ?? '?'} ${I18N.rows}
-            · ${I18N.uploaded} ${new Date(u.createdAt).toLocaleDateString(I18N.dateLocale)}
+            · ${I18N.uploaded} ${formatDate(u.createdAt, toLang(I18N.dateLocale), { style: 'numeric' })}
           </p>
         </div>
         <a href="/dashboard/yearEnd/1099?uploadId=${u.id}"

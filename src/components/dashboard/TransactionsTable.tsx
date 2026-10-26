@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getTransactionsTable } from '@/i18n/components/transactionsTable';
+import { formatDateTime } from '@/lib/format';
 
 type TransactionWithAnnotation = {
 	id: string;
@@ -137,8 +138,7 @@ export default function TransactionsTable({ walletId }: Props) {
 	   return <p className="text-sm text-gray-500">{t.empty}</p>;
 	}
 
-	const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-	const formatDate = (iso: string) => new Date(iso).toLocaleString(dateLocale);
+	const formatDate = (iso: string) => formatDateTime(iso, lang, { style: 'numeric', seconds: true });
 
 	const shorten = (addr: string | null) =>
 		addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';

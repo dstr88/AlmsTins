@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getThisYearTransactions } from '@/i18n/components/thisYearTransactions';
-import { formatUsd } from '@/lib/format';
+import { formatDateTime, formatUsd, toLang } from '@/lib/format';
 
 type WalletResponse = {
 	id: string;
@@ -38,12 +38,8 @@ type FetchState =
 			priceMap: Record<string, number>;
 	  };
 
-function formatDateLabel(value: string, lang: string) {
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return '—';
-	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-	return date.toLocaleString(locale);
-}
+const formatDateLabel = (value: string, lang: string) =>
+	formatDateTime(value, toLang(lang), { style: 'numeric', seconds: true, invalid: '—' });
 
 function quarterLabel(date: Date) {
 	const q = Math.floor(date.getMonth() / 3) + 1;

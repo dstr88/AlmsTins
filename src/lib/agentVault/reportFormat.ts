@@ -3,7 +3,9 @@
  * thousands separators, and times in UTC. Pure, so the page and the PDF agree to the character.
  * Every time in a report is UTC and says so.
  */
-import { formatUsd as sharedUsd, formatUtc } from '@/lib/format';
+import { formatFileDate, formatUsd as sharedUsd, formatUtc } from '@/lib/format';
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 const COUNT = new Intl.NumberFormat('en-US');
 
@@ -29,14 +31,10 @@ export function formatClock(iso: string): string {
 
 /** `October 17, 2026` from `2026-10-17`. */
 export function formatDayLong(day: string): string {
-  const ms = Date.parse(`${day}T00:00:00.000Z`);
-  if (!Number.isFinite(ms)) return day;
-  return new Date(ms).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' });
+  return DAY.test(day) ? formatFileDate(day, { style: 'long' }) : day;
 }
 
 /** `Oct 17` from `2026-10-17`, for a short subject line. */
 export function formatDayShort(day: string): string {
-  const ms = Date.parse(`${day}T00:00:00.000Z`);
-  if (!Number.isFinite(ms)) return day;
-  return new Date(ms).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  return DAY.test(day) ? formatFileDate(day, { style: 'dayMonth' }) : day;
 }

@@ -8,7 +8,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ReconciliationItem, ReconciliationStatus } from '../../lib/reconciliation';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
+import { getClientLang } from '@/lib/i18n/clientLang';
 
 // ── Colour maps ──────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<ReconciliationStatus, string> = {
@@ -50,11 +51,7 @@ function fmt(n: number, dp = 6): string {
 }
 /** Dollars without a sign; the one caller writes + or - itself. */
 const fmtUsd = (n: number | null): string => (n == null ? '—' : formatUsd(Math.abs(n)));
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
-  catch { return iso.slice(0, 10); }
-}
+const fmtDate = (iso: string | null): string => formatDate(iso, getClientLang());
 function fmtPct(n: number | null): string {
   if (n == null) return '—';
   return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';

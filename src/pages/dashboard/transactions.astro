@@ -5,6 +5,7 @@ import { getAllActiveWallets } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getTransactions } from '@/i18n/dashboard/transactions';
+import { INTL_LOCALE } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getTransactions(lang);
@@ -164,6 +165,8 @@ const walletPayload = JSON.stringify(wallets);
 		duplicatesSkippedN: t.duplicatesSkipped(2).replace('2', 'N'),
 		parsing1: t.parsing(1),
 		parsingN: t.parsing(2).replace('2', 'N'),
+		// The inline module below cannot import src/lib/format.ts; it formats dates with this locale.
+		dateLocale: INTL_LOCALE[lang],
 	} }}>window.__txI18n = i18n;</script>
 
 	<script type="module">
@@ -379,7 +382,7 @@ const walletPayload = JSON.stringify(wallets);
 
 		function formatDate(input) {
 			try {
-				return new Date(input).toLocaleString();
+				return new Date(input).toLocaleString(_s('dateLocale'));
 			} catch {
 				return input;
 			}

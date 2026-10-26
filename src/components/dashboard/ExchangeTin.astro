@@ -2,6 +2,7 @@
 import './ExchangeTin.css';
 import { getLang } from '@/lib/i18n/locale';
 import { getExchangeTin } from '@/i18n/components/exchangeTin';
+import { formatDate, toLang } from '@/lib/format';
 
 interface Props {
 	title: string;
@@ -13,12 +14,7 @@ interface Props {
 const { title, class: className = '', dataThrough, lastImported } = Astro.props;
 const t = getExchangeTin(getLang(Astro.request));
 
-function fmtDate(iso: string | null | undefined): string {
-	if (!iso) return '—';
-	const d = new Date(iso);
-	if (isNaN(d.getTime())) return '—';
-	return d.toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
-}
+const fmtDate = (iso: string | null | undefined): string => formatDate(iso, toLang(t.dateLocale), { invalid: '—' });
 
 const throughLabel = fmtDate(dataThrough);
 const importedLabel = fmtDate(lastImported);

@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { formatDate } from '@/lib/format';
 
 /**
  * /api/dev-activity
@@ -108,7 +109,7 @@ function buildWeekLabels(): string[] {
     const d = new Date(now);
     d.setDate(d.getDate() - i * 7);
     labels.push(
-      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      formatDate(d, 'en', { style: 'dayMonth' }),
     );
   }
   return labels;

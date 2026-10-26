@@ -20,7 +20,7 @@ import { getYearEndSummary, isValidSummaryYear, parseSummaryMethod } from '@/lib
 import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
 import { getLang } from '@/lib/i18n/locale';
 import { getGains } from '@/i18n/dashboard/yearEnd/gains';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
 
 // Tax documents are the owner's alone (src/lib/taxAuth.ts). Checked before anything else runs.
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
@@ -195,10 +195,7 @@ const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 const fmt = (n: number) => formatUsd(n);
 
-const fmtDate = (iso: string) => {
-	try { return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
-	catch { return iso; }
-};
+const fmtDate = (iso: string) => formatDate(iso, lang);
 
 // Accounting notation: losses in parentheses, gains with + prefix
 const fmtGain = (n: number) => {
@@ -435,7 +432,7 @@ const fmtGain = (n: number) => {
 							<span>
 								{t.pipelineStatus(payload.lastPipelineRun.status)}&nbsp;·&nbsp;
 								{payload.lastPipelineRun.completedAt
-									? new Date(payload.lastPipelineRun.completedAt).toLocaleString(dateLocale)
+									? formatDateTime(payload.lastPipelineRun.completedAt, lang, { style: 'numeric', seconds: true })
 									: t.inProgress}
 								{payload.lastPipelineRun.totalClassified != null && (
 									<span class="ml-2 text-gray-400">
@@ -500,9 +497,9 @@ const fmtGain = (n: number) => {
 							</p>
 							{payload.pipelineStale.lastRunAt && (
 								<p class="text-xs text-amber-600">
-									{t.staleLastRun} {new Date(payload.pipelineStale.lastRunAt).toLocaleString(dateLocale)}
+									{t.staleLastRun} {formatDateTime(payload.pipelineStale.lastRunAt, lang, { style: 'numeric', seconds: true })}
 									{payload.pipelineStale.latestImportAt && (
-										<> {t.staleLatestImport} {new Date(payload.pipelineStale.latestImportAt).toLocaleString(dateLocale)}</>
+										<> {t.staleLatestImport} {formatDateTime(payload.pipelineStale.latestImportAt, lang, { style: 'numeric', seconds: true })}</>
 									)}
 								</p>
 							)}

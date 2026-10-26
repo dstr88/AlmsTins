@@ -167,6 +167,7 @@ if (!_authSess) return Astro.redirect('/login');
 } }}>window.__pfI18n = pfI18n;</script>
 
 <script>
+import { formatTime, toLang } from '@/lib/format';
 import { partialTotalMessage } from '@/i18n/components/partialTotalNote';
 import type { Lang } from '@/lib/i18n/locale';
 import { formatUsd } from '@/lib/format';
@@ -382,8 +383,7 @@ async function loadPortfolio() {
 		}
 
 		try {
-			const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-			const ts = new Date(data.updatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+			const ts = formatTime(data.updatedAt, toLang(lang), { padHour: true });
 			const updatedStr = interpolate(I18N.heroUpdated, ts);
 			(document.getElementById('hero-updated')!).textContent = updatedStr;
 			(document.getElementById('updated-at')!).textContent   = updatedStr;

@@ -8,6 +8,7 @@
  */
 
 import { escapeHtml } from '@/lib/escapeHtml';
+import { formatDateTime } from '@/lib/format';
 
 const DEFAULT_OPEN_PX = 320;
 const MIN_PX = 90;
@@ -16,10 +17,7 @@ const heightKey = (mb: string) => `mh:h:${mb}`;
 const q = <T extends Element>(root: ParentNode, sel: string) => root.querySelector<T>(sel);
 const panels = () => Array.from(document.querySelectorAll<HTMLElement>('.mh'));
 
-const fmt = (v: unknown) =>
-	v ? new Date(String(v)).toLocaleString('en-US', {
-		month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-	}) : '';
+const fmt = (v: unknown) => (v ? formatDateTime(String(v), 'en', { style: 'dayMonth', invalid: 'Invalid Date' }) : '');
 
 const fmtSize = (n: number) =>
 	n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB`

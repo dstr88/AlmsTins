@@ -202,9 +202,10 @@ export function formatPercent(fraction: number, lang: Lang, maximumFractionDigit
  *   short    10/25/2026 · 25/10/2026 · 25/10/2026
  *   numeric  10/25/2026 · 25/10/2026 · 25/10/2026 (no leading zeros: 1/2/2026 · 2/1/2026)
  *   dayMonth Oct 25 · 25 oct · 25 oct.
- *   monthYear Oct 2026 · oct 2026 · oct. 2026
+ *   monthYearLong  October 2026 · octubre de 2026 · octobre 2026
+ *   monthYearShort Oct 26 · oct 26 · oct. 26
  */
-export type DateStyle = 'medium' | 'long' | 'short' | 'numeric' | 'dayMonth' | 'monthYear';
+export type DateStyle = 'medium' | 'long' | 'short' | 'numeric' | 'dayMonth' | 'monthYearLong' | 'monthYearShort';
 
 const DATE_STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {
 	medium: { year: 'numeric', month: 'short', day: 'numeric' },
@@ -212,7 +213,8 @@ const DATE_STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {
 	short: { year: 'numeric', month: '2-digit', day: '2-digit' },
 	numeric: { year: 'numeric', month: 'numeric', day: 'numeric' },
 	dayMonth: { month: 'short', day: 'numeric' },
-	monthYear: { year: 'numeric', month: 'short' },
+	monthYearLong: { year: 'numeric', month: 'long' },
+	monthYearShort: { year: '2-digit', month: 'short' },
 };
 
 export interface DateOptions {
@@ -229,6 +231,14 @@ export interface DateOptions {
 export interface DateTimeOptions extends DateOptions {
 	/** Show seconds. Default false. */
 	seconds?: boolean;
+	/** Two-digit hours (`03:04 PM`). Default false (`3:04 PM`). */
+	padHour?: boolean;
+}
+
+/** The app language a BCP 47 locale belongs to (`es-ES`, `es-419` → `es`); English otherwise. */
+export function toLang(locale: string | null | undefined): Lang {
+	const base = String(locale ?? '').toLowerCase().slice(0, 2);
+	return base === 'es' || base === 'fr' ? base : 'en';
 }
 
 const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
@@ -267,6 +277,11 @@ function notADate(value: unknown, opts: DateOptions): string {
 	return typeof value === 'string' ? value : opts.empty ?? EM;
 }
 
+function timeParts(opts: DateTimeOptions): Intl.DateTimeFormatOptions {
+	return { hour: opts.padHour ? '2-digit' : 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
+}
+const timeKey = (opts: DateTimeOptions) => `${opts.seconds ? 's' : ''}${opts.padHour ? 'p' : ''}`;
+
 /** A day on a screen, in the user's language (D2): `Oct 25, 2026` / `25 oct 2026` / `25 oct. 2026`. */
 export function formatDate(value: unknown, lang: Lang, opts: DateOptions = {}): string {
 	const d = toDate(value);
@@ -283,16 +298,14 @@ export function formatDateTime(value: unknown, lang: Lang, opts: DateTimeOptions
 	const d = toDate(value);
 	if (!d) return notADate(value, opts);
 	const style = opts.style ?? 'medium';
-	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
-	return dtf(lang, `dt:${style}:${opts.seconds ? 's' : ''}`, { ...DATE_STYLES[style], ...time, timeZone: opts.timeZone }).format(d);
+	return dtf(lang, `dt:${style}:${timeKey(opts)}`, { ...DATE_STYLES[style], ...timeParts(opts), timeZone: opts.timeZone }).format(d);
 }
 
 /** A time of day on a screen, in the user's language: `3:04 PM` / `15:04`. */
 export function formatTime(value: unknown, lang: Lang, opts: Omit<DateTimeOptions, 'style'> = {}): string {
 	const d = toDate(value);
 	if (!d) return notADate(value, opts);
-	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
-	return dtf(lang, `t:${opts.seconds ? 's' : ''}`, { ...time, timeZone: opts.timeZone }).format(d);
+	return dtf(lang, `t:${timeKey(opts)}`, { ...timeParts(opts), timeZone: opts.timeZone }).format(d);
 }
 
 // ─── Dates in files (fixed, English, UTC) ─────────────────────────────────────

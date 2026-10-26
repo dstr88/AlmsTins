@@ -25,6 +25,7 @@ import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getVault } from '@/i18n/dashboard/vault';
+import { formatDate } from '@/lib/format';
 
 const ENABLE_ALL_TX = false;
 const lang = getLang(Astro.request);
@@ -75,8 +76,7 @@ try {
 		digestCount = Number(row.item_count ?? 0);
 		const ym    = String(row.year_month ?? '');
 		if (ym) {
-			const [y, m] = ym.split('-');
-			digestMonth  = new Date(Number(y), Number(m) - 1).toLocaleDateString(lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
+			digestMonth  = formatDate(`${ym}-01`, lang, { style: 'monthYearLong', timeZone: 'UTC' });
 		}
 	}
 } catch {

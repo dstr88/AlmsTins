@@ -3,17 +3,11 @@ import { emptyActivity, isNotCovered, isUnread, showNewWalletNote } from '@/lib/
 import { fillTemplate } from '@/lib/verifyPublicCard';
 import type { WalletCheckerLocale } from '@/i18n/walletChecker';
 import './WalletActivityPanel.css';
+import { formatDate, toLang } from '@/lib/format';
 
 type CheckerStrings = WalletCheckerLocale['checker'];
 
-function fmt(iso: string | null, locale: string): string {
-  if (!iso) return '—';
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      month: 'short', day: 'numeric', year: 'numeric',
-    }).format(new Date(iso));
-  } catch { return '—'; }
-}
+const fmt = (iso: string | null, locale: string): string => formatDate(iso, toLang(locale), { invalid: '—' });
 
 /**
  * The wallet checker's Activity tab: first and last activity (with the chain each was found

@@ -16,7 +16,7 @@ import { db } from '@/lib/db';
 import { isOwner } from '@/lib/owner';
 import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
 
 export const prerender = false;
 
@@ -167,10 +167,8 @@ const staleWallets = wallets.filter(w => !w.lastSynced || new Date(w.lastSynced)
 
 // Helpers
 const fmt = (n: number) => formatUsd(n, { cents: false });
-const fmtDate = (s: string | null) => {
-  if (!s) return 'Never';
-  try { return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return s; }
-};
+// The Year Summary page is English only.
+const fmtDate = (s: string | null) => formatDate(s, 'en', { empty: 'Never' });
 
 const availableYears = bd?.availableYears ?? [priorYear];
 ---

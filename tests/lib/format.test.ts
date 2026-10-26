@@ -11,6 +11,7 @@ import {
 	formatUtc,
 	toDate,
 	toFiniteNumber,
+	toLang,
 } from '@/lib/format';
 import { formatUtc as reportFormatUtc } from '@/lib/agentVault/reportFormat';
 
@@ -144,7 +145,10 @@ describe('formatDate / formatDateTime (D2: the language on screens)', () => {
 		expect(formatDate(T, 'en', { ...utc, style: 'short' })).toBe('10/25/2026');
 		expect(formatDate(T, 'fr', { ...utc, style: 'short' })).toBe('25/10/2026');
 		expect(formatDate(T, 'en', { ...utc, style: 'dayMonth' })).toBe('Oct 25');
-		expect(formatDate(T, 'en', { ...utc, style: 'monthYear' })).toBe('Oct 2026');
+		expect(formatDate(T, 'en', { ...utc, style: 'monthYearLong' })).toBe('October 2026');
+		expect(formatDate(T, 'es', { ...utc, style: 'monthYearLong' })).toBe('octubre de 2026');
+		expect(formatDate(T, 'en', { ...utc, style: 'monthYearShort' })).toBe('Oct 26');
+		expect(formatDate('2026-01-02T00:00:00Z', 'en', { ...utc, style: 'numeric' })).toBe('1/2/2026');
 	});
 	it('date and time', () => {
 		expect(formatDateTime(T, 'en', utc)).toBe('Oct 25, 2026, 3:04 PM');
@@ -153,6 +157,8 @@ describe('formatDate / formatDateTime (D2: the language on screens)', () => {
 		expect(formatDateTime(T, 'en', { ...utc, seconds: true })).toBe('Oct 25, 2026, 3:04:05 PM');
 		expect(formatTime(T, 'en', utc)).toBe('3:04 PM');
 		expect(formatTime(T, 'fr', utc)).toBe('15:04');
+		expect(formatTime('2026-10-25T03:04:05Z', 'en', { ...utc, padHour: true })).toBe('03:04 AM');
+		expect(formatDateTime(T, 'es', { ...utc, style: 'numeric', seconds: true })).toBe('25/10/2026, 15:04:05');
 	});
 	it('a bare day with timeZone UTC is that day in any zone', () => {
 		expect(formatDate('2026-01-01', 'en', utc)).toBe('Jan 1, 2026');
@@ -163,6 +169,17 @@ describe('formatDate / formatDateTime (D2: the language on screens)', () => {
 		expect(formatDate('soon', 'en')).toBe('soon');
 		expect(formatDateTime(undefined, 'es')).toBe('—');
 		expect(formatTime(Number.NaN, 'en')).toBe('—');
+	});
+});
+
+describe('toLang', () => {
+	it('maps a locale to its app language', () => {
+		expect(toLang('es-ES')).toBe('es');
+		expect(toLang('es-419')).toBe('es');
+		expect(toLang('fr-FR')).toBe('fr');
+		expect(toLang('en-US')).toBe('en');
+		expect(toLang(undefined)).toBe('en');
+		expect(toLang('de-DE')).toBe('en');
 	});
 });
 

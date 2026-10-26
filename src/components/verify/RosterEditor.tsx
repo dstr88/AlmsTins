@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type ChangeEvent, type ClipboardEvent } fr
 import { encryptRosterPayload } from '@/lib/verifyEncryption';
 import type { VerifyRosterLocale } from '@/i18n/dashboard/verifyRoster';
 import './RosterEditor.css';
+import { formatDateTime } from '@/lib/format';
 
 interface Row { id: string; address: string; label: string }
 
@@ -81,7 +82,7 @@ export default function RosterEditor({ t }: { t: VerifyRosterLocale }) {
       const cacheData = await cacheRes.json().catch(() => null);
       if (cacheData?.cached?.addresses?.length) {
         setRows(cacheData.cached.addresses.map((e: { address: string; label: string | null }) => newRow(e.address, e.label ?? '')));
-        setCacheNote(t.loadedFromCache.replace('{time}', new Date(cacheData.cached.cachedAt).toLocaleString()));
+        setCacheNote(t.loadedFromCache.replace('{time}', formatDateTime(cacheData.cached.cachedAt, t.lang, { style: 'numeric', seconds: true })));
       }
     } catch {
       setOutcome({ text: t.outcomeInvalidDomain, ok: false });

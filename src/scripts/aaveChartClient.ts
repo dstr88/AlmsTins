@@ -1,4 +1,6 @@
 import Chart from 'chart.js/auto';
+import { formatDate, formatDateTime } from '@/lib/format';
+import { getClientLang } from '@/lib/i18n/clientLang';
 
 type ReserveOption = {
 	label: string;
@@ -274,7 +276,7 @@ async function loadRates(reserveId: string, days: number) {
 		}
 
 		if (series.lastTimestamp && updatedEl) {
-			updatedEl.textContent = new Date(series.lastTimestamp * 1000).toLocaleString();
+			updatedEl.textContent = formatDateTime(series.lastTimestamp * 1000, getClientLang(), { style: 'numeric', seconds: true });
 		}
 		setStatus(`Displaying ${latestReserveLabel} (${days}d window)`, 'success');
 	} catch (error) {
@@ -365,7 +367,7 @@ function toChartSeries(rawData: Array<Record<string, any>>, days: number): Serie
 
 	return {
 		labels: sliced.map((entry) =>
-			new Date(entry.timestamp * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric' }),
+			formatDate(entry.timestamp * 1000, getClientLang(), { style: 'dayMonth' }),
 		),
 		supply: sliced.map((entry) => entry.supply),
 		variable: sliced.map((entry) => entry.variable),

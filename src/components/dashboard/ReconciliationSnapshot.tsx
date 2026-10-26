@@ -14,7 +14,7 @@ import './reconciliation.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getReconciliationSnapshot } from '@/i18n/components/reconciliationSnapshot';
 import PartialTotalNote from './PartialTotalNote';
-import { formatUsd } from '@/lib/format';
+import { formatTime, formatUsd } from '@/lib/format';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -144,7 +144,7 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 
 					{updatedAt && (
 						<div className="recon-footer">
-							{t.footerAs(new Date(updatedAt).toLocaleTimeString(t.lang, { hour: '2-digit', minute: '2-digit' }))}
+							{t.footerAs(formatTime(updatedAt, t.lang, { padHour: true }))}
 						</div>
 					)}
 				</>

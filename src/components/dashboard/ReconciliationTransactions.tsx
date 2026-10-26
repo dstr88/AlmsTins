@@ -12,6 +12,7 @@ import React, { useEffect, useState } from 'react';
 import './reconciliation.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getReconciliationTransactions } from '@/i18n/components/reconciliationTransactions';
+import { formatTime, toLang } from '@/lib/format';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -98,7 +99,7 @@ export default function ReconciliationTransactions({ threshold = 50 }: { thresho
 
 					{updatedAt && (
 						<div className="recon-footer">
-							{t.lifecycleAsOf(new Date(updatedAt).toLocaleTimeString(t.timeLocale, { hour: '2-digit', minute: '2-digit' }))}
+							{t.lifecycleAsOf(formatTime(updatedAt, toLang(t.timeLocale), { padHour: true }))}
 						</div>
 					)}
 				</>

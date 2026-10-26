@@ -195,6 +195,8 @@ const t = getAddTransactionModal(lang);
 } }}>window.__addTxI18n = addTxI18n;</script>
 
 <script>
+	import { formatDateTime } from '@/lib/format';
+	import { getClientLang } from '@/lib/i18n/clientLang';
 	const overlay = document.getElementById('add-tx-modal');
 	if (overlay instanceof HTMLElement) {
 		let currentWalletId: string | null = null;
@@ -312,7 +314,7 @@ const t = getAddTransactionModal(lang);
 					blockNumber: data.blockNumber,
 				};
 
-				if (prefillDate) prefillDate.textContent = data.timestamp ? new Date(data.timestamp).toLocaleString() : '—';
+				if (prefillDate) prefillDate.textContent = formatDateTime(data.timestamp, getClientLang(), { style: 'numeric', seconds: true });
 				if (prefillFrom) prefillFrom.textContent = data.from ? `${data.from.slice(0, 8)}…${data.from.slice(-6)}` : '—';
 				if (prefillTo) prefillTo.textContent = data.to ? `${data.to.slice(0, 8)}…${data.to.slice(-6)}` : '—';
 				if (prefillValue) prefillValue.textContent = data.value ? `${BigInt(data.value) / 10n**18n} ETH` : '—';
