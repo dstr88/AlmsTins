@@ -473,6 +473,38 @@ const getChainBadge = (chains: string[]): string => {
 		const updateDefiSummary = (tin:any) => {
 			const labelEl = tin.querySelector('[data-defi-summary-label]');
 			const valueEl = tin.querySelector('[data-defi-summary-value]');
+
+			// Aave: one health row per chain position. Show every chain's health factor in a row (a second chain's
+			// health must not hide behind the first). The label keeps its server-rendered "Health".
+			const chainRows = Array.from(tin.querySelectorAll('.stat-row.health[data-chain-name]')) as HTMLElement[];
+			if (chainRows.length && valueEl instanceof HTMLElement) {
+				const entries = chainRows
+					.map((row) => ({
+						name: row.dataset.chainName || '',
+						value: row.querySelector('.value')?.textContent?.trim() || '',
+						color: row.dataset.healthColor || '',
+					}))
+					.filter((e) => e.value && e.value !== '---');
+				valueEl.classList.toggle('tin-summary__value--multi', entries.length > 0);
+				valueEl.style.color = '';
+				if (!entries.length) {
+					valueEl.textContent = '—';
+					return;
+				}
+				valueEl.replaceChildren(...entries.map((e) => {
+					const item = document.createElement('span');
+					const name = document.createElement('span');
+					name.className = 'tin-summary__hf-chain';
+					name.textContent = e.name;
+					const value = document.createElement('span');
+					value.textContent = e.value;
+					value.style.color = e.color;
+					item.append(name, value);
+					return item;
+				}));
+				return;
+			}
+
 			const sourceRow   = tin.querySelector('.stat-row.health');
 			const sourceLabel = sourceRow?.querySelector('.label');
 			const sourceValue = sourceRow?.querySelector('.value');
