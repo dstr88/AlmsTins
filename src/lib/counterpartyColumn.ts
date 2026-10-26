@@ -1,6 +1,6 @@
 /**
  * counterparty_address on import_transactions and sui_transactions: the full address on the other
- * side of a chain-synced row (Bitcoin, Solana, Sui), so GET /api/address-history can find the
+ * side of a chain-synced row (Bitcoin, Litecoin, Solana, Sui), so GET /api/address-history can find the
  * user's own rows with one address. NULL where the chain data does not name one other party.
  *
  * Added lazily, once per process, before the syncs write it and before history reads it; mirrored

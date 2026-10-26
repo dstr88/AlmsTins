@@ -231,7 +231,7 @@ type HistoryRow = {
 };
 
 type HistoryAnswer =
-	| { supported: false; reason: 'not_onchain' | 'not_kept_yet' | 'too_many'; network?: string }
+	| { supported: false; reason: 'not_onchain' | 'too_many' }
 	| {
 		supported: true;
 		network: string;
@@ -257,13 +257,13 @@ function Amount({ value, asset, usd, t }: { value: string; asset: string; usd: s
 	);
 }
 
-/** Bitcoin, Solana and Sui rows keep their counterparty only from syncs since it was added. */
+/** Bitcoin, Litecoin, Solana and Sui rows keep their counterparty only from syncs since it was added. */
 function SyncedOnlyNote({ network, t }: { network: string; t: AddressLabelsLocale['details'] }) {
-	if (network !== 'btc' && network !== 'sol' && network !== 'sui') return null;
+	if (network !== 'btc' && network !== 'ltc' && network !== 'sol' && network !== 'sui') return null;
 	return (
 		<p style={mutedText}>
 			{t.historySyncedOnly}
-			{network === 'btc' && <> {t.historyBtcFirst}</>}
+			{(network === 'btc' || network === 'ltc') && <> {t.historyBtcFirst}</>}
 		</p>
 	);
 }
@@ -377,7 +377,7 @@ function HistorySection({ address, onchain, notOnchainText, t }: { address: stri
 		const reason = state.data.reason;
 		body = (
 			<p style={mutedText}>
-				{reason === 'not_kept_yet' ? t.historyNotKept : reason === 'too_many' ? t.historyTooMany : reason === 'not_onchain' ? notOnchainText : t.historyFailed}
+				{reason === 'too_many' ? t.historyTooMany : reason === 'not_onchain' ? notOnchainText : t.historyFailed}
 			</p>
 		);
 	} else body = <HistoryList data={state.data} t={t} />;

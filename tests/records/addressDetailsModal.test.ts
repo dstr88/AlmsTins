@@ -112,21 +112,23 @@ describe('the modal', () => {
 		expect(modal).toMatch(/if \(data\.ok !== true\) return \{ kind: 'failed' \}/);
 	});
 
-	it('says, for Bitcoin, Solana and Sui, that only rows synced since the counterparty was kept show up', () => {
-		expect(modal).toMatch(/if \(network !== 'btc' && network !== 'sol' && network !== 'sui'\) return null;/);
-		expect(modal).toMatch(/\{network === 'btc' && <> \{t\.historyBtcFirst\}<\/>\}/);
+	it('says, for Bitcoin, Litecoin, Solana and Sui, that only rows synced since the counterparty was kept show up', () => {
+		expect(modal).toMatch(/if \(network !== 'btc' && network !== 'ltc' && network !== 'sol' && network !== 'sui'\) return null;/);
+		expect(modal).toMatch(/\{\(network === 'btc' \|\| network === 'ltc'\) && <> \{t\.historyBtcFirst\}<\/>\}/);
 		expect(modal.match(/<SyncedOnlyNote network=\{data\.network\} t=\{t\} \/>/g)).toHaveLength(2); // with rows, and when empty
 		for (const lang of LANGS) {
 			const d = copy[lang].details;
-			expect(d.historyNotKept).toMatch(/Litecoin/);
-			expect(d.historyNotKept).not.toMatch(/Bitcoin|Solana|Sui/);
-			expect(d.historySyncedOnly).toMatch(/Bitcoin.*Solana.*Sui/);
+			expect(d.historySyncedOnly).toMatch(/Bitcoin, Litecoin, Solana .* Sui/);
 			expect(d.historySyncedOnly).toMatch(/2026/);
+			expect(d.historyBtcFirst).toMatch(/Bitcoin .* Litecoin/);
+			// No chain is left whose history is not kept.
+			expect(d).not.toHaveProperty('historyNotKept');
 		}
 	});
 
 	it('renders every history reason', () => {
-		for (const reason of ['not_kept_yet', 'too_many', 'not_onchain']) expect(modal).toContain(`reason === '${reason}'`);
+		for (const reason of ['too_many', 'not_onchain']) expect(modal).toContain(`reason === '${reason}'`);
+		expect(modal).not.toContain('not_kept_yet');
 		expect(modal).toMatch(/\/dashboard\/transactions\?wallet=\$\{encodeURIComponent\(data\.ownWallet\.id\)\}/);
 		expect(modal).toMatch(/data\.truncated && /);
 	});
