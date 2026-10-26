@@ -8,6 +8,7 @@ import { goplusRanForAddress } from '@/lib/goplusCredit';
 import PoweredByGoPlus from './PoweredByGoPlus';
 import WalletActivityPanel from './WalletActivityPanel';
 import { findEvmAddress } from '@/lib/addressFormats';
+import { Modal } from '@/components/ui/Modal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -711,9 +712,6 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScanning(false); };
-    window.addEventListener('keydown', onKey);
-
     (async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setScanError(c.scanUnsupported);
@@ -745,7 +743,6 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
 
     return () => {
       cancelled = true;
-      window.removeEventListener('keydown', onKey);
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
       streamRef.current?.getTracks().forEach(t => t.stop());
       streamRef.current = null;
@@ -998,17 +995,21 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
         </div>
       )}
 
-      {/* QR scanner camera overlay */}
+      {/* QR scanner camera overlay. <Modal> closes it on Escape (the camera effect then stops the
+          stream), puts focus on Cancel and back on the scan button, keeps Tab inside and locks
+          the page scroll. Only Cancel or Escape close it: a tap beside the video does not. */}
       {scanning && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={c.scanTitle}
-          style={{
+        <Modal
+          onClose={() => setScanning(false)}
+          label={c.scanTitle}
+          unstyled
+          closeOnBackdrop={false}
+          backdropStyle={{
             position: 'fixed', inset: 0, zIndex: 1000,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(5,7,15,0.92)', backdropFilter: 'blur(6px)', padding: '1.5rem',
           }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '100%' }}
         >
           <p style={{ color: '#f5f8ff', fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem', textAlign: 'center' }}>
             {c.scanTitle}
@@ -1036,7 +1037,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           >
             {c.cancel}
           </button>
-        </div>
+        </Modal>
       )}
 
       {/* Spinner keyframe */}
