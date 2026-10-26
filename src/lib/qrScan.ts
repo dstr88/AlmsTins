@@ -26,10 +26,31 @@
  * 3. Pure decode (you already have the image File):
  *      import { decodeQrFromImageFile } from '@/lib/qrScan';
  *      const payload = await decodeQrFromImageFile(file);
+ *
+ * 4. One camera frame (a live scan loop drew the video on a canvas):
+ *      import { decodeQrFromImageData } from '@/lib/qrScan';
+ *      const payload = decodeQrFromImageData(ctx.getImageData(0, 0, w, h));
+ *
+ * This is the one place the app loads `jsqr`; making QR codes lives in src/lib/qrMake.ts.
  */
 import jsQR from 'jsqr';
 
 const MAX_DIM = 1100; // downscale large photos before decode (speed)
+
+/** The pixels of one image or camera frame, as a canvas's getImageData returns them. */
+export interface QrPixels {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
+/**
+ * Decode the first QR code in one image or camera frame. Returns its payload, or null when there
+ * is none. Light-on-dark codes are tried too (inversionAttempts 'attemptBoth').
+ */
+export function decodeQrFromImageData({ data, width, height }: QrPixels): string | null {
+  return jsQR(data, width, height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
+}
 
 /** Decode the first QR code found in an image File. Returns its payload, or null. */
 export async function decodeQrFromImageFile(file: File): Promise<string | null> {
@@ -50,8 +71,7 @@ export async function decodeQrFromImageFile(file: File): Promise<string | null> 
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     ctx.drawImage(img, 0, 0, w, h);
-    const { data } = ctx.getImageData(0, 0, w, h);
-    return jsQR(data, w, h)?.data ?? null;
+    return decodeQrFromImageData(ctx.getImageData(0, 0, w, h));
   } finally {
     URL.revokeObjectURL(url);
   }
