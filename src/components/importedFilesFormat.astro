@@ -12,6 +12,8 @@ import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
 import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
 import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+import { formatDate } from '@/lib/format';
+import { getLang } from '@/lib/i18n/locale';
 
 type IconSet = {
 	in: string;
@@ -155,12 +157,8 @@ const formatAmount = (
 	return new Intl.NumberFormat('en-US', options).format(num);
 };
 
-const formatDate = (value: string) => {
-	if (!value) return '';
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
-};
+const lang = getLang(Astro.request);
+const formatRowDate = (value: string) => formatDate(value, lang, { style: 'dayMonth', empty: '' });
 
 const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
 
@@ -237,7 +235,7 @@ const balances = Array.from(balanceMap.entries())
 						</div>
 					) : (
 						<div class="tx-card">
-							<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+							<span class="tx-date">{formatRowDate(item.row.timestamp_utc)}</span>
 							<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
 							<span class="tx-amount">
 								{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}

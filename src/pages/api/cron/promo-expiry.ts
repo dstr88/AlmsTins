@@ -17,6 +17,7 @@ import { sendMail } from '@/lib/email';
 import { isLang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getPromoExpiry } from '@/i18n/emails/promoExpiry';
+import { formatDate } from '@/lib/format';
 
 export const prerender = false;
 
@@ -35,11 +36,7 @@ function daysUntil(isoDate: string): number {
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
 
-function fmtDate(iso: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
-  }).format(new Date(iso));
-}
+const fmtDate = (iso: string): string => formatDate(iso, 'en', { style: 'long' });
 
 export const GET: APIRoute = async ({ request }) => {
   // ── Auth ───────────────────────────────────────────────────────────────────

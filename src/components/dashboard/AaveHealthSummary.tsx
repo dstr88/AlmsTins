@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAaveHealthSummary } from '@/i18n/components/aaveHealthSummary';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'AaveHealthSummary');
 
@@ -266,10 +266,7 @@ type AaveLiquidation = {
 function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 	const t = getAaveHealthSummary(getClientLang());
 	const lang = getClientLang();
-	const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-	const date = new Date(liq.timestamp).toLocaleDateString(dateLocale, {
-		year: 'numeric', month: 'short', day: 'numeric',
-	});
+	const date = formatDate(liq.timestamp, lang);
 
 	return (
 		<div className="aave-liq-callout">

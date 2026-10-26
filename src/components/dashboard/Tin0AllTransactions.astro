@@ -18,7 +18,7 @@ import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
 import Tin0AllTransactionsClient from '@/components/transactions/Tin0AllTransactionsClient';
 import { getLang } from '@/lib/i18n/locale';
 import { getTin0AllTransactions } from '@/i18n/components/tin0AllTransactions';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatDateTime, formatUsd, toLang } from '@/lib/format';
 
 const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
@@ -285,12 +285,7 @@ const formatAmount = (
 };
 
 
-const formatDate = (value: string) => {
-	if (!value) return '';
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString(t.dateLocale, { month: 'short', day: 'numeric' });
-};
+const formatRowDate = (value: string) => formatDate(value, toLang(t.dateLocale), { style: 'dayMonth', empty: '' });
 
 const formatRelativeDays = (value: string | null) => {
 	if (!value) return '—';
@@ -419,7 +414,7 @@ const exportUrl = walletId
 								{t.lifecycleAvgCost} {formatUsd(group.weighted_avg_cost_usd)} · {t.lifecycleQty} {formatAmount(group.total_quantity)}
 							</span>
 							<span class="lifecycle-meta">
-								{t.lifecycleLastBuy} {group.latest_acquired_at ? formatDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
+								{t.lifecycleLastBuy} {group.latest_acquired_at ? formatRowDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
 							</span>
 						</summary>
 						<div class="lifecycle-events">
@@ -429,7 +424,7 @@ const exportUrl = walletId
 								events.map((event) => (
 									<div class="lifecycle-event">
 										<span class="lifecycle-event__time">
-											{new Date(event.timestamp_utc).toLocaleString()}
+											{formatDateTime(event.timestamp_utc, lang, { style: 'numeric', seconds: true })}
 										</span>
 										<span class="lifecycle-event__dir">{event.direction ?? '—'}</span>
 										<span class="lifecycle-event__amt">
@@ -468,7 +463,7 @@ const exportUrl = walletId
 				data-import-amount={item.row.amount ?? ''}
 				data-import-usd={item.row.native_usd ?? ''}
 			>
-					<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+					<span class="tx-date">{formatRowDate(item.row.timestamp_utc)}</span>
 					<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
 					{isUnwrapRow(item.row) && pickTokenAmount(item.row) === null ? (
 						<span class="tx-amount">

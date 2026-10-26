@@ -9,6 +9,8 @@ import PoweredByGoPlus from '../PoweredByGoPlus';
 import './VerifyDashboard.css';
 import { findEvmAddress } from '@/lib/addressFormats';
 import { VERIFY_ADDRESS_RAILS, VERIFY_EVM_RAILS } from '@/lib/chains';
+import { formatDateTime, formatTime } from '@/lib/format';
+import type { Lang } from '@/lib/i18n/locale';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
 interface Destination {
@@ -788,12 +790,8 @@ function fillBold(template: string, vars: Record<string, string>): ReactNode[] {
 }
 
 /** An ISO timestamp in the viewer's local time (date + time, or time only). */
-function localTime(iso: string, lang: string, timeOnly = false): string {
-  const when = new Date(iso);
-  if (Number.isNaN(when.getTime())) return iso;
-  return timeOnly
-    ? when.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit', second: '2-digit' })
-    : when.toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' });
+function localTime(iso: string, lang: Lang, timeOnly = false): string {
+  return timeOnly ? formatTime(iso, lang, { seconds: true }) : formatDateTime(iso, lang);
 }
 
 function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {

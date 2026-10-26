@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import type { PetroTin, PetroTinEntry } from './types';
 import { writeToApi } from './saveResult';
 import './BudgetTin.css';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
 
 const BLANK_ROWS = 5;
 
@@ -21,10 +21,8 @@ const nextMonth = () => {
   return d.toISOString().slice(0, 7);
 };
 
-function monthLabel(ym: string) {
-  const [y, m] = ym.split('-');
-  return new Date(Number(y), Number(m) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-}
+/** `October 2026` from `2026-10`. PetroTins is English only. */
+const monthLabel = (ym: string) => formatDate(`${ym}-01`, 'en', { style: 'monthYearLong', timeZone: 'UTC' });
 
 interface BlankRow { date: string; desc: string; payment: string; deposit: string; }
 

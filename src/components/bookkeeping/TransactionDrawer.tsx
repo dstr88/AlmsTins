@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { explorerAddressUrl, explorerName, explorerTxUrl } from '@/lib/explorerLinks';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
+import { getClientLang } from '@/lib/i18n/clientLang';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,31 +42,10 @@ interface HistoryEvent {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
-}
+// The drawer is mounted with no props (DrawerHost), so it reads the language cookie itself.
+const fDate = (iso: string): string => formatDate(iso, getClientLang());
 
-function fDateTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
+const fDateTime = (iso: string): string => formatDateTime(iso, getClientLang());
 
 
 function fQty(v: number | null): string {
@@ -1458,11 +1438,7 @@ function buildDisplayRows(events: HistoryEvent[]): DisplayRow[] {
   return rows;
 }
 
-function fMonthYear(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-  } catch { return iso; }
-}
+const fMonthYear = (iso: string): string => formatDate(iso, getClientLang(), { style: 'monthYearShort' });
 
 function AccumulationRow({ group }: { group: AccumulationGroup }) {
   const sameDay = group.firstDate.slice(0, 10) === group.lastDate.slice(0, 10);

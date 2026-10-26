@@ -7,6 +7,7 @@ import { countUniqueChecksByKind, countUniqueChecksByKindAndCountry } from '@/li
 import MailboxWindows from '@/components/admin/MailboxWindows.astro';
 import { getAuthSession } from '@/lib/authSession';
 import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
+import { formatDate, formatDateTime } from '@/lib/format';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
@@ -172,16 +173,9 @@ const [petroVisitCount, petroAvgDuration, petroRecentVisits] = showPetroTins
 	])
 	: ([0, 0, []] as [number, number, Record<string, any>[]]);
 
-const fmt = (iso: string | null) => {
-	if (!iso) return '—';
-	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
-	catch { return iso; }
-};
-const fmtDate = (iso: string | null) => {
-	if (!iso) return '—';
-	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(iso)); }
-	catch { return iso; }
-};
+// The admin pages are English only.
+const fmt = (iso: string | null) => formatDateTime(iso, 'en');
+const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 ---
 
 <!doctype html>
@@ -930,7 +924,7 @@ const fmtDate = (iso: string | null) => {
 					<div class="inbox-card" data-id={msg.id}>
 						<div class="inbox-card-head">
 							<span class="inbox-subject">{msg.subject}</span>
-							<span class="inbox-date">{new Date(String(msg.created_at)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+							<span class="inbox-date">{formatDate(String(msg.created_at), 'en', { invalid: 'Invalid Date' })}</span>
 						</div>
 						<p class="inbox-body">{msg.body}</p>
 						<div class="inbox-actions">

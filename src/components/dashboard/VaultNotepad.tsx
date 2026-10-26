@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CheckCircle2, Circle, Trash2 } from 'lucide-react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getVaultNotepad } from '@/i18n/components/vaultNotepad';
+import { formatDate, toLang } from '@/lib/format';
 
 console.log('[island.mount]', 'VaultNotepad');
 
@@ -17,11 +18,8 @@ type FetchState =
 	| { status: 'error'; message: string }
 	| { status: 'ready'; notes: Note[] };
 
-function formatDate(iso: string, lang: string): string {
-	const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-	return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
-}
+// A stored time without a zone is UTC (toDate in src/lib/format.ts).
+const formatNoteDate = (iso: string, lang: string): string => formatDate(iso, toLang(lang));
 
 export function VaultNotepad() {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
@@ -476,7 +474,7 @@ function NoteRow({
 			</button>
 			<div className="vn-note-body">
 				<div className="vn-note-text" style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}>{note.body}</div>
-				<div className="vn-note-date">{formatDate(note.createdAt, lang)}</div>
+				<div className="vn-note-date">{formatNoteDate(note.createdAt, lang)}</div>
 			</div>
 			<button
 				type="button"

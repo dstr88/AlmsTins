@@ -118,7 +118,8 @@ const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '
 </div>
 
 <script>
-	import { formatUsd } from '@/lib/format';
+	import { formatDate, formatUsd } from '@/lib/format';
+	import { getClientLang } from '@/lib/i18n/clientLang';
 	// ── Batch management ─────────────────────────────────────────────────────
 	document.addEventListener('click', async (event) => {
 		const target = event.target;
@@ -181,9 +182,9 @@ const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '
 			for (const b of batches) {
 				const row = document.createElement('div');
 				row.className = 'exchange-batch-row';
-				const importedAt = b.importedAt ? new Date(b.importedAt).toLocaleDateString() : '—';
-				const earliest = b.earliestTx ? new Date(b.earliestTx).toLocaleDateString() : '—';
-				const latest = b.latestTx ? new Date(b.latestTx).toLocaleDateString() : '—';
+				const importedAt = formatDate(b.importedAt, getClientLang(), { style: 'numeric' });
+				const earliest = formatDate(b.earliestTx, getClientLang(), { style: 'numeric' });
+				const latest = formatDate(b.latestTx, getClientLang(), { style: 'numeric' });
 				row.innerHTML = `
 					<div class="exchange-batch-row__info">
 						<span class="exchange-batch-row__count">${b.rowCount} rows</span>

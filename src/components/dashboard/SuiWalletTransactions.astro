@@ -6,6 +6,7 @@ import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import { getLang } from '@/lib/i18n/locale';
 import { getSuiWalletTransactions } from '@/i18n/components/suiWalletTransactions';
+import { formatDate, toLang } from '@/lib/format';
 
 type Props = {
 	walletId: string;
@@ -40,12 +41,7 @@ const syncResult = await db.execute({
 const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
 const lastSynced = (syncRow?.last_synced as string | null) ?? null;
 
-function fmtSyncDate(iso: string | null): string {
-	if (!iso) return '';
-	const d = new Date(iso);
-	if (isNaN(d.getTime())) return '';
-	return d.toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
-}
+const fmtSyncDate = (iso: string | null): string => formatDate(iso, toLang(t.dateLocale), { empty: '', invalid: '' });
 const syncLabel = lastSynced ? `${t.syncedPrefix} ${fmtSyncDate(lastSynced)}` : null;
 
 const result = await db.execute({
@@ -71,12 +67,7 @@ const rows = result.rows.map((r) => ({
 	category: r.category != null ? String(r.category) : null,
 })) as SuiTxRow[];
 
-const formatDate = (value: string) => {
-	if (!value) return '';
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString(t.dateLocale, { month: 'short', day: 'numeric' });
-};
+const formatRowDate = (value: string) => formatDate(value, toLang(t.dateLocale), { style: 'dayMonth', empty: '' });
 
 const formatAmount = (raw: string, decimals: number) => {
 	try {
@@ -106,7 +97,7 @@ const shortenDigest = (digest: string) => {
 const withDividers: Array<{ type: 'divider'; date: string } | { type: 'row'; row: SuiTxRow }> = [];
 let lastDate: string | null = null;
 for (const row of rows) {
-	const dateStr = row.timestamp ? new Date(row.timestamp).toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+	const dateStr = row.timestamp ? formatDate(row.timestamp, toLang(t.dateLocale)) : '';
 	if (dateStr && dateStr !== lastDate) {
 		withDividers.push({ type: 'divider', date: dateStr });
 		lastDate = dateStr;
@@ -136,7 +127,7 @@ for (const row of rows) {
 			) : (
 				<div class="tx-card" data-digest={item.row.digest}>
 					<div class="txRow">
-						<span class="txCol--date">{formatDate(item.row.timestamp)}</span>
+						<span class="txCol--date">{formatRowDate(item.row.timestamp)}</span>
 						<span class="txCol--digest" title={item.row.digest}>
 							<span class="tx-label">{t.labelDigest}</span>
 							<span class="tx-value">{shortenDigest(item.row.digest)}</span>

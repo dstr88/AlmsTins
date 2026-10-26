@@ -3,7 +3,7 @@ import './WalletSummary.css';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletSummary } from '@/i18n/components/walletSummary';
 import { isLongTermHold } from '@/lib/yearEnd/holdingPeriod';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd } from '@/lib/format';
 
 console.log('[island.mount]', 'WalletSummary');
 
@@ -126,13 +126,8 @@ type WalletSummaryState =
 
 const chainLabel = (chain: string) => (chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : chain);
 
-/** A stored UTC 'YYYY-MM-DD HH:MM:SS' as a short date, e.g. "Jul 24, 2026". */
-const formatSnapshotDate = (capturedAt: string) => {
-	const ms = Date.parse(/[zZ]$/.test(capturedAt) ? capturedAt : `${capturedAt.replace(' ', 'T')}Z`);
-	return Number.isFinite(ms)
-		? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-		: capturedAt;
-};
+/** A stored UTC 'YYYY-MM-DD HH:MM:SS' as a short UTC date in the user's language, e.g. "Jul 24, 2026". */
+const formatSnapshotDate = (capturedAt: string) => formatDate(capturedAt, getClientLang(), { timeZone: 'UTC' });
 
 const DUST_THRESHOLD_USD = 1;
 const WALLET_DEBUG =
@@ -242,15 +237,6 @@ type WalletSummaryProps = {
 		snapshot?: FullWalletSnapshot | null;
 		sync?: FullWalletSync | null;
 	} | null;
-};
-
-const formatLastSync = (value?: string | null, neverLabel = 'never') => {
-	if (!value) return neverLabel;
-	const stamp = Date.parse(value);
-	if (!Number.isFinite(stamp)) return value;
-	const lang = getClientLang();
-	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-	return new Date(stamp).toLocaleString(locale);
 };
 
 export default function WalletSummary({ walletId, walletCreatedAt, initialData }: WalletSummaryProps) {

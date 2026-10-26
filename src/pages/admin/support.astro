@@ -2,6 +2,7 @@
 import Analytics from '@/components/Analytics.astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
+import { formatDateTime } from '@/lib/format';
 
 let adminEmail = '';
 try {
@@ -46,14 +47,8 @@ const threads = await q(`
 
 const totalUnread = threads.reduce((sum, t) => sum + Number(t.unread_count ?? 0), 0);
 
-const fmtDate = (iso: string | null) => {
-	if (!iso) return '';
-	try {
-		return new Intl.DateTimeFormat('en-US', {
-			month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-		}).format(new Date(iso));
-	} catch { return iso; }
-};
+// The admin pages are English only.
+const fmtDate = (iso: string | null) => formatDateTime(iso, 'en', { style: 'dayMonth', empty: '' });
 ---
 
 <!doctype html>
@@ -345,6 +340,7 @@ const fmtDate = (iso: string | null) => {
 	</div>
 
 	<script>
+		import { formatDateTime } from '@/lib/format';
 		const panel       = document.getElementById('convo-panel')!;
 		const convoEmail  = document.getElementById('convo-email')!;
 		const msgContainer= document.getElementById('convo-messages')!;
@@ -356,14 +352,7 @@ const fmtDate = (iso: string | null) => {
 		let activeUserId: string | null = null;
 		let activeRow: HTMLElement | null = null;
 
-		const fmtDate = (iso: string) => {
-			try {
-				return new Intl.DateTimeFormat('en-US', {
-					month: 'short', day: 'numeric',
-					hour: 'numeric', minute: '2-digit',
-				}).format(new Date(iso));
-			} catch { return iso; }
-		};
+		const fmtDate = (iso: string) => formatDateTime(iso, 'en', { style: 'dayMonth' });
 
 		async function loadThread(userId: string) {
 			const res  = await fetch(`/api/admin/support/thread?userId=${encodeURIComponent(userId)}`);

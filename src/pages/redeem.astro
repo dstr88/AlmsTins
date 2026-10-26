@@ -62,6 +62,8 @@ const prefill = Astro.url.searchParams.get('code') ?? '';
 } }}>window.__redeemI18n = i18n;</script>
 
 <script>
+import { formatDate } from '@/lib/format';
+import { getClientLang } from '@/lib/i18n/clientLang';
 const form     = document.getElementById('redeem-form') as HTMLFormElement;
 const input    = document.getElementById('code-input')  as HTMLInputElement;
 const btn      = document.getElementById('submit-btn')  as HTMLButtonElement;
@@ -91,11 +93,8 @@ const I18N: RedeemI18n = (window as unknown as { __redeemI18n?: RedeemI18n }).__
   planUnlocked: '__PLAN__ plan unlocked!',
 };
 
-function formatExpiry(isoDate: string): string {
-  const d = new Date(isoDate);
-  // Use the browser locale for formatting so dates feel natural to the user.
-  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-}
+// In the user's app language (the language cookie), like every other screen.
+const formatExpiry = (isoDate: string): string => formatDate(isoDate, getClientLang(), { style: 'long' });
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();

@@ -18,6 +18,7 @@ import kingSolomon from '@/assets/KingSolomon.png';
 import minerva from '@/assets/Minerva.png';
 import { getLang, isLang } from '@/lib/i18n/locale';
 import { getDashboardCommon } from '@/i18n/dashboard/common';
+import { formatDate, formatDateTime, toDate } from '@/lib/format';
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -159,26 +160,14 @@ if (tenantId) {
       const days = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
       if (days <= 30 && days > 0) {
         promoDaysLeft = days;
-        const dateLocale = navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US';
-        promoExpiryDisplay = new Intl.DateTimeFormat(dateLocale, {
-          month: 'long', day: 'numeric', year: 'numeric'
-        }).format(new Date(expiresAt));
+        promoExpiryDisplay = formatDate(expiresAt, navLang, { style: 'long' });
       }
     }
   } catch { /* non-fatal */ }
 }
 
-const fmtDate = (iso: string | null) => {
-  if (!iso) return null;
-  try {
-    return new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
-  } catch { return null; }
-};
-
-const lastLoginDisplay = fmtDate(lastLoginIso);
-const memberSinceDisplay = memberSinceIso
-  ? new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(memberSinceIso))
-  : null;
+const lastLoginDisplay = toDate(lastLoginIso) ? formatDateTime(lastLoginIso, navLang) : null;
+const memberSinceDisplay = memberSinceIso ? formatDate(memberSinceIso, navLang) : null;
 ---
 
 <!doctype html>
@@ -483,6 +472,7 @@ window.__chromeI18n = chromeI18n;
 {user && (
 
 <script>
+import { formatDateTime, toLang } from '@/lib/format';
 // ── Mobile nav hamburger toggle ──────────────────────────────────────────
 (function () {
 	var toggle = document.getElementById('nav-toggle');
@@ -527,15 +517,8 @@ window.__chromeI18n = chromeI18n;
 
 	const LIMIT = 500;
 
-	const fmtDate = (iso: string) => {
-		try {
-			const _loc = (window as any).__chromeI18n?.dateLocale || 'en-US';
-			return new Intl.DateTimeFormat(_loc, {
-				month: 'short', day: 'numeric',
-				hour: 'numeric', minute: '2-digit',
-			}).format(new Date(iso));
-		} catch { return ''; }
-	};
+	const fmtDate = (iso: string) =>
+		formatDateTime(iso, toLang((window as any).__chromeI18n?.dateLocale), { style: 'dayMonth', empty: '', invalid: '' });
 
 	function renderMessages(msgs: any[]) {
 		messages!.innerHTML = '';

@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getMonthlyReconciliation } from '@/i18n/components/monthlyReconciliation';
-import { formatUsd } from '@/lib/format';
+import { formatDate, formatUsd, toLang } from '@/lib/format';
 
 // ── Types (mirrors src/lib/monthlyReconciliation.ts) ─────────────────────────
 
@@ -59,11 +59,9 @@ function deltaColor(delta: number | null): string {
 	return 'var(--loss)';                              // loss / data gap
 }
 
-function monthLabel(ym: string, dateLocale: string): string {
-	const [y, m] = ym.split('-');
-	const date = new Date(Number(y), Number(m) - 1, 1);
-	return date.toLocaleString(dateLocale, { month: 'long', year: 'numeric' });
-}
+/** `October 2026` from `2026-10`, the same month in every zone. */
+const monthLabel = (ym: string, dateLocale: string): string =>
+	formatDate(`${ym}-01`, toLang(dateLocale), { style: 'monthYearLong', timeZone: 'UTC' });
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

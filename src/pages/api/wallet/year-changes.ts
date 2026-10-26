@@ -3,6 +3,8 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { isSpamToken } from '@/lib/knownContracts';
 import { currentCoinSymbol } from '@/lib/chains';
+import { formatDate } from '@/lib/format';
+import { getLang } from '@/lib/i18n/locale';
 
 export const prerender = false;
 
@@ -21,6 +23,8 @@ interface YearChangesResponse {
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const session = await requireTenantSession(request);
+    // The dates are shown on the wallet's year-changes screen, in the user's language (D2).
+    const lang = getLang(request);
     if (!session) return new Response('Unauthorized', { status: 401 });
 
     const { tenantId } = session;
@@ -147,7 +151,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       description: string;
     }>).map(tx => ({
       id: tx.id,
-      date: new Date(tx.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date: formatDate(tx.timestamp, lang, { invalid: 'Invalid Date' }),
       type: tx.type === 'receive' ? 'Receive' : 'Send',
       asset: tx.asset_symbol,
       amount: tx.amount,
@@ -160,8 +164,8 @@ export const GET: APIRoute = async ({ request, url }) => {
       walletId,
       walletLabel: wallet.label || wallet.address.slice(0, 12) + '…',
       year,
-      startDate: new Date(startDate).toLocaleDateString('en-US'),
-      endDate: new Date(endDate).toLocaleDateString('en-US'),
+      startDate: formatDate(startDate, lang, { style: 'numeric', timeZone: 'UTC' }),
+      endDate: formatDate(endDate, lang, { style: 'numeric', timeZone: 'UTC' }),
       holdingsDelta,
       netChange,
       transactions,

@@ -6,6 +6,7 @@ import { getActivePlan, PLANS } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getBilling } from '@/i18n/dashboard/billing';
+import { formatDate, toLang } from '@/lib/format';
 
 const lang = getLang(Astro.request);
 const t = getBilling(lang);
@@ -73,8 +74,8 @@ const priceIds = {
         {periodEnd && (
           <div class="billing-current__renewal">
             {cancelAtEnd
-              ? t.cancelsOn(new Date(periodEnd).toLocaleDateString(dateLocale))
-              : t.renews(new Date(periodEnd).toLocaleDateString(dateLocale))}
+              ? t.cancelsOn(formatDate(periodEnd, toLang(dateLocale), { style: 'numeric' }))
+              : t.renews(formatDate(periodEnd, toLang(dateLocale), { style: 'numeric' }))}
           </div>
         )}
         {hasStripeSubscription && (
