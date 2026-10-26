@@ -42,6 +42,11 @@ describe('the closed tin lists every chain\'s health factor', () => {
 		expect(island).toMatch(/className="stat-row health"[\s\S]{0,200}data-chain-name=\{chainName\}/);
 	});
 
+	it('each box is named by its market ("Ethereum Lido"), from the health response\'s label', () => {
+		expect(island).toMatch(/label: summary\.label \|\| chainDisplayName\(chain\)/);
+		expect(island).toMatch(/const chainName = p\.label;/);
+	});
+
 	it('the page summary reads every chain row, not just the first, and writes text only', () => {
 		const fn = page.slice(page.indexOf('const updateDefiSummary'), page.indexOf('const attachSummaryObserver'));
 		expect(fn).toMatch(/querySelectorAll\('\.stat-row\.health\[data-chain-name\]'\)/);

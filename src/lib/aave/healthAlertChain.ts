@@ -1,6 +1,7 @@
 /**
- * Which chain a health-factor alert is about. Aave computes a separate health factor for each
- * market, so a wallet with positions on two chains has two, and either can be the one at risk.
+ * Which market a health-factor alert is about. Aave computes a separate health factor for each
+ * market, so a wallet with positions in two markets (Polygon and Ethereum Lido, say) has two, and
+ * either can be the one at risk.
  * The alert cron used to read the first chain that had a health factor and stop, so a safe
  * position on Ethereum hid a near-liquidation on Polygon. This checks every chain:
  *
@@ -12,7 +13,8 @@
 
 export type AlertDirection = 'below' | 'above';
 
-export type ChainHealth = { chain: string; healthFactor: number };
+/** `chain` is the market's key in the health response ('polygon', 'ethereum_lido'); `label` its display name. */
+export type ChainHealth = { chain: string; label: string; healthFactor: number };
 
 export type AlertPick =
 	/** No chain has a health factor (no open position anywhere). */
@@ -22,12 +24,21 @@ export type AlertPick =
 	/** `chain` is the one to email about; `others` are further chains also past the threshold. */
 	| { status: 'triggered'; chain: ChainHealth; others: ChainHealth[] };
 
-/** Reads `chains` from GET /api/aave/health: every chain with a finite, positive health factor. */
-export function chainHealths(chains: Record<string, { healthFactor?: unknown } | null | undefined> | null | undefined): ChainHealth[] {
+/** "ethereum_v4" → "Ethereum v4", for a response without labels (one cached before markets had them). */
+function labelFromKey(chain: string): string {
+	const spaced = chain.replace(/_/g, ' ');
+	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** Reads `chains` from GET /api/aave/health: every market with a finite, positive health factor. */
+export function chainHealths(
+	chains: Record<string, { healthFactor?: unknown; label?: unknown } | null | undefined> | null | undefined,
+): ChainHealth[] {
 	const out: ChainHealth[] = [];
 	for (const [chain, summary] of Object.entries(chains ?? {})) {
 		const raw = Number(summary?.healthFactor ?? NaN);
-		if (Number.isFinite(raw) && raw > 0) out.push({ chain, healthFactor: raw });
+		const label = typeof summary?.label === 'string' && summary.label.trim() ? summary.label.trim() : labelFromKey(chain);
+		if (Number.isFinite(raw) && raw > 0) out.push({ chain, label, healthFactor: raw });
 	}
 	return out;
 }
