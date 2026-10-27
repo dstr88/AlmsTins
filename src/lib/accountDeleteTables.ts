@@ -28,6 +28,8 @@ export const TENANT_TABLES = [
   'tax_1099_reconciliation', 'tax_1099_uploads', 'tax_classifications', 'tax_disposals', 'tax_documents',
   'tax_lot_pins', 'tax_lots', 'tax_pipeline_runs', 'tax_review_items', 'tax_wash_sales',
   'record_proof_snapshot', 'record_proofs', 'tradfi_loan_payments',
+  // Shared files: the owner's copies and their download log (log before the shares it refers to)
+  'file_share_log', 'file_shares',
   // Notes, labels, settings and alerts
   'vault_notes', 'vault_error_alerts', 'reconciliation_notes', 'portfolio_reconciliation_assets',
   'portfolio_reconciliation', 'address_labels', 'address_labels_new', 'global_address_label_votes',

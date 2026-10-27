@@ -1,0 +1,102 @@
+.fs {
+	color: var(--text-primary);
+	max-width: 42rem;
+}
+
+.fs-form {
+	display: grid;
+	gap: 0.9rem;
+	padding: 1.2rem;
+	background: var(--surface-card);
+	border: 1px solid var(--border-subtle);
+	border-radius: 8px;
+}
+
+.fs-field {
+	display: grid;
+	gap: 0.3rem;
+	font-size: 0.9rem;
+	color: var(--text-secondary);
+}
+
+.fs-field input {
+	padding: 0.5rem 0.6rem;
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	border-radius: 6px;
+	color: var(--text-primary);
+}
+
+.fs-btn {
+	justify-self: start;
+	padding: 0.55rem 1.1rem;
+	border: 1px solid var(--accent);
+	background: var(--accent-soft);
+	color: var(--accent);
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.fs-btn:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.fs-btn--quiet {
+	border-color: var(--border-bright);
+	background: transparent;
+	color: var(--text-secondary);
+}
+
+.fs-msg {
+	margin: 0;
+	color: var(--text-secondary);
+}
+
+.fs-link {
+	margin-top: 1rem;
+	padding: 1rem;
+	background: var(--gain-bg);
+	border: 1px solid var(--gain-border);
+	border-radius: 8px;
+	display: grid;
+	gap: 0.5rem;
+}
+
+.fs-link code {
+	word-break: break-all;
+	color: var(--text-primary);
+}
+
+.fs-h {
+	margin: 1.6rem 0 0.6rem;
+	font-size: 1.05rem;
+}
+
+.fs-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.6rem;
+}
+
+.fs-row {
+	display: grid;
+	gap: 0.3rem;
+	padding: 0.8rem 1rem;
+	background: var(--surface-card);
+	border: 1px solid var(--border-subtle);
+	border-radius: 8px;
+}
+
+.fs-meta,
+.fs-empty,
+.fs-locked {
+	color: var(--text-muted);
+	font-size: 0.88rem;
+}
+
+.fs-locked a {
+	color: var(--accent);
+}
