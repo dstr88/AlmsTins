@@ -51,6 +51,8 @@ const { canShare } = Astro.props;
 </section>
 
 <script>
+	import { copyText } from '@/lib/clipboard';
+
 	const root = document.querySelector<HTMLElement>('[data-fs]');
 	if (root && root.querySelector('[data-fs-form]')) {
 		const form = root.querySelector<HTMLFormElement>('[data-fs-form]')!;
@@ -130,8 +132,8 @@ const { canShare } = Astro.props;
 		});
 
 		root.querySelector<HTMLButtonElement>('[data-fs-copy]')?.addEventListener('click', async () => {
-			await navigator.clipboard.writeText(urlEl.textContent ?? '');
-			say('Link copied.');
+			const ok = await copyText(urlEl.textContent ?? '');
+			say(ok ? 'Link copied.' : 'Copy failed. Select the link and copy it by hand.');
 		});
 
 		loadList();
