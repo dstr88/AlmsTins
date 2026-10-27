@@ -25,6 +25,7 @@ import { db } from './db';
 import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
 import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
 import { daysUntilLongTerm, isLongTermHold } from './yearEnd/holdingPeriod';
+import { eventWalletKey, walletContextOf, walletDisplayOf, type WalletRecord } from './tax/eventWallet';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -65,6 +66,10 @@ export type HeldPosition = {
   costUsd: number | null;
   /** days held as of Dec 31 of selected year (or today if current year) */
   daysHeld: number;
+  /** The wallet key the lot arrived in (walletKey.ts format); null when the source has none. */
+  walletKey?: string | null;
+  /** What to show for that wallet: its address, or "source · account" for an exchange. */
+  walletDisplay?: string | null;
   /** Held more than one year as of that same date (calendar rule, yearEnd/holdingPeriod.ts). */
   longTerm: boolean;
   /** Days from that date until it counts as long-term; 0 once it does, null if the date is unreadable. */
@@ -90,6 +95,10 @@ export type SettledLot = {
   proceedsUsd: number | null;
   gainLossUsd: number | null;
   daysHeld: number;
+  /** The wallet the coins were sold from (walletKey.ts format); null when the source has none. */
+  walletKey?: string | null;
+  /** What to show for that wallet: its address, or "source · account" for an exchange. */
+  walletDisplay?: string | null;
   /** Provenance — where this disposal's cost basis came from (audit trail). */
   basisSource?: BasisSource;
   /** Human-readable trace of how/when the disposed lot was acquired. */
@@ -386,15 +395,34 @@ export async function buildAnnualBreakdown(
                  e.source_id         AS source_id,
                  e.group_id          AS group_id,
                  e.tx_hash           AS tx_hash,
-                 e.source_type       AS source_type
+                 e.source_type       AS source_type,
+                 i.wallet_id         AS import_wallet_id,
+                 i.source            AS import_source,
+                 i.account_id        AS import_account_id,
+                 t.wallet_id         AS tx_wallet_id,
+                 t.chain             AS tx_chain,
+                 t.from_address      AS from_address,
+                 t.to_address        AS to_address
             FROM asset_lifecycle_events e
             LEFT JOIN asset_lifecycle_groups g
               ON g.id = e.group_id AND g.tenant_id = e.tenant_id
+            LEFT JOIN import_transactions i
+              ON e.source_type = 'import' AND i.id = e.source_id AND i.tenant_id = e.tenant_id
+            LEFT JOIN transactions t
+              ON e.source_type = 'onchain' AND t.id = e.source_id AND t.tenant_id = e.tenant_id
             WHERE e.tenant_id = ?
               AND e.timestamp_utc <= ?
             ORDER BY e.timestamp_utc ASC`,
       args: [tenantId, yearEnd],
     });
+
+    // Which wallet each event sits in, from its source row (eventWallet.ts). Events without a
+    // source row (manual entries, Sui) have no wallet and show as unassigned.
+    const walletRows = await db.execute({
+      sql: `SELECT id, address FROM wallets WHERE tenant_id = ?`,
+      args: [tenantId],
+    });
+    const walletCtx = walletContextOf(walletRows.rows as unknown as WalletRecord[]);
 
     // Classes to exclude ENTIRELY from FIFO.
     // liability_increase covers BOTH the debt token mint AND the borrow proceeds IN from
@@ -495,8 +523,8 @@ export async function buildAnnualBreakdown(
       } catch { return []; }
     });
 
-    type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown; source_type: unknown };
-    const events = [
+    type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown; source_type: unknown; import_wallet_id?: unknown; import_source?: unknown; import_account_id?: unknown; tx_wallet_id?: unknown; tx_chain?: unknown; from_address?: unknown; to_address?: unknown };
+    const events: RawEvent[] = [
       ...(eventsResult.rows as unknown as RawEvent[])
         .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
       ...customEvents,
@@ -505,7 +533,8 @@ export async function buildAnnualBreakdown(
 
     // Lot selection delegated to lotSelection.ts (pure, unit-tested).
     // Wrap to bind the closure variables (method, lotPins) from this scope.
-    type Lot = SelectableLot;
+    // A lot keeps the wallet it arrived in; a sale takes its wallet from the lot it consumed.
+    type Lot = SelectableLot & { walletKey: string | null };
     const pickLot = (list: Lot[], disposalSourceId?: string) =>
       selectLotIndex(list, method, disposalSourceId, lotPins);
 
@@ -533,10 +562,24 @@ export async function buildAnnualBreakdown(
       if (!amount) continue;
       const timestamp = toStr(row.timestamp_utc);
       const nativeUsd = toNum(row.native_usd);
+      const walletKey = eventWalletKey(
+        {
+          sourceType: row.source_type,
+          direction,
+          importWalletId: row.import_wallet_id,
+          importSource: row.import_source,
+          importAccountId: row.import_account_id,
+          txWalletId: row.tx_wallet_id,
+          txChain: row.tx_chain,
+          fromAddress: row.from_address,
+          toAddress: row.to_address,
+        },
+        walletCtx,
+      );
 
       if (direction === 'in') {
         const list = lotsByAsset.get(asset) ?? [];
-        list.push({ amount, timestamp, costUsd: nativeUsd });
+        list.push({ amount, timestamp, costUsd: nativeUsd, walletKey });
         lotsByAsset.set(asset, list);
         continue;
       }
@@ -561,6 +604,7 @@ export async function buildAnnualBreakdown(
           const days    = daysBetween(buyDate, timestamp);
           const settled: SettledLot = {
             asset, amount, buyDate, sellDate: timestamp,
+            walletKey, walletDisplay: walletDisplayOf(walletKey),
             costUsd, proceedsUsd: nativeUsd,
             gainLossUsd: nativeUsd != null ? nativeUsd - costUsd : null,
             daysHeld: days,
@@ -638,6 +682,8 @@ export async function buildAnnualBreakdown(
             const settled: SettledLot = {
               asset,
               amount: take,
+              walletKey:  lot.walletKey,
+              walletDisplay: walletDisplayOf(lot.walletKey),
               buyDate:    lot.timestamp,
               sellDate:   timestamp,
               costUsd:    costPortion,
@@ -686,6 +732,8 @@ export async function buildAnnualBreakdown(
         stillHolding.push({
           asset,
           amount:      lot.amount,
+          walletKey:   lot.walletKey,
+          walletDisplay: walletDisplayOf(lot.walletKey),
           acquiredDate: lot.timestamp,
           costUsd:     lot.costUsd,
           daysHeld:    daysBetween(lot.timestamp, refDate),

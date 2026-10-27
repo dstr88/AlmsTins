@@ -1,0 +1,16 @@
+---
+import Badge from './Badge.astro';
+
+/**
+ * Short or long term, for a sale or a lot. The labels come from the page's own translations.
+ */
+interface Props {
+	term: 'short' | 'long';
+	shortLabel: string;
+	longLabel: string;
+}
+
+const { term, shortLabel, longLabel } = Astro.props;
+---
+
+<Badge tone={term === 'long' ? 'ok' : 'neutral'}>{term === 'long' ? longLabel : shortLabel}</Badge>

@@ -21,6 +21,7 @@ import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
 import { getLang } from '@/lib/i18n/locale';
 import { getGains } from '@/i18n/dashboard/yearEnd/gains';
 import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
+import WalletTag from '../../../components/yearEnd/WalletTag.astro';
 
 // Tax documents are the owner's alone (src/lib/taxAuth.ts). Checked before anything else runs.
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
@@ -88,6 +89,7 @@ type TaxPayload = {
 		amount:      number;
 		buyDate:     string;
 		sellDate:    string;
+		walletDisplay?: string | null;
 		costUsd:     number | null;
 		proceedsUsd: number | null;
 		gainLossUsd: number | null;
@@ -654,6 +656,7 @@ const fmtGain = (n: number) => {
 																<thead>
 																	<tr class="bg-indigo-50 text-indigo-600">
 																		<th class="px-6 py-2 text-left font-medium uppercase tracking-wide">{t.lotColSold}</th>
+<th class="px-4 py-2 text-left font-medium uppercase tracking-wide">{t.lotColWallet}</th>
 																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColQty}</th>
 																		<th class="px-4 py-2 text-left font-medium uppercase tracking-wide">{t.lotColAcquired}</th>
 																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColHeld}</th>
@@ -671,6 +674,7 @@ const fmtGain = (n: number) => {
 																				{lot.amount.toLocaleString(dateLocale, { maximumFractionDigits: 8 })}
 																			</td>
 																			<td class="px-4 py-2 text-gray-500 whitespace-nowrap">{fmtDate(lot.buyDate)}</td>
+<td class="px-4 py-2 text-gray-500 whitespace-nowrap">{lot.walletDisplay ? <WalletTag label={lot.walletDisplay} wallet={lot.walletDisplay} /> : <span class="text-gray-300">—</span>}</td>
 																			<td class="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{lot.daysHeld}d</td>
 																			<td class="px-4 py-2 text-right tabular-nums text-gray-700 whitespace-nowrap">
 																				{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : <span class="text-gray-300">—</span>}

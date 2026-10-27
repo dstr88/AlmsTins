@@ -12,6 +12,9 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import { getLang } from '@/lib/i18n/locale';
 import { getLots } from '@/i18n/dashboard/yearEnd/lots';
+import Badge from '../../../components/yearEnd/Badge.astro';
+import TermBadge from '../../../components/yearEnd/TermBadge.astro';
+import WalletTag from '../../../components/yearEnd/WalletTag.astro';
 import { formatDate, formatUsd, toLang } from '@/lib/format';
 
 const lang = getLang(Astro.request);
@@ -41,8 +44,9 @@ type Disposal = {
 	gainLoss: number | null;
 	buyDate: string;
 	daysHeld: number;
+	walletDisplay: string | null;
 };
-type OpenLot = { acquiredDate: string; amount: number; costUsd: number | null; daysHeld: number };
+type OpenLot = { acquiredDate: string; amount: number; costUsd: number | null; daysHeld: number; walletDisplay: string | null };
 type DisposalGroup = {
 	asset: string;
 	disposals: Disposal[];
@@ -61,13 +65,14 @@ for (const lot of [...bd.shortTerm, ...bd.longTerm]) {
 		gainLoss: lot.gainLossUsd,
 		buyDate:  lot.buyDate,
 		daysHeld: lot.daysHeld,
+		walletDisplay: lot.walletDisplay ?? null,
 	});
 	groupMap.set(lot.asset, g);
 }
 
 for (const held of bd.stillHolding) {
 	const g = groupMap.get(held.asset) ?? { asset: held.asset, disposals: [], openLots: [], hasMissingBasis: false };
-	g.openLots.push({ acquiredDate: held.acquiredDate, amount: held.amount, costUsd: held.costUsd, daysHeld: held.daysHeld });
+	g.openLots.push({ acquiredDate: held.acquiredDate, amount: held.amount, costUsd: held.costUsd, daysHeld: held.daysHeld, walletDisplay: held.walletDisplay ?? null });
 	groupMap.set(held.asset, g);
 }
 
@@ -133,7 +138,7 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 						<span class="lm-avatar">{group.asset.slice(0, 3)}</span>
 						<span class="lm-asset">{group.asset}</span>
 						{group.hasMissingBasis && (
-							<span class="lm-badge lm-badge--warn">{t.needsAttention}</span>
+							<Badge tone="warn">{t.needsAttention}</Badge>
 						)}
 					</div>
 					<span class="lm-group__meta">{t.disposalCount(group.disposals.length)}</span>
@@ -178,6 +183,7 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 											{lots.map(ol => (
 												<option value={ol.acquiredDate + '|' + ol.amount}>
 													{fmtQty(ol.amount)} {t.acquiredOn(fmtDate(ol.acquiredDate))}
+													{ol.walletDisplay ? ` · ${ol.walletDisplay}` : ''}
 													{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
 													· {isLongTermHold(ol.acquiredDate, d.sellDate) ? t.longTerm : t.shortTerm}
 												</option>
@@ -214,9 +220,8 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 											</p>
 											<p class="lm-disposal__meta">
 												{fmtDate(d.sellDate)} · {t.lotAcquiredOn(fmtDate(d.buyDate))} · {d.daysHeld} days ·
-												{isLongTermHold(d.buyDate, d.sellDate)
-													? <span class="lm-term lm-term--long">{t.longTerm}</span>
-													: <span class="lm-term lm-term--short">{t.shortTerm}</span>}
+												<TermBadge term={isLongTermHold(d.buyDate, d.sellDate) ? 'long' : 'short'} shortLabel={t.shortTerm} longLabel={t.longTerm} />
+												{d.walletDisplay && <WalletTag label={d.walletDisplay} wallet={d.walletDisplay} />}
 											</p>
 											{d.gainLoss != null && (
 												<p class={`lm-disposal__gain${d.gainLoss >= 0 ? ' lm-disposal__gain--pos' : ' lm-disposal__gain--neg'}`}>
@@ -293,9 +298,6 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 .lm-asset { font-weight: 700; color: #e2e8f0; font-size: 1rem; }
 .lm-group__meta { font-size: 0.75rem; color: #475569; }
 
-/* badges */
-.lm-badge { font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
-.lm-badge--warn { background: #431407; color: #fb923c; border: 1px solid #7c2d12; }
 
 /* ── Hero card (missing disposal) ── */
 .lm-hero {
@@ -437,8 +439,6 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 .lm-disposal__headline { font-size: 0.88rem; font-weight: 600; color: #cbd5e1; margin: 0 0 0.2rem; }
 .lm-disposal__proceeds { color: #475569; font-weight: 400; }
 .lm-disposal__meta { font-size: 0.75rem; color: #475569; margin: 0 0 0.15rem; }
-.lm-term--long { color: #4ade80; font-weight: 600; }
-.lm-term--short { color: #fb923c; font-weight: 600; }
 .lm-disposal__gain { font-size: 0.78rem; font-weight: 600; margin: 0; }
 .lm-disposal__gain--pos { color: #4ade80; }
 .lm-disposal__gain--neg { color: #f87171; }

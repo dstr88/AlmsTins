@@ -1,0 +1,13 @@
+.ui-wallet-tag {
+	display: inline-flex;
+	align-items: center;
+	max-width: 16rem;
+	padding: 0.1rem 0.45rem;
+	border-radius: 6px;
+	font-size: 0.7rem;
+	color: var(--accent-dim);
+	background: var(--accent-soft);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
