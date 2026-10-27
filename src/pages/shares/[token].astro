@@ -1,0 +1,70 @@
+---
+/**
+ * /shares/:token   the landing page for a shared file. Viewing it does not use a download: only the
+ * button, which POSTs to /api/shares/download/:token, does (see that route).
+ */
+import Layout from '@/layouts/Layout.astro';
+import { db } from '@/lib/db';
+import { ensureShareTables, hashToken, shareStatus, type ShareRow } from '@/lib/fileShares';
+
+export const prerender = false;
+
+const token = String(Astro.params.token ?? '');
+await ensureShareTables();
+const r = token
+	? await db.execute({
+			sql: `SELECT id, tenant_id, label, filename, mime_type, file_size, expires_at, max_downloads, downloads, revoked_at
+			      FROM file_shares WHERE token_hash = ?`,
+			args: [hashToken(token)],
+		})
+	: { rows: [] };
+const row = r.rows[0] as unknown as ShareRow | undefined;
+const status = row ? shareStatus(row, new Date()) : 'missing';
+const left = row ? Math.max(0, row.max_downloads - row.downloads) : 0;
+// Headers, not meta tags: a share link should not be indexed, and the token in the path should not
+// leak to any site this page links to.
+Astro.response.headers.set('X-Robots-Tag', 'noindex');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+---
+
+<Layout title="Shared file · Almstins">
+	<main class="share-landing">
+		{
+			status === 'active' && row ? (
+				<>
+					<h1>{row.label}</h1>
+					<p>{row.filename} · {Math.ceil(row.file_size / 1024)} KB</p>
+					<p>
+						This link works until {row.expires_at.slice(0, 10)} and for {left} more download{left === 1 ? '' : 's'}.
+					</p>
+					<form method="post" action={`/api/shares/download/${token}`}>
+						<button type="submit">Download file</button>
+					</form>
+				</>
+			) : (
+				<>
+					<h1>This link is no longer available</h1>
+					<p>It may have expired, been used up, or been turned off by the person who shared the file.</p>
+				</>
+			)
+		}
+	</main>
+</Layout>
+
+<style>
+	.share-landing {
+		max-width: 32rem;
+		margin: 4rem auto;
+		padding: 0 1rem;
+		color: var(--text-primary);
+	}
+	.share-landing button {
+		margin-top: 1rem;
+		padding: 0.6rem 1.2rem;
+		border: 1px solid var(--accent);
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-radius: 6px;
+		cursor: pointer;
+	}
+</style>

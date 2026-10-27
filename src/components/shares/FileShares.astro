@@ -1,0 +1,139 @@
+---
+// The owner's share folder: upload one file, get one link (shown once), optionally email the link,
+// and see or revoke the shares that exist. Talks to /api/shares. The file itself never appears
+// here after upload; only its name, status and download count do.
+import './FileShares.css';
+
+interface Props {
+	canShare: boolean;
+}
+
+const { canShare } = Astro.props;
+---
+
+<section class="fs" data-fs>
+	{
+		canShare ? (
+			<>
+				<form class="fs-form" data-fs-form>
+					<label class="fs-field">
+						<span>File</span>
+						<input type="file" name="file" accept=".csv,.pdf,.json,.txt,.md" required />
+					</label>
+					<label class="fs-field">
+						<span>Label</span>
+						<input type="text" name="label" maxlength="120" placeholder="For example: 2025 records for research" />
+					</label>
+					<label class="fs-field">
+						<span>Email the link to (optional)</span>
+						<input type="email" name="to" autocomplete="off" />
+					</label>
+					<button type="submit" class="fs-btn" data-fs-submit>Create link</button>
+					<p class="fs-msg" data-fs-msg role="status" aria-live="polite" hidden></p>
+				</form>
+
+				<div class="fs-link" data-fs-link hidden>
+					<p>Copy this link now. It is not shown again.</p>
+					<code data-fs-url></code>
+					<button type="button" class="fs-btn fs-btn--quiet" data-fs-copy>Copy link</button>
+				</div>
+
+				<h2 class="fs-h">Your shares</h2>
+				<ul class="fs-list" data-fs-list></ul>
+				<p class="fs-empty" data-fs-empty hidden>No shares yet.</p>
+			</>
+		) : (
+			<p class="fs-locked">
+				Sharing a file is included in every paid plan. <a href="/dashboard/billing">See plans</a>.
+			</p>
+		)
+	}
+</section>
+
+<script>
+	const root = document.querySelector<HTMLElement>('[data-fs]');
+	if (root && root.querySelector('[data-fs-form]')) {
+		const form = root.querySelector<HTMLFormElement>('[data-fs-form]')!;
+		const msg = root.querySelector<HTMLElement>('[data-fs-msg]')!;
+		const linkBox = root.querySelector<HTMLElement>('[data-fs-link]')!;
+		const urlEl = root.querySelector<HTMLElement>('[data-fs-url]')!;
+		const list = root.querySelector<HTMLUListElement>('[data-fs-list]')!;
+		const empty = root.querySelector<HTMLElement>('[data-fs-empty]')!;
+		const submit = root.querySelector<HTMLButtonElement>('[data-fs-submit]')!;
+
+		const say = (text: string) => {
+			msg.textContent = text;
+			msg.hidden = !text;
+		};
+
+		const STATUS: Record<string, string> = {
+			active: 'Active',
+			revoked: 'Turned off',
+			expired: 'Expired',
+			exhausted: 'Used up',
+		};
+
+		async function loadList() {
+			const res = await fetch('/api/shares', { credentials: 'same-origin' });
+			const body = (await res.json().catch(() => ({}))) as { shares?: any[] };
+			list.replaceChildren();
+			const shares = body.shares ?? [];
+			empty.hidden = shares.length > 0;
+			for (const s of shares) {
+				const li = document.createElement('li');
+				li.className = 'fs-row';
+				const title = document.createElement('strong');
+				title.textContent = s.label || s.filename;
+				const meta = document.createElement('span');
+				meta.className = 'fs-meta';
+				meta.textContent = `${s.filename} · ${STATUS[s.status] ?? s.status} · ${s.downloads}/${s.maxDownloads} downloads · until ${String(s.expiresAt).slice(0, 10)}`;
+				li.append(title, meta);
+				if (s.status === 'active') {
+					const revoke = document.createElement('button');
+					revoke.type = 'button';
+					revoke.className = 'fs-btn fs-btn--quiet';
+					revoke.textContent = 'Turn off';
+					revoke.addEventListener('click', async () => {
+						if (!confirm('Turn this link off? It stops working and the file is removed.')) return;
+						const r = await fetch(`/api/shares/${encodeURIComponent(s.id)}`, { method: 'DELETE', credentials: 'same-origin' });
+						say(r.ok ? 'The link is off.' : 'That did not work. Please try again.');
+						await loadList();
+					});
+					li.append(revoke);
+				}
+				list.append(li);
+			}
+		}
+
+		form.addEventListener('submit', async (ev) => {
+			ev.preventDefault();
+			submit.disabled = true;
+			say('');
+			linkBox.hidden = true;
+			try {
+				const res = await fetch('/api/shares', { method: 'POST', body: new FormData(form), credentials: 'same-origin' });
+				const body = (await res.json().catch(() => ({}))) as { link?: string; emailed?: boolean; error?: string };
+				if (!res.ok || !body.link) {
+					say(body.error ?? 'That did not work. Please try again.');
+					return;
+				}
+				urlEl.textContent = body.link;
+				linkBox.hidden = false;
+				say(body.emailed ? 'The link was emailed. Copy it here too, since it is not shown again.' : 'Your link is ready.');
+				form.reset();
+				await loadList();
+			} catch {
+				say('That did not work. Please try again.');
+			} finally {
+				submit.disabled = false;
+			}
+		});
+
+		root.querySelector<HTMLButtonElement>('[data-fs-copy]')?.addEventListener('click', async () => {
+			await navigator.clipboard.writeText(urlEl.textContent ?? '');
+			say('Link copied.');
+		});
+
+		loadList();
+	}
+</script>

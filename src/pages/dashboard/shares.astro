@@ -1,0 +1,28 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FileShares from '../../components/shares/FileShares.astro';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getActivePlan } from '../../lib/subscriptions';
+import { canDownloadHistoryByWallet } from '../../lib/historyAccess';
+
+const session = await requireTenantSession(Astro.request);
+const plan = session ? await getActivePlan(session.tenantId) : null;
+const canShare = Boolean(session && !session.isDemo && plan && canDownloadHistoryByWallet(plan.id, session.tenantId));
+---
+
+<Layout title="Shared files · Almstins">
+	<main class="shares-page">
+		<h1>Shared files</h1>
+		<p>Share one file you choose. The link works for a few days and a few downloads, and you can turn it off at any time.</p>
+		<FileShares canShare={canShare} />
+	</main>
+</Layout>
+
+<style>
+	.shares-page {
+		max-width: 52rem;
+		margin: 2rem auto;
+		padding: 0 1rem;
+		color: var(--text-primary);
+	}
+</style>
