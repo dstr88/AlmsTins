@@ -1,0 +1,15 @@
+---
+import './WalletTag.css';
+
+/**
+ * The wallet or exchange account a lot or sale sits in. `wallet` is the full key, shown on hover.
+ */
+interface Props {
+	label: string;
+	wallet?: string;
+}
+
+const { label, wallet } = Astro.props;
+---
+
+<span class="ui-wallet-tag" title={wallet}>{label}</span>

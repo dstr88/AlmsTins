@@ -1,0 +1,37 @@
+---
+import './DataTable.css';
+
+/**
+ * A table with a header row and rows passed in through the slot. Each body cell is a <td> with the
+ * class ui-table__td (add ui-table__td--right for numbers). The tone colors the header row:
+ * neutral for plain lists, gain for positive figures, warn for review items, loss for losses.
+ */
+interface Header {
+	label: string;
+	align?: 'left' | 'right';
+}
+
+interface Props {
+	headers: Header[];
+	tone?: 'neutral' | 'gain' | 'warn' | 'loss';
+	caption?: string;
+}
+
+const { headers, tone = 'neutral', caption } = Astro.props;
+---
+
+<div class="ui-table-wrap">
+	<table class:list={['ui-table', `ui-table--${tone}`]}>
+		{caption && <caption class="ui-table__caption">{caption}</caption>}
+		<thead>
+			<tr>
+				{headers.map((h) => (
+					<th class:list={['ui-table__th', h.align === 'right' && 'ui-table__th--right']}>{h.label}</th>
+				))}
+			</tr>
+		</thead>
+		<tbody>
+			<slot />
+		</tbody>
+	</table>
+</div>

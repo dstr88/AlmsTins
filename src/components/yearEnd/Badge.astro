@@ -1,0 +1,14 @@
+---
+import './Badge.css';
+
+/**
+ * A small pill label. The tone picks its colors (from the design tokens); the text is the slot.
+ */
+interface Props {
+	tone?: 'warn' | 'ok' | 'neutral';
+}
+
+const { tone = 'neutral' } = Astro.props;
+---
+
+<span class:list={['ui-badge', `ui-badge--${tone}`]}><slot /></span>

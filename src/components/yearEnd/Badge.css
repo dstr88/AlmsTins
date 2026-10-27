@@ -1,0 +1,27 @@
+.ui-badge {
+	font-size: 0.68rem;
+	font-weight: 700;
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	border: 1px solid transparent;
+}
+
+.ui-badge--warn {
+	background: var(--warning-bg);
+	color: var(--warning);
+	border-color: var(--warning-border);
+}
+
+.ui-badge--ok {
+	background: var(--gain-bg);
+	color: var(--gain);
+	border-color: var(--gain-border);
+}
+
+.ui-badge--neutral {
+	background: var(--surface-card-2);
+	color: var(--text-secondary);
+	border-color: var(--border-bright);
+}

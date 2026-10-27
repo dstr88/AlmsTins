@@ -109,6 +109,7 @@ export interface GainsLocale {
   assetDisposals: (asset: string, n: number) => string;
   csvBtn: string;
   lotColSold: string;
+  lotColWallet: string;
   lotColQty: string;
   lotColAcquired: string;
   lotColHeld: string;
@@ -329,6 +330,7 @@ export const en: GainsLocale = {
   assetDisposals: (asset, n) => `${asset} · ${n} disposal${n !== 1 ? 's' : ''}`,
   csvBtn: '↓ CSV',
   lotColSold: 'Sold',
+  lotColWallet: 'Wallet',
   lotColQty: 'Qty',
   lotColAcquired: 'Acquired',
   lotColHeld: 'Held',
@@ -544,6 +546,7 @@ export const es: GainsLocale = {
   assetDisposals: (asset, n) => `${asset} · ${n} disposición${n !== 1 ? "es" : ""}`,
   csvBtn: "↓ CSV",
   lotColSold: "Vendido",
+  lotColWallet: "Billetera",
   lotColQty: "Cant.",
   lotColAcquired: "Adquirido",
   lotColHeld: "Mantenido",
@@ -759,6 +762,7 @@ export const fr: GainsLocale = {
   assetDisposals: (asset, n) => `${asset} · ${n} cession${n !== 1 ? "s" : ""}`,
   csvBtn: "↓ CSV",
   lotColSold: "Vendu",
+  lotColWallet: "Portefeuille",
   lotColQty: "Qté",
   lotColAcquired: "Acquis",
   lotColHeld: "Détenu",
