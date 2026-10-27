@@ -12,6 +12,7 @@
 // layout 'bar'   (Bookkeeping, next to the Year Summary): the selected year's file.
 import { getHistoryExport } from '@/i18n/historyExport';
 import type { Lang } from '@/lib/i18n/locale';
+import { getDownloadLinkEmail } from '@/i18n/historyDownloadEmail';
 
 interface Props {
 	lang: Lang;
@@ -26,6 +27,7 @@ const query = year ? `?year=${year}` : '';
 const href = `/api/records/history-by-wallet${query}`;
 const plainHref = `/api/transactions/export${query}`;
 const tooMany = year ? t.btnTooManyYear : t.btnTooMany;
+const emailT = getDownloadLinkEmail(lang);
 ---
 
 <div class={`hbw hbw--${layout}`}>
@@ -66,6 +68,19 @@ const tooMany = year ? t.btnTooManyYear : t.btnTooMany;
 					<span class="hbw-badge">{t.lockedBadge}</span>
 				</a>
 			</>
+		)}
+		{canDownload && (
+			<button
+				type="button"
+				class="hbw-btn"
+				data-hbw-email
+				data-busy={emailT.btnBusy}
+				data-sent={emailT.btnSent}
+				data-error={emailT.btnError}
+				data-cooldowns={JSON.stringify([1, 2, 3, 4, 5].map((m) => emailT.btnCooldown(m)))}
+			>
+				{emailT.btnLabel}
+			</button>
 		)}
 	</div>
 	<p class="hbw-copy">{canDownload ? t.copyLine : t.lockedNote}</p>
@@ -112,6 +127,45 @@ const tooMany = year ? t.btnTooManyYear : t.btnTooMany;
 			} finally {
 				a.removeAttribute('aria-busy');
 				a.textContent = label;
+			}
+		});
+	});
+</script>
+
+<script>
+	// "Email me a download link": the server sends the account's own address a link to this page,
+	// never the file. The button says what happened in the status line beside the download.
+	document.querySelectorAll<HTMLButtonElement>('button[data-hbw-email]').forEach((btn) => {
+		btn.addEventListener('click', async () => {
+			if (btn.getAttribute('aria-busy') === 'true') return;
+			const status = btn.closest('.hbw')?.querySelector<HTMLElement>('.hbw-status') ?? null;
+			const label = btn.textContent;
+			btn.setAttribute('aria-busy', 'true');
+			btn.textContent = btn.dataset.busy ?? label;
+			let message = btn.dataset.error ?? '';
+			try {
+				const res = await fetch('/api/records/email-download-link', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					credentials: 'same-origin',
+					body: JSON.stringify({ path: `${location.pathname}${location.search}` }),
+				});
+				if (res.ok) message = btn.dataset.sent ?? message;
+				else if (res.status === 429) {
+					const body = (await res.json().catch(() => ({}))) as { retryAfterSeconds?: number };
+					const cooldowns = JSON.parse(btn.dataset.cooldowns ?? '[]') as string[];
+					const minutes = Math.min(cooldowns.length, Math.max(1, Math.ceil((body.retryAfterSeconds ?? 60) / 60)));
+					message = cooldowns[minutes - 1] ?? message;
+				}
+			} catch {
+				// Keep the error message set above.
+			} finally {
+				if (status) {
+					status.textContent = message;
+					status.hidden = false;
+				}
+				btn.removeAttribute('aria-busy');
+				btn.textContent = label;
 			}
 		});
 	});
