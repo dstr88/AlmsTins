@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { OTS_HEADER_MAGIC } from '../../src/lib/otsStamp';
@@ -99,6 +100,21 @@ describe('upgrading', () => {
 		expect(pendingNodes(upgraded)).toEqual([]);
 		expect(result.ots.includes(BITCOIN_TAG)).toBe(true);
 		expect(upgraded.attestations.length + upgraded.ops.length).toBeGreaterThan(0);
+	});
+
+	it('merges a completed path whose Bitcoin attestation sits below an operation, as the live calendar sends it', async () => {
+		const body = FIXTURE.subarray(OTS_HEADER_MAGIC.length + 2 + 32);
+		const digest = FIXTURE.subarray(OTS_HEADER_MAGIC.length + 2, OTS_HEADER_MAGIC.length + 2 + 32);
+		const msg = pendingNodes(parseTimestamp(body, digest))[0].msg;
+		const deep: TreeNode = {
+			msg,
+			attestations: [],
+			ops: [{ tag: 0x08, arg: null, child: { msg: createHash('sha256').update(msg).digest(), attestations: [{ kind: 'other', tag: BITCOIN_TAG, payload: HEIGHT_1000 }], ops: [] } }],
+		};
+		const calendar = fakeCalendar(() => ({ status: 200, body: serializeTimestamp(deep) }));
+		const result = await upgradeOts(FIXTURE, { fetchImpl: calendar.fetchImpl });
+		expect(result.upgraded).toBe(1);
+		expect(result.ots.includes(BITCOIN_TAG)).toBe(true);
 	});
 
 	it('never calls a host outside the OpenTimestamps domain', async () => {

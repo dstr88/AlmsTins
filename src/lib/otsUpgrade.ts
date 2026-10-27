@@ -72,8 +72,9 @@ async function fetchUpgrade(
 	return body;
 }
 
+/** True when the path, at any depth, holds a completed attestation (the Bitcoin block header). */
 function hasConfirmed(node: TreeNode): boolean {
-	return node.attestations.some((a) => a.kind === 'other');
+	return node.attestations.some((a) => a.kind === 'other') || node.ops.some((op) => hasConfirmed(op.child));
 }
 
 /**
