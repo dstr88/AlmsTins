@@ -45,7 +45,13 @@ export const POST: APIRoute = async ({ request }) => {
 		const existingCustomerId = (subResult.rows[0] as Record<string, unknown> | undefined)
 			?.stripe_customer_id as string | undefined;
 
+		// Managed Payments is off unless each session turns it on. Stripe is then the merchant of
+		// record and handles sales tax, VAT and GST for these sales. The installed Stripe types
+		// predate this field, so it is passed through a variable.
+		const managedPayments = { managed_payments: { enabled: true } };
+
 		const session = await stripe.checkout.sessions.create({
+			...managedPayments,
 			mode: 'subscription',
 			payment_method_types: ['card'],
 			// Surface the "Add promotion code" box at checkout. Codes (e.g. CYNIDA26)
