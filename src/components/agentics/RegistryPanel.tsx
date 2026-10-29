@@ -217,7 +217,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
     });
 
   return (
-    <section className="ag-card" aria-labelledby="ag-registry-h">
+    <section className="ag-card ag-card--outlined" aria-labelledby="ag-registry-h">
       <div className="ag-card__head">
         <h2 className="ag-card__title" id="ag-registry-h" ref={heading} tabIndex={-1}>
           {copy.registry.title}

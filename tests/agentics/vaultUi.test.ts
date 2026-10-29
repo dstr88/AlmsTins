@@ -240,7 +240,7 @@ describe('one agent', () => {
     expect(t).toContain('Treasury agent');
     expect(t).toContain('Created 2026-10-01 (UTC)');
     expect(html).toContain('href="/dashboard/agentics"');
-    const order = ['Agent key', 'Registered addresses', 'Own wallets', 'Ledger', 'Export', 'Remove this agent'].map((h) => html.indexOf(`>${h}<`));
+    const order = ['Agent key', 'Registered addresses', 'Agent wallets', 'Ledger', 'Export', 'Remove this agent'].map((h) => html.indexOf(`>${h}<`));
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
