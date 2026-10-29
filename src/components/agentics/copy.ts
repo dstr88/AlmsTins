@@ -338,7 +338,7 @@ export const copy = {
   },
 
   wallets: {
-    title: 'Own wallets',
+    title: 'Agent wallets',
     lede: 'The wallets this agent sends from and receives to. Almstins only reads them, to find transfers between them and your registered addresses.',
     empty: 'No wallets yet. Add the address this agent sends from.',
     count: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'}`,

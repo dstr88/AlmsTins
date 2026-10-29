@@ -87,7 +87,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
   }
 
   return (
-    <section className="ag-card" aria-labelledby="ag-wallets-h">
+    <section className="ag-card ag-card--outlined" aria-labelledby="ag-wallets-h">
       <div className="ag-card__head">
         <h2 className="ag-card__title" id="ag-wallets-h" ref={heading} tabIndex={-1}>
           {copy.wallets.title}
