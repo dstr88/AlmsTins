@@ -160,6 +160,41 @@ describe('lifecycleToLedger', () => {
 		expect(r.findings.map((f) => f.reason)).toEqual(['manual_basis_on_transfer']);
 	});
 
+	it('coins a transfer lost to a fee are listed, not booked as a loss or a sale', () => {
+		const { events } = lifecycleToLedger({
+			events: [
+				buy('buy-1', '2022-01-10T00:00:00Z', 20_000),
+				lrow({ direction: 'out', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'send-1', source_type: 'import', amount: 1, native_usd: 30_000, import_source: 'coinbase', import_kind: 'Send', import_account_id: 'acct-1', tx_hash: HASH }),
+				lrow({ direction: 'in', timestamp_utc: '2023-02-01T00:30:00Z', source_id: 'arrive-1', source_type: 'onchain', amount: 0.998, native_usd: 29_940, tx_wallet_id: 'wa', tx_chain: 'bitcoin', from_address: FAR, to_address: A, tx_hash: HASH }),
+			],
+			wallets,
+			ownerIndex: noOwners,
+		});
+		const r = gains(events);
+		expect(r.slices).toEqual([]);
+		expect(r.unmatched).toEqual([]);
+		const fee = r.findings.find((f) => f.reason === 'transfer_fee_units');
+		expect(fee?.qty).toBeCloseTo(0.002, 9);
+		expect(r.findings.map((f) => f.reason)).toEqual(['transfer_fee_units']);
+	});
+
+	it('a chain-synced send between two tracked bitcoin addresses, one row each, is a move by transaction hash', () => {
+		const txid = 'b'.repeat(64);
+		const { events } = lifecycleToLedger({
+			events: [
+				lrow({ direction: 'in', timestamp_utc: '2022-01-01T00:00:00Z', source_id: 'rx-0', source_type: 'import', native_usd: 5_000, import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wa', tx_hash: 'c'.repeat(64) }),
+				lrow({ direction: 'out', timestamp_utc: '2023-01-01T00:00:00Z', source_id: 'tx-out', source_type: 'import', native_usd: 9_000, import_source: 'bitcoin', import_kind: 'send', import_wallet_id: 'wa', tx_hash: txid }),
+				lrow({ direction: 'in', timestamp_utc: '2023-01-01T00:00:00Z', source_id: 'tx-in', source_type: 'import', native_usd: 9_000, import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wb', tx_hash: txid }),
+			],
+			wallets,
+			ownerIndex: noOwners,
+		});
+		expect(events.filter((e) => e.kind === 'move')).toMatchObject([{ link: 'hash', fromWallet: `bitcoin:${A}`, toWallet: `bitcoin:${B}` }]);
+		const r = gains(events);
+		expect(r.slices).toEqual([]);
+		expect(r.lots).toHaveLength(1);
+	});
+
 	it('collateral deposits and repayments use up lots without a gain, and are never transfers', () => {
 		const { events, refs } = lifecycleToLedger({
 			events: [
