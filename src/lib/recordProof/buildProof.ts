@@ -14,6 +14,7 @@ import type { AnnualBreakdown } from '@/lib/annualBreakdown';
 import { leavesFromBreakdown } from './leavesFromBreakdown';
 import { orderLeaves, serializeLeaf, type CanonicalLeaf, LEAF_SCHEMA_VERSION } from './leaf';
 import { hashLeaf, buildMerkleRoot, toHex, type Hex } from './merkle';
+import type { BasisMethod } from '@/lib/tax/basisMethod';
 import { signManifest, getSigningKeyId, canonicalManifestBytes } from './signing';
 
 export const PROOF_FORMAT = 'almstins-merkle-v1';
@@ -32,6 +33,8 @@ export interface ProofManifest {
   record_type: 'year_summary';
   period: string;
   data_source: 'lifecycle' | 'pipeline';
+  /** The lot rule the figures followed (tax/basisMethod.ts). Absent from records made before it was recorded. */
+  basis_method?: BasisMethod;
   merkle_root: Hex;
   leaf_count: number;
   leaf_schema_version: number;
@@ -82,6 +85,7 @@ export function buildRecordProof(
     record_type: 'year_summary',
     period: String(year),
     data_source: bd.dataSource,
+    ...(bd.basisMethod ? { basis_method: bd.basisMethod } : {}),
     merkle_root: root,
     leaf_count: leaves.length,
     leaf_schema_version: LEAF_SCHEMA_VERSION,

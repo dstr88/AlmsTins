@@ -553,6 +553,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 	irsHeaderMethod:         t.irsHeaderMethod,
 	irsHeaderPreparedBy:     t.irsHeaderPreparedBy,
 	irsHeaderPooledNote:     t.irsHeaderPooledNote,
+	irsHeaderPerWalletNote:  t.irsHeaderPerWalletNote,
 	boxNoteTemplate:         t.boxNoteTemplate,
 	totalsPrefix:            t.totalsPrefix,
 } }}>window.__f8i18n = f8i18n;</script>
@@ -580,7 +581,7 @@ interface F8I18n {
 	chipNoBuy: string; chipNoPrice: string;
 	irsHeaderBadge: string; irsHeaderTitle: string; irsHeaderDesc: string;
 	irsHeaderDisclaimer: string; irsHeaderTaxYear: string;
-	irsHeaderMethod: string; irsHeaderPreparedBy: string; irsHeaderPooledNote: string;
+	irsHeaderMethod: string; irsHeaderPreparedBy: string; irsHeaderPooledNote: string; irsHeaderPerWalletNote: string;
 	boxNoteTemplate: string; totalsPrefix: string;
 }
 const I18N: F8I18n = (window as unknown as { __f8i18n?: F8I18n }).__f8i18n ?? {
@@ -620,6 +621,7 @@ const I18N: F8I18n = (window as unknown as { __f8i18n?: F8I18n }).__f8i18n ?? {
 	irsHeaderTaxYear: 'Tax Year:', irsHeaderMethod: 'Method:',
 	irsHeaderPreparedBy: 'Prepared by Almstins — not an IRS-issued form',
 	irsHeaderPooledNote: 'Cost basis pools the lots of each asset across all your wallets and accounts. For sales on or after January 1, 2025, US rules apply FIFO within each wallet or account unless specific units are identified, and this summary does not calculate that yet.',
+	irsHeaderPerWalletNote: 'For sales on or after January 1, 2025, each sale uses only the coins in the wallet or account it was made from, oldest first by original purchase date. Coins moved between your own wallets keep their original date and cost. Starting positions for January 1, 2025 are reconstructed from your history unless you entered your own.',
 	boxNoteTemplate: 'Note: Crypto transactions are reported in Box {box} ("all other") because exchanges were not required to issue 1099-B for these transactions.',
 	totalsPrefix: 'Totals (Box {box})',
 };
@@ -647,7 +649,7 @@ interface Form8949Box {
 	totals: { proceeds: number; basis: number; gainLoss: number };
 }
 
-let currentData: { year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } } | null = null;
+let currentData: { year: number; method: string; rule?: 'per_wallet' | 'universal'; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } } | null = null;
 
 async function loadForm8949() {
 	const yearSel   = (document.getElementById('year-sel')   as HTMLSelectElement).value;
@@ -672,7 +674,7 @@ async function loadForm8949() {
 	try {
 		const res = await fetch(`/api/yearEnd/form8949?year=${yearSel}&method=${methodSel}`);
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
-		const data = await res.json() as { ok: boolean; error?: string; year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } };
+		const data = await res.json() as { ok: boolean; error?: string; year: number; method: string; rule?: 'per_wallet' | 'universal'; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } };
 
 		stLoading.classList.add('hidden');
 
@@ -777,7 +779,7 @@ function renderForm(data: NonNullable<typeof currentData>) {
 					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">${I18N.irsHeaderTitle}</p>
 					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">${I18N.irsHeaderDesc}</p>
 					<p style="font-size:0.75rem; color:#6b7280; margin:0;">${I18N.irsHeaderDisclaimer}</p>
-					${Number(data.year) >= 2025 ? `<p style="font-size:0.75rem; color:#92400e; margin:4px 0 0; max-width:34rem;">${I18N.irsHeaderPooledNote}</p>` : ''}
+					${Number(data.year) >= 2025 ? `<p style="font-size:0.75rem; color:#92400e; margin:4px 0 0; max-width:34rem;">${data.rule === 'per_wallet' ? I18N.irsHeaderPerWalletNote : I18N.irsHeaderPooledNote}</p>` : ''}
 				</div>
 				<div style="text-align:right; font-size:0.8rem; color:#374151; white-space:nowrap;">
 					<p style="margin:0 0 3px;"><strong>${I18N.irsHeaderTaxYear}</strong> ${data.year}</p>

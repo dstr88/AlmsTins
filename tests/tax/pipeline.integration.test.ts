@@ -56,6 +56,15 @@ vi.mock('@/lib/tursoCache', () => ({
   setCache: () => Promise.resolve(),
 }));
 
+// The per-wallet rule is switched on for the deployment owner's tenant (tax/basisMethod.ts). The owner id
+// is read once at import, so the per-wallet cases below name their tenants here instead of renaming the
+// environment: every other tenant in this file keeps the one-pool rule, as before.
+const ownerTenants = vi.hoisted(() => new Set<string>());
+vi.mock('@/lib/owner', async (orig) => ({
+  ...(await orig<typeof import('@/lib/owner')>()),
+  isOwner: (tenantId: string | null | undefined) => !!tenantId && ownerTenants.has(tenantId),
+}));
+
 // ── Local-database guard ──────────────────────────────────────────────────────
 // Resolve the settings exactly as the adapter will (db.ts / db.pg.ts merge
 // process.env with import.meta.env, import.meta.env winning), so the guard checks
@@ -348,7 +357,9 @@ const S2B_TENANT = `strategy2b-${RUN}`;
 const S2C_TENANT = `strategy2c-${RUN}`;
 const LEDGER_TENANT = `ledger-it-${RUN}`;
 const LEDGER_LC_TENANT = `ledger-lc-it-${RUN}`;
-const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT, LEDGER_TENANT, LEDGER_LC_TENANT];
+const PW_TENANT = `perwallet-it-${RUN}`;
+const PW_LC_TENANT = `perwallet-lc-it-${RUN}`;
+const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT, LEDGER_TENANT, LEDGER_LC_TENANT, PW_TENANT, PW_LC_TENANT];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1073,6 +1084,122 @@ describe.skipIf(SKIP_REASON !== null)(
         expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000]]);
         const owner = await breakdown(LEDGER_TENANT, 2023, 'fifo', undefined, 'auto');
         expect(owner.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000]]);
+      });
+    });
+
+    describe('per-wallet lots — the live ledger and the persisted tables on real SQL', () => {
+      // A tenant in the per-wallet rollout. Coinbase buys 1 BTC on 2023-01-10 (20,000) and another on
+      // 2023-06-01 (30,000); the tenant's own wallet receives 1 BTC from someone else on 2024-09-01
+      // (60,000). On 2025-02-01 Coinbase sends 1 BTC to the wallet (the arrival shares the hash), and on
+      // 2025-06-01 the wallet sends 2 BTC to someone else for 180,000. Wallet by wallet, that sale takes
+      // the coin that moved (bought 2023-01-10, long-term, gain 70,000) and then the wallet's own coin
+      // (2024-09-01, short-term, gain 30,000); the second Coinbase coin stays where it was bought.
+      // One pool would have taken both Coinbase coins (gain 130,000).
+      const WALLET = '0x' + 'b'.repeat(40);
+      const FAR = '0x' + 'e'.repeat(40);
+      const HASH = '0x' + '5'.repeat(64);
+      const SATS = '100000000';
+      const walletRowId = `pw-wallet-${RUN}`;
+      let breakdown: typeof import('@/lib/annualBreakdown').buildAnnualBreakdown;
+
+      async function seedWallet(tenant: string) {
+        ownerTenants.add(tenant);
+        await db.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [`${walletRowId}-${tenant}`, tenant, WALLET] });
+        const imp = (id: string, at: string, dir: string, kind: string, usd: number, hash: string | null) =>
+          db.execute({
+            sql: `INSERT INTO import_transactions
+                  (id, tenant_id, timestamp_utc, asset_symbol, direction, kind, amount, native_usd, tx_hash, source, import_batch_id, account_id)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`${id}-${tenant}`, tenant, at, 'BTC', dir, kind, 1, usd, hash, 'coinbase', 'batch-P', 'acct-1'],
+          });
+        await imp('p-buy1', '2023-01-10T00:00:00Z', 'in', 'Buy', 20_000, null);
+        await imp('p-buy2', '2023-06-01T00:00:00Z', 'in', 'Buy', 30_000, null);
+        await imp('p-send', '2025-02-01T00:00:00Z', 'out', 'Send', 100_000, HASH);
+        const onchain = (id: string, at: string, tx: string, from: string, to: string, sats: string, usd: number, hash: string) =>
+          db.execute({
+            sql: `INSERT INTO transactions
+                  (id, tenant_id, wallet_id, timestamp, token_symbol, value, from_address, to_address, tx_type, usd_value, chain, hash, token_decimals)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`${id}-${tenant}`, tenant, `${walletRowId}-${tenant}`, at, 'BTC', sats, from, to, tx, usd, 'bitcoin', hash, 8],
+          });
+        await onchain('p-own', '2024-09-01T00:00:00Z', 'incoming', FAR, WALLET, SATS, 60_000, '0x' + '6'.repeat(64));
+        await onchain('p-arrive', '2025-02-01T00:30:00Z', 'incoming', FAR, WALLET, SATS, 100_000, HASH);
+        await onchain('p-pay', '2025-06-01T00:00:00Z', 'outgoing', WALLET, FAR, '200000000', 180_000, '0x' + '7'.repeat(64));
+      }
+
+      beforeAll(async () => {
+        ({ buildAnnualBreakdown: breakdown } = await import('@/lib/annualBreakdown'));
+        await seedWallet(PW_TENANT);
+        await seedWallet(PW_LC_TENANT);
+
+        // Pipeline tenant: the owner classified the wallet's own coin as a purchase and the payment as a sale.
+        for (const [id, category, year] of [['p-own', 'buy', 2024], ['p-pay', 'sell', 2025]] as const) {
+          await db.execute({
+            sql: `INSERT INTO tax_classifications (id, tenant_id, source_type, source_id, category, confidence, is_manual, tax_year, asset_symbol)
+                  VALUES (?,?,?,?,?,?,?,?,?)`,
+            args: [randomUUID(), PW_TENANT, 'onchain', `${id}-${PW_TENANT}`, category, 1, 1, year, 'BTC'],
+          });
+        }
+
+        // Lifecycle tenant: the rows the lifecycle rebuild would write for the same history.
+        const gid = `g-btc-${PW_LC_TENANT}`;
+        await db.execute({ sql: `INSERT INTO asset_lifecycle_groups (id, tenant_id, asset_symbol) VALUES (?,?,?)`, args: [gid, PW_LC_TENANT, 'BTC'] });
+        const ev = (id: string, type: string, at: string, dir: string, amount: number, usd: number, cls: string, hash: string | null) =>
+          db.execute({
+            sql: `INSERT INTO asset_lifecycle_events
+                  (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, transaction_class)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`ev-${id}-${PW_LC_TENANT}`, PW_LC_TENANT, gid, type, `${id}-${PW_LC_TENANT}`, at, dir, amount, usd, hash, cls],
+          });
+        await ev('p-buy1', 'import', '2023-01-10T00:00:00Z', 'in', 1, 20_000, 'owned_acquisition', null);
+        await ev('p-buy2', 'import', '2023-06-01T00:00:00Z', 'in', 1, 30_000, 'owned_acquisition', null);
+        await ev('p-own', 'onchain', '2024-09-01T00:00:00Z', 'in', 1, 60_000, 'owned_acquisition', '0x' + '6'.repeat(64));
+        await ev('p-send', 'import', '2025-02-01T00:00:00Z', 'out', 1, 100_000, 'other', HASH);
+        await ev('p-arrive', 'onchain', '2025-02-01T00:30:00Z', 'in', 1, 100_000, 'owned_acquisition', HASH);
+        await ev('p-pay', 'onchain', '2025-06-01T00:00:00Z', 'out', 2, 180_000, 'other', '0x' + '7'.repeat(64));
+
+        await runTaxPipeline(PW_TENANT);
+      });
+
+      const sale = (bd: Awaited<ReturnType<typeof breakdown>>) =>
+        [...bd.longTerm, ...bd.shortTerm]
+          .sort((a, b) => a.buyDate.localeCompare(b.buyDate))
+          .map((l) => [l.buyDate.slice(0, 10), l.costUsd, l.gainLossUsd, bd.shortTerm.includes(l) ? 'short' : 'long']);
+      const PER_WALLET_SALE = [['2023-01-10', 20_000, 70_000, 'long'], ['2024-09-01', 60_000, 30_000, 'short']];
+
+      it('the pipeline engine sells the moved coin and then the wallet\'s own coin', async () => {
+        const bd = await breakdown(PW_TENANT, 2025, 'fifo', undefined, 'auto');
+        expect(bd.dataSource).toBe('pipeline');
+        expect(bd.basisMethod).toBe('per_wallet_fifo_from_2025');
+        expect(sale(bd)).toEqual(PER_WALLET_SALE);
+        expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd, h.walletKey])).toEqual([['2023-06-01', 30_000, 'cex:coinbase:acct-1']]);
+      });
+
+      it('the lifecycle engine gives the same sale and the same holdings', async () => {
+        const bd = await breakdown(PW_LC_TENANT, 2025, 'fifo', undefined, 'auto');
+        expect(bd.dataSource).toBe('lifecycle');
+        expect(sale(bd)).toEqual(PER_WALLET_SALE);
+        expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd, h.walletKey])).toEqual([['2023-06-01', 30_000, 'cex:coinbase:acct-1']]);
+      });
+
+      it('the persisted tables agree with the breakdown: two disposals, and the moved coin is a lot cut from the first', async () => {
+        const disposals = (await db.execute({ sql: `SELECT cost_basis_usd, gain_loss_usd, is_short_term FROM tax_disposals WHERE tenant_id = ? ORDER BY cost_basis_usd`, args: [PW_TENANT] })).rows as Record<string, unknown>[];
+        expect(disposals.map((d) => [Number(d.cost_basis_usd), Number(d.gain_loss_usd), Number(d.is_short_term)])).toEqual([[20_000, 70_000, 0], [60_000, 30_000, 1]]);
+        const lots = (await db.execute({ sql: `SELECT id, source_id, acquired_at, remaining_qty, cost_basis_usd, origin_lot_id FROM tax_lots WHERE tenant_id = ?`, args: [PW_TENANT] })).rows as Record<string, unknown>[];
+        const byId = new Map(lots.map((l) => [String(l.id), l]));
+        const moved = lots.find((l) => l.origin_lot_id != null);
+        expect(moved).toBeDefined();
+        expect(String(moved?.acquired_at).slice(0, 10)).toBe('2023-01-10');
+        expect(Number(moved?.cost_basis_usd)).toBe(20_000);
+        expect(byId.get(String(moved?.origin_lot_id))?.source_id).toBe(`p-buy1-${PW_TENANT}`);
+        // 3 BTC bought or received and moved coins counted once: 1 BTC is still held.
+        expect(lots.reduce((a, l) => a + Number(l.remaining_qty), 0)).toBe(1);
+      });
+
+      it('2024 and earlier come out as one pool, the same as for a tenant outside the rollout', async () => {
+        const perWallet = await breakdown(PW_LC_TENANT, 2024, 'fifo', undefined, 'auto');
+        expect(perWallet.rule).toBe('universal');
+        expect(perWallet.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000], ['2023-06-01', 30_000], ['2024-09-01', 60_000]]);
       });
     });
   },

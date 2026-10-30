@@ -113,6 +113,8 @@ export interface Form8949Locale {
   irsHeaderPreparedBy: string;
   // Shown under the disclaimer for tax years 2025 and later (lots are pooled, not per wallet)
   irsHeaderPooledNote: string;
+  // Shown instead of the pooled note when the year's sales were matched wallet by wallet
+  irsHeaderPerWalletNote: string;
   // Note below box checkboxes
   boxNoteTemplate: string;
   // Table totals row prefix
@@ -189,6 +191,7 @@ export const en: Form8949Locale = {
   irsHeaderMethod: 'Method:',
   irsHeaderPreparedBy: 'Prepared by Almstins — not an IRS-issued form',
   irsHeaderPooledNote: 'Cost basis pools the lots of each asset across all your wallets and accounts. For sales on or after January 1, 2025, US rules apply FIFO within each wallet or account unless specific units are identified, and this summary does not calculate that yet.',
+  irsHeaderPerWalletNote: 'For sales on or after January 1, 2025, each sale uses only the coins in the wallet or account it was made from, oldest first by original purchase date. Coins moved between your own wallets keep their original date and cost. Starting positions for January 1, 2025 are reconstructed from your history unless you entered your own.',
   boxNoteTemplate: 'Note: Crypto transactions are reported in Box {box} ("all other") because exchanges were not required to issue 1099-B for these transactions.',
   totalsPrefix: 'Totals (Box {box})',
 };
@@ -263,6 +266,7 @@ export const es: Form8949Locale = {
   irsHeaderMethod: 'Método:',
   irsHeaderPreparedBy: 'Preparado por Almstins — no es un formulario oficial del IRS',
   irsHeaderPooledNote: 'La base de costo agrupa los lotes de cada activo de todos tus wallets y cuentas. Para las ventas a partir del 1 de enero de 2025, las reglas de EE. UU. aplican FIFO dentro de cada wallet o cuenta salvo que se identifiquen unidades específicas, y este resumen todavía no lo calcula.',
+  irsHeaderPerWalletNote: 'Para las ventas a partir del 1 de enero de 2025, cada venta usa solo las monedas del wallet o cuenta desde donde se hizo, de la más antigua a la más reciente según la fecha de compra original. Las monedas movidas entre tus propios wallets conservan su fecha y costo originales. Las posiciones iniciales del 1 de enero de 2025 se reconstruyen a partir de tu historial, salvo que ingreses las tuyas.',
   boxNoteTemplate: 'Nota: Las transacciones de cripto se reportan en el Casillero {box} ("todos los demás") porque los exchanges no estaban obligados a emitir 1099-B para estas transacciones.',
   totalsPrefix: 'Totales (Casillero {box})',
 };
@@ -337,6 +341,7 @@ export const fr: Form8949Locale = {
   irsHeaderMethod: "Méthode :",
   irsHeaderPreparedBy: "Préparé par Almstins — pas un formulaire officiel de l'IRS",
   irsHeaderPooledNote: "La base de coût regroupe les lots de chaque actif de tous vos wallets et comptes. Pour les ventes à compter du 1er janvier 2025, les règles américaines appliquent FIFO au sein de chaque wallet ou compte, sauf identification d'unités spécifiques, et ce résumé ne le calcule pas encore.",
+  irsHeaderPerWalletNote: "Pour les ventes à compter du 1er janvier 2025, chaque vente utilise uniquement les cryptos du wallet ou du compte d'où elle a été faite, des plus anciennes aux plus récentes selon la date d'achat d'origine. Les cryptos déplacées entre vos propres wallets gardent leur date et leur coût d'origine. Les positions de départ au 1er janvier 2025 sont reconstruites à partir de votre historique, sauf si vous saisissez les vôtres.",
   boxNoteTemplate: "Note : Les transactions crypto sont déclarées dans la Case {box} (\"toutes les autres\") car les exchanges n'étaient pas tenus d'émettre un 1099-B pour ces transactions.",
   totalsPrefix: "Totaux (Case {box})",
 };

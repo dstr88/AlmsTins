@@ -19,6 +19,7 @@ import PDFDocument from 'pdfkit';
 import { formatAmount, formatFileDate, formatUsd } from '@/lib/format';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { basisRuleStatement } from '@/lib/tax/basisMethod';
 import { getActivePlan } from '@/lib/subscriptions';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
@@ -249,6 +250,10 @@ function buildPdf(
     summaryRow('Long-term disposal events', String(bd.longTerm.length));
     summaryRow('Income / reward events', String(bd.income.length));
     summaryRow('Still holding — open lots', String(bd.stillHolding.length));
+    if (bd.rule) {
+      doc.moveDown(0.8).fontSize(9).font('Helvetica').fillColor(MID_GRAY)
+        .text(basisRuleStatement(bd.rule, year), MARGIN, doc.y, { width: CONTENT_W });
+    }
 
     // ── PAGE 3+: Short-term disposals ─────────────────────────────────────────
     if (bd.shortTerm.length > 0) {
@@ -404,6 +409,7 @@ function buildPdf(
     vline('Merkle root', m.merkle_root);
     vline('Entries committed', `${m.leaf_count}  (short ${m.counts.short_term} · long ${m.counts.long_term} · income ${m.counts.income} · held ${m.counts.held} · review ${m.counts.unsettled})`);
     vline('Data source', m.data_source);
+    if (m.basis_method) vline('Lot rule', m.basis_method === 'per_wallet_fifo_from_2025' ? 'Per wallet from 2025-01-01, one pool per coin before' : 'One pool per coin, every year');
     vline('Generated', m.generated_at);
     vline('Signed', proof.signature ? `Yes — Almstins key ${proof.signature.key_id}` : 'No (unsigned — set ALMSTINS_SIGNING_KEY to activate signing)');
     if (m.prev_root) vline('Links to prior record', `${m.prev_root}  (tamper-evident chain across years)`);

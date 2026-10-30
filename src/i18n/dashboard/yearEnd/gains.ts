@@ -45,6 +45,8 @@ export interface GainsLocale {
   capitalGainsHeading: string;
   /** "{method} cost basis · Schedule D" */
   capitalGainsSub: (method: string) => string;
+  // Which lot rule the selected year used: each wallet or account on its own, or one pool per coin
+  basisRuleNote: (rule: 'per_wallet' | 'universal', year: number) => string;
   pipelineBadge: string;
   inMemoryBadge: string;
   // ST / LT / Net labels
@@ -271,6 +273,9 @@ export const en: GainsLocale = {
   unpricedWalletsLink: 'wallets page',
   capitalGainsHeading: 'Realized Capital Gains',
   capitalGainsSub: (method) => `${method} cost basis · Schedule D`,
+  basisRuleNote: (rule, year) => rule === 'per_wallet'
+    ? `${year}: each sale uses only the coins in the wallet or account it was made from, oldest first.`
+    : `${year}: one pool per coin across all your wallets and accounts.`,
   pipelineBadge: 'Pipeline data',
   inMemoryBadge: 'In-memory FIFO',
   shortTermLabel: 'Short-term',
@@ -486,6 +491,9 @@ export const es: GainsLocale = {
   unpricedWalletsLink: "página de wallets",
   capitalGainsHeading: "Ganancias de Capital Realizadas",
   capitalGainsSub: (method) => `Base de costo ${method} · Schedule D`,
+  basisRuleNote: (rule, year) => rule === 'per_wallet'
+    ? `${year}: cada venta usa solo las monedas del wallet o cuenta desde donde se hizo, de la más antigua a la más reciente.`
+    : `${year}: un solo grupo por moneda entre todos tus wallets y cuentas.`,
   pipelineBadge: "Datos del pipeline",
   inMemoryBadge: "FIFO en memoria",
   shortTermLabel: "Corto plazo",
@@ -702,6 +710,9 @@ export const fr: GainsLocale = {
   unpricedWalletsLink: "page des wallets",
   capitalGainsHeading: "Plus-values Réalisées",
   capitalGainsSub: (method) => `Base de coût ${method} · Schedule D`,
+  basisRuleNote: (rule, year) => rule === 'per_wallet'
+    ? `${year} : chaque vente utilise uniquement les cryptos du wallet ou du compte d'où elle a été faite, des plus anciennes aux plus récentes.`
+    : `${year} : un seul groupe par crypto pour tous vos wallets et comptes.`,
   pipelineBadge: "Données du pipeline",
   inMemoryBadge: "FIFO en mémoire",
   shortTermLabel: "Court terme",

@@ -39,7 +39,9 @@ import type {
 import { classifyAll } from './classifyAll';
 import { runFifo, type FifoContext } from './pass4';
 import { loadLedgerContext } from '../tax/ledgerContext';
-import { invalidateLedger } from '../tax/computeLedger';
+import { invalidateLedger, perWalletEnabled } from '../tax/computeLedger';
+import { loadAllocationOverrides } from '../tax/allocationOverride';
+import { PER_WALLET_FROM } from '../tax/basisMethod';
 import { buildReviewQueue } from './pass5';
 import {
 	loadImportTransactions,
@@ -227,7 +229,10 @@ async function markRunFailed(runId: string, error: unknown): Promise<void> {
 /** What pass 4 needs besides the rows to tell a transfer from a sale. */
 async function loadFifoContext(tenantId: string, manualOverrides: Map<string, ClassificationResult>): Promise<FifoContext> {
 	const ctx = await loadLedgerContext(tenantId);
+	const perWallet = await perWalletEnabled(tenantId);
 	return {
+		perWalletFrom: perWallet ? PER_WALLET_FROM : null,
+		allocationOverrides: perWallet ? await loadAllocationOverrides(tenantId) : [],
 		manualKeys: new Set(manualOverrides.keys()),
 		wallets: ctx.walletsById,
 		walletIdByTxHash: ctx.walletIdByTxHash,

@@ -173,7 +173,8 @@ export const GET: APIRoute = async ({ request }) => {
 			gainLoss: allRows.reduce((s, r) => s + r.gainLoss, 0),
 		};
 
-		const payload = { year, method, boxes, totals };
+		// The rule this year's sales followed, so the printed header can say which one it was.
+		const payload = { year, method, ...(bd.rule ? { rule: bd.rule, basisMethod: bd.basisMethod } : {}), boxes, totals };
 		await setCache(cacheKey, payload, 5 * 60);
 
 		return json({ ok: true, ...payload, cached: false });

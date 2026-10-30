@@ -1,0 +1,185 @@
+---
+/**
+ * /dashboard/yearEnd/opening-positions
+ *
+ * The January 1, 2025 positions the ledger rebuilt from the owner's history, wallet by wallet,
+ * with the coins that need a look and a form to enter an allocation of the owner's own.
+ * Owner only (hasTaxAccess runs before anything is read). Labels are rendered by Astro, which
+ * escapes them; nothing on this page is set as HTML.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getOpeningPositions } from '@/i18n/dashboard/yearEnd/opening-positions';
+import { computeLedger, engineForTenant, perWalletEnabled } from '@/lib/tax/computeLedger';
+import { loadStoredAllocations } from '@/lib/tax/allocationOverride';
+import { PER_WALLET_FROM } from '@/lib/tax/basisMethod';
+import { openingPositionsOf } from '@/lib/tax/openingPositions';
+import { formatDate, formatUsd, toLang } from '@/lib/format';
+
+const lang = getLang(Astro.request);
+const t = getOpeningPositions(lang);
+const dateLang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login');
+const { tenantId } = sess;
+
+const enabled = await perWalletEnabled(tenantId);
+const positions = enabled
+	? openingPositionsOf((await computeLedger(tenantId, await engineForTenant(tenantId))).result, await loadStoredAllocations(tenantId), PER_WALLET_FROM)
+	: null;
+
+const fmtQty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+const fmtCost = (n: number | null) => (n === null ? t.noBasis : formatUsd(n));
+const fmtDate = (iso: string) => formatDate(iso, toLang(dateLang));
+/** The rows of a coin's table as the lines of the allocation form: what is there now is what you edit. */
+const prefill = (a: NonNullable<typeof positions>['assets'][number]) =>
+	a.wallets
+		.flatMap((w) => w.lots.filter((l) => l.pass !== 'placeholder').map((l) => `${w.walletKey} | ${l.acquiredAt.slice(0, 10)} | ${l.qty} | ${l.costUsd ?? ''}`))
+		.join('\n');
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+<div class="op-page">
+	<a href="/dashboard/yearEnd" class="op-back">←</a>
+	<h1 class="op-title">{t.heading}</h1>
+	<p class="op-sub">{t.subtitle}</p>
+	<p class="op-sub"><a href="https://www.irs.gov/individuals/international-taxpayers/frequently-asked-questions-on-digital-asset-transactions#faq93" rel="noopener noreferrer" target="_blank">{t.faqLinkLabel}</a></p>
+
+	{!positions && <p class="op-empty">{t.notEnabled}</p>}
+	{positions && positions.assets.length === 0 && <p class="op-empty">{t.empty}</p>}
+
+	{positions && positions.needsReview.length > 0 && (
+		<div class="op-review" role="status">
+			<strong>{t.needsReviewHeading}:</strong> {t.needsReviewCount(positions.needsReview.length)}: {positions.needsReview.join(', ')}
+		</div>
+	)}
+
+	{positions?.assets.map((a) => (
+		<section class="op-asset" data-asset={a.asset}>
+			<header class="op-asset__head">
+				<h2>{a.asset}</h2>
+				<span class="op-badge">{a.source === 'override' ? t.sourceOverride : t.sourceReconstruction}</span>
+				<span class="op-total">{fmtQty(a.totalUnits)} · {fmtCost(a.totalCostUsd)}</span>
+			</header>
+			{a.overrideRejected && <p class="op-warn">{t.overrideRejected}</p>}
+			{a.gaps.length > 0 && (
+				<ul class="op-gaps">
+					{a.gaps.map((g) => (
+						<li>
+							{t.gapReasons[g.reason] ?? g.reason}
+							{g.detail ? `: ${t.gapDetails[g.detail] ?? g.detail}` : ''}
+							{g.walletDisplay ? ` · ${g.walletDisplay}` : ''}
+							{g.qty != null ? ` · ${fmtQty(g.qty)}` : ''}
+						</li>
+					))}
+				</ul>
+			)}
+			{a.wallets.length > 0 && (
+				<table class="op-table">
+					<thead>
+						<tr><th>{t.colWallet}</th><th class="num">{t.colUnits}</th><th class="num">{t.colCost}</th><th>{t.colAcquired}</th><th>{t.colPlacedBy}</th></tr>
+					</thead>
+					<tbody>
+						{a.wallets.map((w) => w.lots.map((l, i) => (
+							<tr>
+								<td title={w.walletKey}>{i === 0 ? (w.walletDisplay ?? w.walletKey) : ''}</td>
+								<td class="num">{fmtQty(l.qty)}</td>
+								<td class="num">{fmtCost(l.costUsd)}</td>
+								<td>{fmtDate(l.acquiredAt)}</td>
+								<td>{t.placedBy[l.pass] ?? l.pass}</td>
+							</tr>
+						)))}
+					</tbody>
+				</table>
+			)}
+			<details class="op-alloc">
+				<summary>{t.allocationHeading}</summary>
+				<p class="op-help">{t.allocationHelp}</p>
+				<textarea class="op-alloc__rows" rows="6" placeholder={t.allocationPlaceholder} data-asset={a.asset}>{prefill(a)}</textarea>
+				<div class="op-alloc__actions">
+					<button type="button" class="op-btn op-save" data-asset={a.asset}>{t.save}</button>
+					{a.savedAllocation && <button type="button" class="op-btn op-remove" data-asset={a.asset}>{t.remove}</button>}
+					<span class="op-status" aria-live="polite"></span>
+				</div>
+			</details>
+		</section>
+	))}
+</div>
+</Layout>
+
+<script define:vars={{ msg: { saving: t.saving, saved: t.saved, removed: t.removed, rejected: t.rejected, networkError: t.networkError } }}>
+	function parseRows(text) {
+		return text
+			.split('\n')
+			.map((l) => l.trim())
+			.filter(Boolean)
+			.map((l) => {
+				const [walletKey, lotAcquiredAt, quantity, cost] = l.split('|').map((p) => p.trim());
+				const row = { walletKey, lotAcquiredAt, quantity: Number(quantity) };
+				if (cost) row.costBasisUsd = Number(cost);
+				return row;
+			});
+	}
+	async function send(section, request, done) {
+		const status = section.querySelector('.op-status');
+		status.textContent = msg.saving;
+		try {
+			const res = await request();
+			if (res.ok) {
+				status.textContent = done;
+				setTimeout(() => location.reload(), 600);
+			} else {
+				status.textContent = res.status === 422 ? msg.rejected : msg.networkError;
+			}
+		} catch {
+			status.textContent = msg.networkError;
+		}
+	}
+	document.querySelectorAll('.op-save').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const section = btn.closest('.op-asset');
+			const asset = btn.getAttribute('data-asset');
+			const rows = parseRows(section.querySelector('.op-alloc__rows').value);
+			send(section, () => fetch('/api/yearEnd/opening-positions', {
+				method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset, rows }),
+			}), msg.saved);
+		});
+	});
+	document.querySelectorAll('.op-remove').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const section = btn.closest('.op-asset');
+			const asset = btn.getAttribute('data-asset');
+			send(section, () => fetch('/api/yearEnd/opening-positions?asset=' + encodeURIComponent(asset), { method: 'DELETE' }), msg.removed);
+		});
+	});
+</script>
+
+<style>
+	.op-page { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--text-primary, #111827); }
+	.op-back { display: inline-block; margin-bottom: 0.5rem; text-decoration: none; }
+	.op-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 0.5rem; }
+	.op-sub { margin: 0 0 0.5rem; max-width: 44rem; font-size: 0.9rem; color: var(--text-secondary, #374151); }
+	.op-empty { padding: 1.5rem 0; color: var(--text-muted, #6b7280); }
+	.op-review { margin: 1rem 0; padding: 0.6rem 0.9rem; border-radius: 0.5rem; background: #fef3c7; color: #92400e; font-size: 0.85rem; }
+	.op-asset { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--border-bright, #e5e7eb); border-radius: 0.75rem; }
+	.op-asset__head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+	.op-asset__head h2 { margin: 0; font-size: 1.1rem; }
+	.op-badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--surface-card-2, #f3f4f6); }
+	.op-total { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+	.op-warn { color: #b45309; font-size: 0.85rem; }
+	.op-gaps { margin: 0.5rem 0; padding-left: 1.1rem; font-size: 0.85rem; color: #92400e; }
+	.op-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.85rem; }
+	.op-table th, .op-table td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border-bright, #e5e7eb); overflow-wrap: anywhere; }
+	.op-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+	.op-alloc { margin-top: 0.75rem; }
+	.op-alloc summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+	.op-help { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+	.op-alloc__rows { width: 100%; font-family: ui-monospace, monospace; font-size: 0.8rem; }
+	.op-alloc__actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
+	.op-btn { padding: 0.35rem 0.8rem; border-radius: 0.4rem; border: 1px solid var(--border-bright, #d1d5db); background: var(--surface-card-2, #fff); cursor: pointer; }
+	.op-status { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+</style>
