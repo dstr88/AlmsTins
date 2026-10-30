@@ -48,6 +48,8 @@ export interface WalletOverviewLocale {
   addPlaceholderSymbol: string;
   addBtnAdding: string;
   addBtnAdd: string;
+  /** Shown under the add form: an XPR Network account is a name, added by typing the symbol XPR. */
+  addXprHint: string;
 
   // Add-wallet status messages
   addStatusAddressRequired: string;
@@ -91,6 +93,7 @@ export const en: WalletOverviewLocale = {
   addPlaceholderSymbol: 'Symbol  (e.g. LTC)',
   addBtnAdding: 'Adding…',
   addBtnAdd: 'Add Wallet',
+  addXprHint: 'To add an XPR Network account, type its account name and the symbol XPR.',
 
   addStatusAddressRequired: 'Address is required',
   addStatusLabelRequired: 'Label is required',
@@ -133,6 +136,7 @@ export const es: WalletOverviewLocale = {
   addPlaceholderSymbol: "Símbolo  (p. ej. LTC)",
   addBtnAdding: "Añadiendo…",
   addBtnAdd: "Añadir cartera",
+  addXprHint: "Para añadir una cuenta de XPR Network, escribe el nombre de la cuenta y el símbolo XPR.",
 
   addStatusAddressRequired: "Se requiere una dirección",
   addStatusLabelRequired: "Se requiere una etiqueta",
@@ -175,6 +179,7 @@ export const fr: WalletOverviewLocale = {
   addPlaceholderSymbol: "Symbole  (ex. LTC)",
   addBtnAdding: "Ajout…",
   addBtnAdd: "Ajouter le portefeuille",
+  addXprHint: "Pour ajouter un compte XPR Network, saisissez son nom de compte et le symbole XPR.",
 
   addStatusAddressRequired: "Une adresse est requise",
   addStatusLabelRequired: "Un libellé est requis",

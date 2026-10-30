@@ -64,12 +64,14 @@ export function cexWalletKey(source: unknown, accountId?: unknown): string {
  * address) is that key.
  */
 export function chainWalletKey(chain: unknown, address: unknown): string {
-	const a = normalizeWalletAddress(address);
+	const normalizedChain = normalizeChain(chain);
+	// An XPR Network account name is lowercase on the chain, whatever case it was typed in.
+	const a = normalizedChain === 'xpr' ? String(address ?? '').trim().toLowerCase() : normalizeWalletAddress(address);
 	if (a.toLowerCase().startsWith('cex:')) {
 		const parsed = parseWalletKey(a);
 		if (parsed?.kind === 'cex') return cexWalletKey(parsed.source, parsed.accountId);
 	}
-	return `${normalizeChain(chain)}:${a || UNASSIGNED}`;
+	return `${normalizedChain}:${a || UNASSIGNED}`;
 }
 
 export type WalletKeyInput =

@@ -238,6 +238,7 @@ const CHAIN_NAMES: Readonly<Record<string, string>> = {
 	sui: 'Sui',
 	rootstock: 'Rootstock',
 	litecoin: 'Litecoin',
+	xpr: 'XPR Network',
 	tron: 'Tron',
 	base: 'Base',
 	arbitrum: 'Arbitrum',

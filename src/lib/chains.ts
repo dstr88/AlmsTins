@@ -14,7 +14,7 @@
  * Pure data and pure functions: React islands and bundled page scripts use this too.
  */
 
-export type ChainFamily = 'evm' | 'utxo' | 'solana' | 'sui';
+export type ChainFamily = 'evm' | 'utxo' | 'solana' | 'sui' | 'antelope';
 
 export interface ChainExplorer {
 	/** The explorer's name, as a link's text shows it. */
@@ -141,6 +141,18 @@ export const CHAINS = {
 		aliases: [],
 		explorer: { name: 'Suiscan', address: 'https://suiscan.xyz/mainnet/account/', tx: 'https://suiscan.xyz/mainnet/tx/' },
 	},
+	// XPR Network (formerly Proton), an Antelope chain. A wallet is an account NAME, not an address
+	// (src/lib/addressFormats.ts XPR_ACCOUNT_NAME), so it is added with an explicit chain choice.
+	// Chain id 384da888112027f0321850a169f737c33e53b388aad48b5adace4bab97f437e0; the coin lives in the
+	// eosio.token contract. Explorer link patterns checked on the explorer, October 2026.
+	xpr: {
+		name: 'XPR Network',
+		family: 'antelope',
+		native: { symbol: 'XPR', decimals: 4 },
+		evmChainId: null,
+		aliases: ['proton', 'xpr-network', 'xpr_network'],
+		explorer: { name: 'XPR Network Explorer', address: 'https://explorer.xprnetwork.org/account/', tx: 'https://explorer.xprnetwork.org/transaction/' },
+	},
 } as const satisfies Record<string, ChainInfo>;
 
 export type ChainId = keyof typeof CHAINS;
@@ -240,7 +252,7 @@ export const VERIFY_ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoi
 export const VERIFY_EVM_RAILS: ReadonlySet<string> = new Set(VERIFY_ADDRESS_RAILS.filter((c) => CHAINS[c].family === 'evm'));
 
 /** The chains whose snapshot tokens count toward net worth (src/lib/networth.ts). */
-export const NETWORTH_CHAINS = ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin'] as const satisfies readonly ChainId[];
+export const NETWORTH_CHAINS = ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr'] as const satisfies readonly ChainId[];
 
 /** The EVM chains a dashboard tin's badge names on its own (vault.astro); any other mix shows ETH. */
 export const TIN_BADGE_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];
@@ -256,6 +268,7 @@ const SYMBOL_CHAINS: ReadonlyMap<string, readonly ChainId[]> = new Map<string, r
 	['ETH', DEFAULT_WALLET_CHAINS],
 	['SOL', ['solana']],
 	['SUI', ['sui']],
+	['XPR', ['xpr']],
 	['AVAX', ['avalanche']],
 	['POL', ['polygon']],
 	['MATIC', ['polygon']],
@@ -275,13 +288,13 @@ export const EXPLORER_CHAINS = (Object.keys(CHAINS) as ChainId[]).filter((c) => 
 export const EXPLORER_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'bsc'] as const satisfies readonly ExplorerChain[];
 
 /** Sources stored in import_transactions / exchange_accounts that are blockchains, not exchanges. */
-export const CHAIN_IMPORT_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'solana', 'avalanche_cchain', 'litecoin']);
+export const CHAIN_IMPORT_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'solana', 'avalanche_cchain', 'litecoin', 'xpr']);
 
 /**
  * exchange_accounts sources that hold an on-chain wallet's imported history, not an exchange
  * balance: their mirror wallet is never valued (src/lib/snapshotRows.ts).
  */
-export const ON_CHAIN_IMPORT_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'litecoin']);
+export const ON_CHAIN_IMPORT_SOURCES: ReadonlySet<string> = new Set(['bitcoin', 'litecoin', 'xpr']);
 
 // ── Aave ─────────────────────────────────────────────────────────────────────
 

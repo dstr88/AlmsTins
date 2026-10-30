@@ -85,10 +85,24 @@ describe('the Vault total counts a bitcoin wallet once', () => {
 	});
 });
 
+describe('an XPR account is counted once', () => {
+	it('ignores the cex:xpr mirror: the account\'s snapshot already holds the coins', async () => {
+		state.rows = [
+			row('xpr', 'testalice1', 'xpr', 40),
+			row('mirror', 'cex:xpr:00000000-0000-0000-0000-000000000003', 'exchange', 40),
+		];
+
+		const summary = await getLatestNetWorthSummary('t1');
+
+		expect(summary.totalUsd).toBeCloseTo(40, 6);
+	});
+});
+
 describe('the exchange snapshot pass skips on-chain import accounts', () => {
 	it('writes nothing for a bitcoin or litecoin account', async () => {
 		await snapshotCexAccount('t1', 'acc-btc', 'bitcoin', 'Bitcoin Wallet (bc1q…)');
 		await snapshotCexAccount('t1', 'acc-ltc', 'litecoin', 'Litecoin Wallet (ltc1…)');
+		await snapshotCexAccount('t1', 'acc-xpr', 'xpr', 'XPR Network Account (testalice1)');
 
 		expect(state.calls).toEqual([]);
 	});

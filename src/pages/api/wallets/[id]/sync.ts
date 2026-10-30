@@ -3,6 +3,7 @@ import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { syncUtxoWallet, utxoChainOf } from '@/lib/sync/syncBtcAddress';
 import { syncSolanaWallet, isSolanaWallet } from '@/lib/sync/syncSolanaTransactions';
+import { syncXprWallet, isXprWallet } from '@/lib/sync/syncXprAddress';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { logActivity } from '@/lib/activityLog';
@@ -46,12 +47,15 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 		// Bitcoin or Litecoin (the same rule Sync Tins and the weekly cron use): a Litecoin wallet
 		// used to fall through to the EVM sync, which reads nothing for it.
-		const utxoChain = utxoChainOf(wallet.chains, wallet.address);
-		const stats = utxoChain
-			? await syncUtxoWallet(tenantId, walletId, wallet.address, utxoChain)
-			: isSolanaWallet(wallet.chains)
-				? await syncSolanaWallet(tenantId, wallet)
-				: await syncWalletTransactions(tenantId, wallet);
+		// XPR Network is checked first: an account name has no shape, so only the wallet's chain tag says so.
+		const utxoChain = isXprWallet(wallet.chains) ? null : utxoChainOf(wallet.chains, wallet.address);
+		const stats = isXprWallet(wallet.chains)
+			? await syncXprWallet(tenantId, walletId, wallet.address)
+			: utxoChain
+				? await syncUtxoWallet(tenantId, walletId, wallet.address, utxoChain)
+				: isSolanaWallet(wallet.chains)
+					? await syncSolanaWallet(tenantId, wallet)
+					: await syncWalletTransactions(tenantId, wallet);
 		const primaryChain = Array.isArray(stats.chains) ? (stats.chains[0]?.chain ?? undefined) : undefined;
 		logActivity(
 			tenantId,

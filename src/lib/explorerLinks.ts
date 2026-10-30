@@ -16,6 +16,8 @@ import {
   EVM_TX_HASH_LOWER,
   SOLANA_ADDRESS,
   SUI_ADDRESS_LOWER,
+  XPR_ACCOUNT_NAME,
+  XPR_TX_ID,
   bech32Pattern,
 } from './addressFormats';
 import { CHAINS, EXPLORER_EVM_CHAINS, type ExplorerChain } from './chains';
@@ -74,6 +76,14 @@ function either(...checks: Array<(v: string) => string | null>) {
   };
 }
 
+/** An XPR value is lowercase on the chain: it goes into the link lowercase, if it has the shape. */
+function xprValue(pattern: RegExp) {
+  return (v: string): string | null => {
+    const lower = v.toLowerCase();
+    return pattern.test(lower) ? lower : null;
+  };
+}
+
 /** A chain's explorer pages (from src/lib/chains.ts) with the checks a value must pass to go into a link. */
 function rule(chain: ExplorerChain, normalizeAddress: ExplorerRule['normalizeAddress'], normalizeTx: ExplorerRule['normalizeTx']): ExplorerRule {
   const { name, address, tx } = CHAINS[chain].explorer;
@@ -93,6 +103,9 @@ const EXPLORERS = new Map<ExplorerChain, ExplorerRule>([
   // A Sui address is 0x and 64 hex digits, the same shape as an EVM transaction hash; only the
   // chain tells them apart.
   ['sui', rule('sui', hexOr(SUI_ADDRESS_LOWER), exact(SUI_DIGEST))],
+  // An XPR account name and transaction id are lowercase; the name is checked for shape only, which
+  // is all a link needs (the explorer says if no such account exists).
+  ['xpr', rule('xpr', xprValue(XPR_ACCOUNT_NAME), xprValue(XPR_TX_ID))],
 ]);
 
 function ruleFor(chain: string | null | undefined): ExplorerRule | null {

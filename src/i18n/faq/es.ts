@@ -104,6 +104,7 @@ export const items: FaqItem[] = [
           <li>Sui (SUI) — saldos de wallet nativos y sincronización de transacciones</li>
           <li>Solana (SOL) — saldos de wallet nativos</li>
           <li>Bitcoin (BTC) y Litecoin (LTC) — seguimiento de direcciones</li>
+          <li>XPR Network (XPR) — saldos de la cuenta (la moneda y cada token) e historial de transferencias; una cuenta se añade por su nombre</li>
           <li>Saldos de monedas, antigüedad de las tenencias, ticker, cantidad, valor actual, ganancia/pérdida</li>
           <li>Posiciones DeFi de Aave — salud del préstamo, desglose de colateral, seguimiento de deuda</li>
         </ul>

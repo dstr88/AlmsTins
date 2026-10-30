@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { parseWalletChains, sanitizeAddress, transformWalletRow } from '../../../lib/wallets-service';
+import { normalizeChain } from '@/lib/chains';
+import { isXprWallet } from '@/lib/sync/syncXprAddress';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import {
@@ -120,7 +122,28 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 		const updates: string[] = [];
 		const args: any[] = [];
 
-		if ('address' in body) {
+		// An XPR Network wallet is its account name, checked on the chain when it was added; neither
+		// the name nor the chain can be edited into or out of it (add a new wallet instead).
+		let keepXprAddress = false;
+		if ('address' in body || 'chains' in body) {
+			const current = await db.execute({
+				sql: 'SELECT address, chains FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+				args: [params.id, tenantId],
+			});
+			const cur = current.rows[0] as Record<string, unknown> | undefined;
+			if (!cur) return responseWithError('Wallet not found.', 404);
+			const wasXpr = isXprWallet(cur.chains);
+			const willBeXpr = 'chains' in body ? parseWalletChains(body.chains).some((c) => normalizeChain(c) === 'xpr') : wasXpr;
+			if (wasXpr || willBeXpr) {
+				const sameName = !('address' in body) || String(body.address ?? '').trim().toLowerCase() === String(cur.address ?? '');
+				if (!(wasXpr && willBeXpr && sameName)) {
+					return responseWithError('An XPR Network wallet cannot be changed into another chain or to another account. Add a new wallet instead.', 400);
+				}
+				keepXprAddress = true;
+			}
+		}
+
+		if ('address' in body && !keepXprAddress) {
 			const nextAddress = sanitizeAddress(body.address);
 			if (!nextAddress) {
 				return responseWithError('Address must be a valid wallet address (0x… for EVM/Sui, bc1q… / bc1p… / 1… / 3… for Bitcoin).', 400);

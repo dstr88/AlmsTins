@@ -24,6 +24,7 @@
 
 import { buildOwnedIndex, walletOfRow, type WalletEntry, type WalletOfRowContext } from '../walletOfRow';
 import { isChainSource, normalizeWalletAddress } from '../../walletKey';
+import { isXprReviewKind } from '../../xpr/systemAccounts';
 import { normalizeAmount } from '../normalize';
 import type { OwnerIndex } from '../../walletIdentity';
 import type { ClassificationResult, RawImportTx, RawOnchainTx } from '../../yearEnd/types';
@@ -145,9 +146,10 @@ export function pipelineToLedger(input: PipelineAdapterInput): PipelineAdapterOu
 			candidates.push({
 				row: leg,
 				sourceRef: row.id,
-				// An exchange Send consumes the coins; a chain-synced send names no destination, so unpaired it stays a sale (as in the lifecycle).
+				// An exchange Send consumes the coins; a chain-synced send names no destination, so unpaired it stays a sale (as in the
+				// lifecycle), except an XPR transfer stored for review (staking, lock, swap, system accounts): it is not booked as a sale.
 				unpaired: direction === 'out'
-					? chainSynced ? { kind: 'dispose', proceedsUsd: cost, category: 'sell' } : { kind: 'send', valueUsd: cost }
+					? chainSynced && !isXprReviewKind(row.kind) ? { kind: 'dispose', proceedsUsd: cost, category: 'sell' } : { kind: 'send', valueUsd: cost }
 					: cost !== null ? { kind: 'acquire', costUsd: cost, origin: 'transfer_in_untracked' } : { kind: 'ignore' },
 				...(manualBasis ? { manualBasis } : {}),
 			});

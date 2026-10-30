@@ -7,7 +7,8 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import { snapshotUtxoBalance, utxoChainOf } from '@/lib/sync/syncBtcAddress';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
-import { EVM_DISCOVERY_CHAINS } from '@/lib/chains';
+import { EVM_DISCOVERY_CHAINS, normalizeChain } from '@/lib/chains';
+import { snapshotXprBalance } from '@/lib/sync/syncXprAddress';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -497,7 +498,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 				const isBitcoin   = walletChains.includes('bitcoin') || walletChains.includes('litecoin')
 				                    || /^bc1/i.test(walletAddress) || /^[13][a-zA-Z0-9]{25,34}$/.test(walletAddress)
 				                    || /^ltc1/i.test(walletAddress);
-				const isEvm       = !isSolana && !isSui && !isRootstock && !isBitcoin;
+				// XPR Network: only the wallet's chain tag says so (an account name has no shape).
+				const isXpr       = walletChains.some((c) => normalizeChain(c) === 'xpr');
+				const isEvm       = !isSolana && !isSui && !isRootstock && !isBitcoin && !isXpr;
 
 				if (isEvm) {
 					// Same function Sync Tins uses, so both write identical, priced snapshots. Ethereum
@@ -534,6 +537,13 @@ export const GET: APIRoute = async ({ params, request }) => {
 						return false;
 					});
 					console.log('[tokens.refreshMissing] UTXO SNAPSHOT', { chain: utxoChain, wrote });
+				}
+
+				// XPR Network: the balance alone (the coin and every token, no history), so a wallet has a
+				// value as soon as it is added. A balance no server can read writes nothing.
+				if (isXpr) {
+					const wrote = await snapshotXprBalance(tenantId, walletId, walletAddress);
+					console.log('[tokens.refreshMissing] XPR SNAPSHOT', { wrote });
 				}
 
 				if (isSolana) {
