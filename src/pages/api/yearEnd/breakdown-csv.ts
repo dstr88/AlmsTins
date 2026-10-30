@@ -122,6 +122,12 @@ export const GET: APIRoute = async ({ request, url }) => {
     const costMethod = await getCostBasisMethod(tenantId);
     const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
 
+    // A year whose sales were matched wallet by wallet says which wallet or account each row is in.
+    // A year on the one-pool rule keeps its columns exactly as they were.
+    const withWallet = bd.rule === 'per_wallet';
+    const withWalletHeader = (headers: string[]): string[] => (withWallet ? [...headers, 'Wallet / Account'] : headers);
+    const withWalletCell = (cells: CsvRow, wallet: string | null | undefined): CsvRow => (withWallet ? [...cells, wallet ?? ''] : cells);
+
     let csvContent = '';
     let filename   = `almstins-${year}-${section}.csv`;
 
@@ -141,22 +147,22 @@ export const GET: APIRoute = async ({ request, url }) => {
       }
       case 'stillHolding': {
         filename = `almstins-${year}-still-holding.csv`;
-        const headers = ['Asset', 'Quantity', 'Acquired', 'Days Held', 'Cost Basis (USD)', 'Term'];
-        const rows: CsvRow[] = bd.stillHolding.map((i) => [
+        const headers = withWalletHeader(['Asset', 'Quantity', 'Acquired', 'Days Held', 'Cost Basis (USD)', 'Term']);
+        const rows: CsvRow[] = bd.stillHolding.map((i) => withWalletCell([
           i.asset,
           i.amount,
           formatDate(i.acquiredDate),
           i.daysHeld,
           formatUsd(i.costUsd),
           i.longTerm ? 'Long-term' : 'Short-term',
-        ]);
+        ], i.walletDisplay));
         csvContent = buildCsv('Still Holding — Unrealized Positions', year, headers, rows);
         break;
       }
       case 'shortTerm': {
         filename = `almstins-${year}-short-term.csv`;
-        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace'];
-        const rows: CsvRow[] = bd.shortTerm.map((i) => [
+        const headers = withWalletHeader(['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace']);
+        const rows: CsvRow[] = bd.shortTerm.map((i) => withWalletCell([
           i.asset,
           i.amount,
           formatDate(i.buyDate),
@@ -167,14 +173,14 @@ export const GET: APIRoute = async ({ request, url }) => {
           formatUsd(i.gainLossUsd),
           i.basisSource ?? '',
           i.originNote ?? '',
-        ]);
+        ], i.walletDisplay));
         csvContent = buildCsv('Short-Term Capital Gains & Losses', year, headers, rows);
         break;
       }
       case 'longTerm': {
         filename = `almstins-${year}-long-term.csv`;
-        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace'];
-        const rows: CsvRow[] = bd.longTerm.map((i) => [
+        const headers = withWalletHeader(['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace']);
+        const rows: CsvRow[] = bd.longTerm.map((i) => withWalletCell([
           i.asset,
           i.amount,
           formatDate(i.buyDate),
@@ -185,7 +191,7 @@ export const GET: APIRoute = async ({ request, url }) => {
           formatUsd(i.gainLossUsd),
           i.basisSource ?? '',
           i.originNote ?? '',
-        ]);
+        ], i.walletDisplay));
         csvContent = buildCsv('Long-Term Capital Gains & Losses', year, headers, rows);
         break;
       }

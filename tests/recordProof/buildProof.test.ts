@@ -63,7 +63,7 @@ describe('buildRecordProof', () => {
     expect(json).not.toContain('tenant-secret-123');  // tenant_id never travels
     expect(json).not.toContain('bob@example.com');
     const allow = new Set([
-      'v', 'record_id', 'tenant_scope_tag', 'record_type', 'period', 'data_source', 'merkle_root',
+      'v', 'record_id', 'tenant_scope_tag', 'record_type', 'period', 'data_source', 'basis_method', 'merkle_root',
       'leaf_count', 'leaf_schema_version', 'tree_algo', 'counts', 'prev_root', 'generated_at',
       'signing_key_id', 'schema_version', 'verify_url', 'disclaimer',
     ]);

@@ -150,6 +150,8 @@ export const en: BookkeepingLocale = {
     manual_basis_on_transfer: 'A basis you entered was ignored: this is a transfer',
     unreadable_event_date: 'A row with an unreadable date is not counted',
     invalid_event: 'A row Almstins could not read is not counted',
+    jan1_position_gap: 'January 1, 2025 position does not match your history',
+    allocation_override_rejected: 'The January 1, 2025 allocation you entered was not used',
   },
 
   tinStillInWallet: 'Still in Wallet',
@@ -229,6 +231,8 @@ export const es: BookkeepingLocale = {
     manual_basis_on_transfer: 'Se ignoró un costo que ingresaste: esto es una transferencia',
     unreadable_event_date: 'Una fila con fecha ilegible no se cuenta',
     invalid_event: 'Una fila que Almstins no pudo leer no se cuenta',
+    jan1_position_gap: 'La posición del 1 de enero de 2025 no coincide con tu historial',
+    allocation_override_rejected: 'No se usó la asignación del 1 de enero de 2025 que ingresaste',
   },
 
   tinStillInWallet: 'Aún en wallet',
@@ -308,6 +312,8 @@ export const fr: BookkeepingLocale = {
     manual_basis_on_transfer: 'Un coût que vous avez saisi a été ignoré : c\'est un transfert',
     unreadable_event_date: 'Une ligne dont la date est illisible n\'est pas comptée',
     invalid_event: 'Une ligne qu\'Almstins n\'a pas pu lire n\'est pas comptée',
+    jan1_position_gap: 'La position au 1er janvier 2025 ne correspond pas à votre historique',
+    allocation_override_rejected: "L'allocation du 1er janvier 2025 que vous avez saisie n'a pas été utilisée",
   },
 
   tinStillInWallet: 'Toujours en wallet',

@@ -20,6 +20,7 @@ import { getYearEndSummary, isValidSummaryYear, parseSummaryMethod } from '@/lib
 import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
 import { getLang } from '@/lib/i18n/locale';
 import { getGains } from '@/i18n/dashboard/yearEnd/gains';
+import { getOpeningPositions } from '@/i18n/dashboard/yearEnd/opening-positions';
 import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
 import WalletTag from '../../../components/yearEnd/WalletTag.astro';
 
@@ -28,6 +29,7 @@ if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIR
 
 const lang = getLang(Astro.request);
 const t = getGains(lang);
+const openingPositionsLabel = getOpeningPositions(lang).pageTitle;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AssetIncome = { symbol: string; amount: number; count: number };
@@ -76,6 +78,7 @@ type TaxPayload = {
 		shortTermCount: number;
 		longTermCount:  number;
 		dataSource?:    'pipeline' | 'lifecycle';
+		rule?:          'per_wallet' | 'universal' | null;
 	};
 	byAssetGains?: {
 		asset:   string;
@@ -315,6 +318,12 @@ const fmtGain = (n: number) => {
 								<p class="text-xs text-gray-400 mt-0.5">
 									{t.capitalGainsSub(method === 'fifo' ? 'FIFO' : method === 'hifo' ? 'HIFO' : method === 'lifo' ? 'LIFO' : 'Spec ID')}
 								</p>
+								{payload.gains.rule && (
+									<p class="text-xs text-gray-400 mt-0.5" data-basis-rule={payload.gains.rule}>
+										{t.basisRuleNote(payload.gains.rule, Number(payload.year))}
+										{payload.gains.rule === 'per_wallet' && <> <a href="/dashboard/yearEnd/opening-positions" class="underline">{openingPositionsLabel}</a></>}
+									</p>
+								)}
 							</div>
 							<!-- Data source badge: shows whether gains came from the pipeline or
 							     were re-computed in-memory from lifecycle events -->

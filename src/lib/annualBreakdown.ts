@@ -32,6 +32,7 @@ import { walletDisplayOf } from './tax/eventWallet';
 import { computeLedger, engineForTenant, type ComputedLedger } from './tax/computeLedger';
 import { EPSILON, TRANSIT_WALLET, UNALLOCATED_WALLET, UNRESOLVED_WALLET, type FindingReason, type LedgerSlice } from './tax/lotLedger';
 import { parseInstant } from './tax/normalize';
+import { ruleForYear, type BasisMethod, type RuleForYear } from './tax/basisMethod';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -195,6 +196,10 @@ export type AnnualBreakdown = {
   transferReviews?: TransferReview[];
   /** The ledger rules that produced these figures (tax/lotLedger.ts ENGINE_VERSION). */
   engineVersion?: string;
+  /** The lot rule this tenant's figures follow: per wallet from 2025-01-01 (earlier years one pool), or one pool throughout. */
+  basisMethod?: BasisMethod;
+  /** The rule this year used: sales from 2025-01-01 draw only on the wallet or account they were made from. */
+  rule?: RuleForYear;
 };
 
 /** Controls which data source buildAnnualBreakdown reads from. */
@@ -234,6 +239,8 @@ const REVIEWED_FINDINGS: ReadonlySet<FindingReason> = new Set<FindingReason>([
   'transfer_between_owners',
   'unmatched_transfer',
   'manual_basis_on_transfer',
+  'jan1_position_gap',
+  'allocation_override_rejected',
   'unreadable_event_date',
   'invalid_event',
 ]);
@@ -609,5 +616,7 @@ export async function buildAnnualBreakdown(
     dataSource: resolvedSource,
     transferReviews,
     engineVersion: result.engineVersion,
+    basisMethod: ledger.basisMethod,
+    rule: ruleForYear(ledger.basisMethod, year),
   };
 }

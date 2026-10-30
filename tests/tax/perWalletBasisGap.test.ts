@@ -9,14 +9,15 @@
  * asset across all wallets and accounts (a universal pool). That is unchanged for 2024 and
  * earlier, but it is not the per-wallet rule for disposals from 2025 on.
  *
- * These tests pin today's results on one worked example so the gap is visible in code.
- * The `it.fails` cases hold the per-wallet target: they pass while the engine is still
- * universal and start failing once per-wallet FIFO lands, at which point flip them to `it`.
+ * One worked example runs through both engines twice: with the per-wallet rule on (the 2025+
+ * target, switched on for a tenant by tax/basisMethod.ts) and with it off (one pool per coin
+ * across all wallets and accounts, which is what every year before 2025 uses and what a tenant
+ * outside the rollout keeps).
  *
  * Transfers are MOVES in both engines: a send between two of the owner's own wallets or accounts
  * is not a sale, and the arrival does not open a second lot. The coins keep their original date
- * and cost. What is still pooled is the choice of lot at a sale: one pool per asset across all
- * wallets, until per-wallet FIFO lands (the `it.fails` cases).
+ * and cost. With the per-wallet rule on, a sale draws only on the lots of the wallet it was made
+ * from, and a move takes the oldest lots of the wallet it leaves.
  *
  * Worked example (amounts in USD, 1 BTC per lot):
  *   Wallet A (Coinbase account)   A1  bought 2023-01-10 for 20,000
@@ -42,6 +43,8 @@ import { classifyImportTxPass1 } from '../../src/lib/yearEnd/pass1';
 import type { ClassificationResult, RawImportTx, RawOnchainTx } from '../../src/lib/yearEnd/types';
 import { buildAnnualBreakdown } from '../../src/lib/annualBreakdown';
 import { db } from '../../src/lib/db';
+import { OWNER_TENANT_ID } from '../../src/lib/owner';
+import { PER_WALLET_FROM } from '../../src/lib/tax/basisMethod';
 
 vi.mock('../../src/lib/db', () => ({
 	db: { execute: vi.fn() },
@@ -82,7 +85,7 @@ function onchainRow(o: Partial<RawOnchainTx> & { id: string; timestamp: string }
 	};
 }
 
-function pipelineExample() {
+function pipelineExample(perWalletFrom: string | null = null) {
 	const importRows: RawImportTx[] = [
 		importRow({ id: 'a1', timestamp_utc: '2023-01-10T00:00:00Z', native_usd: 20_000 }),
 		importRow({ id: 'a2', timestamp_utc: '2023-06-01T00:00:00Z', native_usd: 30_000 }),
@@ -109,7 +112,7 @@ function pipelineExample() {
 	onchain('arrive', 'transfer', { linkedTxId: 'send', linkedSourceType: 'import' });
 	onchain('sale', 'sell');
 
-	return runFifo('tenant-1', importRows, onchainRows, classifications);
+	return runFifo('tenant-1', importRows, onchainRows, classifications, { perWalletFrom });
 }
 
 describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receiving wallet', () => {
@@ -120,7 +123,7 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 		expect(c?.linkedTxId).toBeUndefined();
 	});
 
-	it('today: one universal pool, so the sale takes the two oldest lots anywhere (A1 + A2)', () => {
+	it('one pool per coin (before 2025, or outside the per-wallet rollout): the sale takes the two oldest lots anywhere (A1 + A2)', () => {
 		const { lots, disposals } = pipelineExample();
 		const sale = disposals.filter((d) => d.sourceId === 'sale');
 		const lotById = new Map(lots.map((l) => [l.id, l]));
@@ -135,16 +138,13 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 		expect(open.map((l) => l.sourceId)).toEqual(['b1']);
 	});
 
-	it('today: tax_lots carry no wallet, and a transfer never moves a lot', () => {
+	it('one pool per coin: a transfer moves no lot, so no lot is split', () => {
 		const { lots } = pipelineExample();
-		for (const l of lots) {
-			expect(l).not.toHaveProperty('walletKey');
-			expect(l.originLotId).toBeNull();
-		}
+		for (const l of lots) expect(l.originLotId).toBeNull();
 	});
 
-	it.fails('target (2025+): per-wallet FIFO takes A1 (moved with its 2023 date) and B1 from wallet B', () => {
-		const { lots, disposals } = pipelineExample();
+	it('per wallet from 2025: the sale takes A1 (moved with its 2023 date and cost) and B1 from wallet B', () => {
+		const { lots, disposals } = pipelineExample(PER_WALLET_FROM);
 		const sale = disposals.filter((d) => d.sourceId === 'sale');
 		const lotById = new Map(lots.map((l) => [l.id, l]));
 		expect(sale.map((d) => ({
@@ -153,6 +153,12 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 			gainLossUsd: d.gainLossUsd,
 			shortTerm: d.isShortTerm,
 		}))).toEqual(PER_WALLET_SALE);
+		// The units that moved are a lot cut from A1: it names its parent and keeps the date and cost.
+		const moved = lots.find((l) => l.originLotId !== null);
+		expect(moved).toMatchObject({ acquiredAt: '2023-01-10T00:00:00Z', costBasisUsd: 20_000 });
+		expect(lotById.get(moved?.originLotId as string)?.sourceId).toBe('a1');
+		// A2 is the lot that stays in wallet A.
+		expect(lots.filter((l) => l.remainingQty > 0).map((l) => l.sourceId)).toEqual(['a2']);
 	});
 
 	it('an exchange-to-exchange transfer is a move: the deposit opens no second lot', () => {
@@ -262,7 +268,7 @@ describe('Lifecycle engine: the same example through buildAnnualBreakdown', () =
 		expect(bd.stillHolding.map((h) => h.acquiredDate.slice(0, 10))).not.toContain('2025-02-01');
 	});
 
-	it('today: the 2025-06-01 sale takes A1 and A2 from the universal pool, B1 is left', async () => {
+	it('outside the per-wallet rollout the 2025-06-01 sale takes A1 and A2 from the one pool, B1 is left', async () => {
 		const bd = await buildAnnualBreakdown('tenant-1', 2025);
 		const sale = [...bd.shortTerm, ...bd.longTerm]
 			.filter((l) => l.sellDate.startsWith('2025-06-01'))
@@ -276,12 +282,28 @@ describe('Lifecycle engine: the same example through buildAnnualBreakdown', () =
 		expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2024-09-01', 60_000]]);
 	});
 
-	it.fails('target (2025+): the send is not a sale, and wallet B sells A1 then B1', async () => {
-		const bd = await buildAnnualBreakdown('tenant-1', 2025);
+	it('per wallet from 2025 (a tenant in the rollout): the send is not a sale, and wallet B sells A1 then B1', async () => {
+		const bd = await buildAnnualBreakdown(OWNER_TENANT_ID, 2025);
+		expect(bd.basisMethod).toBe('per_wallet_fifo_from_2025');
+		expect(bd.rule).toBe('per_wallet');
 		const realized = [...bd.longTerm, ...bd.shortTerm]
 			.sort((a, b) => a.buyDate.localeCompare(b.buyDate))
 			.map((l) => ({ buyDate: l.buyDate.slice(0, 10), costUsd: l.costUsd, gainLossUsd: l.gainLossUsd, shortTerm: bd.shortTerm.includes(l) }));
 		expect(realized).toEqual(PER_WALLET_SALE);
 		expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-06-01', 30_000]]);
+		// A2 is still in the Coinbase account it was bought in.
+		expect(bd.stillHolding.map((h) => h.walletKey)).toEqual(['cex:coinbase:acct-a']);
+		// Each sale slice names the wallet it was sold from.
+		expect([...bd.longTerm, ...bd.shortTerm].every((l) => l.walletKey === `bitcoin:${WALLET_B}`)).toBe(true);
+	});
+
+	it('the years before 2025 keep one pool under either method, so a 2024 figure does not move', async () => {
+		const pooled = await buildAnnualBreakdown('tenant-1', 2024);
+		const perWallet = await buildAnnualBreakdown(OWNER_TENANT_ID, 2024);
+		expect(perWallet.rule).toBe('universal');
+		expect(pooled.rule).toBe('universal');
+		expect(perWallet.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual(
+			pooled.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd]),
+		);
 	});
 });

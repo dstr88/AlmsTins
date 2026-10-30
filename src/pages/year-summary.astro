@@ -12,6 +12,7 @@ import WalletYearChangesWrapper from '../components/WalletYearChangesWrapper';
 import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { basisRuleStatement } from '@/lib/tax/basisMethod';
 import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 import { isOwner } from '@/lib/owner';
@@ -531,6 +532,8 @@ const availableYears = bd?.availableYears ?? [priorYear];
               <span class="total-val total-val--gain">{fmt(stGainTotal + ltGainTotal + incomeTotal)}</span>
             </div>
           </div>
+
+          {bd?.rule && <p class="basis-rule-note" data-basis-rule={bd.rule} style="margin: 0.75rem 0 0; font-size: 0.75rem; line-height: 1.4; color: var(--text-muted, #6b7280);">{basisRuleStatement(bd.rule, selectedYear)}</p>}
 
           {gainAssets.length > 0 ? (
             <div class="asset-scroll">

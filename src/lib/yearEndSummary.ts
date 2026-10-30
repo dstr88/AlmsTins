@@ -306,6 +306,8 @@ export async function getYearEndSummary(
 			longTermCount:  bd.longTerm.length,
 			/** 'pipeline' when tax_disposals was used; 'lifecycle' when FIFO was re-run. */
 			dataSource:     bd.dataSource,
+			/** Which lot rule this year's figures used ('per_wallet' or 'universal'); see tax/basisMethod.ts. */
+			rule:           bd.rule ?? null,
 		};
 
 		// ── 6. Per-asset breakdown ────────────────────────────────────────────

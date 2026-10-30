@@ -20,24 +20,24 @@
 import { db } from '../db';
 import { loadImportTransactions, loadManualClassifications, loadOnchainTransactions, loadWalletAddresses } from '../yearEnd/loaders';
 import { classifyAll } from '../yearEnd/classifyAll';
+import { getJurisdictionProfile } from '../jurisdictionProfile';
+import { isOwner } from '../owner';
+import { loadAllocationOverrides } from './allocationOverride';
+import { inPerWalletRollout, PER_WALLET_FROM, PER_WALLET_METHOD, PER_WALLET_ROLLOUT, UNIVERSAL_METHOD, type BasisMethod } from './basisMethod';
 import { lifecycleToLedger, type LifecycleEventRow } from './ledgerAdapters/lifecycle';
 import { pipelineToLedger } from './ledgerAdapters/pipeline';
 import type { RefInfo } from './ledgerAdapters/shared';
 import { loadLedgerContext, type LedgerContext } from './ledgerContext';
 import { parseInstant } from './normalize';
-import { runLotLedger, type CostBasisMethod, type LedgerEvent, type LedgerResult } from './lotLedger';
+import { runLotLedger, type AllocationOverride, type CostBasisMethod, type LedgerEvent, type LedgerResult } from './lotLedger';
 
 export type LedgerEngine = 'lifecycle' | 'pipeline';
-
-/**
- * The UTC date from which each wallet has its own pool (the 2025 rule), or null for one pool in
- * every year. Null until per-wallet FIFO is switched on for a tenant; the ledger core supports both.
- */
-export const PER_WALLET_FROM: string | null = null;
 
 export interface ComputedLedger {
 	engine: LedgerEngine;
 	result: LedgerResult;
+	/** The lot rule the run used: per wallet from 2025-01-01 (earlier years one pool), or one pool throughout. */
+	basisMethod: BasisMethod;
 	/** What the row behind each event was, by the event's sourceRef. */
 	refs: Map<string, RefInfo>;
 }
@@ -61,6 +61,17 @@ export async function engineForTenant(tenantId: string): Promise<LedgerEngine> {
 		// tax_pipeline_runs may not exist
 		return 'lifecycle';
 	}
+}
+
+/**
+ * Whether a tenant's sales from 2025-01-01 on are matched wallet by wallet (basisMethod.ts says who
+ * is in the rollout). The jurisdiction is read only for a tenant the rollout could include.
+ */
+export async function perWalletEnabled(tenantId: string): Promise<boolean> {
+	const owner = isOwner(tenantId);
+	if (PER_WALLET_ROLLOUT === 'owner' && !owner) return false;
+	const profile = await getJurisdictionProfile(tenantId);
+	return inPerWalletRollout(owner, profile.jurisdiction);
 }
 
 // ── Lifecycle rows ───────────────────────────────────────────────────────────
@@ -198,6 +209,12 @@ async function pipelineEvents(tenantId: string, ctx: LedgerContext): Promise<{ e
 	});
 }
 
+/** The tenant's history as ledger events, read through the chosen engine's adapter. */
+export async function loadLedgerEvents(tenantId: string, engine: LedgerEngine): Promise<{ events: LedgerEvent[]; refs: Map<string, RefInfo> }> {
+	const ctx = await loadLedgerContext(tenantId);
+	return engine === 'pipeline' ? pipelineEvents(tenantId, ctx) : lifecycleEvents(tenantId, ctx);
+}
+
 // ── Snapshots ────────────────────────────────────────────────────────────────
 
 /** The end of every year the events cover, through the current year. */
@@ -235,24 +252,41 @@ export function invalidateLedger(tenantId: string): void {
 const pinsKey = (pins: LotPins | undefined): string =>
 	pins && pins.size ? JSON.stringify([...pins].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : '';
 
+/**
+ * `trial` runs the ledger as if the tenant had saved these January 1 allocations (instead of the
+ * saved ones), without keeping the result: how an allocation is checked before it is stored.
+ */
+export interface LedgerTrial {
+	allocationOverrides: readonly AllocationOverride[];
+}
+
 export async function computeLedger(
 	tenantId: string,
 	engine: LedgerEngine,
 	method: CostBasisMethod = 'fifo',
 	lotPins?: LotPins,
+	trial?: LedgerTrial,
 ): Promise<ComputedLedger> {
 	const key = `${tenantId}|${engine}|${method}|${pinsKey(lotPins)}`;
-	if (ledgerMemo.enabled) {
+	const keep = ledgerMemo.enabled && !trial;
+	if (keep) {
 		const kept = memo.get(key);
 		if (kept && Date.now() - kept.at < MEMO_MS) return kept.value;
 	}
 	const value = (async () => {
-		const ctx = await loadLedgerContext(tenantId);
-		const { events, refs } = engine === 'pipeline' ? await pipelineEvents(tenantId, ctx) : await lifecycleEvents(tenantId, ctx);
-		const result = runLotLedger(events, { perWalletFrom: PER_WALLET_FROM, method, lotPins, snapshotsAt: yearEnds(events) });
-		return { engine, result, refs };
+		const { events, refs } = await loadLedgerEvents(tenantId, engine);
+		const perWallet = await perWalletEnabled(tenantId);
+		const allocationOverrides = perWallet ? (trial ? trial.allocationOverrides : await loadAllocationOverrides(tenantId)) : [];
+		const result = runLotLedger(events, {
+			perWalletFrom: perWallet ? PER_WALLET_FROM : null,
+			allocationOverrides,
+			method,
+			lotPins,
+			snapshotsAt: yearEnds(events),
+		});
+		return { engine, result, refs, basisMethod: perWallet ? PER_WALLET_METHOD : UNIVERSAL_METHOD };
 	})();
-	if (ledgerMemo.enabled) {
+	if (keep) {
 		// Expired results are dropped as new ones are kept, so a tenant seen once does not stay in memory.
 		for (const [k, v] of memo) if (Date.now() - v.at >= MEMO_MS) memo.delete(k);
 		memo.set(key, { at: Date.now(), value });
