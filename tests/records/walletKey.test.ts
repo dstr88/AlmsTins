@@ -50,6 +50,9 @@ describe('normalizeChain', () => {
 		['rsk', 'rootstock'],
 		['litecoin', 'litecoin'],
 		['ltc', 'litecoin'],
+		['xpr', 'xpr'],
+		['proton', 'xpr'],
+		['xpr-network', 'xpr'],
 		['custom', 'custom'],
 		['base', 'base'],
 	])('%s → %s', (input, out) => {
@@ -117,6 +120,10 @@ describe('on-chain wallets: {chain}:{address}', () => {
 		expect(chainWalletKey('ethereum', EVM)).toBe(`ethereum:${EVM_LOWER}`);
 		expect(chainWalletKey('polygon', EVM)).toBe(`polygon:${EVM_LOWER}`);
 		expect(chainWalletKey('ethereum', EVM)).not.toBe(chainWalletKey('polygon', EVM));
+		// An XPR Network account name is lowercase on the chain, whatever case it was typed in.
+		expect(chainWalletKey('xpr', 'TestAlice1')).toBe('xpr:testalice1');
+		expect(chainWalletKey('proton', ' testalice1 ')).toBe('xpr:testalice1');
+		expect(chainWalletKey('xpr', 'testalice1')).not.toBe(chainWalletKey('ethereum', 'testalice1'));
 	});
 
 	it('the same address and chain is one key, whatever the case or chain spelling', () => {
@@ -197,7 +204,7 @@ describe('unassigned buckets and chain sources', () => {
 	});
 
 	it('blockchain import sources are not exchanges', () => {
-		for (const s of ['bitcoin', 'solana', 'avalanche_cchain', 'litecoin']) expect(isChainSource(s), s).toBe(true);
+		for (const s of ['bitcoin', 'solana', 'avalanche_cchain', 'litecoin', 'xpr']) expect(isChainSource(s), s).toBe(true);
 		for (const s of ['coinbase', 'crypto_com', 'kraken', 'exodus', 'unknown', '']) expect(isChainSource(s), s).toBe(false);
 	});
 });

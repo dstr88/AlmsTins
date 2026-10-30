@@ -37,6 +37,8 @@
  *   • Income classification written to tax_classifications
  *   • Review queue populated for low-confidence and unpriced items
  *   • Column names — any rename that breaks a SELECT/INSERT will fail here
+ *   • XPR Network accounts: the real importer (src/lib/sync/syncXprAddress.ts) writes its rows and its
+ *     balance snapshot through the shared writer on real SQL, then the live ledger reads them
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -46,6 +48,7 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from '@libsql/client';
 import type * as ClassifyModule from '@/lib/yearEnd/classify';
 import type * as DedupModule from '@/lib/yearEnd/deduplication';
+import { NOW as XPR_NOW, action as xprAction, actionsPage as xprActionsPage, chainServer as xprChainServer, fakeFetch as xprFakeFetch, hyperionServer as xprHyperionServer, tokens as xprTokens } from '../xpr/fixtures';
 
 // The pipeline busts the tenant's cache rows when it finishes. The cache table is
 // not part of this schema and the cache is not under test, so stub it out.
@@ -54,6 +57,19 @@ vi.mock('@/lib/tursoCache', () => ({
   deleteCachePrefix: () => Promise.resolve(),
   getCache: () => Promise.resolve(null),
   setCache: () => Promise.resolve(),
+}));
+
+// XPR Network case (below): the importer reads public servers and prices each row at its day's XPR price.
+// The servers are a fake fetch, and the day prices are a fixed table, so nothing leaves the machine.
+const XPR_PRICES = vi.hoisted((): Record<string, number> => ({ '2024-03-01': 2, '2025-02-01': 2.5, '2025-03-01': 2.5, '2025-04-01': 3 }));
+vi.mock('@/lib/prices/coingecko', () => ({ getSimplePricesById: async () => ({ proton: { usd: 3 } }) }));
+vi.mock('@/lib/coingeckoHistorical', () => ({
+  getCoingeckoIdBySymbol: async (symbol: string) => (symbol === 'XPR' ? 'proton' : null),
+  getUsdUnitPriceAtTimestampCoinGecko: async ({ timestampUtcIso }: { timestampUtcIso: string }) => {
+    const unitPriceUsd = XPR_PRICES[timestampUtcIso.slice(0, 10)];
+    return unitPriceUsd === undefined ? null : { unitPriceUsd, pricedAtIso: timestampUtcIso, source: 'coingecko:range', confidence: 'historical' };
+  },
+  coingeckoReaches: () => true,
 }));
 
 // The per-wallet rule is switched on for the deployment owner's tenant (tax/basisMethod.ts). The owner id
@@ -340,9 +356,32 @@ const SCHEMA_DDL: string[] = [
   )`,
 ];
 
+// What the shared import writer, the counterparty fill and the XPR sync write beyond the columns above. Added
+// with IF NOT EXISTS, so every earlier case sees the same tables it always did.
+const XPR_SCHEMA_DDL: string[] = [
+  `ALTER TABLE import_transactions
+     ADD COLUMN IF NOT EXISTS currency text, ADD COLUMN IF NOT EXISTS to_currency text,
+     ADD COLUMN IF NOT EXISTS native_currency text, ADD COLUMN IF NOT EXISTS native_amount double precision,
+     ADD COLUMN IF NOT EXISTS fee_usd double precision, ADD COLUMN IF NOT EXISTS group_id text,
+     ADD COLUMN IF NOT EXISTS row_hash text, ADD COLUMN IF NOT EXISTS created_at text,
+     ADD COLUMN IF NOT EXISTS counterparty_address text, ADD COLUMN IF NOT EXISTS price_source text`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS import_transactions_tenant_account_row_hash ON import_transactions (tenant_id, account_id, row_hash)`,
+  `CREATE TABLE IF NOT EXISTS import_raw_rows (
+     id text PRIMARY KEY, tenant_id text NOT NULL, account_id text, import_batch_id text, source text NOT NULL DEFAULT '',
+     row_json text, row_hash text, imported_at text
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS import_raw_rows_tenant_account_row_hash ON import_raw_rows (tenant_id, account_id, row_hash)`,
+  `CREATE TABLE IF NOT EXISTS exchange_accounts (id text PRIMARY KEY, tenant_id text NOT NULL, source text NOT NULL, name text)`,
+  `CREATE TABLE IF NOT EXISTS wallet_snapshots (
+     id bigserial PRIMARY KEY, tenant_id text NOT NULL, wallet_id text NOT NULL, chain text NOT NULL, totals_usd double precision,
+     collateral_usd double precision, debt_usd double precision, collateral_apy_pct double precision,
+     borrow_apy_pct double precision, net_rate_pct double precision, payload_json text, captured_at text
+   )`,
+];
+
 const ALL_TABLES = [
   'asset_lifecycle_events', 'asset_lifecycle_groups', 'sui_transactions', 'manual_cost_basis', 'transfer_matches',
-  'import_transactions', 'transactions', 'wallets',
+  'import_transactions', 'import_raw_rows', 'exchange_accounts', 'wallet_snapshots', 'transactions', 'wallets',
   'tax_classifications', 'tax_review_items',
   'tax_lots', 'tax_disposals', 'tax_pipeline_runs',
 ];
@@ -359,7 +398,8 @@ const LEDGER_TENANT = `ledger-it-${RUN}`;
 const LEDGER_LC_TENANT = `ledger-lc-it-${RUN}`;
 const PW_TENANT = `perwallet-it-${RUN}`;
 const PW_LC_TENANT = `perwallet-lc-it-${RUN}`;
-const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT, LEDGER_TENANT, LEDGER_LC_TENANT, PW_TENANT, PW_LC_TENANT];
+const XPR_TENANT = `xpr-it-${RUN}`;
+const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT, LEDGER_TENANT, LEDGER_LC_TENANT, PW_TENANT, PW_LC_TENANT, XPR_TENANT];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -428,7 +468,7 @@ describe.skipIf(SKIP_REASON !== null)(
       ({ runTaxPipeline } = await import('@/lib/yearEnd/classify'));
       ({ runDuplicateSweep } = await import('@/lib/yearEnd/deduplication'));
 
-      for (const stmt of SCHEMA_DDL) {
+      for (const stmt of [...SCHEMA_DDL, ...XPR_SCHEMA_DDL]) {
         await db.execute(stmt);
       }
     });
@@ -1200,6 +1240,113 @@ describe.skipIf(SKIP_REASON !== null)(
         const perWallet = await breakdown(PW_LC_TENANT, 2024, 'fifo', undefined, 'auto');
         expect(perWallet.rule).toBe('universal');
         expect(perWallet.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000], ['2023-06-01', 30_000], ['2024-09-01', 60_000]]);
+      });
+    });
+
+    describe('XPR Network accounts — the real importer on real SQL, then the live ledger', () => {
+      // Two XPR accounts of one tenant. testalice1 receives 1,000 XPR from an exchange account on 2024-03-01
+      // (2 each), sends 400 to testbob2 (same transaction id as testbob2's arrival, 2025-02-01), and sends 300
+      // to a shop on 2025-04-01 (3 each). testbob2 sends 100 to the XPR stake contract on 2025-03-01. A
+      // move is not a sale; the stake contract is a transfer stored for review, consumed and listed, not
+      // sold; the shop is an ordinary send, which the engine treats as it treats any chain-synced send.
+      const ALICE = 'testalice1';
+      const BOB = 'testbob2';
+      const SHOP = 'testshop1';
+      const TX_MOVE = 'ab'.repeat(32);
+      const SERVER = 'https://proton.eosusa.io';
+      const walletA = `xpr-wa-${RUN}`;
+      const walletB = `xpr-wb-${RUN}`;
+      const views: Record<string, unknown[]> = {
+        [ALICE]: [
+          xprAction({ seq: 1, at: '2024-03-01T10:00:00.000', from: 'testexchange1', to: ALICE, quantity: '1000.0000 XPR', memo: 'withdrawal', trx: '01'.repeat(32) }),
+          xprAction({ seq: 2, at: '2025-02-01T10:00:00.000', from: ALICE, to: BOB, quantity: '400.0000 XPR', trx: TX_MOVE }),
+          xprAction({ seq: 4, at: '2025-04-01T10:00:00.000', from: ALICE, to: SHOP, quantity: '300.0000 XPR', trx: '04'.repeat(32) }),
+        ],
+        [BOB]: [
+          xprAction({ seq: 2, at: '2025-02-01T10:00:00.000', from: ALICE, to: BOB, quantity: '400.0000 XPR', trx: TX_MOVE }),
+          xprAction({ seq: 3, at: '2025-03-01T10:00:00.000', from: BOB, to: 'stake.proton', quantity: '100.0000 XPR', memo: 'Stake', trx: '03'.repeat(32) }),
+        ],
+      };
+      let breakdown: typeof import('@/lib/annualBreakdown').buildAnnualBreakdown;
+      const opts = { now: () => XPR_NOW };
+      const rows = async () =>
+        (await db.execute({ sql: `SELECT wallet_id, source, kind, direction, asset_symbol, amount, native_usd, counterparty_address, tx_hash, notes, row_hash FROM import_transactions WHERE tenant_id = ? ORDER BY timestamp_utc, direction`, args: [XPR_TENANT] })).rows as Record<string, unknown>[];
+
+      beforeAll(async () => {
+        ({ buildAnnualBreakdown: breakdown } = await import('@/lib/annualBreakdown'));
+        const chain = xprChainServer({
+          '/v1/chain/get_currency_balance': () => ({ json: ['300.0000 XPR'] }),
+          '/v1/chain/get_account': (b: { account_name: string }) => ({ json: { account_name: b.account_name, voter_info: { staked: 0 } } }),
+        });
+        const hyper = xprHyperionServer({
+          '/v2/state/get_tokens': () => ({ json: xprTokens([{ symbol: 'XPR', contract: 'eosio.token', amount: 300 }]) }),
+          '/v2/history/get_actions': (q: URLSearchParams) => ({ json: xprActionsPage(views[q.get('account') ?? ''] ?? []) }),
+        });
+        const { fetchImpl } = xprFakeFetch({ [SERVER]: (path: string, init: RequestInit | undefined) => (path.startsWith('/v2/') ? hyper(path, init) : chain(path, init)) });
+        vi.stubGlobal('fetch', fetchImpl);
+
+        await db.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [walletA, XPR_TENANT, ALICE] });
+        await db.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [walletB, XPR_TENANT, BOB] });
+        const { syncXprAddress } = await import('@/lib/sync/syncXprAddress');
+        await syncXprAddress(XPR_TENANT, ALICE, walletA, opts);
+        await syncXprAddress(XPR_TENANT, BOB, walletB, opts);
+        await runTaxPipeline(XPR_TENANT);
+      });
+
+      afterAll(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('writes each account\'s transfers as xpr rows through the shared writer, priced at their day', async () => {
+        const all = await rows();
+        expect(all).toHaveLength(5);
+        expect(all.every((r) => r.source === 'xpr' && r.asset_symbol === 'XPR')).toBe(true);
+        const byWallet = (w: string) => all.filter((r) => r.wallet_id === w).map((r) => [r.kind, Number(r.amount), Number(r.native_usd), r.counterparty_address]);
+        expect(byWallet(walletA)).toEqual([
+          ['receive', 1000, 2000, 'testexchange1'],
+          ['send', -400, 1000, BOB],
+          ['send', -300, 900, SHOP],
+        ]);
+        expect(byWallet(walletB)).toEqual([
+          ['receive', 400, 1000, ALICE],
+          ['send_review', -100, 250, 'stake.proton'],
+        ]);
+        expect(new Set(all.map((r) => r.row_hash)).size).toBe(5);
+        const raw = (await db.execute({ sql: `SELECT row_json FROM import_raw_rows WHERE tenant_id = ?`, args: [XPR_TENANT] })).rows;
+        expect(raw).toHaveLength(5);
+        // The stake row says why it needs a second look, in plain words that trip no tax keyword.
+        expect(String(all.find((r) => r.kind === 'send_review')?.notes)).toMatch(/^Needs review: this transfer was with stake\.proton/);
+      });
+
+      it('syncing again adds nothing', async () => {
+        const { syncXprAddress } = await import('@/lib/sync/syncXprAddress');
+        const again = await syncXprAddress(XPR_TENANT, ALICE, walletA, opts);
+        expect(again).toMatchObject({ inserted: 0, skipped: 3, complete: true, snapshotWritten: true });
+        expect(await rows()).toHaveLength(5);
+      });
+
+      it('writes the balance snapshot: the coin priced, once per sync', async () => {
+        const snaps = (await db.execute({ sql: `SELECT wallet_id, chain, totals_usd, payload_json FROM wallet_snapshots WHERE tenant_id = ? AND wallet_id = ?`, args: [XPR_TENANT, walletB] })).rows as Record<string, unknown>[];
+        expect(snaps).toHaveLength(1);
+        expect(snaps[0].chain).toBe('xpr');
+        expect(Number(snaps[0].totals_usd)).toBe(900);
+        expect(JSON.parse(String(snaps[0].payload_json))).toMatchObject([{ symbol: 'XPR', amount: 300, priceUsd: 3, valueUsd: 900 }]);
+      });
+
+      it('the pipeline books one sale (to the shop) and one lot: the move opens nothing, the stake send is not sold', async () => {
+        const disposals = (await db.execute({ sql: `SELECT proceeds_usd, cost_basis_usd, gain_loss_usd, is_short_term, source_id FROM tax_disposals WHERE tenant_id = ?`, args: [XPR_TENANT] })).rows as Record<string, unknown>[];
+        // The stake send is a transfer the owner has to look at: it consumes coins and is listed, never a disposal.
+        expect(disposals.map((d) => [Number(d.proceeds_usd), Number(d.cost_basis_usd), Number(d.gain_loss_usd), Number(d.is_short_term)])).toEqual([[900, 600, 300, 0]]);
+        const lots = (await db.execute({ sql: `SELECT acquired_at, cost_basis_usd, remaining_qty FROM tax_lots WHERE tenant_id = ?`, args: [XPR_TENANT] })).rows as Record<string, unknown>[];
+        expect(lots.map((l) => [String(l.acquired_at).slice(0, 10), Number(l.cost_basis_usd)])).toEqual([['2024-03-01', 2000]]);
+      });
+
+      it('2025 shows the sale at the lot\'s own date and cost, and lists the stake transfer for review', async () => {
+        const bd = await breakdown(XPR_TENANT, 2025, 'fifo', undefined, 'auto');
+        expect(bd.dataSource).toBe('pipeline');
+        expect(bd.longTerm.map((l) => [l.buyDate.slice(0, 10), l.costUsd, l.proceedsUsd, l.gainLossUsd])).toEqual([['2024-03-01', 600, 900, 300]]);
+        expect(bd.shortTerm).toEqual([]);
+        expect(bd.transferReviews ?? []).toHaveLength(1);
       });
     });
   },

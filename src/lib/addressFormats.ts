@@ -60,6 +60,37 @@ export const SUI_ADDRESS = EVM_TX_HASH;
 /** A full Sui address in its stored form: all lowercase. */
 export const SUI_ADDRESS_LOWER = EVM_TX_HASH_LOWER;
 
+// ── XPR Network (Antelope account names) ───────────────────────────────────
+
+/**
+ * An XPR Network account name as the chain writes it: lowercase a-z, the digits 1 to 5 and '.',
+ * 1 to 12 characters, never ending in '.'. A 13th character is allowed only from '.12345abcdefghij'
+ * (the chain stores it in 4 bits), and not '.' since a trailing dot is not normalized. Checked
+ * against the chain's own answer (get_account on proton.eosusa.io, October 2026): 'aaaaaaaaaaaaj'
+ * is a valid name, 'aaaaaaaaaaaak', 'abc.' and 'ABC' are refused.
+ *
+ * Shape only, and a weak one: a name looks like ordinary text ('alice', 'cat') and can even look
+ * like a Bitcoin address ('1abc' is a real account), so no caller may take a string for an XPR
+ * account from its shape. The wallet is added with an explicit chain choice and its name is checked
+ * on the chain (src/lib/xpr/account.ts) before it is stored.
+ */
+export const XPR_ACCOUNT_NAME = /^(?:[a-z1-5.]{0,11}[a-z1-5]|[a-z1-5.]{12}[1-5a-j])$/;
+
+/** True for a string that, trimmed and lowercased, has the shape of an XPR account name. */
+export function isXprAccountName(value: unknown): boolean {
+	return typeof value === 'string' && XPR_ACCOUNT_NAME.test(value.trim().toLowerCase());
+}
+
+/** An XPR account name in its stored form (trimmed, lowercase), or null when it is not shaped like one. */
+export function normalizeXprAccountName(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const name = value.trim().toLowerCase();
+	return XPR_ACCOUNT_NAME.test(name) ? name : null;
+}
+
+/** An XPR transaction id: 64 hex digits (lowercase as the chain writes it, either case accepted). */
+export const XPR_TX_ID = /^[0-9a-fA-F]{64}$/;
+
 // ── Base58 (Solana) ──────────────────────────────────────────────────────────
 
 /** A Solana address (a base58 public key, 32 to 44 characters). Case-sensitive. */

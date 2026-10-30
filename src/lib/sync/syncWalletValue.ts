@@ -6,6 +6,7 @@ import { discoverEvmBalances } from '@/lib/evmTokenDiscovery';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { buildTickerPriceMap } from '@/lib/aave/pricing';
 import { walletTokenUsdPrice } from '@/lib/prices/walletTokenPricing';
+import { normalizeChain } from '@/lib/chains';
 
 export type TokenSnapshot = {
 	chain: SupportedChain;
@@ -42,7 +43,8 @@ export async function syncWalletValuesForAllWallets(tenantId: string): Promise<W
 	console.info('[VALUE] starting value sync, wallets =', wallets.length);
 
 	for (const wallet of wallets) {
-		const chains = (wallet.chains ?? []) as SupportedChain[];
+		// XPR Network is read by its own sync (/api/import/xpr-sync): an account name is no address for the EVM readers here.
+		const chains = ((wallet.chains ?? []) as SupportedChain[]).filter((c) => normalizeChain(c) !== 'xpr');
 		console.info('[VALUE] syncing wallet', wallet.id, wallet.address, chains);
 
 		if (!chains.length) continue;

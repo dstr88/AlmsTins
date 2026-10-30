@@ -32,6 +32,9 @@ describe('explorerAddressUrl', () => {
     ['litecoin', LTC_LEGACY, `https://litecoinspace.org/address/${LTC_LEGACY}`],
     ['solana', SOL_ADDR, `https://explorer.solana.com/address/${SOL_ADDR}`],
     ['sui', SUI_ADDR, `https://suiscan.xyz/mainnet/account/${SUI_ADDR}`],
+    ['xpr', 'testalice1', 'https://explorer.xprnetwork.org/account/testalice1'],
+    ['xpr', 'TestAlice1', 'https://explorer.xprnetwork.org/account/testalice1'],
+    ['xpr', 'stake.proton', 'https://explorer.xprnetwork.org/account/stake.proton'],
   ])('%s %s', (chain, address, url) => {
     expect(explorerAddressUrl(chain, address)).toBe(url);
   });
@@ -78,6 +81,10 @@ describe('explorerAddressUrl', () => {
       ['solana', 'cex:crypto_com:abc'],
       ['sui', EVM_ADDR],
       ['sui', SOL_ADDR],
+      ['xpr', 'abc.'],
+      ['xpr', 'has space'],
+      ['xpr', 'aaaaaaaaaaaaaaaa'],
+      ['xpr', EVM_ADDR],
     ];
     for (const [chain, value] of bad) {
       expect(explorerAddressUrl(chain, value), `${chain} ${value}`).toBeNull();
@@ -95,6 +102,8 @@ describe('explorerTxUrl', () => {
     ['litecoin', HEX_TXID, `https://litecoinspace.org/tx/${HEX_TXID}`],
     ['solana', SOL_SIG, `https://explorer.solana.com/tx/${SOL_SIG}`],
     ['sui', SUI_DIGEST, `https://suiscan.xyz/mainnet/tx/${SUI_DIGEST}`],
+    ['xpr', HEX_TXID, `https://explorer.xprnetwork.org/transaction/${HEX_TXID}`],
+    ['xpr', HEX_TXID.toUpperCase(), `https://explorer.xprnetwork.org/transaction/${HEX_TXID}`],
   ])('%s %s', (chain, hash, url) => {
     expect(explorerTxUrl(chain, hash)).toBe(url);
   });
@@ -118,6 +127,9 @@ describe('explorerTxUrl', () => {
       ['solana', EVM_TX],
       ['solana', 'cex:crypto_com:abc'],
       ['sui', EVM_TX],
+      ['xpr', EVM_TX],
+      ['xpr', `${HEX_TXID}00`],
+      ['xpr', 'testalice1'],
     ];
     for (const [chain, value] of bad) {
       expect(explorerTxUrl(chain, value), `${chain} ${value}`).toBeNull();

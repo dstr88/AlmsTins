@@ -5,7 +5,10 @@ import { deriveDefaultLabel } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { checkWalletLimit } from '../../lib/subscriptions';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '../../lib/demo';
-import { DEFAULT_WALLET_CHAINS } from '@/lib/chains';
+import { DEFAULT_WALLET_CHAINS, normalizeChain } from '@/lib/chains';
+import { normalizeXprAccountName } from '@/lib/addressFormats';
+import { xprAccountStatus } from '@/lib/xpr/account';
+import { XprUnavailableError } from '@/lib/xpr/client';
 
 export const prerender = false;
 
@@ -143,6 +146,54 @@ export const POST: APIRoute = async ({ request }) => {
 			}
 		}
 
+		// XPR Network: an account NAME, which has no shape that tells it from other input, so it is added
+		// only with an explicit chain choice, and the name must exist on the chain.
+		const requestedChains = parseWalletChains(body.chains ?? DEFAULT_WALLET_CHAINS);
+		if (requestedChains.some((c) => normalizeChain(c) === 'xpr')) {
+			if (requestedChains.some((c) => normalizeChain(c) !== 'xpr')) {
+				return responseWithError('An XPR Network account is added on its own, not together with other chains.', 400);
+			}
+			const name = normalizeXprAccountName(body.address);
+			if (!name) {
+				return responseWithError('An XPR Network account name uses a-z, 1-5 and dots, up to 12 characters (for example "youraccount").', 400);
+			}
+			let status: Awaited<ReturnType<typeof xprAccountStatus>>;
+			try {
+				status = await xprAccountStatus(name);
+			} catch (err) {
+				if (err instanceof XprUnavailableError) {
+					return responseWithError('XPR Network could not be reached to check that account. Try again in a minute.', 503);
+				}
+				throw err;
+			}
+			if (status !== 'exists') {
+				return responseWithError('No XPR Network account has that name.', 400);
+			}
+			const xprDup = await db.execute({
+				sql: `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+				args: [tenantId, name],
+			});
+			if (xprDup.rows?.length) {
+				return new Response(JSON.stringify({
+					error: true,
+					code: 'DUPLICATE_ADDRESS',
+					message: 'That address is already being tracked.',
+					existingWalletId: String(xprDup.rows[0].id ?? ''),
+				}), { status: 409, headers: { 'Content-Type': 'application/json' } });
+			}
+			const xprLabel = typeof body.label === 'string' && body.label.trim().length ? body.label.trim() : name;
+			const xprInserted = await db.execute({
+				sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default, wallet_type)
+				      VALUES (?, ?, ?, ?, ?, 'onchain')
+				      RETURNING id, address, label, chains, is_default, created_at, wallet_type`,
+				args: [tenantId, name, xprLabel, JSON.stringify(['xpr']), body.isDefault === true ? 1 : 0],
+			});
+			return new Response(JSON.stringify(transformWalletRow(xprInserted.rows[0])), {
+				status: 201,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+
 		// Standard on-chain wallet (EVM, Sui, or Bitcoin — address validation handles all)
 		const address = sanitizeAddress(body.address);
 		if (!address) {
@@ -165,7 +216,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const label =
 			typeof body.label === 'string' && body.label.trim().length ? body.label.trim() : deriveDefaultLabel(address);
-		const chains = parseWalletChains(body.chains ?? DEFAULT_WALLET_CHAINS);
+		const chains = requestedChains;
 		const isDefault = body.isDefault === true ? 1 : 0;
 
 		const inserted = await db.execute({

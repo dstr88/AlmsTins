@@ -62,6 +62,7 @@ async function fetchJson(url: string, headersOverride?: Record<string, string>) 
 const SYMBOL_OVERRIDES: Record<string, string> = {
   BTC: 'bitcoin',
   LTC: 'litecoin', // the coins list has other coins with the symbol ltc
+  XPR: 'proton', // XPR Network (formerly Proton); other coins share the symbol xpr
   ETH: 'ethereum',
   POL: 'polygon-ecosystem-token', // CoinGecko uses POL for this asset now
   AVAX: 'avalanche-2',

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  XPR_ACCOUNT_NAME,
+  XPR_TX_ID,
+  isXprAccountName,
+  normalizeXprAccountName,
 	BECH32_ADDRESS,
 	EVM_ADDRESS,
 	EVM_ADDRESS_ANY_PREFIX,
@@ -159,5 +163,48 @@ describe('addressFormats: one bech32 prefix list (the intended change)', () => {
 		}
 		expect(BECH32_ADDRESS.test(`bcrt1${'q'.repeat(20)}`)).toBe(true);
 		expect(BECH32_ADDRESS.test(`tltc1${'q'.repeat(20)}`)).toBe(true);
+	});
+});
+
+describe('XPR Network account names', () => {
+	// Checked against the chain's own answers (get_account on proton.eosusa.io, 2026-10-30): a name
+	// the chain normalizes is valid, any other is refused ("Name not properly normalized").
+	it.each([
+		'a', 'abc', 'testalice1', 'a.b.c', '1abc', '12345.12345', 'aaaaaaaaaaaa', 'stake.proton', 'eosio.token',
+		'aaaaaaaaaaaaj', 'aaaaaaaaaaaa5', '.abc', 'bc1qabc',
+	])('accepts %s', (name) => {
+		expect(XPR_ACCOUNT_NAME.test(name), name).toBe(true);
+	});
+
+	it.each([
+		'', 'ABC', 'Abc', 'abc.', 'abc..', 'a b', 'abc_d', 'abc6', 'abc0', 'abc9', 'aaaaaaaaaaaaaa',
+		// The 13th character is limited to .12345abcdefghij, and not '.'.
+		'aaaaaaaaaaaak', 'aaaaaaaaaaaaz', 'aaaaaaaaaaaa.',
+		'0xabc', 'é', 'abc\n',
+	])('refuses %j', (name) => {
+		expect(XPR_ACCOUNT_NAME.test(name), name).toBe(false);
+	});
+
+	it('normalizes what was typed: trimmed, lowercase; null when it is not a name', () => {
+		expect(normalizeXprAccountName('  TestAlice1 ')).toBe('testalice1');
+		expect(normalizeXprAccountName('Has Space')).toBeNull();
+		expect(normalizeXprAccountName('abc.')).toBeNull();
+		expect(normalizeXprAccountName(42)).toBeNull();
+		expect(normalizeXprAccountName(null)).toBeNull();
+		expect(isXprAccountName(' TESTALICE1')).toBe(true);
+		expect(isXprAccountName('nope!')).toBe(false);
+	});
+
+	it('a transaction id is 64 hex digits', () => {
+		expect(XPR_TX_ID.test('ab'.repeat(32))).toBe(true);
+		expect(XPR_TX_ID.test('AB'.repeat(32))).toBe(true);
+		expect(XPR_TX_ID.test('ab'.repeat(31))).toBe(false);
+		expect(XPR_TX_ID.test(`0x${'ab'.repeat(32)}`)).toBe(false);
+	});
+
+	it('looks like ordinary text, which is why an XPR wallet is added with an explicit chain choice', () => {
+		// A real account name can have the shape of a Bitcoin address start, and any word is a name.
+		expect(XPR_ACCOUNT_NAME.test('1abc')).toBe(true);
+		expect(XPR_ACCOUNT_NAME.test('alice')).toBe(true);
 	});
 });

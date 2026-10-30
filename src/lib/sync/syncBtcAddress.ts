@@ -349,11 +349,12 @@ export async function syncUtxoAddress(
 /**
  * After the insert: tags each newly stored priced row with its price_source, and gives a stored row
  * whose value was still empty its price. Never throws: a price that cannot be saved leaves the row
- * as the insert stored it, for the next sync or "Fill Missing Prices".
+ * as the insert stored it, for the next sync or "Fill Missing Prices". Shared with the XPR sync
+ * (src/lib/sync/syncXprAddress.ts).
  */
-async function recordRowPrices(opts: {
+export async function recordRowPrices(opts: {
 	tenantId: string;
-	chain: UtxoChain;
+	chain: string;
 	accountId: string;
 	rows: ReadonlyArray<{ rowHash: string; nativeUsd: number | null }>;
 	inserted: readonly boolean[];
@@ -380,7 +381,7 @@ async function recordRowPrices(opts: {
 	try {
 		for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100), 'write');
 	} catch (err) {
-		console.warn(`[${chain === 'bitcoin' ? 'btc' : 'ltc'}-sync] could not record row prices`, err);
+		console.warn(`[${chain === 'bitcoin' ? 'btc' : chain === 'litecoin' ? 'ltc' : chain}-sync] could not record row prices`, err);
 	}
 }
 

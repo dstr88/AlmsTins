@@ -3,7 +3,7 @@ import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletOverview } from '@/i18n/components/walletOverview';
 import { getOwnerLabel } from '@/i18n/components/ownerLabel';
 import { EVM_ADDRESS, SUI_ADDRESS } from '@/lib/addressFormats';
-import { DEFAULT_WALLET_CHAINS, chainsForSymbol } from '@/lib/chains';
+import { CHAINS, DEFAULT_WALLET_CHAINS, chainsForSymbol, normalizeChain } from '@/lib/chains';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
 
@@ -14,6 +14,8 @@ export type WalletOverviewWallet = {
 	id: string;
 	address: string;
 	label: string | null;
+	/** The chains the wallet is tagged with. An XPR Network account name has no shape, so only this tells it. */
+	chains?: string[];
 	/** "Whose account is this?": free text the user typed; React renders it as text. */
 	ownerLabel?: string | null;
 };
@@ -38,7 +40,8 @@ function symbolToChains(symbol: string, address: string): string[] {
 	return s ? [s.toLowerCase()] : [...DEFAULT_WALLET_CHAINS];
 }
 
-function detectChainLabel(address: string): { label: string; icon: string } {
+function detectChainLabel(address: string, chains?: string[]): { label: string; icon: string } {
+	if (chains?.some((c) => normalizeChain(c) === 'xpr')) return { label: CHAINS.xpr.name, icon: 'X' };
 	const a = address.toLowerCase();
 	if (a.startsWith('ltc1'))                              return { label: 'Litecoin', icon: 'Ł' };
 	if (a.startsWith('bc1') || /^[13][a-z0-9]/i.test(a)) return { label: 'Bitcoin',  icon: '₿' };
@@ -169,7 +172,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 			});
 			const data = await res.json();
 			if (!res.ok) { setAddStatus(data.message ?? 'Failed to save'); setAdding(false); return; }
-			setWallets(prev => [...prev, { id: data.id, address: data.address, label: data.label, ownerLabel: null }]);
+			setWallets(prev => [...prev, { id: data.id, address: data.address, label: data.label, chains: Array.isArray(data.chains) ? data.chains : undefined, ownerLabel: null }]);
 			setAddAddress('');
 			setAddLabel('');
 			setAddSymbol('');
@@ -226,7 +229,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
 					{wallets.map((wallet, idx) => {
 						const color   = PALETTE[idx % PALETTE.length];
-						const chain   = detectChainLabel(wallet.address);
+						const chain   = detectChainLabel(wallet.address, wallet.chains);
 						const isEditing = editingId === wallet.id;
 
 						return (
@@ -457,6 +460,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 						{adding ? t.addBtnAdding : t.addBtnAdd}
 					</button>
 				</div>
+				<p style={{ margin: '0.6rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.addXprHint}</p>
 				{addStatus && (
 					<p style={{
 						margin: '0.6rem 0 0',

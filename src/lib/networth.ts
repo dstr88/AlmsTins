@@ -851,6 +851,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'QUICK',
 		'SOL',
 		'SUI',
+		'XPR',
 		'PYTH',
 		'BONK',
 		'JTO',
@@ -1015,7 +1016,10 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			// that symbol on this chain (BAND, WPOL): a real token is never hidden just for being
 			// missing from allowedSymbols.
 			if (!allowedChains.has(tokenChain)) continue;
+			// XPR Network tokens are listed by contract and symbol ('SYMBOL@contract', never merged with
+			// a real coin of the same ticker) and stay unpriced: they are shown, not valued.
 			if (
+				tokenChain !== 'xpr' &&
 				!allowedSymbols.has(tokenSymbol) &&
 				(isNative || classifyContract(tokenChain, tokenSymbol, tokenAddress) !== 'legitimate')
 			) {

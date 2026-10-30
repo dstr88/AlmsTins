@@ -10,6 +10,7 @@ import HistoryDownload from '../../components/dashboard/HistoryDownload.astro';
 import { getActivePlan } from '../../lib/subscriptions';
 import { canDownloadHistoryByWallet } from '../../lib/historyAccess';
 import { loadOwnerIndex, ownerForWalletAddress, type OwnerIndex } from '../../lib/walletIdentity';
+import { safeParseChains } from '../../lib/wallets-service';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -21,7 +22,7 @@ const activePlan = await getActivePlan(tenantId);
 const canDownloadHistory = canDownloadHistoryByWallet(activePlan.id, tenantId);
 
 const walletResult = await db.execute({
-	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
+	sql: 'SELECT id, address, label, chains FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
 	args: [tenantId],
 });
 
@@ -35,6 +36,7 @@ const wallets = walletResult.rows.map((row: Record<string, any>) => ({
 	id:      String(row.id),
 	address: String(row.address),
 	label:   row.label ? String(row.label) : null,
+	chains:  safeParseChains(row.chains).map(String),
 	ownerLabel: ownerForWalletAddress(owners, row.address),
 }));
 

@@ -90,7 +90,7 @@ export default function PortfolioTile() {
 		setSyncing(true);
 		setSyncStatus(null);
 		try {
-			const [exchangeRes, walletRes, avaxRes, btcRes] = await Promise.all([
+			const [exchangeRes, walletRes, avaxRes, btcRes, xprRes] = await Promise.all([
 				fetch('/api/import/snapshot-all', { method: 'POST' }),
 				fetch('/api/wallets/value/sync-all', { method: 'POST' }),
 				fetch('/api/import/snowtrace-sync', { method: 'POST',
@@ -98,6 +98,10 @@ export default function PortfolioTile() {
 					body: JSON.stringify({}),
 				}),
 				fetch('/api/import/btc-sync', { method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({}),
+				}),
+				fetch('/api/import/xpr-sync', { method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({}),
 				}),
@@ -118,10 +122,14 @@ export default function PortfolioTile() {
 
 			// btc-sync returns 400 when no BTC wallet is configured — that's not a failure
 			const btcOk = btcRes.ok || btcRes.status === 400;
-			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok || btcRes.ok;
-			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0) + (btcRes.ok ? 1 : 0);
+			// Likewise xpr-sync: 400 means no XPR Network wallet, not a failure. A 200 with failed
+			// wallets (no server could read a balance) counts as a failure, never as a sync.
+			const xprData = await xprRes.json().catch(() => ({}));
+			const xprOk = xprRes.status === 400 || (xprRes.ok && !(xprData.failed > 0));
+			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok || btcRes.ok || (xprRes.ok && xprOk);
+			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0) + (btcRes.ok ? 1 : 0) + (xprRes.ok && xprOk ? 1 : 0);
 			const exchangeFailed = (exchangeData.failed ?? (!exchangeRes.ok ? 1 : 0));
-			const failed = exchangeFailed + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0);
+			const failed = exchangeFailed + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0) + (!xprOk ? 1 : 0);
 			setSyncStatus({ ok, processed, failed, failedNames: failedExchangeNames.length ? failedExchangeNames : undefined });
 			if (ok) loadSummary(mountedRef);
 

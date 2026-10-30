@@ -25,6 +25,7 @@ import { buildOwnedIndex, walletOfRow, type WalletOfRowContext } from '../wallet
 import { walletContextOf, type WalletRecord } from '../eventWallet';
 import { classifyImportTxPass1 } from '../../yearEnd/pass1';
 import { isChainSource, normalizeWalletAddress } from '../../walletKey';
+import { isXprReviewKind } from '../../xpr/systemAccounts';
 import type { OwnerIndex } from '../../walletIdentity';
 import type { LedgerEvent, ManualBasis } from '../lotLedger';
 import type { TransferMatchRow, TransferRow } from '../transferLinks';
@@ -155,9 +156,10 @@ export function lifecycleToLedger(input: LifecycleAdapterInput): LifecycleAdapte
 			category: transfer === 'import' ? 'transfer' : null, kind, fromAddress: text(row.from_address) || null, toAddress: text(row.to_address) || null,
 		});
 		// Only an exchange's own Send / Withdrawal is an explicit send. A chain-synced row names no destination (a payment, a swap
-		// leg and a send to another wallet look alike), so one nothing is paired with stays a sale, like an on-chain out.
+		// leg and a send to another wallet look alike), so one nothing is paired with stays a sale, like an on-chain out. The
+		// exception is an XPR transfer stored for review (staking, lock, swap, system accounts): it is not booked as a sale.
 		const unpairedOut = (): TransferCandidate['unpaired'] =>
-			transfer === 'import' ? { kind: 'send', valueUsd: nativeUsd } : { kind: 'dispose', proceedsUsd: nativeUsd, category: txClass || 'other' };
+			transfer === 'import' || isXprReviewKind(kind) ? { kind: 'send', valueUsd: nativeUsd } : { kind: 'dispose', proceedsUsd: nativeUsd, category: txClass || 'other' };
 		const unpairedIn = (): TransferCandidate['unpaired'] => ({
 			kind: 'acquire', costUsd: nativeUsd, origin: transfer === 'onchain' ? 'other' : 'transfer_in_untracked',
 		});

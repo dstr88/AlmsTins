@@ -50,7 +50,7 @@ describe('chains: each feature list keeps the members it had', () => {
 		['WALLET_TX_CHAINS (wallets/[id]/transactions)', WALLET_TX_CHAINS, ['ethereum', 'avalanche', 'polygon']],
 		['VAULT_CHAINS (agentVault)', VAULT_CHAINS, ['ethereum', 'polygon', 'avalanche']],
 		['VERIFY_ADDRESS_RAILS (verifyRegistry, VerifyDashboard)', VERIFY_ADDRESS_RAILS, ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin']],
-		['NETWORTH_CHAINS (networth)', NETWORTH_CHAINS, ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin']],
+		['NETWORTH_CHAINS (networth)', NETWORTH_CHAINS, ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr']],
 		['TIN_BADGE_EVM_CHAINS (vault.astro)', TIN_BADGE_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum']],
 		['EXPLORER_EVM_CHAINS (explorerLinks)', EXPLORER_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'bsc']],
 	])('%s', (_name, list, expected) => {
@@ -59,9 +59,9 @@ describe('chains: each feature list keeps the members it had', () => {
 
 	it('sets keep their members', () => {
 		expect([...VERIFY_EVM_RAILS].sort()).toEqual(['avalanche', 'ethereum', 'polygon']);
-		expect([...CHAIN_IMPORT_SOURCES].sort()).toEqual(['avalanche_cchain', 'bitcoin', 'litecoin', 'solana']);
-		expect([...ON_CHAIN_IMPORT_SOURCES].sort()).toEqual(['bitcoin', 'litecoin']);
-		expect([...EXPLORER_CHAINS].sort()).toEqual(['avalanche', 'bitcoin', 'bsc', 'ethereum', 'litecoin', 'polygon', 'solana', 'sui']);
+		expect([...CHAIN_IMPORT_SOURCES].sort()).toEqual(['avalanche_cchain', 'bitcoin', 'litecoin', 'solana', 'xpr']);
+		expect([...ON_CHAIN_IMPORT_SOURCES].sort()).toEqual(['bitcoin', 'litecoin', 'xpr']);
+		expect([...EXPLORER_CHAINS].sort()).toEqual(['avalanche', 'bitcoin', 'bsc', 'ethereum', 'litecoin', 'polygon', 'solana', 'sui', 'xpr']);
 	});
 });
 
@@ -157,6 +157,7 @@ describe('chains: names a form or a pasted list may use', () => {
 		expect(chainsForSymbol('LTC')).toEqual(['litecoin']);
 		expect(chainsForSymbol('SOL')).toEqual(['solana']);
 		expect(chainsForSymbol('SUI')).toEqual(['sui']);
+		expect(chainsForSymbol('xpr')).toEqual(['xpr']);
 		expect(chainsForSymbol('AVAX')).toEqual(['avalanche']);
 		expect(chainsForSymbol('BNB')).toBeNull();
 		expect(chainsForSymbol('')).toBeNull();

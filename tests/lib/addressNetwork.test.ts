@@ -86,3 +86,15 @@ describe('AddressLabels uses the shared recognizer', () => {
 		for (const key of ['EVM', 'BTC', 'LTC', 'SOL', 'SUI', "'???'"]) expect(src).toContain(`${key}:`);
 	});
 });
+
+describe('an XPR Network account name has no network of its own', () => {
+	// A name is plain text, so the shape cannot say it is XPR: the stored chain does (wallets.chains,
+	// import source 'xpr'). The recognizer must not claim one either way.
+	it('an ordinary name is not an address', () => {
+		for (const name of ['testalice1', 'stake.proton', 'eosio.token']) expect(addressNetwork(name), name).toBeNull();
+	});
+
+	it('a name that starts like a legacy Bitcoin address is read as one by shape alone, which is why callers pass the stored chain', () => {
+		expect(addressNetwork('1abc')).toBe('btc');
+	});
+});

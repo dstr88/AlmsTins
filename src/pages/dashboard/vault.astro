@@ -138,6 +138,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 const getChainBadge = (chains: string[]): string => {
 	if (chains.includes('solana'))    return 'SOL';
 	if (chains.includes('sui'))       return 'SUI';
+	if (chains.includes('xpr'))       return 'XPR';
 	if (chains.includes('bitcoin') && chains.includes('litecoin')) return 'BTC/LTC';
 	if (chains.includes('bitcoin'))   return 'BTC';
 	if (chains.includes('litecoin'))  return 'LTC';
@@ -268,7 +269,7 @@ const getChainBadge = (chains: string[]): string => {
 								    an exact balance, and an approximate/partial figure is worse than
 								    none for a documentation product. Re-enable once a proper
 								    discovery+decode layer matches the Aave standard. */}
-								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin' || c === 'solana') && (
+								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin' || c === 'solana' || c === 'xpr') && (
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>

@@ -12,6 +12,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { SYNC_CRON_FALLBACK_CHAINS } from '@/lib/chains';
+import { isXprWallet } from '@/lib/sync/syncXprAddress';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -58,6 +59,9 @@ export const GET: APIRoute = async ({ request }) => {
 		const walletId = String(row.id ?? '');
 		const tenantId = String(row.tenant_id ?? '');
 		const label = String(row.label ?? row.address ?? walletId);
+
+		// XPR Network accounts have their own cron (sync-xpr); an account name means nothing to the EVM sync.
+		if (isXprWallet(row.chains)) continue;
 
 		// Check last sync time
 		const syncStateResult = await db.execute({
