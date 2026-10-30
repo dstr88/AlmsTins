@@ -1109,8 +1109,18 @@ class Run {
 
 	/** A guess at the basis and date of units that left before the boundary, for a finding only. */
 	private estimateUnits(asset: string, wallet: string, qty: number): { costUsd: number | null; acquiredAt: string | null } {
-		const pool = (this.universal.get(asset) ?? []).filter((l) => l.remainingQty > EPSILON);
-		const lot = pool.find((l) => l.wallet === wallet) ?? pool[0];
+		// One pass, no copy: this runs for every transfer that lost coins to a fee.
+		let lot: Lot | undefined;
+		let fallback: Lot | undefined;
+		for (const l of this.universal.get(asset) ?? []) {
+			if (l.remainingQty <= EPSILON) continue;
+			if (l.wallet === wallet) {
+				lot = l;
+				break;
+			}
+			fallback = fallback ?? l;
+		}
+		lot = lot ?? fallback;
 		if (!lot) return { costUsd: null, acquiredAt: null };
 		return { costUsd: lot.remainingCostUsd === null ? null : usd((lot.remainingCostUsd / lot.remainingQty) * qty), acquiredAt: lot.acquiredAt };
 	}

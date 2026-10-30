@@ -1,31 +1,37 @@
 /**
  * annualBreakdown.ts
- * Builds the five tax-year sections from lifecycle events + import transactions,
- * OR from pipeline tables (tax_disposals / tax_lots / tax_classifications) when
- * the pipeline has already run for the requested year.
+ * Builds the five tax-year sections from the lot ledger (tax/computeLedger.ts), which runs once
+ * over a tenant's whole history and is sliced by year here.
  *
  * Sections:
  *   1. needsAttention  – sells with no traceable buy (orphaned / problem children)
- *   2. stillHolding    – FIFO lots still open at year-end
+ *   2. stillHolding    – lots still open at year-end
  *   3. shortTerm       – settled lots held one year or less (sold in selected year)
  *   4. longTerm        – settled lots held more than one year (sold in selected year);
- *                        calendar-date rule shared with the pipeline (yearEnd/holdingPeriod.ts)
+ *                        calendar-date rule (yearEnd/holdingPeriod.ts)
  *   5. income          – interest, staking, rewards, cashback in selected year
  *
- * Data source options:
- *   'lifecycle' (default) – reads asset_lifecycle_events and import_transactions
- *                           (original FIFO re-computation path)
- *   'pipeline'            – reads tax_disposals / tax_lots / tax_classifications
- *                           (pipeline's persisted, IRS-calendar-month-accurate output)
- *   'auto'                – uses 'pipeline' if tax_disposals has rows for tenant+year;
- *                           falls back to 'lifecycle' otherwise
+ * A transfer between a tenant's own wallets or accounts is a move, not a sale: the coins keep
+ * their original date and cost, and no gain is booked. Transfers the ledger could not be sure of
+ * (paired by amount and time only, between different owners, a fee that cost coins, a send nothing
+ * was found for) are listed in `transferReviews`.
+ *
+ * Data source options (which rows are read into the ledger):
+ *   'lifecycle' (default) – asset_lifecycle_events joined to the import and on-chain rows they came from
+ *   'pipeline'            – the tax pipeline's classification of the same rows, read live (the owner's
+ *                           manual classifications included)
+ *   'auto'                – 'pipeline' for a tenant that has a successful pipeline run, else
+ *                           'lifecycle'; every page that passes 'auto' therefore agrees
  */
 
 import { db } from './db';
 import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
-import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
+import type { CostBasisMethod } from './yearEnd/lotSelection';
 import { daysUntilLongTerm, isLongTermHold } from './yearEnd/holdingPeriod';
-import { eventWalletKey, walletContextOf, walletDisplayOf, type WalletRecord } from './tax/eventWallet';
+import { walletDisplayOf } from './tax/eventWallet';
+import { computeLedger, engineForTenant, type ComputedLedger } from './tax/computeLedger';
+import { EPSILON, TRANSIT_WALLET, UNALLOCATED_WALLET, UNRESOLVED_WALLET, type FindingReason, type LedgerSlice } from './tax/lotLedger';
+import { parseInstant } from './tax/normalize';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -142,6 +148,31 @@ export type AaveDepositItem = {
   txHash: string | null;
 };
 
+/**
+ * A transfer (or the coins it cost) the ledger could not be sure of, for the owner to look at.
+ * Nothing here is a sale: the coins moved, and these are the places that might be wrong.
+ */
+export type TransferReview = {
+  reason: FindingReason;
+  asset: string;
+  /** When the coins left. */
+  date: string | null;
+  amount: number | null;
+  /** Cost of the coins concerned, when known. */
+  costUsd: number | null;
+  valueUsd: number | null;
+  /** When those coins were first acquired, when known. */
+  acquiredDate: string | null;
+  fromWalletKey: string | null;
+  fromWalletDisplay: string | null;
+  toWalletKey: string | null;
+  toWalletDisplay: string | null;
+  /** A code that refines the reason (never user text). */
+  detail: string | null;
+  /** The ids of the import or on-chain rows involved. */
+  sourceIds: string[];
+};
+
 export type AnnualBreakdown = {
   year: number;
   availableYears: number[];
@@ -160,6 +191,10 @@ export type AnnualBreakdown = {
   totals: SectionTotals;
   /** Which data source was actually used to compute capital gains/income. */
   dataSource: 'lifecycle' | 'pipeline';
+  /** Transfers the ledger could not be sure of, for the selected year. */
+  transferReviews?: TransferReview[];
+  /** The ledger rules that produced these figures (tax/lotLedger.ts ENGINE_VERSION). */
+  engineVersion?: string;
 };
 
 /** Controls which data source buildAnnualBreakdown reads from. */
@@ -174,9 +209,34 @@ const toStr = (v: unknown): string =>
   typeof v === 'string' ? v : String(v ?? '');
 
 function daysBetween(a: string, b: string): number {
-  const ms = new Date(b).getTime() - new Date(a).getTime();
-  return Math.floor(ms / 86_400_000);
+  const from = parseInstant(a);
+  const to = parseInstant(b);
+  if (from === null || to === null) return 0;
+  return Math.floor((to - from) / 86_400_000);
 }
+
+/** The UTC year of a stored timestamp, or null when it cannot be read. */
+function yearOf(ts: string): number | null {
+  const ms = parseInstant(ts);
+  return ms === null ? null : new Date(ms).getUTCFullYear();
+}
+
+/** A wallet key to show: the ledger's stand-ins for "no wallet" (and for coins between two wallets) are none. */
+const walletOrNull = (wallet: string | null | undefined): string | null =>
+  !wallet || wallet === UNRESOLVED_WALLET || wallet === UNALLOCATED_WALLET || wallet === TRANSIT_WALLET ? null : wallet;
+
+/** Which findings the owner is asked to look at. An estimated basis is a label on a lot, not a transfer to check. */
+const REVIEWED_FINDINGS: ReadonlySet<FindingReason> = new Set<FindingReason>([
+  'transfer_fee_units',
+  'transfer_amount_mismatch',
+  'transfer_source_shortfall',
+  'transfer_link_unconfirmed',
+  'transfer_between_owners',
+  'unmatched_transfer',
+  'manual_basis_on_transfer',
+  'unreadable_event_date',
+  'invalid_event',
+]);
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
@@ -200,141 +260,147 @@ export async function buildAnnualBreakdown(
       : yearEnd;
 
   // ── Resolve 'auto' → concrete source ────────────────────────────────────
-  let resolvedSource: 'lifecycle' | 'pipeline' = 'lifecycle';
-  if (source === 'pipeline') {
-    resolvedSource = 'pipeline';
-  } else if (source === 'auto') {
-    try {
-      const countRes = await db.execute({
-        sql: `SELECT COUNT(*) AS cnt FROM tax_disposals
-              WHERE tenant_id = ? AND substr(disposed_at, 1, 4) = ?`,
-        args: [tenantId, String(year)],
-      });
-      const cnt = Number((countRes.rows[0] as Record<string, unknown>)?.cnt ?? 0);
-      resolvedSource = cnt > 0 ? 'pipeline' : 'lifecycle';
-    } catch {
-      // tax_disposals may not exist — fall through to lifecycle
-      resolvedSource = 'lifecycle';
-    }
-  }
+  // One source per tenant, so every page that asks for 'auto' reads the same figures.
+  const resolvedSource: 'lifecycle' | 'pipeline' =
+    source === 'auto' ? await engineForTenant(tenantId) : source;
 
-  // ── Core sections: built from the chosen source ──────────────────────────
-  let needsAttentionRaw: UnsettledItem[]  = [];
-  let shortTerm: SettledLot[]            = [];
-  let longTerm: SettledLot[]             = [];
-  let stillHolding: HeldPosition[]       = [];
-  let income: IncomeItem[]               = [];
-  let cardRebates: IncomeItem[]          = [];
-  // Aave supplies surfaced for review — populated by the lifecycle FIFO pass below.
-  const aaveDeposits: AaveDepositItem[]  = [];
   const aaveDepositTax = await getAaveDepositTax(tenantId);
 
+  // ── Core sections: sliced out of one run of the lot ledger ───────────────
+  const ledger: ComputedLedger = await computeLedger(tenantId, resolvedSource, method, lotPins);
+  const { result, refs } = ledger;
+
+  const shortTerm: SettledLot[] = [];
+  const longTerm: SettledLot[] = [];
+  const needsAttentionRaw: UnsettledItem[] = [];
+  const stillHolding: HeldPosition[] = [];
+  const aaveDeposits: AaveDepositItem[] = [];
+
+  const settledOf = (sl: LedgerSlice): SettledLot => {
+    // The wallet the coins were sold from. (A lot keeps the wallet it was bought in until per-wallet pools, so it is not where they were.)
+    const walletKey = walletOrNull(sl.wallet);
+    return {
+      asset: sl.asset,
+      amount: sl.qty,
+      buyDate: sl.acquiredAt,
+      sellDate: sl.disposedAt,
+      walletKey,
+      walletDisplay: walletDisplayOf(walletKey),
+      costUsd: sl.cost,
+      proceedsUsd: sl.proceeds,
+      gainLossUsd: sl.gain,
+      daysHeld: daysBetween(sl.acquiredAt, sl.disposedAt),
+      basisSource: sl.basisSource,
+      originNote: sl.originNote,
+    };
+  };
+
+  // Sales in the year: the ledger already knows each one's term (calendar-date rule).
+  for (const sl of result.slices) {
+    if (!sl.taxable || yearOf(sl.disposedAt) !== year) continue;
+    (sl.term === 'long' ? longTerm : shortTerm).push(settledOf(sl));
+  }
+  for (const u of result.unmatched) {
+    if (!u.taxable || yearOf(u.at) !== year) continue;
+    const info = refs.get(u.sourceRef);
+    needsAttentionRaw.push({
+      asset: u.asset,
+      amount: u.qty,
+      sellDate: u.at,
+      proceedsUsd: u.proceeds,
+      sourceId: info?.sourceId ?? '',
+      groupId: info?.groupId ?? '',
+      txHash: info?.txHash ?? null,
+      transactionClass: info?.transactionClass ?? '',
+      sourceType: info?.sourceType ?? '',
+    });
+  }
+
+  // Aave deposit (collateral_deposit): the supplied lots' cost basis, so the would-be gain/loss
+  // can be surfaced for review. Additive: it does not change realized gains, lots, or the
+  // (still non-taxable) treatment.
+  const deposits = new Map<string, { slices: LedgerSlice[]; unmatched: boolean; asset: string; date: string }>();
+  for (const sl of result.slices) {
+    if (sl.taxable || sl.category !== 'collateral_deposit' || yearOf(sl.disposedAt) !== year) continue;
+    const d = deposits.get(sl.sourceRef) ?? { slices: [], unmatched: false, asset: sl.asset, date: sl.disposedAt };
+    d.slices.push(sl);
+    deposits.set(sl.sourceRef, d);
+  }
+  for (const u of result.unmatched) {
+    if (u.taxable || u.category !== 'collateral_deposit' || yearOf(u.at) !== year) continue;
+    const d = deposits.get(u.sourceRef) ?? { slices: [], unmatched: false, asset: u.asset, date: u.at };
+    d.unmatched = true;
+    deposits.set(u.sourceRef, d);
+  }
+  for (const [ref, d] of deposits) {
+    const info = refs.get(ref);
+    const complete = !d.unmatched && d.slices.every((sl) => sl.cost != null);
+    const cost = d.slices.reduce((acc, sl) => acc + (sl.cost ?? 0), 0);
+    const amountUsd = info?.valueUsd ?? null;
+    aaveDeposits.push({
+      asset: d.asset,
+      amount: info?.amount ?? d.slices.reduce((acc, sl) => acc + sl.qty, 0),
+      date: d.date,
+      amountUsd,
+      costBasisUsd: complete ? cost : null,
+      gainLossUsd: amountUsd != null && complete ? amountUsd - cost : null,
+      txHash: info?.txHash ?? null,
+    });
+  }
+
+  // ── 2. Still holding = the open lots at the end of the year ───────────
+  // A year before the history starts holds nothing; a year after it ends holds what the last year-end did.
+  const snapshots = result.snapshots;
+  const snapshot =
+    snapshots.find((sn) => sn.at === yearEnd) ??
+    (snapshots.length && year > (yearOf(snapshots[snapshots.length - 1].at) ?? year) ? snapshots[snapshots.length - 1] : undefined);
+  for (const lot of snapshot?.lots ?? []) {
+    if (lot.qty <= EPSILON || lot.wallet === UNALLOCATED_WALLET) continue;
+    const walletKey = walletOrNull(lot.wallet);
+    stillHolding.push({
+      asset:       lot.asset,
+      amount:      lot.qty,
+      walletKey,
+      walletDisplay: walletDisplayOf(walletKey),
+      acquiredDate: lot.acquiredAt,
+      costUsd:     lot.costUsd,
+      daysHeld:    daysBetween(lot.acquiredAt, refDate),
+      longTerm:    isLongTermHold(lot.acquiredAt, refDate),
+      daysToLongTerm: daysUntilLongTerm(lot.acquiredAt, refDate),
+    });
+  }
+  // Sort by asset then date
+  stillHolding.sort((a, b) =>
+    a.asset.localeCompare(b.asset) || a.acquiredDate.localeCompare(b.acquiredDate),
+  );
+
+  // ── Transfers to check ─────────────────────────────────────────────────
+  const transferReviews: TransferReview[] = result.findings
+    // A row the ledger could not date has no year to belong to, so it shows in every year: it must not go unseen.
+    .filter((f) => REVIEWED_FINDINGS.has(f.reason) && (f.at === null || yearOf(f.at) === null || yearOf(f.at) === year))
+    .map((f) => ({
+      reason: f.reason,
+      asset: f.asset,
+      date: f.at,
+      amount: f.qty,
+      costUsd: f.costUsd,
+      valueUsd: f.valueUsd,
+      acquiredDate: f.acquiredAt,
+      fromWalletKey: walletOrNull(f.wallet),
+      fromWalletDisplay: walletDisplayOf(walletOrNull(f.wallet)),
+      toWalletKey: walletOrNull(f.toWallet),
+      toWalletDisplay: walletDisplayOf(walletOrNull(f.toWallet)),
+      detail: f.detail,
+      sourceIds: f.refs.map((r) => refs.get(r)?.sourceId || r),
+    }))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.reason.localeCompare(b.reason));
+
+  // ── 3. Income ──────────────────────────────────────────────────────────
+  let income: IncomeItem[]      = [];
+  let cardRebates: IncomeItem[] = [];
+
   if (resolvedSource === 'pipeline') {
-    // ── PIPELINE PATH ────────────────────────────────────────────────────
-    // Reads tax_disposals (joined to tax_lots for acquired_at) + tax_classifications.
-    // This is the IRS-calendar-month-accurate, persisted FIFO output.
-
-    // 1. Settled disposals
-    const disposalRes = await db.execute({
-      sql: `SELECT td.asset_symbol,
-                   td.quantity,
-                   td.proceeds_usd,
-                   td.cost_basis_usd,
-                   td.gain_loss_usd,
-                   td.is_short_term,
-                   td.disposed_at,
-                   td.source_id,
-                   td.source_type,
-                   td.category,
-                   td.lot_id,
-                   td.notes,
-                   tl.acquired_at
-              FROM tax_disposals td
-              LEFT JOIN tax_lots tl
-                ON tl.id = td.lot_id AND tl.tenant_id = td.tenant_id
-             WHERE td.tenant_id = ?
-               AND substr(td.disposed_at, 1, 4) = ?
-             ORDER BY td.disposed_at ASC`,
-      args: [tenantId, String(year)],
-    });
-
-    type RawDisposal = {
-      asset_symbol: unknown; quantity: unknown; proceeds_usd: unknown;
-      cost_basis_usd: unknown; gain_loss_usd: unknown; is_short_term: unknown;
-      disposed_at: unknown; source_id: unknown; source_type: unknown;
-      category: unknown; lot_id: unknown; notes: unknown; acquired_at: unknown;
-    };
-
-    for (const r of disposalRes.rows as unknown as RawDisposal[]) {
-      const lotId = toStr(r.lot_id);
-
-      if (lotId === 'unmatched') {
-        // Orphaned — no matching acquisition lot
-        needsAttentionRaw.push({
-          asset:            toStr(r.asset_symbol).toUpperCase(),
-          amount:           Math.abs(Number(r.quantity ?? 0)),
-          sellDate:         toStr(r.disposed_at),
-          proceedsUsd:      toNum(r.proceeds_usd),
-          sourceId:         toStr(r.source_id),
-          groupId:          toStr(r.source_id), // no group_id in pipeline; use source_id
-          txHash:           null,
-          transactionClass: toStr(r.category),
-          sourceType:       toStr(r.source_type),
-        });
-        continue;
-      }
-
-      const acquiredAt = toStr(r.acquired_at);
-      const disposedAt = toStr(r.disposed_at);
-      const daysHeld   = acquiredAt ? daysBetween(acquiredAt, disposedAt) : 0;
-      const settled: SettledLot = {
-        asset:        toStr(r.asset_symbol).toUpperCase(),
-        amount:       Math.abs(Number(r.quantity ?? 0)),
-        buyDate:      acquiredAt || disposedAt,
-        sellDate:     disposedAt,
-        costUsd:      toNum(r.cost_basis_usd),
-        proceedsUsd:  toNum(r.proceeds_usd),
-        gainLossUsd:  toNum(r.gain_loss_usd),
-        daysHeld,
-        basisSource:  toNum(r.cost_basis_usd) != null ? 'recorded' : 'missing',
-        originNote:   acquiredAt ? `Acquired ${acquiredAt.slice(0, 10)}` : 'Origin unknown — verify acquisition',
-      };
-      // The pipeline uses IRS calendar-month rule (is_short_term stored as 0/1).
-      if (Number(r.is_short_term)) shortTerm.push(settled);
-      else                         longTerm.push(settled);
-    }
-
-    // 2. Open lots (still holding as of year-end)
-    const lotsRes = await db.execute({
-      sql: `SELECT asset_symbol, acquired_at, remaining_qty, cost_basis_usd
-              FROM tax_lots
-             WHERE tenant_id = ?
-               AND is_exhausted = 0
-               AND acquired_at <= ?
-             ORDER BY asset_symbol ASC, acquired_at ASC`,
-      args: [tenantId, yearEnd],
-    });
-
-    type RawLot = {
-      asset_symbol: unknown; acquired_at: unknown;
-      remaining_qty: unknown; cost_basis_usd: unknown;
-    };
-    for (const r of lotsRes.rows as unknown as RawLot[]) {
-      const qty = Number(r.remaining_qty ?? 0);
-      if (qty <= 0) continue;
-      const acquiredAt = toStr(r.acquired_at);
-      stillHolding.push({
-        asset:        toStr(r.asset_symbol).toUpperCase(),
-        amount:       qty,
-        acquiredDate: acquiredAt,
-        costUsd:      toNum(r.cost_basis_usd),
-        daysHeld:     daysBetween(acquiredAt, refDate),
-        longTerm:     isLongTermHold(acquiredAt, refDate),
-        daysToLongTerm: daysUntilLongTerm(acquiredAt, refDate),
-      });
-    }
-
-    // 3. Income from pipeline classifications, joined to source tx for dates/amounts
+    // Income from pipeline classifications, joined to source tx for dates/amounts
     const incomeRes = await db.execute({
       sql: `SELECT tc.asset_symbol,
                    tc.amount_usd,
@@ -380,374 +446,8 @@ export async function buildAnnualBreakdown(
     });
     income      = allIncomeRows.filter((r) => !r.isCardRebate).map((r) => r.item);
     cardRebates = allIncomeRows.filter((r) =>  r.isCardRebate).map((r) => r.item);
-
   } else {
-    // ── LIFECYCLE PATH (original) ────────────────────────────────────────
-
-    // ── 1. Fetch all lifecycle events up to year end ────────────────────
-    const eventsResult = await db.execute({
-      sql: `SELECT g.asset_symbol    AS asset_symbol,
-                 e.direction         AS direction,
-                 e.amount            AS amount,
-                 e.native_usd        AS native_usd,
-                 e.timestamp_utc     AS timestamp_utc,
-                 e.transaction_class AS transaction_class,
-                 e.source_id         AS source_id,
-                 e.group_id          AS group_id,
-                 e.tx_hash           AS tx_hash,
-                 e.source_type       AS source_type,
-                 i.wallet_id         AS import_wallet_id,
-                 i.source            AS import_source,
-                 i.account_id        AS import_account_id,
-                 t.wallet_id         AS tx_wallet_id,
-                 t.chain             AS tx_chain,
-                 t.from_address      AS from_address,
-                 t.to_address        AS to_address
-            FROM asset_lifecycle_events e
-            LEFT JOIN asset_lifecycle_groups g
-              ON g.id = e.group_id AND g.tenant_id = e.tenant_id
-            LEFT JOIN import_transactions i
-              ON e.source_type = 'import' AND i.id = e.source_id AND i.tenant_id = e.tenant_id
-            LEFT JOIN transactions t
-              ON e.source_type = 'onchain' AND t.id = e.source_id AND t.tenant_id = e.tenant_id
-            WHERE e.tenant_id = ?
-              AND e.timestamp_utc <= ?
-            ORDER BY e.timestamp_utc ASC`,
-      args: [tenantId, yearEnd],
-    });
-
-    // Which wallet each event sits in, from its source row (eventWallet.ts). Events without a
-    // source row (manual entries, Sui) have no wallet and show as unassigned.
-    const walletRows = await db.execute({
-      sql: `SELECT id, address FROM wallets WHERE tenant_id = ?`,
-      args: [tenantId],
-    });
-    const walletCtx = walletContextOf(walletRows.rows as unknown as WalletRecord[]);
-
-    // Classes to exclude ENTIRELY from FIFO.
-    // liability_increase covers BOTH the debt token mint AND the borrow proceeds IN from
-    // the pool — neither creates a real owned lot (the proceeds are a liability, not equity).
-    // interest_income feeds the income section separately.
-    const SKIP_CLASSES = new Set([
-      'liability_increase',    // borrow proceeds IN + debt token minted — no real lot
-      'interest_income',       // handled separately in the income section
-    ]);
-
-    // Classes that DO move real-asset lots through FIFO but are NOT taxable capital events.
-    // Repayments must consume the underlying lot (e.g. USDC repaid to Aave should clear the
-    // USDC cost-basis lot) but produce no gain/loss — cost basis simply returns to the
-    // protocol.  Debt-token burns have no matching lot and are silently dropped (isTaxable=false).
-    const FIFO_NONTAXABLE = new Set([
-      'collateral_deposit',    // USDC → aUSDC: cost moves to protocol, no taxable event
-      'collateral_withdrawal', // aUSDC → USDC: cost returns from protocol, no taxable event
-      'liability_repayment',   // USDC repaid to Aave: consumes USDC lot, no gain/loss
-                               //   variableDebt burn: no lot exists → silently dropped
-    ]);
-
-    // ── 1a. Sui wallet transactions ─────────────────────────────────────
-    const suiTxResult = await db.execute({
-      sql: `SELECT symbol, amount, decimals, timestamp
-            FROM sui_transactions
-            WHERE tenant_id = ?
-              AND timestamp <= ?
-              AND CAST(amount AS REAL) != 0
-            ORDER BY timestamp ASC`,
-      args: [tenantId, yearEnd],
-    });
-
-    type RawSuiTx = { symbol: unknown; amount: unknown; decimals: unknown; timestamp: unknown };
-
-    function suiRawToDecimal(raw: string, decimals: number): number {
-      try {
-        const negative = raw.startsWith('-');
-        const abs = BigInt(negative ? raw.slice(1) : raw);
-        const base = 10n ** BigInt(decimals);
-        const whole = abs / base;
-        const frac  = abs % base;
-        const num   = Number(`${whole}.${String(frac).padStart(decimals, '0')}`);
-        return negative ? -num : num;
-      } catch { return 0; }
-    }
-
-    const suiEvents = (suiTxResult.rows as unknown as RawSuiTx[]).flatMap((r) => {
-      const raw      = toStr(r.amount);
-      const decimals = Number(r.decimals ?? 9);
-      const value    = suiRawToDecimal(raw, decimals);
-      if (!value) return [];
-      return [{
-        asset_symbol:      toStr(r.symbol).toUpperCase(),
-        direction:         value < 0 ? 'out' : 'in',
-        amount:            Math.abs(value),
-        native_usd:        null as number | null,
-        timestamp_utc:     toStr(r.timestamp),
-        transaction_class: 'owned_acquisition',
-        source_id:         '' as unknown,
-        group_id:          '' as unknown,
-        tx_hash:           null as unknown,
-        source_type:       'sui' as unknown,
-      }];
-    });
-
-    // ── 1b. Custom wallet manual transactions ───────────────────────────
-    // Stored in `transactions` table with metadata_json containing isCustomEntry:true
-    const customTxResult = await db.execute({
-      sql: `SELECT token_symbol, tx_type, timestamp, metadata_json
-            FROM transactions
-            WHERE tenant_id = ?
-              AND timestamp <= ?
-              AND metadata_json LIKE '%"isCustomEntry":true%'
-            ORDER BY timestamp ASC`,
-      args: [tenantId, yearEnd],
-    });
-
-    type RawCustomTx = { token_symbol: unknown; tx_type: unknown; timestamp: unknown; metadata_json: unknown };
-    const customEvents = (customTxResult.rows as unknown as RawCustomTx[]).flatMap((r) => {
-      try {
-        const meta      = JSON.parse(toStr(r.metadata_json));
-        const direction = meta.direction === 'out' ? 'out' : 'in';
-        const amount    = Number(meta.amount ?? 0);
-        const nativeUsd = typeof meta.usdValue === 'number' ? meta.usdValue : null;
-        if (!amount) return [];
-        return [{
-          asset_symbol:      toStr(r.token_symbol).toUpperCase(),
-          direction,
-          amount,
-          native_usd:        nativeUsd,
-          timestamp_utc:     toStr(r.timestamp),
-          transaction_class: 'owned_acquisition',
-          source_id:         '' as unknown,
-          group_id:          '' as unknown,
-          tx_hash:           null as unknown,
-          source_type:       'manual' as unknown,
-        }];
-      } catch { return []; }
-    });
-
-    type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown; source_type: unknown; import_wallet_id?: unknown; import_source?: unknown; import_account_id?: unknown; tx_wallet_id?: unknown; tx_chain?: unknown; from_address?: unknown; to_address?: unknown };
-    const events: RawEvent[] = [
-      ...(eventsResult.rows as unknown as RawEvent[])
-        .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
-      ...customEvents,
-      ...suiEvents,
-    ].sort((a, b) => toStr(a.timestamp_utc).localeCompare(toStr(b.timestamp_utc)));
-
-    // Lot selection delegated to lotSelection.ts (pure, unit-tested).
-    // Wrap to bind the closure variables (method, lotPins) from this scope.
-    // A lot keeps the wallet it arrived in; a sale takes its wallet from the lot it consumed.
-    type Lot = SelectableLot & { walletKey: string | null };
-    const pickLot = (list: Lot[], disposalSourceId?: string) =>
-      selectLotIndex(list, method, disposalSourceId, lotPins);
-
-    // Manual cost-basis overrides for the lifecycle path: an explicit basis set for a
-    // sell (sell_source_id -> price_per_token + buy date) wins over FIFO-matched lots.
-    const manualBasisRows = await db.execute({
-      sql: `SELECT sell_source_id, price_per_token, buy_date_iso, notes FROM manual_cost_basis WHERE tenant_id = ?`,
-      args: [tenantId],
-    });
-    const manualBasisMap = new Map<string, { pricePerToken: number; buyDateIso: string; notes: string }>();
-    for (const r of manualBasisRows.rows as Array<Record<string, unknown>>) {
-      const sid = toStr(r.sell_source_id);
-      const ppt = toNum(r.price_per_token);
-      if (sid && ppt != null) manualBasisMap.set(sid, { pricePerToken: ppt, buyDateIso: toStr(r.buy_date_iso), notes: toStr(r.notes) });
-    }
-
-    const lotsByAsset = new Map<string, Lot[]>();
-    const needsAttentionLifecycle: UnsettledItem[] = [];
-
-    for (const row of events) {
-      const asset     = toStr(row.asset_symbol).toUpperCase();
-      if (!asset) continue;
-      const direction = toStr(row.direction);
-      const amount    = Math.abs(Number(row.amount ?? 0));
-      if (!amount) continue;
-      const timestamp = toStr(row.timestamp_utc);
-      const nativeUsd = toNum(row.native_usd);
-      const walletKey = eventWalletKey(
-        {
-          sourceType: row.source_type,
-          direction,
-          importWalletId: row.import_wallet_id,
-          importSource: row.import_source,
-          importAccountId: row.import_account_id,
-          txWalletId: row.tx_wallet_id,
-          txChain: row.tx_chain,
-          fromAddress: row.from_address,
-          toAddress: row.to_address,
-        },
-        walletCtx,
-      );
-
-      if (direction === 'in') {
-        const list = lotsByAsset.get(asset) ?? [];
-        list.push({ amount, timestamp, costUsd: nativeUsd, walletKey });
-        lotsByAsset.set(asset, list);
-        continue;
-      }
-
-      if (direction === 'out') {
-        // Only bucket settled/unsettled if the SELL happened in this year
-        const sellInYear =
-          timestamp >= yearStart && timestamp <= yearEnd;
-        // Aave pass-through transfers (collateral_deposit / collateral_withdrawal) move
-        // the cost basis but are NOT taxable disposals — consume lots but skip gain/loss.
-        const txClass = toStr(row.transaction_class);
-        const isTaxable = !FIFO_NONTAXABLE.has(txClass);
-        const disposalSrcId: string | undefined = typeof row.source_id === 'string' ? row.source_id : undefined;
-
-        // Manual cost-basis override: an explicit user/resolver-set basis for this sell
-        // wins over FIFO-matched lots (which are wrong when coins arrived via an untraced
-        // transfer). We still consume lots so remaining holdings stay correct.
-        const manual = disposalSrcId ? manualBasisMap.get(disposalSrcId) : undefined;
-        if (manual && sellInYear && isTaxable) {
-          const costUsd = amount * manual.pricePerToken;
-          const buyDate = manual.buyDateIso || timestamp;
-          const days    = daysBetween(buyDate, timestamp);
-          const settled: SettledLot = {
-            asset, amount, buyDate, sellDate: timestamp,
-            walletKey, walletDisplay: walletDisplayOf(walletKey),
-            costUsd, proceedsUsd: nativeUsd,
-            gainLossUsd: nativeUsd != null ? nativeUsd - costUsd : null,
-            daysHeld: days,
-            basisSource: 'manual',
-            originNote: manual.notes
-              ? `Estimated basis — ${manual.notes}`
-              : `Estimated basis $${manual.pricePerToken.toLocaleString()}/${asset}, acquired ${buyDate.slice(0, 10)}`,
-          };
-          if (isLongTermHold(buyDate, timestamp)) longTerm.push(settled); else shortTerm.push(settled);
-          // Consume FIFO lots so remaining holdings don't double-count this disposal.
-          const olots = lotsByAsset.get(asset) ?? [];
-          let orem = amount;
-          while (orem > 0 && olots.length) {
-            const oi = pickLot(olots, disposalSrcId);
-            const otake = Math.min(orem, olots[oi].amount);
-            if (olots[oi].costUsd != null) olots[oi].costUsd = (olots[oi].costUsd ?? 0) - (otake / olots[oi].amount) * (olots[oi].costUsd ?? 0);
-            olots[oi].amount -= otake;
-            if (olots[oi].amount <= 0) olots.splice(oi, 1);
-            orem -= otake;
-          }
-          lotsByAsset.set(asset, olots);
-          continue;
-        }
-
-        // Aave deposit (collateral_deposit): accumulate the supplied lots' cost basis
-        // so we can surface the would-be gain/loss for review. Additive — does not
-        // change realized gains, lots, or the (still non-taxable) treatment.
-        const isAaveDeposit = txClass === 'collateral_deposit';
-        let aaveCostBasis = 0;
-        let aaveBasisComplete = true;
-
-        let remaining = amount;
-        const list    = lotsByAsset.get(asset) ?? [];
-
-        while (remaining > 0) {
-          if (list.length === 0) {
-            if (isAaveDeposit) aaveBasisComplete = false;
-            // orphaned — no matching buy found (only flag if it's a real taxable sell)
-            if (sellInYear && isTaxable) {
-              needsAttentionLifecycle.push({
-                asset,
-                amount: remaining,
-                sellDate: timestamp,
-                proceedsUsd: nativeUsd
-                  ? (remaining / amount) * nativeUsd
-                  : null,
-                sourceId: typeof row.source_id === 'string' ? row.source_id : '',
-                groupId: typeof row.group_id === 'string' ? row.group_id : '',
-                txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
-                transactionClass: txClass,
-                sourceType: typeof row.source_type === 'string' ? row.source_type : '',
-              });
-            }
-            break;
-          }
-          const lotIdx = pickLot(list, disposalSrcId);
-          const lot    = list[lotIdx];
-
-          const take        = Math.min(remaining, lot.amount);
-          const costPortion =
-            lot.costUsd != null ? (take / lot.amount) * lot.costUsd : null;
-          if (isAaveDeposit) {
-            if (costPortion != null) aaveCostBasis += costPortion;
-            else aaveBasisComplete = false;
-          }
-          const sellPortion =
-            nativeUsd != null ? (take / amount) * nativeUsd : null;
-          const gainLoss =
-            costPortion != null && sellPortion != null
-              ? sellPortion - costPortion
-              : null;
-          const days = daysBetween(lot.timestamp, timestamp);
-
-          if (sellInYear && isTaxable) {
-            const settled: SettledLot = {
-              asset,
-              amount: take,
-              walletKey:  lot.walletKey,
-              walletDisplay: walletDisplayOf(lot.walletKey),
-              buyDate:    lot.timestamp,
-              sellDate:   timestamp,
-              costUsd:    costPortion,
-              proceedsUsd: sellPortion,
-              gainLossUsd: gainLoss,
-              daysHeld:   days,
-              basisSource: costPortion != null ? 'recorded' : 'missing',
-              originNote: costPortion != null
-                ? `Acquired ${lot.timestamp.slice(0, 10)} (recorded cost basis)`
-                : `Acquired ${lot.timestamp.slice(0, 10)} — no recorded cost basis (treated as $0; verify origin)`,
-            };
-            if (isLongTermHold(lot.timestamp, timestamp)) longTerm.push(settled);
-            else                                          shortTerm.push(settled);
-          }
-
-          // Reduce the lot's remaining cost basis proportionally so that
-          // subsequent partial sells and stillHolding don't double-count it
-          if (costPortion != null) {
-            lot.costUsd = (lot.costUsd ?? 0) - costPortion;
-          }
-          lot.amount -= take;
-          if (lot.amount <= 0) list.splice(lotIdx, 1);
-          remaining -= take;
-        }
-
-        lotsByAsset.set(asset, list);
-
-        if (isAaveDeposit && sellInYear) {
-          aaveDeposits.push({
-            asset, amount, date: timestamp,
-            amountUsd: nativeUsd,
-            costBasisUsd: aaveBasisComplete ? aaveCostBasis : null,
-            gainLossUsd: (nativeUsd != null && aaveBasisComplete) ? nativeUsd - aaveCostBasis : null,
-            txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
-          });
-        }
-      }
-    }
-
-    needsAttentionRaw = needsAttentionLifecycle;
-
-    // ── 2. Still holding = whatever remains in lotsByAsset ─────────────
-    for (const [asset, lots] of lotsByAsset) {
-      for (const lot of lots) {
-        if (lot.amount <= 0) continue;
-        stillHolding.push({
-          asset,
-          amount:      lot.amount,
-          walletKey:   lot.walletKey,
-          walletDisplay: walletDisplayOf(lot.walletKey),
-          acquiredDate: lot.timestamp,
-          costUsd:     lot.costUsd,
-          daysHeld:    daysBetween(lot.timestamp, refDate),
-          longTerm:    isLongTermHold(lot.timestamp, refDate),
-          daysToLongTerm: daysUntilLongTerm(lot.timestamp, refDate),
-        });
-      }
-    }
-    // Sort by asset then date
-    stillHolding.sort((a, b) =>
-      a.asset.localeCompare(b.asset) || a.acquiredDate.localeCompare(b.acquiredDate),
-    );
-
-    // ── 3. Income — import_transactions in selected year ───────────────
+    // Income — import_transactions in selected year
     const incomeResult = await db.execute({
       sql: `SELECT asset_symbol, amount, native_usd, timestamp_utc, kind, description, notes
             FROM import_transactions
@@ -778,7 +478,7 @@ export async function buildAnnualBreakdown(
 
     income      = incomeKindRows.filter((r) => !isCardRebate(r)).map(toIncomeItem);
     cardRebates = incomeKindRows.filter(isCardRebate).map(toIncomeItem);
-  } // end source branch
+  }
 
   // ── 4. NFT holdings — parse wallet_nft_snapshot, filter spam ────────────
   const nftHoldings: NftHolding[] = [];
@@ -907,5 +607,7 @@ export async function buildAnnualBreakdown(
     aaveDepositTax,
     totals,
     dataSource: resolvedSource,
+    transferReviews,
+    engineVersion: result.engineVersion,
   };
 }

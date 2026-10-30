@@ -1747,8 +1747,7 @@ describe('against a plain reference model', () => {
 		}
 	});
 
-	it("one pool: the same slices as the pipeline's own runFifo (pass 4) on buy and sell histories, apart from the dust slices it leaves behind", () => {
-		let dust = 0;
+	it("one pool: the same slices as the pipeline's own runFifo (pass 4) on buy and sell histories", () => {
 		for (const seed of SEEDS) {
 			const events = generate(seed, { wallets: WALLETS, moves: false });
 			const rows: RawImportTx[] = [];
@@ -1764,8 +1763,7 @@ describe('against a plain reference model', () => {
 			}
 			const pipeline = runFifo('tenant-1', rows, [], classifications);
 			const lotDate = new Map(pipeline.lots.map((l) => [l.id, l.acquiredAt]));
-			const want = pipeline.disposals.filter((d) => d.quantity > EPSILON).map((d) => ({ ref: d.sourceId, acquiredAt: ms(lotDate.get(d.lotId) as string), qty: d.quantity, cost: d.costBasisUsd, proceeds: d.proceedsUsd, term: d.isShortTerm ? 'short' : 'long' }));
-			dust += pipeline.disposals.filter((d) => d.quantity <= EPSILON).length;
+			const want = pipeline.disposals.map((d) => ({ ref: d.sourceId, acquiredAt: ms(lotDate.get(d.lotId) as string), qty: d.quantity, cost: d.costBasisUsd, proceeds: d.proceedsUsd, term: d.isShortTerm ? 'short' : 'long' }));
 			const got = runLotLedger(events, { perWalletFrom: null }).slices.map((x) => ({ ref: x.sourceRef.replace(/^src:/, ''), acquiredAt: ms(x.acquiredAt), qty: x.qty, cost: x.cost, proceeds: x.proceeds, term: x.term }));
 			const order = (a: { ref: string; acquiredAt: number }, b: { ref: string; acquiredAt: number }) => (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : a.acquiredAt - b.acquiredAt);
 			got.sort(order);
@@ -1779,11 +1777,9 @@ describe('against a plain reference model', () => {
 				closeTo(g.proceeds, w.proceeds, `seed ${seed} slice ${i} proceeds`);
 			});
 		}
-		// Today's engine leaves float dust behind (a lot of 2.8e-17 that a later sale then "consumes" as a slice of its own);
-		// the ledger takes a lot with dust left whole. The histories do produce such slices, so the filter above is not vacuous.
-		// When runFifo is rebuilt on this core it emits no dust slices: drop this line then.
-		expect(dust).toBeGreaterThan(0);
-	});
+		// runFifo is this core behind an adapter, so no slice is dust: what the check above holds fixed is the mapping
+		// from lots and slices to the rows pass 4 persists (original dates, quantities, costs, proceeds and terms).
+			});
 
 	it('per wallet, for histories after the boundary: sales, moves with their fees, and what is left all match the plain model', () => {
 		const start = Date.UTC(2025, 0, 2);

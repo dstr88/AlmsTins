@@ -16,6 +16,7 @@ import {
 } from './aave/events';
 import { computeRebasingInterest } from './aave/classify';
 import { AMOUNT_TOLERANCE, LINK_WINDOW_MINUTES, selectArrivalMatch } from './tax/arrivalMatch';
+import { invalidateLedger } from './tax/computeLedger';
 import { normalizeAmount as parseOnchainAmount, normalizeAsset as normalizeSymbol } from './tax/normalize';
 
 // The pure pieces moved to src/lib/tax so the ledger core can use them without this module's
@@ -683,6 +684,9 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	const insertMs = Date.now() - insertStart;
 	const serializationMs = 0;
 	const totalMs = Date.now() - start;
+
+	// The lifecycle events changed: a ledger computed from the old ones is stale.
+	invalidateLedger(tenantId);
 
 	console.log('[lifecycle] rebuild', {
 		tenantId,

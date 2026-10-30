@@ -166,7 +166,9 @@ const SCHEMA_DDL: string[] = [
     description      text,
     is_duplicate     bigint           NOT NULL DEFAULT 0,
     duplicate_of     text,
-    import_batch_id  text             NOT NULL DEFAULT 'batch-default'
+    import_batch_id  text             NOT NULL DEFAULT 'batch-default',
+    account_id       text,
+    wallet_id        text
   )`,
 
   `CREATE TABLE IF NOT EXISTS transactions (
@@ -182,6 +184,8 @@ const SCHEMA_DDL: string[] = [
     usd_value    double precision,
     chain        text             NOT NULL DEFAULT 'eth',
     hash         text,
+    token_decimals bigint,
+    metadata_json text,
     is_duplicate bigint           NOT NULL DEFAULT 0,
     duplicate_of text
   )`,
@@ -249,6 +253,63 @@ const SCHEMA_DDL: string[] = [
 
   TAX_DISPOSALS_DDL,
 
+  // What the live ledger reads besides the pipeline's own tables (buildAnnualBreakdown, computeLedger).
+  `CREATE TABLE IF NOT EXISTS asset_lifecycle_groups (
+    id           text PRIMARY KEY,
+    tenant_id    text NOT NULL,
+    asset_symbol text NOT NULL
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS asset_lifecycle_events (
+    id                text             PRIMARY KEY,
+    tenant_id         text             NOT NULL,
+    group_id          text,
+    source_type       text,
+    source_id         text,
+    timestamp_utc     text             NOT NULL,
+    direction         text,
+    amount            double precision,
+    native_usd        double precision,
+    tx_hash           text,
+    transaction_class text
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS wallet_nft_snapshot (
+    tenant_id    text NOT NULL,
+    wallet_id    text,
+    payload_json text
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS nft_hidden (
+    tenant_id        text NOT NULL,
+    contract_address text
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS sui_transactions (
+    tenant_id text NOT NULL,
+    symbol    text,
+    amount    text,
+    decimals  bigint,
+    timestamp text
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS manual_cost_basis (
+    tenant_id      text NOT NULL,
+    sell_source_id text NOT NULL,
+    price_per_token double precision,
+    buy_date_iso   text,
+    notes          text
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS transfer_matches (
+    id               text PRIMARY KEY,
+    tenant_id        text NOT NULL,
+    out_tx_id        text NOT NULL,
+    in_tx_id         text NOT NULL,
+    status           text NOT NULL DEFAULT 'auto',
+    confidence_score double precision
+  )`,
+
   `CREATE TABLE IF NOT EXISTS tax_pipeline_runs (
     id               text   PRIMARY KEY,
     tenant_id        text   NOT NULL,
@@ -271,6 +332,7 @@ const SCHEMA_DDL: string[] = [
 ];
 
 const ALL_TABLES = [
+  'asset_lifecycle_events', 'asset_lifecycle_groups', 'sui_transactions', 'manual_cost_basis', 'transfer_matches',
   'import_transactions', 'transactions', 'wallets',
   'tax_classifications', 'tax_review_items',
   'tax_lots', 'tax_disposals', 'tax_pipeline_runs',
@@ -284,7 +346,9 @@ const TENANT     = `pipeline-it-${RUN}`;
 const S2_TENANT  = `strategy2-${RUN}`;
 const S2B_TENANT = `strategy2b-${RUN}`;
 const S2C_TENANT = `strategy2c-${RUN}`;
-const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT];
+const LEDGER_TENANT = `ledger-it-${RUN}`;
+const LEDGER_LC_TENANT = `ledger-lc-it-${RUN}`;
+const RUN_TENANTS = [TENANT, S2_TENANT, S2B_TENANT, S2C_TENANT, LEDGER_TENANT, LEDGER_LC_TENANT];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -905,6 +969,110 @@ describe.skipIf(SKIP_REASON !== null)(
 
         const stats = await runDuplicateSweep(S2C_TENANT);
         expect(stats.strategy2CrossTable).toBe(0);
+      });
+    });
+
+    // ───────────────────────────────────────────────────────────────────────────
+    describe('transfers between a tenant\'s own accounts — the live ledger on real SQL', () => {
+      // One history, seeded two ways. Coinbase buys 1 BTC (2023-01-10, 20,000), sends it to the
+      // tenant's own wallet (2024-02-01; the arrival shares the transaction hash), and the wallet
+      // sends it to someone else on 2024-06-01 for 90,000. A move is not a sale: the only sale is
+      // the one to someone else, and it keeps the 2023 date and the 20,000 cost.
+      const WALLET = '0x' + 'a'.repeat(40);
+      const FAR = '0x' + 'f'.repeat(40);
+      const HASH = '0x' + '1'.repeat(64);
+      const walletRowId = `ledger-wallet-${RUN}`;
+      let breakdown: typeof import('@/lib/annualBreakdown').buildAnnualBreakdown;
+
+      async function seedRows(tenant: string) {
+        await db.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [`${walletRowId}-${tenant}`, tenant, WALLET] });
+        const imp = (id: string, at: string, dir: string, kind: string, usd: number, hash: string | null) =>
+          db.execute({
+            sql: `INSERT INTO import_transactions
+                  (id, tenant_id, timestamp_utc, asset_symbol, direction, kind, amount, native_usd, tx_hash, source, import_batch_id, account_id)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`${id}-${tenant}`, tenant, at, 'BTC', dir, kind, 1, usd, hash, 'coinbase', 'batch-L', 'acct-1'],
+          });
+        await imp('l-buy', '2023-01-10T00:00:00Z', 'in', 'Buy', 20_000, null);
+        await imp('l-send', '2024-02-01T00:00:00Z', 'out', 'Send', 100_000, HASH);
+        const onchain = (id: string, at: string, tx: string, from: string, to: string, usd: number, hash: string) =>
+          db.execute({
+            sql: `INSERT INTO transactions
+                  (id, tenant_id, wallet_id, timestamp, token_symbol, value, from_address, to_address, tx_type, usd_value, chain, hash, token_decimals)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`${id}-${tenant}`, tenant, `${walletRowId}-${tenant}`, at, 'BTC', '100000000', from, to, tx, usd, 'bitcoin', hash, 8],
+          });
+        await onchain('l-arrive', '2024-02-01T00:30:00Z', 'incoming', FAR, WALLET, 100_000, HASH);
+        await onchain('l-pay', '2024-06-01T00:00:00Z', 'outgoing', WALLET, FAR, 90_000, '0x' + '2'.repeat(64));
+      }
+
+      beforeAll(async () => {
+        ({ buildAnnualBreakdown: breakdown } = await import('@/lib/annualBreakdown'));
+        await seedRows(LEDGER_TENANT);
+        await seedRows(LEDGER_LC_TENANT);
+
+        // Pipeline tenant: the owner classified the payment as a sale by hand.
+        await db.execute({
+          sql: `INSERT INTO tax_classifications (id, tenant_id, source_type, source_id, category, confidence, is_manual, tax_year, asset_symbol)
+                VALUES (?,?,?,?,?,?,?,?,?)`,
+          args: [randomUUID(), LEDGER_TENANT, 'onchain', `l-pay-${LEDGER_TENANT}`, 'sell', 1, 1, 2024, 'BTC'],
+        });
+
+        // Lifecycle tenant: the rows the lifecycle rebuild would write for the same history.
+        const gid = `g-btc-${LEDGER_LC_TENANT}`;
+        await db.execute({ sql: `INSERT INTO asset_lifecycle_groups (id, tenant_id, asset_symbol) VALUES (?,?,?)`, args: [gid, LEDGER_LC_TENANT, 'BTC'] });
+        const ev = (id: string, type: string, at: string, dir: string, usd: number, cls: string, hash: string | null) =>
+          db.execute({
+            sql: `INSERT INTO asset_lifecycle_events
+                  (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, transaction_class)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            args: [`ev-${id}-${LEDGER_LC_TENANT}`, LEDGER_LC_TENANT, gid, type, `${id}-${LEDGER_LC_TENANT}`, at, dir, 1, usd, hash, cls],
+          });
+        await ev('l-buy', 'import', '2023-01-10T00:00:00Z', 'in', 20_000, 'owned_acquisition', null);
+        await ev('l-send', 'import', '2024-02-01T00:00:00Z', 'out', 100_000, 'other', HASH);
+        await ev('l-arrive', 'onchain', '2024-02-01T00:30:00Z', 'in', 100_000, 'owned_acquisition', HASH);
+        await ev('l-pay', 'onchain', '2024-06-01T00:00:00Z', 'out', 90_000, 'other', '0x' + '2'.repeat(64));
+
+        await runTaxPipeline(LEDGER_TENANT);
+      });
+
+      it('the pipeline persists one lot and one disposal: the send and the arrival add nothing', async () => {
+        const lots = (await db.execute({ sql: `SELECT source_id, remaining_qty, cost_basis_usd, acquired_at FROM tax_lots WHERE tenant_id = ?`, args: [LEDGER_TENANT] })).rows as Record<string, unknown>[];
+        expect(lots.map((l) => [l.source_id, Number(l.remaining_qty), Number(l.cost_basis_usd), String(l.acquired_at).slice(0, 10)])).toEqual([
+          [`l-buy-${LEDGER_TENANT}`, 0, 20_000, '2023-01-10'],
+        ]);
+        const disposals = (await db.execute({ sql: `SELECT source_id, proceeds_usd, cost_basis_usd, gain_loss_usd, is_short_term, lot_id FROM tax_disposals WHERE tenant_id = ?`, args: [LEDGER_TENANT] })).rows as Record<string, unknown>[];
+        expect(disposals).toHaveLength(1);
+        expect(disposals[0].source_id).toBe(`l-pay-${LEDGER_TENANT}`);
+        expect([Number(disposals[0].proceeds_usd), Number(disposals[0].cost_basis_usd), Number(disposals[0].gain_loss_usd), Number(disposals[0].is_short_term)]).toEqual([90_000, 20_000, 70_000, 0]);
+        expect(disposals[0].lot_id).not.toBe('unmatched');
+      });
+
+      it('a tenant that has run the pipeline reads the pipeline, and sees the same sale', async () => {
+        const bd = await breakdown(LEDGER_TENANT, 2024, 'fifo', undefined, 'auto');
+        expect(bd.dataSource).toBe('pipeline');
+        expect(bd.longTerm.map((l) => [l.buyDate.slice(0, 10), l.costUsd, l.proceedsUsd, l.gainLossUsd])).toEqual([['2023-01-10', 20_000, 90_000, 70_000]]);
+        expect(bd.shortTerm).toEqual([]);
+        expect(bd.needsAttention).toEqual([]);
+        expect(bd.stillHolding).toEqual([]);
+        expect(bd.transferReviews).toEqual([]);
+      });
+
+      it('a tenant that has not reads the lifecycle, and sees the same sale', async () => {
+        const bd = await breakdown(LEDGER_LC_TENANT, 2024, 'fifo', undefined, 'auto');
+        expect(bd.dataSource).toBe('lifecycle');
+        expect(bd.longTerm.map((l) => [l.buyDate.slice(0, 10), l.costUsd, l.proceedsUsd, l.gainLossUsd])).toEqual([['2023-01-10', 20_000, 90_000, 70_000]]);
+        expect(bd.shortTerm).toEqual([]);
+        expect(bd.needsAttention).toEqual([]);
+        expect(bd.stillHolding).toEqual([]);
+        expect(bd.transferReviews).toEqual([]);
+      });
+
+      it('2023 holds the coin bought on the exchange, and no second lot for the arrival', async () => {
+        const bd = await breakdown(LEDGER_LC_TENANT, 2023, 'fifo', undefined, 'auto');
+        expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000]]);
+        const owner = await breakdown(LEDGER_TENANT, 2023, 'fifo', undefined, 'auto');
+        expect(owner.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2023-01-10', 20_000]]);
       });
     });
   },

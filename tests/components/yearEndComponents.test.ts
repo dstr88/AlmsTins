@@ -62,20 +62,25 @@ describe('the Lot Manager uses the shared badge', () => {
 
 describe('wallets reach the tokens', () => {
 	const breakdown = read('src/lib/annualBreakdown.ts');
+	const ledgerRows = read('src/lib/tax/computeLedger.ts');
+	const ledgerContext = read('src/lib/tax/ledgerContext.ts');
+	const lifecycleAdapter = read('src/lib/tax/ledgerAdapters/lifecycle.ts');
 	const lots = read('src/pages/dashboard/yearEnd/lots.astro');
 	const gains = read('src/pages/dashboard/yearEnd/gains.astro');
 
 	it('the lifecycle query joins each event to its source row and loads the wallets', () => {
-		expect(breakdown).toMatch(/LEFT JOIN import_transactions i/);
-		expect(breakdown).toMatch(/LEFT JOIN transactions t/);
-		expect(breakdown).toMatch(/SELECT id, address FROM wallets WHERE tenant_id = \?/);
+		expect(ledgerRows).toMatch(/LEFT JOIN import_transactions i/);
+		expect(ledgerRows).toMatch(/LEFT JOIN transactions t/);
+		expect(ledgerContext).toMatch(/SELECT id, address FROM wallets WHERE tenant_id = \?/);
 	});
 
 	it('every lot records its wallet, and every settled and held item carries it', () => {
-		expect(breakdown).toMatch(/list\.push\(\{ amount, timestamp, costUsd: nativeUsd, walletKey \}\)/);
-		expect(breakdown).toMatch(/walletKey:  lot\.walletKey,/);
-		expect(breakdown).toMatch(/walletKey:   lot\.walletKey,/);
-		expect(breakdown).toMatch(/walletDisplay: walletDisplayOf\(lot\.walletKey\)/);
+		// The adapter gives each event the wallet its source row sits in; the ledger keeps it on the lot.
+		expect(lifecycleAdapter).toMatch(/walletOfRow\(/);
+		expect(lifecycleAdapter).toMatch(/kind: 'acquire', id: sourceRef, asset, wallet,/);
+		expect(breakdown).toMatch(/const walletKey = walletOrNull\(sl\.wallet\)/);
+		expect(breakdown).toMatch(/walletKey,\n\s+walletDisplay: walletDisplayOf\(walletKey\)/);
+		expect(breakdown).toMatch(/walletDisplay: walletDisplayOf\(walletKey\),\n\s+acquiredDate/);
 	});
 
 	it('the Lot Manager shows the wallet on each sale and each open lot', () => {

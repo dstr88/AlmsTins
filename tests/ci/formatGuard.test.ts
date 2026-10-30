@@ -44,8 +44,6 @@ type Rule = keyof typeof RULES;
 const ALLOWED: Record<Rule, Record<string, string>> = {
 	currencyStyle: {},
 	handBuiltDollars: {
-		'src/lib/annualBreakdown.ts':
-			'the estimated-basis note is part of the breakdown the tax files print; changing it would change those files.',
 		'src/lib/aave/syncAaveLiquidations.ts':
 			'builds the description stored on each liquidation row; changing it would change stored data.',
 		'src/pages/api/research/attachment.ts':

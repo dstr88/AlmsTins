@@ -35,6 +35,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireTaxOwner } from '@/lib/taxAuth';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getCache, setCache } from '@/lib/tursoCache';
+import { TAX_CACHE_VERSION } from '@/lib/tax/cacheVersion';
 import { getLang } from '@/lib/i18n/locale';
 import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 import { formatAmount, formatFileDate } from '@/lib/format';
@@ -97,7 +98,7 @@ export const GET: APIRoute = async ({ request }) => {
 			return json({ ok: false, error: t.invalidYear }, 400);
 		}
 
-		const cacheKey = `t:${tenantId}:form8949:${year}:${method}:v1`;
+		const cacheKey = `t:${tenantId}:form8949:${year}:${method}:${TAX_CACHE_VERSION}`;
 		const cached = await getCache<unknown>(cacheKey, { allowStale: true, staleMaxAgeSeconds: 30 * 60 });
 		if (cached.value) return json({ ok: true, ...(cached.value as object), cached: true });
 

@@ -13,6 +13,11 @@
  * The `it.fails` cases hold the per-wallet target: they pass while the engine is still
  * universal and start failing once per-wallet FIFO lands, at which point flip them to `it`.
  *
+ * Transfers are MOVES in both engines: a send between two of the owner's own wallets or accounts
+ * is not a sale, and the arrival does not open a second lot. The coins keep their original date
+ * and cost. What is still pooled is the choice of lot at a sale: one pool per asset across all
+ * wallets, until per-wallet FIFO lands (the `it.fails` cases).
+ *
  * Worked example (amounts in USD, 1 BTC per lot):
  *   Wallet A (Coinbase account)   A1  bought 2023-01-10 for 20,000
  *                                 A2  bought 2023-06-01 for 30,000
@@ -150,15 +155,15 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 		}))).toEqual(PER_WALLET_SALE);
 	});
 
-	it('today: a priced exchange-to-exchange deposit opens a second lot at the arrival date and value', () => {
-		// Coinbase Buy, Coinbase Send, Kraken deposit of the same coin. Pass 1 marks both legs
-		// as transfers with no link. Pass 4 keeps the Coinbase lot (a transfer is not a
-		// disposal) AND opens a new lot for the priced deposit, so 1 BTC held shows as 2 BTC
-		// of open lots, the second dated 2025-02-01 at 100,000 instead of 2023-01-10 at 20,000.
+	it('an exchange-to-exchange transfer is a move: the deposit opens no second lot', () => {
+		// Coinbase Buy, Coinbase Send, Kraken deposit of the same coin. Pass 1 marks both legs as
+		// transfers with no link; the resolver pairs them (same coin, different accounts, the
+		// deposit 2 hours after the send, same quantity). The Coinbase lot is the only lot, with
+		// its 2023 date and 20,000 cost, so 1 BTC held is 1 BTC of open lots.
 		const rows = [
 			importRow({ id: 'buy', timestamp_utc: '2023-01-10T00:00:00Z', native_usd: 20_000 }),
 			importRow({ id: 'send', timestamp_utc: '2025-02-01T00:00:00Z', kind: 'Send', direction: 'out', native_usd: 100_000 }),
-			importRow({ id: 'dep', timestamp_utc: '2025-02-01T02:00:00Z', kind: 'deposit', source: 'kraken', native_usd: 100_000 }),
+			importRow({ id: 'dep', timestamp_utc: '2025-02-01T02:00:00Z', kind: 'deposit', direction: 'in', source: 'kraken', native_usd: 100_000 }),
 		];
 		const classifications = new Map<string, ClassificationResult>();
 		for (const r of rows) {
@@ -167,12 +172,30 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 		}
 		expect(classifications.get('import:dep')?.category).toBe('transfer');
 
-		const { lots } = runFifo('tenant-1', rows, [], classifications);
+		const { lots, disposals, findings } = runFifo('tenant-1', rows, [], classifications);
 		expect(lots.map((l) => [l.sourceId, l.acquiredAt.slice(0, 10), l.costBasisUsd, l.lotType])).toEqual([
 			['buy', '2023-01-10', 20_000, 'purchase'],
-			['dep', '2025-02-01', 100_000, 'transfer'],
 		]);
-		expect(sum(lots.map((l) => l.remainingQty))).toBe(2);
+		expect(sum(lots.map((l) => l.remainingQty))).toBe(1);
+		expect(disposals).toEqual([]);
+		// Paired by amount and time only, so the owner is asked to look at it.
+		expect(findings.map((f) => f.reason)).toEqual(['transfer_link_unconfirmed']);
+	});
+
+	it('a send nothing was found for consumes the coins and is listed, not booked as a sale', () => {
+		const rows = [
+			importRow({ id: 'buy', timestamp_utc: '2023-01-10T00:00:00Z', native_usd: 20_000 }),
+			importRow({ id: 'send', timestamp_utc: '2025-02-01T00:00:00Z', kind: 'Send', direction: 'out', native_usd: 100_000 }),
+		];
+		const classifications = new Map<string, ClassificationResult>();
+		for (const r of rows) {
+			const c = classifyImportTxPass1(r);
+			if (c) classifications.set(`import:${r.id}`, c);
+		}
+		const { lots, disposals, findings } = runFifo('tenant-1', rows, [], classifications);
+		expect(disposals).toEqual([]);
+		expect(sum(lots.map((l) => l.remainingQty))).toBe(0);
+		expect(findings.map((f) => f.reason)).toEqual(['unmatched_transfer']);
 	});
 });
 
@@ -181,30 +204,38 @@ describe('Pipeline engine: two wallets, a transfer, a 2025 sale from the receivi
 // figure, and every 'auto' caller for a year the tax pipeline has not run.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ev(o: {
+type EvInput = {
 	direction: 'in' | 'out'; timestamp_utc: string; native_usd: number;
 	amount?: number; source_type: 'import' | 'onchain'; source_id: string;
-	transaction_class?: string; linked_transfer?: number;
-}) {
+	transaction_class?: string; tx_hash?: string;
+	// The source row the lifecycle query joins back to.
+	import_source?: string; import_kind?: string; import_account_id?: string;
+	tx_wallet_id?: string; tx_chain?: string; from_address?: string; to_address?: string;
+};
+
+function ev(o: EvInput) {
 	return {
-		asset_symbol: 'BTC', amount: 1, transaction_class: 'other', linked_transfer: 0,
-		group_id: 'g-btc', tx_hash: null, ...o,
+		asset_symbol: 'BTC', amount: 1, transaction_class: 'other', group_id: 'g-btc', tx_hash: null, ...o,
 	};
 }
 
+const buy = (id: string, at: string, usd: number) =>
+	ev({ direction: 'in', timestamp_utc: at, native_usd: usd, source_type: 'import', source_id: id, transaction_class: 'owned_acquisition', import_source: 'coinbase', import_kind: 'Buy', import_account_id: 'acct-a' });
+
 const lifecycleEvents = [
-	ev({ direction: 'in',  timestamp_utc: '2023-01-10T00:00:00Z', native_usd: 20_000, source_type: 'import',  source_id: 'a1', transaction_class: 'owned_acquisition' }),
-	ev({ direction: 'in',  timestamp_utc: '2023-06-01T00:00:00Z', native_usd: 30_000, source_type: 'import',  source_id: 'a2', transaction_class: 'owned_acquisition' }),
-	ev({ direction: 'in',  timestamp_utc: '2024-09-01T00:00:00Z', native_usd: 60_000, source_type: 'onchain', source_id: 'b1' }),
-	// The rebuild links this Coinbase withdrawal to the on-chain arrival (linked_transfer = 1).
-	ev({ direction: 'out', timestamp_utc: '2025-02-01T00:00:00Z', native_usd: 100_000, source_type: 'import',  source_id: 'send', linked_transfer: 1 }),
-	ev({ direction: 'in',  timestamp_utc: '2025-02-01T00:30:00Z', native_usd: 100_000, source_type: 'onchain', source_id: 'arrive', linked_transfer: 1 }),
-	ev({ direction: 'out', timestamp_utc: '2025-06-01T00:00:00Z', native_usd: 180_000, amount: 2, source_type: 'onchain', source_id: 'sale' }),
+	buy('a1', '2023-01-10T00:00:00Z', 20_000),
+	buy('a2', '2023-06-01T00:00:00Z', 30_000),
+	ev({ direction: 'in', timestamp_utc: '2024-09-01T00:00:00Z', native_usd: 60_000, source_type: 'onchain', source_id: 'b1', tx_wallet_id: 'w-b', tx_chain: 'bitcoin', from_address: OUTSIDE, to_address: WALLET_B, tx_hash: 'h-b1' }),
+	// The Coinbase withdrawal and the on-chain arrival share a transaction hash.
+	ev({ direction: 'out', timestamp_utc: '2025-02-01T00:00:00Z', native_usd: 100_000, source_type: 'import', source_id: 'send', import_source: 'coinbase', import_kind: 'Send', import_account_id: 'acct-a', tx_hash: 'h-send' }),
+	ev({ direction: 'in', timestamp_utc: '2025-02-01T00:30:00Z', native_usd: 100_000, source_type: 'onchain', source_id: 'arrive', tx_wallet_id: 'w-b', tx_chain: 'bitcoin', from_address: OUTSIDE, to_address: WALLET_B, tx_hash: 'h-send' }),
+	ev({ direction: 'out', timestamp_utc: '2025-06-01T00:00:00Z', native_usd: 180_000, amount: 2, source_type: 'onchain', source_id: 'sale', tx_wallet_id: 'w-b', tx_chain: 'bitcoin', from_address: WALLET_B, to_address: OUTSIDE, tx_hash: 'h-sale' }),
 ];
 
 function setupLifecycleMock() {
 	mockExecute.mockImplementation(({ sql }: { sql: string }) => {
 		if (sql.includes('LEFT JOIN asset_lifecycle_groups')) return Promise.resolve({ rows: lifecycleEvents });
+		if (sql.includes('FROM wallets')) return Promise.resolve({ rows: [{ id: 'w-b', address: WALLET_B }] });
 		return Promise.resolve({ rows: [] });
 	});
 }
@@ -215,30 +246,34 @@ describe('Lifecycle engine: the same example through buildAnnualBreakdown', () =
 		setupLifecycleMock();
 	});
 
-	it('today: the linked Coinbase-to-wallet send is realized as a 2025 sale of A1', async () => {
+	it('the Coinbase-to-wallet send is a move, not a 2025 sale', async () => {
 		const bd = await buildAnnualBreakdown('tenant-1', 2025);
-		const send = bd.longTerm.filter((l) => l.sellDate.startsWith('2025-02-01'));
-		expect(send).toHaveLength(1);
-		expect(send[0]).toMatchObject({ buyDate: '2023-01-10T00:00:00Z', costUsd: 20_000, proceedsUsd: 100_000, gainLossUsd: 80_000 });
+		expect([...bd.shortTerm, ...bd.longTerm].filter((l) => l.sellDate.startsWith('2025-02-01'))).toEqual([]);
+		expect(bd.needsAttention).toEqual([]);
 	});
 
-	it('today: the arrival opens a new lot dated the transfer day at its 2025 value', async () => {
+	it('the arrival opens no new lot: the coins keep their 2023 date and 20,000 cost', async () => {
 		const bd = await buildAnnualBreakdown('tenant-1', 2025);
-		expect(bd.stillHolding).toHaveLength(1);
-		expect(bd.stillHolding[0]).toMatchObject({ acquiredDate: '2025-02-01T00:30:00Z', costUsd: 100_000, amount: 1 });
+		// A1 and A2 are still pooled with B1 until the sale; the send and the arrival add nothing.
+		const before = await buildAnnualBreakdown('tenant-1', 2024);
+		expect(before.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([
+			['2023-01-10', 20_000], ['2023-06-01', 30_000], ['2024-09-01', 60_000],
+		]);
+		expect(bd.stillHolding.map((h) => h.acquiredDate.slice(0, 10))).not.toContain('2025-02-01');
 	});
 
-	it('today: the 2025-06-01 sale then takes A2 and B1 from the universal pool', async () => {
+	it('today: the 2025-06-01 sale takes A1 and A2 from the universal pool, B1 is left', async () => {
 		const bd = await buildAnnualBreakdown('tenant-1', 2025);
 		const sale = [...bd.shortTerm, ...bd.longTerm]
 			.filter((l) => l.sellDate.startsWith('2025-06-01'))
 			.sort((a, b) => a.buyDate.localeCompare(b.buyDate));
 		expect(sale.map((l) => [l.buyDate.slice(0, 10), l.costUsd, l.gainLossUsd])).toEqual([
+			['2023-01-10', 20_000, 70_000],
 			['2023-06-01', 30_000, 60_000],
-			['2024-09-01', 60_000, 30_000],
 		]);
-		// 2025 realized gain: 80,000 from the send plus 90,000 from the sale.
-		expect(bd.totals.longTermGain + bd.totals.shortTermGain).toBe(170_000);
+		// 2025 realized gain: only the sale, 180,000 less 50,000 of basis.
+		expect(bd.totals.longTermGain + bd.totals.shortTermGain).toBe(130_000);
+		expect(bd.stillHolding.map((h) => [h.acquiredDate.slice(0, 10), h.costUsd])).toEqual([['2024-09-01', 60_000]]);
 	});
 
 	it.fails('target (2025+): the send is not a sale, and wallet B sells A1 then B1', async () => {

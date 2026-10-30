@@ -2,6 +2,7 @@
 // Saves a user's manual classification decision for a review item.
 // The item is marked resolved and a manual tax_classification is upserted.
 
+import { invalidateLedger } from '@/lib/tax/computeLedger';
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -102,6 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
 			args: [now, category, now, reviewItemId],
 		});
 
+		invalidateLedger(tenantId);
 		return respond({ ok: true }, 200);
 	} catch (error) {
 		if (error instanceof Response) return error;

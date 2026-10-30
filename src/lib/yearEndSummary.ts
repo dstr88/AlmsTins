@@ -19,6 +19,7 @@ import { getCache, setCache } from './tursoCache';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from './annualBreakdown';
 import { getTickersUSD } from './coinpaprikaProvider';
 import { sqlTimestamptz } from './utcTimestamp';
+import { TAX_CACHE_VERSION } from './tax/cacheVersion';
 
 const CACHE_TTL     = 10 * 60;  // 10 min fresh
 const STALE_MAX_AGE = 60 * 60;  // serve stale up to 1 h
@@ -51,7 +52,7 @@ export async function getYearEndSummary(
 	method: CostBasisMethod,
 ): Promise<YearEndSummary | null> {
 	const memKey   = `tax-summary:${tenantId}:${year}:${method}`;
-	const tursoKey = `t:${tenantId}:tax:summary:${year}:${method}:v1`;
+	const tursoKey = `t:${tenantId}:tax:summary:${year}:${method}:${TAX_CACHE_VERSION}`;
 
 	const mem = memCache.get(memKey);
 	if (mem && mem.expiresAt > Date.now()) {

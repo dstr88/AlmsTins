@@ -1,384 +1,141 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Pass 4 — Global FIFO lot matching
+// Pass 4 — Lot matching
 //
-// 1. Builds tax_lots from all buy / income / airdrop / swap-in events across
-//    ALL sources (exchanges + on-chain wallets).  Lots are sorted oldest-first.
+// The pipeline classifies every row (passes 1 to 3b); this pass turns the classified rows into
+// ledger events (tax/ledgerAdapters/pipeline.ts) and runs them through the ledger core
+// (tax/lotLedger.ts), the same core the lifecycle engine uses. It then maps the core's lots and
+// sale slices to the tax_lots and tax_disposals rows the pipeline persists.
 //
-// 2. For each disposal (sell / swap-out / liquidation / burn / nft-sale)
-//    consumes lots in FIFO order, computing:
-//      - cost basis (from the lot)
-//      - proceeds (from the disposal)
-//      - gain / loss
-//      - short-term flag: IRS "more than 1 year" = calendar month comparison
-//        (not a fixed 365-day window, which is wrong in leap years and on the
-//        exact 12-month boundary).
+//   - buy / income / airdrop / swap-in / loan proceeds open a lot.
+//   - sell / swap-out / liquidation / burn / lost / nft-sale consume lots, oldest first (or by the
+//     method), computing cost basis, proceeds, gain and the holding period by calendar date
+//     (yearEnd/holdingPeriod.ts), not a fixed 365-day window.
+//   - a transfer between the owner's own wallets or accounts is a MOVE: no disposal, no new lot.
+//     A lot's date and cost stay with it. An explicit send nothing was found for consumes the
+//     coins and is listed for review; it is not a sale.
+//   - a sale the lots cannot cover becomes a disposal with lotId 'unmatched' for the rest, so no
+//     part of a sale is ever dropped, and a sale never consumes a lot acquired after it.
 //
-// Two-row CEX swaps (e.g. Coinbase "Convert"):
-//   direction='out' row  → disposal of the sold asset
-//   direction='in'  row  → acquisition lot for the received asset
-// Both are classified as 'swap' by pass1; buildAcquisitions and buildDisposals
-// filter on direction to ensure each leg goes to exactly one side.
-//
-// Returns arrays of TaxLot and TaxDisposal ready for DB insert.
+// Two-row CEX swaps (e.g. Coinbase "Convert"): the direction='out' row is the disposal of the sold
+// asset and the direction='in' row is the acquisition of the received one.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { randomUUID } from 'node:crypto';
-import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx } from './types';
-import { isShortTermHold } from './holdingPeriod';
+import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx, TaxCategory } from './types';
+import type { OwnerIndex } from '../walletIdentity';
+import { EPSILON, runLotLedger, type CostBasisMethod, type LedgerFinding, type LedgerResult, type LotOrigin } from '../tax/lotLedger';
+import { pipelineToLedger, type PipelineAdapterInput } from '../tax/ledgerAdapters/pipeline';
+import type { RefInfo } from '../tax/ledgerAdapters/shared';
 
-const taxYear = (ts: string) => new Date(ts).getUTCFullYear();
-
-// Short-term vs long-term comes from the shared calendar-date rule (holdingPeriod.ts).
-
-type AcquisitionTx = {
-	id: string;
-	sourceType: 'import' | 'onchain';
-	timestamp: string;
-	assetSymbol: string;
-	quantity: number;
-	pricePerUnit: number | null;
-	costBasisUsd: number | null;
-	lotType: TaxLot['lotType'];
+/** What the pipeline reads besides its rows to tell a transfer from a sale. Every field is optional: a bare call reads rows by their own columns. */
+export type FifoContext = Partial<Pick<PipelineAdapterInput, 'manualKeys' | 'wallets' | 'walletIdByTxHash' | 'transferMatches' | 'ownerIndex' | 'manualBasis'>> & {
+	method?: CostBasisMethod;
+	lotPins?: Map<string, { acquiredAt: string; amountHint: number }>;
 };
 
-type DisposalTx = {
-	id: string;
-	sourceType: 'import' | 'onchain';
-	timestamp: string;
-	assetSymbol: string;
-	quantity: number;
-	proceedsUsd: number | null;
-	category: TaxDisposal['category'];
+const NO_OWNERS: OwnerIndex = { byKey: new Map(), byAddress: new Map() };
+
+const LOT_TYPE: Record<LotOrigin, TaxLot['lotType']> = {
+	purchase: 'purchase',
+	income: 'income',
+	airdrop: 'airdrop',
+	swap_in: 'purchase',
+	loan_proceeds: 'transfer',
+	transfer_in_untracked: 'transfer',
+	transfer_surplus: 'transfer',
+	jan1_placeholder: 'purchase',
+	other: 'purchase',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+const sourceTypeOf = (info: RefInfo | undefined): TaxLot['sourceType'] => (info?.sourceType === 'onchain' ? 'onchain' : 'import');
 
-function getCategory(classifications: Map<string, ClassificationResult>, key: string) {
-	return classifications.get(key)?.category ?? 'unknown';
-}
+/** The ledger's lots and sale slices as the rows the pipeline persists. */
+export function ledgerToTaxRows(result: LedgerResult, refs: ReadonlyMap<string, RefInfo>): { lots: TaxLot[]; disposals: TaxDisposal[] } {
+	const lotIds = new Map<string, string>();
+	for (const l of result.lots) lotIds.set(l.id, randomUUID());
 
-function importKey(id: string) { return `import:${id}`; }
-function onchainKey(id: string) { return `onchain:${id}`; }
+	const lots: TaxLot[] = result.lots.map((l) => {
+		const info = refs.get(l.sourceRef);
+		const remaining = l.remainingQty > EPSILON ? l.remainingQty : 0;
+		return {
+			id: lotIds.get(l.id) as string,
+			assetSymbol: l.asset,
+			acquiredAt: l.acquiredAt,
+			quantity: l.qty,
+			remainingQty: remaining,
+			costBasisUsd: l.costUsd,
+			pricePerUnit: l.costUsd !== null && l.qty > 0 ? l.costUsd / l.qty : null,
+			sourceType: sourceTypeOf(info),
+			sourceId: info?.sourceId ?? l.sourceRef,
+			lotType: LOT_TYPE[l.origin] ?? 'purchase',
+			originLotId: l.originLotId ? lotIds.get(l.originLotId) ?? null : null,
+			// Set only once a lot is used up; a lot with units left carries no flag.
+			...(remaining <= 0 ? { isExhausted: true } : {}),
+		};
+	});
 
-// ── Build acquisition rows ────────────────────────────────────────────────────
-
-function buildAcquisitions(
-	importRows: RawImportTx[],
-	onchainRows: RawOnchainTx[],
-	classifications: Map<string, ClassificationResult>,
-): AcquisitionTx[] {
-	const acqs: AcquisitionTx[] = [];
-
-	for (const row of importRows) {
-		const cat = getCategory(classifications, importKey(row.id));
-
-		// Two-row CEX swap: the incoming leg (direction='in', category='swap') is the
-		// received asset and should create an acquisition lot just like a buy.
-		// The outgoing leg (direction='out') is handled in buildDisposals.
-		const isSwapIn = cat === 'swap' && row.direction === 'in';
-
-		// Loan-proceeds: tokens received from a DeFi borrow (Aave, Compound, etc.).
-		// The borrow itself is not taxable, but the borrowed tokens ARE property — if
-		// you later sell or swap them, that disposal needs a cost basis.  FMV at the
-		// time the loan proceeds hit the wallet is the correct basis (IRC § 1012).
-		const isLoanIn = cat === 'loan-proceeds' && row.direction === 'in';
-
-		// Unmatched transfer-in WITH a known price: tokens received from a source
-		// outside the tracked import universe (e.g. Binance, a second hardware wallet).
-		// The transfer itself is not taxable, but if no other lot exists for this asset
-		// (because the purchase was never imported) we need a lot here so that future
-		// disposals can match against something rather than landing as "unmatched".
-		// We only create the lot when native_usd is non-null — silent null-price
-		// transfers are flagged for review by pass5 instead (see missing_cost_basis).
-		//
-		// Exclusions:
-		//   • Fiat symbols (USD, EUR, etc.) — never belong in the crypto lot pool
-		//   • crypto_earn_program_withdrawn — principal returning from Crypto.com Earn;
-		//     the original purchase lot already exists, creating another here
-		//     would double-count and inflate cost basis.
-		const FIAT_SYMBOLS = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD']);
-		const isUnmatchedTransferIn = cat === 'transfer'
-			&& row.direction === 'in'
-			&& row.native_usd !== null
-			&& !!row.asset_symbol
-			&& !FIAT_SYMBOLS.has(row.asset_symbol.toUpperCase())
-			&& row.kind !== 'crypto_earn_program_withdrawn';
-
-		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop'
-			&& !isSwapIn && !isLoanIn && !isUnmatchedTransferIn) continue;
-
-		// asset_symbol is the only symbol field on RawImportTx.
-		const symbol = row.asset_symbol;
-		if (!symbol) continue;
-
-		// Never put fiat currencies in the crypto lot pool — USD/EUR/etc. are not
-		// capital assets and should not appear on Form 8949.
-		const FIAT_LOT_SYMBOLS = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD']);
-		if (FIAT_LOT_SYMBOLS.has(symbol.toUpperCase())) continue;
-
-		// For buys/swap-in: quantity is what was received.
-		// If to_amount is set it overrides amount (some CEX export the received qty there).
-		const qty = row.to_amount !== null ? Math.abs(row.to_amount) : (row.amount !== null ? Math.abs(row.amount) : null);
-		if (!qty) continue;
-
-		// Cost basis = FMV at time of acquisition (native_usd).
-		// For swap-in rows this is the FMV of the received tokens at the swap date —
-		// the correct cost basis for future disposals of those tokens.
-		// For loan-proceeds: FMV at borrow time = correct basis under IRC § 1012.
-		const totalCost = row.native_usd !== null ? Math.abs(row.native_usd) : null;
-		const ppu = totalCost !== null && qty > 0 ? totalCost / qty : null;
-
-		acqs.push({
-			id: row.id,
-			sourceType: 'import',
-			timestamp: row.timestamp_utc,
-			assetSymbol: symbol.toUpperCase(),
-			quantity: qty,
-			pricePerUnit: ppu,
-			costBasisUsd: totalCost,
-			lotType: cat === 'income' ? 'income'
-				: cat === 'airdrop' ? 'airdrop'
-				: (isUnmatchedTransferIn || isLoanIn) ? 'transfer'
-				: 'purchase',
-		});
-	}
-
-	for (const row of onchainRows) {
-		const cat = getCategory(classifications, onchainKey(row.id));
-		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop') continue;
-
-		const symbol = row.token_symbol;
-		if (!symbol) continue;
-
-		const raw = row.value ?? '0';
-		const qty = Math.abs(parseFloat(raw) || 0);
-		if (!qty) continue;
-
-		const totalCost = row.usd_value !== null ? Math.abs(row.usd_value ?? 0) : null;
-		const ppu = totalCost !== null && qty > 0 ? totalCost / qty : null;
-
-		acqs.push({
-			id: row.id,
-			sourceType: 'onchain',
-			timestamp: row.timestamp,
-			assetSymbol: symbol.toUpperCase(),
-			quantity: qty,
-			pricePerUnit: ppu,
-			costBasisUsd: totalCost,
-			lotType: cat === 'buy' ? 'purchase' : cat === 'income' ? 'income' : 'airdrop',
-		});
-	}
-
-	return acqs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-}
-
-// ── Build disposal rows ───────────────────────────────────────────────────────
-
-function buildDisposals(
-	importRows: RawImportTx[],
-	onchainRows: RawOnchainTx[],
-	classifications: Map<string, ClassificationResult>,
-): DisposalTx[] {
-	const disposals: DisposalTx[] = [];
-	const disposalCats = new Set(['sell', 'swap', 'liquidation', 'burn', 'lost', 'nft-sale']);
-
-	for (const row of importRows) {
-		const cat = getCategory(classifications, importKey(row.id));
-		if (!disposalCats.has(cat)) continue;
-
-		// Two-row CEX swap: the incoming leg is handled in buildAcquisitions.
-		// Skip it here so a single swap doesn't create both a disposal AND a
-		// spurious second disposal from the received side.
-		if (cat === 'swap' && row.direction === 'in') continue;
-
-		const symbol = row.asset_symbol;
-		if (!symbol) continue;
-
-		const qty = row.amount !== null ? Math.abs(row.amount) : null;
-		if (!qty) continue;
-
+	const disposals: TaxDisposal[] = [];
+	for (const s of result.slices) {
+		// Units an unmatched send consumed are not a disposal.
+		if (!s.taxable) continue;
+		const info = refs.get(s.sourceRef);
 		disposals.push({
-			id: row.id,
-			sourceType: 'import',
-			timestamp: row.timestamp_utc,
-			assetSymbol: symbol.toUpperCase(),
-			quantity: qty,
-			proceedsUsd: row.native_usd !== null ? Math.abs(row.native_usd) : null,
-			category: cat as DisposalTx['category'],
+			id: randomUUID(),
+			assetSymbol: s.asset,
+			disposedAt: s.disposedAt,
+			quantity: s.qty,
+			proceedsUsd: s.proceeds,
+			costBasisUsd: s.cost,
+			gainLossUsd: s.gain,
+			isShortTerm: s.term === 'short',
+			category: s.category as TaxCategory,
+			sourceType: sourceTypeOf(info),
+			sourceId: info?.sourceId ?? s.sourceRef,
+			lotId: s.lotId ? lotIds.get(s.lotId) ?? 'unmatched' : 'manual',
+			notes: s.basisSource === 'manual' ? s.originNote : null,
 		});
 	}
-
-	for (const row of onchainRows) {
-		const cat = getCategory(classifications, onchainKey(row.id));
-		if (!disposalCats.has(cat)) continue;
-
-		const symbol = row.token_symbol;
-		if (!symbol) continue;
-
-		const raw = row.value ?? '0';
-		const qty = Math.abs(parseFloat(raw) || 0);
-		if (!qty) continue;
-
+	for (const u of result.unmatched) {
+		if (!u.taxable) continue;
+		const info = refs.get(u.sourceRef);
 		disposals.push({
-			id: row.id,
-			sourceType: 'onchain',
-			timestamp: row.timestamp,
-			assetSymbol: symbol.toUpperCase(),
-			quantity: qty,
-			proceedsUsd: row.usd_value !== null ? Math.abs(row.usd_value ?? 0) : null,
-			category: cat as DisposalTx['category'],
+			id: randomUUID(),
+			assetSymbol: u.asset,
+			disposedAt: u.at,
+			quantity: u.qty,
+			proceedsUsd: u.proceeds,
+			costBasisUsd: null,
+			gainLossUsd: null,
+			isShortTerm: false,
+			category: u.category as TaxCategory,
+			sourceType: sourceTypeOf(info),
+			sourceId: info?.sourceId ?? u.sourceRef,
+			lotId: 'unmatched',
+			notes: 'No acquisition lot found — cost basis needs manual entry.',
 		});
 	}
-
-	return disposals.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+	disposals.sort((a, b) => a.disposedAt.localeCompare(b.disposedAt) || a.sourceId.localeCompare(b.sourceId));
+	return { lots, disposals };
 }
-
-// ── FIFO matching ─────────────────────────────────────────────────────────────
 
 export function runFifo(
-	tenantId: string,
+	_tenantId: string,
 	importRows: RawImportTx[],
 	onchainRows: RawOnchainTx[],
 	classifications: Map<string, ClassificationResult>,
-): { lots: TaxLot[]; disposals: TaxDisposal[] } {
-	const acqs = buildAcquisitions(importRows, onchainRows, classifications);
-	const disps = buildDisposals(importRows, onchainRows, classifications);
-
-	// Build lot pool keyed by asset symbol
-	const lotPool = new Map<string, TaxLot[]>();
-
-	const allLots: TaxLot[] = acqs.map((acq) => ({
-		id: randomUUID(),
-		assetSymbol: acq.assetSymbol,
-		acquiredAt: acq.timestamp,
-		quantity: acq.quantity,
-		remainingQty: acq.quantity,
-		costBasisUsd: acq.costBasisUsd,
-		pricePerUnit: acq.pricePerUnit,
-		sourceType: acq.sourceType,
-		sourceId: acq.id,
-		lotType: acq.lotType,
-		originLotId: null,
-	}));
-
-	for (const lot of allLots) {
-		const pool = lotPool.get(lot.assetSymbol) ?? [];
-		pool.push(lot);
-		lotPool.set(lot.assetSymbol, pool);
-	}
-
-	const allDisposals: TaxDisposal[] = [];
-
-	for (const disp of disps) {
-		const pool = lotPool.get(disp.assetSymbol);
-		if (!pool?.length) {
-			// No lots found — record a disposal with null cost basis for review
-			allDisposals.push({
-				id: randomUUID(),
-				assetSymbol: disp.assetSymbol,
-				disposedAt: disp.timestamp,
-				quantity: disp.quantity,
-				proceedsUsd: disp.proceedsUsd,
-				costBasisUsd: null,
-				gainLossUsd: null,
-				isShortTerm: false,
-				category: disp.category,
-				sourceType: disp.sourceType,
-				sourceId: disp.id,
-				lotId: 'unmatched',
-				notes: 'No acquisition lot found — cost basis needs manual entry.',
-			});
-			continue;
-		}
-
-		let remaining = disp.quantity;
-
-		// Use epsilon to guard against floating-point dust (e.g. 1e-14 remaining
-		// after consuming several lot slices). Without this, a phantom near-zero
-		// quantity triggers a spurious "No acquisition lot found" disposal row,
-		// which pollutes the review queue and inflates the completeness score.
-		const EPSILON = 1e-10;
-
-		while (remaining > EPSILON && pool.length > 0) {
-			const lot = pool[0];
-			const consume = Math.min(remaining, lot.remainingQty);
-			const fraction = consume / lot.quantity;
-			const costSlice = lot.costBasisUsd !== null ? lot.costBasisUsd * fraction : null;
-			const proceedsSlice = disp.proceedsUsd !== null ? (consume / disp.quantity) * disp.proceedsUsd : null;
-			const gainLoss =
-				proceedsSlice !== null && costSlice !== null ? proceedsSlice - costSlice : null;
-
-			// IRS holding period by calendar date (holdingPeriod.ts).
-			const isShortTerm = isShortTermHold(lot.acquiredAt, disp.timestamp);
-
-			allDisposals.push({
-				id: randomUUID(),
-				assetSymbol: disp.assetSymbol,
-				disposedAt: disp.timestamp,
-				quantity: consume,
-				proceedsUsd: proceedsSlice,
-				costBasisUsd: costSlice,
-				gainLossUsd: gainLoss,
-				isShortTerm,
-				category: disp.category,
-				sourceType: disp.sourceType,
-				sourceId: disp.id,
-				lotId: lot.id,
-				notes: null,
-			});
-
-			lot.remainingQty -= consume;
-			remaining -= consume;
-
-			if (lot.remainingQty <= 0) {
-				pool.shift();
-				lot.isExhausted = true;  // now typed on TaxLot
-			}
-		}
-	}
-
-	// Final exhaustion pass (catches lots that hit exactly zero during the loop)
-	for (const lot of allLots) {
-		if (lot.remainingQty <= 0) lot.isExhausted = true;
-	}
-
-	// ── Invariant assertions ──────────────────────────────────────────────────
-	// Verify the FIFO math produced internally consistent results.
-	// Violations are warnings only — they don't block the write, but they
-	// indicate a logic bug that needs investigation.
-
-	const GLOBAL_EPSILON = 1e-10;
-
-	// 1. No lot should have drifted below zero remaining quantity
-	for (const lot of allLots) {
-		if (lot.remainingQty < -GLOBAL_EPSILON) {
-			console.warn(
-				`[runFifo] INVARIANT VIOLATION: lot ${lot.id} (${lot.assetSymbol}) ` +
-				`has negative remainingQty ${lot.remainingQty.toExponential(4)} — possible double-consumption`,
-			);
-		}
-	}
-
-	// 2. For each matched disposal source, slices should sum ≈ original quantity
-	const slicesBySource = new Map<string, number>();
-	for (const d of allDisposals) {
-		if (d.lotId !== 'unmatched') {
-			slicesBySource.set(d.sourceId, (slicesBySource.get(d.sourceId) ?? 0) + d.quantity);
-		}
-	}
-	for (const disp of disps) {
-		const totalConsumed = slicesBySource.get(disp.id) ?? 0;
-		const isUnmatched = allDisposals.some(
-			(d) => d.sourceId === disp.id && d.lotId === 'unmatched',
-		);
-		if (!isUnmatched && Math.abs(totalConsumed - disp.quantity) > GLOBAL_EPSILON) {
-			console.warn(
-				`[runFifo] INVARIANT VIOLATION: disposal ${disp.id} (${disp.assetSymbol}) ` +
-				`quantity ${disp.quantity} but slices sum to ${totalConsumed} — ` +
-				`diff ${Math.abs(totalConsumed - disp.quantity).toExponential(4)}`,
-			);
-		}
-	}
-
-	return { lots: allLots, disposals: allDisposals };
+	context: FifoContext = {},
+): { lots: TaxLot[]; disposals: TaxDisposal[]; findings: LedgerFinding[] } {
+	const { events, refs } = pipelineToLedger({
+		importRows,
+		onchainRows,
+		classifications,
+		manualKeys: context.manualKeys,
+		wallets: context.wallets,
+		walletIdByTxHash: context.walletIdByTxHash,
+		transferMatches: context.transferMatches,
+		ownerIndex: context.ownerIndex ?? NO_OWNERS,
+		manualBasis: context.manualBasis,
+	});
+	const result = runLotLedger(events, { method: context.method, lotPins: context.lotPins });
+	return { ...ledgerToTaxRows(result, refs), findings: result.findings };
 }

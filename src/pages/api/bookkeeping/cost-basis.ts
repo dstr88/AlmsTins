@@ -8,6 +8,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { invalidateLedger } from '../../../lib/tax/computeLedger';
 
 function randomId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -111,6 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
+    invalidateLedger(tenantId);
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: {
