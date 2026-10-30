@@ -59,6 +59,7 @@ const ALLOW: Array<[string, string, string]> = [
   ['src/pages/dashboard/analytics.astro', 'ROUND(double, n)', 'numeric argument'],
   // Sign and zero tests on sui_transactions.amount; left for the tax-engine precision audit.
   ['src/lib/annualBreakdown.ts', 'REAL cast', 'pending tax-engine audit'],
+  ['src/lib/tax/computeLedger.ts', 'REAL cast', 'pending tax-engine audit'],
 ];
 
 // ── Call-argument helpers (for checks a regex cannot express) ───────────────────────────────

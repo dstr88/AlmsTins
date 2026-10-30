@@ -54,6 +54,12 @@ export interface BookkeepingLocale {
   noteNoPurchase: string;
   detailsCta: string;
 
+  // Transfers to review tin
+  tinTransfersToReview: string;
+  transfersToReviewIntro: string;
+  /** Keyed by the ledger's finding reason (tax/lotLedger.ts FINDING_REASONS); an unknown reason shows as its code. */
+  transferReasons: Record<string, string>;
+
   // Still in Wallet tin
   tinStillInWallet: string;
   /** "{n} positions" */
@@ -132,6 +138,20 @@ export const en: BookkeepingLocale = {
   noteNoPurchase: 'No purchase found',
   detailsCta: 'Details →',
 
+  tinTransfersToReview: 'Transfers to review',
+  transfersToReviewIntro: 'Coins that moved between your own wallets and accounts keep their original date and cost, and a move is not a sale. These are the moves Almstins could not be sure of.',
+  transferReasons: {
+    transfer_link_unconfirmed: 'Matched by amount and time, not by transaction',
+    transfer_between_owners: 'Transfer between household members, review',
+    transfer_fee_units: 'Coins lost to a fee (not booked)',
+    transfer_amount_mismatch: 'More arrived than was sent',
+    transfer_source_shortfall: 'Sent from a wallet with no record of all of it',
+    unmatched_transfer: 'Sent, no arrival found (not booked as a sale)',
+    manual_basis_on_transfer: 'A basis you entered was ignored: this is a transfer',
+    unreadable_event_date: 'A row with an unreadable date is not counted',
+    invalid_event: 'A row Almstins could not read is not counted',
+  },
+
   tinStillInWallet: 'Still in Wallet',
   countPositions: (n) => `${n} positions`,
   costBasisLabel: 'Cost Basis',
@@ -197,6 +217,20 @@ export const es: BookkeepingLocale = {
   noteNoPurchase: 'Sin compra encontrada',
   detailsCta: 'Detalles →',
 
+  tinTransfersToReview: 'Transferencias por revisar',
+  transfersToReviewIntro: 'Las monedas que se mueven entre tus propias billeteras y cuentas conservan su fecha y costo originales, y un traslado no es una venta. Estos son los traslados de los que Almstins no pudo estar seguro.',
+  transferReasons: {
+    transfer_link_unconfirmed: 'Emparejada por monto y hora, no por transacción',
+    transfer_between_owners: 'Transferencia entre miembros del hogar, revisar',
+    transfer_fee_units: 'Monedas perdidas en una comisión (no registradas)',
+    transfer_amount_mismatch: 'Llegó más de lo que se envió',
+    transfer_source_shortfall: 'Enviada desde una billetera sin registro de todo el monto',
+    unmatched_transfer: 'Enviada, sin llegada encontrada (no registrada como venta)',
+    manual_basis_on_transfer: 'Se ignoró un costo que ingresaste: esto es una transferencia',
+    unreadable_event_date: 'Una fila con fecha ilegible no se cuenta',
+    invalid_event: 'Una fila que Almstins no pudo leer no se cuenta',
+  },
+
   tinStillInWallet: 'Aún en wallet',
   countPositions: (n) => `${n} posiciones`,
   costBasisLabel: 'Cost Basis',
@@ -261,6 +295,20 @@ export const fr: BookkeepingLocale = {
   noteUnrecognisedTransfer: 'Transfert non reconnu',
   noteNoPurchase: 'Aucun achat trouvé',
   detailsCta: 'Détails →',
+
+  tinTransfersToReview: 'Transferts à vérifier',
+  transfersToReviewIntro: 'Les cryptos déplacées entre vos propres portefeuilles et comptes gardent leur date et leur coût d\'origine, et un déplacement n\'est pas une vente. Voici les déplacements dont Almstins n\'a pas pu être sûr.',
+  transferReasons: {
+    transfer_link_unconfirmed: 'Associé par montant et heure, pas par transaction',
+    transfer_between_owners: 'Transfert entre membres du foyer, à vérifier',
+    transfer_fee_units: 'Cryptos perdues en frais (non enregistrées)',
+    transfer_amount_mismatch: 'Il est arrivé plus que ce qui a été envoyé',
+    transfer_source_shortfall: 'Envoyé depuis un portefeuille sans trace de tout le montant',
+    unmatched_transfer: 'Envoyé, aucune arrivée trouvée (non enregistré comme vente)',
+    manual_basis_on_transfer: 'Un coût que vous avez saisi a été ignoré : c\'est un transfert',
+    unreadable_event_date: 'Une ligne dont la date est illisible n\'est pas comptée',
+    invalid_event: 'Une ligne qu\'Almstins n\'a pas pu lire n\'est pas comptée',
+  },
 
   tinStillInWallet: 'Toujours en wallet',
   countPositions: (n) => `${n} positions`,

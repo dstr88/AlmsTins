@@ -41,7 +41,7 @@ const defaultYear = currentYear - 1;
 const yearParam   = Astro.url.searchParams.get('year');
 const selectedYear = yearParam ? Number(yearParam) : defaultYear;
 
-const bd      = await buildAnnualBreakdown(tenantId, selectedYear);
+const bd      = await buildAnnualBreakdown(tenantId, selectedYear, 'fifo', undefined, 'auto');
 
 // Hide scam/spam airdrop tokens (Still in Wallet + Needs Attention) and any
 // disposal dated before the 2025 bookkeeping start. The realized short/long-term
@@ -637,6 +637,33 @@ const syncRelative = !hasSync ? '' :
         </OrnateTin>
       </div>
 
+      <!-- 6. Transfers to review — full width, only when there is something to check -->
+      {(bd.transferReviews ?? []).length > 0 && (
+        <div class="grid-cell grid-cell--full">
+          <OrnateTin label={t.tinTransfersToReview} class="tin-section tin-section--transfers">
+            <div class="tin-toolbar">
+              <span class="tin-toolbar__count">{t.countItems((bd.transferReviews ?? []).length)}</span>
+            </div>
+            <p class="tin-intro">{t.transfersToReviewIntro}</p>
+            <div class="tin-rows">
+              {(bd.transferReviews ?? []).map((item) => (
+                <div class="tin-row tin-row--transfer" data-reason={item.reason}>
+                  <span class="tin-row__asset">{item.asset}</span>
+                  <span class="tin-row__qty">{item.amount != null ? fQty(item.amount) : ''}</span>
+                  <span class="tin-row__date">{item.date ? fDate(item.date) : ''}</span>
+                  <span class="tin-row__note">
+                    {t.transferReasons[item.reason] ?? item.reason}
+                    {(item.fromWalletDisplay || item.toWalletDisplay) && (
+                      <> · {item.fromWalletDisplay ?? '?'}{item.toWalletDisplay ? ` → ${item.toWalletDisplay}` : ''}</>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </OrnateTin>
+        </div>
+      )}
+
     </div><!-- /breakdown-grid -->
 
     <!-- ══ Reconciliation ══════════════════════════════════════════════════ -->
@@ -1218,6 +1245,12 @@ const syncRelative = !hasSync ? '' :
     .gain-neg { color: var(--loss); }
     .term-long  { background: var(--gain-bg); color: var(--gain); }
     .term-short { background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+    .tin-intro {
+      font-size: 0.85rem;
+      opacity: 0.75;
+      margin: 0 0 0.75rem;
+    }
 
     /* ── Empty state ────────────────────────────────────────── */
     .tin-empty {

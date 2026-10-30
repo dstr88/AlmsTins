@@ -493,14 +493,14 @@ describe('Onchain transactions', () => {
 			onchainTx({
 				id:           'onchain-buy1',
 				timestamp:    '2022-01-01T00:00:00Z',
-				token_symbol: 'MATIC',
+				token_symbol: 'LINK',
 				value:        '100',
 				usd_value:    80,
 			}),
 			onchainTx({
 				id:           'onchain-sell1',
 				timestamp:    '2023-01-01T00:00:00Z',
-				token_symbol: 'MATIC',
+				token_symbol: 'LINK',
 				value:        '100',
 				usd_value:    200,
 			}),
@@ -512,7 +512,7 @@ describe('Onchain transactions', () => {
 
 		const { disposals } = runFifo(TENANT, [], onchain, classifications);
 
-		expect(disposals[0].assetSymbol).toBe('MATIC');
+		expect(disposals[0].assetSymbol).toBe('LINK');
 		expect(disposals[0].gainLossUsd).toBeCloseTo(120); // 200 - 80
 	});
 });

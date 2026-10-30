@@ -34,120 +34,22 @@ type BatchStatement = { sql: string; args?: (string | number | bigint | boolean 
 import type {
 	ClassificationResult,
 	PipelineStats,
-	RawImportTx,
-	RawOnchainTx,
 	ReviewItem,
 } from './types';
-import { classifyImportTxPass1, classifyOnchainTxPass1 } from './pass1';
-import { matchTransfers, detectLoans } from './pass2';
-import { classifyIncomePass3, classifyFeesPass3 } from './pass3';
-import { classifyDeFiPass3b } from './pass3b';
-import { runFifo } from './pass4';
+import { classifyAll } from './classifyAll';
+import { runFifo, type FifoContext } from './pass4';
+import { loadLedgerContext } from '../tax/ledgerContext';
+import { invalidateLedger } from '../tax/computeLedger';
 import { buildReviewQueue } from './pass5';
-
-type DbRow = Record<string, unknown>;
-const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
-const n = (v: unknown) => (typeof v === 'number' ? v : null);
+import {
+	loadImportTransactions,
+	loadManualClassifications,
+	loadOnchainTransactions,
+	loadResolvedReviewKeys,
+	loadWalletAddresses,
+} from './loaders';
 
 const NOW_SQL = `to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
-
-// ── Load raw data ─────────────────────────────────────────────────────────────
-
-async function loadImportTransactions(tenantId: string): Promise<RawImportTx[]> {
-	const result = await db.execute({
-		sql: `SELECT id, timestamp_utc, asset_symbol, direction, kind, amount,
-		             to_amount, native_usd, tx_hash, source, notes, category, description
-		      FROM import_transactions
-		      WHERE tenant_id = ?
-		      ORDER BY timestamp_utc ASC`,
-		args: [tenantId],
-	});
-	return result.rows.map((r: DbRow) => ({
-		id: s(r.id),
-		timestamp_utc: s(r.timestamp_utc),
-		asset_symbol: typeof r.asset_symbol === 'string' ? r.asset_symbol : null,
-		direction: typeof r.direction === 'string' ? r.direction : null,
-		kind: typeof r.kind === 'string' ? r.kind : null,
-		amount: n(r.amount),
-		to_amount: n(r.to_amount),
-		native_usd: n(r.native_usd),
-		tx_hash: typeof r.tx_hash === 'string' ? r.tx_hash : null,
-		source: s(r.source),
-		notes: typeof r.notes === 'string' ? r.notes : null,
-		category: typeof r.category === 'string' ? r.category : null,
-		description: typeof r.description === 'string' ? r.description : null,
-	}));
-}
-
-async function loadOnchainTransactions(tenantId: string): Promise<RawOnchainTx[]> {
-	const result = await db.execute({
-		sql: `SELECT t.id, t.timestamp, t.token_symbol, t.value,
-		             t.from_address, t.to_address, t.tx_type,
-		             t.usd_value, t.chain, w.address AS wallet_address
-		      FROM transactions t
-		      JOIN wallets w ON w.id = t.wallet_id
-		      WHERE t.tenant_id = ?
-		      ORDER BY t.timestamp ASC`,
-		args: [tenantId],
-	});
-	return result.rows.map((r: DbRow) => ({
-		id: s(r.id),
-		timestamp: s(r.timestamp),
-		token_symbol: typeof r.token_symbol === 'string' ? r.token_symbol : null,
-		value: typeof r.value === 'string' ? r.value : null,
-		from_address: typeof r.from_address === 'string' ? r.from_address : null,
-		to_address: typeof r.to_address === 'string' ? r.to_address : null,
-		tx_type: typeof r.tx_type === 'string' ? r.tx_type : null,
-		usd_value: n(r.usd_value),
-		chain: s(r.chain),
-		wallet_address: typeof r.wallet_address === 'string' ? r.wallet_address : undefined,
-	}));
-}
-
-async function loadWalletAddresses(tenantId: string): Promise<Set<string>> {
-	const result = await db.execute({
-		sql: `SELECT address FROM wallets WHERE tenant_id = ?`,
-		args: [tenantId],
-	});
-	return new Set(result.rows.map((r: DbRow) => s(r.address).toLowerCase()));
-}
-
-async function loadManualClassifications(tenantId: string): Promise<Map<string, ClassificationResult>> {
-	const result = await db.execute({
-		sql: `SELECT source_type, source_id, category, sub_category, confidence,
-		             linked_tx_id, linked_source_type, asset_symbol, amount_usd, tax_year
-		      FROM tax_classifications
-		      WHERE tenant_id = ? AND is_manual = 1`,
-		args: [tenantId],
-	});
-	const map = new Map<string, ClassificationResult>();
-	for (const r of result.rows as DbRow[]) {
-		const key = `${s(r.source_type)}:${s(r.source_id)}`;
-		map.set(key, {
-			sourceType: s(r.source_type) as 'import' | 'onchain',
-			sourceId: s(r.source_id),
-			category: s(r.category) as ClassificationResult['category'],
-			subCategory: typeof r.sub_category === 'string' ? r.sub_category : undefined,
-			confidence: n(r.confidence) ?? 1.0,
-			linkedTxId: typeof r.linked_tx_id === 'string' ? r.linked_tx_id : undefined,
-			linkedSourceType: typeof r.linked_source_type === 'string'
-				? (r.linked_source_type as 'import' | 'onchain')
-				: undefined,
-			assetSymbol: typeof r.asset_symbol === 'string' ? r.asset_symbol : null,
-			amountUsd: n(r.amount_usd),
-			taxYear: typeof r.tax_year === 'number' ? r.tax_year : null,
-		});
-	}
-	return map;
-}
-
-async function loadResolvedReviewKeys(tenantId: string): Promise<Set<string>> {
-	const result = await db.execute({
-		sql: `SELECT source_type, source_id, reason FROM tax_review_items WHERE tenant_id = ? AND resolved = 1`,
-		args: [tenantId],
-	});
-	return new Set(result.rows.map((r: DbRow) => `${s(r.source_type)}:${s(r.source_id)}:${s(r.reason)}`));
-}
 
 // ── Statement builders (return SQL arrays, never execute directly) ────────────
 // Each builder produces the full list of BatchStatement objects for its table.
@@ -322,6 +224,19 @@ async function markRunFailed(runId: string, error: unknown): Promise<void> {
 	}
 }
 
+/** What pass 4 needs besides the rows to tell a transfer from a sale. */
+async function loadFifoContext(tenantId: string, manualOverrides: Map<string, ClassificationResult>): Promise<FifoContext> {
+	const ctx = await loadLedgerContext(tenantId);
+	return {
+		manualKeys: new Set(manualOverrides.keys()),
+		wallets: ctx.walletsById,
+		walletIdByTxHash: ctx.walletIdByTxHash,
+		transferMatches: ctx.transferMatches,
+		ownerIndex: ctx.ownerIndex,
+		manualBasis: ctx.manualBasis,
+	};
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 
 export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
@@ -341,74 +256,13 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 				loadResolvedReviewKeys(tenantId),
 			]);
 
-		// Start with manual overrides already locked in
-		const classifications = new Map<string, ClassificationResult>(manualOverrides);
-		const classifiedKeys = new Set<string>(manualOverrides.keys());
-		const allReviewItems: ReviewItem[] = [];
-
-		// ── Pass 1: Easy classifications ──────────────────────────────────────
-		let pass1Count = 0;
-		for (const row of importRows) {
-			const key = `import:${row.id}`;
-			if (classifiedKeys.has(key)) continue;
-			const result = classifyImportTxPass1(row);
-			if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
-		}
-		for (const row of onchainRows) {
-			const key = `onchain:${row.id}`;
-			if (classifiedKeys.has(key)) continue;
-			const result = classifyOnchainTxPass1(row);
-			if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
-		}
-
-		// ── Pass 2A: Transfer matching ─────────────────────────────────────────
-		const { results: transferResults, reviewItems: transferReview } = matchTransfers(
-			importRows, onchainRows, walletAddresses, classifiedKeys,
+		// ── Passes 1 to 3b: classify every row they can read ──────────────────
+		const { classifications, classifiedKeys, reviewItems: allReviewItems, counts } = classifyAll(
+			importRows, onchainRows, walletAddresses, manualOverrides,
 		);
-		for (const r of transferResults) {
-			const key = `${r.sourceType}:${r.sourceId}`;
-			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-		}
-		allReviewItems.push(...transferReview);
-
-		// ── Pass 2B: Loan detection ────────────────────────────────────────────
-		const { results: loanResults, reviewItems: loanReview } = detectLoans(
-			onchainRows, walletAddresses, classifiedKeys,
-		);
-		for (const r of loanResults) {
-			const key = `${r.sourceType}:${r.sourceId}`;
-			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-		}
-		allReviewItems.push(...loanReview);
-
-		// ── Pass 3: Income & fees ──────────────────────────────────────────────
-		const { results: incomeResults, reviewItems: incomeReview } = classifyIncomePass3(
-			importRows, classifiedKeys,
-		);
-		for (const r of incomeResults) {
-			const key = `${r.sourceType}:${r.sourceId}`;
-			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-		}
-		allReviewItems.push(...incomeReview);
-
-		const feeResults = classifyFeesPass3(onchainRows, classifiedKeys);
-		for (const r of feeResults) {
-			const key = `${r.sourceType}:${r.sourceId}`;
-			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-		}
-
-		// ── Pass 3b: DeFi event classification ────────────────────────────────
-		const { results: defiResults, reviewItems: defiReview } = classifyDeFiPass3b(
-			importRows, classifiedKeys,
-		);
-		for (const r of defiResults) {
-			const key = `${r.sourceType}:${r.sourceId}`;
-			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-		}
-		allReviewItems.push(...defiReview);
 
 		// ── Pass 4: FIFO lot matching ──────────────────────────────────────────
-		const { lots, disposals } = runFifo(tenantId, importRows, onchainRows, classifications);
+		const { lots, disposals } = runFifo(tenantId, importRows, onchainRows, classifications, await loadFifoContext(tenantId, manualOverrides));
 
 		// ── Pass 5: Build review queue ─────────────────────────────────────────
 		const existingReviewKeys = new Set([
@@ -431,12 +285,12 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 			}).length;
 
 		const stats: PipelineStats = {
-			pass1Easy:       pass1Count,
-			pass2Transfers:  transferResults.length / 2,
-			pass2bLoans:     loanResults.length,
-			pass3Income:     incomeResults.length,
-			pass3Fees:   feeResults.length,
-			pass3bDefi:  defiResults.length,
+			pass1Easy:       counts.pass1Easy,
+			pass2Transfers:  counts.pass2TransferResults / 2,
+			pass2bLoans:     counts.pass2bLoans,
+			pass3Income:     counts.pass3Income,
+			pass3Fees:       counts.pass3Fees,
+			pass3bDefi:      counts.pass3bDefi,
 			pass4Lots:       lots.length,
 			pass4Disposals:  disposals.length,
 			pass5ReviewItems: allReviewItems.length,
@@ -459,6 +313,7 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 		];
 
 		await db.batch(persistStatements, 'write');
+		invalidateLedger(tenantId);
 
 		// Bust all tenant-scoped tax caches so the next page load reads fresh
 		// numbers. Fire-and-forget — a cache bust failure is never worth surfacing.

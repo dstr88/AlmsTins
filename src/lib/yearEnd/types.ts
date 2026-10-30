@@ -59,6 +59,12 @@ export type RawImportTx = {
 	notes: string | null;
 	category: string | null;
 	description: string | null;
+	/** Which exchange account the row belongs to; with `source` it names the wallet for basis. */
+	account_id?: string | null;
+	/** The tracked wallet a chain-synced row belongs to. */
+	wallet_id?: string | null;
+	/** 'manual-{walletId}' for a token-basis row entered on a wallet. */
+	import_batch_id?: string | null;
 };
 
 export type RawOnchainTx = {
@@ -72,6 +78,14 @@ export type RawOnchainTx = {
 	usd_value: number | null;
 	chain: string;
 	wallet_address?: string;
+	/** The tracked wallet that synced the row. */
+	wallet_id?: string | null;
+	/**
+	 * Decimals of the token. Present (even as null) when the row came from the database, whose `value` is
+	 * in the token's smallest unit; absent when `value` is already in whole units (a fixture).
+	 */
+	token_decimals?: number | null;
+	hash?: string | null;
 };
 
 // ── Classification result produced by each pass ───────────────────────────────
