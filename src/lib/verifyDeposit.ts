@@ -116,6 +116,16 @@ export const SOL_MAX_TX_READS = 60;
 
 const unavailable: SelfSendOutcome = { found: false, reason: 'unavailable' };
 
+/**
+ * Why a check came back 'unavailable'. The outcome is the same to the user whichever it is, so
+ * the server log is the only place the cause shows. Never logs a URL (it carries the API key)
+ * or an address.
+ */
+function logUnavailable(rail: string, step: string, detail: unknown): void {
+  const text = detail instanceof Error ? detail.message : String(detail ?? '');
+  console.warn('[verify] self-send check unavailable', { rail, step, detail: text.slice(0, 200) });
+}
+
 // Stronger diagnostics win when several transactions in the window say different things.
 const HINT_RANK: Record<SelfSendHint, number> = { wrong_amount: 1, sent_to_not_from: 2, wrong_recipient: 3 };
 function stronger(a: SelfSendHint | null, b: TxVerdict): SelfSendHint | null {
@@ -152,7 +162,8 @@ export async function detectBoundSelfSend(
     if (esplora) return await detectEsplora(esplora, c, nowSec);
     if (c.rail === 'solana') return await detectSolana(c, nowSec);
     return { found: false, reason: 'unsupported_rail' };
-  } catch {
+  } catch (err) {
+    logUnavailable(c.rail, 'threw', err);
     return unavailable;
   }
 }
@@ -204,9 +215,12 @@ async function evmBlockAt(chainId: number, timestamp: number): Promise<number | 
   const url = buildEtherscanV2Url(chainId, {
     module: 'block', action: 'getblocknobytime', timestamp, closest: 'before',
   });
-  if (!url) return null; // explorer API key not configured
-  const p = (await requestEtherscan(url)) as { status?: unknown; result?: unknown } | null;
-  if (String(p?.status ?? '') !== '1') return null;
+  if (!url) { logUnavailable(String(chainId), 'block_lookup', 'explorer API key not configured'); return null; }
+  const p = (await requestEtherscan(url)) as { status?: unknown; message?: unknown; result?: unknown } | null;
+  if (String(p?.status ?? '') !== '1') {
+    logUnavailable(String(chainId), 'block_lookup', `status=${String(p?.status ?? '')} message=${String(p?.message ?? '')} result=${typeof p?.result === 'string' ? p.result : typeof p?.result}`);
+    return null;
+  }
   const raw = p?.result && typeof p.result === 'object' ? (p.result as { blockNumber?: unknown }).blockNumber : p?.result;
   const block = Number(raw);
   if (!Number.isSafeInteger(block) || block < 0) return null;
@@ -227,9 +241,14 @@ async function detectEvm(ch: SelfSendChallenge): Promise<SelfSendOutcome> {
       module: 'account', action: 'txlist', address: addr,
       startblock: startBlock, endblock: EVM_END_BLOCK, page, offset: EVM_PAGE_SIZE, sort: 'asc',
     });
-    if (!url) return unavailable;
-    const rows = readEtherscanRows(await requestEtherscan(url));
-    if (rows === null) return unavailable;
+    if (!url) { logUnavailable(ch.rail, 'txlist', 'explorer API key not configured'); return unavailable; }
+    const payload = await requestEtherscan(url);
+    const rows = readEtherscanRows(payload);
+    if (rows === null) {
+      const p = payload as { status?: unknown; message?: unknown; result?: unknown } | null;
+      logUnavailable(ch.rail, 'txlist', `status=${String(p?.status ?? '')} message=${String(p?.message ?? '')} result=${typeof p?.result === 'string' ? p.result : typeof p?.result}`);
+      return unavailable;
+    }
     for (const row of rows) {
       const v = evmRowVerdict(row, addr, ch.expected, window);
       if (v === 'pass') return { found: true, ref: String(row.hash ?? '') };
