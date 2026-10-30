@@ -7,6 +7,7 @@ import { canDownloadYearSummaryPdf } from '@/lib/yearSummaryAccess';
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
 import { getLang } from '@/lib/i18n/locale';
 import { getSettings } from '@/i18n/dashboard/settings';
+import { perWalletEnabled } from '@/lib/tax/computeLedger';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const profile = await getJurisdictionProfile(tenantId);
@@ -15,6 +16,8 @@ const activePlan = await getActivePlan(tenantId);
 // the same gate as the Year Summary PDF it feeds.
 const canChooseMethod = canDownloadYearSummaryPdf(activePlan.id, tenantId);
 const currentMethod = await getCostBasisMethod(tenantId);
+// Identifications exist only for a tenant on the wallet-by-wallet rule (owner only for now).
+const showIdentifications = await perWalletEnabled(tenantId).catch(() => false);
 const lang = getLang(Astro.request);
 const t = getSettings(lang);
 const methodOptions = [
@@ -53,6 +56,7 @@ const methodOptions = [
     <section class="settings-section">
       <h2 class="settings-section__label">{t.costBasisLabel}</h2>
       <p class="settings-section__desc">{t.costBasisDesc}</p>
+      <p class="settings-section__desc">{t.costBasisEstimateNote}{showIdentifications && <> {t.costBasisWalletRuleNote} <a href="/dashboard/yearEnd/identifications">{t.identificationsLink}</a></>}</p>
       <div class="jur-options" id="cbm-options">
         {methodOptions.map((m) => (
           <button

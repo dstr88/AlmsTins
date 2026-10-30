@@ -1,0 +1,240 @@
+---
+/**
+ * LotIdentificationPrompt: the popup shown at the moment the owner adds a wallet or exchange account.
+ *
+ * It watches the two add calls (POST /api/wallets and POST /api/exchanges/{slug}/accounts) from the
+ * page. When one succeeds it compares the wallets and accounts before and after, and for each new one
+ * offers: reuse the Apply to all choice for this wallet, pick a different method, or skip. Skipping
+ * only closes the popup; the wallet keeps its "Choose how sales pick units" button until the owner
+ * records an entry. Nothing is recorded without a click, and the server stamps the click's own time.
+ *
+ * Rendered only for the owner (Layout). The API answers `enabled: false` to anyone not on the
+ * wallet-by-wallet rule and the popup then stays closed. The script sets text with textContent only.
+ */
+import '@/styles/dialog.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getIdentifications } from '@/i18n/dashboard/yearEnd/identifications';
+
+const t = getIdentifications(getLang(Astro.request));
+const strings = {
+	title: t.promptTitle,
+	body: t.promptBody,
+	use: t.promptUse('\u0000'),
+	different: t.promptDifferent,
+	skip: t.promptSkip,
+	setOne: t.promptSetOne,
+	skipNote: t.promptSkipNote,
+	record: t.record,
+	cancel: t.cancel,
+	recording: t.recording,
+	recorded: t.recorded,
+	methods: t.methods,
+	errors: t.errors,
+	networkError: t.networkError,
+	exchangeWarning: t.exchangeWarning,
+	openPage: t.openPage,
+};
+---
+
+<dialog id="li-prompt" class="dialog-shell dialog-shell--layer li-prompt-layer" aria-labelledby="li-prompt-title" data-strings={JSON.stringify(strings)}>
+	<div class="li-prompt" id="li-prompt-panel"></div>
+</dialog>
+
+<script>
+	import { openDialog, wireDialogs } from '@/lib/nativeDialog';
+
+	type Group = { id: string; display: string; keys: string[]; exchangeHeld: boolean; undecided: boolean };
+	type State = { enabled?: boolean; groups: Group[]; applyAllMethod: string | null };
+	type Strings = Record<string, any>;
+
+	const dialog = document.getElementById('li-prompt') as HTMLDialogElement | null;
+	if (dialog) {
+		wireDialogs();
+		init(dialog);
+	}
+
+	function init(dlg: HTMLDialogElement) {
+		const S: Strings = JSON.parse(dlg.dataset.strings || '{}');
+		const KEY = 'li-prompt-before';
+
+		const isAdd = (url: string, method: string) =>
+			method === 'POST' && (/\/api\/wallets\/?$/.test(url) || /\/api\/exchanges\/[a-z0-9_-]+\/accounts\/?$/.test(url));
+
+		async function load(): Promise<State | null> {
+			try {
+				const res = await origFetch('/api/lot-identifications', { credentials: 'same-origin' });
+				if (!res.ok) return null;
+				const data = (await res.json()) as State;
+				return data.enabled ? data : null;
+			} catch {
+				return null;
+			}
+		}
+
+		const origFetch = window.fetch.bind(window);
+		window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : (input as Request).url;
+			const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+			if (!isAdd(new URL(url, location.href).pathname, method)) return origFetch(input, init);
+			// Remember who was there before the add, so the new one can be told apart afterwards.
+			const before = await load();
+			const res = await origFetch(input, init);
+			if (res.ok && before) {
+				try { sessionStorage.setItem(KEY, JSON.stringify(before.groups.map((g) => g.id))); } catch { /* no storage: no popup */ }
+				setTimeout(check, 300);
+			}
+			return res;
+		};
+
+		async function check() {
+			let known: string[] | null = null;
+			try {
+				known = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+				sessionStorage.removeItem(KEY);
+			} catch { known = null; }
+			if (!known) return;
+			const state = await load();
+			if (!state) return;
+			const fresh = state.groups.filter((g) => g.undecided && !known!.includes(g.id));
+			if (fresh.length) open(fresh, state);
+		}
+
+		const el = (tag: string, text?: string, cls?: string) => {
+			const n = document.createElement(tag);
+			if (text !== undefined) n.textContent = text;
+			if (cls) n.className = cls;
+			return n;
+		};
+
+		function open(groups: Group[], state: State) {
+			const panel = dlg.querySelector('#li-prompt-panel') as HTMLElement;
+			panel.textContent = '';
+			const title = el('h2', S.title);
+			title.id = 'li-prompt-title';
+			panel.append(title, el('p', S.body));
+			const note = el('p', S.skipNote, 'li-prompt__small');
+			const status = el('p', '', 'li-prompt__small');
+			status.setAttribute('aria-live', 'polite');
+
+			for (const g of groups) {
+				const box = el('div', undefined, 'li-prompt__wallet');
+				box.append(el('strong', g.display));
+				const row = el('div', undefined, 'li-prompt__row');
+				const form = el('div', undefined, 'li-prompt__row');
+				form.hidden = true;
+				const select = document.createElement('select');
+				for (const m of ['earliest', 'latest', 'highest_basis']) {
+					const o = document.createElement('option');
+					o.value = m;
+					o.textContent = S.methods[m];
+					select.append(o);
+				}
+				const recordBtn = el('button', S.record, 'li-prompt__btn li-prompt__btn--primary') as HTMLButtonElement;
+				recordBtn.type = 'button';
+				form.append(select, recordBtn);
+
+				async function record(method: string, source: string) {
+					status.textContent = S.recording;
+					try {
+						const res = await origFetch('/api/lot-identifications', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ source, entries: g.keys.map((walletKey) => ({ walletKey, method })) }),
+						});
+						const data = await res.json().catch(() => ({}));
+						if (res.ok && data.ok) {
+							status.textContent = S.recorded;
+							cache = null;
+							schedule();
+							box.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+							if (g.exchangeHeld) box.append(el('p', S.exchangeWarning, 'li-prompt__warn'));
+							else setTimeout(() => dlg.close(), 900);
+							return;
+						}
+						status.textContent = S.errors[data.error] || S.networkError;
+					} catch {
+						status.textContent = S.networkError;
+					}
+				}
+
+				if (state.applyAllMethod) {
+					const use = el('button', String(S.use).replace('\u0000', S.methods[state.applyAllMethod]), 'li-prompt__btn li-prompt__btn--primary') as HTMLButtonElement;
+					use.type = 'button';
+					use.addEventListener('click', () => record(state.applyAllMethod as string, 'prompt_use'));
+					const diff = el('button', S.different, 'li-prompt__btn') as HTMLButtonElement;
+					diff.type = 'button';
+					diff.addEventListener('click', () => { form.hidden = false; });
+					row.append(use, diff);
+				} else {
+					const set = el('button', S.setOne, 'li-prompt__btn li-prompt__btn--primary') as HTMLButtonElement;
+					set.type = 'button';
+					set.addEventListener('click', () => { form.hidden = false; });
+					row.append(set);
+				}
+				recordBtn.addEventListener('click', () => record(select.value, 'manual'));
+				box.append(row, form);
+				panel.append(box);
+			}
+
+			const foot = el('div', undefined, 'li-prompt__row');
+			const skip = el('button', S.skip, 'li-prompt__btn') as HTMLButtonElement;
+			skip.type = 'button';
+			skip.addEventListener('click', () => dlg.close());
+			const page = el('a', S.openPage) as HTMLAnchorElement;
+			page.href = '/dashboard/yearEnd/identifications';
+			foot.append(skip, page);
+			panel.append(status, note, foot);
+			if (!dlg.open) openDialog(dlg);
+		}
+
+		// The persistent button: every wallet or account without an entry shows "Choose how sales pick
+		// units" on its row, whatever happened to the popup. It clears only when an entry is recorded.
+		let cache: { at: number; state: State | null } | null = null;
+		let timer: number | undefined;
+		async function decorate() {
+			const rows = document.querySelectorAll<HTMLElement>('[data-li-key], [data-li-address]');
+			if (!rows.length) return;
+			if (!cache || Date.now() - cache.at > 30_000) cache = { at: Date.now(), state: await load() };
+			const state = cache.state;
+			if (!state) return;
+			rows.forEach((row) => {
+				const link = row.querySelector<HTMLAnchorElement>('[data-li-link]');
+				if (!link) return;
+				const key = row.dataset.liKey;
+				const address = (row.dataset.liAddress || '').trim().toLowerCase();
+				const group = state.groups.find((g) => (key ? g.keys.includes(key) : g.id.toLowerCase() === address));
+				if (group && group.undecided) {
+					if (link.textContent !== S.setOne) link.textContent = S.setOne;
+					link.href = '/dashboard/yearEnd/identifications#wallet-' + encodeURIComponent(group.keys[0]);
+					link.hidden = false;
+					link.style.display = '';
+				} else {
+					link.hidden = true;
+					link.style.display = 'none';
+				}
+			});
+		}
+		const schedule = () => { window.clearTimeout(timer); timer = window.setTimeout(decorate, 600); };
+		new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+		schedule();
+
+		// A page that reloads right after the add still gets its popup.
+		check();
+	}
+</script>
+
+<style is:global>
+	.li-prompt-layer { display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(0, 0, 0, 0.45); }
+	.li-prompt-layer:not([open]) { display: none; }
+	.li-prompt { max-width: 32rem; width: 100%; max-height: 100%; overflow: auto; border: 1px solid var(--border-bright, #d1d5db); border-radius: 0.75rem; padding: 1.25rem; background: var(--surface-card, #fff); color: var(--text-primary, #111827); }
+	.li-prompt h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+	.li-prompt p { margin: 0.4rem 0; font-size: 0.88rem; }
+	.li-prompt__small { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+	.li-prompt__wallet { margin: 0.75rem 0; padding: 0.6rem 0; border-top: 1px solid var(--border-bright, #e5e7eb); overflow-wrap: anywhere; }
+	.li-prompt__row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.4rem; }
+	.li-prompt__row[hidden] { display: none; }
+	.li-prompt__btn { padding: 0.35rem 0.8rem; border-radius: 0.4rem; border: 1px solid var(--border-bright, #d1d5db); background: var(--surface-card-2, #fff); color: inherit; cursor: pointer; font: inherit; font-size: 0.85rem; }
+	.li-prompt__btn--primary { font-weight: 700; }
+	.li-prompt__btn:disabled { opacity: 0.5; cursor: default; }
+	.li-prompt__warn { padding: 0.5rem 0.7rem; border-radius: 0.5rem; background: #fef3c7; color: #92400e; }
+</style>

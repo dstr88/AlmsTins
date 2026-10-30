@@ -476,6 +476,7 @@ describe('source pins: tax pages and the removed passphrase gate', () => {
 		'src/pages/dashboard/yearEnd/gains.astro',
 		'src/pages/dashboard/yearEnd/lots.astro',
 		'src/pages/dashboard/yearEnd/opening-positions.astro',
+		'src/pages/dashboard/yearEnd/identifications.astro',
 		'src/pages/dashboard/yearEnd/report.astro',
 		'src/pages/dashboard/yearEnd/review.astro',
 		'src/pages/year-summary.astro',

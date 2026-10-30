@@ -95,6 +95,6 @@ describe('runFifo on the ledger', () => {
 
 describe('ledgerToTaxRows', () => {
 	it('maps nothing to nothing', () => {
-		expect(ledgerToTaxRows({ engineVersion: 'x', lots: [], slices: [], unmatched: [], findings: [], jan1: [], snapshots: [] }, new Map())).toEqual({ lots: [], disposals: [] });
+		expect(ledgerToTaxRows({ engineVersion: 'x', lots: [], slices: [], unmatched: [], findings: [], jan1: [], snapshots: [], selections: [] }, new Map())).toEqual({ lots: [], disposals: [] });
 	});
 });

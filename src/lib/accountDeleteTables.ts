@@ -27,7 +27,7 @@ export const TENANT_TABLES = [
   // Tax
   'tax_1099_reconciliation', 'tax_1099_uploads', 'tax_classifications', 'tax_disposals', 'tax_documents',
   'tax_lot_pins', 'tax_wallet_allocation_override', 'tax_lots', 'tax_pipeline_runs', 'tax_review_items', 'tax_wash_sales',
-  'record_proof_snapshot', 'record_proofs', 'tradfi_loan_payments',
+  'record_proof_snapshot', 'record_proofs', 'lot_identification_confirmed', 'lot_identification_stamps', 'lot_identifications', 'tradfi_loan_payments',
   // Shared files: the owner's copies and their download log (log before the shares it refers to)
   'file_share_log', 'file_shares',
   // Notes, labels, settings and alerts

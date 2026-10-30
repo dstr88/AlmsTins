@@ -189,6 +189,13 @@ export interface LedgerOptions {
 	method?: CostBasisMethod;
 	/** Spec ID pins by sale (a dispose's sourceRef). */
 	lotPins?: Map<string, { acquiredAt: string; amountHint: number }>;
+	/**
+	 * The owner's recorded identifications (lotIdentification.ts), asked once per sale. From the
+	 * boundary on, a sale in a wallet uses the entry in force at its instant, and earliest acquired
+	 * in that wallet's pool when none is; `method` then does not apply to it. Before the boundary,
+	 * and when omitted, `method` applies as before.
+	 */
+	selectionFor?: (wallet: string, saleMs: number) => { identificationId: string; method: CostBasisMethod } | null;
 	/** At most one per asset: two for one asset are both refused. */
 	allocationOverrides?: readonly AllocationOverride[];
 	/** Instants to report the open lots at. A snapshot holds the state after every event at or before it. */
@@ -368,6 +375,21 @@ export interface Jan1Asset {
 	unused: Jan1UnusedLot[];
 }
 
+/** Which rule one sale followed, when sales are matched wallet by wallet with identifications. */
+export interface LedgerSelection {
+	/** The sale's sourceRef. */
+	sourceRef: string;
+	asset: string;
+	wallet: string;
+	at: string;
+	qty: number;
+	taxable: boolean;
+	category: string;
+	/** The identification in force when the sale happened; null: the earliest-acquired default. */
+	identificationId: string | null;
+	method: CostBasisMethod;
+}
+
 export interface LedgerResult {
 	engineVersion: string;
 	/** Every lot ever made, by asset then acquisition time. */
@@ -378,6 +400,8 @@ export interface LedgerResult {
 	findings: LedgerFinding[];
 	jan1: Jan1Asset[];
 	snapshots: LedgerSnapshot[];
+	/** One per sale made while wallets had their own pools and selectionFor was given; empty otherwise. */
+	selections: LedgerSelection[];
 }
 
 // ── Internals ────────────────────────────────────────────────────────────────
@@ -615,9 +639,12 @@ class Run {
 	readonly findings: LedgerFinding[] = [];
 	readonly jan1: Jan1Asset[] = [];
 	readonly snapshots: LedgerSnapshot[] = [];
+	readonly selections: LedgerSelection[] = [];
+	private readonly selectionFor: LedgerOptions['selectionFor'];
 
 	constructor(opts: LedgerOptions) {
 		this.method = opts.method ?? 'fifo';
+		this.selectionFor = opts.selectionFor;
 		this.pins = opts.lotPins;
 		if (opts.perWalletFrom == null) {
 			this.boundaryMs = null;
@@ -837,11 +864,11 @@ class Run {
 		return this.unitScales.get(asset)?.get(wallet) ?? 0;
 	}
 
-	/** Choose the next lot to sell from `pool`. */
-	private pick(pool: Lot[], sourceRef: string): number {
-		if (pool.length <= 1 || this.method === 'fifo') return 0;
+	/** Choose the next lot to sell from `pool`, under `method`. */
+	private pick(pool: Lot[], sourceRef: string, method: CostBasisMethod = this.method): number {
+		if (pool.length <= 1 || method === 'fifo') return 0;
 		const view: SelectableLot[] = pool.map((l) => ({ amount: l.remainingQty, timestamp: l.acquiredAt, costUsd: l.remainingCostUsd }));
-		return selectLotIndex(view, this.method, sourceRef, this.pins);
+		return selectLotIndex(view, method, sourceRef, this.pins);
 	}
 
 	/**
@@ -887,7 +914,16 @@ class Run {
 
 	private applyDispose(e: NDispose): void {
 		const pool = this.poolFor(e.asset, e.wallet);
-		const { pieces, left } = this.take(pool, e.qty, () => this.pick(pool, e.sourceRef));
+		let method = this.method;
+		if (this.mode === 'wallet' && this.selectionFor) {
+			const hit = this.selectionFor(e.wallet, e.ms);
+			method = hit ? hit.method : 'fifo';
+			this.selections.push({
+				sourceRef: e.sourceRef, asset: e.asset, wallet: e.wallet, at: e.at, qty: e.qty, taxable: e.taxable, category: e.category,
+				identificationId: hit ? hit.identificationId : null, method,
+			});
+		}
+		const { pieces, left } = this.take(pool, e.qty, () => this.pick(pool, e.sourceRef, method));
 		this.addUnits(e.asset, e.wallet, -e.qty);
 		this.book(
 			{ id: e.id, asset: e.asset, wallet: e.wallet, at: e.at, ms: e.ms, qty: e.qty, proceeds: e.proceedsUsd, taxable: e.taxable, category: e.category, sourceRef: e.sourceRef, manual: e.taxable ? e.manual : null },
@@ -1464,6 +1500,7 @@ class Run {
 			findings: this.findings,
 			jan1: this.jan1.sort((a, b) => cmpStr(a.asset, b.asset)),
 			snapshots: this.snapshots,
+			selections: this.selections,
 		};
 	}
 }

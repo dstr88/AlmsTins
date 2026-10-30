@@ -41,6 +41,8 @@ import { runFifo, type FifoContext } from './pass4';
 import { loadLedgerContext } from '../tax/ledgerContext';
 import { invalidateLedger, perWalletEnabled } from '../tax/computeLedger';
 import { loadAllocationOverrides } from '../tax/allocationOverride';
+import { loadIdentifications } from '../lotIdentificationStore';
+import { selectionResolver } from '../tax/lotIdentification';
 import { PER_WALLET_FROM } from '../tax/basisMethod';
 import { buildReviewQueue } from './pass5';
 import {
@@ -233,6 +235,7 @@ async function loadFifoContext(tenantId: string, manualOverrides: Map<string, Cl
 	return {
 		perWalletFrom: perWallet ? PER_WALLET_FROM : null,
 		allocationOverrides: perWallet ? await loadAllocationOverrides(tenantId) : [],
+		selectionFor: perWallet ? selectionResolver(await loadIdentifications(tenantId)) : undefined,
 		manualKeys: new Set(manualOverrides.keys()),
 		wallets: ctx.walletsById,
 		walletIdByTxHash: ctx.walletIdByTxHash,
