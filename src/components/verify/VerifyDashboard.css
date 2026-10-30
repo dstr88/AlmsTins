@@ -88,7 +88,7 @@
 
 .vd-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.85rem; }
 .vd-row {
-  display: flex; align-items: center; gap: 0.6rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem;
   padding: 0.6rem 0.75rem; background: var(--surface-card);
   border: 1px solid var(--border-subtle); border-radius: 10px;
 }
@@ -96,7 +96,7 @@
   font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--accent); white-space: nowrap;
 }
-.vd-row__value { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.85rem; color: var(--text-primary); min-width: 0; overflow-wrap: anywhere; }
+.vd-row__value { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.85rem; color: var(--text-primary); min-width: 0; overflow-wrap: anywhere; flex: 1 1 22rem; }
 .vd-row__label { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .vd-badge {
   margin-left: auto; font-size: 0.66rem; font-weight: 700; text-transform: none;
