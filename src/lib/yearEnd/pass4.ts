@@ -25,7 +25,7 @@
 import { randomUUID } from 'node:crypto';
 import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx, TaxCategory } from './types';
 import type { OwnerIndex } from '../walletIdentity';
-import { EPSILON, runLotLedger, type AllocationOverride, type CostBasisMethod, type LedgerFinding, type LedgerResult, type LotOrigin } from '../tax/lotLedger';
+import { EPSILON, runLotLedger, type AllocationOverride, type CostBasisMethod, type LedgerFinding, type LedgerOptions, type LedgerResult, type LotOrigin } from '../tax/lotLedger';
 import { pipelineToLedger, type PipelineAdapterInput } from '../tax/ledgerAdapters/pipeline';
 import type { RefInfo } from '../tax/ledgerAdapters/shared';
 
@@ -37,6 +37,8 @@ export type FifoContext = Partial<Pick<PipelineAdapterInput, 'manualKeys' | 'wal
 	perWalletFrom?: string | null;
 	/** The owner's own January 1 allocations; they apply only with perWalletFrom. */
 	allocationOverrides?: readonly AllocationOverride[];
+	/** The owner's recorded identifications, asked once per sale; they apply only with perWalletFrom. */
+	selectionFor?: LedgerOptions['selectionFor'];
 };
 
 const NO_OWNERS: OwnerIndex = { byKey: new Map(), byAddress: new Map() };
@@ -145,6 +147,7 @@ export function runFifo(
 	const result = runLotLedger(events, {
 		perWalletFrom: context.perWalletFrom ?? null,
 		allocationOverrides: context.allocationOverrides,
+		selectionFor: context.selectionFor,
 		method: context.method,
 		lotPins: context.lotPins,
 	});

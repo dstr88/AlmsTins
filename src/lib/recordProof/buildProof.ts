@@ -15,6 +15,7 @@ import { leavesFromBreakdown } from './leavesFromBreakdown';
 import { orderLeaves, serializeLeaf, type CanonicalLeaf, LEAF_SCHEMA_VERSION } from './leaf';
 import { hashLeaf, buildMerkleRoot, toHex, type Hex } from './merkle';
 import type { BasisMethod } from '@/lib/tax/basisMethod';
+import { buildIdentificationSection, type BundleIdentifications, type YearIdentifications } from './identifications';
 import { signManifest, getSigningKeyId, canonicalManifestBytes } from './signing';
 
 export const PROOF_FORMAT = 'almstins-merkle-v1';
@@ -36,6 +37,11 @@ export interface ProofManifest {
   /** The lot rule the figures followed (tax/basisMethod.ts). Absent from records made before it was recorded. */
   basis_method?: BasisMethod;
   merkle_root: Hex;
+  /** Present only when the owner had recorded lot identifications by the end of the year: a Merkle root over their references (identifications.ts). */
+  identifications_root?: Hex;
+  identification_count?: number;
+  /** Sales of the year covered by an identification recorded before them, and all of the year's sales. */
+  identification_sales?: { covered: number; total: number };
   leaf_count: number;
   leaf_schema_version: number;
   tree_algo: string;
@@ -54,6 +60,8 @@ export interface ProofBundle {
   leaves: CanonicalLeaf[]; // ordered — the frozen snapshot, for offline verification
   leaf_hashes: Hex[];      // ordered leaf hashes — the displayed commitments
   proof_format: string;
+  /** The dated lot identifications behind the figures, with their Bitcoin timestamps. Absent when none were recorded. */
+  identifications?: BundleIdentifications;
 }
 
 /** Opaque, non-reversible tenant correlation tag (NOT the tenant_id, NOT PII). */
@@ -73,7 +81,9 @@ export function buildRecordProof(
   bd: AnnualBreakdown,
   prevRoot: Hex | null,
   generatedAt: string,
+  ids?: YearIdentifications | null,
 ): ProofBundle {
+  const idSection = ids ? buildIdentificationSection(tenantId, ids) : null;
   const leaves = orderLeaves(leavesFromBreakdown(bd));
   const leafHashes = leaves.map((l) => hashLeaf(serializeLeaf(l)));
   const root = toHex(buildMerkleRoot(leafHashes));
@@ -87,6 +97,7 @@ export function buildRecordProof(
     data_source: bd.dataSource,
     ...(bd.basisMethod ? { basis_method: bd.basisMethod } : {}),
     merkle_root: root,
+    ...(idSection ? { identifications_root: idSection.root, identification_count: idSection.count, identification_sales: { covered: ids!.covered, total: ids!.total } } : {}),
     leaf_count: leaves.length,
     leaf_schema_version: LEAF_SCHEMA_VERSION,
     tree_algo: TREE_ALGO,
@@ -108,5 +119,8 @@ export function buildRecordProof(
   const sig = signManifest(canonicalManifestBytes(signedManifestView(manifest)));
   const signature = sig ? { alg: sig.alg, key_id: sig.keyId, signature_hex: sig.signatureHex } : null;
 
-  return { manifest, signature, leaves, leaf_hashes: leaves.map((_, i) => toHex(leafHashes[i])), proof_format: PROOF_FORMAT };
+  return {
+    manifest, signature, leaves, leaf_hashes: leaves.map((_, i) => toHex(leafHashes[i])), proof_format: PROOF_FORMAT,
+    ...(idSection ? { identifications: idSection.section } : {}),
+  };
 }

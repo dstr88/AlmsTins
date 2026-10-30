@@ -20,6 +20,7 @@ import { formatAmount, formatFileDate, formatUsd } from '@/lib/format';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { basisRuleStatement } from '@/lib/tax/basisMethod';
+import { walletDisplayOf } from '@/lib/tax/eventWallet';
 import { getActivePlan } from '@/lib/subscriptions';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
@@ -254,6 +255,38 @@ function buildPdf(
       doc.moveDown(0.8).fontSize(9).font('Helvetica').fillColor(MID_GRAY)
         .text(basisRuleStatement(bd.rule, year), MARGIN, doc.y, { width: CONTENT_W });
     }
+    if (bd.identifications) {
+      // The dated record behind the wallet-by-wallet rule. Wording is a record of what was done, not a view on whether it is enough.
+      const ids = bd.identifications;
+      doc.moveDown(0.8).fontSize(9).font('Helvetica-Bold').fillColor(MID_GRAY)
+        .text('Lot identifications recorded', MARGIN, doc.y, { width: CONTENT_W });
+      doc.moveDown(0.2).fontSize(9).font('Helvetica').fillColor(MID_GRAY).text(
+        ids.entries.length === 0
+          ? `No identification was recorded by the end of ${year}. Every sale used the earliest-acquired units in its own wallet or account.`
+          : `${ids.entries.length} identification${ids.entries.length === 1 ? '' : 's'} recorded by the end of ${year}. ` +
+            `${ids.covered} of ${ids.total} ${ids.total === 1 ? 'sale' : 'sales'} in ${year} ${ids.covered === 1 ? 'was' : 'were'} covered by an identification recorded before ${ids.total === 1 ? 'it' : 'them'}; ` +
+            'the others used the earliest-acquired units in their wallet or account. ' +
+            'Each entry is dated and was not edited after it was recorded. A Bitcoin timestamp shows an entry existed unchanged no later than the time of the block, and nothing more. ' +
+            'This is a record, not a statement that it is sufficient; your tax professional decides that.',
+        MARGIN, doc.y, { width: CONTENT_W },
+      );
+      const METHOD: Record<string, string> = { earliest: 'earliest acquired', latest: 'latest acquired', highest_basis: 'highest cost' };
+      const stampOf = new Map(ids.stamps.map((s) => [s.batchId, s]));
+      const MAX_LINES = 40;
+      for (const e of ids.entries.slice(0, MAX_LINES)) {
+        const st = stampOf.get(e.batchId);
+        const stampText = st?.status === 'confirmed' && st.blockHeight !== null
+          ? `Bitcoin block ${st.blockHeight}${st.blockTime ? ` (${st.blockTime.slice(0, 19).replace('T', ' ')} UTC)` : ''}`
+          : st?.status === 'pending' ? 'timestamp pending' : 'not timestamped yet';
+        doc.moveDown(0.15).fontSize(8).text(
+          `${walletDisplayOf(e.walletKey) ?? e.walletKey}: ${METHOD[e.method] ?? e.method}; effective ${e.effectiveAt.slice(0, 19).replace('T', ' ')} UTC; recorded ${e.createdAt.slice(0, 19).replace('T', ' ')} UTC; ${stampText}`,
+          MARGIN, doc.y, { width: CONTENT_W },
+        );
+      }
+      if (ids.entries.length > MAX_LINES) {
+        doc.moveDown(0.15).fontSize(8).text(`and ${ids.entries.length - MAX_LINES} more, listed in the proof bundle.`, MARGIN, doc.y, { width: CONTENT_W });
+      }
+    }
 
     // ── PAGE 3+: Short-term disposals ─────────────────────────────────────────
     if (bd.shortTerm.length > 0) {
@@ -467,7 +500,7 @@ export const GET: APIRoute = async ({ request }) => {
     // Awaited so the PDF's record_id matches the stored record (powers verify-by-id +
     // bundle download); persistence failure is non-fatal (the PDF still ships).
     const prevRoot = await getLatestRoot(tenantId, year).catch(() => null);
-    const proof = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
+    const proof = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString(), bd.identifications);
     await persistRecordProof(tenantId, proof).catch((e) => console.error('[year-summary] proof persist failed', e));
 
     const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof);

@@ -32,7 +32,11 @@ import { walletDisplayOf } from './tax/eventWallet';
 import { computeLedger, engineForTenant, type ComputedLedger } from './tax/computeLedger';
 import { EPSILON, TRANSIT_WALLET, UNALLOCATED_WALLET, UNRESOLVED_WALLET, type FindingReason, type LedgerSlice } from './tax/lotLedger';
 import { parseInstant } from './tax/normalize';
-import { ruleForYear, type BasisMethod, type RuleForYear } from './tax/basisMethod';
+import { PER_WALLET_METHOD, ruleForYear, type BasisMethod, type RuleForYear } from './tax/basisMethod';
+import { loadIdentifications } from './lotIdentificationStore';
+import { loadStamps } from './lotIdentificationStamp';
+import { reconcileYear } from './tax/identificationReconcile';
+import type { YearIdentifications } from './recordProof/identifications';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -200,6 +204,8 @@ export type AnnualBreakdown = {
   basisMethod?: BasisMethod;
   /** The rule this year used: sales from 2025-01-01 draw only on the wallet or account they were made from. */
   rule?: RuleForYear;
+  /** The lot identifications recorded by the end of this year and how many of the year's sales they covered. Only for a year matched wallet by wallet. */
+  identifications?: YearIdentifications;
 };
 
 /** Controls which data source buildAnnualBreakdown reads from. */
@@ -276,6 +282,16 @@ export async function buildAnnualBreakdown(
   // ── Core sections: sliced out of one run of the lot ledger ───────────────
   const ledger: ComputedLedger = await computeLedger(tenantId, resolvedSource, method, lotPins);
   const { result, refs } = ledger;
+
+  // Lot identifications: the dated record behind a wallet-by-wallet year, and what it covered.
+  let identifications: YearIdentifications | undefined;
+  if (ledger.basisMethod === PER_WALLET_METHOD && ruleForYear(ledger.basisMethod, year) === 'per_wallet') {
+    const [all, stamps] = await Promise.all([loadIdentifications(tenantId), loadStamps(tenantId)]);
+    const entries = all.filter((e) => e.createdAt <= yearEnd);
+    const recon = reconcileYear(result.selections, all, year);
+    const batchIds = new Set(entries.map((e) => e.batchId));
+    identifications = { entries, stamps: [...stamps.values()].filter((s) => batchIds.has(s.batchId)), covered: recon.covered, total: recon.total };
+  }
 
   const shortTerm: SettledLot[] = [];
   const longTerm: SettledLot[] = [];
@@ -618,5 +634,6 @@ export async function buildAnnualBreakdown(
     engineVersion: result.engineVersion,
     basisMethod: ledger.basisMethod,
     rule: ruleForYear(ledger.basisMethod, year),
+    ...(identifications ? { identifications } : {}),
   };
 }

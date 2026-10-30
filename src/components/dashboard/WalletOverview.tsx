@@ -232,6 +232,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 						return (
 							<div
 								key={wallet.id}
+								data-li-address={wallet.address}
 								style={{
 									position: 'relative',
 									borderRadius: '14px',
@@ -364,6 +365,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									</span>
 									<CopyButton value={wallet.address} variant="icon" />
 								</div>
+
+								{/* Shown (owner only) while this wallet has no lot identification: LotIdentificationPrompt fills and reveals it. */}
+								<a data-li-link href="/dashboard/yearEnd/identifications" style={{ display: 'none', fontSize: '0.78rem' }} />
 
 								{/* Actions */}
 								<div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', marginTop: '0.1rem' }}>

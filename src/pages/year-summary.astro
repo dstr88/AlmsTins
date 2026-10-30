@@ -534,6 +534,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
           </div>
 
           {bd?.rule && <p class="basis-rule-note" data-basis-rule={bd.rule} style="margin: 0.75rem 0 0; font-size: 0.75rem; line-height: 1.4; color: var(--text-muted, #6b7280);">{basisRuleStatement(bd.rule, selectedYear)}</p>}
+          {bd?.identifications && <p class="basis-rule-note" data-identifications style="margin: 0.5rem 0 0; font-size: 0.75rem; line-height: 1.4; color: var(--text-muted, #6b7280);">{bd.identifications.total === 0 ? `No sales in ${selectedYear} to match against identifications.` : `${bd.identifications.covered} of ${bd.identifications.total} ${bd.identifications.total === 1 ? 'sale' : 'sales'} in ${selectedYear} ${bd.identifications.covered === 1 ? 'was' : 'were'} covered by an identification recorded before ${bd.identifications.total === 1 ? 'it' : 'them'}; the others used the earliest-acquired units in their wallet.`} <a href="/dashboard/yearEnd/identifications">Which units a sale uses</a></p>}
 
           {gainAssets.length > 0 ? (
             <div class="asset-scroll">

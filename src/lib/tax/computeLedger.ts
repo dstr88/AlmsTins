@@ -23,6 +23,8 @@ import { classifyAll } from '../yearEnd/classifyAll';
 import { getJurisdictionProfile } from '../jurisdictionProfile';
 import { isOwner } from '../owner';
 import { loadAllocationOverrides } from './allocationOverride';
+import { loadIdentifications } from '../lotIdentificationStore';
+import { selectionResolver } from './lotIdentification';
 import { inPerWalletRollout, PER_WALLET_FROM, PER_WALLET_METHOD, PER_WALLET_ROLLOUT, UNIVERSAL_METHOD, type BasisMethod } from './basisMethod';
 import { lifecycleToLedger, type LifecycleEventRow } from './ledgerAdapters/lifecycle';
 import { pipelineToLedger } from './ledgerAdapters/pipeline';
@@ -277,9 +279,12 @@ export async function computeLedger(
 		const { events, refs } = await loadLedgerEvents(tenantId, engine);
 		const perWallet = await perWalletEnabled(tenantId);
 		const allocationOverrides = perWallet ? (trial ? trial.allocationOverrides : await loadAllocationOverrides(tenantId)) : [];
+		// Identifications are part of the wallet-by-wallet rule: they apply only where it does.
+		const selectionFor = perWallet ? selectionResolver(await loadIdentifications(tenantId)) : undefined;
 		const result = runLotLedger(events, {
 			perWalletFrom: perWallet ? PER_WALLET_FROM : null,
 			allocationOverrides,
+			selectionFor,
 			method,
 			lotPins,
 			snapshotsAt: yearEnds(events),

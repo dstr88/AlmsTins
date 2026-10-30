@@ -11,6 +11,7 @@ import { getStoredRecord, getLatestRecordId, getLatestRoot, persistRecordProof }
 import { buildRecordProof, PROOF_FORMAT, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getCostBasisMethod } from '@/lib/costBasisMethodSetting';
+import { loadBundleIdentifications } from '@/lib/recordProof/identificationsStored';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -40,7 +41,7 @@ export const GET: APIRoute = async ({ request }) => {
       const costMethod = await getCostBasisMethod(tenantId);
       const bd = await buildAnnualBreakdown(tenantId, year, costMethod, undefined, 'auto' as AnnualBreakdownSource);
       const prevRoot = await getLatestRoot(tenantId, year).catch(() => null);
-      const fresh = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
+      const fresh = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString(), bd.identifications);
       await persistRecordProof(tenantId, fresh).catch((e) => console.error('[proof-bundle] persist failed', e));
       return json(fresh, 200, { pretty: true, headers: { 'Content-Disposition': `attachment; filename="almstins-${year}-proof.json"` } });
     }
@@ -58,6 +59,7 @@ export const GET: APIRoute = async ({ request }) => {
     leaves: rec.leaves,
     leaf_hashes: rec.leafHashes,
     proof_format: PROOF_FORMAT,
+    ...(await loadBundleIdentifications(tenantId, rec.manifest).then((i) => (i ? { identifications: i } : {}), () => ({}))),
   };
 
   return json(bundle, 200, {

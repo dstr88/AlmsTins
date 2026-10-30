@@ -43,7 +43,7 @@ export function ruleForYear(method: BasisMethod | undefined, year: number): Rule
  */
 export function basisRuleStatement(rule: RuleForYear, year: number): string {
 	if (rule === 'per_wallet') {
-		return `Cost basis rule for ${year}: each sale uses only the coins held in the wallet or account it was made from, oldest first by original purchase date (Treas. Reg. 1.1012-1(j)). Coins moved between your own wallets keep their original date and cost.`;
+		return `Cost basis rule for ${year}: each sale uses only the coins held in the wallet or account it was made from: the units named by an identification you recorded before the sale, and otherwise oldest first by original purchase date (Treas. Reg. 1.1012-1(j)). Coins moved between your own wallets keep their original date and cost.`;
 	}
 	return year >= Number(PER_WALLET_FROM.slice(0, 4))
 		? `Cost basis rule for ${year}: one pool per coin across all your wallets and accounts. The wallet-by-wallet rule for sales from January 1, 2025 is not applied to these figures.`

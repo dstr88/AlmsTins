@@ -20,7 +20,7 @@ const ot = getOwnerLabel(getLang(Astro.request));
 const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '');
 ---
 
-<div class="exchange-account" data-account-index={accountIndex}>
+<div class="exchange-account" data-account-index={accountIndex} data-li-key={`cex:${source}:${accountId}`}>
 	<div class="exchange-account__header">
 		<input
 			class="exchange-account__input"
@@ -62,6 +62,8 @@ const ownerInputId = `owner-${source}-${accountId}`.replace(/[^a-zA-Z0-9_-]/g, '
 		/>
 		<span class="exchange-account__owner-status" aria-live="polite" data-owner-status></span>
 	</div>
+	<!-- Shown (owner only) while this account has no lot identification: LotIdentificationPrompt fills and reveals it. -->
+	<a class="exchange-account__li-link" data-li-link href="/dashboard/yearEnd/identifications" hidden></a>
 	<form
 		class="exchange-account__actions"
 		data-account-id={accountId}

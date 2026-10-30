@@ -21,6 +21,9 @@ export interface SettingsLocale {
   usProfileDesc: string;
   otherProfileDesc: string;
   costBasisLabel: string;
+  costBasisEstimateNote: string;
+  costBasisWalletRuleNote: string;
+  identificationsLink: string;
   costBasisDesc: string;
   fifoLabel: string;
   fifoDesc: string;
@@ -47,7 +50,12 @@ export const en: SettingsLocale = {
     'Short/long-term split using the IRS one-year holding rule.',
   otherProfileDesc:
     'Single date-ordered disposal list with holding-days column.',
-  costBasisLabel: 'Cost-basis method',
+  costBasisLabel: 'Cost-basis method (estimate for comparison)',
+  costBasisEstimateNote:
+    'This is an estimate for comparison. It does not record that you chose these units at the time of a sale, and it does not show an identification was made.',
+  costBasisWalletRuleNote:
+    'For sales from 2025 matched wallet by wallet, the figures follow the identifications you have recorded (or earliest acquired in each wallet when you have none), not this setting.',
+  identificationsLink: 'Record which units a sale uses',
   costBasisDesc:
     'Sets how your record calculates gains when you dispose of an asset, and the default for your Year Summary and exports. ' +
     'It controls how Almstins computes your own record — it does not instruct any exchange or change a broker\'s Form 1099-DA. ' +
@@ -77,7 +85,12 @@ export const es: SettingsLocale = {
     'División a corto/largo plazo usando la regla de tenencia de un año del IRS.',
   otherProfileDesc:
     'Lista única de disposiciones ordenada por fecha con columna de días de tenencia.',
-  costBasisLabel: 'Método de coste base',
+  costBasisLabel: 'Método de coste base (estimación para comparar)',
+  costBasisEstimateNote:
+    'Es una estimación para comparar. No registra que elegiste estas unidades en el momento de una venta ni muestra que se hizo una identificación.',
+  costBasisWalletRuleNote:
+    'Para las ventas desde 2025 conciliadas wallet por wallet, las cifras siguen las identificaciones que hayas registrado (o las adquiridas primero en cada wallet si no tienes ninguna), no este ajuste.',
+  identificationsLink: 'Registrar qué unidades usa una venta',
   costBasisDesc:
     'Define cómo tu registro calcula las ganancias al disponer de un activo, y el valor por defecto de tu Resumen Anual y exportaciones. ' +
     'Controla cómo Almstins calcula tu propio registro — no da instrucciones a ningún exchange ni cambia el Formulario 1099-DA de un bróker. ' +
@@ -107,7 +120,12 @@ export const fr: SettingsLocale = {
     'Répartition court/long terme selon la règle de détention d\'un an de l\'IRS.',
   otherProfileDesc:
     'Liste unique des cessions ordonnée par date avec une colonne de jours de détention.',
-  costBasisLabel: 'Méthode de coût de base',
+  costBasisLabel: 'Méthode de coût de base (estimation pour comparer)',
+  costBasisEstimateNote:
+    "Il s'agit d'une estimation pour comparer. Elle n'enregistre pas que vous avez choisi ces unités au moment d'une vente et ne montre pas qu'une identification a été faite.",
+  costBasisWalletRuleNote:
+    "Pour les ventes depuis 2025 rapprochées wallet par wallet, les chiffres suivent les identifications que vous avez enregistrées (ou les plus anciennes de chaque wallet si vous n'en avez aucune), pas ce réglage.",
+  identificationsLink: 'Enregistrer quelles unités une vente utilise',
   costBasisDesc:
     'Définit comment votre registre calcule les plus-values lors d\'une cession, et la valeur par défaut de votre Résumé annuel et de vos exports. ' +
     'Cela contrôle la façon dont Almstins calcule votre propre registre — cela ne donne aucune instruction à une plateforme et ne change pas le formulaire 1099-DA d\'un courtier. ' +

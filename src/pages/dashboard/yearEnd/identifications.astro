@@ -1,0 +1,328 @@
+---
+/**
+ * /dashboard/yearEnd/identifications
+ *
+ * Which units a sale uses, wallet by wallet: a dated, append-only record of the owner's choice, each
+ * entry timestamped on Bitcoin, and a per-year view of which sales were covered by an identification
+ * recorded before them. Owner only (hasTaxAccess runs before anything is read). Labels, notes and
+ * addresses are rendered by Astro, which escapes them; the script below sets text with textContent
+ * and never builds HTML.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { hasTaxAccess, TAX_DENIED_REDIRECT } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getIdentifications } from '@/i18n/dashboard/yearEnd/identifications';
+import { computeLedger, engineForTenant, perWalletEnabled } from '@/lib/tax/computeLedger';
+import { loadIdentificationState } from '@/lib/lotIdentificationState';
+import { reconcileYear } from '@/lib/tax/identificationReconcile';
+import { PER_WALLET_FROM } from '@/lib/tax/basisMethod';
+import { IDENTIFICATION_METHODS, type IdentificationMethod } from '@/lib/tax/lotIdentification';
+import { walletDisplayOf } from '@/lib/tax/eventWallet';
+import { formatDateTime, toLang } from '@/lib/format';
+
+const lang = getLang(Astro.request);
+const t = getIdentifications(lang);
+const dateLang = toLang(lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US');
+
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect(TAX_DENIED_REDIRECT, 302);
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login');
+const { tenantId } = sess;
+
+const enabled = await perWalletEnabled(tenantId);
+const state = enabled ? await loadIdentificationState(tenantId) : null;
+
+const firstYear = Number(PER_WALLET_FROM.slice(0, 4));
+const thisYear = new Date().getUTCFullYear();
+const yearParam = Number(Astro.url.searchParams.get('year'));
+const year = Number.isInteger(yearParam) && yearParam >= firstYear - 1 && yearParam <= thisYear ? yearParam : thisYear;
+const years: number[] = [];
+for (let y = thisYear; y >= firstYear; y--) years.push(y);
+
+const recon = enabled && state
+	? reconcileYear((await computeLedger(tenantId, await engineForTenant(tenantId))).result.selections, state.entries, year)
+	: null;
+
+const fmtQty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+const fmtWhen = (iso: string) => formatDateTime(iso, dateLang, { timeZone: 'UTC', seconds: true }) + ' UTC';
+const methodLabel = (m: IdentificationMethod) => t.methods[m];
+const walletName = (key: string) => state?.groups.find((g) => g.keys.includes(key))?.display ?? walletDisplayOf(key) ?? key;
+
+/** The newest entry for any of a group's keys, for the "latest entry" line. */
+const latestFor = (keys: string[]) => {
+	const mine = (state?.entries ?? []).filter((e) => keys.includes(e.walletKey));
+	return mine.length ? mine[mine.length - 1] : null;
+};
+const anyExchange = state?.groups.some((g) => g.exchangeHeld) ?? false;
+const total = state?.groups.length ?? 0;
+const applied = Astro.url.searchParams.get('applied') === '1';
+const stampText = (e: NonNullable<typeof state>['entries'][number]) =>
+	e.stampStatus === 'confirmed' && e.blockHeight !== null
+		? t.stampConfirmed(e.blockHeight, e.blockTime ? fmtWhen(e.blockTime) : null)
+		: t.stampStatus[e.stampStatus];
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+<div class="li-page">
+	<a href="/year-summary" class="li-back">←</a>
+	<h1 class="li-title">{t.heading}</h1>
+	<p class="li-sub">{t.intro}</p>
+	<p class="li-disclaimer" role="note">{t.disclaimer}</p>
+
+	{!state && <p class="li-empty">{t.notEnabled}</p>}
+
+	{state && (
+		<>
+			<section class="li-card" id="choose">
+				<h2>{t.chooseHeading}</h2>
+				<fieldset class="li-methods">
+					<legend>{t.methodLabel}</legend>
+					{IDENTIFICATION_METHODS.map((m, i) => (
+						<label class="li-method">
+							<input type="radio" name="li-all-method" value={m} checked={i === 0} />
+							<span><strong>{t.methods[m]}</strong><br /><small>{t.methodHelp[m]}</small></span>
+						</label>
+					))}
+				</fieldset>
+				<label class="li-field">{t.noteLabel}
+					<input type="text" id="li-all-note" maxlength="500" placeholder={t.notePlaceholder} />
+				</label>
+				<div class="li-actions">
+					<button type="button" class="li-btn li-btn--primary" id="li-apply-all" disabled={total === 0}>{t.applyAll}</button>
+					<span class="li-help">{t.applyAllHelp}</span>
+				</div>
+				<p class="li-count" id="li-count" data-undecided={state.undecidedCount} role="status">
+					{state.undecidedCount > 0 ? t.undecidedCount(state.undecidedCount, total) : t.allDecided}
+				</p>
+				<span class="li-status" id="li-all-status" aria-live="polite"></span>
+				<div class={applied ? 'li-warn li-warn--strong' : 'li-warn'} id="li-exchange-warning" hidden={!anyExchange} role={applied ? 'alert' : undefined}>
+					<strong>{t.exchangeWarningHeading}.</strong> {t.exchangeWarning}
+				</div>
+			</section>
+
+			<section class="li-card">
+				<h2>{t.walletsHeading}</h2>
+				{state.groups.length === 0 && <p class="li-empty">{t.noWallets}</p>}
+				{state.groups.map((g) => {
+					const last = latestFor(g.keys);
+					return (
+						<div class="li-wallet" data-group={g.id} data-keys={g.keys.join(' ')} data-exchange={g.exchangeHeld ? '1' : '0'} id={`wallet-${g.keys[0]}`}>
+							<div class="li-wallet__head">
+								<span class="li-wallet__name">{g.display}</span>
+								{g.ownerLabel && <span class="li-badge">{t.ownerPrefix}: {g.ownerLabel}</span>}
+							</div>
+							<div class="li-wallet__state">
+								{last ? `${t.currentPrefix}: ${methodLabel(last.method)} · ${fmtWhen(last.createdAt)}` : t.notDecided}
+							</div>
+							{g.undecided && (
+								<div class="li-actions">
+									<button type="button" class="li-btn li-choose">{t.chooseButton}</button>
+									<button type="button" class="li-btn li-keep-default">{t.keepDefault}</button>
+								</div>
+							)}
+							{!g.undecided && (
+								<div class="li-actions">
+									<button type="button" class="li-btn li-choose">{t.chooseButton}</button>
+								</div>
+							)}
+							<div class="li-form" hidden>
+								<select class="li-form__method" aria-label={t.methodLabel}>
+									{IDENTIFICATION_METHODS.map((m) => <option value={m}>{t.methods[m]}</option>)}
+								</select>
+								<input type="text" class="li-form__note" maxlength="500" placeholder={t.notePlaceholder} aria-label={t.noteLabel} />
+								<button type="button" class="li-btn li-btn--primary li-form__record">{t.record}</button>
+								<button type="button" class="li-btn li-form__cancel">{t.cancel}</button>
+								<span class="li-status" aria-live="polite"></span>
+							</div>
+						</div>
+					);
+				})}
+			</section>
+
+			<section class="li-card">
+				<h2>{t.entriesHeading}</h2>
+				<p class="li-help">{t.entriesHelp} {t.stampMeaning}</p>
+				{state.entries.length === 0 && <p class="li-empty">{t.noEntries}</p>}
+				{state.entries.length > 0 && (
+					<div class="li-scroll">
+						<table class="li-table">
+							<thead>
+								<tr><th>{t.colWallet}</th><th>{t.colMethod}</th><th>{t.colEffective}</th><th>{t.colRecorded}</th><th>{t.colNote}</th><th>{t.colExchange}</th><th>{t.colTimestamp}</th></tr>
+							</thead>
+							<tbody>
+								{state.entries.map((e) => (
+									<tr>
+										<td title={e.walletKey}>{walletName(e.walletKey)}</td>
+										<td>{methodLabel(e.method)}</td>
+										<td>{fmtWhen(e.effectiveAt)}</td>
+										<td>{fmtWhen(e.createdAt)}</td>
+										<td>{e.note ?? ''}</td>
+										<td>
+											{t.exchangeStatus[e.exchangeStatus]}
+											{e.exchangeStatus === 'not_confirmed' && (
+												<button type="button" class="li-btn li-confirm" data-id={e.id}>{t.markConfirmed}</button>
+											)}
+										</td>
+										<td>
+											<span class="li-stamp" data-batch={e.batchId} data-status={e.stampStatus} data-time={e.blockTime ?? ''}>{stampText(e)}</span>
+											<a class="li-proof" href={`/api/lot-identifications/proof?id=${encodeURIComponent(e.id)}`}>{t.downloadProof}</a>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+				{state.entries.length > 0 && <button type="button" class="li-btn" id="li-refresh">{t.retryStamps}</button>}
+			</section>
+
+			<section class="li-card" id="reconcile">
+				<h2>{t.reconcileHeading}</h2>
+				<p class="li-help">{t.reconcileHelp}</p>
+				<form method="get" class="li-year">
+					<label>{t.yearLabel}
+						<select name="year" onchange="this.form.submit()">
+							{years.map((y) => <option value={y} selected={y === year}>{y}</option>)}
+							{year < firstYear && <option value={year} selected>{year}</option>}
+						</select>
+					</label>
+				</form>
+				{recon && !recon.applicable && <p class="li-empty">{t.reconcileBefore2025}</p>}
+				{recon && recon.applicable && recon.total === 0 && <p class="li-empty">{t.reconcileNone}</p>}
+				{recon && recon.applicable && recon.total > 0 && (
+					<>
+						<p class="li-count">{t.reconcileCounts(recon.covered, recon.total)}</p>
+						<div class="li-scroll">
+							<table class="li-table">
+								<thead>
+									<tr><th>{t.colDate}</th><th>{t.colAsset}</th><th>{t.colWallet}</th><th class="num">{t.colQty}</th><th>{t.colRule}</th></tr>
+								</thead>
+								<tbody>
+									{recon.rows.map((r) => (
+										<tr class={r.identification ? 'li-row--covered' : 'li-row--default'}>
+											<td>{fmtWhen(r.at)}</td>
+											<td>{r.asset}</td>
+											<td title={r.wallet}>{walletName(r.wallet)}</td>
+											<td class="num">{fmtQty(r.qty)}</td>
+											<td>{r.identification ? t.ruleIdentified(methodLabel(r.method), fmtWhen(r.identification.createdAt)) : t.ruleDefault}</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</>
+				)}
+			</section>
+		</>
+	)}
+</div>
+</Layout>
+
+<script define:vars={{ msg: { recording: t.recording, recorded: t.recorded, errors: t.errors, networkError: t.networkError } }}>
+	const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+	async function submit(statusEl, body, after) {
+		statusEl.textContent = msg.recording;
+		try {
+			const res = await post('/api/lot-identifications', body);
+			const data = await res.json().catch(() => ({}));
+			if (res.ok && data.ok) {
+				statusEl.textContent = msg.recorded;
+				setTimeout(() => { if (after) location.assign(after); else location.reload(); }, 700);
+				return;
+			}
+			statusEl.textContent = msg.errors[data.error] || msg.networkError;
+		} catch {
+			statusEl.textContent = msg.networkError;
+		}
+	}
+	const radio = () => document.querySelector('input[name="li-all-method"]:checked');
+
+	document.getElementById('li-apply-all')?.addEventListener('click', () => {
+		const method = radio()?.value;
+		submit(document.getElementById('li-all-status'), { applyAll: true, method, note: document.getElementById('li-all-note').value || null }, location.pathname + '?applied=1#li-exchange-warning');
+	});
+
+	document.querySelectorAll('.li-wallet').forEach((box) => {
+		const keys = (box.getAttribute('data-keys') || '').split(' ').filter(Boolean);
+		const form = box.querySelector('.li-form');
+		const status = form.querySelector('.li-status');
+		const entries = (method, note) => keys.map((walletKey) => ({ walletKey, method, note: note || null }));
+		box.querySelectorAll('.li-choose').forEach((b) => b.addEventListener('click', () => { form.hidden = false; }));
+		form.querySelector('.li-form__cancel').addEventListener('click', () => { form.hidden = true; });
+		form.querySelector('.li-form__record').addEventListener('click', () => {
+			submit(status, { entries: entries(form.querySelector('.li-form__method').value, form.querySelector('.li-form__note').value) });
+		});
+		// Keeping the default is a decision too: it records an earliest-acquired entry.
+		box.querySelector('.li-keep-default')?.addEventListener('click', () => submit(status, { entries: entries('earliest', null) }));
+	});
+
+	document.querySelectorAll('.li-confirm').forEach((b) => b.addEventListener('click', async () => {
+		b.disabled = true;
+		try {
+			const res = await post('/api/lot-identifications/confirm', { identificationId: b.getAttribute('data-id') });
+			if (res.ok) location.reload();
+			else b.disabled = false;
+		} catch {
+			b.disabled = false;
+		}
+	}));
+
+	async function refresh(force) {
+		try {
+			const res = await post('/api/lot-identifications/refresh', { force });
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok || !data.ok) return;
+			let changed = false;
+			for (const b of data.batches) {
+				document.querySelectorAll('.li-stamp[data-batch="' + CSS.escape(b.batchId) + '"]').forEach((el) => {
+					if (b.status !== el.getAttribute('data-status') || (b.blockTime && !el.getAttribute('data-time'))) changed = true;
+				});
+			}
+			if (changed) location.reload();
+		} catch { /* the page stays as it is */ }
+	}
+	document.getElementById('li-refresh')?.addEventListener('click', () => refresh(true));
+	if (document.getElementById('li-refresh')) refresh(false);
+</script>
+
+<style>
+	.li-page { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--text-primary, #111827); }
+	.li-back { display: inline-block; margin-bottom: 0.5rem; text-decoration: none; }
+	.li-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 0.5rem; }
+	.li-sub { margin: 0 0 0.5rem; max-width: 46rem; font-size: 0.9rem; color: var(--text-secondary, #374151); }
+	.li-disclaimer { margin: 0.5rem 0 1rem; max-width: 46rem; font-size: 0.85rem; padding: 0.5rem 0.8rem; border-left: 3px solid var(--border-bright, #9ca3af); color: var(--text-secondary, #374151); }
+	.li-empty { padding: 0.5rem 0; color: var(--text-muted, #6b7280); }
+	.li-card { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--border-bright, #e5e7eb); border-radius: 0.75rem; }
+	.li-card h2 { margin: 0 0 0.6rem; font-size: 1.1rem; }
+	.li-methods { border: 0; padding: 0; margin: 0 0 0.75rem; display: grid; gap: 0.5rem; }
+	.li-methods legend { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+	.li-method { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.9rem; }
+	.li-method small { color: var(--text-muted, #6b7280); }
+	.li-field { display: grid; gap: 0.25rem; font-size: 0.85rem; margin: 0.5rem 0; }
+	.li-field input, .li-form input[type='text'], .li-form select { padding: 0.35rem 0.5rem; border: 1px solid var(--border-bright, #d1d5db); border-radius: 0.4rem; background: var(--surface-card-2, #fff); color: inherit; font: inherit; }
+	.li-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+	.li-btn { padding: 0.35rem 0.8rem; border-radius: 0.4rem; border: 1px solid var(--border-bright, #d1d5db); background: var(--surface-card-2, #fff); color: inherit; cursor: pointer; font: inherit; font-size: 0.85rem; }
+	.li-btn--primary { font-weight: 700; }
+	.li-btn:disabled { opacity: 0.5; cursor: default; }
+	.li-help { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+	.li-count { font-size: 0.9rem; font-weight: 600; margin: 0.5rem 0; }
+	.li-status { font-size: 0.8rem; color: var(--text-muted, #6b7280); }
+	.li-warn { margin-top: 0.75rem; padding: 0.6rem 0.9rem; border-radius: 0.5rem; background: #fef3c7; color: #92400e; font-size: 0.85rem; }
+	.li-warn--strong { border: 2px solid #b45309; }
+	.li-wallet { padding: 0.75rem 0; border-top: 1px solid var(--border-bright, #e5e7eb); }
+	.li-wallet:first-of-type { border-top: 0; }
+	.li-wallet__head { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+	.li-wallet__name { font-weight: 700; overflow-wrap: anywhere; }
+	.li-wallet__state { font-size: 0.85rem; color: var(--text-secondary, #374151); margin-top: 0.2rem; }
+	.li-badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--surface-card-2, #f3f4f6); }
+	.li-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.5rem; }
+	.li-form[hidden] { display: none; }
+	.li-scroll { overflow-x: auto; }
+	.li-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+	.li-table th, .li-table td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border-bright, #e5e7eb); vertical-align: top; overflow-wrap: anywhere; }
+	.li-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+	.li-row--default td:last-child { color: #92400e; }
+	.li-proof { display: block; margin-top: 0.2rem; font-size: 0.78rem; }
+	.li-year { margin: 0.5rem 0; font-size: 0.85rem; }
+</style>

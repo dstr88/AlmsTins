@@ -10,6 +10,7 @@ import { isOwner } from '@/lib/owner';
 import { newAccountKey } from '@/lib/analytics/newAccount';
 import { db } from '@/lib/db';
 import LogoutButton from '@/components/LogoutButton.astro';
+import LotIdentificationPrompt from '@/components/LotIdentificationPrompt.astro';
 import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
 import { tenantHasTaxAccess } from '@/lib/taxAuth';
@@ -410,6 +411,7 @@ const memberSinceDisplay = memberSinceIso ? formatDate(memberSinceIso, navLang) 
 			</header>
 			<main>
 				<slot />
+				{canTax && <LotIdentificationPrompt />}
 			</main>
 			<Footer lang={navLang} />
 		</div>
