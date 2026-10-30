@@ -269,7 +269,6 @@ export async function buildAnnualBreakdown(
   // ── Core sections: sliced out of one run of the lot ledger ───────────────
   const ledger: ComputedLedger = await computeLedger(tenantId, resolvedSource, method, lotPins);
   const { result, refs } = ledger;
-  const lotWallet = new Map(result.lots.map((l) => [l.id, l.wallet]));
 
   const shortTerm: SettledLot[] = [];
   const longTerm: SettledLot[] = [];
@@ -278,7 +277,8 @@ export async function buildAnnualBreakdown(
   const aaveDeposits: AaveDepositItem[] = [];
 
   const settledOf = (sl: LedgerSlice): SettledLot => {
-    const walletKey = walletOrNull(sl.lotId ? lotWallet.get(sl.lotId) : sl.wallet);
+    // The wallet the coins were sold from. (A lot keeps the wallet it was bought in until per-wallet pools, so it is not where they were.)
+    const walletKey = walletOrNull(sl.wallet);
     return {
       asset: sl.asset,
       amount: sl.qty,
@@ -319,29 +319,28 @@ export async function buildAnnualBreakdown(
   // Aave deposit (collateral_deposit): the supplied lots' cost basis, so the would-be gain/loss
   // can be surfaced for review. Additive: it does not change realized gains, lots, or the
   // (still non-taxable) treatment.
-  const deposits = new Map<string, { slices: LedgerSlice[]; unmatched: boolean }>();
+  const deposits = new Map<string, { slices: LedgerSlice[]; unmatched: boolean; asset: string; date: string }>();
   for (const sl of result.slices) {
     if (sl.taxable || sl.category !== 'collateral_deposit' || yearOf(sl.disposedAt) !== year) continue;
-    const d = deposits.get(sl.sourceRef) ?? { slices: [], unmatched: false };
+    const d = deposits.get(sl.sourceRef) ?? { slices: [], unmatched: false, asset: sl.asset, date: sl.disposedAt };
     d.slices.push(sl);
     deposits.set(sl.sourceRef, d);
   }
   for (const u of result.unmatched) {
     if (u.taxable || u.category !== 'collateral_deposit' || yearOf(u.at) !== year) continue;
-    const d = deposits.get(u.sourceRef) ?? { slices: [], unmatched: false };
+    const d = deposits.get(u.sourceRef) ?? { slices: [], unmatched: false, asset: u.asset, date: u.at };
     d.unmatched = true;
     deposits.set(u.sourceRef, d);
   }
   for (const [ref, d] of deposits) {
     const info = refs.get(ref);
-    const first = d.slices[0];
     const complete = !d.unmatched && d.slices.every((sl) => sl.cost != null);
     const cost = d.slices.reduce((acc, sl) => acc + (sl.cost ?? 0), 0);
     const amountUsd = info?.valueUsd ?? null;
     aaveDeposits.push({
-      asset: first?.asset ?? '',
+      asset: d.asset,
       amount: info?.amount ?? d.slices.reduce((acc, sl) => acc + sl.qty, 0),
-      date: first?.disposedAt ?? '',
+      date: d.date,
       amountUsd,
       costBasisUsd: complete ? cost : null,
       gainLossUsd: amountUsd != null && complete ? amountUsd - cost : null,

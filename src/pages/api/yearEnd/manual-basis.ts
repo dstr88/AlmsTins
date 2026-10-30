@@ -16,6 +16,7 @@ import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { requireTaxOwner } from '@/lib/taxAuth';
 import { randomUUID } from 'crypto';
+import { invalidateLedger } from '@/lib/tax/computeLedger';
 
 export const prerender = false;
 
@@ -129,6 +130,7 @@ export const POST: APIRoute = async ({ request }) => {
 			],
 		});
 
+		invalidateLedger(tenantId);
 		return respond({ ok: true });
 	} catch (error) {
 		console.error('[tax/manual-basis POST] failed:', error);
@@ -168,6 +170,7 @@ export const DELETE: APIRoute = async ({ request }) => {
 			args: [tenantId, sellSourceId.trim()],
 		});
 
+		invalidateLedger(tenantId);
 		return respond({ ok: true });
 	} catch (error) {
 		console.error('[tax/manual-basis DELETE] failed:', error);

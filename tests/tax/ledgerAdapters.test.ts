@@ -195,6 +195,55 @@ describe('lifecycleToLedger', () => {
 		expect(r.lots).toHaveLength(1);
 	});
 
+	it('a chain-synced send nothing is paired with stays a sale: its row names no destination', () => {
+		const { events } = lifecycleToLedger({
+			events: [
+				lrow({ direction: 'in', timestamp_utc: '2022-01-01T00:00:00Z', source_id: 'rx-0', source_type: 'import', native_usd: 20_000, import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wa' }),
+				lrow({ direction: 'out', timestamp_utc: '2023-01-01T00:00:00Z', source_id: 'pay-1', source_type: 'import', native_usd: 30_000, import_source: 'bitcoin', import_kind: 'send', import_wallet_id: 'wa', tx_hash: 'd'.repeat(64) }),
+			],
+			wallets,
+			ownerIndex: noOwners,
+		});
+		expect(events.find((e) => e.kind === 'dispose')).toMatchObject({ taxable: true, proceedsUsd: 30_000 });
+		expect(events.some((e) => e.kind === 'sendUnmatched')).toBe(false);
+		expect(gains(events).slices.map((s) => [s.taxable, s.gain])).toEqual([[true, 10_000]]);
+	});
+
+	it('one transaction that splits a wallet into two tracked wallets is two moves, with no second lot', () => {
+		const { events } = lifecycleToLedger({
+			events: [
+				buy('buy-1', '2022-01-10T00:00:00Z', 20_000),
+				lrow({ direction: 'out', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'o', source_type: 'import', import_source: 'bitcoin', import_kind: 'send', import_wallet_id: 'wa', tx_hash: HASH, amount: 1 }),
+				lrow({ direction: 'in', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'i1', source_type: 'import', import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wb', tx_hash: HASH, amount: 0.5 }),
+				lrow({ direction: 'in', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'i2', source_type: 'import', import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wa', tx_hash: HASH, amount: 0.5 }),
+			],
+			wallets,
+			ownerIndex: noOwners,
+		});
+		expect(events.filter((e) => e.kind === 'move')).toHaveLength(2);
+		expect(events.filter((e) => e.kind === 'acquire')).toHaveLength(1);
+		const r = gains(events);
+		expect(r.slices).toEqual([]);
+		expect(r.lots).toHaveLength(1);
+	});
+
+	it('a consolidation of two tracked wallets into a third is moves, and the fee is listed once', () => {
+		const { events } = lifecycleToLedger({
+			events: [
+				lrow({ direction: 'out', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'o1', source_type: 'import', import_source: 'bitcoin', import_kind: 'send', import_wallet_id: 'wa', tx_hash: HASH, amount: 0.6 }),
+				lrow({ direction: 'out', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'o2', source_type: 'import', import_source: 'bitcoin', import_kind: 'send', import_wallet_id: 'wb', tx_hash: HASH, amount: 0.4 }),
+				lrow({ direction: 'in', timestamp_utc: '2023-02-01T00:00:00Z', source_id: 'i1', source_type: 'import', import_source: 'bitcoin', import_kind: 'receive', import_wallet_id: 'wc', tx_hash: HASH, amount: 0.999 }),
+			],
+			wallets: [...wallets, { id: 'wc', address: FAR }],
+			ownerIndex: noOwners,
+		});
+		const moves = events.filter((e) => e.kind === 'move');
+		expect(moves).toHaveLength(2);
+		expect(events.some((e) => e.kind === 'sendUnmatched')).toBe(false);
+		expect(moves.reduce((a, m) => a + (m.kind === 'move' ? m.qtyOut : 0), 0)).toBeCloseTo(1, 9);
+		expect(moves.reduce((a, m) => a + (m.kind === 'move' ? m.qtyIn : 0), 0)).toBeCloseTo(0.999, 9);
+	});
+
 	it('collateral deposits and repayments use up lots without a gain, and are never transfers', () => {
 		const { events, refs } = lifecycleToLedger({
 			events: [
@@ -379,6 +428,32 @@ describe('pipelineToLedger', () => {
 		const r = runLotLedger(events);
 		expect(r.slices.map((s) => [s.basisSource, s.cost, s.gain, s.term])).toEqual([['manual', 30, 50, 'long']]);
 		expect(r.unmatched).toEqual([]);
+	});
+
+	it('a chain-synced send nothing is paired with stays a sale in the pipeline too', () => {
+		const { events } = pipelineToLedger({
+			importRows: [irow({ id: 'pay', timestamp_utc: '2023-06-01T00:00:00Z', direction: 'out', kind: 'send', source: 'bitcoin', native_usd: 30_000, wallet_id: 'wa' })],
+			onchainRows: [],
+			classifications: cls([['import:pay', 'transfer']]),
+			ownerIndex: noOwners,
+			wallets: walletMap,
+		});
+		expect(events).toMatchObject([{ kind: 'dispose', taxable: true, proceedsUsd: 30_000 }]);
+	});
+
+	it('an entered basis on a pipeline leg that turns out to be a transfer is ignored, and the ledger says so', () => {
+		const { events } = pipelineToLedger({
+			importRows: [
+				irow({ id: 'b', timestamp_utc: '2022-01-01T00:00:00Z', native_usd: 100 }),
+				irow({ id: 'send', timestamp_utc: '2023-02-01T00:00:00Z', direction: 'out', kind: 'Send', native_usd: 150, tx_hash: HASH }),
+				irow({ id: 'dep', timestamp_utc: '2023-02-01T01:00:00Z', kind: 'deposit', source: 'kraken', account_id: 'k1', native_usd: 150, tx_hash: HASH }),
+			],
+			onchainRows: [],
+			classifications: cls([['import:b', 'buy'], ['import:send', 'transfer'], ['import:dep', 'transfer']]),
+			ownerIndex: noOwners,
+			manualBasis: new Map([['send', { pricePerToken: 1, buyDateIso: '2022-01-01T00:00:00Z' }]]),
+		});
+		expect(runLotLedger(events).findings.map((f) => f.reason)).toEqual(['manual_basis_on_transfer']);
 	});
 
 	it('keeps each exchange account its own wallet', () => {

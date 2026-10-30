@@ -11,8 +11,8 @@
  *   out, anything else          dispose, taxable, at native_usd (with the owner's entered basis, if any)
  *   a transfer leg              paired with its other leg it is a MOVE: no sale, no new lot, the
  *                               coins keep their date and cost. Left unpaired: an exchange Send
- *                               consumes the coins and is listed for review, an on-chain out to an
- *                               address Almstins does not track stays a sale, an arrival opens a lot.
+ *                               consumes the coins and is listed for review, a chain-synced or on-chain out
+ *                               to an address Almstins does not track stays a sale, an arrival opens a lot.
  *
  * Which rows are transfer legs (the same reading the pipeline's pass 1 gives them):
  *   an import row pass 1 calls a transfer (an exchange Send, Receive, Deposit, Withdrawal), or any
@@ -154,8 +154,10 @@ export function lifecycleToLedger(input: LifecycleAdapterInput): LifecycleAdapte
 			id, direction: dir, asset, qty: amount, at, wallet: legWallet, source: transfer as TransferRow['source'], hash: txHash,
 			category: transfer === 'import' ? 'transfer' : null, kind, fromAddress: text(row.from_address) || null, toAddress: text(row.to_address) || null,
 		});
+		// Only an exchange's own Send / Withdrawal is an explicit send. A chain-synced row names no destination (a payment, a swap
+		// leg and a send to another wallet look alike), so one nothing is paired with stays a sale, like an on-chain out.
 		const unpairedOut = (): TransferCandidate['unpaired'] =>
-			transfer === 'onchain' ? { kind: 'dispose', proceedsUsd: nativeUsd, category: txClass || 'other' } : { kind: 'send', valueUsd: nativeUsd };
+			transfer === 'import' ? { kind: 'send', valueUsd: nativeUsd } : { kind: 'dispose', proceedsUsd: nativeUsd, category: txClass || 'other' };
 		const unpairedIn = (): TransferCandidate['unpaired'] => ({
 			kind: 'acquire', costUsd: nativeUsd, origin: transfer === 'onchain' ? 'other' : 'transfer_in_untracked',
 		});

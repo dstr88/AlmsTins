@@ -78,7 +78,7 @@ describe('wallets reach the tokens', () => {
 		// The adapter gives each event the wallet its source row sits in; the ledger keeps it on the lot.
 		expect(lifecycleAdapter).toMatch(/walletOfRow\(/);
 		expect(lifecycleAdapter).toMatch(/kind: 'acquire', id: sourceRef, asset, wallet,/);
-		expect(breakdown).toMatch(/const lotWallet = new Map\(result\.lots\.map\(\(l\) => \[l\.id, l\.wallet\]\)\)/);
+		expect(breakdown).toMatch(/const walletKey = walletOrNull\(sl\.wallet\)/);
 		expect(breakdown).toMatch(/walletKey,\n\s+walletDisplay: walletDisplayOf\(walletKey\)/);
 		expect(breakdown).toMatch(/walletDisplay: walletDisplayOf\(walletKey\),\n\s+acquiredDate/);
 	});

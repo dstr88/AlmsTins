@@ -253,6 +253,8 @@ export async function computeLedger(
 		return { engine, result, refs };
 	})();
 	if (ledgerMemo.enabled) {
+		// Expired results are dropped as new ones are kept, so a tenant seen once does not stay in memory.
+		for (const [k, v] of memo) if (Date.now() - v.at >= MEMO_MS) memo.delete(k);
 		memo.set(key, { at: Date.now(), value });
 		// A failed run is not kept.
 		value.catch(() => memo.delete(key));

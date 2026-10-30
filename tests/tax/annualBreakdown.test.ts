@@ -1068,3 +1068,31 @@ describe('Pipeline source path', () => {
 		expect(bd.income[0].kind).toBe('staking');  // uses sub_category
 	});
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. Aave deposits with no lot behind them
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('aaveDeposits', () => {
+	beforeEach(() => vi.resetAllMocks());
+
+	it('a collateral deposit no lot covers still names its asset and date, and has no cost basis', async () => {
+		setupMock({ eventRows: [ev({ direction: 'out', timestamp_utc: '2023-05-01T00:00:00Z', asset_symbol: 'USDC', amount: 100, native_usd: 100, transaction_class: 'collateral_deposit', source_id: 'dep-1' })] });
+		const bd = await buildAnnualBreakdown(TENANT, 2023);
+		expect(bd.aaveDeposits).toEqual([{ asset: 'USDC', amount: 100, date: '2023-05-01T00:00:00Z', amountUsd: 100, costBasisUsd: null, gainLossUsd: null, txHash: null }]);
+	});
+
+	it('a deposit covered by a lot carries that lot\'s cost and the gain it would have been', async () => {
+		setupMock({
+			eventRows: [
+				ev({ direction: 'in', timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'USDC', amount: 100, native_usd: 90, transaction_class: 'owned_acquisition', source_id: 'b1' }),
+				ev({ direction: 'out', timestamp_utc: '2023-05-01T00:00:00Z', asset_symbol: 'USDC', amount: 100, native_usd: 100, transaction_class: 'collateral_deposit', source_id: 'dep-1' }),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023);
+		expect(bd.aaveDeposits?.map((d) => [d.asset, d.costBasisUsd, d.gainLossUsd])).toEqual([['USDC', 90, 10]]);
+		expect(bd.shortTerm).toEqual([]);
+		expect(bd.longTerm).toEqual([]);
+	});
+});

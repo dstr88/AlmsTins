@@ -140,12 +140,16 @@ export function pipelineToLedger(input: PipelineAdapterInput): PipelineAdapterOu
 				id: row.id, direction, asset: symbol, qty, at: row.timestamp_utc, wallet, source: isChainSource(row.source) ? 'chain_sync' : 'import',
 				hash: row.tx_hash, category: 'transfer', kind: row.kind,
 			};
+			const manualBasis = direction === 'out' ? input.manualBasis?.get(row.id) : undefined;
+			const chainSynced = leg.source === 'chain_sync';
 			candidates.push({
 				row: leg,
 				sourceRef: row.id,
+				// An exchange Send consumes the coins; a chain-synced send names no destination, so unpaired it stays a sale (as in the lifecycle).
 				unpaired: direction === 'out'
-					? { kind: 'send', valueUsd: cost }
+					? chainSynced ? { kind: 'dispose', proceedsUsd: cost, category: 'sell' } : { kind: 'send', valueUsd: cost }
 					: cost !== null ? { kind: 'acquire', costUsd: cost, origin: 'transfer_in_untracked' } : { kind: 'ignore' },
+				...(manualBasis ? { manualBasis } : {}),
 			});
 		}
 	}

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { invalidateLedger } from '@/lib/tax/computeLedger';
 
 export const prerender = false;
 
@@ -54,6 +55,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 		});
 	}
 
+	invalidateLedger(tenantId);
 	return new Response(JSON.stringify({ ok: true, action }), {
 		status: 200,
 		headers: { 'Content-Type': 'application/json' },
