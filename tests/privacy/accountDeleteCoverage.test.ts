@@ -23,6 +23,7 @@ const KEPT: Record<string, string> = {
 	receivable_documents: 'documents of a financing record',
 	receivable_offers: 'other parties’ offers',
 	receivable_reverifications: 'signed re-verification receipts others hold',
+	receivable_status_events: 'the dated extension/unpaid chain under kept claims; deleting it would misstate the promise history others rely on',
 	cairn_projects: 'milestone-desk record other parties rely on',
 	cairn_milestones: 'milestone-desk record other parties rely on',
 	cairn_attestations: 'other parties’ attestations',

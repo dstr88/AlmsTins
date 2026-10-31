@@ -264,7 +264,7 @@ describe('ANCHOR_SPEC', () => {
 			const cols = fake.columns.get(table)!;
 			for (const c of ['id', 'tenant_id', 'created_at', digestColumn, anchorColumn]) expect(cols.has(c), `${kind}: ${table}.${c}`).toBe(true);
 		}
-		expect(ANCHOR_KINDS).toEqual(['receivable', 'claim', 'attestation', 'reverification', 'claim_discharge', 'settlement']);
+		expect(ANCHOR_KINDS).toEqual(['receivable', 'claim', 'attestation', 'reverification', 'claim_discharge', 'settlement', 'status_event']);
 		for (const bad of ['constructor', '__proto__', 'toString', 'receivables', '']) {
 			expect(isAnchorKind(bad)).toBe(false);
 			expect(await reg.getRecordForAnchor(OWNER, bad as any, 'x')).toBeNull();
