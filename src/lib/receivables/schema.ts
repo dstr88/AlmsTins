@@ -123,5 +123,45 @@ export const CREATE_ANCHOR_ATTEMPTS = `
   )
 `;
 
+/**
+ * receivable_status_events (aging A1): a claim's one-click status updates, append-only. One row =
+ * one signed, dated event by the claim's own financier — `extended` (new_promised_date + a
+ * mandatory structured reason_code, optional reason_note) or `unpaid` (optional reason_note).
+ * Nothing here is ever updated or deleted; only the Bitcoin receipt (anchor_json) is written onto
+ * a row after the fact, through the generic tenant-scoped setRecordAnchor (ANCHOR_SPEC
+ * status_event). The receivable's own due_date is never rewritten — it sits inside the signed
+ * manifest and the record's ID — these events layer the dated chain that moved it.
+ *
+ * reason_code / reason_note are tenant-tier data: the public status never selects them (D3) —
+ * the aging state and the dated chain are public, the reasons are not.
+ */
+export const CREATE_STATUS_EVENTS = `
+  CREATE TABLE IF NOT EXISTS receivable_status_events (
+    id                TEXT NOT NULL PRIMARY KEY,
+    tenant_id         TEXT NOT NULL,
+    receivable_id     TEXT NOT NULL,
+    claim_id          TEXT NOT NULL,
+    kind              TEXT NOT NULL,
+    new_promised_date TEXT,
+    reason_code       TEXT,
+    reason_note       TEXT,
+    manifest_json     TEXT NOT NULL,
+    signature_json    TEXT,
+    digest            TEXT NOT NULL,
+    anchor_json       TEXT,
+    created_at        TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+/** The new table's own indexes. The registry creates them right after the table creates, the
+ *  same way the core tables' indexes run (not RECEIVABLE_INDEX_CREATES, which holds only
+ *  indexes on columns added at runtime); a failure fails the whole ensure, which is retried. */
+export const CREATE_STATUS_EVENTS_RCV_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_status_events_rcv ON receivable_status_events (receivable_id)`;
+export const CREATE_STATUS_EVENTS_CLAIM_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_status_events_claim ON receivable_status_events (claim_id)`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
-export const RECEIVABLE_TABLE_CREATES: readonly string[] = [CREATE_ANCHOR_ATTEMPTS];
+export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
+  CREATE_ANCHOR_ATTEMPTS,
+  CREATE_STATUS_EVENTS,
+];

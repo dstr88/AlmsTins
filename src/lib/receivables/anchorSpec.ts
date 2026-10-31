@@ -49,6 +49,10 @@ export const ANCHOR_SPEC = {
   reverification: { table: 'receivable_reverifications', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
   claim_discharge: { table: 'receivable_claims', digestColumn: 'discharge_digest', anchorColumn: 'discharge_anchor_json', manifestColumn: 'discharge_json', signatureColumn: 'discharge_signature_json', writtenAtColumn: 'discharge_recorded_at', addedColumns: true, cronStamps: true },
   settlement: { table: 'receivables', digestColumn: 'settlement_digest', anchorColumn: 'settlement_anchor_json', manifestColumn: 'settlement_json', signatureColumn: 'settlement_signature_json', writtenAtColumn: 'settlement_recorded_at', addedColumns: true, cronStamps: true },
+  // Aging A1: a claim's extended/unpaid status events (receivable_status_events is created with
+  // the base ensure, so no added-columns gate). Stamped in-request by the extend/unpaid routes
+  // (anchorNow); the cron retries a stamp that failed or was rate limited then.
+  status_event: { table: 'receivable_status_events', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
 } as const satisfies Record<string, AnchorSpecEntry>;
 
 export type AnchorRecordKind = keyof typeof ANCHOR_SPEC;

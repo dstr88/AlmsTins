@@ -51,8 +51,22 @@ import {
   type FinancingStatus,
   type Lifecycle,
 } from '@/lib/receivables/status';
+import { agingStateOf, effectivePromisedDate, type ClaimAgingState } from '@/lib/receivables/aging';
+import {
+  isExtensionReasonCode,
+  type ExtensionReasonCode,
+  type StatusEventKind,
+} from '@/lib/receivables/statusEvents';
+import {
+  CLAIM_ALREADY_DISCHARGED,
+  CLAIM_NOT_FOUND,
+  EXTENSION_DATE_REQUIRED,
+  EXTENSION_REASON_REQUIRED,
+} from '@/lib/receivables/copy/aging';
 import {
   ADD_RECEIVABLE_DELETED_AT,
+  CREATE_STATUS_EVENTS_CLAIM_IDX,
+  CREATE_STATUS_EVENTS_RCV_IDX,
   DDL_LOCK_TIMEOUT,
   FINGERPRINT_COLUMN_ADDS,
   RECEIVABLE_COLUMN_ADDS,
@@ -176,6 +190,33 @@ export interface PublicClaim {
   /** Bitcoin block time once the anchor confirms; null while pending or unanchored. */
   anchoredAt: string | null;
   registeredAt: string;
+  /** Aging (A1): where this claim's record stands against its promised date. 'lapsed' (D7: the
+   *  record was not maintained for LAPSE_AFTER_DAYS) is no longer counted in claimed/available;
+   *  the claim itself stays listed, marked. */
+  aging: ClaimAgingState;
+  /** The date this claim currently promises payment by: the latest extension's date, else the
+   *  receivable's own due date, else null. The original due date is never rewritten. */
+  promisedDate: string | null;
+  /** The latest owner-initiated dated event on this claim (registration, affirmation, a status
+   *  event, the financier's own re-verification). What the lapse backstop (D7) runs against;
+   *  a checker's lookup is not a touch. */
+  lastOwnerTouchAt: string | null;
+  /** The dated status-event chain (extended/unpaid), oldest first. Public shape: kinds and
+   *  dates only — extension reasons are tenant-tier (D3) and never appear here. */
+  statusEvents: PublicStatusEvent[];
+}
+
+/** One signed status event on a claim, as the public status carries it. The stored row also
+ *  holds the structured reason; that stays off this shape on purpose (D3). */
+export interface PublicStatusEvent {
+  id: string;
+  kind: StatusEventKind;
+  /** When the event was recorded. */
+  date: string;
+  newPromisedDate: string | null;
+  signed: boolean;
+  anchored: boolean;
+  anchoredAt: string | null;
 }
 
 export type AttesterRole = 'buyer' | 'supplier' | 'inspector' | 'other';
@@ -636,6 +677,8 @@ async function runEnsureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_OFFERS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_SEEN_SQL, args: [] });
   for (const sql of RECEIVABLE_TABLE_CREATES) await db.execute({ sql, args: [] });
+  await db.execute({ sql: CREATE_STATUS_EVENTS_RCV_IDX, args: [] });
+  await db.execute({ sql: CREATE_STATUS_EVENTS_CLAIM_IDX, args: [] });
   // Each column add runs under DDL_LOCK_TIMEOUT (see schema.ts). The first add that waits out the
   // timeout ends the list for this run: every later add would queue behind the same lock for
   // another three seconds while holding up that table's reads. The skipped adds are retried a
@@ -1046,13 +1089,120 @@ async function missingCode(receivableId: string): Promise<'withdrawn' | 'not_fou
   return (await withdrawnError(receivableId)) ? 'withdrawn' : 'not_found';
 }
 
-/** Sum of active claims against a receivable. */
-async function sumActiveClaims(receivableId: string): Promise<number> {
-  const r = await db.execute({
-    sql: `SELECT COALESCE(SUM(amount), 0) AS s FROM receivable_claims WHERE receivable_id = ? AND status = 'active'`,
-    args: [receivableId],
+// ── Aging (A1) — the per-claim state every surface reads ─────────────────────
+//
+// One loader computes each claim's aging from the stored rows: the receivable's due date, the
+// claim's status, its extended/unpaid events (receivable_status_events), and the last owner
+// touch — claim registration (created_at), the supplier's affirmation (affirmed_at), every
+// status event, and the financier's OWN re-verifications (tenant-matched: a checker's lookup,
+// and another tenant's Verify now, are NOT touches). A settled receivable short-circuits every
+// claim to 'settled': a closed deal is not nagged, and its claims keep encumbering as before.
+//
+// The lapse exclusion (D7) applies where claims are summed: claimedOf (the status read) and
+// encumberedClaimSum (addClaim's headroom guard, dischargeClaim's figures). ENCUMBRANCE_SQL —
+// the duplicate check's "financed" flag on twin rows — deliberately still counts lapsed claims:
+// lapse needs the touch chain, which that SQL cannot read, and the error direction is
+// conservative (a stale record can still warn a second lender; it can never falsely read clear).
+
+interface ClaimAgingInfo {
+  tenantId: string;
+  amount: number;
+  status: ClaimStatus;
+  aging: ClaimAgingState;
+  promisedDate: string | null;
+  lastOwnerTouchAt: string | null;
+  events: PublicStatusEvent[];
+}
+
+async function claimAgingByClaimId(
+  rcv: { id: string; due_date: string | null; settled_at: string | null },
+  now: Date,
+): Promise<Map<string, ClaimAgingInfo>> {
+  const out = new Map<string, ClaimAgingInfo>();
+  const cr = await db.execute({
+    sql: `SELECT id, tenant_id, amount, status, created_at, affirmed_at FROM receivable_claims WHERE receivable_id = ?`,
+    args: [rcv.id],
   });
-  return Number((r.rows[0] as any)?.s ?? 0);
+  if (!cr.rows.length) return out;
+
+  // The chain in recorded order; the id tiebreak keeps two same-second events deterministic.
+  const er = await db.execute({
+    sql: `SELECT id, claim_id, kind, new_promised_date, created_at, signature_json, anchor_json
+          FROM receivable_status_events WHERE receivable_id = ? ORDER BY created_at ASC, id ASC`,
+    args: [rcv.id],
+  });
+  const eventsByClaim = new Map<string, PublicStatusEvent[]>();
+  for (const row of er.rows as any[]) {
+    const claimId = String(row.claim_id);
+    const list = eventsByClaim.get(claimId) ?? [];
+    if (!eventsByClaim.has(claimId)) eventsByClaim.set(claimId, list);
+    list.push({
+      id: String(row.id),
+      kind: String(row.kind) === 'unpaid' ? 'unpaid' : 'extended',
+      date: String(row.created_at),
+      newPromisedDate: row.new_promised_date != null ? String(row.new_promised_date) : null,
+      signed: !!row.signature_json,
+      anchored: !!row.anchor_json,
+      anchoredAt: anchoredAtOf(row.anchor_json),
+    });
+  }
+
+  // Each tenant's latest Verify now on this receivable: an owner touch only for that tenant's
+  // own claims (D7 — "owner re-verification"; anyone else's run maintains nothing of theirs).
+  const rr = await db.execute({
+    sql: `SELECT tenant_id, created_at FROM receivable_reverifications WHERE receivable_id = ?`,
+    args: [rcv.id],
+  });
+  const reverifiedByTenant = new Map<string, string>();
+  for (const row of rr.rows as any[]) {
+    const t = String(row.tenant_id);
+    const at = String(row.created_at);
+    const prev = reverifiedByTenant.get(t);
+    if (!prev || at > prev) reverifiedByTenant.set(t, at);
+  }
+
+  for (const row of cr.rows as any[]) {
+    const claimId = String(row.id);
+    const tenantId = String(row.tenant_id);
+    const status: ClaimStatus = String(row.status) === 'discharged' ? 'discharged' : 'active';
+    const events = eventsByClaim.get(claimId) ?? [];
+    // Every timestamp is the registry's 'YYYY-MM-DD HH:MM:SS' UTC format, so the latest touch
+    // is the string maximum.
+    const touches = [
+      row.created_at != null ? String(row.created_at) : null,
+      row.affirmed_at != null ? String(row.affirmed_at) : null,
+      ...events.map((e) => e.date),
+      reverifiedByTenant.get(tenantId) ?? null,
+    ].filter((t): t is string => t !== null);
+    const lastOwnerTouchAt = touches.length ? touches.reduce((a, b) => (a > b ? a : b)) : null;
+    const extensions = events.filter((e) => e.kind === 'extended').map((e) => ({ newPromisedDate: e.newPromisedDate }));
+    out.set(claimId, {
+      tenantId,
+      amount: Number(row.amount),
+      status,
+      aging: rcv.settled_at != null
+        ? 'settled'
+        : agingStateOf(rcv.due_date, extensions, status, lastOwnerTouchAt, now),
+      promisedDate: effectivePromisedDate(rcv.due_date, extensions),
+      lastOwnerTouchAt,
+      events,
+    });
+  }
+  return out;
+}
+
+/** What currently encumbers a receivable: the sum of its active claims, lapsed ones left out
+ *  (D7). The headroom guard and the discharge figures read this, so they always agree with
+ *  the public status. */
+async function encumberedClaimSum(
+  rcv: { id: string; due_date: string | null; settled_at: string | null },
+  now: Date,
+): Promise<number> {
+  let sum = 0;
+  for (const c of (await claimAgingByClaimId(rcv, now)).values()) {
+    if (c.status === 'active' && c.aging !== 'lapsed') sum += c.amount;
+  }
+  return sum;
 }
 
 // ── Duplicate check (S3) ─────────────────────────────────────────────────────
@@ -1368,7 +1518,7 @@ export async function addClaim(
     financier: string; amount: number; currency?: string; date?: string; force?: boolean;
     acceptsWarnings?: boolean; acknowledge?: unknown[];
   },
-  opts: { verifiedViewer?: boolean } = {},
+  opts: { verifiedViewer?: boolean; now?: Date } = {},
 ): Promise<AddClaimResult> {
   await ensureReceivablesTables();
   const rid = String(receivableId || '').trim();
@@ -1407,8 +1557,11 @@ export async function addClaim(
 
   // The stored ID, never the caller's string: an ID sent with stray spaces still finds the
   // record above (it is trimmed there), so summing claims by the untrimmed string found none
-  // and the headroom check passed against the full face value.
-  const claimed = await sumActiveClaims(rcv.id);
+  // and the headroom check passed against the full face value. Lapsed claims (D7) are left out
+  // of the sum, so a record nobody maintained for LAPSE_AFTER_DAYS no longer takes headroom;
+  // one dated update from its financier counts it again.
+  const now = opts.now ?? new Date();
+  const claimed = await encumberedClaimSum(rcv, now);
   const available = rcv.face - claimed;
   if (amount > available && !headroomAcknowledged) {
     return {
@@ -1485,14 +1638,15 @@ export async function addClaim(
  *
  * Its duplicateCheck is the public one (publicDuplicateCheck): the state and hasDebtorReference.
  */
-export async function getReceivableStatus(receivableId: string): Promise<ReceivableStatus | null> {
-  return (await readReceivableStatus(receivableId))?.status ?? null;
+export async function getReceivableStatus(receivableId: string, now: Date = new Date()): Promise<ReceivableStatus | null> {
+  return (await readReceivableStatus(receivableId, now))?.status ?? null;
 }
 
 /** The public status, plus the full duplicate check for this module's own tiered answers (Verify
  *  now gives a verified account the basis and the financed wording). The full check never leaves
- *  this module except through such a tiered answer. */
-async function readReceivableStatus(receivableId: string): Promise<{ status: ReceivableStatus; duplicate: DuplicateCheck } | null> {
+ *  this module except through such a tiered answer. `now` is the aging clock (always a
+ *  parameter, so no test touches the system time). */
+async function readReceivableStatus(receivableId: string, now: Date = new Date()): Promise<{ status: ReceivableStatus; duplicate: DuplicateCheck } | null> {
   await ensureReceivablesTables();
   const rcv = await getReceivableRow(String(receivableId || '').trim(), { includeDeleted: true });
   if (!rcv) return null;
@@ -1504,22 +1658,35 @@ async function readReceivableStatus(receivableId: string): Promise<{ status: Rec
           FROM receivable_claims WHERE receivable_id = ? ORDER BY created_at ASC`,
     args: [rcv.id],
   });
-  const claims: PublicClaim[] = (cr.rows as any[]).map((r) => ({
-    id: String(r.id),
-    financier: String(r.financier),
-    amount: Number(r.amount),
-    currency: String(r.currency),
-    date: String(r.claim_date),
-    status: (String(r.status) === 'discharged' ? 'discharged' : 'active') as ClaimStatus,
-    dischargedAt: r.discharged_at != null ? String(r.discharged_at) : null,
-    affirmed: !!r.affirmed_at,
-    affirmedAt: r.affirmed_at != null ? String(r.affirmed_at) : null,
-    affirmedBy: r.affirmed_by != null ? String(r.affirmed_by) : null,
-    signed: !!r.signature_json,
-    anchored: !!r.anchor_json,
-    anchoredAt: anchoredAtOf(r.anchor_json),
-    registeredAt: String(r.created_at),
-  }));
+  const agingByClaim = await claimAgingByClaimId(rcv, now);
+  const claims: PublicClaim[] = (cr.rows as any[]).map((r) => {
+    const status = (String(r.status) === 'discharged' ? 'discharged' : 'active') as ClaimStatus;
+    const info = agingByClaim.get(String(r.id));
+    return {
+      id: String(r.id),
+      financier: String(r.financier),
+      amount: Number(r.amount),
+      currency: String(r.currency),
+      date: String(r.claim_date),
+      status,
+      dischargedAt: r.discharged_at != null ? String(r.discharged_at) : null,
+      affirmed: !!r.affirmed_at,
+      affirmedAt: r.affirmed_at != null ? String(r.affirmed_at) : null,
+      affirmedBy: r.affirmed_by != null ? String(r.affirmed_by) : null,
+      signed: !!r.signature_json,
+      anchored: !!r.anchor_json,
+      anchoredAt: anchoredAtOf(r.anchor_json),
+      registeredAt: String(r.created_at),
+      // The loader reads the same table, so info is always there; the fallback (no events, the
+      // registration as the only touch) keeps a read defensive rather than wrong.
+      aging: info?.aging ?? (rcv.settled_at != null
+        ? 'settled'
+        : agingStateOf(rcv.due_date, [], status, String(r.created_at), now)),
+      promisedDate: info?.promisedDate ?? effectivePromisedDate(rcv.due_date, []),
+      lastOwnerTouchAt: info?.lastOwnerTouchAt ?? String(r.created_at),
+      statusEvents: info?.events ?? [],
+    };
+  });
 
   // source is read only once its column is confirmed; without it every row classifies the
   // legacy way (by prefix, never as consent), which can only under-state a row, never forge one.
@@ -1572,11 +1739,15 @@ async function readReceivableStatus(receivableId: string): Promise<{ status: Rec
   });
   const reqCount = Number((qr.rows[0] as any)?.n ?? 0);
 
+  // claimedOf leaves lapsed claims out (D7): the financing answer counts only maintained records.
   const claimed = claimedOf(claims);
   const available = rcv.face - claimed;
   const financing = financingStatusOf(claimed, rcv.face);
   const settled = !!rcv.settled_at;
-  const lifecycle = lifecycleOf({ settled, claimed, hadClaims: claims.length > 0 });
+  // The lifecycle axis is not the financing answer: a lapsed claim was never discharged, so it
+  // keeps the deal 'financed' rather than reading as 'released'.
+  const rawActive = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
+  const lifecycle = lifecycleOf({ settled, claimed: rawActive, hadClaims: claims.length > 0 });
   // No viewer, so no own matches. The status carries only the public part.
   const { check: duplicate } = await duplicateCheckForRow(rcv);
 
@@ -1677,13 +1848,13 @@ function duplicateReverifyCheck(dup: DuplicateCheck, detailed: boolean): Reverif
 export async function reverifyReceivable(
   tenantId: string,
   receivableId: string,
-  opts: { persist?: boolean; verifiedViewer?: boolean } = {},
+  opts: { persist?: boolean; verifiedViewer?: boolean; now?: Date } = {},
 ): Promise<ReverifyResult> {
   await ensureReceivablesTables();
   const id = String(receivableId || '').trim();
   // The status reads withdrawn records (for the public check), but a re-verification is a new
   // signed record, so a withdrawn one answers 410 like every other new write (S2).
-  const read = await readReceivableStatus(id);
+  const read = await readReceivableStatus(id, opts.now ?? new Date());
   const status = read?.status ?? null;
   if (status?.withdrawn) return withdrawnResult(String(status.withdrawnAt));
   if (!read || !status) return (await withdrawnError(id)) ?? { ok: false, error: 'not_found', message: 'No receivable found for that ID.' };
@@ -1839,7 +2010,7 @@ export type DischargeClaimResult =
  * manifest; the digest is Bitcoin-anchorable (kind 'claim_discharge'). Idempotent-safe: a
  * claim already discharged returns 'already_discharged' rather than double-signing.
  */
-export async function dischargeClaim(tenantId: string, claimId: string, reason?: string): Promise<DischargeClaimResult> {
+export async function dischargeClaim(tenantId: string, claimId: string, reason?: string, now: Date = new Date()): Promise<DischargeClaimResult> {
   await ensureReceivablesTables();
   const cr = await db.execute({
     sql: `SELECT id, receivable_id, financier, amount, currency, status FROM receivable_claims
@@ -1892,8 +2063,9 @@ export async function dischargeClaim(tenantId: string, claimId: string, reason?:
   await touchReceivable(String(claim.receivable_id));
   // includeDeleted: a party may still release its own claim on a withdrawn record (S2), and the
   // figures it gets back must be the record's real face value, not a missing one read as 0.
+  // The sum is the aging-aware one, so these figures always agree with the public status.
   const rcv = await getReceivableRow(String(claim.receivable_id), { includeDeleted: true });
-  const claimed = rcv ? await sumActiveClaims(rcv.id) : 0;
+  const claimed = rcv ? await encumberedClaimSum(rcv, now) : 0;
   const face = rcv?.face ?? 0;
   return { ok: true, digest, signed: !!signature, claimed, available: face - claimed, face };
 }
@@ -1953,6 +2125,166 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
   }
   await touchReceivable(row.id);
   return { ok: true, digest, signed: !!signature, settledAt };
+}
+
+// ── Aging A1: one-click status updates on a claim ──────────────────────────────
+//
+// The three one-click updates on a lender's entry: Settled is the existing dischargeClaim (the
+// financing was repaid; already signed and stamped as claim_discharge), Extended and Unpaid are
+// signed, append-only rows in receivable_status_events. Each is tenant-scoped to the claim's
+// OWNER (D1: each lender maintains only his own entry); a non-owner reads not_found, never that
+// the claim exists. The events never rewrite anything: the receivable's due_date stays as signed,
+// and three extensions are three dated reasons in the lifecycle.
+
+export type AddStatusEventResult =
+  | {
+      ok: true; eventId: string; digest: string; signed: boolean; kind: StatusEventKind; at: string;
+      /** The claim's aging right after this event, and the date it now promises payment by. */
+      aging: ClaimAgingState; promisedDate: string | null;
+      /** Echoed to the actor only; the public status never carries the reason (D3). */
+      newPromisedDate?: string; reasonCode?: ExtensionReasonCode; reasonNote?: string; note?: string;
+    }
+  | { ok: false; error: 'not_found'; message: string }
+  | { ok: false; error: 'invalid'; message: string }
+  | { ok: false; error: 'invalid_reason'; message: string }
+  | { ok: false; error: 'already_discharged'; message: string }
+  | WithdrawnError;
+
+/** The claim a status update is about, scoped to its owner, with its receivable. A status update
+ *  is a NEW signed record, so a record its owner withdrew answers 410 (the S2 fail-closed default
+ *  for new writers — discharging stays the lender's remaining action there). */
+async function readOwnClaimForUpdate(tenantId: string, claimId: string): Promise<
+  | { ok: true; claim: { id: string; receivableId: string; financier: string }; rcv: ReceivableRow }
+  | Exclude<AddStatusEventResult, { ok: true }>
+> {
+  const cr = await db.execute({
+    sql: `SELECT id, receivable_id, financier, status FROM receivable_claims WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(claimId || '').trim(), tenantId],
+  });
+  if (!cr.rows.length) return { ok: false, error: 'not_found', message: CLAIM_NOT_FOUND };
+  const claim = cr.rows[0] as any;
+  if (String(claim.status) === 'discharged') {
+    return { ok: false, error: 'already_discharged', message: CLAIM_ALREADY_DISCHARGED };
+  }
+  const rcv = await getReceivableRow(String(claim.receivable_id), { includeDeleted: true });
+  if (!rcv) return { ok: false, error: 'not_found', message: CLAIM_NOT_FOUND };
+  if (rcv.deleted_at != null) return withdrawnResult(rcv.deleted_at);
+  return {
+    ok: true,
+    claim: { id: String(claim.id), receivableId: String(claim.receivable_id), financier: String(claim.financier) },
+    rcv,
+  };
+}
+
+/** Sign and append one status event, bump the record's clock, and answer with the claim's aging
+ *  as it now stands. created_at is written explicitly from `now`, so the lapse backstop and the
+ *  chain order are testable without touching the system time. */
+async function writeStatusEvent(
+  tenantId: string,
+  rcv: ReceivableRow,
+  claim: { id: string; receivableId: string; financier: string },
+  kind: StatusEventKind,
+  fields: { newPromisedDate: string | null; reasonCode: ExtensionReasonCode | null; reasonNote: string | null },
+  manifest: object,
+  now: Date,
+): Promise<Extract<AddStatusEventResult, { ok: true }>> {
+  const recordedAt = now.toISOString().replace('T', ' ').slice(0, 19);
+  const { signature, digest } = sign(manifest);
+  const eventId = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO receivable_status_events
+            (id, tenant_id, receivable_id, claim_id, kind, new_promised_date, reason_code, reason_note, manifest_json, signature_json, digest, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      eventId, tenantId, claim.receivableId, claim.id, kind,
+      fields.newPromisedDate, fields.reasonCode, fields.reasonNote,
+      JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest, recordedAt,
+    ],
+  });
+  // A status update floats the record in every party's book, like any other child event.
+  await touchReceivable(claim.receivableId);
+  const info = (await claimAgingByClaimId(rcv, now)).get(claim.id);
+  return {
+    ok: true, eventId, digest, signed: !!signature, kind, at: recordedAt,
+    aging: info?.aging ?? 'active',
+    promisedDate: info?.promisedDate ?? null,
+  };
+}
+
+/**
+ * Extend — the claim's financier records a new promised date, with a MANDATORY structured reason
+ * (locked 2026-10-31): debtor_requested | partial_payment_received | renegotiated_terms |
+ * awaiting_delivery | other, plus an optional one-line note. Stored per signed, dated,
+ * append-only event, so serial can-kicking documents itself. Resets the aging clock and opens a
+ * fresh GRACE_DAYS window; it is also an owner touch for the lapse backstop (D7), so it revives
+ * a lapsed claim. The reason describes the deal, never the debtor, and stays off the public
+ * status (D3).
+ */
+export async function addExtension(
+  tenantId: string,
+  claimId: string,
+  input: { newPromisedDate: string; reasonCode: string; reasonNote?: string },
+  now: Date = new Date(),
+): Promise<AddStatusEventResult> {
+  await ensureReceivablesTables();
+  const found = await readOwnClaimForUpdate(tenantId, claimId);
+  if (!found.ok) return found;
+  const { claim, rcv } = found;
+
+  if (!isExtensionReasonCode(input.reasonCode)) {
+    return { ok: false, error: 'invalid_reason', message: EXTENSION_REASON_REQUIRED };
+  }
+  if (!isYmd(input.newPromisedDate)) {
+    return { ok: false, error: 'invalid', message: EXTENSION_DATE_REQUIRED };
+  }
+  const reasonNote = clampStr(input.reasonNote ?? '', 300) || null;
+
+  const date = now.toISOString().slice(0, 10);
+  const manifest: Record<string, unknown> = {
+    v: 1, kind: 'claim_extension', receivableId: claim.receivableId, claimId: claim.id,
+    financier: claim.financier, newPromisedDate: input.newPromisedDate,
+    reasonCode: input.reasonCode, date,
+  };
+  // Omitted when blank, so an event without a note keeps the lean manifest bytes.
+  if (reasonNote) manifest.reasonNote = reasonNote;
+
+  const written = await writeStatusEvent(tenantId, rcv, claim, 'extended',
+    { newPromisedDate: input.newPromisedDate, reasonCode: input.reasonCode, reasonNote }, manifest, now);
+  return {
+    ...written,
+    newPromisedDate: input.newPromisedDate,
+    reasonCode: input.reasonCode,
+    ...(reasonNote ? { reasonNote } : {}),
+  };
+}
+
+/**
+ * Unpaid — the claim's financier flags the promise as not kept. Optional note only (D4: the flag
+ * itself is the signal). An owner touch for the lapse backstop; it does NOT move the promised
+ * date, so a past-due record honestly stays past due until it is extended, discharged or settled.
+ */
+export async function markUnpaid(
+  tenantId: string,
+  claimId: string,
+  input: { note?: string } = {},
+  now: Date = new Date(),
+): Promise<AddStatusEventResult> {
+  await ensureReceivablesTables();
+  const found = await readOwnClaimForUpdate(tenantId, claimId);
+  if (!found.ok) return found;
+  const { claim, rcv } = found;
+
+  const note = clampStr(input.note ?? '', 300) || null;
+  const date = now.toISOString().slice(0, 10);
+  const manifest: Record<string, unknown> = {
+    v: 1, kind: 'claim_unpaid', receivableId: claim.receivableId, claimId: claim.id,
+    financier: claim.financier, date,
+  };
+  if (note) manifest.note = note;
+
+  const written = await writeStatusEvent(tenantId, rcv, claim, 'unpaid',
+    { newPromisedDate: null, reasonCode: null, reasonNote: note }, manifest, now);
+  return { ...written, ...(note ? { note } : {}) };
 }
 
 // ── #3: list a tenant's own receivables ──────────────────────────────────────

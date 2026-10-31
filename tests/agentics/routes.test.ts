@@ -747,31 +747,42 @@ describe('the owner: operator reports', () => {
   });
 
   it('a change that would need a fifty-first version of a day is a 409 with a code and the limit; an unchanged report is still a 200', async () => {
-    const tinId = await newTin();
-    const store = await import('../../src/lib/agentVault/reportStore');
-    await store.ensureAgentReportsTable();
-    const { buildReport, dayBounds } = await import('../../src/lib/agentVault/report');
-    const filler = JSON.stringify(buildReport([], { tin: { id: tinId, label: 'Agent' }, period: { ...dayBounds(DAY), partial: false } }));
-    for (let v = 1; v <= 49; v++) {
-      fake.seed('agent_reports', {
-        id: `filler-${v}`, tenant_id: OWNER_TENANT_ID, tin_id: tinId, period_start: dayBounds(DAY).start, period_end: dayBounds(DAY).end, version: v,
-        generated_at: '2026-10-17T00:00:00.000Z', content_hash: `h${v}`, summary_json: filler, merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
-      });
+    // Each POST's own clock, advanced by hand: generateReport keeps an existing version when its
+    // snapshot is not STRICTLY newer (the concurrent-writer guard), so sequential writes must sit
+    // at distinct instants rather than rely on how fast the machine happens to run them.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-05T12:00:00.000Z'));
+      const tinId = await newTin();
+      const store = await import('../../src/lib/agentVault/reportStore');
+      await store.ensureAgentReportsTable();
+      const { buildReport, dayBounds } = await import('../../src/lib/agentVault/report');
+      const filler = JSON.stringify(buildReport([], { tin: { id: tinId, label: 'Agent' }, period: { ...dayBounds(DAY), partial: false } }));
+      for (let v = 1; v <= 49; v++) {
+        fake.seed('agent_reports', {
+          id: `filler-${v}`, tenant_id: OWNER_TENANT_ID, tin_id: tinId, period_start: dayBounds(DAY).start, period_end: dayBounds(DAY).end, version: v,
+          generated_at: '2026-10-17T00:00:00.000Z', content_hash: `h${v}`, summary_json: filler, merkle_root: null, leaf_count: null, signing_key_id: null, signature_hex: null, manifest_json: null,
+        });
+      }
+      await put(tinId, 1, 'registry_flagged', 'flagged');
+      const fiftieth = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+      expect(fiftieth.res.status).toBe(201);
+      expect(fiftieth.json.report.version).toBe(50);
+      vi.setSystemTime(new Date('2026-11-05T12:00:01.000Z'));
+      const unchanged = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+      expect(unchanged.res.status).toBe(200);
+      expect(unchanged.json).toMatchObject({ created: false, report: { version: 50 } });
+      await put(tinId, 2, 'not_in_registry', 'unknown');
+      vi.setSystemTime(new Date('2026-11-05T12:00:02.000Z'));
+      const refused = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
+      expect(refused.res.status).toBe(409);
+      expect(refused.json).toEqual({ ok: false, error: 'version_limit', max: 50 });
+      expect(refused.res.headers.get('Retry-After')).toBeNull();
+      expect(refused.raw).not.toMatch(/tenant|upgrade|plan|price|billing|pay/i);
+      expect(fake.rows('agent_reports')).toHaveLength(50);
+    } finally {
+      vi.useRealTimers();
     }
-    await put(tinId, 1, 'registry_flagged', 'flagged');
-    const fiftieth = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
-    expect(fiftieth.res.status).toBe(201);
-    expect(fiftieth.json.report.version).toBe(50);
-    const unchanged = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
-    expect(unchanged.res.status).toBe(200);
-    expect(unchanged.json).toMatchObject({ created: false, report: { version: 50 } });
-    await put(tinId, 2, 'not_in_registry', 'unknown');
-    const refused = await call(reportsRoute.POST, '/api/agentics/reports', 'POST', { tinId, day: DAY });
-    expect(refused.res.status).toBe(409);
-    expect(refused.json).toEqual({ ok: false, error: 'version_limit', max: 50 });
-    expect(refused.res.headers.get('Retry-After')).toBeNull();
-    expect(refused.raw).not.toMatch(/tenant|upgrade|plan|price|billing|pay/i);
-    expect(fake.rows('agent_reports')).toHaveLength(50);
   });
 
   it('has no way to change or remove a report: only GET and POST exist, and POST adds a version', () => {
