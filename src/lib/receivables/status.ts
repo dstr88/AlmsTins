@@ -14,9 +14,12 @@ export type FinancingStatus = 'unfinanced' | 'partially_financed' | 'fully_finan
  *  not yet marked settled. */
 export type Lifecycle = 'created' | 'financed' | 'released' | 'settled';
 
-/** The sum of active (not discharged) claims, in the order given. */
-export function claimedOf(claims: ReadonlyArray<{ status: string; amount: number }>): number {
-	return claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
+/** The sum of active (not discharged) claims, in the order given. A claim marked `aging: 'lapsed'`
+ *  (D7: its record was not maintained for LAPSE_AFTER_DAYS) is left out of the sum — it no longer
+ *  counts toward headroom or the duplicate-financing answer, while the claim itself stays listed.
+ *  Claims that carry no aging field count exactly as before. */
+export function claimedOf(claims: ReadonlyArray<{ status: string; amount: number; aging?: string }>): number {
+	return claims.filter((c) => c.status === 'active' && c.aging !== 'lapsed').reduce((s, c) => s + c.amount, 0);
 }
 
 /** Claims are summed in floating point, so claims that add up to the face can land a hair above or

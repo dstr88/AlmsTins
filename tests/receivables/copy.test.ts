@@ -10,6 +10,7 @@ import * as claimCopy from '../../src/lib/receivables/copy/claim';
 import * as withdrawnCopy from '../../src/lib/receivables/copy/withdrawn';
 import * as duplicateCopy from '../../src/lib/receivables/copy/duplicate';
 import * as seenBeforeCopy from '../../src/lib/receivables/copy/seenBefore';
+import * as agingCopy from '../../src/lib/receivables/copy/aging';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
 import { TERMS } from '../../src/lib/verifyTerms';
 
@@ -28,6 +29,7 @@ const COPY_MODULES: Record<string, Record<string, unknown>> = {
 	withdrawn: withdrawnCopy,
 	duplicate: duplicateCopy,
 	seenBefore: seenBeforeCopy,
+	aging: agingCopy,
 };
 
 /** Every string in a copy value, with its path. null (a "show nothing" slot) is skipped. */
@@ -98,7 +100,7 @@ describe('claim, status pill, withdrawn, duplicate and seen-before copy never re
 	// the pill. The anchor module is left out on purpose ("pending a block" is a Bitcoin block).
 	const CLAIM_BAN = /\b(refus|reject|block|den(y|ied))\w*/i;
 
-	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate', 'seenBefore'])) {
+	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate', 'seenBefore', 'aging'])) {
 		it(path, () => {
 			expect(value.match(CLAIM_BAN)?.[0] ?? null).toBeNull();
 		});
@@ -122,6 +124,29 @@ describe('S2 withdrawn copy', () => {
 			expect(value).not.toContain('—');
 		});
 	}
+});
+
+describe('aging copy (A1)', () => {
+	it('the lapse wording is about the record, never the loan or the lender\'s rights', () => {
+		expect(agingCopy.LAPSED_LINE).toBe('lapsed — record not maintained');
+		for (const line of [agingCopy.LAPSED_LINE, agingCopy.LAPSED_NOT_COUNTED, agingCopy.AGING_STATE_LABELS.lapsed]) {
+			// "Abandoned" reads as a statement about the lender's legal rights to the debt; the copy
+			// speaks only about the record. Nothing adjudicates the loan, the debt or who may collect.
+			expect(line).not.toMatch(/abandon/i);
+			expect(line).not.toMatch(/\b(loan|debt)\b.*\b(void|forfeit|waiv|expire|lost)/i);
+			expect(line).not.toMatch(/\b(void|forfeit|waiv)\w*/i);
+		}
+	});
+
+	it('the extension frame keeps the reason about the deal, not the debtor', () => {
+		expect(agingCopy.EXTENSION_REASON_FRAME).toContain('about the deal, not the debtor');
+	});
+
+	it('every aging state has a label', () => {
+		expect(Object.keys(agingCopy.AGING_STATE_LABELS).sort()).toEqual(
+			['active', 'due_in_grace', 'lapsed', 'no_promised_date', 'past_due_not_updated', 'settled'],
+		);
+	});
 });
 
 describe('S3 duplicate copy', () => {

@@ -30,6 +30,9 @@ export default defineConfig({
 			'tests/pg*.test.ts',
 			'tests/tax/pipeline.integration.test.ts',
 		],
+		// Pins Date (only Date — real timers keep running) so no fixture ages against the wall
+		// clock. Keep in step with vitest.config.ts. See tests/setup/pinnedClock.ts.
+		setupFiles: ['tests/setup/pinnedClock.ts'],
 	},
 	resolve: {
 		alias: {
