@@ -6,3 +6,5 @@
 @import './ui/controls.css';
 @import './StatusPill/StatusPill.css';
 @import './AnchorPill/AnchorPill.css';
+@import './AgingPill/AgingPill.css';
+@import './ClaimAging/ClaimAging.css';

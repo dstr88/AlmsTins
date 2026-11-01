@@ -12,6 +12,7 @@ import { formatMoney } from '@/lib/format';
 import '@/styles/tokens.css';
 import { readRecordRequest, pathForToken } from '@/lib/receivablesRegistry';
 import { WITHDRAWN_LINK_NOTE } from '@/lib/receivables/copy/withdrawn';
+import { CLIENT_ID_HEADING, CLIENT_ID_KEEP } from '@/lib/receivables/copy/aging';
 
 export const prerender = false;
 
@@ -71,6 +72,12 @@ const ERRORS: Record<string, string> = {
     .m__v { font-size: .9rem; font-weight: 600; }
 
     .relied { border-left: 3px solid var(--warn-border, var(--accent-glow)); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
+
+    .rcvid {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; word-break: break-all;
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      padding: .6rem .7rem; user-select: all; line-height: 1.5; color: var(--text-secondary);
+    }
 
     .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
     .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
@@ -183,6 +190,14 @@ const ERRORS: Record<string, string> = {
           Your financier recorded this from the paperwork you brought in. Confirming puts your name
           to it, which is what stops any later argument about what you asked to be financed.
           {req.sentTo && <> This was sent to <b>{req.sentTo}</b>.</>}
+        </div>
+
+        {/* The client must hold his receivable ID: the record, its claims and their status stay
+            checkable to anyone holding the ID, and to nobody without it. */}
+        <div class="card">
+          <h2>{CLIENT_ID_HEADING}</h2>
+          <p class="hint">{CLIENT_ID_KEEP}</p>
+          <div class="rcvid" title="Your receivable ID">{req.receivableId}</div>
         </div>
 
         <div class="card">

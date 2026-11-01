@@ -52,3 +52,69 @@ export const CLAIM_ALREADY_DISCHARGED = 'That claim is already discharged. A dis
 
 /** 404 — the claim is not this account's (same wording family as discharge). */
 export const CLAIM_NOT_FOUND = 'No claim of yours found for that ID.';
+
+// ── A2: the lender UI (desk status row, Extend panel, pills) ────────────────────
+
+/** The hover line behind each aging pill: what the state says about the RECORD. */
+export const AGING_STATE_TITLES: Record<ClaimAgingState, string> = {
+	active: 'On time against its promised payment date.',
+	due_in_grace: 'The promised date just passed. A normal slip; the record still counts in full.',
+	past_due_not_updated: 'Past its promised date, with no update from its financier. Revalidate before relying on it.',
+	no_promised_date: 'The record carries no promised payment date to age against.',
+	lapsed: LAPSED_NOT_COUNTED,
+	settled: 'The claim is discharged, or its receivable is settled. Nothing is left to age.',
+};
+
+/** The date a claim currently promises payment by, beside its pill. */
+export const ROW_PROMISED_DATED = 'Promised {day}';
+
+/** The three one-click updates on a lender's own entry. */
+export const ACTION_SETTLED = 'Settled';
+export const ACTION_EXTEND = 'Extend';
+export const ACTION_UNPAID = 'Unpaid';
+export const ACTION_CANCEL = 'Cancel';
+
+/** Settled rides the existing discharge: the financing came back, so the claim releases. */
+export const SETTLED_TITLE = 'Mark it settled';
+export const SETTLED_BODY = 'The financing came back: repaid, or released. Recording it discharges the claim and frees the headroom.';
+export const SETTLED_NOTE_PLACEHOLDER = 'Optional note for your own record, e.g. wire received Sept 28';
+export const SETTLED_GO = 'Record it settled';
+export const SETTLED_DONE = 'Claim settled. {available} is unencumbered again.';
+
+/** Extend: a new promised date with a mandatory structured reason. */
+export const EXTEND_TITLE = 'Extend the promised date';
+export const EXTEND_DATE_LABEL = 'New promised date';
+export const EXTEND_REASON_LABEL = 'Reason';
+export const EXTEND_REASON_PICK = 'Pick a reason';
+export const EXTEND_NOTE_LABEL = 'Note (optional)';
+export const EXTEND_NOTE_PLACEHOLDER = 'One line about the deal, e.g. two more weeks agreed';
+export const EXTEND_GO = 'Record the extension';
+export const EXTEND_DONE = 'Extension recorded. The clock runs from the new promised date, with a fresh grace window.';
+
+/** Unpaid: the flag itself is the signal (D4). */
+export const UNPAID_TITLE = 'Flag it unpaid';
+export const UNPAID_BODY = 'The flag is the signal; a note is optional. Notes and reasons stay off the public status.';
+export const UNPAID_NOTE_PLACEHOLDER = 'Optional, e.g. the wire never arrived';
+export const UNPAID_GO = 'Record the flag';
+export const UNPAID_DONE = 'Flagged unpaid. The promised date stands, so the record honestly reads past due until it is extended, settled or discharged.';
+
+/** The dated chain under a claim: every extension and unpaid flag, oldest first. The desk is a
+ *  signed-in surface, so the lender's own reasons show beside his events (D3); anyone else's
+ *  chain shows kinds and dates only. */
+export const CHAIN_HEADING = 'Status history';
+export const CHAIN_EXTENDED = 'Extended';
+export const CHAIN_UNPAID = 'Flagged unpaid';
+export const CHAIN_PROMISED = 'promised {day}';
+
+/** How the status row reports a mutation's outcome. The demo line mirrors the registry's. */
+export const STATUS_SESSION_LEAD = 'Your session ended. ';
+export const STATUS_SESSION_LINK = 'Sign in again';
+export const STATUS_SESSION_TAIL = ' to update the claim.';
+export const STATUS_DEMO = 'Demo accounts are read-only for this action.';
+export const STATUS_FAILED = 'Could not record that. Try again.';
+export const STATUS_UNREACHABLE = 'Could not reach the registry. Try again.';
+
+/** The client must hold his receivable ID: a lapsed record stays visible to anyone holding the
+ *  ID (A3), so the acceptance page hands it to him where he puts his name to the record. */
+export const CLIENT_ID_HEADING = 'Your receivable ID';
+export const CLIENT_ID_KEEP = 'Keep this ID. It is how you check this record any time: what is claimed against it, and whether it is still maintained. Anyone holding the ID can look the record up; nobody can find it without one.';
