@@ -26,6 +26,7 @@ import { db } from '@/lib/db';
 import { runWithoutDbContext } from '@/lib/dbContext';
 import {
 	ENCUMBRANCE_SQL,
+	agingAwareFinancingOf,
 	fingerprintCoverageOk,
 	receivableColumnsEnsured,
 	receivableDeletedAtReady,
@@ -53,8 +54,9 @@ export type SeenBeforeRead =
 
 const truthy = (v: unknown): boolean => v === true || v === 1 || v === 'true' || v === 't';
 
-/** The matching records for a parsed check, or "unavailable". Throws on a store error. */
-export async function readSeenBefore(input: SeenBeforeInput): Promise<SeenBeforeRead> {
+/** The matching records for a parsed check, or "unavailable". Throws on a store error. `now` is
+ *  the aging clock for the lapse filter (A3); always the moment of the check except in tests. */
+export async function readSeenBefore(input: SeenBeforeInput, now: Date = new Date()): Promise<SeenBeforeRead> {
 	if (!(await fingerprintCoverageOk())) return { state: 'unavailable' };
 	const fp = computeFingerprints(toFingerprintInput(input));
 	if (!fp || fp.inv === null) return { state: 'unavailable' };
@@ -70,7 +72,8 @@ export async function readSeenBefore(input: SeenBeforeInput): Promise<SeenBefore
 		? [DEBTOR_DISPUTE_SOURCE, '', ...LEGACY_DEBTOR_DISPUTE_PATTERNS]
 		: [...LEGACY_DEBTOR_DISPUTE_PATTERNS];
 
-	// Every tenant's rows, on the owner pool.
+	// Every tenant's rows, on the owner pool. r.id and r.due_date close the list: read only for
+	// the lapse recompute below, never mapped into a row.
 	const r = await runWithoutDbContext(() => db.execute({
 		sql: `SELECT r.face, r.created_at, r.settled_at, r.fingerprint_ref${withDeleted ? ', r.deleted_at' : ''},
 		             (${ENCUMBRANCE_SQL}) AS encumbered,
@@ -78,7 +81,8 @@ export async function readSeenBefore(input: SeenBeforeInput): Promise<SeenBefore
 		             (EXISTS (SELECT 1 FROM receivable_claims c WHERE c.receivable_id = r.id AND c.status = 'active' AND c.affirmed_at IS NOT NULL)) AS any_affirmed,
 		             (EXISTS (SELECT 1 FROM receivable_claims c WHERE c.receivable_id = r.id AND c.status = 'active' AND c.affirmed_at IS NULL)) AS any_unaffirmed,${withSource ? `
 		             (EXISTS (SELECT 1 FROM receivable_attestations a WHERE a.receivable_id = r.id AND a.source = ? AND a.role = ?)) AS debtor_confirmed,` : ''}
-		             (EXISTS (SELECT 1 FROM receivable_attestations a WHERE a.receivable_id = r.id AND (${debtorDispute}))) AS debtor_disputed
+		             (EXISTS (SELECT 1 FROM receivable_attestations a WHERE a.receivable_id = r.id AND (${debtorDispute}))) AS debtor_disputed,
+		             r.id, r.due_date
 		      FROM receivables r
 		      WHERE r.fingerprint_kid = ? AND r.is_test = ? AND r.fingerprint_inv = ?
 		      ORDER BY (${ENCUMBRANCE_SQL}) DESC, r.created_at ASC, r.id
@@ -90,19 +94,50 @@ export async function readSeenBefore(input: SeenBeforeInput): Promise<SeenBefore
 		],
 	}));
 
-	const rows = (r.rows as any[]).map((row): SeenBeforeRow => ({
-		face: Number(row.face),
-		claimed: Number(row.claimed),
-		encumbered: truthy(row.encumbered),
-		anyAffirmed: truthy(row.any_affirmed),
-		anyUnaffirmed: truthy(row.any_unaffirmed),
-		debtorConfirmed: withSource && truthy(row.debtor_confirmed),
-		debtorDisputed: truthy(row.debtor_disputed),
-		settled: row.settled_at != null,
-		withdrawn: withDeleted && row.deleted_at != null,
-		// Compared here, by string, so the hash never leaves this function.
-		refMatch: fp.ref !== null && row.fingerprint_ref === fp.ref,
-		createdDay: String(row.created_at).slice(0, 10),
-	}));
+	const rows: SeenBeforeRow[] = [];
+	for (const row of r.rows as any[]) {
+		let claimed = Number(row.claimed);
+		let encumbered = truthy(row.encumbered);
+		let anyAffirmed = truthy(row.any_affirmed);
+		let anyUnaffirmed = truthy(row.any_unaffirmed);
+		let anyStale = false;
+		let staleSince: string | null = null;
+		// The lapse filter (A3): the SQL above counts lapsed claims (D7) because it cannot read
+		// the touch chain, so a financed row is re-read in JS and its figures keep only counted
+		// claims; the freshness story rides along. Same owner-pool path as the SELECT. Non-fatal
+		// per row: on an error (or a driver row with no id, as in the coercion tests) the SQL
+		// figures stand — conservative, they can only over-warn, never falsely read clear.
+		if (encumbered && row.id != null) {
+			try {
+				const fin = await runWithoutDbContext(() => agingAwareFinancingOf({
+					id: String(row.id),
+					due_date: row.due_date != null ? String(row.due_date) : null,
+					settled_at: row.settled_at != null ? String(row.settled_at) : null,
+				}, now));
+				claimed = fin.claimed;
+				encumbered = fin.encumbered;
+				anyAffirmed = fin.anyAffirmed;
+				anyUnaffirmed = fin.anyUnaffirmed;
+				anyStale = fin.anyStale;
+				staleSince = fin.staleSince;
+			} catch { /* keep the SQL figures */ }
+		}
+		rows.push({
+			face: Number(row.face),
+			claimed,
+			encumbered,
+			anyAffirmed,
+			anyUnaffirmed,
+			anyStale,
+			staleSince,
+			debtorConfirmed: withSource && truthy(row.debtor_confirmed),
+			debtorDisputed: truthy(row.debtor_disputed),
+			settled: row.settled_at != null,
+			withdrawn: withDeleted && row.deleted_at != null,
+			// Compared here, by string, so the hash never leaves this function.
+			refMatch: fp.ref !== null && row.fingerprint_ref === fp.ref,
+			createdDay: String(row.created_at).slice(0, 10),
+		});
+	}
 	return { state: 'ok', rows, refChecked: fp.ref !== null };
 }

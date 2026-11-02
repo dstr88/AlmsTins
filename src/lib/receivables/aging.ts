@@ -85,6 +85,22 @@ export function effectivePromisedDate(
 }
 
 /**
+ * Whole UTC calendar months between a stored timestamp and `now`, for the actor-voiced freshness
+ * story a relying party reads (A3): "this claim has not been updated by its lender in 4 months".
+ * 0 while under a month; null when the timestamp is missing or unparseable (the caller then shows
+ * the dated wording or nothing — it never invents a duration). Never negative: a future touch
+ * reads 0, the same fail direction as the lapse check above.
+ */
+export function wholeMonthsSince(ts: string | null | undefined, now: Date): number | null {
+	const ms = timestampToUtcMs(ts);
+	if (ms === null) return null;
+	const then = new Date(ms);
+	let months = (now.getUTCFullYear() - then.getUTCFullYear()) * 12 + (now.getUTCMonth() - then.getUTCMonth());
+	if (now.getUTCDate() < then.getUTCDate()) months--;
+	return Math.max(0, months);
+}
+
+/**
  * The aging state of one claim. `claimStatus` is the claim row's status ('active' | 'discharged');
  * anything but 'active' reads settled and short-circuits. `lastOwnerTouch` is the latest
  * owner-initiated dated event the caller found; `now` is the moment the question is asked.

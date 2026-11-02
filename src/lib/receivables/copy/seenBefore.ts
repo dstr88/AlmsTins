@@ -110,6 +110,11 @@ export const SEEN_BEFORE_REF_DIFF = 'The invoice matched, but the debtor’s ref
 /** Prefix for the first-seen date; a plain YYYY-MM-DD follows. */
 export const SEEN_BEFORE_FIRST_SEEN_PREFIX = 'First recorded at Almstins on ';
 
+/** The freshness story (A3): some counted financing on a matching record is past its promised
+ *  date with no update from its financier. Actor-voiced, the lender named by role and date only;
+ *  about the record, never a statement about the loan. A plain YYYY-MM-DD follows. */
+export const SEEN_BEFORE_STALE_PREFIX = 'Recorded as financed; past its promised date and not updated by its lender since ';
+
 /** Shown to a signed-in account that is not verified, beneath a found or not-found answer. */
 export const SEEN_BEFORE_VERIFY_FOR_MORE = 'Verify your email, or sign in with Google or GitHub, to see financing status, the debtor’s confirmation and when it was first recorded.';
 

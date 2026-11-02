@@ -30,6 +30,7 @@ import {
 	SEEN_BEFORE_REF_DIFF,
 	SEEN_BEFORE_REF_MATCH,
 	SEEN_BEFORE_SETTLED,
+	SEEN_BEFORE_STALE_PREFIX,
 	SEEN_BEFORE_VERIFY_FOR_MORE,
 	SEEN_BEFORE_WITHDRAWN,
 } from './copy/seenBefore';
@@ -77,6 +78,9 @@ function fullFoundLines(a: SeenBeforeAnswer): string[] {
 					: SEEN_BEFORE_AFFIRMED_NONE,
 		);
 	}
+	// The freshness story (A3): past its promised date and not updated — the checker revalidates.
+	// Active and in-grace financing reads as it always did; lapsed never reaches this answer.
+	if (a.anyStale && a.staleSince) lines.push(SEEN_BEFORE_STALE_PREFIX + a.staleSince + '.');
 	if (a.debtor === 'disputed') lines.push(SEEN_BEFORE_DEBTOR_DISPUTED);
 	else if (a.debtor === 'confirmed') lines.push(SEEN_BEFORE_DEBTOR_CONFIRMED);
 	if (a.withdrawn) lines.push(SEEN_BEFORE_WITHDRAWN);
