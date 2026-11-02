@@ -127,6 +127,7 @@ describe('parseSeenBeforeBody', () => {
 
 const row = (over: Partial<SeenBeforeRow> = {}): SeenBeforeRow => ({
 	face: 1000, claimed: 0, encumbered: false, anyAffirmed: false, anyUnaffirmed: false,
+	anyStale: false, staleSince: null,
 	debtorConfirmed: false, debtorDisputed: false, settled: false, withdrawn: false, refMatch: false,
 	createdDay: '2026-10-01', ...over,
 });
@@ -138,9 +139,22 @@ describe('summarizeMatches', () => {
 	it('no rows: not_found, with nothing that could read as a finding', () => {
 		expect(sum([], { refChecked: true, test: true })).toEqual({
 			v: 1, found: false, matches: 0, status: 'not_found', anyFinanced: false, financing: 'none',
-			claimsAffirmed: 'none', anySettled: false, debtor: 'none', withdrawn: false,
+			claimsAffirmed: 'none', anySettled: false, anyStale: false, staleSince: null,
+			debtor: 'none', withdrawn: false,
 			refChecked: true, refMatch: false, firstSeen: null, test: true, checkedAt: AT,
 		});
+	});
+
+	it('the freshness story (A3) is any-of, and staleSince is the stalest single claim\'s date', () => {
+		expect(sum([row()])).toMatchObject({ anyStale: false, staleSince: null });
+		const one = sum([row(), row({ encumbered: true, claimed: 400, anyStale: true, staleSince: '2026-06-02' })]);
+		expect(one).toMatchObject({ anyStale: true, staleSince: '2026-06-02' });
+		// Across matches of this one invoice the oldest date wins — one claim's date, never a tally.
+		const two = sum([
+			row({ encumbered: true, claimed: 400, anyStale: true, staleSince: '2026-07-15' }),
+			row({ encumbered: true, claimed: 100, anyStale: true, staleSince: '2026-05-30' }),
+		]);
+		expect(two).toMatchObject({ anyStale: true, staleSince: '2026-05-30' });
 	});
 
 	it('status: financed outranks settled, settled outranks recorded', () => {

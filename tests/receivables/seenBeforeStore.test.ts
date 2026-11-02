@@ -90,7 +90,9 @@ describe('the one SELECT', () => {
 		expect(sql).toMatch(/ WHERE r\.fingerprint_kid = \? AND r\.is_test = \? AND r\.fingerprint_inv = \? ORDER BY /);
 		expect(sql).not.toMatch(/fingerprint_ref = /);
 		expect(sql).toMatch(/ LIMIT 50$/);
-		// No ID, account, invoice text or hash other than the reference hash (compared in TS) is selected.
+		// No account, invoice text or hash other than the reference hash (compared in TS) is
+		// selected. r.id closes the list for the lapse recompute (A3) and never leaves the store
+		// (the row-keys test below holds that).
 		expect(sql).toMatch(/^SELECT r\.face, r\.created_at, r\.settled_at, r\.fingerprint_ref, r\.deleted_at, \(/);
 		// The only inline string is the claim status shared with ENCUMBRANCE_SQL.
 		expect(new Set(sql.match(/'[^']*'/g))).toEqual(new Set(["'active'"]));
@@ -211,8 +213,8 @@ describe('what each row carries', () => {
 		const a = await create(OWNER, { ...INVOICE, details: { buyerRef: 'PO-00123' } });
 		const got = await rows({ buyerRef: 'PO-00123' });
 		expect(Object.keys(got[0]).sort()).toEqual([
-			'anyAffirmed', 'anyUnaffirmed', 'claimed', 'createdDay', 'debtorConfirmed', 'debtorDisputed',
-			'encumbered', 'face', 'refMatch', 'settled', 'withdrawn',
+			'anyAffirmed', 'anyStale', 'anyUnaffirmed', 'claimed', 'createdDay', 'debtorConfirmed', 'debtorDisputed',
+			'encumbered', 'face', 'refMatch', 'settled', 'staleSince', 'withdrawn',
 		]);
 		const text = JSON.stringify(got);
 		const stored = rowOf(a.id);
@@ -361,9 +363,11 @@ describe('values come back as numbers and booleans, whatever the driver returns'
 			batch: (st: any) => inner.batch(st),
 		};
 		const got = await rows();
+		// The driver rows carry no id, so the lapse recompute (A3) leaves the SQL figures as
+		// they came — the conservative direction — and the freshness fields stay quiet.
 		expect(got).toEqual([
-			{ face: 1000.5, claimed: 250.25, encumbered: true, anyAffirmed: true, anyUnaffirmed: true, debtorConfirmed: false, debtorDisputed: false, settled: true, withdrawn: true, refMatch: false, createdDay: '2026-09-30' },
-			{ face: 2000, claimed: 0, encumbered: false, anyAffirmed: false, anyUnaffirmed: false, debtorConfirmed: true, debtorDisputed: true, settled: false, withdrawn: false, refMatch: false, createdDay: '2026-10-01' },
+			{ face: 1000.5, claimed: 250.25, encumbered: true, anyAffirmed: true, anyUnaffirmed: true, anyStale: false, staleSince: null, debtorConfirmed: false, debtorDisputed: false, settled: true, withdrawn: true, refMatch: false, createdDay: '2026-09-30' },
+			{ face: 2000, claimed: 0, encumbered: false, anyAffirmed: false, anyUnaffirmed: false, anyStale: false, staleSince: null, debtorConfirmed: true, debtorDisputed: true, settled: false, withdrawn: false, refMatch: false, createdDay: '2026-10-01' },
 		]);
 	});
 });

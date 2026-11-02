@@ -187,7 +187,7 @@ describe('the answer, by tier', () => {
 		expect(Object.keys(r.body)).toEqual([...FULL_ANSWER_KEYS]);
 		expect(r.body).toEqual({
 			v: 1, found: true, matches: 2, status: 'financed', anyFinanced: true, financing: 'partial',
-			claimsAffirmed: 'none', anySettled: false, debtor: 'disputed', withdrawn: false,
+			claimsAffirmed: 'none', anySettled: false, anyStale: false, staleSince: null, debtor: 'disputed', withdrawn: false,
 			refChecked: true, refMatch: true, firstSeen: '2026-09-01', test: true, checkedAt: expect.any(String),
 		});
 		const at = Date.parse(r.body.checkedAt);
@@ -207,7 +207,7 @@ describe('the answer, by tier', () => {
 		const r = await check();
 		expect(r.body).toEqual({
 			v: 1, found: true, matches: 2, status: 'settled', anyFinanced: false, financing: 'none',
-			claimsAffirmed: 'none', anySettled: true, debtor: 'confirmed', withdrawn: true,
+			claimsAffirmed: 'none', anySettled: true, anyStale: false, staleSince: null, debtor: 'confirmed', withdrawn: true,
 			refChecked: false, refMatch: false, firstSeen: '2026-08-20', test: true, checkedAt: expect.any(String),
 		});
 	});
@@ -236,7 +236,7 @@ describe('the answer, by tier', () => {
 			expect(r.status, JSON.stringify(body)).toBe(200);
 			expect(r.body).toEqual({
 				v: 1, found: false, matches: 0, status: 'not_found', anyFinanced: false, financing: 'none',
-				claimsAffirmed: 'none', anySettled: false, debtor: 'none', withdrawn: false,
+				claimsAffirmed: 'none', anySettled: false, anyStale: false, staleSince: null, debtor: 'none', withdrawn: false,
 				refChecked: false, refMatch: false, firstSeen: null, test: body.test, checkedAt: expect.any(String),
 			});
 		}

@@ -25,3 +25,10 @@
    apart from "no promised date" without borrowing a loud tone the state does not mean. */
 .rcv-pill.rcv-pill--aging.rcv-pill--ag-lapsed { color: var(--text-muted); background: var(--surface-card-2); border-color: var(--border-bright); border-style: dashed; }
 .rcv-pill.rcv-pill--aging.rcv-pill--ag-settled { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+
+/* FreshnessLine (A3): the story under a claim on the public lookup (freshnessLine.ts). Same
+   tone pairing as the pills above — past due speaks in the loss family, lapsed stays the
+   ghost's muted gray. */
+.rcv-freshline { font-size: .74rem; line-height: 1.45; margin-top: .2rem; }
+.rcv-freshline.rcv-freshline--past_due_not_updated { color: var(--rcv-loss); }
+.rcv-freshline.rcv-freshline--lapsed { color: var(--text-muted); }

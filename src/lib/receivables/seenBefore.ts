@@ -97,17 +97,25 @@ export function parseSeenBeforeBody(body: unknown): ParsedSeenBefore {
 	return { ok: true, input };
 }
 
-/** One matching record, as the store reads it: no ID, no account, no hash, no invoice text. */
+/** One matching record, as the store reads it: no ID, no account, no hash, no invoice text.
+ *  The claim figures carry the lapse filter (A3): a lapsed claim (D7, record not maintained)
+ *  is counted in none of them — the record itself still matches, so a duplicate recording
+ *  still warns, but a financing nobody maintained no longer reads as one. */
 export interface SeenBeforeRow {
 	face: number;
-	/** The sum of its active claims. */
+	/** The sum of its counted claims (active, not lapsed). */
 	claimed: number;
-	/** An active claim stands against it. */
+	/** A counted claim stands against it. */
 	encumbered: boolean;
-	/** Some active claim on it is affirmed by the client (the advance arrived). */
+	/** Some counted claim on it is affirmed by the client (the advance arrived). */
 	anyAffirmed: boolean;
-	/** Some active claim on it is not affirmed. */
+	/** Some counted claim on it is not affirmed. */
 	anyUnaffirmed: boolean;
+	/** Some counted claim is past its promised date with no update from its financier
+	 *  (past_due_not_updated): the freshness story (A3). */
+	anyStale: boolean;
+	/** The last financier update (YYYY-MM-DD) on this record's stalest such claim, or null. */
+	staleSince: string | null;
 	/** The debtor confirmed the debt through a request link. */
 	debtorConfirmed: boolean;
 	/** The debtor disputed it (not theirs, or the amount is wrong) through a request link. */
@@ -137,6 +145,14 @@ export interface SeenBeforeAnswer {
 	financing: SeenBeforeFinancing;
 	claimsAffirmed: 'all' | 'some' | 'none';
 	anySettled: boolean;
+	/** The freshness story (A3): some matching record's counted financing is past its promised
+	 *  date with no update from its financier. Actor-voiced in the view; about the record,
+	 *  never a statement about the loan. Lapsed claims are not here — they are left out of the
+	 *  answer entirely. */
+	anyStale: boolean;
+	/** The last financier update (YYYY-MM-DD) on the stalest such claim: one record's date,
+	 *  never a tally across records. Null when nothing is stale. */
+	staleSince: string | null;
 	/** A dispute outranks a confirmation. */
 	debtor: 'confirmed' | 'disputed' | 'none';
 	withdrawn: boolean;
@@ -152,7 +168,7 @@ export interface SeenBeforeAnswer {
 /** The full answer's keys, in the order the route writes them. */
 export const FULL_ANSWER_KEYS = [
 	'v', 'found', 'matches', 'status', 'anyFinanced', 'financing', 'claimsAffirmed', 'anySettled',
-	'debtor', 'withdrawn', 'refChecked', 'refMatch', 'firstSeen', 'test', 'checkedAt',
+	'anyStale', 'staleSince', 'debtor', 'withdrawn', 'refChecked', 'refMatch', 'firstSeen', 'test', 'checkedAt',
 ] as const;
 
 /** What an account that is not verified sees. */
@@ -189,6 +205,11 @@ export function summarizeMatches(
 	const unaffirmed = rows.some((r) => r.anyUnaffirmed);
 	let firstSeen: string | null = null;
 	for (const r of rows) if (firstSeen === null || r.createdDay < firstSeen) firstSeen = r.createdDay;
+	// The stalest single claim's date across the matches of THIS invoice — the same per-record
+	// rule as `financing`, never a tally over a lender's book.
+	const anyStale = rows.some((r) => r.anyStale);
+	let staleSince: string | null = null;
+	for (const r of rows) if (r.staleSince !== null && (staleSince === null || r.staleSince < staleSince)) staleSince = r.staleSince;
 	return {
 		v: 1,
 		found,
@@ -198,6 +219,8 @@ export function summarizeMatches(
 		financing,
 		claimsAffirmed: affirmed && !unaffirmed ? 'all' : affirmed && unaffirmed ? 'some' : 'none',
 		anySettled,
+		anyStale,
+		staleSince,
 		debtor: rows.some((r) => r.debtorDisputed) ? 'disputed' : rows.some((r) => r.debtorConfirmed) ? 'confirmed' : 'none',
 		withdrawn: rows.some((r) => r.withdrawn),
 		refChecked: o.refChecked,
