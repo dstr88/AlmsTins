@@ -11,6 +11,7 @@ import * as withdrawnCopy from '../../src/lib/receivables/copy/withdrawn';
 import * as duplicateCopy from '../../src/lib/receivables/copy/duplicate';
 import * as seenBeforeCopy from '../../src/lib/receivables/copy/seenBefore';
 import * as agingCopy from '../../src/lib/receivables/copy/aging';
+import * as noticesCopy from '../../src/lib/receivables/copy/notices';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
 import { TERMS } from '../../src/lib/verifyTerms';
 
@@ -30,6 +31,7 @@ const COPY_MODULES: Record<string, Record<string, unknown>> = {
 	duplicate: duplicateCopy,
 	seenBefore: seenBeforeCopy,
 	aging: agingCopy,
+	notices: noticesCopy,
 };
 
 /** Every string in a copy value, with its path. null (a "show nothing" slot) is skipped. */
@@ -100,7 +102,7 @@ describe('claim, status pill, withdrawn, duplicate and seen-before copy never re
 	// the pill. The anchor module is left out on purpose ("pending a block" is a Bitcoin block).
 	const CLAIM_BAN = /\b(refus|reject|block|den(y|ied))\w*/i;
 
-	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate', 'seenBefore', 'aging'])) {
+	for (const [path, value] of stringsOf(['claim', 'statusPill', 'withdrawn', 'duplicate', 'seenBefore', 'aging', 'notices'])) {
 		it(path, () => {
 			expect(value.match(CLAIM_BAN)?.[0] ?? null).toBeNull();
 		});
@@ -232,6 +234,65 @@ describe('aging copy (A3: relying-party surfaces)', () => {
 	});
 });
 
+describe('aging-notice copy (A4 / D8)', () => {
+	const ALL_NOTICE_STRINGS = stringsOf(['notices']);
+
+	it('subjects are generic: no identifiers, no placeholders, no figures', () => {
+		for (const s of [noticesCopy.NOTICE_SUBJECT_LENDER, noticesCopy.NOTICE_SUBJECT_CLIENT]) {
+			expect(s).not.toMatch(/[{}\d]/);
+			expect(s).not.toMatch(/INV/);
+		}
+	});
+
+	it('no template has a slot for a party name — the identifier block is figures and dates only', () => {
+		for (const [path, value] of ALL_NOTICE_STRINGS) {
+			expect(value.match(/\{(buyer|debtor|supplier|name|label|financier|client|lender)\}/i)?.[0] ?? null, path).toBeNull();
+		}
+	});
+
+	it('every deal line carries the identifier block the client recognizes a claim by', () => {
+		// Lender lines name the deal through {deal} (built from invoice/facts/recorded); client
+		// lines spell the same block out in full.
+		for (const line of [
+			noticesCopy.NOTICE_LENDER_DAY9, noticesCopy.NOTICE_LENDER_DAY15, noticesCopy.NOTICE_LENDER_DAY20,
+			noticesCopy.NOTICE_LENDER_LAPSE_WARN, noticesCopy.NOTICE_LENDER_LAPSED,
+		]) expect(line).toContain('{deal}');
+		expect(noticesCopy.NOTICE_LENDER_DEAL).toContain('{invoice}');
+		expect(noticesCopy.NOTICE_LENDER_DEAL).toContain('{recorded}');
+		for (const line of [noticesCopy.NOTICE_CLIENT_DAY15, noticesCopy.NOTICE_CLIENT_DAY20, noticesCopy.NOTICE_CLIENT_LAPSED]) {
+			for (const slot of ['{recorded}', '{invoice}', '{facts}']) expect(line).toContain(slot);
+		}
+		expect(noticesCopy.NOTICE_FACTS_DATED).toBe('{amount}, payment promised {promised}');
+	});
+
+	it('the final reminders say they are final; the client lines stay actor-voiced', () => {
+		expect(noticesCopy.NOTICE_LENDER_DAY20).toContain('last reminder');
+		expect(noticesCopy.NOTICE_CLIENT_DAY20).toContain('last reminder');
+		expect(noticesCopy.NOTICE_LENDER_DAY15).not.toContain('last reminder');
+		for (const line of [noticesCopy.NOTICE_CLIENT_DAY15, noticesCopy.NOTICE_CLIENT_DAY20]) {
+			expect(line).toMatch(/not been updated by its lender/);
+		}
+	});
+
+	it('the lapse wording is the record\'s, with revival in the same breath — never a judgment word', () => {
+		for (const line of [noticesCopy.NOTICE_LENDER_LAPSED, noticesCopy.NOTICE_CLIENT_LAPSED]) {
+			expect(line).toContain(agingCopy.LAPSED_LINE);
+			expect(line).toContain('no longer counted');
+		}
+		expect(noticesCopy.NOTICE_LENDER_LAPSED).toContain('counts it again');
+		expect(noticesCopy.NOTICE_LENDER_LAPSE_WARN).toContain('lapses on {lapse}');
+		for (const [path, value] of ALL_NOTICE_STRINGS) {
+			expect(value.match(/\b(default\w*|delinquen\w*|abandon\w*|bad debt|write.?off|insolven\w*|overdue account|collect\w*)\b/i)?.[0] ?? null, path).toBeNull();
+		}
+	});
+
+	it('no reputation, score or tally wording in the notice module either', () => {
+		for (const [path, value] of ALL_NOTICE_STRINGS) {
+			expect(value.match(/\b(score\w*|reputation|rating\w*|track record|credit bureau)\b/i)?.[0] ?? null, path).toBeNull();
+		}
+	});
+});
+
 describe('S3 duplicate copy', () => {
 	// The registry is a voluntary record: "on record at Almstins" and "recorded as financed", never a
 	// claim that an invoice is free of other financing.
@@ -260,7 +321,12 @@ describe('S3 duplicate copy', () => {
 });
 
 describe('copy placeholders', () => {
-	const ALLOWED = new Set(['available', 'requested', 'claimed', 'code', 'message', 'detail', 'financier', 'signed', 'day', 'duration']);
+	const ALLOWED = new Set([
+		'available', 'requested', 'claimed', 'code', 'message', 'detail', 'financier', 'signed', 'day', 'duration',
+		// A4 notice templates: the deal-identifier block and its links. Figures and dates only —
+		// there is deliberately NO party-name placeholder (D8's misdelivery rule).
+		'amount', 'days', 'deal', 'facts', 'invoice', 'lapse', 'promised', 'recorded', 'touched', 'url',
+	]);
 
 	for (const [path, value] of ALL_STRINGS) {
 		const names = [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);

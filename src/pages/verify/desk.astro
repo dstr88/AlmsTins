@@ -20,6 +20,7 @@ import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
+import NoticeInbox from '@/components/receivables/NoticeInbox/NoticeInbox.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -510,6 +511,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     </header>
 
     <div id="updates-banner" class="updates-banner"></div>
+
+    <NoticeInbox />
 
     <div class="card" id="waiting-card" style="display:none">
       <h2>Waiting on someone</h2>

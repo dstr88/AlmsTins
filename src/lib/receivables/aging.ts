@@ -45,8 +45,9 @@ export interface AgingExtension {
 
 const DAY_MS = 86_400_000;
 
-/** A YYYY-MM-DD date at UTC midnight, or null when the string is not one. */
-function ymdToUtcMs(s: string | null | undefined): number | null {
+/** A YYYY-MM-DD date at UTC midnight, or null when the string is not one. Exported for the
+ *  notice schedule (notices.ts), which must run the SAME date math as the states here. */
+export function ymdToUtcMs(s: string | null | undefined): number | null {
 	if (typeof s !== 'string') return null;
 	const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 	if (!m) return null;
@@ -55,8 +56,8 @@ function ymdToUtcMs(s: string | null | undefined): number | null {
 }
 
 /** A stored timestamp ('YYYY-MM-DD HH:MM:SS' UTC, the registry's format; ISO and bare YMD are
- *  tolerated) as epoch ms, or null when unparseable. */
-function timestampToUtcMs(s: string | null | undefined): number | null {
+ *  tolerated) as epoch ms, or null when unparseable. Exported for notices.ts, same reason. */
+export function timestampToUtcMs(s: string | null | undefined): number | null {
 	if (typeof s !== 'string' || !s.trim()) return null;
 	const t = s.trim();
 	const ms = t.includes('T') || /[zZ]$|[+-]\d{2}:\d{2}$/.test(t)

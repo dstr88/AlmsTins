@@ -160,8 +160,45 @@ export const CREATE_STATUS_EVENTS_RCV_IDX =
 export const CREATE_STATUS_EVENTS_CLAIM_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_status_events_claim ON receivable_status_events (claim_id)`;
 
+/**
+ * receivable_notice_log (aging A4 / D8): which aging-notice emails have gone out, one row per
+ * (claim, notice, recipient role) — ever. The daily cron checks this before sending, so a
+ * notice email is sent at most once per claim per recipient, however many runs see it due.
+ * A row is written only after the send succeeded; a failed send leaves no row and is retried
+ * on the next run. Bookkeeping only, like receivable_anchor_attempts: the claim id scopes it,
+ * and no address or tenant is stored here.
+ */
+export const CREATE_NOTICE_LOG = `
+  CREATE TABLE IF NOT EXISTS receivable_notice_log (
+    claim_id       TEXT NOT NULL,
+    notice         TEXT NOT NULL,
+    recipient_role TEXT NOT NULL,
+    sent_at        TEXT NOT NULL,
+    PRIMARY KEY (claim_id, notice, recipient_role)
+  )
+`;
+
+/**
+ * receivable_notice_optouts (aging A4 / D8): the client-side suppression flag behind the
+ * opt-out link every client notice carries. Keyed by lowercased address; the token is the
+ * unguessable capability the link carries (the pattern of campaign_drip.unsub_token). A row
+ * exists once a client notice is first prepared for that address; suppressed_at set means no
+ * further client notices to it. Lender notices are account mail and carry no opt-out, so they
+ * never read this table.
+ */
+export const CREATE_NOTICE_OPTOUTS = `
+  CREATE TABLE IF NOT EXISTS receivable_notice_optouts (
+    email         TEXT NOT NULL PRIMARY KEY,
+    token         TEXT NOT NULL,
+    suppressed_at TEXT,
+    created_at    TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
 export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_ANCHOR_ATTEMPTS,
   CREATE_STATUS_EVENTS,
+  CREATE_NOTICE_LOG,
+  CREATE_NOTICE_OPTOUTS,
 ];
