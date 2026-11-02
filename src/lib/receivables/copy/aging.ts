@@ -118,3 +118,27 @@ export const STATUS_UNREACHABLE = 'Could not reach the registry. Try again.';
  *  ID (A3), so the acceptance page hands it to him where he puts his name to the record. */
 export const CLIENT_ID_HEADING = 'Your receivable ID';
 export const CLIENT_ID_KEEP = 'Keep this ID. It is how you check this record any time: what is claimed against it, and whether it is still maintained. Anyone holding the ID can look the record up; nobody can find it without one.';
+
+// ── A3: relying-party surfaces (freshness line, lapse display, the Verify-now check) ─────
+// Every line here is ACTOR-VOICED and about the RECORD: the lender is named by role and
+// duration only, never by name, and nothing states or implies a default on the loan. Per
+// record only — no line ever counts a lender's other records.
+
+/** Verify now's freshness check (A3): is every active claim's record current against its
+ *  promised payment date? past_due_not_updated is never silently 'confirmed'. */
+export const FRESHNESS_CHECK_LABEL = 'Record freshness';
+export const FRESHNESS_DETAIL_PASS = 'Every active claim is current against its promised payment date.';
+export const FRESHNESS_DETAIL_GRACE = 'The promised date just passed, within the grace window. A normal slip; the record still counts in full.';
+export const FRESHNESS_DETAIL_PAST_DUE = 'A claim on this record is past its promised date and has not been updated by its lender since {day}. Revalidate before relying on it.';
+export const FRESHNESS_DETAIL_PAST_DUE_UNDATED = 'A claim on this record is past its promised date and has not been updated by its lender. Revalidate before relying on it.';
+export const FRESHNESS_DETAIL_LAPSED = 'A claim on this record is lapsed — record not maintained. It is no longer counted in the financing answer; one dated update from its financier counts it again.';
+export const FRESHNESS_DETAIL_NO_DATE = 'An active claim carries no promised payment date on record, so its freshness cannot be confirmed.';
+
+/** The freshness story beside a past-due claim on the public lookup: the duration once a month
+ *  has passed since the lender's last update, the plain date until then. */
+export const FRESHNESS_NOT_UPDATED_FOR = 'This claim has not been updated by its lender in {duration}.';
+export const FRESHNESS_NOT_UPDATED_SINCE = 'This claim is past its promised date and has not been updated by its lender since {day}.';
+
+/** What a lapsed claim reads as wherever it IS shown (anyone holding the receivable ID sees the
+ *  claim and its dated chain; only the financing answer stops counting it). */
+export const LAPSED_PUBLIC_LINE = 'This claim is lapsed — record not maintained. It is no longer counted in the financing answer; one dated update from its financier counts it again.';

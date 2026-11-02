@@ -180,6 +180,58 @@ describe('aging copy (A2: the lender UI)', () => {
 	});
 });
 
+describe('aging copy (A3: relying-party surfaces)', () => {
+	const A3_LINES = [
+		agingCopy.FRESHNESS_DETAIL_PAST_DUE, agingCopy.FRESHNESS_DETAIL_PAST_DUE_UNDATED,
+		agingCopy.FRESHNESS_DETAIL_LAPSED, agingCopy.FRESHNESS_DETAIL_NO_DATE,
+		agingCopy.FRESHNESS_NOT_UPDATED_FOR, agingCopy.FRESHNESS_NOT_UPDATED_SINCE,
+		agingCopy.LAPSED_PUBLIC_LINE, seenBeforeCopy.SEEN_BEFORE_STALE_PREFIX,
+	];
+
+	it('the freshness story is actor-voiced: the lender by role and duration, never a name or a default', () => {
+		for (const line of [
+			agingCopy.FRESHNESS_DETAIL_PAST_DUE, agingCopy.FRESHNESS_DETAIL_PAST_DUE_UNDATED,
+			agingCopy.FRESHNESS_NOT_UPDATED_FOR, agingCopy.FRESHNESS_NOT_UPDATED_SINCE,
+			seenBeforeCopy.SEEN_BEFORE_STALE_PREFIX,
+		]) {
+			expect(line).toMatch(/not (been )?updated by its (lender|financier)/);
+		}
+		for (const line of A3_LINES) {
+			// Never an accusation of default, delinquency or the debt's standing — the words are
+			// about the record. "abandoned" reads as a statement about the lender's rights (D7).
+			expect(line).not.toMatch(/\b(default\w*|delinquen\w*|abandon\w*|bad debt|write.?off|insolven\w*)\b/i);
+		}
+	});
+
+	it('the verify-now check is named and its lines read as the plan wrote them', () => {
+		expect(agingCopy.FRESHNESS_CHECK_LABEL).toBe('Record freshness');
+		expect(agingCopy.FRESHNESS_DETAIL_PAST_DUE).toContain('{day}');
+		expect(agingCopy.FRESHNESS_DETAIL_PAST_DUE).toContain('Revalidate before relying on it.');
+		expect(agingCopy.FRESHNESS_NOT_UPDATED_FOR).toContain('{duration}');
+		expect(agingCopy.FRESHNESS_NOT_UPDATED_SINCE).toContain('{day}');
+		expect(agingCopy.FRESHNESS_DETAIL_GRACE).toContain('still counts in full');
+	});
+
+	it('a lapsed claim shown to an ID-holder reads as the lapse line, with the revival in the same breath', () => {
+		for (const line of [agingCopy.LAPSED_PUBLIC_LINE, agingCopy.FRESHNESS_DETAIL_LAPSED]) {
+			expect(line).toContain(agingCopy.LAPSED_LINE);
+			expect(line).toContain('no longer counted');
+			expect(line).toContain('counts it again');
+		}
+	});
+
+	it('the seen-before story line opens on the record and carries no em dash', () => {
+		expect(seenBeforeCopy.SEEN_BEFORE_STALE_PREFIX).toMatch(/^Recorded as financed; past its promised date/);
+		expect(seenBeforeCopy.SEEN_BEFORE_STALE_PREFIX.endsWith('since ')).toBe(true);
+	});
+
+	it('no reputation, score or tally wording anywhere in the aging module', () => {
+		for (const [path, value] of stringsOf(['aging'])) {
+			expect(value.match(/\b(score\w*|reputation|rating\w*|track record|N others|other records like)\b/i)?.[0] ?? null, path).toBeNull();
+		}
+	});
+});
+
 describe('S3 duplicate copy', () => {
 	// The registry is a voluntary record: "on record at Almstins" and "recorded as financed", never a
 	// claim that an invoice is free of other financing.
@@ -208,7 +260,7 @@ describe('S3 duplicate copy', () => {
 });
 
 describe('copy placeholders', () => {
-	const ALLOWED = new Set(['available', 'requested', 'claimed', 'code', 'message', 'detail', 'financier', 'signed', 'day']);
+	const ALLOWED = new Set(['available', 'requested', 'claimed', 'code', 'message', 'detail', 'financier', 'signed', 'day', 'duration']);
 
 	for (const [path, value] of ALL_STRINGS) {
 		const names = [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);

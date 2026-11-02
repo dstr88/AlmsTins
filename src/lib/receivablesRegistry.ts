@@ -62,7 +62,15 @@ import {
   CLAIM_NOT_FOUND,
   EXTENSION_DATE_REQUIRED,
   EXTENSION_REASON_REQUIRED,
+  FRESHNESS_CHECK_LABEL,
+  FRESHNESS_DETAIL_GRACE,
+  FRESHNESS_DETAIL_LAPSED,
+  FRESHNESS_DETAIL_NO_DATE,
+  FRESHNESS_DETAIL_PASS,
+  FRESHNESS_DETAIL_PAST_DUE,
+  FRESHNESS_DETAIL_PAST_DUE_UNDATED,
 } from '@/lib/receivables/copy/aging';
+import { fillCopy } from '@/lib/receivables/fillCopy';
 import {
   ADD_RECEIVABLE_DELETED_AT,
   CREATE_STATUS_EVENTS_CLAIM_IDX,
@@ -1108,6 +1116,8 @@ interface ClaimAgingInfo {
   tenantId: string;
   amount: number;
   status: ClaimStatus;
+  /** The supplier confirmed the money arrived (affirmed_at set). */
+  affirmed: boolean;
   aging: ClaimAgingState;
   promisedDate: string | null;
   lastOwnerTouchAt: string | null;
@@ -1180,6 +1190,7 @@ async function claimAgingByClaimId(
       tenantId,
       amount: Number(row.amount),
       status,
+      affirmed: row.affirmed_at != null,
       aging: rcv.settled_at != null
         ? 'settled'
         : agingStateOf(rcv.due_date, extensions, status, lastOwnerTouchAt, now),
@@ -1203,6 +1214,56 @@ async function encumberedClaimSum(
     if (c.status === 'active' && c.aging !== 'lapsed') sum += c.amount;
   }
   return sum;
+}
+
+/** One matched record's financing figures with the lapse filter applied (A3), plus the
+ *  freshness story. Everything is derived from counted claims only: active, not lapsed. */
+export interface AgingAwareFinancing {
+  /** The sum of counted claims (what claimedOf answers on the public status). */
+  claimed: number;
+  /** A counted claim stands against the record. */
+  encumbered: boolean;
+  anyAffirmed: boolean;
+  anyUnaffirmed: boolean;
+  /** Some counted claim is past its promised date with no update from its financier
+   *  (past_due_not_updated): the freshness story a relying party is shown. */
+  anyStale: boolean;
+  /** The last financier update (YYYY-MM-DD) on the stalest such claim, or null. One claim's
+   *  date, never a tally across records (the no-aggregation line). */
+  staleSince: string | null;
+}
+
+/**
+ * The lapse filter for the raw ENCUMBRANCE_SQL paths (A3). The twin query and the seen-before
+ * store read "financed" straight from SQL, which cannot see the touch chain, so a matched row
+ * is re-read here in JS: lapsed claims (D7) are left out of every figure, exactly as claimedOf
+ * and encumberedClaimSum already leave them out, and nothing is erased — the claim and its
+ * dated chain stay on the record for anyone holding the receivable ID. Cross-tenant by design,
+ * like the queries it corrects (callers on those paths wrap it in runWithoutDbContext). Fail
+ * direction: callers keep the SQL figures when this throws — conservative, a stale record can
+ * still warn a second lender, never falsely read clear.
+ */
+export async function agingAwareFinancingOf(
+  rcv: { id: string; due_date: string | null; settled_at: string | null },
+  now: Date,
+): Promise<AgingAwareFinancing> {
+  const out: AgingAwareFinancing = {
+    claimed: 0, encumbered: false, anyAffirmed: false, anyUnaffirmed: false,
+    anyStale: false, staleSince: null,
+  };
+  for (const c of (await claimAgingByClaimId(rcv, now)).values()) {
+    if (c.status !== 'active' || c.aging === 'lapsed') continue;
+    out.claimed += c.amount;
+    out.encumbered = true;
+    if (c.affirmed) out.anyAffirmed = true;
+    else out.anyUnaffirmed = true;
+    if (c.aging === 'past_due_not_updated') {
+      out.anyStale = true;
+      const day = c.lastOwnerTouchAt ? String(c.lastOwnerTouchAt).slice(0, 10) : null;
+      if (day !== null && (out.staleSince === null || day < out.staleSince)) out.staleSince = day;
+    }
+  }
+  return out;
 }
 
 // ── Duplicate check (S3) ─────────────────────────────────────────────────────
@@ -1272,8 +1333,9 @@ export async function fingerprintCoverageOk(): Promise<boolean> {
 }
 
 /** The rows whose fingerprints match `fp` under its kid, test with test and real with real. Never
- *  runs without a key to compare: with neither fingerprint there is no query (and no match). */
-async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId: string | null): Promise<TwinRow[]> {
+ *  runs without a key to compare: with neither fingerprint there is no query (and no match).
+ *  `now` is the aging clock for the lapse filter below (A3). */
+async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId: string | null, now: Date): Promise<TwinRow[]> {
   const branches: string[] = [];
   const branchArgs: string[] = [];
   if (fp.ref) { branches.push('r.fingerprint_ref = ?'); branchArgs.push(fp.ref); }
@@ -1282,7 +1344,7 @@ async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId
   const withDeleted = deletedAtReady;
   // Every tenant's rows, on the owner pool (see above).
   const r = await runWithoutDbContext(() => db.execute({
-    sql: `SELECT r.id, r.tenant_id, r.invoice_no, r.fingerprint_ref, r.fingerprint_inv, r.settled_at${withDeleted ? ', r.deleted_at' : ''},
+    sql: `SELECT r.id, r.tenant_id, r.invoice_no, r.fingerprint_ref, r.fingerprint_inv, r.settled_at${withDeleted ? ', r.deleted_at' : ''}, r.due_date,
                  (${ENCUMBRANCE_SQL}) AS encumbered
           FROM receivables r
           WHERE r.fingerprint_kid = ? AND r.is_test = ?${excludeId !== null ? ' AND r.id <> ?' : ''} AND (${branches.join(' OR ')})
@@ -1290,7 +1352,8 @@ async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId
           LIMIT ${TWIN_LIMIT}`,
     args: [fp.kid, isTest, ...(excludeId !== null ? [excludeId] : []), ...branchArgs],
   }));
-  return (r.rows as any[]).map((row) => ({
+  const rows = r.rows as any[];
+  const twins = rows.map((row) => ({
     id: String(row.id),
     tenantId: String(row.tenant_id),
     invoiceNo: String(row.invoice_no),
@@ -1301,6 +1364,23 @@ async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId
     settled: row.settled_at != null,
     withdrawn: withDeleted && row.deleted_at != null,
   }));
+  // The lapse filter (A3): ENCUMBRANCE_SQL counts lapsed claims (it cannot read the touch
+  // chain), so each encumbered twin is re-read in JS and one whose counted claims all lapsed
+  // reads as not financed. Non-fatal per row: on an error the SQL flag stands — conservative,
+  // it can only over-warn, never falsely read clear. Same owner-pool read as the query above.
+  for (let i = 0; i < twins.length; i++) {
+    if (!twins[i].encumbered) continue;
+    const row = rows[i];
+    try {
+      const fin = await runWithoutDbContext(() => agingAwareFinancingOf({
+        id: twins[i].id,
+        due_date: row.due_date != null ? String(row.due_date) : null,
+        settled_at: row.settled_at != null ? String(row.settled_at) : null,
+      }, now));
+      twins[i].encumbered = fin.encumbered;
+    } catch { /* keep the SQL flag */ }
+  }
+  return twins;
 }
 
 interface DuplicateResult {
@@ -1312,8 +1392,9 @@ interface DuplicateResult {
 }
 
 /** The duplicate check for a record's fingerprint fields, leaving out `excludeId` (the record
- *  itself; null for a precheck or an id_collision, where nothing is excluded). */
-async function duplicateCheckFor(input: FingerprintInput, excludeId: string | null, viewerTenantId?: string | null): Promise<DuplicateResult> {
+ *  itself; null for a precheck or an id_collision, where nothing is excluded). `now` is the
+ *  aging clock for the twins' lapse filter (A3). */
+async function duplicateCheckFor(input: FingerprintInput, excludeId: string | null, viewerTenantId?: string | null, now: Date = new Date()): Promise<DuplicateResult> {
   const hasDebtorReference = fingerprintTuples(input).ref !== null;
   const unavailable: DuplicateResult = { check: unavailableCheck(hasDebtorReference), ownMatches: [], twinIds: [] };
   if (!fingerprintColumnsReady) return unavailable;
@@ -1321,7 +1402,7 @@ async function duplicateCheckFor(input: FingerprintInput, excludeId: string | nu
   if (!fp || (!fp.ref && !fp.inv)) return unavailable;
   try {
     if (!(await coverageOk(fp.kid))) return unavailable;
-    const twins = await findFingerprintTwins(fp, input.isTest, excludeId);
+    const twins = await findFingerprintTwins(fp, input.isTest, excludeId, now);
     const { check, ownMatches } = summarizeTwins(twins, { viewerTenantId, hasDebtorReference });
     return { check, ownMatches, twinIds: twins.map((t) => t.id) };
   } catch (e) {
@@ -1331,8 +1412,8 @@ async function duplicateCheckFor(input: FingerprintInput, excludeId: string | nu
 }
 
 /** A stored row's duplicate check, from its own fields, itself left out. */
-function duplicateCheckForRow(row: ReceivableRow, viewerTenantId?: string | null): Promise<DuplicateResult> {
-  return duplicateCheckFor(fingerprintInputFromRow(row), row.id, viewerTenantId);
+function duplicateCheckForRow(row: ReceivableRow, viewerTenantId?: string | null, now: Date = new Date()): Promise<DuplicateResult> {
+  return duplicateCheckFor(fingerprintInputFromRow(row), row.id, viewerTenantId, now);
 }
 
 /** Store the current fingerprints on a row whose kid is not the current one. Non-fatal: the
@@ -1575,7 +1656,7 @@ export async function addClaim(
   // when the match is recorded as financed, for any other caller on any match (see above); a 409
   // only for a caller that accepts warnings.
   const verifiedViewer = opts.verifiedViewer === true;
-  const dup = await duplicateCheckForRow(rcv);
+  const dup = await duplicateCheckForRow(rcv, undefined, now);
   const raised: AckCode[] = [
     ...(amount > available ? ['exceeds_headroom' as const] : []),
     ...(claimRaisesDuplicate(dup.check, verifiedViewer) ? ['possible_duplicate' as const] : []),
@@ -1749,7 +1830,7 @@ async function readReceivableStatus(receivableId: string, now: Date = new Date()
   const rawActive = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
   const lifecycle = lifecycleOf({ settled, claimed: rawActive, hadClaims: claims.length > 0 });
   // No viewer, so no own matches. The status carries only the public part.
-  const { check: duplicate } = await duplicateCheckForRow(rcv);
+  const { check: duplicate } = await duplicateCheckForRow(rcv, undefined, now);
 
   const status: ReceivableStatus = {
     id: rcv.id,
@@ -1956,6 +2037,35 @@ export async function reverifyReceivable(
         detail: `Anchored to Bitcoin on ${String(status.anchoredAt).slice(0, 10)}.` }
     : { key: 'anchor', label: 'Bitcoin anchor', state: 'warn',
         detail: status.anchored ? 'Anchor pending Bitcoin confirmation.' : 'Signed but not yet anchored to Bitcoin.' });
+
+  // 6. Freshness (A3) — are the active claims' records current against their promised dates?
+  //    A claim past its promised date with no update from its financier is never silently
+  //    'confirmed': the relying party revalidates. Lapsed (no longer counted) and no-date
+  //    (nothing to age against) are cautions too, the same fail-closed direction as the other
+  //    checks; grace is a normal slip and still passes. Like the affirmation check, only
+  //    meaningful when active claims exist. Actor-voiced: the lender by role and date only.
+  if (activeClaims.length) {
+    const inState = (s: string) => activeClaims.filter((c) => c.aging === s);
+    const freshRow = (state: ReverifyState, detail: string): ReverifyCheck =>
+      ({ key: 'freshness', label: FRESHNESS_CHECK_LABEL, state, detail });
+    const pastDue = inState('past_due_not_updated');
+    if (pastDue.length) {
+      // The stalest claim's last financier update: one claim's date, never a tally.
+      const since = pastDue
+        .map((c) => (c.lastOwnerTouchAt ? String(c.lastOwnerTouchAt).slice(0, 10) : null))
+        .filter((d): d is string => d !== null)
+        .sort()[0] ?? null;
+      checks.push(freshRow('warn', since ? fillCopy(FRESHNESS_DETAIL_PAST_DUE, { day: since }) : FRESHNESS_DETAIL_PAST_DUE_UNDATED));
+    } else if (inState('lapsed').length) {
+      checks.push(freshRow('warn', FRESHNESS_DETAIL_LAPSED));
+    } else if (inState('no_promised_date').length) {
+      checks.push(freshRow('warn', FRESHNESS_DETAIL_NO_DATE));
+    } else if (inState('due_in_grace').length) {
+      checks.push(freshRow('pass', FRESHNESS_DETAIL_GRACE));
+    } else {
+      checks.push(freshRow('pass', FRESHNESS_DETAIL_PASS));
+    }
+  }
 
   // Fail-closed verdict: confirmed ONLY if every check passed. Any warn or fail → attention.
   const verdict: 'confirmed' | 'attention' = checks.every((c) => c.state === 'pass') ? 'confirmed' : 'attention';

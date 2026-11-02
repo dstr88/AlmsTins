@@ -77,7 +77,7 @@ export const POST: APIRoute = async ({ request }) => {
   const s = summarizeMatches(read.rows, { refChecked: read.refChecked, test: parsed.input.isTest, checkedAt: new Date().toISOString() });
   // One literal per tier: the docs pin these keys, in this order.
   if (verified) {
-    return publicJson({ v: 1, found: s.found, matches: s.matches, status: s.status, anyFinanced: s.anyFinanced, financing: s.financing, claimsAffirmed: s.claimsAffirmed, anySettled: s.anySettled, debtor: s.debtor, withdrawn: s.withdrawn, refChecked: s.refChecked, refMatch: s.refMatch, firstSeen: s.firstSeen, test: s.test, checkedAt: s.checkedAt });
+    return publicJson({ v: 1, found: s.found, matches: s.matches, status: s.status, anyFinanced: s.anyFinanced, financing: s.financing, claimsAffirmed: s.claimsAffirmed, anySettled: s.anySettled, anyStale: s.anyStale, staleSince: s.staleSince, debtor: s.debtor, withdrawn: s.withdrawn, refChecked: s.refChecked, refMatch: s.refMatch, firstSeen: s.firstSeen, test: s.test, checkedAt: s.checkedAt });
   }
   return publicJson({ v: 1, found: s.found, test: s.test, checkedAt: s.checkedAt });
 };
