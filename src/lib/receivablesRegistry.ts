@@ -52,6 +52,7 @@ import {
   type Lifecycle,
 } from '@/lib/receivables/status';
 import { agingStateOf, effectivePromisedDate, type ClaimAgingState } from '@/lib/receivables/aging';
+import type { NoticeKind, NoticeRole } from '@/lib/receivables/notices';
 import {
   isExtensionReasonCode,
   type ExtensionReasonCode,
@@ -1108,9 +1109,11 @@ async function missingCode(receivableId: string): Promise<'withdrawn' | 'not_fou
 //
 // The lapse exclusion (D7) applies where claims are summed: claimedOf (the status read) and
 // encumberedClaimSum (addClaim's headroom guard, dischargeClaim's figures). ENCUMBRANCE_SQL —
-// the duplicate check's "financed" flag on twin rows — deliberately still counts lapsed claims:
-// lapse needs the touch chain, which that SQL cannot read, and the error direction is
-// conservative (a stale record can still warn a second lender; it can never falsely read clear).
+// the duplicate check's "financed" flag on twin rows — still counts lapsed claims at the SQL
+// level (lapse needs the touch chain, which that SQL cannot read), and since A3 its callers
+// correct the flag post-query with agingAwareFinancingOf below. When that JS re-read fails they
+// keep the raw SQL figure — conservative: a stale record can still warn a second lender; it can
+// never falsely read clear.
 
 interface ClaimAgingInfo {
   tenantId: string;
@@ -1118,6 +1121,8 @@ interface ClaimAgingInfo {
   status: ClaimStatus;
   /** The supplier confirmed the money arrived (affirmed_at set). */
   affirmed: boolean;
+  /** When the claim was recorded (row created_at) — the notice emails' "claim recorded" day. */
+  createdAt: string;
   aging: ClaimAgingState;
   promisedDate: string | null;
   lastOwnerTouchAt: string | null;
@@ -1191,6 +1196,7 @@ async function claimAgingByClaimId(
       amount: Number(row.amount),
       status,
       affirmed: row.affirmed_at != null,
+      createdAt: row.created_at != null ? String(row.created_at) : '',
       aging: rcv.settled_at != null
         ? 'settled'
         : agingStateOf(rcv.due_date, extensions, status, lastOwnerTouchAt, now),
@@ -2440,6 +2446,253 @@ export async function listOwnClaimStatusEvents(tenantId: string, claimId: string
     reasonNote: row.reason_note != null ? String(row.reason_note) : null,
   }));
   return { ok: true, events };
+}
+
+// ── Aging notices (A4): the desk inbox (D5) and the D8 email schedule's IO ───
+//
+// The desk inbox is computed on load from existing rows — no storage of its own, so updating
+// the claim (settle / extend / unpaid) clears the item because the state simply recomputes.
+// The email schedule's own tables are bookkeeping only: receivable_notice_log (one row per
+// claim × notice × recipient, ever — the idempotency ledger) and receivable_notice_optouts
+// (the client suppression flag behind every client email's opt-out link). Reasons and notes
+// (D3) are never read here: nothing in a notice goes beyond what the record publicly shows.
+
+/** One "needs update" item on the lender's own desk: HIS claim, in grace or past due. */
+export interface NeedsUpdateItem {
+  claimId: string;
+  receivableId: string;
+  invoiceNo: string;
+  /** His own client's name, as recorded — a signed-in desk surface, never an email. */
+  supplier: string;
+  face: number;
+  currency: string;
+  aging: Extract<ClaimAgingState, 'due_in_grace' | 'past_due_not_updated'>;
+  promisedDate: string | null;
+  isTest: boolean;
+}
+
+/**
+ * The lender desk's "needs an update" inbox (D5): this tenant's own ACTIVE claims whose aging
+ * reads due_in_grace or past_due_not_updated right now. Settled and withdrawn records carry
+ * nothing to update (discharge stays the lender's remaining action on a withdrawn one), and a
+ * lapsed claim shows through its own lapse surfaces, not here. Past due first, oldest promise
+ * first, so the heaviest neglect tops the list.
+ */
+export async function listNeedsUpdate(tenantId: string, now: Date = new Date()): Promise<NeedsUpdateItem[]> {
+  await ensureReceivablesTables();
+  const withDeleted = deletedAtReady;
+  const r = await db.execute({
+    sql: `SELECT c.id AS claim_id, c.receivable_id AS receivable_id,
+                 r.due_date AS due_date, r.settled_at AS settled_at, r.invoice_no AS invoice_no,
+                 r.supplier AS supplier, r.face AS face, r.currency AS currency, r.is_test AS is_test
+            FROM receivable_claims c
+            JOIN receivables r ON r.id = c.receivable_id
+           WHERE c.tenant_id = ? AND c.status = 'active'
+             AND r.settled_at IS NULL${withDeleted ? ' AND r.deleted_at IS NULL' : ''}
+           LIMIT 200`,
+    args: [tenantId],
+  });
+  const byReceivable = new Map<string, { rcv: { id: string; due_date: string | null; settled_at: string | null }; rows: any[] }>();
+  for (const row of r.rows as any[]) {
+    const rid = String(row.receivable_id);
+    const entry = byReceivable.get(rid) ?? {
+      rcv: {
+        id: rid,
+        due_date: row.due_date != null ? String(row.due_date) : null,
+        settled_at: row.settled_at != null ? String(row.settled_at) : null,
+      },
+      rows: [],
+    };
+    if (!byReceivable.has(rid)) byReceivable.set(rid, entry);
+    entry.rows.push(row);
+  }
+  const out: NeedsUpdateItem[] = [];
+  for (const { rcv, rows } of byReceivable.values()) {
+    const aging = await claimAgingByClaimId(rcv, now);
+    for (const row of rows) {
+      const info = aging.get(String(row.claim_id));
+      if (!info || info.tenantId !== tenantId || info.status !== 'active') continue;
+      if (info.aging !== 'due_in_grace' && info.aging !== 'past_due_not_updated') continue;
+      out.push({
+        claimId: String(row.claim_id),
+        receivableId: rcv.id,
+        invoiceNo: String(row.invoice_no),
+        supplier: String(row.supplier),
+        face: Number(row.face),
+        currency: String(row.currency),
+        aging: info.aging,
+        promisedDate: info.promisedDate,
+        isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+      });
+    }
+  }
+  const rank = (a: NeedsUpdateItem) => (a.aging === 'past_due_not_updated' ? 0 : 1);
+  out.sort((a, b) => rank(a) - rank(b) || String(a.promisedDate ?? '').localeCompare(String(b.promisedDate ?? '')));
+  return out;
+}
+
+/** One active claim as the daily notice cron reads it: the aging facts plus the deal
+ *  identifiers its emails carry. Cross-tenant by design (the cron is a privileged maintenance
+ *  job, like the drip's); reasons and notes are never selected. */
+export interface AgingNoticeCandidate {
+  claimId: string;
+  receivableId: string;
+  /** The claim's financier — the "lender" recipient. */
+  lenderTenantId: string;
+  invoiceNo: string;
+  face: number;
+  currency: string;
+  promisedDate: string | null;
+  /** YMD the claim was recorded — the identifier block's "claim recorded" day. */
+  recordedDay: string;
+  aging: ClaimAgingState;
+  lastOwnerTouchAt: string | null;
+  isTest: boolean;
+}
+
+/**
+ * Every ACTIVE claim on a live (un-settled, un-withdrawn) receivable, with its aging computed
+ * at `now` — the daily cron's candidate list. A settled receivable short-circuits its claims
+ * to 'settled' anyway, and a withdrawn record's public answer is gone, so neither is nagged
+ * about freshness; both are left out in SQL.
+ */
+export async function listAgingNoticeCandidates(now: Date = new Date(), limit = 500): Promise<AgingNoticeCandidate[]> {
+  await ensureReceivablesTables();
+  const withDeleted = deletedAtReady;
+  const r = await db.execute({
+    sql: `SELECT r.id AS id, r.due_date AS due_date, r.settled_at AS settled_at,
+                 r.invoice_no AS invoice_no, r.face AS face, r.currency AS currency, r.is_test AS is_test
+            FROM receivables r
+           WHERE r.settled_at IS NULL${withDeleted ? ' AND r.deleted_at IS NULL' : ''}
+             AND EXISTS (SELECT 1 FROM receivable_claims c WHERE c.receivable_id = r.id AND c.status = 'active')
+           LIMIT ?`,
+    args: [limit],
+  });
+  const out: AgingNoticeCandidate[] = [];
+  for (const row of r.rows as any[]) {
+    const rcv = {
+      id: String(row.id),
+      due_date: row.due_date != null ? String(row.due_date) : null,
+      settled_at: row.settled_at != null ? String(row.settled_at) : null,
+    };
+    for (const [claimId, info] of await claimAgingByClaimId(rcv, now)) {
+      if (info.status !== 'active') continue;
+      out.push({
+        claimId,
+        receivableId: rcv.id,
+        lenderTenantId: info.tenantId,
+        invoiceNo: String(row.invoice_no),
+        face: Number(row.face),
+        currency: String(row.currency),
+        promisedDate: info.promisedDate,
+        recordedDay: info.createdAt.slice(0, 10),
+        aging: info.aging,
+        lastOwnerTouchAt: info.lastOwnerTouchAt,
+        isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+      });
+    }
+  }
+  return out;
+}
+
+/** The notice-log entries already written for these claims, as "claimId|notice|role" keys,
+ *  so the cron checks a day's whole batch in one read. */
+export async function listSentNotices(claimIds: readonly string[]): Promise<Set<string>> {
+  if (!claimIds.length) return new Set();
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT claim_id, notice, recipient_role FROM receivable_notice_log
+           WHERE claim_id IN (${claimIds.map(() => '?').join(', ')})`,
+    args: [...claimIds],
+  });
+  return new Set((r.rows as any[]).map((x) => `${x.claim_id}|${x.notice}|${x.recipient_role}`));
+}
+
+/** Write one sent notice down — AFTER its email went out, so a failed send is retried on the
+ *  next run. ON CONFLICT DO NOTHING keeps the one-per-(claim, notice, recipient) rule even
+ *  if two runs ever overlap. */
+export async function recordNoticeSent(
+  claimId: string,
+  notice: NoticeKind,
+  role: NoticeRole,
+  now: Date = new Date(),
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO receivable_notice_log (claim_id, notice, recipient_role, sent_at)
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT (claim_id, notice, recipient_role) DO NOTHING`,
+    args: [claimId, notice, role, now.toISOString().replace('T', ' ').slice(0, 19)],
+  });
+}
+
+/**
+ * The opt-out row for a client address, created on first use: the token its emails' opt-out
+ * link carries, and whether the address has already opted out. Addresses are kept lowercased;
+ * the token is unguessable (the invite-token pattern). The suppression is checked BEFORE every
+ * client send.
+ */
+export async function noticeOptoutFor(email: string): Promise<{ token: string; suppressed: boolean }> {
+  await ensureReceivablesTables();
+  const addr = email.trim().toLowerCase();
+  await db.execute({
+    sql: `INSERT INTO receivable_notice_optouts (email, token, created_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT (email) DO NOTHING`,
+    args: [addr, randomBytes(32).toString('base64url'), nowUtc()],
+  });
+  const r = await db.execute({
+    sql: `SELECT token, suppressed_at FROM receivable_notice_optouts WHERE email = ? LIMIT 1`,
+    args: [addr],
+  });
+  const row = r.rows[0] as any;
+  return { token: String(row?.token ?? ''), suppressed: row?.suppressed_at != null };
+}
+
+/** Flip the suppression flag by its token (the public opt-out endpoint). True when the token
+ *  named a row; idempotent — opting out twice stays opted out. */
+export async function suppressNoticesByToken(token: string): Promise<boolean> {
+  await ensureReceivablesTables();
+  const t = String(token || '').trim();
+  if (t.length < 8) return false;
+  const found = await db.execute({
+    sql: `SELECT 1 FROM receivable_notice_optouts WHERE token = ? LIMIT 1`,
+    args: [t],
+  });
+  if (!found.rows.length) return false;
+  await db.execute({
+    sql: `UPDATE receivable_notice_optouts SET suppressed_at = ? WHERE token = ? AND suppressed_at IS NULL`,
+    args: [nowUtc(), t],
+  });
+  return true;
+}
+
+/**
+ * Where a client notice for this receivable may go — ONLY the record's own flow (D8): the
+ * client account that accepted a borrower invite (latest grant wins), else the latest
+ * banker-entered borrower invite address. Null when neither exists; the caller then skips
+ * silently — the public lookup line still covers that client.
+ */
+export async function clientNoticeTarget(receivableId: string): Promise<
+  | { kind: 'tenant'; tenantId: string }
+  | { kind: 'email'; email: string }
+  | null
+> {
+  await ensureReceivablesTables();
+  const grant = await db.execute({
+    sql: `SELECT tenant_id FROM receivable_access
+           WHERE receivable_id = ? AND role = 'borrower' AND revoked_at IS NULL
+           ORDER BY granted_at DESC LIMIT 1`,
+    args: [receivableId],
+  });
+  if (grant.rows.length) return { kind: 'tenant', tenantId: String((grant.rows[0] as any).tenant_id) };
+  const invite = await db.execute({
+    sql: `SELECT email FROM receivable_invites
+           WHERE receivable_id = ? AND role = 'borrower' AND email IS NOT NULL
+           ORDER BY created_at DESC LIMIT 1`,
+    args: [receivableId],
+  });
+  if (invite.rows.length) return { kind: 'email', email: String((invite.rows[0] as any).email) };
+  return null;
 }
 
 // ── #3: list a tenant's own receivables ──────────────────────────────────────

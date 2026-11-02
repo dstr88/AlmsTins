@@ -158,6 +158,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/verify/receivables/offer' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
+		// Receivables aging-notice opt-out — same reasoning: the client being emailed may hold
+		// no account; the per-address token IS the capability.
+		pathname === '/api/verify/receivables/notice-optout' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
 		pathname === '/.well-known/almstins-signing-key.json' ||
 		// Roster-document encryption public key — published so a merchant's browser can

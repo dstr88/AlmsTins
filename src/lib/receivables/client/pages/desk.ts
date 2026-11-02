@@ -26,6 +26,7 @@
  */
 import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { closeAck } from '@/components/receivables/AckPrompt/ackPrompt.client';
+import { mountNoticeInbox } from '@/components/receivables/NoticeInbox/noticeInbox.client';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { mountSeenBeforeForm } from '@/components/receivables/SeenBeforeForm/seenBeforeForm.client';
@@ -92,3 +93,9 @@ if (book) {
 // "Seen before?" (S6): the invoice-details check for someone who holds no receivable ID.
 const seenBefore = document.querySelector<HTMLFormElement>('form[data-rcv-root="seen-before"]');
 if (seenBefore) mountSeenBeforeForm(seenBefore);
+
+// "Needs an update" (aging A4/D5): the banker's own claims in grace or past due, computed on
+// load. Each row reopens the desk with that record on screen (?id=), where the status row's
+// one-click Settled / Extend / Unpaid clears the item at the source.
+const needsUpdate = document.querySelector<HTMLElement>('[data-rcv-root="needs-update"]');
+if (needsUpdate) mountNoticeInbox(needsUpdate);

@@ -1,0 +1,14 @@
+---
+// NoticeInbox (aging A4 / D5): the lender desk's "needs an update" inbox. Markup only:
+// noticeInbox.client.ts (mounted by the desk's page entry module) fetches the tenant's own
+// due-in-grace / past-due claims and fills the list; the card stays hidden until there is
+// something to show. No storage behind it — updating a claim clears its item because the
+// aging state recomputes on the next load.
+import './NoticeInbox.css';
+import { INBOX_HEADING, INBOX_HINT } from '@/lib/receivables/copy/notices';
+---
+<div class="card nup" data-rcv-root="needs-update" hidden>
+	<h2>{INBOX_HEADING}</h2>
+	<p class="hint">{INBOX_HINT}</p>
+	<div class="nup__list" data-nup-list></div>
+</div>
