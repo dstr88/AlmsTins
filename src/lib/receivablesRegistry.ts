@@ -2287,6 +2287,51 @@ export async function markUnpaid(
   return { ...written, ...(note ? { note } : {}) };
 }
 
+/** One of the claim owner's own status events, reasons included — the signed-in tier of D3. */
+export interface OwnStatusEvent {
+  id: string;
+  kind: StatusEventKind;
+  /** When the event was recorded. */
+  date: string;
+  newPromisedDate: string | null;
+  reasonCode: ExtensionReasonCode | null;
+  reasonNote: string | null;
+}
+
+/**
+ * A claim's own extended/unpaid chain WITH its structured reasons and notes, for the signed-in
+ * desk (A2). The public lookup never carries a reason (D3); this read is scoped to the claim's
+ * OWNER, so a financier reads only what he himself wrote — a non-owner gets not_found, never
+ * that the claim exists. A read, so a discharged claim's chain, and a withdrawn record's, stay
+ * readable: the dated history is the record.
+ */
+export async function listOwnClaimStatusEvents(tenantId: string, claimId: string): Promise<
+  | { ok: true; events: OwnStatusEvent[] }
+  | { ok: false; error: 'not_found'; message: string }
+> {
+  await ensureReceivablesTables();
+  const cr = await db.execute({
+    sql: `SELECT id FROM receivable_claims WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(claimId || '').trim(), tenantId],
+  });
+  if (!cr.rows.length) return { ok: false, error: 'not_found', message: CLAIM_NOT_FOUND };
+  // The chain in recorded order; the id tiebreak keeps two same-second events deterministic.
+  const er = await db.execute({
+    sql: `SELECT id, kind, new_promised_date, reason_code, reason_note, created_at
+          FROM receivable_status_events WHERE claim_id = ? AND tenant_id = ? ORDER BY created_at ASC, id ASC`,
+    args: [String(claimId).trim(), tenantId],
+  });
+  const events: OwnStatusEvent[] = (er.rows as any[]).map((row) => ({
+    id: String(row.id),
+    kind: String(row.kind) === 'unpaid' ? 'unpaid' : 'extended',
+    date: String(row.created_at),
+    newPromisedDate: row.new_promised_date != null ? String(row.new_promised_date) : null,
+    reasonCode: isExtensionReasonCode(row.reason_code) ? row.reason_code : null,
+    reasonNote: row.reason_note != null ? String(row.reason_note) : null,
+  }));
+  return { ok: true, events };
+}
+
 // ── #3: list a tenant's own receivables ──────────────────────────────────────
 
 export interface ReceivableSummary {

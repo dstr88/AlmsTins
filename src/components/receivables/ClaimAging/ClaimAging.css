@@ -1,0 +1,56 @@
+/* ClaimAging — presentation only.
+   Markup is built by claimAging.client.ts; nothing here encodes logic. The widget's rows are
+   injected under the desk's claim rows, so every selector is doubled-class and every control
+   carries its own class: the desk's bare button, td and p rules never decide how this looks.
+   Tones come from ../ui/tones.css (loaded first by fragments.css). */
+
+.clag__cell.clag__cell { text-align: left; white-space: normal; padding: 0 .55rem .6rem; border-bottom: 1px solid var(--border-subtle); }
+.clag .clag__line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding-top: .15rem; }
+.clag .clag__promised { font-size: .76rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.clag .clag__actions { margin-left: auto; display: flex; gap: .4rem; }
+
+.clag .clag__btn {
+	background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary);
+	border-radius: 8px; padding: .3rem .65rem; font-size: .74rem; font-weight: 600;
+	cursor: pointer; font-family: inherit; line-height: 1.3;
+}
+.clag .clag__btn:hover { background: var(--surface-hover); color: var(--text-primary); filter: none; }
+.clag .clag__btn:disabled { opacity: .5; cursor: not-allowed; }
+.clag .clag__btn--ghost { color: var(--text-secondary); }
+
+.clag .clag__lapsed { margin: .35rem 0 0; font-size: .78rem; color: var(--text-muted); line-height: 1.5; }
+
+/* The dated chain: every extension and unpaid flag, oldest first. */
+.clag .clag__chain { margin-top: .45rem; }
+.clag .clag__chain-h { margin: 0 0 .2rem; font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.clag .clag__chain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .18rem; }
+.clag .clag__chain-item { font-size: .78rem; color: var(--text-secondary); line-height: 1.5; white-space: normal; }
+.clag .clag__chain-date { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.clag .clag__chain-kind { font-weight: 600; }
+.clag .clag__chain-reason { color: var(--text-muted); }
+
+/* The action panel: one open at a time, inline under its claim (the desk's prompt idiom). */
+.clag .clag__panel {
+	margin-top: .55rem; border: 1px solid var(--border-bright); border-radius: 10px;
+	background: var(--surface-card-2); padding: .75rem .85rem;
+	display: flex; flex-direction: column; gap: .55rem; max-width: 34rem;
+}
+.clag .clag__panel-title { margin: 0; font-size: .86rem; font-weight: 700; color: var(--text-primary); }
+.clag .clag__panel-body { margin: 0; font-size: .8rem; color: var(--text-secondary); line-height: 1.55; }
+.clag .clag__field { display: flex; flex-direction: column; gap: .25rem; font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+.clag .clag__input {
+	background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 8px;
+	color: var(--text-primary); padding: .5rem .65rem; font-size: .86rem; font-family: inherit;
+	font-weight: 400; letter-spacing: normal; text-transform: none; min-width: 0; width: 100%;
+}
+.clag .clag__input:focus { outline: none; border-color: var(--accent); }
+.clag .clag__frame { margin: 0; font-size: .74rem; color: var(--text-muted); line-height: 1.5; }
+.clag .clag__panel-err { margin: 0; font-size: .78rem; color: var(--rcv-loss); line-height: 1.5; }
+.clag .clag__panel-row { display: flex; gap: .45rem; flex-wrap: wrap; }
+.clag .clag__panel-row .clag__btn:first-child { background: var(--accent); border-color: var(--accent); color: var(--surface-bg); font-weight: 700; }
+.clag .clag__panel-row .clag__btn:first-child:hover { filter: brightness(1.08); background: var(--accent); color: var(--surface-bg); }
+
+/* The outcome note: a sibling of the claims container, so a refresh never wipes it. */
+.clag__note.clag__note { margin-top: .8rem; border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; line-height: 1.55; color: var(--text-primary); }
+.clag__note.clag__note--gain { background: var(--rcv-gain-bg); border: 1px solid var(--rcv-gain-border); }
+.clag__note.clag__note--loss { background: var(--rcv-loss-bg); border: 1px solid var(--rcv-loss-border); }

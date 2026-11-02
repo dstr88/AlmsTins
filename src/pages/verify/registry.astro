@@ -374,6 +374,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { CLAIM_COPY_REGISTRY, CLAIM_NEED_FIELDS } from '@/lib/receivables/copy/claim';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
     import { statusPillHtml, recordPill, duplicatePill } from '@/components/receivables/StatusPill/statusPill';
+    import { agingPillHtml } from '@/components/receivables/AgingPill/agingPill';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { WITHDRAW_BUTTON_TITLE, WITHDRAW_CONFIRM } from '@/lib/receivables/copy/withdrawn';
@@ -548,8 +549,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         return `
         <li class="claim${discharged ? ' claim-off' : ''}">
           <div>
-            <div class="who">${esc(c.financier)} ${c.signed ? stateChip('signed') : stateChip('recorded')}${discharged ? '<span class="seal off">released</span>' : ''}</div>
-            <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
+            <div class="who">${esc(c.financier)} ${c.signed ? stateChip('signed') : stateChip('recorded')}${discharged ? '<span class="seal off">released</span>' : ''} ${agingPillHtml(c.aging)}</div>
+            <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}${c.promisedDate ? ` · promised ${esc(c.promisedDate)}` : ''}</div>
             <div class="cmeta">${c.affirmed
               ? `<span style="color:var(--gain)">Supplier confirmed receipt${c.affirmedAt ? ' ' + esc(String(c.affirmedAt).slice(0, 10)) : ''}</span>`
               : discharged ? ''

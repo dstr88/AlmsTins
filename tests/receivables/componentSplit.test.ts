@@ -69,8 +69,9 @@ const isImportLine = (l: string) => /^\s*import\s/.test(l);
 const isEmitLine = (l: string) => /^\s*hostBridge\.emit[A-Z]\w*\([^;]*\);\s*$/.test(l);
 const budgetOf = (src: string) => inlineScriptLines(src).filter((l) => !isImportLine(l) && !isEmitLine(l)).length;
 /** Pre-S1 (61ae9634): desk 1376, registry 548, client 180. S1 records its post-move numbers
- *  here (section 5.2 of the S1 spec). Later slices may only lower them. */
-const INLINE_BUDGET: Record<ReceivablesHost, number> = { desk: 1280, registry: 461, client: 163 };
+ *  here (section 5.2 of the S1 spec). Later slices may only lower them.
+ *  Aging A2 moves the desk's claim-status mechanics into claimAging.client: 1280 → 1261. */
+const INLINE_BUDGET: Record<ReceivablesHost, number> = { desk: 1261, registry: 461, client: 163 };
 const STYLE_BUDGET: Record<ReceivablesHost, number> = { desk: 382, registry: 146, client: 96 };
 const EMITS: Record<ReceivablesHost, { record: number; book: number; created: number }> = {
 	desk: { record: 2, book: 1, created: 1 }, registry: { record: 2, book: 1, created: 1 }, client: { record: 1, book: 1, created: 1 },
@@ -266,10 +267,12 @@ describe('new UI files', () => {
 	});
 	it('innerHTML only from an allowlisted fragment helper', () => {
 		// The whole right-hand side must be one helper call: nothing concatenated after it.
-		const HELPER = /^(?:statusPillHtml|anchorPillHtml)\s*\([^+`;]*\)$/; // later slices add publicationBadgeHtml, publicPreviewHtml
+		const HELPER = /^(?:statusPillHtml|anchorPillHtml|agingPillHtml)\s*\([^+`;]*\)$/; // later slices add publicationBadgeHtml, publicPreviewHtml
 		expect('statusPillHtml(recordPill(rcv))').toMatch(HELPER);
+		expect('agingPillHtml(c.aging)').toMatch(HELPER);
 		expect('statusPillHtml(view) + raw').not.toMatch(HELPER);
 		expect('anchorPillHtml(kind, rec) + `<b>${x}</b>`').not.toMatch(HELPER);
+		expect('agingPillHtml(state) + extra').not.toMatch(HELPER);
 		for (const f of UI_CODE) {
 			const s = read(f);
 			expect(s, f).not.toMatch(/\binsertAdjacentHTML\s*\(|\bdocument\.write\s*\(|\.outerHTML\s*\+?=/);

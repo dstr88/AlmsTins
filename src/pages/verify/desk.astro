@@ -867,6 +867,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     import { bindCopyButtons, delegateCopyButtons } from '@/lib/receivables/client/copyText';
     import { COPY_FAILED_LABEL } from '@/lib/receivables/copy/clipboard';
     import { statusPillHtml } from '@/components/receivables/StatusPill/statusPill';
+    import { mountClaimAging } from '@/components/receivables/ClaimAging/claimAging.client';
     import { NOT_PROVEN_DUPLICATE_TITLE, NOT_PROVEN_DUPLICATE_DETAIL } from '@/lib/receivables/copy/duplicate';
     const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
     const val = (id: string) => ($(id)?.value ?? '').trim();
@@ -1005,22 +1006,20 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
               ? ''
               : `<button class="small ghost" data-ask="${esc(c.id)}">Ask client</button>`;
             return `
-            <tr class="${c.status === 'discharged' ? 'discharged' : ''}">
+            <tr class="${c.status === 'discharged' ? 'discharged' : ''}" data-claim-row="${esc(c.id)}">
               <td>${esc(c.financier)}${c.anchored ? ' <span class="muted">&#9939;</span>' : ''}</td>
               <td>${esc(money(c.amount, c.currency || ccy))}</td>
               <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
               <td>${receipt}</td>
               <td><span class="tag ${c.status === 'discharged' ? 'off' : 'active'}">${esc(c.status === 'discharged' ? 'discharged' : 'active')}</span></td>
-              <td>${ask}${c.status === 'discharged' ? '' : ` <button class="small ghost" data-discharge="${esc(c.id)}">Mark repaid</button>`}</td>
+              <td>${ask}</td>
             </tr>`;
           }).join('') + `</tbody></table>`;
 
-      document.getElementById('claims')!.querySelectorAll('[data-discharge]').forEach((b) => {
-        b.addEventListener('click', () => discharge((b as HTMLElement).dataset.discharge as string));
-      });
       document.getElementById('claims')!.querySelectorAll('[data-ask]').forEach((b) => {
         b.addEventListener('click', () => askClient((b as HTMLElement).dataset.ask as string));
       });
+      claimAging.update(r);
       renderCountersignCard(claims, ccy);
 
       // Prefill the claim amount with the remaining headroom
@@ -1054,31 +1053,17 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       },
     };
 
-    // Releasing a claim once the debtor has paid frees the headroom again, so no phantom
-    // lien outlives the payment. Only the financier who registered it can discharge it —
-    // the API enforces that, since the public record never says whose claim is whose.
-    async function discharge(claimId: string) {
-      const out = $('c-out') as unknown as HTMLElement;
-      if (!confirm('Mark this claim repaid? That releases it and frees the headroom.')) return;
-      const reason = (prompt('Optional: add a note for your own record (e.g. "wire received Sept 28"). Leave blank to skip.') || '').trim();
-      show(out, 'Releasing…');
-      try {
-        const r = await fetch('/api/verify/receivables/discharge', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reason ? { claimId, reason } : { claimId }),
-        });
-        const j = await r.json();
-        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
-        if (!j.ok) {
-          show(out, j.error === 'not_found'
-            ? 'That claim was registered by another financier, so only they can release it.'
-            : 'Could not release that claim: ' + esc(j.error || 'unknown error'), 'note-loss');
-          return;
-        }
-        show(out, `<b>Claim released.</b> ${esc(money(Math.max(0, Number(j.available || 0)), current?.currency || 'NGN'))} is unencumbered again.`, 'note-gain');
-        if (current) await check(current.id);
-      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
-    }
+    // Claim status updates (aging A2): each claim's row grows a status sub-row — the aging pill,
+    // its promised date, the dated extended/unpaid chain, and the one-click Settled / Extend /
+    // Unpaid. Logic lives in claimAging.client (the claimFlow pattern); the page provides the
+    // refresh and its money format. Settled posts the existing discharge: only the financier who
+    // registered a claim succeeds — the API enforces that, since the public record never says
+    // whose claim is whose.
+    const claimAging = mountClaimAging(document.getElementById('claims') as HTMLElement, {
+      refresh: () => { if (current) check(current.id); },
+      signInHref: '/verify/login?next=/verify/desk',
+      formatAmount: (n: number) => money(n, current?.currency || 'NGN'),
+    });
 
     // ── Vocabulary, in place ────────────────────────────────────────────────
     //
@@ -1199,7 +1184,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       else if (!acked) step = { t: 'Waiting on the debtor', d: 'Nothing has come back yet. You can chase, or ask a second person there.', go: 'card-debtor' };
       else if (!claims.length) step = { t: 'Offer terms to your client', d: 'The debtor has confirmed. His acceptance is signed before any money moves.', go: 'card-offer' };
       else if (unconfirmed.length) step = { t: 'Ask your client to confirm the money arrived', d: 'Until he does, your claim is your own word that you paid him.', go: 'cs-card' };
-      else step = { t: 'Mark the claim repaid when the debtor pays', d: 'That frees the headroom, so no dead claim outlives the payment.', go: 'card-claim' };
+      else step = { t: 'Mark the claim settled when the debtor pays', d: 'That frees the headroom, so no dead claim outlives the payment. Settled, Extend and Unpaid sit on the claim’s own row above.', go: 'card-claim' };
 
       if (!step) { box.innerHTML = ''; return; }
       box.innerHTML = `

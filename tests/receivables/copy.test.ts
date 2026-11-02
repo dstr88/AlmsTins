@@ -149,6 +149,37 @@ describe('aging copy (A1)', () => {
 	});
 });
 
+describe('aging copy (A2: the lender UI)', () => {
+	it('every aging state has a hover line, and the lapsed one is the not-counted line (revival included)', () => {
+		expect(Object.keys(agingCopy.AGING_STATE_TITLES).sort()).toEqual(
+			['active', 'due_in_grace', 'lapsed', 'no_promised_date', 'past_due_not_updated', 'settled'],
+		);
+		expect(agingCopy.AGING_STATE_TITLES.lapsed).toBe(agingCopy.LAPSED_NOT_COUNTED);
+		expect(agingCopy.AGING_STATE_TITLES.lapsed).toContain('counts it again');
+	});
+
+	it('the three one-click updates are named as the plan wrote them', () => {
+		expect(agingCopy.ACTION_SETTLED).toBe('Settled');
+		expect(agingCopy.ACTION_EXTEND).toBe('Extend');
+		expect(agingCopy.ACTION_UNPAID).toBe('Unpaid');
+	});
+
+	it('the unpaid panel keeps the flag as the signal and the reasons off the public status', () => {
+		expect(agingCopy.UNPAID_BODY).toContain('The flag is the signal');
+		expect(agingCopy.UNPAID_BODY).toContain('off the public status');
+	});
+
+	it('the demo line mirrors the registry page\'s existing wording', () => {
+		expect(agingCopy.STATUS_DEMO).toBe('Demo accounts are read-only for this action.');
+	});
+
+	it('the client keep-the-ID block says what holding the ID means', () => {
+		expect(agingCopy.CLIENT_ID_HEADING).toBe('Your receivable ID');
+		expect(agingCopy.CLIENT_ID_KEEP).toMatch(/^Keep this ID\./);
+		expect(agingCopy.CLIENT_ID_KEEP).toContain('Anyone holding the ID can look the record up');
+	});
+});
+
 describe('S3 duplicate copy', () => {
 	// The registry is a voluntary record: "on record at Almstins" and "recorded as financed", never a
 	// claim that an invoice is free of other financing.

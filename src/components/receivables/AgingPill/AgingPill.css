@@ -1,0 +1,27 @@
+/* AgingPill — presentation only.
+   Markup comes from agingPill.ts (agingPillHtml). Nothing here encodes logic: every state is a
+   class the helper renders from the fixed label map. Tones are read from ../ui/tones.css, which
+   fragments.css loads first: grace reads the caution family, past due the loss family (plan A2).
+   Selectors are doubled-class, so the hosts' bare span and td rules never reach inside. */
+
+.rcv-pill.rcv-pill--aging {
+	display: inline-flex;
+	align-items: center;
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	padding: .14rem .5rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-subtle);
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-active { color: var(--rcv-gain); background: var(--rcv-gain-bg); border-color: var(--rcv-gain-border); }
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-due_in_grace { color: var(--rcv-caution); background: var(--rcv-caution-bg); border-color: var(--rcv-caution-border); }
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-past_due_not_updated { color: var(--rcv-loss); background: var(--rcv-loss-bg); border-color: var(--rcv-loss-border); }
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-no_promised_date { color: var(--text-muted); background: var(--surface-card-2); border-color: var(--border-subtle); }
+/* Lapsed is a ghost, not an alarm: the record stopped counting. The dashed border keeps it
+   apart from "no promised date" without borrowing a loud tone the state does not mean. */
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-lapsed { color: var(--text-muted); background: var(--surface-card-2); border-color: var(--border-bright); border-style: dashed; }
+.rcv-pill.rcv-pill--aging.rcv-pill--ag-settled { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
