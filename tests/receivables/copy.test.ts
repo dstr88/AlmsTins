@@ -265,9 +265,12 @@ describe('aging-notice copy (A4 / D8)', () => {
 		expect(noticesCopy.NOTICE_FACTS_DATED).toBe('{amount}, payment promised {promised}');
 	});
 
-	it('the final reminders say they are final; the client lines stay actor-voiced', () => {
-		expect(noticesCopy.NOTICE_LENDER_DAY20).toContain('last reminder');
-		expect(noticesCopy.NOTICE_CLIENT_DAY20).toContain('last reminder');
+	it('day 20 is the last payment-date reminder, never the last word: the lapse notices still follow', () => {
+		for (const line of [noticesCopy.NOTICE_LENDER_DAY20, noticesCopy.NOTICE_CLIENT_DAY20]) {
+			expect(line).toContain('last reminder about its payment date');
+			expect(line).not.toContain('last reminder about this claim');
+			expect(line).toContain('you will hear again');
+		}
 		expect(noticesCopy.NOTICE_LENDER_DAY15).not.toContain('last reminder');
 		for (const line of [noticesCopy.NOTICE_CLIENT_DAY15, noticesCopy.NOTICE_CLIENT_DAY20]) {
 			expect(line).toMatch(/not been updated by its lender/);
