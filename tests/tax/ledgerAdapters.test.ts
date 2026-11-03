@@ -395,6 +395,30 @@ describe('pipelineToLedger', () => {
 		expect(none.events.some((e) => e.kind === 'move')).toBe(false);
 	});
 
+	it("a synced chain's own coin is that chain's symbol, so it pairs with the exchange side and never pools across chains", () => {
+		const input = {
+			importRows: [irow({ id: 'send', timestamp_utc: '2023-02-01T00:00:00Z', asset_symbol: 'POL', direction: 'out' as const, kind: 'Send', native_usd: 9 })],
+			onchainRows: [orow({ id: 'arrive', timestamp: '2023-02-01T00:10:00Z', token_symbol: 'native', chain: 'polygon', value: '1000000000000000000', usd_value: 9 })],
+			ownerIndex: noOwners,
+			wallets: walletMap,
+		};
+		const { events } = pipelineToLedger({ ...input, classifications: cls([['import:send', 'transfer', { linkedTxId: 'arrive' }], ['onchain:arrive', 'transfer', { linkedTxId: 'send' }]]) });
+		expect(events.find((e) => e.kind === 'move')).toMatchObject({ asset: 'POL' });
+		expect(events.some((e) => 'asset' in e && e.asset === 'NATIVE')).toBe(false);
+
+		const buys = pipelineToLedger({
+			importRows: [],
+			onchainRows: [
+				orow({ id: 'eth', timestamp: '2023-03-01T00:00:00Z', token_symbol: 'native', chain: 'ethereum', usd_value: 1 }),
+				orow({ id: 'avax', timestamp: '2023-03-01T00:00:00Z', token_symbol: 'native', chain: 'avalanche', usd_value: 1 }),
+			],
+			classifications: cls([['onchain:eth', 'buy'], ['onchain:avax', 'buy']]),
+			ownerIndex: noOwners,
+			wallets: walletMap,
+		});
+		expect(buys.events.map((e) => 'asset' in e ? e.asset : '')).toEqual(['ETH', 'AVAX']);
+	});
+
 	it('an on-chain row between two tracked wallets that nothing classified is a move', () => {
 		const { events } = pipelineToLedger({
 			importRows: [],

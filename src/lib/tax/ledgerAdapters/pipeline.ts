@@ -25,7 +25,7 @@
 import { buildOwnedIndex, walletOfRow, type WalletEntry, type WalletOfRowContext } from '../walletOfRow';
 import { isChainSource, normalizeWalletAddress } from '../../walletKey';
 import { isXprReviewKind } from '../../xpr/systemAccounts';
-import { normalizeAmount } from '../normalize';
+import { normalizeAmount, normalizeAsset } from '../normalize';
 import type { OwnerIndex } from '../../walletIdentity';
 import type { ClassificationResult, RawImportTx, RawOnchainTx } from '../../yearEnd/types';
 import type { AcquireOrigin, LedgerEvent, ManualBasis } from '../lotLedger';
@@ -159,7 +159,8 @@ export function pipelineToLedger(input: PipelineAdapterInput): PipelineAdapterOu
 	for (const row of input.onchainRows) {
 		const key = `onchain:${row.id}`;
 		const cat = category(key);
-		const symbol = row.token_symbol ? row.token_symbol.toUpperCase() : '';
+		// The sync stores a chain's own coin as 'native'; only the chain says which coin that is.
+		const symbol = row.token_symbol ? normalizeAsset(row.token_symbol, row.chain) : '';
 		if (!symbol) continue;
 		const qty = onchainQuantity(row);
 		if (!qty) continue;
