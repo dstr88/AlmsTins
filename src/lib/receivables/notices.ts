@@ -12,7 +12,7 @@
  *              email never says more than the record shows.
  *   day 15     BOTH — lender: the record reads past due, not updated; client: the actor-voiced
  *              freshness line, with a link to check the record.
- *   day 20     BOTH — final; says it is the last reminder.
+ *   day 20     BOTH — the last payment-date reminder; says the lapse notices still follow.
  *   lapse−14d  LENDER only — measured on the OTHER clock, owner silence (lastOwnerTouch): the
  *              claim lapses on <date> and is then no longer counted.
  *   at lapse   BOTH — lapsed, record not maintained; one dated update counts it again.

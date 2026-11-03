@@ -39,7 +39,7 @@ export const NOTICE_LENDER_DAY9 =
 export const NOTICE_LENDER_DAY15 =
 	'Your claim against {deal} reads past due, not updated. Anyone checking the record sees that freshness.';
 export const NOTICE_LENDER_DAY20 =
-	'Your claim against {deal} still reads past due, not updated. This is the last reminder about this claim: one click on your desk records it settled, extended, or unpaid.';
+	'Your claim against {deal} still reads past due, not updated. This is the last reminder about its payment date: one click on your desk records it settled, extended, or unpaid. If it stays unchanged, you will hear again before it lapses.';
 export const NOTICE_LENDER_LAPSE_WARN =
 	'Your claim against {deal} has had no dated update from you since {touched}. It lapses on {lapse} and is then no longer counted in the financing answer. One dated update keeps it counted.';
 export const NOTICE_LENDER_LAPSED =
@@ -50,7 +50,7 @@ export const NOTICE_LENDER_LAPSED =
 export const NOTICE_CLIENT_DAY15 =
 	'The claim recorded {recorded} against your invoice {invoice} ({facts}) has not been updated by its lender in {days} days.';
 export const NOTICE_CLIENT_DAY20 =
-	'The claim recorded {recorded} against your invoice {invoice} ({facts}) has not been updated by its lender in {days} days. This is the last reminder about this claim.';
+	'The claim recorded {recorded} against your invoice {invoice} ({facts}) has not been updated by its lender in {days} days. This is the last reminder about its payment date. If it stays unchanged, you will hear again if it lapses.';
 export const NOTICE_CLIENT_LAPSED =
 	'The claim recorded {recorded} against your invoice {invoice} ({facts}) is lapsed — record not maintained — and is no longer counted in the financing answer.';
 
