@@ -4,5 +4,6 @@
  * under the new one. v2: transfers between a tenant's own wallets are moves, not sales.
  * v3: sales from 2025-01-01 draw on the wallet or account they were made from (tenants in the rollout).
  * v4: in those wallets a sale uses the lot identification in force at its time, else earliest acquired.
+ * v5: a synced chain's own coin is its symbol (ETH, POL, AVAX) in the pipeline engine, not 'NATIVE'.
  */
-export const TAX_CACHE_VERSION = 'v4';
+export const TAX_CACHE_VERSION = 'v5';
