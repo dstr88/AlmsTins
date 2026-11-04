@@ -617,6 +617,11 @@ const utcText = (s: string) => s.replace(' UTC','Z').replace(' ','T');
 const fmtDT = s => (s ? `${formatDate(utcText(s), LANG)} · ${formatTime(utcText(s), LANG, { padHour: true })}` : '');
 const fmtDate = s => (s ? formatDate(utcText(s), LANG) : '');
 
+// A value placed inside a '...' JS string in an inline onclick. The browser decodes
+// entities before the handler runs, so escapeHtml alone can't stop a quote breakout:
+// strip quotes and backslashes first, then escape for the attribute.
+const jsArg = (v: unknown) => escapeHtml(String(v ?? '').replace(/['"\\]/g, ''));
+
 const srcName = s => ({
   coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
   kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood',
@@ -751,15 +756,14 @@ function renderNeedsAttention(data) {
   if (data.suggested?.length) {
     html += '<div class="section-label">' + i18n('suggestedMatches', 'Suggested matches') + '</div>';
     for (const m of data.suggested) {
-      const safeM = JSON.stringify(m).replace(/'/g,"&#39;");
-      html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${safeM}'>
+      html += `<div class="suggest-item" data-match-id="${escapeHtml(m.match_id)}" data-match="${escapeHtml(JSON.stringify(m))}">
         <div class="suggest-top">
-          <span class="suggest-sym">${m.asset_symbol}</span>
-          <span class="suggest-score">confidence ${m.confidence_score}</span>
+          <span class="suggest-sym">${escapeHtml(m.asset_symbol)}</span>
+          <span class="suggest-score">confidence ${escapeHtml(m.confidence_score)}</span>
         </div>
-        <div class="suggest-flow">${srcName(m.out_source)}${m.out_account_name ? ' · ' + m.out_account_name : ''} → ${srcName(m.in_source)}${m.in_account_name ? ' · ' + m.in_account_name : ''}</div>
-        <div class="suggest-dates">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
-        <div class="suggest-amt">Sent ${fmt(m.out_amount)} · Received ${fmt(m.in_amount)}${m.fee_amount ? ' · Fee ' + fmt(m.fee_amount) : ''}</div>
+        <div class="suggest-flow">${escapeHtml(srcName(m.out_source))}${m.out_account_name ? ' · ' + escapeHtml(m.out_account_name) : ''} → ${escapeHtml(srcName(m.in_source))}${m.in_account_name ? ' · ' + escapeHtml(m.in_account_name) : ''}</div>
+        <div class="suggest-dates">${escapeHtml(fmtDate(m.out_ts))} → ${escapeHtml(fmtDate(m.in_ts))}</div>
+        <div class="suggest-amt">Sent ${escapeHtml(fmt(m.out_amount))} · Received ${escapeHtml(fmt(m.in_amount))}${m.fee_amount ? ' · Fee ' + escapeHtml(fmt(m.fee_amount)) : ''}</div>
       </div>`;
     }
   }
@@ -776,73 +780,73 @@ function renderNeedsAttention(data) {
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
       const hint    = dir === 'out' ? i18n('clickToFindLanded', 'Click to find where this landed →') : i18n('clickToFindSource', 'Click to find where this came from →');
       const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
-      const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-      const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
+      const catLabel = t.category ? `<span class="category-badge">${escapeHtml(t.category)}</span>` : '';
+      const noteText = t.notes   ? `<span class="tx-note-text">${escapeHtml(t.notes)}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
       const reasonTag = naReasonTag(t, dir);
-      html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
+      html += `<div class="tx-card na-item dir-${escapeHtml(dirClass)}" data-sym="${escapeHtml(t.asset_symbol)}" data-dir="${escapeHtml(dir)}" data-id="${escapeHtml(t.id)}" data-ts="${escapeHtml(t.timestamp_utc)}" data-src="${escapeHtml(src)}" data-amount="${escapeHtml(absAmt)}" data-usd="${escapeHtml(t.native_usd)}">
         <div class="tx-badge-col">
-          <span class="tx-dir ${dirClass}">${dirLabel}</span>
-          <span class="na-reason na-reason--${reasonTag.cls}">${reasonTag.label}</span>
+          <span class="tx-dir ${escapeHtml(dirClass)}">${escapeHtml(dirLabel)}</span>
+          <span class="na-reason na-reason--${escapeHtml(reasonTag.cls)}">${escapeHtml(reasonTag.label)}</span>
         </div>
         <div class="tx-body">
           <div class="tx-row-1">
-            <span class="tx-sym">${t.asset_symbol}</span>
-            <span class="tx-amt">${amt} ${t.asset_symbol}</span>
+            <span class="tx-sym">${escapeHtml(t.asset_symbol)}</span>
+            <span class="tx-amt">${escapeHtml(amt)} ${escapeHtml(t.asset_symbol)}</span>
           </div>
           <div class="tx-row-2">
-            <span class="tx-src-badge">${src}</span>
-            ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+            <span class="tx-src-badge">${escapeHtml(src)}</span>
+            ${t.native_usd ? `<span class="tx-usd">${escapeHtml(fmtUsd(t.native_usd))}</span>` : ''}
           </div>
           <div class="tx-row-3">
-            <span class="tx-hint">${hint}</span>
-            <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
+            <span class="tx-hint">${escapeHtml(hint)}</span>
+            <span class="tx-dt">${escapeHtml(fmtDT(t.timestamp_utc))}</span>
           </div>
           ${hasAnnotation ? `<div class="tx-annotation-row">${catLabel}${noteText}</div>` : ''}
           <div class="card-actions">
             ${dir === 'out' ? `
             <button class="btn-dispose${hasAnnotation ? ' has-note' : ''}"
-                    data-tx-id="${t.id}"
-                    data-category="${t.category ?? ''}"
-                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    data-tx-id="${escapeHtml(t.id)}"
+                    data-category="${escapeHtml(t.category)}"
+                    data-note="${escapeHtml(t.notes)}"
                     onclick="openDisposeForm(event, this)">
               ${hasAnnotation ? i18n('editDisposal', 'Edit disposal') : i18n('dispose', 'Dispose')}
             </button>
             ${t.category !== 'own_wallet' ? `
             <button class="btn-transfer"
-                    data-tx-id="${t.id}"
+                    data-tx-id="${escapeHtml(t.id)}"
                     onclick="openForwardForm(event, this)">
               ${i18n('forward', '↗ Forward')}
             </button>` : ''}
             ` : `
             <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
-                    data-tx-id="${t.id}"
-                    data-category="${t.category ?? ''}"
-                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    data-tx-id="${escapeHtml(t.id)}"
+                    data-category="${escapeHtml(t.category)}"
+                    data-note="${escapeHtml(t.notes)}"
                     onclick="openAnnotateForm(event, this)">
               ${hasAnnotation ? i18n('editNote', 'Edit note') : i18n('addNote', 'Add note')}
             </button>
             ${t.category !== 'legacy_exchange' ? `
             <button class="btn-legacy"
-                    onclick="markLegacy(event, '${t.id}')">
+                    onclick="markLegacy(event, '${jsArg(t.id)}')">
               ${i18n('legacyExchange', 'Legacy exchange')}
             </button>` : ''}`}
             <button class="btn-attach"
-                    onclick="attachReceipt(event,'${t.id}')">
+                    onclick="attachReceipt(event,'${jsArg(t.id)}')">
               ${i18n('attach', 'Attach')}
             </button>
             <button class="btn-context-pill"
                     onclick="event.stopPropagation();openWizard()"
                     title="${i18n('aboutTxHistory', 'About my transaction history')}"></button>
             <button class="btn-help"
-                    data-tx-id="${t.id}"
-                    onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
+                    data-tx-id="${escapeHtml(t.id)}"
+                    onclick="openHelpPanel(event,'${jsArg(t.id)}','${jsArg(t.kind)}','${jsArg(dir)}','${jsArg(t.asset_symbol)}','${jsArg(String(t.description ?? '').slice(0,80))}','${jsArg(srcName(t.source))}')">
               ${i18n('helpBtn', '? Help')}
             </button>
           </div>
-          <div class="att-panel" id="atp-${t.id}"></div>
-          <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
-          <div class="help-panel" id="hp-${t.id}" style="display:none"></div>
+          <div class="att-panel" id="atp-${escapeHtml(t.id)}"></div>
+          <div class="annotate-form" id="af-${escapeHtml(t.id)}" style="display:none"></div>
+          <div class="help-panel" id="hp-${escapeHtml(t.id)}" style="display:none"></div>
         </div>
       </div>`;
     }
@@ -892,7 +896,7 @@ function renderNeedsAttention(data) {
     el.addEventListener('click', () => {
       const raw = el.getAttribute('data-match');
       if (!raw) return;
-      openMatchModal(JSON.parse(raw.replace(/&#39;/g,"'")));
+      openMatchModal(JSON.parse(raw));
     });
   });
 
@@ -911,11 +915,11 @@ function renderNeedsAttention(data) {
       const autoLabel = r.status === 'auto' ? i18n('resolvedAuto', 'auto') : i18n('resolvedConfirmed', '✓ confirmed');
       rHtml += `<div class="resolved-item">
         <div class="resolved-top">
-          <span class="resolved-sym">${r.asset_symbol}</span>
-          <span class="resolved-badge">${autoLabel}</span>
+          <span class="resolved-sym">${escapeHtml(r.asset_symbol)}</span>
+          <span class="resolved-badge">${escapeHtml(autoLabel)}</span>
         </div>
-        <div class="resolved-flow">${srcName(r.out_source)}${r.out_account_name ? ' · ' + r.out_account_name : ''} → ${srcName(r.in_source)}${r.in_account_name ? ' · ' + r.in_account_name : ''}</div>
-        <div class="resolved-meta">${fmtDate(r.out_ts)} → ${fmtDate(r.in_ts)} &nbsp;·&nbsp; ${fmt(r.out_amount)} → ${fmt(r.in_amount)}</div>
+        <div class="resolved-flow">${escapeHtml(srcName(r.out_source))}${r.out_account_name ? ' · ' + escapeHtml(r.out_account_name) : ''} → ${escapeHtml(srcName(r.in_source))}${r.in_account_name ? ' · ' + escapeHtml(r.in_account_name) : ''}</div>
+        <div class="resolved-meta">${escapeHtml(fmtDate(r.out_ts))} → ${escapeHtml(fmtDate(r.in_ts))} &nbsp;·&nbsp; ${escapeHtml(fmt(r.out_amount))} → ${escapeHtml(fmt(r.in_amount))}</div>
       </div>`;
     }
     rList.innerHTML = rHtml;
@@ -1399,13 +1403,13 @@ $('btn-backfill').addEventListener('click', async () => {
 function openMatchModal(match) {
   pendingMatch = match;
   $('match-modal-body').innerHTML = `<div class="match-detail">
-    <strong>${match.asset_symbol}</strong> transfer<br>
-    <strong>${i18n('fromLabel','From:')}</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
-    <strong>To:</strong> ${srcName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''}<br>
-    <strong>${i18n('sent','Sent')}:</strong> ${fmtDT(match.out_ts)}<br>
-    <strong>${i18n('received','Received')}:</strong> ${fmtDT(match.in_ts)}<br>
-    <strong>${i18n('sent','Sent')}:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
-    <strong>Confidence score:</strong> ${match.confidence_score}
+    <strong>${escapeHtml(match.asset_symbol)}</strong> transfer<br>
+    <strong>${i18n('fromLabel','From:')}</strong> ${escapeHtml(srcName(match.out_source))}${match.out_account_name ? ' · ' + escapeHtml(match.out_account_name) : ''}<br>
+    <strong>To:</strong> ${escapeHtml(srcName(match.in_source))}${match.in_account_name ? ' · ' + escapeHtml(match.in_account_name) : ''}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${escapeHtml(fmtDT(match.out_ts))}<br>
+    <strong>${i18n('received','Received')}:</strong> ${escapeHtml(fmtDT(match.in_ts))}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${escapeHtml(fmt(match.out_amount))} &nbsp; <strong>Amount in:</strong> ${escapeHtml(fmt(match.in_amount))}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${escapeHtml(fmt(match.fee_amount))}` : ''}<br>
+    <strong>Confidence score:</strong> ${escapeHtml(match.confidence_score)}
   </div>`;
   openDialog(dialog('match-modal'));
 }
@@ -1540,7 +1544,7 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
   const walletOptions = walletItems.map(el => {
     const label = el.getAttribute('data-wallet-label') ?? '';
     const addr  = el.getAttribute('data-wallet-address') ?? '';
-    return `<option value="${label}">${label}${addr ? '  (' + shortenAddress(addr) + ')' : ''}</option>`;
+    return `<option value="${escapeHtml(label)}">${escapeHtml(label)}${addr ? '  (' + escapeHtml(shortenAddress(addr)) + ')' : ''}</option>`;
   }).join('');
 
   const disposeOptions = DISPOSAL_TYPES_ONLY.map(d =>
@@ -1548,20 +1552,20 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
   ).join('');
 
   panel.innerHTML = `
-    <div class="nap-from">${i18n('fromLabel','From:')} ${src}</div>
-    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
+    <div class="nap-from">${i18n('fromLabel','From:')} ${escapeHtml(src)}</div>
+    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${escapeHtml(amt)} &nbsp;·&nbsp; ${escapeHtml(sym)}</div>
     ${dir === 'out' ? `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('dispose','Dispose')}</button>
-      <button class="nap-btn-forward" onclick="napShowForward('${txId}')">${i18n('forward','↗ Forward')}</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${jsArg(txId)}')">${i18n('dispose','Dispose')}</button>
+      <button class="nap-btn-forward" onclick="napShowForward('${jsArg(txId)}')">${i18n('forward','↗ Forward')}</button>
     </div>
-    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    <div class="nap-form" id="nap-form-${escapeHtml(txId)}" style="display:none"></div>
     ` : `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('addNote','Add note')}</button>
-      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">${i18n('legacyExchange','Legacy exchange')}</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${jsArg(txId)}')">${i18n('addNote','Add note')}</button>
+      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${jsArg(txId)}')">${i18n('legacyExchange','Legacy exchange')}</button>
     </div>
-    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    <div class="nap-form" id="nap-form-${escapeHtml(txId)}" style="display:none"></div>
     `}`;
 
   // store for use by napShow* functions
@@ -1579,7 +1583,7 @@ function napShowDispose(txId) {
   form.style.display = 'flex';
   form.innerHTML = `
     <select id="nap-cat-${txId}">${panel._disposeOpts}</select>
-    <input  id="nap-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${panel._note ?? ''}" />
+    <input  id="nap-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${escapeHtml(panel._note)}" />
     <div class="nap-form-row">
       <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
@@ -1688,7 +1692,7 @@ function openForwardForm(e, btn) {
   const walletOptions = walletItems.map(el => {
     const label = el.getAttribute('data-wallet-label') ?? '';
     const addr  = el.getAttribute('data-wallet-address') ?? '';
-    return `<option value="${label}">${label}${addr ? '  (' + shortenAddress(addr) + ')' : ''}</option>`;
+    return `<option value="${escapeHtml(label)}">${escapeHtml(label)}${addr ? '  (' + escapeHtml(shortenAddress(addr)) + ')' : ''}</option>`;
   }).join('');
 
   formEl.innerHTML = `
@@ -1915,7 +1919,7 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
 
   const explanation = KIND_EXPLANATIONS[kind] || (kind
-    ? `Transaction type: "${kind}"`
+    ? `Transaction type: "${escapeHtml(kind)}"`
     : `No transaction type recorded.`);
 
   const quickBtns = dir === 'out' ? `
@@ -1930,7 +1934,7 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
   el.innerHTML = `
     <div class="help-panel-title">${i18n('helpTitle','Help me understand this')}</div>
     <div class="help-kind-line">${explanation}</div>
-    ${desc ? `<div class="help-desc">"${desc}"</div>` : ''}
+    ${desc ? `<div class="help-desc">"${escapeHtml(desc)}"</div>` : ''}
     <div class="help-quick-label">${i18n('whatDoesRepresent','What does this represent?')}</div>
     <div class="help-quick-row">${quickBtns}</div>
     <div class="help-note-row">
