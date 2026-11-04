@@ -1092,7 +1092,7 @@ function renderResults(data) {
   let lastSym = null;
   for (const t of rows) {
     if (t.asset_symbol !== lastSym) {
-      html += `<div class="results-group-header">${t.asset_symbol ?? '—'}</div>`;
+      html += `<div class="results-group-header">${escapeHtml(t.asset_symbol ?? '—')}</div>`;
       lastSym = t.asset_symbol;
     }
     const dir         = (t.direction ?? '').toLowerCase();
@@ -1115,42 +1115,42 @@ function renderResults(data) {
       ? `−${fmt(Math.abs(qty ?? 0))}`
       : `+${fmt(qty ?? 0)}`;
 
-    const srcLine      = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+    const srcLine      = `${escapeHtml(srcName(t.source))}${t.account_name ? ' · ' + escapeHtml(t.account_name) : ''}`;
     const hasAnnotation = !!(t.category || t.notes);
-    const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-    const noteText      = t.notes    ? `<span class="tx-note-text">${t.notes}</span>` : '';
+    const catLabel      = t.category ? `<span class="category-badge">${escapeHtml(t.category)}</span>` : '';
+    const noteText      = t.notes    ? `<span class="tx-note-text">${escapeHtml(t.notes)}</span>` : '';
 
-    html += `<div class="tx-card result-card dir-${dirClass}" data-id="${t.id}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-ts="${t.timestamp_utc}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
-      <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
+    html += `<div class="tx-card result-card dir-${escapeHtml(dirClass)}" data-id="${escapeHtml(t.id)}" data-sym="${escapeHtml(t.asset_symbol)}" data-dir="${escapeHtml(dir)}" data-ts="${escapeHtml(t.timestamp_utc)}" data-amount="${escapeHtml(Math.abs(Number(t.amount)))}" data-usd="${escapeHtml(t.native_usd)}">
+      <div class="tx-badge-col"><span class="tx-dir ${escapeHtml(dirClass)}">${escapeHtml(dirLabel)}</span></div>
       <div class="tx-body">
         <div class="tx-row-1">
-          <span class="tx-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
-          <span class="tx-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
+          <span class="tx-sym">${escapeHtml(t.asset_symbol ?? '?')}</span>${matchBadge}
+          <span class="tx-amt">${escapeHtml(amtDisplay)} ${escapeHtml(t.asset_symbol)}</span>
         </div>
         <div class="tx-row-2">
           <span class="tx-src">${srcLine}${label}</span>
-          ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+          ${t.native_usd ? `<span class="tx-usd">${escapeHtml(fmtUsd(t.native_usd))}</span>` : ''}
         </div>
         <div class="tx-row-3">
-          <span class="tx-desc">${t.description ?? ''}</span>
-          <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
+          <span class="tx-desc">${escapeHtml(t.description)}</span>
+          <span class="tx-dt">${escapeHtml(fmtDT(t.timestamp_utc))}</span>
         </div>
         ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
         <div class="card-actions">
           <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
-                  data-tx-id="${t.id}"
-                  data-category="${t.category ?? ''}"
-                  data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                  data-tx-id="${escapeHtml(t.id)}"
+                  data-category="${escapeHtml(t.category)}"
+                  data-note="${escapeHtml(t.notes)}"
                   onclick="openResultAnnotateForm(event, this)">
             ${hasAnnotation ? i18n('editNote','Edit note') : i18n('addNote','Add note')}
           </button>
           <button class="btn-attach"
-                  onclick="attachReceipt(event,'${t.id}')">
+                  onclick="attachReceipt(event,'${jsArg(t.id)}')">
             ${i18n('attach','Attach')}
           </button>
         </div>
-        <div class="att-panel" id="atp-${t.id}"></div>
-        <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
+        <div class="att-panel" id="atp-${escapeHtml(t.id)}"></div>
+        <div class="annotate-form" id="af-${escapeHtml(t.id)}" style="display:none"></div>
       </div>
     </div>`;
   }
@@ -1464,11 +1464,11 @@ function openAnnotateForm(e, btn) {
   ).join('');
 
   formEl.innerHTML = `
-    <select id="af-cat-${txId}">${options}</select>
+    <select id="af-cat-${escapeHtml(txId)}">${options}</select>
     <div class="annotate-form-row">
-      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
-      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+      <input id="af-note-${escapeHtml(txId)}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${escapeHtml(curNote)}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${jsArg(txId)}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${jsArg(txId)}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
 }
@@ -1668,12 +1668,12 @@ function openDisposeForm(e, btn) {
   ).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcName}</div>
-    <select id="af-cat-${txId}">${options}</select>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${escapeHtml(srcName)}</div>
+    <select id="af-cat-${escapeHtml(txId)}">${options}</select>
     <div class="annotate-form-row">
-      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
-      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+      <input id="af-note-${escapeHtml(txId)}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${escapeHtml(curNote)}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${jsArg(txId)}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${jsArg(txId)}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
 }
@@ -1696,18 +1696,18 @@ function openForwardForm(e, btn) {
   }).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcTin}</div>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${escapeHtml(srcTin)}</div>
     <div class="form-hint-mb">${i18n('forwardedTo','Forwarded to…')}</div>
-    ${walletOptions ? `<select id="af-twallet-${txId}">
+    ${walletOptions ? `<select id="af-twallet-${escapeHtml(txId)}">
       <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
       ${walletOptions}
     </select>` : ''}
-    <input id="af-taddr-${txId}" type="text" placeholder="${i18n('orTypeExchangeLabel','Or type an exchange / address / label…')}" />
-    <input id="af-tnote-${txId}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
+    <input id="af-taddr-${escapeHtml(txId)}" type="text" placeholder="${i18n('orTypeExchangeLabel','Or type an exchange / address / label…')}" />
+    <input id="af-tnote-${escapeHtml(txId)}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
     <div class="annotate-form-row">
-      <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
-      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
-      <span id="af-tstatus-${txId}" class="form-status"></span>
+      <button class="btn-annotate-save" onclick="saveTransfer(event,'${jsArg(txId)}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${jsArg(txId)}').style.display='none'">✕</button>
+      <span id="af-tstatus-${escapeHtml(txId)}" class="form-status"></span>
     </div>`;
   formEl.style.display = 'flex';
 }
@@ -1754,11 +1754,11 @@ function openResultAnnotateForm(e, btn) {
   ).join('');
 
   formEl.innerHTML = `
-    <select id="af-cat-${txId}">${options}</select>
+    <select id="af-cat-${escapeHtml(txId)}">${options}</select>
     <div class="annotate-form-row">
-      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
-      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+      <input id="af-note-${escapeHtml(txId)}" type="text" placeholder="Add a note…" value="${escapeHtml(curNote)}" />
+      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${jsArg(txId)}')">${i18n('save','Save')}</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${jsArg(txId)}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
 }
@@ -2007,11 +2007,11 @@ function renderHealthCheck(d) {
     const years = sources.map(r => {
       const e = String(r.earliest ?? '').slice(0, 4);
       const l = String(r.latest   ?? '').slice(0, 4);
-      return `${r.source}: ${e}–${l}`;
+      return `${escapeHtml(r.source)}: ${escapeHtml(e)}–${escapeHtml(l)}`;
     });
     cards.push({
       title:   i18n('hcImportCoverage','Import Coverage'),
-      body:    i18n('hcSources','__N__ source__S__').replace('__N__',sources.length).replace('__S__',sources.length !== 1 ? 's' : ''),
+      body:    i18n('hcSources','__N__ source__S__').replace('__N__',escapeHtml(sources.length)).replace('__S__',sources.length !== 1 ? 's' : ''),
       detail:  years.slice(0, 4).join('<br>') + (years.length > 4 ? '<br>+more' : ''),
       status:  'ok',
     });
@@ -2023,8 +2023,8 @@ function renderHealthCheck(d) {
     const noHash = Number(pre.no_hash ?? 0);
     cards.push({
       title:  i18n('hcPre2019','Pre-2019 Records'),
-      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',pre.total),
-      detail: i18n('hcNoHash','__N__ without tx hash').replace('__N__',noHash) + ' · ' + i18n('hcExposed','__V__ exposed').replace('__V__',fmtV(Number(pre.value_usd ?? 0))),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',escapeHtml(pre.total)),
+      detail: i18n('hcNoHash','__N__ without tx hash').replace('__N__',escapeHtml(noHash)) + ' · ' + i18n('hcExposed','__V__ exposed').replace('__V__',escapeHtml(fmtV(Number(pre.value_usd ?? 0)))),
       status: noHash > 0 ? 'warn' : 'ok',
     });
   }
@@ -2033,11 +2033,11 @@ function renderHealthCheck(d) {
   const nonEvm = (d.nonEvm ?? []).filter(r => Number(r.cnt) > 0);
   if (nonEvm.length) {
     const total = nonEvm.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
-    const top   = nonEvm.slice(0, 3).map(r => `${r.asset_symbol} (${r.cnt})`).join(', ');
+    const top   = nonEvm.slice(0, 3).map(r => `${escapeHtml(r.asset_symbol)} (${escapeHtml(r.cnt)})`).join(', ');
     cards.push({
       title:  i18n('hcNonEvm','Non-EVM Unresolved'),
-      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',nonEvm.length).replace('__S__',nonEvm.length !== 1 ? 's' : ''),
-      detail: top + (nonEvm.length > 3 ? ', ' + i18n('hcMore','+more') : '') + '<br>' + i18n('hcTotal','__V__ total').replace('__V__',fmtV(total)),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',escapeHtml(nonEvm.length)).replace('__S__',nonEvm.length !== 1 ? 's' : ''),
+      detail: top + (nonEvm.length > 3 ? ', ' + i18n('hcMore','+more') : '') + '<br>' + i18n('hcTotal','__V__ total').replace('__V__',escapeHtml(fmtV(total))),
       status: total > 5000 ? 'warn' : 'info',
     });
   }
@@ -2046,8 +2046,8 @@ function renderHealthCheck(d) {
   if (Number(d.p2p?.cnt) > 0) {
     cards.push({
       title:  i18n('hcP2p','P2P Phone Transfers'),
-      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.p2p.cnt),
-      detail: fmtV(Number(d.p2p.value_usd ?? 0)) + ' · ' + i18n('hcNeedManual','Need manual categorization'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',escapeHtml(d.p2p.cnt)),
+      detail: escapeHtml(fmtV(Number(d.p2p.value_usd ?? 0))) + ' · ' + i18n('hcNeedManual','Need manual categorization'),
       status: 'info',
     });
   }
@@ -2058,8 +2058,8 @@ function renderHealthCheck(d) {
     const total = gaps.reduce((s, r) => s + Number(r.cnt ?? 0), 0);
     cards.push({
       title:  i18n('hcMissingPrices','Missing Prices'),
-      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',total),
-      detail: gaps.map(r => `${r.source}: ${r.cnt}`).slice(0, 4).join('<br>'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',escapeHtml(total)),
+      detail: gaps.map(r => `${escapeHtml(r.source)}: ${escapeHtml(r.cnt)}`).slice(0, 4).join('<br>'),
       status: 'warn',
     });
   }
@@ -2070,8 +2070,8 @@ function renderHealthCheck(d) {
     const total = orphans.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
     cards.push({
       title:  i18n('hcOrphanedIns','Unexplained Receipts'),
-      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',orphans.length).replace('__S__',orphans.length !== 1 ? 's' : '') + ' · ' + fmtV(total),
-      detail: orphans.slice(0, 4).map(r => `${r.asset_symbol} ${fmtV(Number(r.value_usd))}`).join('<br>'),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',escapeHtml(orphans.length)).replace('__S__',orphans.length !== 1 ? 's' : '') + ' · ' + escapeHtml(fmtV(total)),
+      detail: orphans.slice(0, 4).map(r => `${escapeHtml(r.asset_symbol)} ${escapeHtml(fmtV(Number(r.value_usd)))}`).join('<br>'),
       status: 'warn',
     });
   }
@@ -2080,7 +2080,7 @@ function renderHealthCheck(d) {
   if (d.failedExchanges?.length) {
     cards.push({
       title:  i18n('hcFailedExchange','Failed Exchange Data'),
-      body:   d.failedExchanges.map(ex => ex.name).join(', '),
+      body:   d.failedExchanges.map(ex => escapeHtml(ex.name)).join(', '),
       detail: i18n('hcFailedExchangeDetail','Records imported from failed platforms — verify loss claims and write-offs'),
       status: 'warn',
     });
@@ -2093,11 +2093,11 @@ function renderHealthCheck(d) {
       const implied = Number(r.implied_price ?? 0);
       const max     = Number(r.max_price ?? 0);
       const ratio   = max > 0 ? Math.round(max / implied) : 0;
-      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
+      return `${escapeHtml(r.asset_symbol)} · ${escapeHtml(fmtUsd(r.native_usd))} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
     }).join('<br>');
     cards.push({
       title:  i18n('hcSuspectPrice','Suspect Price Data'),
-      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',suspPrices.length),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',escapeHtml(suspPrices.length)),
       detail: sample + '<br><span class="health-card-footnote">' + i18n('hcCostBasisUnderstated','Cost basis may be understated') + '</span>',
       status: 'warn',
     });
@@ -2110,21 +2110,21 @@ function renderHealthCheck(d) {
     const rows = missingBasis.slice(0, 6).map(r => {
       const val   = fmtUsd(r.snapValueUsd);
       const qty   = Number(r.snapQty ?? 0);
-      let line = '<strong>' + r.symbol + '</strong> · ' + val + ' ' + i18n('hcCurrentBalance','current balance');
+      let line = '<strong>' + escapeHtml(r.symbol) + '</strong> · ' + escapeHtml(val) + ' ' + i18n('hcCurrentBalance','current balance');
       if (r.estimatedPrice != null) {
         const estTotal = fmtUsd(r.estimatedTotal ?? r.estimatedPrice * qty);
         const estPer   = fmtUsd(r.estimatedPrice);
         const dateStr  = r.earliestDate ? r.earliestDate.slice(0, 10) : '';
-        line += '<br><span class="health-card-footnote">' + i18n('hcEstCostBasis','Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only').replace('__T__',estTotal).replace('__P__',estPer).replace('__D__',dateStr) + '</span>';
+        line += '<br><span class="health-card-footnote">' + i18n('hcEstCostBasis','Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only').replace('__T__',escapeHtml(estTotal)).replace('__P__',escapeHtml(estPer)).replace('__D__',escapeHtml(dateStr)) + '</span>';
       } else if (r.earliestDate) {
-        line += '<br><span class="health-card-footnote">' + i18n('hcFirstSeen','First seen __D__ · no price available').replace('__D__',r.earliestDate.slice(0,10)) + '</span>';
+        line += '<br><span class="health-card-footnote">' + i18n('hcFirstSeen','First seen __D__ · no price available').replace('__D__',escapeHtml(r.earliestDate.slice(0,10))) + '</span>';
       }
       return line;
     });
-    if (missingBasis.length > 6) rows.push('<span class="health-card-footnote">' + i18n('hcAndMore','…and __N__ more').replace('__N__',missingBasis.length - 6) + '</span>');
+    if (missingBasis.length > 6) rows.push('<span class="health-card-footnote">' + i18n('hcAndMore','…and __N__ more').replace('__N__',escapeHtml(missingBasis.length - 6)) + '</span>');
     cards.push({
       title:  i18n('hcMissingBasis','Missing Cost Basis'),
-      body:   i18n('hcInWallet','__N__ asset__S__ · __V__ in wallet').replace('__N__',missingBasis.length).replace('__S__',missingBasis.length !== 1 ? 's' : '').replace('__V__',fmtUsd(totalExposed)),
+      body:   i18n('hcInWallet','__N__ asset__S__ · __V__ in wallet').replace('__N__',escapeHtml(missingBasis.length)).replace('__S__',missingBasis.length !== 1 ? 's' : '').replace('__V__',escapeHtml(fmtUsd(totalExposed))),
       detail: rows.join('<br>') + '<br><span class="health-card-footnote">' + i18n('hcImportMissing','Import missing exchange CSVs to establish cost basis') + '</span>',
       status: 'warn',
     });
@@ -2134,7 +2134,7 @@ function renderHealthCheck(d) {
   if (Number(d.fiatNoise) > 0) {
     cards.push({
       title:  i18n('hcFiatNoise','Fiat as Asset'),
-      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.fiatNoise),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',escapeHtml(d.fiatNoise)),
       detail: i18n('hcFiatDetail','USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks'),
       status: 'info',
     });
@@ -2146,7 +2146,7 @@ function renderHealthCheck(d) {
   }
 
   grid.innerHTML = cards.map(c => `
-    <div class="health-card health-card-${c.status}">
+    <div class="health-card health-card-${escapeHtml(c.status)}">
       <div class="health-card-title">${c.title}</div>
       <div class="health-card-body">${c.body}</div>
       <div class="health-card-detail">${c.detail}</div>
@@ -2160,12 +2160,12 @@ function renderHealthCheck(d) {
       const dir = (t.direction ?? '').toLowerCase();
       const amt = dir === 'out' ? `−${fmt(Math.abs(Number(t.amount)))}` : `+${fmt(Number(t.amount))}`;
       return `<div class="health-tx-row">
-        <span class="tx-dir ${dir}">${dir}</span>
-        <span class="health-tx-sym">${t.asset_symbol}</span>
-        <span class="health-tx-amt">${amt}</span>
-        <span class="health-tx-usd">${t.native_usd ? fmtUsd(t.native_usd) : ''}</span>
-        <span class="health-tx-src">${srcName(t.source)}</span>
-        <span class="health-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+        <span class="tx-dir ${escapeHtml(dir)}">${escapeHtml(dir)}</span>
+        <span class="health-tx-sym">${escapeHtml(t.asset_symbol)}</span>
+        <span class="health-tx-amt">${escapeHtml(amt)}</span>
+        <span class="health-tx-usd">${t.native_usd ? escapeHtml(fmtUsd(t.native_usd)) : ''}</span>
+        <span class="health-tx-src">${escapeHtml(srcName(t.source))}</span>
+        <span class="health-tx-dt">${escapeHtml(fmtDate(t.timestamp_utc))}</span>
       </div>`;
     }).join('');
     grid.insertAdjacentHTML('beforeend', `
@@ -2481,14 +2481,14 @@ async function checkAddress(address) {
   const panel = $('addr-panel');
   const inner = $('addr-panel-inner');
   panel.style.display = 'block';
-  inner.innerHTML = '<div class="addr-loading">' + i18n('addrLoading','Looking up __A__…').replace('__A__',address.slice(0,10)) + '</div>';
+  inner.innerHTML = '<div class="addr-loading">' + i18n('addrLoading','Looking up __A__…').replace('__A__',escapeHtml(address.slice(0,10))) + '</div>';
 
   try {
     const res  = await fetch('/api/research/address-lookup?address=' + encodeURIComponent(address));
     const data = await res.json();
     renderAddressPanel(data);
   } catch (e) {
-    inner.innerHTML = '<div class="addr-loading">' + i18n('addrLookupFailed','Lookup failed: __MSG__').replace('__MSG__',e.message) + '</div>';
+    inner.innerHTML = '<div class="addr-loading">' + i18n('addrLookupFailed','Lookup failed: __MSG__').replace('__MSG__',escapeHtml(e.message)) + '</div>';
   }
 }
 
@@ -2569,10 +2569,10 @@ function renderAddressPanel(data) {
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
       const sym    = escapeHtml(t.asset_symbol ?? '?');
       html += `<div class="addr-tx-row">
-        <span class="addr-tx-dir ${dir}">${escapeHtml(dir)}</span>
+        <span class="addr-tx-dir ${escapeHtml(dir)}">${escapeHtml(dir)}</span>
         <span class="addr-tx-sym">${sym}</span>
-        <span class="addr-tx-amt">${amt} ${sym}</span>
-        <span class="addr-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+        <span class="addr-tx-amt">${escapeHtml(amt)} ${sym}</span>
+        <span class="addr-tx-dt">${escapeHtml(fmtDate(t.timestamp_utc))}</span>
       </div>`;
     }
   }
