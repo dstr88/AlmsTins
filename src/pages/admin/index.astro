@@ -140,18 +140,30 @@ const [
 	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM wallets`),
 	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM exchange_accounts`),
 	safeScalar(`SELECT COUNT(*) FROM exchange_accounts`),
+	// One row per workspace and member. A person in several workspaces keeps them on
+	// adjacent rows, ranked by that person's busiest workspace.
 	safeQ(`
-		SELECT
-			t.id AS tenant_id,
-			COALESCE(u.email, t.id) AS label,
-			(SELECT COUNT(*) FROM wallets w WHERE w.tenant_id = t.id) AS wallet_count,
-			(SELECT COUNT(*) FROM exchange_accounts ea WHERE ea.tenant_id = t.id) AS exchange_count,
-			(SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
-			u.last_login
-		FROM tenants t
-		LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
-		LEFT JOIN auth_users u ON u.id = tm.user_id
-		ORDER BY wallet_count DESC, exchange_count DESC
+		WITH rows AS (
+			SELECT
+				t.id AS tenant_id,
+				COALESCE(u.email, t.id) AS label,
+				(SELECT COUNT(*) FROM wallets w WHERE w.tenant_id = t.id) AS wallet_count,
+				(SELECT COUNT(*) FROM exchange_accounts ea WHERE ea.tenant_id = t.id) AS exchange_count,
+				(SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
+				u.last_login
+			FROM tenants t
+			LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
+			LEFT JOIN auth_users u ON u.id = tm.user_id
+		)
+		SELECT *, COUNT(*) OVER (PARTITION BY label) AS label_rows
+		FROM rows
+		ORDER BY
+			MAX(wallet_count) OVER (PARTITION BY label) DESC,
+			MAX(exchange_count) OVER (PARTITION BY label) DESC,
+			label,
+			wallet_count DESC,
+			exchange_count DESC,
+			tenant_id
 		LIMIT 40
 	`),
 ]);
@@ -437,6 +449,14 @@ const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 		.ga4-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; align-self: center; }
 		.ga4-live-count { font-size: 1.25rem; font-weight: 700; }
 		.ga4-live-detail { color: var(--text-muted); }
+		.adoption-ws {
+			margin-left: 0.5rem;
+			font-family: ui-monospace, monospace;
+			font-size: 0.7rem;
+			color: var(--text-muted);
+		}
+		.adoption-shared td:first-child { box-shadow: inset 2px 0 0 var(--accent-dim); }
+		.adoption-empty td { opacity: 0.45; }
 		.ga4-card .stat-label { font-size: 0.7rem; }
 		.ga4-card .stat-value { font-size: 1.6rem; }
 		.ga4-tables { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.25rem; }
@@ -504,8 +524,16 @@ const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 				</thead>
 				<tbody>
 					{adoptionRows.map((row) => (
-						<tr>
-							<td style="font-size:0.8rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.label}</td>
+						<tr class:list={[
+							{ 'adoption-empty': Number(row.wallet_count) === 0 && Number(row.exchange_count) === 0 && Number(row.import_batches) === 0 },
+							{ 'adoption-shared': Number(row.label_rows) > 1 },
+						]}>
+							<td style="font-size:0.8rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+								{row.label}
+								<span class="adoption-ws" title={String(row.tenant_id)}>
+									{String(row.tenant_id) === 'default' ? 'default' : String(row.tenant_id).slice(0, 8)}
+								</span>
+							</td>
 							<td style="text-align:right; font-weight:600; color: {Number(row.wallet_count) > 0 ? '#4ade80' : 'inherit'}">
 								{Number(row.wallet_count) > 0
 									? <span style="color:#4ade80">{row.wallet_count}</span>
