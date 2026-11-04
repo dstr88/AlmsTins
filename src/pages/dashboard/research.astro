@@ -1313,7 +1313,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = i18n('triaging', 'Triaging…');
   panel.style.display = 'block';
-  panel.innerHTML = '<p class="triage-msg">' + i18n('analysingTxs', 'Analysing __N__ transactions…').replace('__N__', naDataCache.unmatched.length) + '</p>';
+  panel.innerHTML = '<p class="triage-msg">' + i18n('analysingTxs', 'Analysing __N__ transactions…').replace('__N__', escapeHtml(naDataCache.unmatched.length)) + '</p>';
   try {
     const res  = await fetch('/api/research/ai-triage', {
       method: 'POST',
@@ -1332,16 +1332,16 @@ $('btn-ai-triage').addEventListener('click', async () => {
 
     const groups = data.groups;
     const autoMsg = data.autoResolved > 0
-      ? '<p class="triage-auto-note">' + i18n('triageAutoNote', '✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.').replace('__N__', data.autoResolved).replace('__S__', data.autoResolved !== 1 ? 's' : '') + '</p>'
+      ? '<p class="triage-auto-note">' + i18n('triageAutoNote', '✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.').replace('__N__', escapeHtml(data.autoResolved)).replace('__S__', data.autoResolved !== 1 ? 's' : '') + '</p>'
       : '';
     let html = `<div class="triage-results">${autoMsg}`;
     for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
       const rows = groups[key] ?? [];
       if (!rows.length) continue;
-      html += `<div class="triage-group ${meta.cls}">
+      html += `<div class="triage-group ${escapeHtml(meta.cls)}">
         <div class="triage-group-header">
-          <span>${meta.label}</span>
-          <span class="triage-count">${rows.length}</span>
+          <span>${escapeHtml(meta.label)}</span>
+          <span class="triage-count">${escapeHtml(rows.length)}</span>
         </div>
         <div class="triage-group-body">`;
       for (const r of rows) {
@@ -1350,8 +1350,8 @@ $('btn-ai-triage').addEventListener('click', async () => {
         const amt  = tx ? Math.abs(Number(tx.amount)).toFixed(4) : '';
         const date = tx?.timestamp_utc?.slice(0, 10) ?? '';
         html += `<div class="triage-row">
-          <span class="triage-tx">${sym} ${amt} · ${date}</span>
-          <span class="triage-reason">${r.reason}</span>
+          <span class="triage-tx">${escapeHtml(sym)} ${escapeHtml(amt)} · ${escapeHtml(date)}</span>
+          <span class="triage-reason">${escapeHtml(r.reason)}</span>
         </div>`;
       }
       html += `</div></div>`;
@@ -1363,7 +1363,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
       hdr.addEventListener('click', () => hdr.closest('.triage-group').classList.toggle('open'));
     });
   } catch (err) {
-    panel.innerHTML = '<p class="triage-msg triage-err">' + i18n('triageFailed', 'Triage failed: __MSG__').replace('__MSG__', err.message) + '</p>';
+    panel.innerHTML = '<p class="triage-msg triage-err">' + i18n('triageFailed', 'Triage failed: __MSG__').replace('__MSG__', escapeHtml(err.message)) + '</p>';
   } finally {
     btn.disabled = false;
     btn.textContent = i18n('btnAiTriage', 'AI Triage');
