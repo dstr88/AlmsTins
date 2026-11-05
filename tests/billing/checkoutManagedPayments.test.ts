@@ -49,6 +49,25 @@ describe('the Almstins checkout turns Managed Payments on for each session', () 
 		});
 	});
 
+	it('sends none of the parameters Stripe rejects under Managed Payments', async () => {
+		// On Nov 4, 2026 every live checkout failed with "Unsupported parameter: payment_method_types.
+		// Managed Payments handles this parameter for you." Stripe controls the payment methods, tax
+		// and post-sale actions of a Managed Payments session, so none of these may be sent:
+		// docs.stripe.com/payments/managed-payments/update-checkout#remove-unsupported-parameters
+		await checkout('price_test_starter_monthly');
+		const params = state.create.mock.calls[0][0] as Record<string, unknown>;
+		for (const key of [
+			'payment_method_types', 'payment_method_configuration', 'automatic_tax', 'tax_id_collection',
+			'adaptive_pricing', 'customer_update', 'shipping_address_collection', 'shipping_options', 'invoice_creation',
+		]) {
+			expect(params, key).not.toHaveProperty(key);
+		}
+		const sub = (params.subscription_data ?? {}) as Record<string, unknown>;
+		for (const key of ['default_tax_rates', 'application_fee_percent', 'on_behalf_of', 'transfer_data', 'invoice_settings']) {
+			expect(sub, `subscription_data.${key}`).not.toHaveProperty(key);
+		}
+	});
+
 	it('does not create a session for a price that is not an Almstins plan', async () => {
 		const res = await checkout('price_not_almstins');
 		expect(res.status).toBe(400);

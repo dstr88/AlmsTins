@@ -46,14 +46,15 @@ export const POST: APIRoute = async ({ request }) => {
 			?.stripe_customer_id as string | undefined;
 
 		// Managed Payments is off unless each session turns it on. Stripe is then the merchant of
-		// record and handles sales tax, VAT and GST for these sales. The installed Stripe types
-		// predate this field, so it is passed through a variable.
+		// record and handles sales tax, VAT and GST for these sales, and it picks the payment
+		// methods itself: a session that also sends payment_method_types is rejected outright
+		// ("Unsupported parameter: payment_method_types"). The installed Stripe types predate
+		// this field, so it is passed through a variable.
 		const managedPayments = { managed_payments: { enabled: true } };
 
 		const session = await stripe.checkout.sessions.create({
 			...managedPayments,
 			mode: 'subscription',
-			payment_method_types: ['card'],
 			// Surface the "Add promotion code" box at checkout. Codes (e.g. CYNIDA26)
 			// and their restrictions (yearly-only, % off) are defined as coupons /
 			// promotion codes in the Stripe Dashboard, not here.
