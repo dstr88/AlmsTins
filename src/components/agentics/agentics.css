@@ -245,6 +245,7 @@
 .ag-qr { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center; }
 .ag-qr__img { width: 240px; max-width: 100%; height: auto; border-radius: 8px; image-rendering: pixelated; }
 .ag-qr__addr { margin: 0; max-width: 100%; }
+.ag-qr__status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
 .ag-btn--danger { color: var(--loss); border-color: var(--loss-border); }
 .ag-btn--danger:hover { background: var(--loss-bg); color: var(--loss); }
 .ag-pill--bad { color: var(--loss); background: var(--loss-bg); border-color: var(--loss-border); }

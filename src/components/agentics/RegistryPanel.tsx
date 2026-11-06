@@ -18,6 +18,7 @@ import { failureText, send } from './client';
 import { copy } from './copy';
 import { describePaste, PASTE_MAX_LINES, planPaste, runPaste, type PasteOutcome } from './paste';
 import { ConfirmRemove, VaultCopyButton, pillOf, Readout, shouldTakeFocus, Status, TrustPill } from './ui';
+import { DestinationQrButton } from './WalletQr';
 
 /** What the registry says for the codes it knows better than the general words do: a wait is about checks here. */
 const REGISTRY_ERRORS: Readonly<Record<string, string>> = { rate_limited: copy.registry.rateLimited };
@@ -312,6 +313,7 @@ export default function RegistryPanel({ tinId, destinations, plan, onChanged }: 
                   <TrustPill kind={pillOf(d)} />
                   <span className="ag-addr ag-mono">{d.address}</span>
                   <VaultCopyButton value={d.address} />
+                  <DestinationQrButton destination={d} chainName={chainName(d.chain)} />
                 </div>
                 <p className="ag-dest__meta">
                   {chainName(d.chain)}

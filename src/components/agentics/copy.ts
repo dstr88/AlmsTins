@@ -308,6 +308,12 @@ export const copy = {
     stillFlagged: 'It is still flagged. To check it again, remove it and add it back.',
     couldNotRun: 'The checks could not run just now. Try again in a moment.',
     rateLimited: 'That is a lot of checks in a short time. Wait a minute, then try again.',
+    qrOpen: (short: string) => `Show a QR code for address ${short}`,
+    qrOpenTitle: 'Show a QR code to pay this address',
+    qrTitle: 'Registered address QR code',
+    qrAlt: (chain: string) => `QR code of this registered ${chain} address`,
+    qrFlagged: 'This address is flagged on your list. A person should review it before anything is sent to it.',
+    qrPending: 'Its checks have not finished, so nothing is claimed about it yet.',
   },
 
   readout: {
