@@ -42,11 +42,13 @@ export interface DigestEmailArgs {
 }
 
 /** What the check was answered, as the alert names it (src/lib/agentVault/alerts.ts AlertKind). */
-export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established';
+export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established' | 'unmatched';
 
 export interface AlertEmailArgs {
   appBase: string;
   kind: AlertEmailKind;
+  /** The agent's id: an unmatched-payment email links to the agent's page. An id, never a name. */
+  tinId?: string;
 }
 
 /** For each answer: the word the subject names it by, and the sentence that says what happened. Never an address, a label or an amount. */
@@ -59,6 +61,7 @@ const ALERT_WORDS: Record<AlertEmailKind, { word: string; what: string }> = {
   unanchored: { word: 'Unanchored', what: 'One of your agents asked about an address on its list for the first time. Someone proved control of the address, but no domain currently vouches for it.' },
   unknown: { word: 'Unknown', what: 'One of your agents asked about an address on its list for the first time, and no proof of that address is on record.' },
   established: { word: 'Established', what: 'One of your agents asked about an address on its list that it has asked about before, and nothing flagged it. Established means the same address as before, not proof of ownership.' },
+  unmatched: { word: 'Unmatched', what: "One of your agents' wallets sent a payment to an address that is not on its list, and the agent asked no check about that address in the hour before." },
 };
 
 export interface AgentReportEmailLocale {
@@ -72,6 +75,9 @@ export const defaultAppBase = (): string => (process.env.APP_URL ?? process.env.
 
 /** The page the emails point to: the Reports page, behind the sign-in. */
 export const reportsLink = (appBase: string): string => `${appBase.replace(/\/+$/, '')}/dashboard/agentics/reports`;
+
+/** One agent's page, behind the sign-in: where an unmatched-payment email sends the operator. The agent's id only, never its name. */
+export const agentLink = (appBase: string, tinId: string): string => `${appBase.replace(/\/+$/, '')}/dashboard/agentics/tins/${encodeURIComponent(tinId)}`;
 
 const attentionLead = (n: number): string => `${formatCount(n)} ${n === 1 ? 'needs' : 'need'} your attention`;
 
@@ -131,9 +137,26 @@ export const en: AgentReportEmailLocale = {
     return { subject: `${digestLead(a)} · Agent report, ${when.subject}`, text: lines.join('\n') };
   },
 
-  alert: ({ appBase, kind }) => {
+  alert: ({ appBase, kind, tinId }) => {
     const w = ALERT_WORDS[kind] ?? ALERT_WORDS.unknown;
     const established = kind === 'established';
+    if (kind === 'unmatched') {
+      return {
+        subject: 'Action needed: an agent paid an address it never asked about',
+        text: [
+          w.what,
+          ``,
+          `A person should look at it. The payment has already gone out on the chain. Almstins flags and records. It does not hold or move funds and is never in the payment path.`,
+          ``,
+          `This email does not show the address or the amount. Open the agent's page, behind your sign-in, to see it:`,
+          tinId ? agentLink(appBase, tinId) : reportsLink(appBase),
+          ``,
+          `Almstins emails you about every payment an agent makes to an address that is not on its list without asking about it first, at most one an hour for the same address.`,
+          ``,
+          `Almstins`,
+        ].join('\n'),
+      };
+    }
     return {
       subject: established ? 'A check came back Established' : `Action needed: a check came back ${w.word}`,
       text: [

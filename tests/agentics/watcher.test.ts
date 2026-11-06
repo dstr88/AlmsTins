@@ -1250,3 +1250,80 @@ describe('what the daily job reads: the wallets of live agents', () => {
     expect(await store.listWatchTargets(100)).toEqual([{ tenantId: A, tinId: mine.id }, { tenantId: B, tinId: theirs.id }]);
   });
 });
+
+// ── The unmatched-payment email ──────────────────────────────────────────────
+
+describe('an unmatched payment found by a read is emailed once, if it is new', () => {
+  /** What the pass asked the alert to send: the alert itself (rate limit, mail) is ./alerts.test.ts. */
+  const sent: Array<{ tenantId: string; tinId: string; address: string; kind: string }> = [];
+  const alerting = () => deps({ alert: async (info: any) => { sent.push(info); } });
+  beforeEach(() => { sent.length = 0; });
+
+  /** Blocks are 12 seconds, and the clock sits 180 seconds past block 20,000: this many blocks is 36 hours, less that lag. */
+  const MAX_AGE_BLOCKS = (36 * 60 * 60 - 180) / 12;
+
+  it('asks for one email per new unmatched payment, naming the account, the agent and the address, and none for a matched one or one received', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    await makeDestination(A, tin.id, D1, 'trusted', 1000);
+    explorer.add('ethereum', WALLET, 'txlist',
+      nativeRow({ hash: 1, block: 19_900, from: WALLET, to: STRANGER, value: units('1') }), // unmatched, minutes old
+      nativeRow({ hash: 2, block: 19_910, from: WALLET, to: D1, value: units('1') }),       // to a trusted address
+      nativeRow({ hash: 3, block: 19_920, from: STRANGER, to: WALLET, value: units('1') })); // received
+    await watcher.runTinPass(A, tin, alerting());
+    await Promise.resolve();
+    expect(sent).toEqual([{ tenantId: A, tinId: tin.id, address: STRANGER, kind: 'unmatched' }]);
+  });
+
+  it('sends nothing for an unmatched payment more than 36 hours old when it is found: a read catching up records it and marks it', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    explorer.add('ethereum', WALLET, 'txlist',
+      nativeRow({ hash: 1, block: 20_000 - MAX_AGE_BLOCKS - 1, from: WALLET, to: addr(91), value: units('1') }), // just past 36 hours
+      nativeRow({ hash: 2, block: 20_000 - MAX_AGE_BLOCKS, from: WALLET, to: addr(92), value: units('1') }));    // exactly 36 hours
+    await watcher.runTinPass(A, tin, alerting());
+    await Promise.resolve();
+    expect(ledger().map((r) => [r.address, detailOf(r).unmatched])).toEqual([[addr(91), true], [addr(92), true]]);
+    expect(sent.map((s) => s.address)).toEqual([addr(92)]);
+  });
+
+  it('the first read of a wallet with a long history sends nothing for the old payments', async () => {
+    const w = await world();
+    stockExplorer(); // three unmatched payments, all about 60 hours old at this clock
+    const report = await watcher.runTinPass(A, w.tin, alerting());
+    expect(report.unmatched).toBe(3);
+    expect(sent).toEqual([]);
+  });
+
+  it('a payment read again in the next pass\'s overlap is not emailed again', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    explorer.add('ethereum', WALLET, 'txlist', nativeRow({ hash: 1, block: 19_990, from: WALLET, to: STRANGER, value: units('1') }));
+    await watcher.runTinPass(A, tin, alerting());
+    clockAt(20_010);
+    await watcher.runTinPass(A, tin, alerting());
+    await Promise.resolve();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('an alert that fails never stops the read or changes what it wrote', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    explorer.add('ethereum', WALLET, 'txlist', nativeRow({ hash: 1, block: 19_990, from: WALLET, to: STRANGER, value: units('1') }));
+    const report = await watcher.runTinPass(A, tin, deps({ alert: async () => { throw new Error('mail down'); } }));
+    await Promise.resolve();
+    expect(report).toMatchObject({ recorded: 1, unmatched: 1 });
+    expect(detailOf(ledger()[0])).toMatchObject({ unmatched: true });
+  });
+
+  it('without an alert to call (a test, or a caller that wants none), nothing is sent and nothing changes', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    explorer.add('ethereum', WALLET, 'txlist', nativeRow({ hash: 1, block: 19_990, from: WALLET, to: STRANGER, value: units('1') }));
+    expect(await watcher.runTinPass(A, tin, deps())).toMatchObject({ recorded: 1, unmatched: 1 });
+  });
+
+  it('the daily job and every read run with the real alert', async () => {
+    expect(typeof watcher.defaultWatchDeps.alert).toBe('function');
+  });
+});

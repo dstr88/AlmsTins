@@ -24,13 +24,13 @@ describe('the changelog entry for every outflow', () => {
     expect(readFileSync(path.join(ROOT, 'src/lib/agenticsFlag.mjs'), 'utf8')).toMatch(/export const AGENTICS_VAULT_PUBLIC = (true|false);/);
   });
 
-  it('says what the record now covers, the unmatched mark, the contract case, and that no email is sent', () => {
+  it('says what the record now covers, the unmatched mark, the contract case, and that an unmatched payment is now emailed', () => {
     for (const words of [
       "every direct transfer of an agent's own wallet on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side",
       'trusted, pending or flagged for an address you registered, or not on the list',
       'is marked as unmatched',
       'recorded as a transfer to that contract',
-      'No email is sent for an unmatched payment.',
+      'An unmatched payment is now also emailed to you at once (November 6).',
       'every file signed before this change still checks out',
     ]) {
       expect(entry, words).toContain(words);

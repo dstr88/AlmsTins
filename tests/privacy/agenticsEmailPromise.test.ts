@@ -53,3 +53,14 @@ describe('the Agentics email line in the privacy policy', () => {
     for (const [lang, body] of Object.entries(bodies)) expect(body, lang).toMatch(/<strong>Vers(?:ion|ión) ?:?<\/strong> 1\.3/);
   });
 });
+
+describe('the policy names every alert email the Vault sends', () => {
+  // src/lib/agentVault/alerts.ts emails an unmatched payment (Nov 6, 2026); Section 3's Agentics line says so.
+  it.each([
+    ['en', /to email you at once when a transfer out of an agent's wallet is marked as unmatched, at most one email an hour for the same address/],
+    ['es', /para escribirle de inmediato cuando una transferencia que sale de la wallet de un agente se marca como sin correspondencia, como máximo un correo por hora para la misma dirección/],
+    ['fr', /pour vous écrire aussitôt lorsqu'un transfert sortant du wallet d'un agent est marqué comme sans correspondance, au plus un e-mail par heure pour la même adresse/],
+  ] as const)('%s', (lang, line) => {
+    expect(bodies[lang]).toMatch(line);
+  });
+});
