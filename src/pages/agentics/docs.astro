@@ -82,7 +82,7 @@ const FIELDS = [
 
 const VAULT_FIELDS = [
   ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
-  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history: on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
   ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
   ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
   ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
@@ -118,6 +118,10 @@ const FAQ = [
   ['Does checking a destination notify the payee, or cost them anything?', "No. A check only reads proof state that's already public, silently and for free. It never contacts, involves, or bills the party being checked."],
   ['Is there a sandbox or test destination I can safely check?', "No dedicated sandbox — the static example on this page is the fixed reference for what a proven answer looks like. To see a real one, prove a destination yourself for free (2 wallets, no card) and check that."],
   ['Can I call this directly from a browser?', 'Yes — the response includes Access-Control-Allow-Origin: *, so client-side agents and demos can call it cross-origin without a server in between.'],
+  ['Does the vault record a payment to an address I never registered?', "Yes. The vault records every direct transfer of your agent's own wallets on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side, whether or not that address is on your list. A transfer whose other side was not on the list is marked that way, and the agent's page can show only those."],
+  ['What does unmatched mean on a transfer?', "It is a payment out of your agent's wallet to an address that is not on your list, with no check about that address asked in the hour before: the agent paid someone it never asked about. It is a line for a person to look at, not a finding about the address. A payment to an address not on the list that the agent did ask about first is not unmatched, whatever the check answered. No email is sent for one."],
+  ['If I register an address later, does the vault change the transfers already recorded?', 'No. Each transfer keeps the status your list gave the other side when it was recorded, so the record shows what was known at the time. Transfers that come after the address is registered carry its new status.'],
+  ['Does the vault read the history of the addresses my agent pays?', "No. It reads only the wallets you register as your agent's own. A payment routed through a swap or a router is recorded as a transfer to that contract, marked as a contract call where the chain's listing says so, and the vault does not follow the funds past it."],
 ];
 ---
 <ApiDocsLayout title="Destination check for payment agents — Almstins Verify">
@@ -390,7 +394,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
     <p class="body">
       <b>The rule above does not change.</b> The vault field is the answer about your own registry; it does
       not loosen the public one. Use it to apply your own policy to the addresses you registered, and decide
-      for yourself what each answer is worth: consistent-with-history proves sameness, never ownership. An
+      for yourself what each answer is worth: consistent-with-history (Established) proves sameness, never ownership. An
       address that is not in your registry never clears, whatever the public proof says. If any part of the
       field is null, the vault could not be read: treat it as not cleared. Hold and escalate to a person
       whatever is not cleared, exactly as before.
@@ -409,14 +413,19 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       <a href="/verify-record">/verify-record</a>.
     </p>
     <p class="body">
-      <b>What the vault does not see.</b> It records the checks your agent asks with its key and the transfers
-      to the addresses you trusted. A transfer to an address you did not register is not seen, and a check the
-      agent never asks leaves no record. Once a day, about once a minute while your Live page is open (one
-      agent at a time, in turn, up to a daily limit), or when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
-      direct transfers between your agent's own wallets and your trusted addresses, and ties each one to
-      the check that came before it. The limit is per account per day: when the Live page's reads are used up it says so, and the daily
-      read and the Read the chain button still work. A payment routed through a swap or a router contract is a transfer to
-      that contract and is not seen.
+      <b>What the vault sees, and what it does not.</b> It records the checks your agent asks with its key and
+      every direct transfer of your agent's own wallets, in and out, with the transaction hash and the address on
+      the other side. Each transfer says what your list said about the other side when it was recorded: trusted,
+      pending or flagged for an address you registered, or not on the list. A transfer out to an address not on the
+      list, with no check asked about it in the hour before, is marked as unmatched: the agent paid someone it never
+      asked about. A check the agent never asks leaves no check record. Once a day, about once a minute while your
+      Live page is open (one agent at a time, in turn, up to a daily limit), or when you press Read the chain on the
+      agent's page, the vault reads Ethereum, Polygon and Avalanche for the direct transfers of your agent's own
+      wallets, and ties each one to the check that came before it. The limit is per account per day: when the Live
+      page's reads are used up it says so, and the daily read and the Read the chain button still work. A payment
+      routed through a swap or a router contract is recorded as a transfer to that contract, marked as a contract
+      call where the chain's listing says so. A wallet you did not register, and any chain the vault does not read,
+      are not seen.
     </p>
   </section>
 

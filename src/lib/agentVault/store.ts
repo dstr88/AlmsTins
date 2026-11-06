@@ -596,24 +596,6 @@ export async function softDeleteDestination(tenantId: string, id: string, at: st
 
 // ── What the watcher reads ───────────────────────────────────────────────────
 
-/**
- * The first `limit` trusted, live destinations of one account, oldest first, across all its live
- * tins. The watcher reads only these: a free account tracks a fixed number of destinations pooled
- * over its agents (see MAX_WATCHED_PER_TENANT in ./watcher.ts), and the oldest ones keep their place.
- * A destination whose agent has been removed is not one of them, even if its row were somehow still
- * live: it must never take a watched place from an address that is in use.
- */
-export async function listWatchedDestinationIds(tenantId: string, limit: number): Promise<string[]> {
-  await ensureAgentVaultTables();
-  const r = await db.execute({
-    sql: `SELECT d.id FROM agent_destinations d
-          WHERE d.tenant_id = ? AND d.trust_status = 'trusted' AND d.deleted_at IS NULL
-            AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = d.tin_id AND t.tenant_id = d.tenant_id AND t.deleted_at IS NULL)
-          ORDER BY d.created_at ASC, d.id ASC LIMIT ?`,
-    args: [tenantId, limit],
-  });
-  return r.rows.map((row: any) => String(row.id));
-}
 
 /** A tin with something to watch, as the daily job finds it. */
 export interface WatchTarget {
@@ -636,17 +618,16 @@ export async function listAllTins(limit: number): Promise<WatchTarget[]> {
 }
 
 /**
- * The live tins that have at least one trusted destination, for the daily job. The one read here
- * that spans accounts, because the job has to visit each of them; it returns ids only, and every
- * statement after it is scoped to the account of the row it came from.
+ * The tins the daily job reads: every live tin of every account that has at least one live wallet,
+ * once each, in a fixed order. A tin with no wallet has nothing to read, whatever its registry says.
  */
 export async function listWatchTargets(limit: number): Promise<WatchTarget[]> {
   await ensureAgentVaultTables();
   const r = await db.execute({
-    sql: `SELECT d.tenant_id, d.tin_id FROM agent_destinations d
-          WHERE d.trust_status = 'trusted' AND d.deleted_at IS NULL
-            AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = d.tin_id AND t.tenant_id = d.tenant_id AND t.deleted_at IS NULL)
-          ORDER BY d.tenant_id ASC, d.tin_id ASC LIMIT ?`,
+    sql: `SELECT w.tenant_id, w.tin_id FROM agent_wallets w
+          WHERE w.deleted_at IS NULL
+            AND EXISTS (SELECT 1 FROM agent_tins t WHERE t.id = w.tin_id AND t.tenant_id = w.tenant_id AND t.deleted_at IS NULL)
+          ORDER BY w.tenant_id ASC, w.tin_id ASC LIMIT ?`,
     args: [limit],
   });
   const seen = new Set<string>();

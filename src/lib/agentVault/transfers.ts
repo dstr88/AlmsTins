@@ -24,6 +24,13 @@
  * same rows always give the same legs, so a movement keeps its name when the history is read again.
  * That holds because a caller reads a transaction's rows whole: the scan in ./watcher.ts never
  * keeps the rows of a block it may have cut short.
+ *
+ * Contracts. A payment routed through a swap or a router is, on the chain, a transfer between the
+ * wallet and that contract, and that is what is recorded: the contract is the other side. The
+ * listing says when the other side is a contract where it can: a `txlist` row that carries call
+ * data (`input` longer than the empty `0x`) is a contract call, and every `txlistinternal` row is
+ * coin moved by one. A token transfer says nothing about the other side, so `contract` is null
+ * there: not known, never guessed.
  */
 import { weiToDecimalString } from '@/lib/etherscan';
 import type { VaultChain } from './addresses';
@@ -59,6 +66,12 @@ export interface Transfer {
   asset: string;
   /** The token's contract, lowercase; null for the chain's own coin. */
   assetContract: string | null;
+  /**
+   * Whether the other side is a contract, as far as the listing says: true for coin moved by a
+   * contract call (a `txlistinternal` row, or a `txlist` row with call data), false for a plain
+   * coin transfer, null when the listing cannot say (a token transfer, or a row with no `input`).
+   */
+  contract: boolean | null;
   source: ExplorerAction;
 }
 
@@ -89,6 +102,14 @@ export function cleanSymbol(raw: unknown): string {
     .replace(/\s+/g, ' ')
     .trim();
   return Array.from(s).slice(0, 24).join('') || 'UNKNOWN';
+}
+
+/** Whether a `txlist` row carries call data: true past the empty `0x`, false for a plain transfer, null when the field is not there. */
+function callData(input: unknown): boolean | null {
+  if (typeof input !== 'string') return null;
+  const s = input.trim().toLowerCase();
+  if (s === '' || s === '0x') return false;
+  return /^0x[0-9a-f]+$/.test(s) ? true : null;
 }
 
 const failed = (row: Row): boolean =>
@@ -131,6 +152,7 @@ export function normalizeTransfers(chain: VaultChain, wallet: string, action: Ex
     let assetContract: string | null = null;
     let amount: string;
     let identity: string;
+    let contract: boolean | null = null;
     if (action === 'tokentx') {
       const contract = lower(row.contractAddress);
       // Strictly digits: an empty field would read as 0 decimals and overstate the amount a millionfold.
@@ -149,9 +171,11 @@ export function normalizeTransfers(chain: VaultChain, wallet: string, action: Ex
       amount = weiToDecimalString(value, CHAINS[chain].native.decimals);
       if (action === 'txlist') {
         identity = `native:${from}:${to}:${value}`;
+        contract = callData(row.input);
       } else {
         const trace = String(row.traceId ?? '').trim();
         identity = `internal:${TRACE.test(trace) ? trace : ''}:${from}:${to}:${value}`;
+        contract = true;
       }
     }
 
@@ -170,6 +194,7 @@ export function normalizeTransfers(chain: VaultChain, wallet: string, action: Ex
       amount,
       asset,
       assetContract,
+      contract,
       source: action,
     });
   }

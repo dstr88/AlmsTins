@@ -161,7 +161,7 @@ describe('POST /api/agentics/feed/read', () => {
     expect(res.status).toBe(200);
     expect(json).toMatchObject({ ok: true, status: 'read', tinId: t.id, waitMs: 30_000 });
     // No explorer key in the test, so the wallet could not be read: said plainly, and nothing was recorded.
-    expect(json.pass).toMatchObject({ tinId: t.id, recorded: 0, watchedDestinations: 1 });
+    expect(json.pass).toMatchObject({ tinId: t.id, recorded: 0, registered: { trusted: 1, pending: 0, flagged: 0 }, unregistered: 0, unmatched: 0 });
     expect(json.pass.wallets).toHaveLength(1);
     expect(json.pass.wallets[0].status).toBe('unavailable');
     const again = await call(readRoute.POST, '/api/agentics/feed/read', 'POST', {});

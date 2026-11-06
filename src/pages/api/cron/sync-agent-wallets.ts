@@ -1,10 +1,9 @@
 /**
  * GET /api/cron/sync-agent-wallets
  *
- * The Agent Vault's daily read of the chain. For every tin with a trusted destination, look for
- * movements of funds between the agent's own wallets and those destinations, and record the new
- * ones in the ledger (src/lib/agentVault/watcher.ts). Only trusted, registered destinations are
- * watched; a transfer to any other address is read past and never kept.
+ * The Agent Vault's daily read of the chain. For every tin with a wallet, read every direct
+ * transfer the agent's own wallets made or received, mark what the registry says about the other
+ * side, and record the new ones in the ledger (src/lib/agentVault/watcher.ts).
  *
  * It paces itself on the shared explorer rate limit, stops starting new reads after about nine
  * minutes, and picks up where it stopped the next day (the cursors keep what was read). The

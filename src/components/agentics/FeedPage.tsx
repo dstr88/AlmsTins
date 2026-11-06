@@ -26,8 +26,8 @@ import { clearStage, enqueue, initialPlayer, isFlagged, nextDelay, pause, resume
 import { createFeedPoller, type ConnState, type FeedPoller } from './feedPoller';
 import { createFeedReader, type FeedReader, type ReaderState, type ReadResult } from './feedReader';
 import { addRows, clockOrDate, mergeRows, parseFeedRows, releaseRows, visibleRows, writtenIso, type ListState } from './feedRows';
-import { ANSWER_CLASS, LedgerItem } from './LedgerPanel';
-import { HOME_PATH } from './paths';
+import { ANSWER_CLASS, COUNTERPARTY_CLASS, LedgerItem } from './LedgerPanel';
+import { explorerTxHref, HOME_PATH } from './paths';
 import { describeRefresh, passOf } from './refresh';
 import { Status } from './ui';
 import { shortenAddress } from '@/lib/addressDisplay';
@@ -67,11 +67,15 @@ export function StageCard({ card }: { card: Card }) {
   const kind = tx ? (tx.direction === 'in' ? copy.ledger.kind.in : copy.ledger.kind.out) : copy.ledger.kind.checked;
   const answer = row.answer ? VERIFY_STATUS_TITLE[row.answer] : copy.ledger.noAnswer;
   const short = shortenAddress(row.address);
+  const counterparty = tx && row.counterparty ? copy.ledger.counterparty[row.counterparty] : null;
+  const href = tx ? explorerTxHref(row.chain, tx.hash) : null;
+  const tone = isFlagged(row) ? ' ag-feed__card--flag' : row.unmatched ? ' ag-feed__card--unmatched' : '';
   return (
-    <div className={`ag-feed__card${isFlagged(row) ? ' ag-feed__card--flag' : ''}`}>
+    <div className={`ag-feed__card${tone}`}>
       <div className="ag-feed__top">
         <span className="ag-pill ag-pill--kind">{kind}</span>
         <span className={row.answer ? ANSWER_CLASS[row.answer] : 'ag-pill ag-pill--muted'}>{row.answer ? copy.ledger.answer(answer) : answer}</span>
+        {counterparty ? <span className={COUNTERPARTY_CLASS[row.counterparty as string]}>{counterparty}</span> : null}
         <time className="ag-feed__time" dateTime={writtenIso(row.writtenAt)}>
           {clockOrDate(writtenIso(row.writtenAt), row.at)} UTC
         </time>
@@ -82,6 +86,18 @@ export function StageCard({ card }: { card: Card }) {
           <p className="ag-feed__big ag-mono">{copy.ledger.amount(tx.amount, tx.asset)}</p>
           <p className="ag-feed__line">{tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}</p>
           <p className="ag-feed__line ag-mono">{row.label ? `${row.label} · ${short}` : short}</p>
+          {row.unmatched ? <p className="ag-feed__line">{copy.ledger.unmatched}</p> : null}
+          <p className="ag-feed__line ag-mono">
+            {copy.ledger.hash(shortenAddress(tx.hash))}
+            {href ? (
+              <>
+                {'  ·  '}
+                <a className="ag-link" href={href} target="_blank" rel="noopener noreferrer">
+                  {copy.ledger.chainTx}
+                </a>
+              </>
+            ) : null}
+          </p>
           <p className="ag-feed__line">{copy.feed.onTheChain(clockOrDate(row.at, writtenIso(row.writtenAt)))}</p>
         </>
       ) : (

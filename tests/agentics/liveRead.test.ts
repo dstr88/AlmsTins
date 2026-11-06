@@ -35,7 +35,7 @@ beforeEach(async () => {
 const newTin = (tenant: string, label: string, at: string) => store.insertTin(tenant, { label, agentKeyId: null, at });
 
 const pass = (tinId: string, wallets: Array<{ status: string }>, recorded = 0) =>
-  ({ tinId, startedAt: '2026-10-19T12:00:00.000Z', watchedDestinations: 1, notWatched: { pending: 0, flagged: 0, overLimit: 0 }, wallets, recorded }) as never;
+  ({ tinId, startedAt: '2026-10-19T12:00:00.000Z', registered: { trusted: 1, pending: 0, flagged: 0 }, wallets, recorded, unregistered: 0, unmatched: 0 }) as never;
 
 /** A read that answers from a table by agent id; anything not listed has a wallet and reads completely. */
 function reader(table: Record<string, unknown> = {}) {

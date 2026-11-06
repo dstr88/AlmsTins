@@ -20,7 +20,7 @@ import PDFDocument from 'pdfkit';
 import { LISTED_BUCKETS, MAX_LISTED_PER_BUCKET, type ListedBucketName, type ReportAddress, type ReportBucket, type ReportContent } from './report';
 import { bundleFileName, type AgentReportBundle } from './reportProof';
 import { formatClock, formatCount, formatDayLong, formatUsd, formatUtc, plural } from './reportFormat';
-import { BUCKET_MEANING, BUCKET_TITLE, NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON, VERIFY_STATUS_TITLE, reasonText } from './reportText';
+import { BUCKET_MEANING, BUCKET_TITLE, EVERY_TRANSFER_REGISTERED, NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON, VERIFY_STATUS_TITLE, reasonText, unregisteredLine } from './reportText';
 
 /** The token values this PDF uses, keyed by token name. tests/agentics/reportPdf.test.ts checks every one against tokens.css. */
 export const PDF_COLORS = {
@@ -234,7 +234,7 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     side(MARGIN.left + half, 'Sold', strip.sold);
     doc.save().strokeColor(INK, PDF_ALPHA['--border-bright']).lineWidth(0.6).moveTo(MARGIN.left + half, y + 8).lineTo(MARGIN.left + half, y + stripH - 8).stroke().restore();
     y += stripH + 6;
-    para('Raw value in (bought) and out (sold) between the agent\'s wallets and registered destinations, priced at the time of each transfer. The two sides are not compared.', {
+    para('Raw value in (bought) and out (sold) of the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.', {
       size: 7.5,
       alpha: PDF_ALPHA['--text-secondary'],
       after: 4,
@@ -249,6 +249,11 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
         alpha: PDF_ALPHA['--text-secondary'],
         after: 6,
       });
+      // The counterparty line exists only on a report made since slice 8; an older report's PDF is unchanged.
+      if (strip.byCounterparty) {
+        const line = strip.byCounterparty.unregistered > 0 ? unregisteredLine(strip.byCounterparty.unregistered, strip.unmatched ?? 0) : EVERY_TRANSFER_REGISTERED;
+        para(line, { size: 7.5, alpha: PDF_ALPHA['--text-secondary'], after: 6 });
+      }
     }
     y += 8;
 
@@ -325,8 +330,8 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     write(lead, MARGIN.left + 12, y, { size: 9.5, font: 'Helvetica-Bold', width: CONTENT_W - 12 });
     const clearText =
       clear.checks === 0
-        ? 'No check came back proven or consistent with history in this period.'
-        : `${plural(clear.checks, 'check', 'checks')} came back proven or consistent with history. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`;
+        ? 'No check came back proven or established in this period.'
+        : `${plural(clear.checks, 'check', 'checks')} came back proven or established. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`;
     y += 14;
     para(clearText, { size: 8, alpha: PDF_ALPHA['--text-secondary'], x: MARGIN.left + 12, after: 18 });
 

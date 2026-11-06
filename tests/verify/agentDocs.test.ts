@@ -353,13 +353,31 @@ describe('/agentics/docs: your vault', () => {
   });
 
   it('says plainly what the vault does not see, and what it reads and how often', () => {
-    expect(vault()).toContain('A transfer to an address you did not register is not seen, and a check the agent never asks leaves no record.');
+    expect(vault()).toContain('every direct transfer of your agent\'s own wallets, in and out, with the transaction hash and the address on');
+    expect(vault()).toContain('is marked as unmatched: the agent paid someone it never');
+    expect(vault()).toContain('A check the agent never asks leaves no check record.');
     expect(vault()).not.toContain('the protection is the check before the agent sends');
     expect(vault()).toContain('Once a day, about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit), or');
     expect(vault()).toContain("when the Live page's reads are used up it says so, and the daily read and the Read the chain button still work.");
     expect(vault()).toContain('Ethereum, Polygon and Avalanche');
-    expect(vault()).toContain('A payment routed through a swap or a router contract is a transfer to that contract and is not seen.');
+    expect(vault()).toContain('routed through a swap or a router contract is recorded as a transfer to that contract, marked as a contract');
     expect(vault()).not.toMatch(/real[- ]time|live feed|as it happens/i);
+  });
+
+  it('the FAQ answers what the vault records about the agent\'s own wallet, as the watcher does it (slice 8)', () => {
+    const faq = docs.slice(docs.indexOf('const FAQ = ['), docs.indexOf('];', docs.indexOf('const FAQ = [')));
+    expect(faq).toContain('Does the vault record a payment to an address I never registered?');
+    expect(faq).toContain("every direct transfer of your agent's own wallets on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side");
+    expect(faq).toContain('What does unmatched mean on a transfer?');
+    expect(faq).toContain('with no check about that address asked in the hour before');
+    expect(faq).toContain('No email is sent for one.');
+    expect(faq).toContain('keeps the status your list gave the other side when it was recorded');
+    expect(faq).toContain("It reads only the wallets you register as your agent's own.");
+    // The rules the answers describe are the ones the code applies.
+    const counterparty = read('src/lib/agentVault/counterparty.ts');
+    expect(counterparty).toContain("return t.direction === 'out' && t.counterparty === 'unregistered' && !t.linked;");
+    expect(read('src/lib/agentVault/link.ts')).toContain('export const LINK_WINDOW_MS = 60 * 60 * 1000;');
+    expect(faq).not.toMatch(/\bwatch(es|ing)?\b/i);
   });
 
   it('check.ts names the field in its own header, and returns it only from the spread that is not on an anonymous call', () => {

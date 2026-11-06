@@ -136,7 +136,7 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['reports pdf GET', () => pdfRoute.GET, '/api/agentics/reports/pdf?id=x', 'GET'],
   ['reports bundle GET', () => bundleRoute.GET, '/api/agentics/reports/bundle?id=x', 'GET'],
   ['report-settings GET', () => settingsRoute.GET, '/api/agentics/report-settings', 'GET'],
-  ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', alerts: true }],
+  ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', establishedAlerts: true }],
   ['plan GET', () => planRoute.GET, '/api/agentics/plan', 'GET'],
   ['export GET', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17', 'GET'],
   ['export GET csv', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17&format=csv', 'GET'],
@@ -444,7 +444,7 @@ describe('the endpoint files', () => {
       const src = readFileSync(file, 'utf8');
       // The export names an agent and a range of days (never an address), and a format; the ledger and the reports page by size and cursor.
       // The live feed asks by a time it was given (`since`), a cursor it was given (`after`), a page size and an agent: never an address.
-      const allowed = file.endsWith('export.ts') ? ['tinId', 'from', 'to', 'format'] : file.endsWith('events.ts') || file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : file.endsWith('feed.ts') ? ['since', 'after', 'limit', 'tinId'] : ['id', 'tinId'];
+      const allowed = file.endsWith('export.ts') ? ['tinId', 'from', 'to', 'format'] : file.endsWith('events.ts') ? ['id', 'tinId', 'limit', 'before', 'filter'] : file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : file.endsWith('feed.ts') ? ['since', 'after', 'limit', 'tinId'] : ['id', 'tinId'];
       const keys = [...src.matchAll(/searchParams\.get\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
       for (const key of keys) expect(allowed, `${file}: ${key}`).toContain(key);
     }
@@ -488,6 +488,25 @@ describe('the owner: read a tin\'s ledger', () => {
     expect(second.json.next).toBeNull();
   });
 
+  it('filter=unregistered narrows the page to the transfers whose other side was not on the list; any other word is no narrowing (slice 8)', async () => {
+    const tinId = await newTin();
+    await put(tinId, 1);
+    const ledger = await import('../../src/lib/agentVault/events');
+    const move = (leg: string, registry: 'trusted' | 'none', address: string) => ledger.insertTransactionEvent(OWNER_TENANT_ID, {
+      tinId, address, chain: 'ethereum', registry, leg, answer: 'unknown', status: null,
+      tx: { hash: `0x${'2'.repeat(64)}`, direction: 'out', wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd: 1, blockNumber: 1 },
+      detail: { reason: 'no_preceding_check' }, at: new Date().toISOString(),
+    });
+    await move('a', 'trusted', addr(2));
+    await move('b', 'none', addr(9));
+    const narrowed = await call(events.GET, `/api/agentics/events?tinId=${tinId}&filter=unregistered`, 'GET');
+    expect(narrowed.res.status).toBe(200);
+    expect(narrowed.json.events.map((e: any) => [e.kind, e.address, e.registry])).toEqual([['transaction', addr(9), 'none']]);
+    const odd = await call(events.GET, `/api/agentics/events?tinId=${tinId}&filter=everything`, 'GET');
+    expect(odd.res.status).toBe(200);
+    expect(odd.json.events).toHaveLength(3);
+  });
+
   it('answers codes, not raw errors, for a missing tin, an unknown tin and a bad cursor', async () => {
     const tinId = await newTin();
     expect((await call(events.GET, '/api/agentics/events', 'GET')).json).toEqual({ ok: false, error: 'invalid_id' });
@@ -524,7 +543,7 @@ describe('the owner: read the chain now, and the totals', () => {
     expect(r.res.headers.get('Cache-Control')).toBe('private, no-store');
     expect(r.json).toEqual({
       ok: true,
-      pass: { tinId, startedAt: expect.any(String), watchedDestinations: 0, notWatched: { pending: 0, flagged: 0, overLimit: 0 }, wallets: [], recorded: 0 },
+      pass: { tinId, startedAt: expect.any(String), registered: { trusted: 0, pending: 0, flagged: 0 }, wallets: [], recorded: 0, unregistered: 0, unmatched: 0 },
     });
     expect(r.raw).not.toMatch(/tenant/i);
   });
@@ -574,7 +593,7 @@ describe('the owner: read the chain now, and the totals', () => {
     const tinId = await newTin();
     const ledger = await import('../../src/lib/agentVault/events');
     const put = (leg: string, direction: 'in' | 'out', usd: number | null) => ledger.insertTransactionEvent(OWNER_TENANT_ID, {
-      tinId, address: addr(2), chain: 'ethereum', leg, answer: 'unknown', status: null,
+      tinId, address: addr(2), chain: 'ethereum', registry: 'trusted', leg, answer: 'unknown', status: null,
       tx: { hash: `0x${'1'.repeat(64)}`, direction, wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd, blockNumber: 1 },
       detail: {}, at: new Date().toISOString(),
     });
@@ -919,24 +938,24 @@ describe('the owner: report email settings', () => {
     const r = await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET');
     expect(r.res.status).toBe(200);
     expect(r.res.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(r.json).toEqual({ ok: true, settings: { cadence: 'off', alerts: false }, recipientAvailable: expect.any(Boolean) });
+    expect(r.json).toEqual({ ok: true, settings: { cadence: 'off', establishedAlerts: false }, recipientAvailable: expect.any(Boolean) });
     expect(r.raw).not.toMatch(/tenant|@/i);
   });
 
   it('saves what is given and leaves the rest', async () => {
     const first = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'weekly' });
     expect(first.res.status).toBe(200);
-    expect(first.json.settings).toEqual({ cadence: 'weekly', alerts: false });
-    const second = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { alerts: true });
-    expect(second.json.settings).toEqual({ cadence: 'weekly', alerts: true });
-    expect((await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET')).json.settings).toEqual({ cadence: 'weekly', alerts: true });
-    const off = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'off', alerts: false });
-    expect(off.json.settings).toEqual({ cadence: 'off', alerts: false });
+    expect(first.json.settings).toEqual({ cadence: 'weekly', establishedAlerts: false });
+    const second = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { establishedAlerts: true });
+    expect(second.json.settings).toEqual({ cadence: 'weekly', establishedAlerts: true });
+    expect((await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET')).json.settings).toEqual({ cadence: 'weekly', establishedAlerts: true });
+    const off = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'off', establishedAlerts: false });
+    expect(off.json.settings).toEqual({ cadence: 'off', establishedAlerts: false });
     expect(fake.rows('agent_report_settings')).toHaveLength(1);
   });
 
   it('refuses anything else with a code: an unknown cadence, a non-boolean, or nothing at all', async () => {
-    for (const body of [{ cadence: 'hourly' }, { cadence: 7 }, { cadence: null }, { alerts: 'yes' }, { alerts: 1 }, { alerts: null }, {}, { other: true }]) {
+    for (const body of [{ cadence: 'hourly' }, { cadence: 7 }, { cadence: null }, { establishedAlerts: 'yes' }, { establishedAlerts: 1 }, { establishedAlerts: null }, {}, { other: true }, { alerts: true }]) {
       const r = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', body);
       expect(r.res.status, JSON.stringify(body)).toBe(400);
       expect(r.json, JSON.stringify(body)).toEqual({ ok: false, error: 'invalid_settings' });

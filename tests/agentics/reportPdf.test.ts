@@ -113,7 +113,7 @@ describe('a signed report as a PDF', () => {
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
     for (const expected of [
       'Operator report', 'October 17, 2026 (UTC day)', 'Treasury agent', 'Had issues', 'Not confirmed', 'New', 'No issues',
-      'Ops wallet', 'BOUGHT', '$1,270.56', 'SOLD', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or consistent with history',
+      'Ops wallet', 'BOUGHT', '$1,270.56', 'SOLD', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or established',
     ]) {
       expect(text, expected).toContain(expected);
     }
@@ -193,18 +193,33 @@ describe('a signed report as a PDF', () => {
   it('a day with nothing in it is still a report, and says nothing needs a look', async () => {
     const content = makeContent({ events: [] });
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
-    expect(flow(text)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
+    expect(flow(text)).toContain('Nothing recorded for this agent needs a person to look at it.');
     expect(text).not.toContain('Nothing here needs');
-    expect(text.match(/No transfers with registered destinations/g)).toHaveLength(2); // bought and sold
-    expect(text).not.toMatch(/No transfers(?! with registered destinations)/);
-    expect(flow(text)).toContain('No check came back proven or consistent with history in this period.');
+    expect(text.match(/No transfers/g)).toHaveLength(2); // bought and sold
+    expect(flow(text)).toContain('No check came back proven or established in this period.');
   });
 
-  it('says an all-clear is about what the Vault recorded: a transfer to an address that was never registered is not recorded', async () => {
+  it('says an all-clear is about what the Vault recorded: a transfer to an unregistered address is recorded and marked, an unmatched outflow too', async () => {
     const content = makeContent({ events: [check(addr(5), 'domain_proof', 'proven', at(11))] });
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
-    expect(flow(text)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
-    expect(flow(text)).toContain('A transfer to an address that was never registered is not recorded here.');
+    expect(flow(text)).toContain('Nothing recorded for this agent needs a person to look at it.');
+    expect(flow(text)).toContain('A transfer to or from an address that was never registered is recorded here and marked as not on the list; an outflow to one with no check before it is marked as unmatched.');
+  });
+
+  it('prints the line for transfers to addresses not on the list, with the unmatched count, and says when every transfer had a registered address (slice 8)', async () => {
+    const stranger = (direction: 'in' | 'out', detail: Record<string, unknown>, when: string): LedgerEvent => ({ ...move(direction, 1, when), registry: 'none', address: addr(9), detail });
+    const some = makeContent({ events: [move('in', 1270.56, at(12)), stranger('out', { reason: 'no_preceding_check' }, at(13)), stranger('out', { reason: 'no_preceding_check' }, at(14))] });
+    const { text } = await readPdf(await buildReportPdf({ content: some, bundle: makeBundle(some) }));
+    expect(flow(text)).toContain('2 transfers to or from addresses not on the list; 2 were outflows with no check before them (unmatched).');
+    const plain = await readPdf(await buildReportPdf({ content: makeContent(), bundle: makeBundle(makeContent()) }));
+    expect(flow(plain.text)).toContain('Every transfer in this period had a registered address on the other side.');
+    // A report stored before slice 8 carries no counts: its PDF says nothing either way.
+    const old = makeContent();
+    delete (old.strip as any).byCounterparty;
+    delete (old.strip as any).unmatched;
+    const older = await readPdf(await buildReportPdf({ content: old, bundle: makeBundle(old) }));
+    expect(older.text).not.toContain('addresses not on the list');
+    expect(older.text).not.toContain('Every transfer in this period');
   });
 
   it('says what the signature covers: the report data embedded in the file, not the printed pages, and to compare the pages with the attachment', async () => {

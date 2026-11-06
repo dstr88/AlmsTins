@@ -119,7 +119,7 @@ const pageData = (over: Partial<ReportsPageData> = {}): ReportsPageData => {
     yesterday: '2026-10-17',
     signing: { available: true },
     tins: [{ id: 'tin-1', label: 'Treasury agent', since: '2026-10-01', reports: [item(c), item(c, { id: 'rep-0', day: '2026-10-16', version: 1, partial: true, signed: false })] }],
-    delivery: { settings: { cadence: 'off', alerts: false }, recipientAvailable: true },
+    delivery: { settings: { cadence: 'off', establishedAlerts: false }, recipientAvailable: true },
     ...over,
   };
 };
@@ -157,7 +157,7 @@ describe('the Reports page', () => {
     const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 't', label: 'Quiet', since: '2026-10-01', reports: [item(empty)] }] }) }));
     expect((html.match(/ag-count--zero/g) ?? []).length).toBe(4);
     expect(html).not.toMatch(/ag-count--issues|ag-count--confirm/);
-    expect(textOf(html)).toContain('No transfers with registered destinations');
+    expect(textOf(html)).toContain('No transfers');
   });
 
   it('says plainly when there are no agents, and when an agent has no reports', () => {
@@ -207,23 +207,26 @@ describe('the Reports page', () => {
 });
 
 describe('the email settings', () => {
-  const html = (over: Partial<{ cadence: 'off' | 'daily' | 'weekly' | 'issues'; alerts: boolean; recipientAvailable: boolean }> = {}) =>
-    render(React.createElement(DeliverySettings, { settings: { cadence: over.cadence ?? 'off', alerts: over.alerts ?? false }, recipientAvailable: over.recipientAvailable ?? true }));
+  const html = (over: Partial<{ cadence: 'off' | 'daily' | 'weekly' | 'issues'; established: boolean; recipientAvailable: boolean }> = {}) =>
+    render(React.createElement(DeliverySettings, { settings: { cadence: over.cadence ?? 'off', establishedAlerts: over.established ?? false }, recipientAvailable: over.recipientAvailable ?? true }));
 
-  it('shows the four choices, with the saved one selected, and says everything is off until turned on', () => {
+  it('shows the four choices, with the saved one selected, and says which emails are off until turned on and which always go', () => {
     const h = html({ cadence: 'weekly' });
     const t = textOf(h);
     for (const label of ['Off', 'Every day', 'Every Monday, for the week before', 'Only when something needs a look']) expect(t, label).toContain(label);
     expect(h).toMatch(/<option value="weekly" selected="">/);
     expect((h.match(/<option /g) ?? []).length).toBe(4);
-    expect(t).toContain('Email is off until you turn it on');
+    expect(t).toContain('A check that does not come back proven or established is always emailed at once, at most one an hour for each address.');
+    expect(t).toContain('The report email and the Established email are off until you turn them on.');
     expect(t).toContain('Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in.');
   });
 
-  it('shows the alerts choice as saved: off by default', () => {
+  it('the one switch is the Established email, shown as saved: off by default', () => {
     expect(html()).not.toMatch(/type="checkbox" checked/);
-    expect(html({ alerts: true })).toMatch(/type="checkbox" checked/);
-    expect(textOf(html())).toContain('at most one an hour for each address');
+    expect(html({ established: true })).toMatch(/type="checkbox" checked/);
+    expect((html().match(/type="checkbox"/g) ?? []).length).toBe(1);
+    expect(textOf(html())).toContain('Also email me at once when a check comes back Established: an address on the list the agent asked about before (at most one an hour for each address)');
+    expect(textOf(html())).not.toMatch(/comes back flagged/);
   });
 
   it('warns when there is no address to send to, and says nothing otherwise', () => {
@@ -232,7 +235,7 @@ describe('the email settings', () => {
   });
 
   it('is on the Reports page, after the agents, and every class on it belongs to Agentics', () => {
-    const page = render(React.createElement(ReportsPage, { data: pageData({ delivery: { settings: { cadence: 'daily', alerts: true }, recipientAvailable: true } }) }));
+    const page = render(React.createElement(ReportsPage, { data: pageData({ delivery: { settings: { cadence: 'daily', establishedAlerts: true }, recipientAvailable: true } }) }));
     expect(page.indexOf('Treasury agent')).toBeLessThan(page.indexOf('Report email'));
     expect(page).toMatch(/<option value="daily" selected="">/);
     for (const c of classes(page)) expect(c, c).toMatch(/^ag-/);
@@ -305,9 +308,26 @@ describe('one report', () => {
     const partial = render(React.createElement(ReportView, { report: detail(content({ partial: true })), signing: { available: true } }));
     expect(textOf(partial)).toContain('Partial day. This report was made at 2026-10-18 09:10:00 UTC');
     const quiet = render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } }));
-    expect(textOf(quiet)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
-    expect(textOf(quiet)).toContain('No check came back proven or consistent with history in this period.');
+    expect(textOf(quiet)).toContain('Nothing recorded for this agent needs a person to look at it.');
+    expect(textOf(quiet)).toContain('No check came back proven or established in this period.');
     expect(textOf(quiet)).not.toContain('Partial day');
+  });
+
+  it('says how many transfers went to or came from addresses not on the list, and how many were unmatched; or that every one had a registered address (slice 8)', () => {
+    const stranger = (direction: 'in' | 'out', detail: Record<string, unknown>, when: string) => ({ ...move(direction, 1, when), registry: 'none' as const, address: addr(9), detail });
+    const some = content({ events: [
+      move('in', 1270.56, at(12)),
+      stranger('out', { reason: 'no_preceding_check' }, at(13)),
+      stranger('out', { link: { eventId: '11111111-1111-4111-8111-111111111111' } }, at(14)),
+      stranger('in', { reason: 'no_preceding_check' }, at(15)),
+    ] });
+    const t = textOf(render(React.createElement(ReportView, { report: detail(some), signing: { available: true } })));
+    expect(t).toContain('3 transfers to or from addresses not on the list; 1 was an outflow with no check before it (unmatched).');
+    const none = textOf(render(React.createElement(ReportView, { report: detail(content()), signing: { available: true } })));
+    expect(none).toContain('Every transfer in this period had a registered address on the other side.');
+    expect(none).not.toContain('transfers to or from addresses not on the list');
+    const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
+    expect(quiet).not.toContain('Every transfer in this period');
   });
 
   it('says a day that reached the daily limit of recorded checks was cut, and when; a day that was not says nothing', () => {
@@ -319,13 +339,12 @@ describe('one report', () => {
     expect(textOf(render(React.createElement(ReportView, { report: detail(content()), signing: { available: true } })))).not.toContain('Daily limit reached');
   });
 
-  it('an all-clear is about what was recorded: it names the registered destinations and says a transfer to an unregistered address is not seen', () => {
+  it('an all-clear is about what was recorded: it says a transfer to an unregistered address is recorded and marked, and an unmatched outflow is marked too', () => {
     const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
-    expect(quiet).toContain('A transfer to an address that was never registered is not recorded here.');
+    expect(quiet).toContain('A transfer to or from an address that was never registered is recorded here and marked as not on the list; an outflow to one with no check before it is marked as unmatched.');
     expect(quiet).not.toMatch(/Nothing here needs/);
-    // The strip says the same about "no transfers" on both sides, on the page and in the list.
-    expect(quiet.match(/No transfers with registered destinations/g)).toHaveLength(2);
-    expect(quiet).not.toMatch(/No transfers(?! with registered destinations)/);
+    // The strip says "no transfers" on both sides, bought and sold.
+    expect(quiet.match(/No transfers/g)).toHaveLength(2);
   });
 
   it('the page and the PDF use one set of words for what was and was not recorded', async () => {

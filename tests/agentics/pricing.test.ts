@@ -14,7 +14,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const transfer = (over: Partial<Transfer> = {}): Transfer => ({
   chain: 'ethereum', hash: `0x${'1'.repeat(64)}`, leg: 'native:0', atSec: Math.floor((NOW - DAY_MS) / 1000), blockNumber: 1,
-  direction: 'out', wallet: addr(1), counterparty: addr(2), amount: '2', asset: 'ETH', assetContract: null, source: 'txlist', ...over,
+  direction: 'out', wallet: addr(1), counterparty: addr(2), amount: '2', asset: 'ETH', assetContract: null, contract: null, source: 'txlist', ...over,
 });
 const token = (symbol: string, contract: string, amount = '100', over: Partial<Transfer> = {}) =>
   transfer({ asset: symbol, assetContract: contract, amount, source: 'tokentx', ...over });

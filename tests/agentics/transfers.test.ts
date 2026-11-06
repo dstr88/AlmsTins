@@ -17,8 +17,23 @@ describe('the chain\'s own coin (txlist)', () => {
     expect(unreadable).toBe(0);
     expect(transfers).toEqual([{
       chain: 'ethereum', hash: txHash(1), leg: `native:${ME}:${THEM}:1500000000000000000:0`, atSec: blockTime(100), blockNumber: 100,
-      direction: 'out', wallet: ME, counterparty: THEM, amount: '1.5', asset: 'ETH', assetContract: null, source: 'txlist',
+      direction: 'out', wallet: ME, counterparty: THEM, amount: '1.5', asset: 'ETH', assetContract: null, contract: null, source: 'txlist',
     }]);
+  });
+
+  it('says whether the other side is a contract where the listing can tell: call data on a txlist row, every internal row; a token row cannot say', () => {
+    const plain = normalizeTransfers('ethereum', ME, 'txlist', [{ ...nativeRow({ hash: 1, block: 100, from: ME, to: THEM, value: units('1') }), input: '0x' }]).transfers[0];
+    const call = normalizeTransfers('ethereum', ME, 'txlist', [{ ...nativeRow({ hash: 2, block: 100, from: ME, to: THEM, value: units('1') }), input: '0x38ed1739000000' }]).transfers[0];
+    const blank = normalizeTransfers('ethereum', ME, 'txlist', [{ ...nativeRow({ hash: 3, block: 100, from: ME, to: THEM, value: units('1') }), input: '' }]).transfers[0];
+    const odd = normalizeTransfers('ethereum', ME, 'txlist', [{ ...nativeRow({ hash: 4, block: 100, from: ME, to: THEM, value: units('1') }), input: 'not hex' }]).transfers[0];
+    const internal = normalizeTransfers('ethereum', ME, 'txlistinternal', [internalRow({ hash: 5, block: 100, from: THEM, to: ME, value: units('1') })]).transfers[0];
+    const token = normalizeTransfers('ethereum', ME, 'tokentx', [tokenRow({ hash: 6, block: 100, from: ME, to: THEM, value: '1000000', contract: `0x${'c'.repeat(40)}`, symbol: 'USDC' })]).transfers[0];
+    expect(plain.contract).toBe(false);
+    expect(call.contract).toBe(true);
+    expect(blank.contract).toBe(false);
+    expect(odd.contract).toBeNull();
+    expect(internal.contract).toBe(true);
+    expect(token.contract).toBeNull();
   });
 
   it('reads a payment into the wallet', () => {

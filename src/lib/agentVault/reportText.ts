@@ -21,7 +21,7 @@ export const BUCKET_MEANING: Record<ReportBucket, string> = {
   issues: 'Flagged: the registry flagged the address, or its proof is on a different domain than the agent expected.',
   not_confirmed: 'Unknown: the address is not in the registry, or is in it but its checks have not finished. A swapped address shows up here.',
   new: 'First check of a registered, trusted address. Its history baseline started; future checks are compared with it.',
-  no_issues: 'Proven, or consistent with the address\'s own history. Counted here, never listed.',
+  no_issues: 'Proven, or established: the same address this agent asked about before. Counted here, never listed.',
 };
 
 /** Why a check landed where it did, by the reason code the tin recorded. */
@@ -31,7 +31,7 @@ const REASON: Record<string, string> = {
   not_in_registry: 'Not in your registry. The agent asked about an address that is not on its list.',
   registry_pending: 'In your registry, but its checks have not finished.',
   domain_proof: 'Proven by a domain proof.',
-  registered_and_checked_before: 'Registered, and checked before. Consistent with history.',
+  registered_and_checked_before: 'Registered, and checked before. Established: the same address as before, which is not proof of ownership.',
   registered_first_check: 'First check of a registered address. History baseline started.',
   other: 'Reason not recorded.',
 };
@@ -40,19 +40,33 @@ export function reasonText(code: string): string {
   return REASON[code] ?? REASON.other;
 }
 
+/**
+ * The word a person reads for each verify-status. The API and the ledger keep the code
+ * `consistent-with-history` (agents match on it, and the ledger's CHECK constraint allows only the
+ * four codes); on every page, report and email it reads "Established": the address is the same one
+ * this agent asked about before. That proves sameness, never ownership, and it is never "proven".
+ */
 export const VERIFY_STATUS_TITLE: Record<string, string> = {
   proven: 'Proven',
-  'consistent-with-history': 'Consistent with history',
+  'consistent-with-history': 'Established',
   flagged: 'Flagged',
   unknown: 'Unknown',
 };
 
 /**
- * What a report can and cannot say it saw. The Vault records the checks an agent asks for and the
- * transfers between the agent's wallets and the destinations on its registry. A transfer to an
- * address that was never registered is not visible to it, so an all-clear is about what was
- * recorded, never about everything the agent did.
+ * What a report can and cannot say it saw. The Vault records the checks an agent asks for and every
+ * direct transfer of the agent's own wallets, marking whether the other side was on its registry. A
+ * check the agent never asks leaves no check record, so an all-clear is about what was recorded,
+ * never about everything the agent did.
  */
-export const NO_TRANSFERS = 'No transfers with registered destinations';
-export const NOTHING_NEEDS_A_PERSON = 'Nothing recorded for your registered destinations needs a person to look at it.';
-export const NOT_REGISTERED_NOTE = 'A transfer to an address that was never registered is not recorded here.';
+export const NO_TRANSFERS = 'No transfers';
+export const NOTHING_NEEDS_A_PERSON = 'Nothing recorded for this agent needs a person to look at it.';
+export const NOT_REGISTERED_NOTE = 'A transfer to or from an address that was never registered is recorded here and marked as not on the list; an outflow to one with no check before it is marked as unmatched.';
+
+/** The report's line for the transfers whose other side was not on the list, and the unmatched among them. */
+export function unregisteredLine(unregistered: number, unmatched: number): string {
+  const head = `${unregistered.toLocaleString('en-US')} ${unregistered === 1 ? 'transfer' : 'transfers'} to or from addresses not on the list`;
+  if (unmatched === 0) return `${head}.`;
+  return `${head}; ${unmatched.toLocaleString('en-US')} ${unmatched === 1 ? 'was an outflow' : 'were outflows'} with no check before ${unmatched === 1 ? 'it' : 'them'} (unmatched).`;
+}
+export const EVERY_TRANSFER_REGISTERED = 'Every transfer in this period had a registered address on the other side.';

@@ -135,7 +135,8 @@ describe('an Agent Vault ledger export', () => {
     expect(note).toMatch(/later export of the same days can contain more/);
     expect(note).toMatch(/cannot see one/);
     expect(note).toMatch(/does not show that the agent asked before every payment/);
-    expect(note).toMatch(/never registered/);
+    expect(note).toMatch(/whether the other side was on the agent's list/);
+    expect(note).toMatch(/marked as unmatched/);
     // The plan's daily limit: a check after it is answered and not recorded, and the file marks where that began.
     expect(note).toMatch(/a check that came after the limit was reached is answered and not recorded, except one that came back flagged; the check that found the limit used up is marked in this file/);
     // It says "contain", never "hold": the Vault's wording rule keeps that word for what an agent does with a payment.

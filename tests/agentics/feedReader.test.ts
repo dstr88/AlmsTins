@@ -12,8 +12,8 @@ import { failed, fakeTimers, okBody, scriptedSend, settle } from '../helpers/fak
  */
 
 const pass = (statuses: string[], recorded = 0) => ({
-  tinId: 'tin-1', startedAt: '2026-10-19T12:00:00.000Z', watchedDestinations: 2, notWatched: { pending: 0, flagged: 0, overLimit: 0 },
-  wallets: statuses.map((status) => ({ status })), recorded,
+  tinId: 'tin-1', startedAt: '2026-10-19T12:00:00.000Z', registered: { trusted: 2, pending: 0, flagged: 0 },
+  wallets: statuses.map((status) => ({ status })), recorded, unregistered: 0, unmatched: 0,
 });
 const read = (statuses = ['complete'], recorded = 0, waitMs = 30_000) => okBody({ status: 'read', tinId: 'tin-1', pass: pass(statuses, recorded), waitMs });
 const other = (status: 'recent' | 'busy' | 'nothing' | 'limit', waitMs: number) => okBody({ status, tinId: null, pass: null, waitMs });

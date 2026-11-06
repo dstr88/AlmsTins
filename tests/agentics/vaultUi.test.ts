@@ -79,10 +79,10 @@ const dest = (n: number, over: Partial<Destination> = {}): Destination => ({
 const wallet = (n: number, over: Partial<AgentWallet> = {}): AgentWallet => ({ id: `w${n}`, tinId: 'tin-1', chain: 'ethereum', address: addr(900 + n), createdAt: '2026-10-01 00:00:00', ...over });
 const HASH = `0x${'ab'.repeat(32)}`;
 const row = (over: Partial<LedgerRow> = {}): LedgerRow => ({
-  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, limitReached: false, keyState: 'active', tx: null, ...over,
+  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, counterparty: null, unmatched: false, contract: null, limitReached: false, keyState: 'active', tx: null, ...over,
 });
 const transfer = (over: Partial<LedgerRow> = {}): LedgerRow =>
-  row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5 }, ...over });
+  row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', counterparty: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5 }, ...over });
 const totals = (over: Record<string, unknown> = {}) => ({
   transactions: 2,
   bought: { count: 1, pricedCount: 1, unpricedCount: 0, usd: 4500.5 },
@@ -153,7 +153,8 @@ describe('the home page', () => {
 
   it('says what the Vault records and what it cannot see, up top', () => {
     const t = textOf(render(React.createElement(AgentsHome, { data: home() })));
-    expect(t).toContain('A transfer to an address that was never registered is invisible here.');
+    expect(t).toContain('every direct transfer its own wallets make or receive, marking whether the other side was on its list');
+    expect(t).toContain('with no check before it, is marked as unmatched');
   });
 
   it('has a form to add an agent: a name (required, 80 characters), an optional key from the keys it could take, and a way to mint one', () => {
@@ -231,9 +232,9 @@ describe('one agent', () => {
   });
 
   it('puts the two honest sentences near the top, in the words the brief fixed', () => {
-    expect(t).toContain('Records the checks this agent asks with its key and the funds that reach your trusted addresses. A transfer to an address that was never registered is invisible here.');
+    expect(t).toContain('Records the checks this agent asks with its key and every direct transfer of its own wallets, in and out, with the hash and the other side\'s address. Each transfer says whether the other side was on your list when it was recorded. A payment to an address that was never registered, with no check before it, is marked as unmatched.');
     expect(t).toContain('Pass means the checks we ran came back without a flag. It is not a statement that an address is safe or legitimate.');
-    expect(html.indexOf('invisible here')).toBeLessThan(html.indexOf('Registered addresses'));
+    expect(html.indexOf('marked as unmatched')).toBeLessThan(html.indexOf('Registered addresses'));
   });
 
   it('shows its name, when it was created, a way back, and the sections in order: key, registry, wallets, ledger, export, remove', () => {
@@ -490,7 +491,7 @@ describe('the ledger', () => {
   });
 
   it('words every answer and every registry word, and a check with no answer as that', () => {
-    for (const [answer, title] of [['proven', 'Proven'], ['consistent-with-history', 'Consistent with history'], ['flagged', 'Flagged'], ['unknown', 'Unknown']] as const) {
+    for (const [answer, title] of [['proven', 'Proven'], ['consistent-with-history', 'Established'], ['flagged', 'Flagged'], ['unknown', 'Unknown']] as const) {
       expect(textOf(item(row({ answer }))), answer).toContain(`Answer: ${title}`);
     }
     for (const [registry, word] of [['trusted', 'Trusted'], ['flagged', 'Flagged'], ['pending', 'Pending'], ['none', 'Not registered']] as const) {
@@ -516,6 +517,32 @@ describe('the ledger', () => {
     const outbound = item(transfer({ tx: { hash: HASH, direction: 'out', amount: '300', asset: 'USDC', usd: 300 } }));
     expect(textOf(outbound)).toContain('Sold (out)');
     expect(textOf(outbound)).toContain('300 USDC');
+  });
+
+  it('says what the registry said about the other side of a transfer, in words and in color, and shows the hash beside the explorer link (slice 8)', () => {
+    const trusted = item(transfer());
+    expect(textOf(trusted)).toContain('Other side: trusted');
+    expect(trusted).toContain('ag-pill ag-pill--gain');
+    expect(textOf(trusted)).toContain('Transaction 0xababab…ababab');
+    expect(textOf(trusted)).toContain('View on the explorer');
+    expect(textOf(trusted)).not.toContain('Registry:'); // a transfer's row says "Other side", a check's says "Registry"
+    for (const [status, word, cls] of [['pending', 'Other side: pending', 'ag-pill--muted'], ['flagged', 'Other side: flagged', 'ag-pill--bad'], ['unregistered', 'Other side: not on the list', 'ag-pill--warn']] as const) {
+      const html = item(transfer({ registry: status === 'unregistered' ? 'none' : status, counterparty: status }));
+      expect(textOf(html), status).toContain(word);
+      expect(html, status).toContain(cls);
+    }
+    expect(textOf(item(transfer({ counterparty: null })))).not.toContain('Other side');
+  });
+
+  it('marks the unmatched line in words and with a class, and says when a payment went through a contract', () => {
+    const unmatched = item(transfer({ registry: 'none', counterparty: 'unregistered', unmatched: true, tx: { hash: HASH, direction: 'out', amount: '9', asset: 'ETH', usd: 18000 } }));
+    expect(textOf(unmatched)).toContain('Unmatched: this payment went to an address not on the list, and no check was asked about it in the hour before.');
+    expect(unmatched).toContain('ag-event ag-event--unmatched');
+    expect(item(transfer())).not.toContain('ag-event--unmatched');
+    expect(textOf(item(transfer()))).not.toContain('Unmatched');
+    expect(textOf(item(transfer({ contract: true })))).toContain('Paid through a contract: the other side is the contract, not whoever is behind it.');
+    expect(textOf(item(transfer({ contract: false })))).not.toContain('Paid through a contract');
+    expect(textOf(item(transfer({ contract: null })))).not.toContain('Paid through a contract');
   });
 
   it('never shows an unpriced transfer as zero', () => {
@@ -553,6 +580,16 @@ describe('the ledger', () => {
     expect(html).not.toMatch(/<img/i);
     expect(attributeNames(html).filter((a) => /^on/.test(a))).toEqual([]);
     expect(textOf(html)).toContain(HOSTILE);
+  });
+
+  it('offers the switch that narrows the list to transfers whose other side was not on the list, off by default', () => {
+    const html = render(React.createElement(LedgerPanel, { tinId: 'tin-1', ledger: { rows: [transfer()], next: null }, totals: totals() as never }));
+    expect(html).toMatch(/<label class="ag-check"><input type="checkbox"\/><span>Not on the list only<\/span><\/label>/);
+    expect(textOf(html)).not.toContain('Showing only the transfers');
+    const src = read('src/components/agentics/LedgerPanel.tsx');
+    // The narrowing is the server's: the page asks the ledger endpoint with the filter and pages inside it, never filters a page it already has.
+    expect(src).toContain("&filter=unregistered");
+    expect(src).toContain('pageUrl(unregisteredOnly, next)');
   });
 
   it('lists the rows newest first as given, says so when there are none, and offers more only when there is more', () => {

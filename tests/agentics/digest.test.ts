@@ -146,7 +146,7 @@ describe('the subject leads with whether action is needed', () => {
         expect(`${m.subject}\n${m.text}`, JSON.stringify(c)).not.toMatch(/\bverified\b|\ball clear\b/i);
       }
     }
-    const alert = getAgentReportEmail('en').alert({ appBase: APP });
+    const alert = getAgentReportEmail('en').alert({ appBase: APP, kind: 'mismatch' });
     expect(`${alert.subject}\n${alert.text}`).not.toMatch(/\bverified\b|\ball clear\b/i);
   });
 
@@ -179,7 +179,7 @@ describe('the body of a digest', () => {
         '  Had issues: 1',
         '  Not confirmed: 1',
         'New (first check of a registered address): 3',
-        'Checks that came back proven or consistent with history: 1,284',
+        'Checks that came back proven or established: 1,284',
         'Agents with activity: 3',
         '',
         'View the full report (sign-in required):',
@@ -211,7 +211,7 @@ describe('the body of a digest', () => {
     expect(m.text).toContain('Nothing needs your attention.');
     expect(m.text).not.toContain('Had issues');
     expect(m.text).not.toContain('Not confirmed');
-    expect(m.text).toContain('Checks that came back proven or consistent with history: 40');
+    expect(m.text).toContain('Checks that came back proven or established: 40');
   });
 
   it('for a week: names the seven days, and says so', () => {
@@ -249,7 +249,7 @@ describe('the body of a digest', () => {
       composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ issues: 1, notConfirmed: 2, new: 1, noIssuesChecks: 5 }), APP),
       composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ noIssuesChecks: 5 }), APP),
       composeDigest({ kind: 'week', from: '2026-10-11', to: DAY }, counts({}), APP),
-      getAgentReportEmail('en').alert({ appBase: APP }),
+      getAgentReportEmail('en').alert({ appBase: APP, kind: 'mismatch' }),
     ];
     for (const m of all) {
       const text = `${m.subject}\n${m.text}`;
@@ -262,10 +262,29 @@ describe('the body of a digest', () => {
 });
 
 describe('the alert email', () => {
-  const m = en.alert({ appBase: APP });
+  const m = en.alert({ appBase: APP, kind: 'mismatch' });
 
-  it('leads with the action: a check came back flagged on a registered address', () => {
-    expect(m.subject).toBe('Action needed: a check on a registered address came back flagged');
+  it('leads with the action and names the answer', () => {
+    expect(m.subject).toBe('Action needed: a check came back Mismatch');
+    expect(en.alert({ appBase: APP, kind: 'not_on_list' }).subject).toBe('Action needed: a check came back Not on the list');
+  });
+
+  it('an Established email says no action is needed, that it is not proof of ownership, and how to turn it off', () => {
+    const e = en.alert({ appBase: APP, kind: 'established' });
+    expect(e.subject).toBe('A check came back Established');
+    expect(e.text).toContain('No action is needed.');
+    expect(e.text).toContain('Established means the same address as before, not proof of ownership.');
+    expect(e.text).toContain('To turn them off, open the Reports page.');
+    expect(e.text).not.toContain('A person should look at it');
+  });
+
+  it('no alert for the other answers offers a way to turn it off: they always go', () => {
+    for (const kind of ['mismatch', 'flagged', 'not_on_list', 'pending', 'unanchored', 'unknown'] as const) {
+      const t = en.alert({ appBase: APP, kind }).text;
+      expect(t, kind).toContain('Almstins emails you about every check that does not come back proven or established');
+      expect(t, kind).not.toMatch(/turn (them|it) off/i);
+      expect(t, kind).not.toMatch(/0x[0-9a-fA-F]{6,}|\$\s?\d/);
+    }
   });
 
   it('says a person should look, shows no address, and links to the Reports page behind the sign-in', () => {

@@ -13,13 +13,19 @@
  * trust: the reason a check was answered as it was is a code the report knows (or `other`), and a
  * transfer's chain-supplied text (its asset's symbol) is the one string left, and a screen renders
  * it as text.
+ *
+ * For a transfer the row also says what the agent's registry said about the other side when the
+ * row was written (`counterparty`, ./counterparty.ts), whether it is the unmatched line (an outflow
+ * to an address not on the list with no check before it), and whether the other side is a contract
+ * where the chain's listing could tell.
  */
 import type { VaultChain } from './addresses';
+import { counterpartyOf, isLinkReason, isUnmatched, type CounterpartyStatus, type LinkReason } from './counterparty';
 import type { RegistryVerdict, VaultAnswer } from './events';
 import { basisOf, hasLimitMarker } from './report';
 import type { EventView } from './vault';
 
-export type LinkReason = 'no_preceding_check' | 'ambiguous_checks';
+export type { LinkReason };
 export type KeyState = 'active' | 'pending' | 'revoked' | 'unknown';
 
 export interface LedgerTransfer {
@@ -50,6 +56,12 @@ export interface LedgerRow {
   basis: string | null;
   /** For a transfer: why no check stands behind it, or null when one does. */
   linkReason: LinkReason | null;
+  /** For a transfer: what the registry said about the other side when the row was written. Null for a check, or for a word the screen does not know. */
+  counterparty: CounterpartyStatus | null;
+  /** For a transfer: it left the wallet for an address not on the list, with no check before it. Always false for a check. */
+  unmatched: boolean;
+  /** For a transfer: whether the other side is a contract, where the chain's listing could tell; null when it could not, and for a check. */
+  contract: boolean | null;
   /** For a check: whether it is the one that found the agent's daily limit of recorded checks used up. Checks after it that day were answered and not recorded, except flagged ones. */
   limitReached: boolean;
   /** For a check: whether the key that asked is still in use. A rotated key stays marked. Null for a transfer. */
@@ -62,7 +74,6 @@ const ANSWERS: Record<VaultAnswer, true> = { proven: true, 'consistent-with-hist
 const REGISTRIES: Record<RegistryVerdict, true> = { trusted: true, flagged: true, pending: true, none: true };
 const CHAINS: Record<VaultChain, true> = { ethereum: true, polygon: true, avalanche: true };
 const KEY_STATES: Record<KeyState, true> = { active: true, pending: true, revoked: true, unknown: true };
-const LINK_REASONS: Record<LinkReason, true> = { no_preceding_check: true, ambiguous_checks: true };
 
 const has = (set: object, v: unknown): boolean => typeof v === 'string' && Object.prototype.hasOwnProperty.call(set, v);
 const text = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -90,6 +101,9 @@ export function toLedgerRow(event: Partial<EventView> | null | undefined): Ledge
   const isCheck = event.kind === 'checked';
   const tx = isCheck ? null : transferOf(event.tx);
   const reason = detail?.reason;
+  const registry = has(REGISTRIES, event.registry) ? (event.registry as RegistryVerdict) : null;
+  const linkReason = !isCheck && isLinkReason(reason) ? reason : null;
+  const counterparty = isCheck ? null : counterpartyOf(registry);
   return {
     id,
     at,
@@ -97,9 +111,12 @@ export function toLedgerRow(event: Partial<EventView> | null | undefined): Ledge
     address,
     chain: has(CHAINS, event.chain) ? (event.chain as VaultChain) : null,
     answer: has(ANSWERS, event.answer) ? (event.answer as VaultAnswer) : null,
-    registry: has(REGISTRIES, event.registry) ? (event.registry as RegistryVerdict) : null,
+    registry,
     basis: isCheck ? basisOf(detail) : null,
-    linkReason: !isCheck && has(LINK_REASONS, reason) ? (reason as LinkReason) : null,
+    linkReason,
+    counterparty,
+    unmatched: tx !== null && isUnmatched({ direction: tx.direction, counterparty, linked: linkReason === null }),
+    contract: !isCheck && typeof detail?.contract === 'boolean' ? detail.contract : null,
     limitReached: isCheck && hasLimitMarker(detail),
     keyState: isCheck && event.keyId ? (has(KEY_STATES, event.keyStatus) ? (event.keyStatus as KeyState) : 'unknown') : null,
     tx,

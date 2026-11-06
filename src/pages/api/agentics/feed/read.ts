@@ -15,8 +15,9 @@
  *          `waitMs` is how long the page should wait before asking again. A page that asks sooner is only told
  *          "recent" or "busy"; nothing is read twice in a hurry.
  *
- * Only registered, trusted addresses are looked for, and only in the agent's own wallets; a transfer to any
- * other address is not recorded, counted or mentioned. At most 6 requests a minute for an account (429
+ * Only the agent's own wallets are read; every direct transfer they make or receive is recorded, marked with
+ * what the registry says about the other side (`pass.unregistered` and `pass.unmatched` count the ones not on
+ * the list, and the outflows among them with no check before). At most 6 requests a minute for an account (429
  * `rate_limited`, with `Retry-After`); the count is per process and resets on a restart. Nothing runs unless a
  * page asks: the Vault never starts this itself.
  */

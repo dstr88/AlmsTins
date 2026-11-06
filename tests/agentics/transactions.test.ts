@@ -29,7 +29,7 @@ const facts = (over: Record<string, unknown> = {}) => ({
 });
 const tx = (tenant: string, over: Record<string, unknown> = {}, facts_: Record<string, unknown> = {}) =>
   events.insertTransactionEvent(tenant, {
-    tinId: 'tin-1', address: addr(2), chain: 'ethereum', leg: 'native:0', answer: 'unknown', status: null,
+    tinId: 'tin-1', address: addr(2), chain: 'ethereum', registry: 'trusted', leg: 'native:0', answer: 'unknown', status: null,
     tx: facts(facts_), detail: { source: 'txlist' }, at: iso(0), ...over,
   } as never);
 
@@ -68,6 +68,12 @@ describe('a movement is written once', () => {
       occurred_at: iso(0),
     })]);
     expect(JSON.parse(fake.rows('agent_events')[0].detail_json)).toEqual({ source: 'txlist', leg: 'native:0' });
+  });
+
+  it('writes the registry verdict it is given, so a transfer to an address not on the list is stored as none', async () => {
+    const r = await tx(A, { registry: 'none', address: addr(9) });
+    expect(r.inserted).toBe(true);
+    expect(fake.rows('agent_events')[0]).toMatchObject({ address: addr(9), registry: 'none', kind: 'transaction' });
   });
 
   it('reading the same movement again adds nothing and says so', async () => {
@@ -124,6 +130,24 @@ describe('reading transactions back', () => {
       detail: { source: 'txlist', leg: 'native:0' },
     });
     expect(page[1].tx).toBeNull();
+  });
+
+  it('narrowed to "unregistered", a page holds only the transfers whose other side was not on the list, and its cursor pages inside that list', async () => {
+    await events.insertCheckedEvent(A, { tinId: 'tin-1', address: addr(9), chain: null, answer: 'unknown', registry: 'none', status: 'unknown', keyId: 'k', sourceIp: null, detail: {}, at: iso(1) });
+    await tx(A, { at: iso(2), leg: 'native:a', registry: 'trusted' });
+    await tx(A, { at: iso(3), leg: 'native:b', registry: 'none', address: addr(9) });
+    await tx(A, { at: iso(4), leg: 'native:c', registry: 'none', address: addr(8) });
+    await tx(A, { at: iso(5), leg: 'native:d', registry: 'flagged' });
+    const first = await events.listEvents(A, 'tin-1', { limit: 1, filter: 'unregistered' });
+    expect(first.events.map((e) => [e.address, e.registry, e.kind])).toEqual([[addr(8), 'none', 'transaction']]);
+    expect(first.next).toEqual(expect.any(String));
+    const second = await events.listEvents(A, 'tin-1', { limit: 5, before: events.parseCursor(first.next), filter: 'unregistered' });
+    expect(second.events.map((e) => e.address)).toEqual([addr(9)]);
+    expect(second.next).toBeNull();
+    // Without the narrowing the same page holds everything, the check about the unregistered address included.
+    const all = await events.listEvents(A, 'tin-1', { limit: 10 });
+    expect(all.events).toHaveLength(5);
+    expect((await events.listEvents(A, 'tin-1', { limit: 10, filter: null })).events).toHaveLength(5);
   });
 
   it('an unpriced transfer reads back with usd null, never 0', async () => {

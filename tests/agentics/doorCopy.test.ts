@@ -49,7 +49,8 @@ describe('the words keep the product wording', () => {
     expect(landing).toMatch(/Read-only/);
     expect(landing).toMatch(/never holds keys/);
     expect(landing).toMatch(/never in the transaction path/);
-    expect(landing).toMatch(/skips the check is outside what Agentics can see/);
+    expect(landing).toMatch(/marks whether the other side was on your list/);
+    expect(landing).toMatch(/with no check before it, is marked as unmatched/);
     expect(landing).toMatch(/An outage is never a pass/);
   });
 });
@@ -192,7 +193,8 @@ describe('the open vault keeps the same wording rules', () => {
     expect(landing).toMatch(/Read-only/);
     expect(landing).toMatch(/never holds keys/);
     expect(landing).toMatch(/never in the transaction path/);
-    expect(landing).toMatch(/skips the check is outside what Agentics can see/);
+    expect(landing).toMatch(/marks whether the other side was on your list/);
+    expect(landing).toMatch(/with no check before it, is marked as unmatched/);
     expect(landing).toMatch(/An outage is never a pass/);
   });
 
@@ -212,25 +214,26 @@ describe('the open vault keeps the same wording rules', () => {
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/real[- ]time|live feed|as it happens|instant(ly)?|every second/i);
   });
 
-  it('says what a check needs to be recorded, that only trusted addresses are read, and the daily number: no promise of "every check" or "every address"', () => {
+  it('says what a check needs to be recorded, that every transfer of the bot\'s own wallet is read and marked, and the daily number: no promise of "every check" or "every address"', () => {
     const step = enOpen.landing.steps[2].body;
     expect(step).toContain(`Each check your bot asks with its key becomes a dated entry on your bot’s page (up to ${FREE_CHECKS_PER_DAY.toLocaleString('en-US')} a day on the free plan).`);
-    expect(step).toContain('the addresses you trusted');
+    expect(step).toContain('every transfer of your bot’s wallet, marks whether the other side was on your list');
     const welcome = enOpen.letter.paragraphs.join(' ');
     expect(welcome).toContain('link a key to it (you make a key by proving a domain)');
     expect(welcome).toContain('Each check your bot asks with its key appears on its page.');
-    expect(welcome).toContain('Transfers to the addresses you trusted appear once a day, about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit), or when you press Read the chain');
+    expect(welcome).toContain('Every transfer of your bot’s wallet appears once a day, about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit), or when you press Read the chain');
+    expect(welcome).toContain('marked with whether the other side was on your list');
     const opened = opening.letter.paragraphs.join(' ');
     expect(opened).toContain('link a key to it (you make a key by proving a domain)');
     expect(opened).toContain('Each check it asks with the key becomes a dated entry');
-    expect(opened).toContain('the addresses you trusted are read from Ethereum, Polygon and Avalanche');
+    expect(opened).toContain('every transfer of the bot’s wallet is read from Ethereum, Polygon and Avalanche, marked with whether the other side was on your list');
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/\bevery check\b|\ball your addresses\b|\bwatches? (the )?(receiv|every)/i);
   });
 
   it('never says Agentics watches the addresses an agent pays: it reads the agent\'s own wallet, in both states of the door', () => {
     for (const [where, text] of [...ALL, ...ALL_OPEN]) expect(text, where).not.toMatch(/\bwatch(es|ing)? (the |your |a )?(registered|receiv|destination|trusted)/i);
     const steps = strings(en.landing.steps).map(([, t]) => t).join(' ');
-    expect(steps).toContain('Agentics reads your bot’s own wallet for transfers to the addresses you trusted');
+    expect(steps).toContain('Agentics reads your bot’s own wallet for every transfer it makes or receives, marks whether the other side was on your list');
   });
 
   it('no longer says the vault is opening soon, or that one more email is coming', () => {

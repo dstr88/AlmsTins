@@ -62,7 +62,7 @@ const check = (tenant: string, tinId: string, n: number, when: string, answer: '
   });
 const transfer = (tenant: string, tinId: string, n: number, when: string, direction: 'in' | 'out', usd: number | null) =>
   events.insertTransactionEvent(tenant, {
-    tinId, address: addr(n), chain: 'ethereum', leg: `native:${n}`, answer: 'unknown', status: null,
+    tinId, address: addr(n), chain: 'ethereum', registry: 'trusted', leg: `native:${n}`, answer: 'unknown', status: null,
     tx: { hash: `0x${String(n).repeat(64).slice(0, 64)}`, direction, wallet: addr(900), amount: '1.5', asset: 'ETH', assetContract: null, usd, blockNumber: n },
     detail: { reason: 'no_preceding_check', source: 'explorer', walletId: 'w', destinationId: 'd' }, at: when,
   });
@@ -243,7 +243,7 @@ describe('one agent', () => {
     expect(text).not.toContain('onerror');
     const checkRow = page?.ledger.rows.find((r) => r.kind === 'checked');
     expect(checkRow?.basis).toBe('other');
-    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'id', 'keyState', 'kind', 'limitReached', 'linkReason', 'registry', 'tx']);
+    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'contract', 'counterparty', 'id', 'keyState', 'kind', 'limitReached', 'linkReason', 'registry', 'tx', 'unmatched']);
   });
 
   it('offers the keys it could take, never the one it has, nor one another agent has', async () => {

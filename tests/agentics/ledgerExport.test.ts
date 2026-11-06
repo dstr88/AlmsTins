@@ -62,9 +62,9 @@ const deps = (now = NOW, id = '00000000-0000-4000-8000-0000000000ee') => ({ now:
 const newTin = async (tenant = A, label = 'Treasury agent') => expectOk(await vault.createTin(tenant, { label })).tin;
 const check = (tenant: string, tinId: string, n: number, when: string, answer: 'proven' | 'unknown' | 'flagged' = 'unknown', basis = 'not_in_registry', registry: 'trusted' | 'flagged' | 'pending' | 'none' = 'none') =>
   events.insertCheckedEvent(tenant, { tinId, address: addr(n), chain: registry === 'none' ? null : 'ethereum', answer, registry, status: 'unknown', keyId: 'k1', sourceIp: '203.0.113.9', detail: { basis, cleared: false, domain: 'ops.example.test' }, at: when });
-const transfer = (tenant: string, tinId: string, n: number, when: string, direction: 'in' | 'out', usd: number | null, extra: Partial<{ asset: string; amount: string; detail: Record<string, unknown>; answer: 'proven' | 'unknown' }> = {}) =>
+const transfer = (tenant: string, tinId: string, n: number, when: string, direction: 'in' | 'out', usd: number | null, extra: Partial<{ asset: string; amount: string; detail: Record<string, unknown>; answer: 'proven' | 'unknown'; registry: 'trusted' | 'flagged' | 'pending' | 'none' }> = {}) =>
   events.insertTransactionEvent(tenant, {
-    tinId, address: addr(n), chain: 'ethereum', leg: `native:${n}`, answer: extra.answer ?? 'unknown', status: null,
+    tinId, address: addr(n), chain: 'ethereum', registry: extra.registry ?? 'trusted', leg: `native:${n}`, answer: extra.answer ?? 'unknown', status: null,
     tx: { hash: HASH(n), direction, wallet: addr(900), amount: extra.amount ?? '1.5', asset: extra.asset ?? 'ETH', assetContract: null, usd, blockNumber: 100 + n },
     detail: extra.detail ?? { reason: 'no_preceding_check', leg: `native:${n}`, walletId: 'w', destinationId: 'd' }, at: when,
   });
@@ -125,7 +125,21 @@ describe('the canonical record of an event', () => {
       v: 1, kind: 'transaction', date: base.at, event_id: '00000000-0000-4000-8000-000000000002', address: addr(1), chain: 'ethereum', answer: 'unknown', registry: 'trusted',
       reason: null, linked_check: linked, tx_hash: HASH(7), direction: 'out', wallet: addr(900), amount: '12.5', asset: 'POL',
       asset_contract: '0xdac17f958d2ee523a2206206994597c13d831ec7', usd: '9.75', block_number: 5,
+      counterparty: 'trusted', unmatched: false, contract: null,
     });
+  });
+
+  it('says what the registry said about the other side, marks the unmatched line, and says whether the other side is a contract (slice 8)', () => {
+    const leaf = (over: Partial<LedgerEvent>) => ex.leafOf(move(over)) as { counterparty: string | null; unmatched: boolean; contract: boolean | null; registry: string | null };
+    // The registry column keeps its own word (none); the leaf shows it as unregistered, beside the column as stored.
+    expect(leaf({ registry: 'none', detail: { reason: 'no_preceding_check' } })).toMatchObject({ registry: 'none', counterparty: 'unregistered', unmatched: true });
+    expect(leaf({ registry: 'none', detail: { link: { eventId: '11111111-1111-4111-8111-111111111111' } } })).toMatchObject({ counterparty: 'unregistered', unmatched: false });
+    expect(leaf({ registry: 'none', tx: { ...(move().tx as NonNullable<LedgerEvent['tx']>), direction: 'in' }, detail: { reason: 'no_preceding_check' } })).toMatchObject({ counterparty: 'unregistered', unmatched: false });
+    for (const registry of ['trusted', 'pending', 'flagged'] as const) expect(leaf({ registry, detail: { reason: 'no_preceding_check' } })).toMatchObject({ counterparty: registry, unmatched: false });
+    expect(leaf({ registry: null })).toMatchObject({ counterparty: null, unmatched: false });
+    expect(leaf({ detail: { contract: true } }).contract).toBe(true);
+    expect(leaf({ detail: { contract: false } }).contract).toBe(false);
+    for (const odd of ['true', 1, null, undefined]) expect(leaf({ detail: { contract: odd } }).contract, String(odd)).toBeNull();
   });
 
   it('writes a price as a decimal string, never as a float, and an unpriced transfer as null, never as zero', () => {
@@ -648,7 +662,7 @@ describe('the CSV copy', () => {
     expect(col(checkRow, 'answer')).toBe('proven');
     expect(col(checkRow, 'registry')).toBe('trusted');
     expect(col(checkRow, 'key_id')).toBe('k1');
-    for (const name of ['direction', 'wallet', 'amount', 'asset', 'usd', 'tx_hash', 'block_number', 'linked_check'] as const) expect(col(checkRow, name), name).toBe('');
+    for (const name of ['direction', 'wallet', 'amount', 'asset', 'usd', 'tx_hash', 'block_number', 'linked_check', 'counterparty', 'unmatched', 'contract'] as const) expect(col(checkRow, name), name).toBe('');
     const inRow = rows.find((r) => col(r, 'direction') === 'in')!;
     expect(col(inRow, 'kind')).toBe('transaction');
     expect(col(inRow, 'amount')).toBe('1.5');
@@ -657,6 +671,10 @@ describe('the CSV copy', () => {
     expect(col(inRow, 'tx_hash')).toBe(HASH(1));
     expect(col(inRow, 'linked_check')).toBe('11111111-1111-4111-8111-111111111111');
     expect(col(inRow, 'key_id')).toBe('');
+    expect(col(inRow, 'counterparty')).toBe('trusted');
+    expect(col(inRow, 'unmatched')).toBe('false');
+    expect(col(inRow, 'contract')).toBe('');
+    expect(ex.CSV_COLUMNS[ex.CSV_COLUMNS.length - 1]).toBe('unsigned_copy_of_bundle_id');
     const unpriced = rows.find((r) => col(r, 'asset') === 'ODD')!;
     expect(col(unpriced, 'usd')).toBe('');
     expect(col(unpriced, 'reason')).toBe('no_preceding_check');

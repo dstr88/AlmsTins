@@ -7,7 +7,10 @@
  *
  * The leaves are the report's own lines: one for the summary (every count and the strip) and one
  * for each address the report lists. So the signature commits to exactly what the report prints,
- * and a changed count, address or reason breaks the root. The MANIFEST, the part that travels
+ * and a changed count, address or reason breaks the root. Fields added to the summary leaf since
+ * slice 8 (the counterparty counts and the unmatched count) are written only when the report's
+ * content carries them, so a report stored before then rebuilds to the same leaf, the same root and
+ * the same verdict as the day it was signed. The MANIFEST, the part that travels
  * with the signature, carries no address, label or name: an opaque record id and tenant tag, the
  * day, the bucket counts and the root. The addresses are in the leaves, which stay with the
  * owner's own bundle and PDF.
@@ -84,6 +87,12 @@ export interface SummaryLeaf {
   transfers_flagged: number;
   transfers_unknown: number;
   transfers_no_preceding_check: number;
+  /** Since slice 8: the transfers by what the registry said about the other side, and the unmatched lines. Absent on an older report. */
+  transfers_counterparty_trusted?: number;
+  transfers_counterparty_pending?: number;
+  transfers_counterparty_flagged?: number;
+  transfers_unregistered?: number;
+  transfers_unmatched?: number;
 }
 
 export interface AddressLeaf {
@@ -148,6 +157,16 @@ export function leavesOf(content: ReportContent): ReportLeaf[] {
     transfers_flagged: strip.byStatus.flagged,
     transfers_unknown: strip.byStatus.unknown,
     transfers_no_preceding_check: strip.noPrecedingCheck,
+    // Only on content that has them: an older report's leaf stays byte for byte what it was.
+    ...(strip.byCounterparty
+      ? {
+          transfers_counterparty_trusted: strip.byCounterparty.trusted,
+          transfers_counterparty_pending: strip.byCounterparty.pending,
+          transfers_counterparty_flagged: strip.byCounterparty.flagged,
+          transfers_unregistered: strip.byCounterparty.unregistered,
+        }
+      : {}),
+    ...(strip.unmatched !== undefined ? { transfers_unmatched: strip.unmatched } : {}),
   };
   const leaves: ReportLeaf[] = [summary];
   for (const bucket of LISTED_BUCKETS) {

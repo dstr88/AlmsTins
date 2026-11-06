@@ -5,7 +5,7 @@
  * not worn out in the meantime.
  *
  * It is the same pass the daily job and the "Read the chain now" button run (./vault.ts refreshTin,
- * ./watcher.ts runTinPass): the same wallets, the same trusted addresses, the same cursor. It adds no new
+ * ./watcher.ts runTinPass): the same wallets, the same registry, the same cursor. It adds no new
  * way of reading and no new thing to read. What it adds is WHEN: while a person has the Live page open and
  * visible, and not otherwise. Nothing here starts on its own; with no page asking, nothing runs.
  *
@@ -39,8 +39,8 @@
  * it, so each pass re-lists from there until the price arrives, as the daily job does).
  *
  * Read-only: it lists transfers, it never signs, sends or holds anything. It reads the agent's OWN
- * wallets and keeps only transfers whose other side is a trusted address on the registry; it never reads
- * an address that is not the agent's own wallet.
+ * wallets and records every direct transfer they make or receive, marking whether the other side was on
+ * the registry; it never reads an address that is not the agent's own wallet.
  */
 import { fail, idOf, type Failure } from './errors';
 import { listTins } from './store';
@@ -53,7 +53,7 @@ export const LIVE_READ_MIN_GAP_MS = 45_000;
 export const LIVE_READ_PAUSE_MS = 30_000;
 /** What a page waits after being told another read is running. */
 export const LIVE_READ_BUSY_WAIT_MS = 15_000;
-/** What a page waits when the account has nothing to read (no wallet with a trusted address on its chain). */
+/** What a page waits when the account has nothing to read (no agent has a wallet). */
 export const LIVE_READ_NOTHING_WAIT_MS = 300_000;
 /** The least a page is ever told to wait. */
 export const LIVE_READ_MIN_WAIT_MS = 5_000;
@@ -73,8 +73,8 @@ export interface LiveReadAnswer {
   ok: true;
   /**
    * read: a tin was read (see `pass`). recent: every agent was read less than LIVE_READ_MIN_GAP_MS ago.
-   * busy: another read is running (or one ran too long). nothing: no agent has a wallet and a trusted address on
-   * the same chain. limit: the account has had its live reads for today.
+   * busy: another read is running (or one ran too long). nothing: no agent has a wallet. limit: the account has
+   * had its live reads for today.
    */
   status: LiveReadStatus;
   /** The agent that was read, or null. */
@@ -200,7 +200,7 @@ export async function liveRead(
         }
         return r;
       }
-      // No wallet with a trusted address on its chain: nothing was read, and the next agent may have something.
+      // No wallet: nothing was read, and the next agent may have something.
       if (r.pass.wallets.length === 0) continue;
       countRead(tenantId, now);
       return { ok: true, status: 'read', tinId: tin.id, pass: r.pass, waitMs: LIVE_READ_PAUSE_MS };

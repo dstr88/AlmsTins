@@ -74,9 +74,12 @@ export const copy = {
     sold: 'Sold',
     none: NO_TRANSFERS,
     withoutValue: (n: number) => `${n} without a USD value (not in the total)`,
-    note: 'Raw value in (bought) and out (sold) between the agent\'s wallets and registered destinations, priced at the time of each transfer. The two sides are not compared.',
+    note: 'Raw value in (bought) and out (sold) of the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
     statuses: 'Transfers by the verify-status they inherited from the check before them',
     noCheckBefore: (n: number) => `${n} with no check before them`,
+    unregistered: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'} to or from addresses not on the list`,
+    unmatched: (n: number) => `${n} ${n === 1 ? 'was an outflow' : 'were outflows'} with no check before ${n === 1 ? 'it' : 'them'}: unmatched`,
+    unregisteredNone: 'Every transfer in this period had a registered address on the other side.',
   },
 
   view: {
@@ -91,8 +94,8 @@ export const copy = {
     clearNote: `A clear result means the checks that ran came back without a flag. It is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`,
     listedNote: 'Each address is listed once, in the most severe group any of its checks fell in. The checks in each group are counted by their own answer.',
     omitted: (n: number) => `${n} more counted above but not listed.`,
-    noIssuesLine: (checks: string, addresses: string) => `${checks} came back proven or consistent with history. ${addresses} had only such checks and are not listed.`,
-    noIssuesNone: 'No check came back proven or consistent with history in this period.',
+    noIssuesLine: (checks: string, addresses: string) => `${checks} came back proven or established. ${addresses} had only such checks and are not listed.`,
+    noIssuesNone: 'No check came back proven or established in this period.',
     columns: { first: 'First (UTC)', address: 'Address', label: 'Label', what: 'What happened', checks: 'Checks' },
     checksOf: (n: number, total: number) => `${n} of ${total}`,
     versionsTitle: 'Versions of this day',
@@ -118,7 +121,7 @@ export const copy = {
 
   delivery: {
     title: 'Email',
-    lede: 'Reports are always made and kept here. Email is off until you turn it on, and goes to the email address on your account.',
+    lede: 'Reports are always made and kept here. Email goes to the email address on your account. A check that does not come back proven or established is always emailed at once, at most one an hour for each address. The report email and the Established email are off until you turn them on.',
     cadenceLabel: 'Report email',
     cadence: {
       off: 'Off',
@@ -126,7 +129,7 @@ export const copy = {
       weekly: 'Every Monday, for the week before',
       issues: 'Only when something needs a look',
     },
-    alertsLabel: 'Email me at once when a check on a registered address comes back flagged (at most one an hour for each address)',
+    establishedLabel: 'Also email me at once when a check comes back Established: an address on the list the agent asked about before (at most one an hour for each address)',
     countsOnly: 'Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in. Something needs a look when an address had issues or was not confirmed.',
     save: 'Save',
     saving: 'Saving',
@@ -160,7 +163,7 @@ export const copy = {
     title: 'Agents',
     lede: 'One agent for each program that pays addresses. Each has its own wallets, the registered addresses it may pay, and a ledger of what it asked and what moved.',
     limits:
-      'The ledger records the checks an agent asks and the funds that reach its registered addresses. A transfer to an address that was never registered is invisible here.',
+      'The ledger records the checks an agent asks and every direct transfer its own wallets make or receive, marking whether the other side was on its list. A payment to an address that was never registered, with no check before it, is marked as unmatched.',
     emptyTitle: 'Start with your first agent',
     emptyLede: 'Five steps take you from nothing to a first check in the ledger.',
     steps: [
@@ -208,7 +211,7 @@ export const copy = {
     created: (day: string) => `Created ${day} (UTC)`,
     limits: {
       records:
-        'Records the checks this agent asks with its key and the funds that reach your trusted addresses. A transfer to an address that was never registered is invisible here.',
+        'Records the checks this agent asks with its key and every direct transfer of its own wallets, in and out, with the hash and the other side\'s address. Each transfer says whether the other side was on your list when it was recorded. A payment to an address that was never registered, with no check before it, is marked as unmatched.',
       pass: 'Pass means the checks we ran came back without a flag. It is not a statement that an address is safe or legitimate.',
     },
     logLimitReached: (perDay: number, reachedAt: string | null, flaggedExtra: number) =>
@@ -368,12 +371,19 @@ export const copy = {
     answer: (title: string) => `Answer: ${title}`,
     registry: { trusted: 'Trusted', flagged: 'Flagged', pending: 'Pending', none: 'Not registered' } as Record<string, string>,
     registryIs: (what: string) => `Registry: ${what}`,
+    counterparty: { trusted: 'Other side: trusted', pending: 'Other side: pending', flagged: 'Other side: flagged', unregistered: 'Other side: not on the list' } as Record<string, string>,
+    unmatched: 'Unmatched: this payment went to an address not on the list, and no check was asked about it in the hour before.',
+    contractCall: 'Paid through a contract: the other side is the contract, not whoever is behind it.',
+    hash: (short: string) => `Transaction ${short}`,
+    filterUnregistered: 'Not on the list only',
+    filterNote: 'Showing only the transfers whose other side was not on the list when they were recorded.',
+    emptyFiltered: 'No transfer to or from an address not on the list has been recorded for this agent.',
     addressLabel: (label: string) => `Your label: ${label}`,
     noAnswer: 'No answer recorded',
     amount: (amount: string, asset: string) => `${amount} ${asset}`,
     usd: (usd: string) => `${usd} at the time`,
     noUsd: 'No USD value on record',
-    chainTx: 'View the transaction',
+    chainTx: 'View on the explorer',
     linkReason: {
       no_preceding_check: 'No check came before this transfer, so it carries the status unknown.',
       ambiguous_checks: 'Checks about this address disagreed at that moment, so the transfer took none of their answers.',
@@ -387,10 +397,10 @@ export const copy = {
     allLoaded: 'That is every row.',
     loadFailed: 'Could not load more rows.',
     totalsTitle: 'Totals',
-    totalsNote: 'Raw value in (bought) and out (sold) between this agent\'s wallets and its registered addresses, priced at the time of each transfer. The two sides are not compared.',
+    totalsNote: 'Raw value in (bought) and out (sold) of this agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
     transfers: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'}`,
     readTitle: 'Read the chain',
-    readLede: 'The Vault reads the chain for new transfers with your trusted addresses once a day, and about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit). Read it now to see them sooner.',
+    readLede: 'The Vault reads the chain for new transfers of this agent\'s wallets once a day, and about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit). Read it now to see them sooner.',
     readButton: 'Read the chain now',
     reading: 'Reading the chain. This can take up to 20 seconds.',
     readInProgress: 'A read of this agent is already running. Try again in a moment.',
@@ -411,7 +421,7 @@ export const copy = {
     recorded: (time: string) => `Recorded ${time} UTC`,
     onTheChain: (time: string) => `On the chain at ${time} UTC`,
     readSwitch: "Read my agents' wallets while this page is open",
-    readHint: 'About once a minute, one agent at a time, in turn, up to a daily limit. Only the wallets you added are read, and only for transfers with your trusted addresses. Nothing is read when this page is closed or in the background.',
+    readHint: 'About once a minute, one agent at a time, in turn, up to a daily limit. Only the wallets you added are read; every direct transfer they make or receive is recorded, marked with whether the other side was on your list. Nothing is read when this page is closed or in the background.',
     state: {
       live: 'Live',
       reconnecting: 'Reconnecting',
@@ -442,8 +452,7 @@ export const copy = {
   },
 
   refresh: {
-    nothingTrusted: 'No registered address is trusted yet, so there is nothing to read.',
-    nothingPaired: 'None of this agent\'s wallets is on the same chain as a trusted address, so there is nothing to read.',
+    noWallets: 'This agent has no wallet yet, so there is nothing to read.',
     wallets: {
       complete: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'} read up to the newest confirmed block.`,
       partial: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'} read part of the way. The next read continues where this one ended.`,
@@ -452,8 +461,9 @@ export const copy = {
       idle: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'} had nothing new to read yet.`,
     },
     recorded: (n: number) => (n === 0 ? 'No new transfers.' : `${n} new ${n === 1 ? 'transfer' : 'transfers'} recorded.`),
-    overLimit: (n: number, max: number) =>
-      `${n} trusted ${n === 1 ? 'address is' : 'addresses are'} past the ${max} that each read covers for an account, so ${n === 1 ? 'it was' : 'they were'} not read.`,
+    unregistered: (n: number, unmatched: number) =>
+      `${n} ${n === 1 ? 'transfer' : 'transfers'} read ${n === 1 ? 'was' : 'were'} to or from an address not on the list` +
+      (unmatched > 0 ? `; ${unmatched} ${unmatched === 1 ? 'was an outflow' : 'were outflows'} with no check before ${unmatched === 1 ? 'it' : 'them'} (unmatched).` : '.'),
   },
 
   export: {
@@ -477,7 +487,7 @@ export const copy = {
     done: (name: string) => `Downloaded ${name}.`,
     covers:
       'The signature covers the ledger as Almstins stored it when you exported it: every check and every transfer recorded for this agent in the range, and the moment the file was made.',
-    doesNotCover: 'It does not show that the agent asked before every payment, and it does not cover transfers to addresses that were never registered.',
+    doesNotCover: 'It does not show that the agent asked before every payment. Each transfer in it says whether the other side was on your list when it was recorded, and an outflow to an address not on the list with no check before it is marked as unmatched.',
     csvNote: 'The CSV is a convenience copy. It is not signed. Its file name ends in unsigned-copy, and the last column of every line is the ID of the signed file it copies, so the two can be matched.',
     limits: 'One file covers at most 366 days and 50,000 events. If a range is too large, narrow it, down to a time of day if a single day is.',
     verify: 'Check a signed file',

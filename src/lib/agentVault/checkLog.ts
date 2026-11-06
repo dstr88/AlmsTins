@@ -42,7 +42,7 @@
 import { hashWithSalt } from '@/lib/analytics/hash';
 import { db } from '@/lib/db';
 import { normalizeAddress, type VaultChain } from './addresses';
-import type { FlaggedCheckInfo } from './alerts';
+import { alertKindOf, type CheckAlertInfo } from './alerts';
 import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay } from './entitlements';
 import { countCheckedSince, hasPriorCheck, insertCheckedEvent, limitMarkerSince, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
 import { findLiveTinByKey, listDestinationsByAddress } from './store';
@@ -206,25 +206,29 @@ function logFailure(stage: 'read' | 'write', err: unknown): void {
 
 /** What recordKeyedCheck calls out to. Replaced in tests; the defaults are the real thing. */
 export interface KeyedCheckDeps {
-  /** Tells the operator about a flagged check on a registered address. Not waited for, and its failure is only logged. */
-  onFlagged?: (info: FlaggedCheckInfo) => unknown;
+  /** Tells the operator about a check that was not answered proven. Not waited for, and its failure is only logged. */
+  onAlert?: (info: CheckAlertInfo) => unknown;
 }
 
-const sendFlaggedAlert = (info: FlaggedCheckInfo): Promise<unknown> => import('./alerts').then((m) => m.alertFlaggedCheck(info));
+const sendAlert = (info: CheckAlertInfo): Promise<unknown> => import('./alerts').then((m) => m.alertCheck(info));
 
 /**
- * Starts the alert for a flagged check on a registered address and returns at once. It never
- * throws and returns nothing the answer depends on: it is called after the event is written, a
- * failure (a rejected promise, a throw, a module that will not load) is logged by name and code
- * only, and a slow one only runs on in the background.
+ * Starts the alert for a check that was not answered proven (./alerts.ts says which email, and when)
+ * and returns at once. A proven answer starts nothing. It never throws and returns nothing the answer
+ * depends on: it is called after the event is written, a failure (a rejected promise, a throw, a
+ * module that will not load) is logged by name and code only, and a slow one only runs on in the
+ * background.
  */
-function notifyFlagged(info: FlaggedCheckInfo, deps: KeyedCheckDeps): void {
+function notifyAlert(at: Omit<CheckAlertInfo, 'kind'>, basis: string, status: string, deps: KeyedCheckDeps): void {
   const logAlertFailure = (err: unknown) => {
     const e = err as { name?: unknown; code?: unknown } | null;
-    console.error('[agent-vault] flagged alert not started', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+    console.error('[agent-vault] alert not started', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
   };
   try {
-    const run = deps.onFlagged ?? sendFlaggedAlert;
+    const kind = alertKindOf(basis, status);
+    if (!kind) return;
+    const info: CheckAlertInfo = { ...at, kind };
+    const run = deps.onAlert ?? sendAlert;
     void Promise.resolve()
       .then(() => run(info))
       .catch(logAlertFailure);
@@ -289,8 +293,8 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
     logFailure('read', err);
   }
   if (overLimit) {
-    // Nothing is written, but a flag on a registered address is still told to the operator (the alert has its own hourly claim).
-    if (derived.answer === 'flagged' && registry !== 'none') notifyFlagged({ tenantId, tinId, address }, deps);
+    // Nothing is written, but the operator is still told (the alert has its own hourly claim).
+    notifyAlert({ tenantId, tinId, address }, derived.basis, input.status, deps);
     return { ...block, eventId: null, logged: false, reason: 'log_limit' };
   }
 
@@ -325,6 +329,6 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   }
   // After the event is written, outside the try above, so nothing in the alert can turn a written
   // check into `logged: false` or touch the answer.
-  if (derived.answer === 'flagged' && registry !== 'none') notifyFlagged({ tenantId, tinId, address }, deps);
+  notifyAlert({ tenantId, tinId, address }, derived.basis, input.status, deps);
   return { ...block, eventId: event.id, logged: true };
 }

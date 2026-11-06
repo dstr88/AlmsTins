@@ -27,7 +27,7 @@ beforeEach(async () => {
 
 describe('reading', () => {
   it('everything is off for an account that set nothing, and a row is not made by looking', async () => {
-    expect(await delivery.getReportSettings(A)).toEqual({ settings: { cadence: 'off', alerts: false }, recipientAvailable: true });
+    expect(await delivery.getReportSettings(A)).toEqual({ settings: { cadence: 'off', establishedAlerts: false }, recipientAvailable: true });
     expect(fake.rows('agent_report_settings')).toEqual([]);
   });
 
@@ -40,10 +40,10 @@ describe('reading', () => {
 
 describe('saving', () => {
   it('saves what is given and leaves the rest', async () => {
-    expect(await delivery.saveReportSettings(A, { cadence: 'daily' })).toMatchObject({ ok: true, settings: { cadence: 'daily', alerts: false } });
-    expect(await delivery.saveReportSettings(A, { alerts: true })).toMatchObject({ ok: true, settings: { cadence: 'daily', alerts: true } });
-    expect(await delivery.saveReportSettings(A, { cadence: 'issues', alerts: false })).toMatchObject({ ok: true, settings: { cadence: 'issues', alerts: false } });
-    expect((await delivery.getReportSettings(A)).settings).toEqual({ cadence: 'issues', alerts: false });
+    expect(await delivery.saveReportSettings(A, { cadence: 'daily' })).toMatchObject({ ok: true, settings: { cadence: 'daily', establishedAlerts: false } });
+    expect(await delivery.saveReportSettings(A, { establishedAlerts: true })).toMatchObject({ ok: true, settings: { cadence: 'daily', establishedAlerts: true } });
+    expect(await delivery.saveReportSettings(A, { cadence: 'issues', establishedAlerts: false })).toMatchObject({ ok: true, settings: { cadence: 'issues', establishedAlerts: false } });
+    expect((await delivery.getReportSettings(A)).settings).toEqual({ cadence: 'issues', establishedAlerts: false });
     expect(fake.rows('agent_report_settings')).toHaveLength(1);
   });
 
@@ -54,30 +54,31 @@ describe('saving', () => {
     }
   });
 
-  it('stores alerts as 1 or 0, and reads them back as true or false', async () => {
-    await delivery.saveReportSettings(A, { alerts: true });
-    expect(fake.rows('agent_report_settings')[0].alerts).toBe(1);
-    await delivery.saveReportSettings(A, { alerts: false });
-    expect(fake.rows('agent_report_settings')[0].alerts).toBe(0);
+  it('stores the Established switch as 1 or 0, and reads it back as true or false', async () => {
+    await delivery.saveReportSettings(A, { establishedAlerts: true });
+    expect(fake.rows('agent_report_settings')[0].established_alerts).toBe(1);
+    await delivery.saveReportSettings(A, { establishedAlerts: false });
+    expect(fake.rows('agent_report_settings')[0].established_alerts).toBe(0);
   });
 
   it('refuses anything that is not a known cadence or a real true/false, and a request that sets nothing, and stores nothing', async () => {
     for (const input of [
       {}, { cadence: undefined }, { cadence: 'hourly' }, { cadence: 'DAILY' }, { cadence: ' daily' }, { cadence: 1 }, { cadence: null }, { cadence: ['daily'] },
-      { alerts: 'true' }, { alerts: 1 }, { alerts: 0 }, { alerts: null }, { alerts: {} },
-      { cadence: 'daily', alerts: 'yes' }, // one good field does not excuse a bad one
+      { establishedAlerts: 'true' }, { establishedAlerts: 1 }, { establishedAlerts: 0 }, { establishedAlerts: null }, { establishedAlerts: {} },
+      { cadence: 'daily', establishedAlerts: 'yes' }, // one good field does not excuse a bad one
       { cadence: 'constructor' }, { cadence: '__proto__' },
-    ] as Array<{ cadence?: unknown; alerts?: unknown }>) {
+      { alerts: true }, // the old switch: flagged-check emails now always go, so it sets nothing
+    ] as Array<{ cadence?: unknown; establishedAlerts?: unknown }>) {
       expect(await delivery.saveReportSettings(A, input), JSON.stringify(input)).toEqual({ ok: false, error: 'invalid_settings' });
     }
     expect(fake.rows('agent_report_settings') ?? []).toEqual([]);
   });
 
   it('keeps each account\'s settings its own', async () => {
-    await delivery.saveReportSettings(A, { cadence: 'daily', alerts: true });
-    expect((await delivery.getReportSettings(B)).settings).toEqual({ cadence: 'off', alerts: false });
+    await delivery.saveReportSettings(A, { cadence: 'daily', establishedAlerts: true });
+    expect((await delivery.getReportSettings(B)).settings).toEqual({ cadence: 'off', establishedAlerts: false });
     await delivery.saveReportSettings(B, { cadence: 'weekly' });
-    expect((await delivery.getReportSettings(A)).settings).toEqual({ cadence: 'daily', alerts: true });
+    expect((await delivery.getReportSettings(A)).settings).toEqual({ cadence: 'daily', establishedAlerts: true });
     expect(fake.rows('agent_report_settings').map((r) => r.tenant_id).sort()).toEqual([A, B]);
   });
 

@@ -93,10 +93,10 @@ const put = (tenant: string, tinId: string, basis: string, answer: 'proven' | 'c
   events.insertCheckedEvent(tenant, { tinId, address, chain: null, answer, registry: 'none', status: 'unknown', keyId: `k${++k}`, sourceIp: null, detail: { basis }, at: when });
 const putTransfer = (tenant: string, tinId: string, usd: number, when: string) =>
   events.insertTransactionEvent(tenant, {
-    tinId, address: addr(2), chain: 'ethereum', leg: `native:${++k}`, answer: 'unknown', status: null,
+    tinId, address: addr(2), chain: 'ethereum', registry: 'trusted', leg: `native:${++k}`, answer: 'unknown', status: null,
     tx: { hash: txHash(k), direction: 'out', wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd, blockNumber: 1 }, detail: { reason: 'no_preceding_check' }, at: when,
   });
-const opt = (tenant: string, cadence: 'off' | 'daily' | 'weekly' | 'issues', alerts = false) => delivery.writeSettings(tenant, { cadence, alerts }, '2026-10-01 00:00:00');
+const opt = (tenant: string, cadence: 'off' | 'daily' | 'weekly' | 'issues', establishedAlerts = false) => delivery.writeSettings(tenant, { cadence, establishedAlerts }, '2026-10-01 00:00:00');
 const reportRows = () => fake.rows('agent_reports');
 
 describe('the reports', () => {
@@ -402,7 +402,7 @@ describe('the digest goes only to an account that asked for it', () => {
   it('sends A (daily) its digest, and nobody else: B never turned anything on, C turned the digest off', async () => {
     await setup();
     await opt(A, 'daily');
-    await opt(C, 'off', true); // alerts on, digest off: no digest
+    await opt(C, 'off', true); // the Established email on, digest off: no digest
     const summary = await job.runAgentReports(deps(SUNDAY));
     expect(summary).toMatchObject({ optedIn: 1, sent: 1, notNeeded: 0, noRecipient: 0, alreadySent: 0, failedSends: 0 });
     expect(sent).toHaveLength(1);
@@ -665,7 +665,7 @@ describe('an agent that was removed is no longer told about, in the daily digest
     expect(sent).toHaveLength(1);
     expect(sent[0].subject).not.toMatch(/^\d/); // it does not lead with "2 need your attention": the removed agent's two addresses are not counted
     expect(sent[0].text).toContain('Agents with activity: 1');
-    expect(sent[0].text).toContain('Checks that came back proven or consistent with history: 1');
+    expect(sent[0].text).toContain('Checks that came back proven or established: 1');
     expect(sent[0].text).not.toContain('Had issues');
   });
 
@@ -705,7 +705,7 @@ describe('the weekly digest', () => {
     expect(sent[0].subject).toBe('3 need your attention · Agent report, Oct 12 to Oct 18, 2026');
     expect(sent[0].text).toContain('  Had issues: 2');
     expect(sent[0].text).toContain('  Not confirmed: 1');
-    expect(sent[0].text).toContain('Checks that came back proven or consistent with history: 1');
+    expect(sent[0].text).toContain('Checks that came back proven or established: 1');
     expect(sent[0].text.split('\n')[0]).toBe('Agent report for October 12, 2026 to October 18, 2026 (UTC)');
   });
 

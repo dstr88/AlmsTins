@@ -220,6 +220,23 @@ describe('a card on the stage', () => {
     expect(t).toContain('Exchange deposit · ');
   });
 
+  it('says what the registry said about the other side, shows the hash with its explorer link, and marks the unmatched line (slice 8)', () => {
+    const html = card(row({ kind: 'transaction', chain: 'ethereum', registry: 'none', tx: tx(), detail: { reason: 'no_preceding_check' } }));
+    const t = textOf(html);
+    expect(t).toContain('Other side: not on the list');
+    expect(t).toContain('Unmatched: this payment went to an address not on the list, and no check was asked about it in the hour before.');
+    expect(html).toContain('ag-feed__card--unmatched');
+    expect(t).toContain('Transaction 0xababab…ababab');
+    expect(html).toContain(`href="https://etherscan.io/tx/0x${'ab'.repeat(32)}"`);
+    const asked = card(row({ kind: 'transaction', chain: 'ethereum', registry: 'none', tx: tx(), detail: { link: { eventId: '11111111-1111-4111-8111-111111111111' } } }));
+    expect(textOf(asked)).toContain('Other side: not on the list');
+    expect(textOf(asked)).not.toContain('Unmatched');
+    expect(asked).not.toContain('ag-feed__card--unmatched');
+    const trusted = card(row({ kind: 'transaction', chain: 'ethereum', registry: 'trusted', tx: tx() }));
+    expect(textOf(trusted)).toContain('Other side: trusted');
+    expect(trusted).not.toContain('ag-feed__card--unmatched');
+  });
+
   it('for funds that reached it: bought; and with no price it says there is none, never $0', () => {
     const t = textOf(card(row({ kind: 'transaction', chain: 'polygon', tx: tx({ direction: 'in', usd: null, asset: 'POL' }) })));
     expect(t).toContain('Bought (in)');

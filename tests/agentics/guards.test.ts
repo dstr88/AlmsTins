@@ -38,6 +38,8 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0053_agent_reports.sql'),
   path.join(ROOT, 'migrations-pg/0054_agent_report_delivery.sql'),
   path.join(ROOT, 'migrations-pg/0055_agent_events_feed_index.sql'),
+  path.join(ROOT, 'migrations-pg/0065_agent_wallet_cursors.sql'),
+  path.join(ROOT, 'migrations-pg/0066_agent_established_alerts.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
   path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
   path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
@@ -80,7 +82,7 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063 and the receivables notices\' 0064', () => {
+  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, and its Established email switch, 0066', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
     expect(files.filter((f) => f.startsWith('0055'))).toEqual(['0055_agent_events_feed_index.sql']);
@@ -89,8 +91,10 @@ describe('the schema file and the code create the same tables', () => {
     // 0062 adds counterparty_address to import_transactions and sui_transactions (address history, not the Vault).
     // 0063 is the owner's January 1, 2025 tax allocation table (tax, not the Vault).
     // 0064 is the receivables aging-notice log and opt-out tables (receivables A4, not the Vault).
+    // 0065 is the Vault again: the per-wallet watcher cursor of slice 8 (every outflow), which replaces 0052's per-pair cursor.
+    // 0066 adds the Established email switch to the delivery settings.
     // Nothing else sits above 0055.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -221,6 +225,38 @@ describe('the watcher cursor schema file and the code create the same table', ()
     expect(at('agent_watch_cursors')).toBeGreaterThanOrEqual(0);
     expect(at('agent_watch_cursors')).toBeLessThan(at('agent_tins'));
   });
+
+  it('is read-only since slice 8: nothing in src writes the pair table any more', () => {
+    const writers = VAULT_FILES.filter((f) => f.startsWith('src/')).filter((f) => /(INSERT INTO|UPDATE|DELETE FROM)\s+agent_watch_cursors\b/.test(read(f)));
+    expect(writers).toEqual([]);
+  });
+});
+
+describe('the per-wallet cursor schema file and the code create the same table (slice 8)', () => {
+  it('migrations-pg/0065_agent_wallet_cursors.sql holds exactly the statements ensureAgentWatchTables runs for it, in order', async () => {
+    const { AGENT_WALLET_CURSORS_DDL } = await import('../../src/lib/agentVault/watchState');
+    const statements = squash(read('migrations-pg/0065_agent_wallet_cursors.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_WALLET_CURSORS_DDL.map(squash));
+  });
+
+  it('is keyed by tenant_id and is bookkeeping only: one row per wallet', async () => {
+    const { AGENT_WALLET_CURSORS_DDL } = await import('../../src/lib/agentVault/watchState');
+    const table = AGENT_WALLET_CURSORS_DDL.find((s) => /^CREATE TABLE/.test(s)) ?? '';
+    expect(table).toMatch(/\btenant_id\s+TEXT NOT NULL\b/);
+    expect(table).toMatch(/PRIMARY KEY \(tenant_id, wallet_id\)/);
+    const cols = [...table.matchAll(/^\s{4}(\w+)\s/gm)].map((m) => m[1]).filter((c) => c !== 'PRIMARY');
+    expect(cols).toEqual(['tenant_id', 'tin_id', 'wallet_id', 'through_at', 'updated_at']);
+  });
+
+  it('is removed with the account, before the tins', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    expect(at('agent_wallet_cursors')).toBeGreaterThanOrEqual(0);
+    expect(at('agent_wallet_cursors')).toBeLessThan(at('agent_tins'));
+  });
 });
 
 describe('the reports schema file and the code create the same table', () => {
@@ -250,6 +286,24 @@ describe('the reports schema file and the code create the same table', () => {
     expect(AGENT_REPORTS_DDL.some((s) => /^CREATE UNIQUE INDEX IF NOT EXISTS \w+ ON agent_reports \(tenant_id, tin_id, period_start, version\)$/.test(squash(s)))).toBe(true);
     // The insert's conflict target is that same key, so a taken version is skipped, never overwritten.
     expect(read('src/lib/agentVault/reportStore.ts')).toMatch(/ON CONFLICT \(tenant_id, tin_id, period_start, version\) DO NOTHING/);
+  });
+});
+
+describe('the Established email switch: the schema file and the code add the same column', () => {
+  it('migrations-pg/0066_agent_established_alerts.sql holds exactly the statement ensureAgentDeliveryTables runs for it', async () => {
+    const { AGENT_ESTABLISHED_ALERTS_DDL } = await import('../../src/lib/agentVault/deliveryStore');
+    const statements = squash(read('migrations-pg/0066_agent_established_alerts.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_ESTABLISHED_ALERTS_DDL.map(squash));
+    expect(statements).toEqual(['ALTER TABLE agent_report_settings ADD COLUMN IF NOT EXISTS established_alerts INTEGER NOT NULL DEFAULT 0']);
+  });
+
+  it('the alert reads the switch only for an established answer: the others have none', () => {
+    const src = read('src/lib/agentVault/alerts.ts');
+    expect(src).toContain("if (info.kind === 'established' && !(await readSettings(info.tenantId)).establishedAlerts) return 'not_turned_on';");
+    expect(src.match(/readSettings\(/g)).toHaveLength(1);
   });
 });
 
@@ -293,7 +347,7 @@ describe('the delivery schema file and the code create the same tables', () => {
     }
   });
 
-  it('nothing is ever sent from the Vault without an account having turned it on: one place touches the mailer, and only the two delivery files use that place', () => {
+  it('one place touches the mailer, and only the two delivery files use that place: the digest (off until turned on) and the alert (always for an answer that is not proven or established, and for established only when turned on)', () => {
     // The shared mailer is reached through the Vault's own sender, which fails when nothing could be sent.
     const touchesSharedMailer = VAULT_FILES.filter((f) => /@\/lib\/email'|\bsendMail\(/.test(read(f))).sort();
     expect(touchesSharedMailer).toEqual(['src/lib/agentVault/mailer.ts']);
@@ -372,6 +426,8 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0053_agent_reports.sql',
       'migrations-pg/0054_agent_report_delivery.sql',
       'migrations-pg/0055_agent_events_feed_index.sql',
+      'migrations-pg/0065_agent_wallet_cursors.sql',
+      'migrations-pg/0066_agent_established_alerts.sql',
       'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
@@ -408,6 +464,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/api.ts',
       'src/lib/agentVault/checkBudget.ts',
       'src/lib/agentVault/checkLog.ts',
+      'src/lib/agentVault/counterparty.ts',
       'src/lib/agentVault/cronAuth.ts',
       'src/lib/agentVault/delivery.ts',
       'src/lib/agentVault/deliveryStore.ts',

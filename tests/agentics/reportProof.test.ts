@@ -118,6 +118,28 @@ describe('a genuine report bundle', () => {
     expect(withLabel).toMatchObject({ bucket: 'not_confirmed', label: '"quoted" & <b>label</b>', reasons: ['not_in_registry'], first_at: at(9) });
   });
 
+  it('since slice 8 the summary leaf carries the counterparty counts and the unmatched count, after the fields that were there before', () => {
+    const summary = build().leaves.find((l) => l.kind === 'summary') as any;
+    expect(summary).toMatchObject({ transfers_counterparty_trusted: 2, transfers_counterparty_pending: 0, transfers_counterparty_flagged: 0, transfers_unregistered: 0, transfers_unmatched: 0 });
+    const keys = Object.keys(summary);
+    expect(keys.indexOf('transfers_no_preceding_check')).toBeLessThan(keys.indexOf('transfers_counterparty_trusted'));
+    expect(keys.slice(-5)).toEqual(['transfers_counterparty_trusted', 'transfers_counterparty_pending', 'transfers_counterparty_flagged', 'transfers_unregistered', 'transfers_unmatched']);
+  });
+
+  it('a report stored before slice 8 (no counterparty counts in its content) rebuilds to the leaf it was signed with: no new field, the same root', () => {
+    const c = content();
+    const stored = clone(c) as any;
+    delete stored.strip.byCounterparty;
+    delete stored.strip.unmatched;
+    const summary = leavesOf(stored).find((l) => l.kind === 'summary') as any;
+    for (const k of ['transfers_counterparty_trusted', 'transfers_counterparty_pending', 'transfers_counterparty_flagged', 'transfers_unregistered', 'transfers_unmatched']) expect(summary, k).not.toHaveProperty(k);
+    expect(rootOf(stored)).not.toBe(rootOf(c)); // the new report says more, so it is a new version; the old one still verifies as itself
+    const original = build({ content: stored });
+    const rebuilt = bundleFromStored(stored, { manifest: original.manifest, signature: { keyId: original.signature!.key_id, signatureHex: original.signature!.signature_hex } })!;
+    expect(rebuilt.manifest.merkle_root).toBe(original.manifest.merkle_root);
+    expect(verifyReportBundle(rebuilt).verdict).toBe('verified');
+  });
+
   it('does not depend on how the listed addresses were ordered', () => {
     const c = content();
     const shuffled = clone(c);
