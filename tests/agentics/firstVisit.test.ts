@@ -27,7 +27,13 @@ describe('recording the first visit of an account that has the Vault', () => {
     recordVaultFirstVisit(request, { tenantId: OTHER }, ' LinkedIn ');
     await settle();
     expect(spies.welcome).toHaveBeenCalledTimes(1);
-    expect(spies.welcome).toHaveBeenCalledWith({ tenantId: OTHER, email: 'new.person@example.test', source: 'linkedin' });
+    expect(spies.welcome).toHaveBeenCalledWith({ tenantId: OTHER, email: 'new.person@example.test', source: 'linkedin', country: null });
+  });
+
+  it('passes on the country Cloudflare gave the request, for the admin page', async () => {
+    recordVaultFirstVisit(new Request('https://almstins.com/dashboard/agentics', { headers: { 'cf-ipcountry': 'de' } }), { tenantId: OTHER }, null);
+    await settle();
+    expect(spies.welcome).toHaveBeenCalledWith({ tenantId: OTHER, email: 'new.person@example.test', source: 'direct', country: 'DE' });
   });
 
   it('turns a label that is not one into direct, and a missing one too', async () => {
@@ -66,7 +72,7 @@ describe('recording the first visit of an account that has the Vault', () => {
     spies.session.mockRejectedValue(new Error('session store down'));
     expect(() => recordVaultFirstVisit(request, { tenantId: OTHER }, null)).not.toThrow();
     await settle();
-    expect(spies.welcome).toHaveBeenCalledWith({ tenantId: OTHER, email: null, source: 'direct' });
+    expect(spies.welcome).toHaveBeenCalledWith({ tenantId: OTHER, email: null, source: 'direct', country: null });
   });
 
   it('an unexpected failure of the letter code is swallowed, not an unhandled rejection', async () => {

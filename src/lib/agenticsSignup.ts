@@ -33,8 +33,11 @@ import { isOwner, OWNER_TENANT_ID } from '@/lib/owner';
 
 const TS_DEFAULT = `DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`;
 
-/** The columns added after the table first shipped (migration 0061), with their types. */
-const ADDED_COLUMNS: Readonly<Record<string, string>> = { open_claimed_at: 'TEXT', opened_notified_at: 'TEXT' };
+/**
+ * The columns added after the table first shipped, with their types: the opening email's two (migration
+ * 0061), and the admin page's country and last visit (migration 0070, see touchSignup).
+ */
+const ADDED_COLUMNS: Readonly<Record<string, string>> = { open_claimed_at: 'TEXT', opened_notified_at: 'TEXT', country: 'TEXT', last_seen_at: 'TEXT' };
 
 /** The table, in creation order. The migration file holds the same statements. */
 export const AGENTICS_SIGNUPS_DDL: readonly string[] = [
@@ -116,6 +119,27 @@ export async function registerSignup(tenantId: string, source: string, vaultOpen
   return (r.rowsAffected ?? 0) > 0;
 }
 
+/** How often a visit moves `last_seen_at`: once an hour is enough to say when an account is active. */
+export const SEEN_EVERY_MS = 60 * 60_000;
+
+/**
+ * Notes, for the admin page, where an account is and when it last opened Agentics. The country is the
+ * two-letter code Cloudflare gives the request (getClientCountry), never looked up from an IP, and it
+ * is written once: the first known country stays. `last_seen_at` moves at most once per SEEN_EVERY_MS,
+ * so an account that reloads the page does not write on every load.
+ */
+export async function touchSignup(tenantId: string, country: string | null | undefined, now: Date = new Date()): Promise<void> {
+  await ensureAgenticsSignupsTable();
+  const code = typeof country === 'string' && /^[A-Z]{2}$/.test(country) ? country : null;
+  if (code) {
+    await db.execute({ sql: `UPDATE agentics_signups SET country = ? WHERE tenant_id = ? AND country IS NULL`, args: [code, tenantId] });
+  }
+  await db.execute({
+    sql: `UPDATE agentics_signups SET last_seen_at = ? WHERE tenant_id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)`,
+    args: [stamp(now), tenantId, stamp(new Date(now.getTime() - SEEN_EVERY_MS))],
+  });
+}
+
 /** Takes the right to send the letter. True for exactly one caller until the letter is sent or the claim is released. */
 export async function claimWelcome(tenantId: string, now: Date = new Date()): Promise<boolean> {
   await ensureAgenticsSignupsTable();
@@ -187,13 +211,15 @@ const defaultDeps = (): WelcomeDeps => ({
  *   failed    the database or the mail server failed; a failed send releases its claim
  */
 export async function welcomeOnFirstVisit(
-  input: { tenantId: string; email: string | null | undefined; source?: unknown },
+  input: { tenantId: string; email: string | null | undefined; source?: unknown; country?: string | null },
   deps: WelcomeDeps = defaultDeps(),
 ): Promise<WelcomeOutcome> {
   const email = typeof input.email === 'string' && /^[^\s@]+@[^\s@]+$/.test(input.email.trim()) ? input.email.trim() : null;
   let claimed = false;
   try {
     await registerSignup(input.tenantId, cleanSource(input.source), deps.vaultOpen, deps.now());
+    // The admin page's notes, never in the letter's way: a failure here leaves them for the next visit.
+    await touchSignup(input.tenantId, input.country, deps.now()).catch(() => undefined);
     if (!email) return 'no_email';
     claimed = await claimWelcome(input.tenantId, deps.now());
     if (!claimed) return 'already';

@@ -120,6 +120,7 @@ describe('the letter branch', () => {
       '@/lib/agenticsFirstVisit',
       '@/lib/agenticsSignup',
       '@/lib/agenticsSource',
+      '@/lib/analytics/ip',
       '@/lib/authSession',
       '@/lib/requireTenantSession',
     ]);

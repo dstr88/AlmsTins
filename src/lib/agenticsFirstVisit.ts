@@ -17,6 +17,7 @@
 import { isInternalAgenticsViewer, type AgenticsViewer } from '@/lib/agenticsAccess';
 import { welcomeOnFirstVisit } from '@/lib/agenticsSignup';
 import { cleanSource } from '@/lib/agenticsSource';
+import { getClientCountry } from '@/lib/analytics/ip';
 import { getAuthSession } from '@/lib/authSession';
 
 /** Records the signup and sends the welcome letter, once, in the background. Returns at once. */
@@ -25,7 +26,7 @@ export function recordVaultFirstVisit(request: Request, session: AgenticsViewer,
   if (!tenantId || session?.isDemo || isInternalAgenticsViewer(session)) return;
   void (async () => {
     const auth = await getAuthSession(request).catch(() => null);
-    await welcomeOnFirstVisit({ tenantId, email: auth?.user?.email ?? null, source: cleanSource(src) });
+    await welcomeOnFirstVisit({ tenantId, email: auth?.user?.email ?? null, source: cleanSource(src), country: getClientCountry(request) });
   })().catch(() => {
     // welcomeOnFirstVisit does not throw; this is for the session lookup. The next visit tries again.
   });

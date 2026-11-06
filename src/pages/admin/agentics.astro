@@ -1,5 +1,6 @@
 ---
-// Admin only: the Agentics opening email. Shows how many accounts signed up while the vault was
+// Admin only: Agentics analytics (who has an account, what each one uses, where they are and when
+// their agents are active; src/lib/agenticsAnalytics.ts), then the Agentics opening email. Shows how many accounts signed up while the vault was
 // private and have not been told it is open, and sends the one email the privacy policy promises
 // them (src/lib/agenticsSignup.ts, sendOpeningNotices) in batches, after a dry run. The buttons call
 // /api/admin/agentics-opening. A real send is refused until the flag that opens the Vault is on.
@@ -7,8 +8,10 @@ import '@/styles/tokens.css';
 import Analytics from '@/components/Analytics.astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
+import { ACTIVE_DAYS, ACTIVITY_DAYS, loadAgenticsAnalytics } from '@/lib/agenticsAnalytics';
 import { countOpeningWaiting, ensureAgenticsSignupsTable, OPENING_BATCH_DEFAULT } from '@/lib/agenticsSignup';
 import { db } from '@/lib/db';
+import { formatDateTime, formatNumber, formatUsd } from '@/lib/format';
 
 try {
 	await requireAdminSession(Astro.request);
@@ -33,21 +36,66 @@ const signups = await count(`SELECT COUNT(*) AS n FROM agentics_signups`);
 const welcomed = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE welcomed_at IS NOT NULL`);
 const told = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE opened_notified_at IS NOT NULL`);
 const waiting = await countOpeningWaiting().catch(() => 0);
+const stats = await loadAgenticsAnalytics();
+
+const int = { format: (n: number): string => formatNumber(n, 'en') };
+const usd = { format: (n: number): string => formatUsd(n, { cents: false }) };
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+const countryName = (code: string): string => {
+	if (code === 'Unknown') return 'Unknown';
+	try {
+		return regionNames.of(code) ?? code;
+	} catch {
+		return code;
+	}
+};
+const flag = (code: string | null): string =>
+	code && /^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map((c) => 0x1f1a5 + c.charCodeAt(0))) : '';
+const when = (iso: string | null): string => formatDateTime(iso, 'en', { timeZone: 'UTC', padHour: true });
+const maxHour = Math.max(1, ...stats.byHour);
+const maxDay = Math.max(1, ...stats.daily.map((d) => d.events));
+const maxWeekday = Math.max(1, ...stats.byWeekday);
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const t = stats.totals;
 ---
 <!doctype html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Agentics opening email</title>
+	<title>Agentics admin</title>
 	<meta name="robots" content="noindex, nofollow" />
 	<link rel="icon" href="/favicon.webp" />
 	<style>
 		* { box-sizing: border-box; }
 		body { margin: 0; background: var(--surface-bg); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.55; }
-		main { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: flex; flex-direction: column; gap: 1.1rem; }
+		main { max-width: 72rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: flex; flex-direction: column; gap: 1.1rem; }
+		main > p, main > .card, main > .notice { max-width: 40rem; }
+		main > .wide { max-width: none; }
 		h1 { margin: 0; font-size: 1.6rem; }
+		h2 { margin: 1.4rem 0 0; font-size: 1.2rem; }
+		h3 { margin: 0; font-size: .95rem; }
 		p { margin: 0; color: var(--text-secondary); }
+		.small { font-size: .85rem; }
+		.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .7rem; }
+		.tile { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: .8rem 1rem; }
+		.tile b { display: block; font-size: 1.5rem; line-height: 1.2; }
+		.tile span { color: var(--text-secondary); font-size: .85rem; }
+		.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .9rem; }
+		.bars { display: flex; align-items: flex-end; gap: 3px; height: 7rem; }
+		.bars div { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+		.bars i { display: block; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 1px; }
+		.bars i.zero { background: var(--border-subtle); }
+		.axis { display: flex; gap: 3px; font-size: .7rem; color: var(--text-secondary); }
+		.axis span { flex: 1; min-width: 0; text-align: center; overflow: hidden; }
+		.list { display: grid; grid-template-columns: 1fr auto; gap: .3rem 1rem; margin: 0; }
+		.scroll { overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-card); }
+		table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+		th, td { padding: .5rem .7rem; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border-subtle); }
+		th { color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; background: var(--surface-card); }
+		th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+		tr:last-child td { border-bottom: 0; }
+		td.muted { color: var(--text-secondary); }
 		.card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .7rem; }
 		dl { display: grid; grid-template-columns: 1fr auto; gap: .35rem 1rem; margin: 0; }
 		dt { color: var(--text-secondary); }
@@ -66,7 +114,96 @@ const waiting = await countOpeningWaiting().catch(() => 0);
 </head>
 <body>
 	<main>
-		<h1>Agentics opening email</h1>
+		<h1>Agentics</h1>
+
+		<h2>Accounts</h2>
+		<p>Every account that signed up for Agentics or has an agent. The owner's account is not counted. Times are UTC.</p>
+		{stats.unavailable.length > 0 && <p class="notice notice--off">Could not read: {stats.unavailable.join(', ')}. Those numbers show as zero.</p>}
+		<div class="tiles wide" aria-label="Totals">
+			<div class="tile"><b>{int.format(t.accounts)}</b><span>accounts</span></div>
+			<div class="tile"><b>{int.format(t.withAgents)}</b><span>with an agent</span></div>
+			<div class="tile"><b>{int.format(t.active)}</b><span>active, last {ACTIVE_DAYS} days</span></div>
+			<div class="tile"><b>{int.format(t.bots)}</b><span>agents (bots)</span></div>
+			<div class="tile"><b>{int.format(t.wallets)}</b><span>agent wallets</span></div>
+			<div class="tile"><b>{int.format(t.addresses)}</b><span>registered addresses</span></div>
+			<div class="tile"><b>{int.format(t.checks)}</b><span>checks</span></div>
+			<div class="tile"><b>{int.format(t.transactions)}</b><span>transactions</span></div>
+			<div class="tile"><b>{usd.format(t.usd)}</b><span>USD moved</span></div>
+		</div>
+
+		<div class="scroll wide">
+			<table>
+				<thead>
+					<tr>
+						<th>Email</th><th>Country</th><th>Signed up</th><th>Last opened</th><th>Last agent activity</th>
+						<th>Agents</th><th>Wallets</th><th>Addresses</th><th>Checks</th><th>Sent</th><th>Received</th><th>USD moved</th><th>Last {ACTIVE_DAYS}d</th>
+					</tr>
+				</thead>
+				<tbody>
+					{stats.accounts.length === 0 && <tr><td class="muted" colspan="13">No accounts yet.</td></tr>}
+					{stats.accounts.map((a) => (
+						<tr>
+							<td class={a.email ? '' : 'muted'} title={a.source ? `Source: ${a.source}` : undefined}>{a.email ?? 'No email'}</td>
+							<td class={a.country ? '' : 'muted'}>{a.country ? `${flag(a.country)} ${countryName(a.country)}` : '—'}</td>
+							<td>{when(a.signedUpAt)}</td>
+							<td>{when(a.lastSeenAt)}</td>
+							<td>{when(a.lastActivityAt)}</td>
+							<td>{int.format(a.bots)}</td>
+							<td>{int.format(a.wallets)}</td>
+							<td>{int.format(a.addresses)}</td>
+							<td>{int.format(a.checks)}</td>
+							<td>{int.format(a.sent)}</td>
+							<td>{int.format(a.received)}</td>
+							<td>{usd.format(a.usd)}</td>
+							<td>{int.format(a.recentEvents)}</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+		<p class="small">Country is the one Cloudflare gave an account's visit, recorded from today on: accounts that have not opened Agentics since show a dash. "Last opened" moves at most once an hour. Checks and transactions count the whole ledger; "Last {ACTIVE_DAYS}d" counts both.</p>
+
+		<h2>When they are active</h2>
+		<p>Checks and transfers by agents over the last {ACTIVITY_DAYS} days, UTC. A check is timed when it was answered, a transfer by its block.</p>
+		<div class="grid2 wide">
+			<section class="card" aria-label="By hour of day">
+				<h3>By hour of day (UTC)</h3>
+				<div class="bars">
+					{stats.byHour.map((n, h) => (
+						<div title={`${String(h).padStart(2, '0')}:00 UTC: ${int.format(n)}`}><i class={n ? '' : 'zero'} style={`height:${n ? Math.max(2, (n / maxHour) * 100) : 1}%`} /></div>
+					))}
+				</div>
+				<div class="axis">{stats.byHour.map((_, h) => <span>{h % 6 === 0 ? String(h).padStart(2, '0') : ''}</span>)}</div>
+			</section>
+			<section class="card" aria-label="By day">
+				<h3>Last {stats.daily.length} days</h3>
+				<div class="bars">
+					{stats.daily.map((d) => (
+						<div title={`${d.day}: ${int.format(d.events)} events from ${d.accounts} account(s)`}><i class={d.events ? '' : 'zero'} style={`height:${d.events ? Math.max(2, (d.events / maxDay) * 100) : 1}%`} /></div>
+					))}
+				</div>
+				<div class="axis">{stats.daily.map((d, i) => <span>{i % 3 === 0 || i === stats.daily.length - 1 ? d.day.slice(5) : ''}</span>)}</div>
+			</section>
+			<section class="card" aria-label="By weekday">
+				<h3>By weekday (UTC)</h3>
+				<div class="bars">
+					{stats.byWeekday.map((n, i) => (
+						<div title={`${WEEKDAYS[i]}: ${int.format(n)}`}><i class={n ? '' : 'zero'} style={`height:${n ? Math.max(2, (n / maxWeekday) * 100) : 1}%`} /></div>
+					))}
+				</div>
+				<div class="axis">{WEEKDAYS.map((d) => <span>{d}</span>)}</div>
+			</section>
+			<section class="card" aria-label="Countries">
+				<h3>Countries</h3>
+				{stats.countries.length === 0 ? <p>No accounts yet.</p> : (
+					<dl class="list">
+						{stats.countries.map((c) => (<><dt>{flag(c.country === 'Unknown' ? null : c.country)} {countryName(c.country)}</dt><dd>{int.format(c.accounts)}</dd></>))}
+					</dl>
+				)}
+			</section>
+		</div>
+
+		<h2>Opening email</h2>
 		<p>The one email that tells everyone who signed up while the vault was private that it is open. It is sent once per account, never before the vault is open, and never to the owner's account.</p>
 
 		<p class={`notice${AGENTICS_VAULT_PUBLIC ? '' : ' notice--off'}`} id="state">
