@@ -44,3 +44,25 @@ describe('the changelog entry for every outflow', () => {
     expect(text).not.toMatch(/\bsafe\b/i);
   });
 });
+
+describe('the changelog entry for Privacy Policy and User Agreement 1.3', () => {
+  const start = page.indexOf('Privacy Policy version 1.3 and User Agreement version 1.3 are in effect.');
+  const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
+
+  it('is public, not behind the Vault flag: the policy pages are public', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(article).toContain('<time class="entry-date">November 5, 2026</time>');
+    const before = page.slice(0, page.lastIndexOf('<article', start));
+    // No flag block is open around it: every `{FLAG && (<>` before it is closed before it starts.
+    expect((before.match(/&& \(<>/g) ?? []).length).toBe((before.match(/<\/>\)\}/g) ?? []).length);
+  });
+
+  it('states the Free plan as entitlements.ts enforces it, and the date the documents carry', () => {
+    const entitlements = readFileSync(path.join(ROOT, 'src/lib/agentVault/entitlements.ts'), 'utf8');
+    expect(entitlements).toContain('export const FREE_LIMITS: PlanLimits = { bots: 3, addresses: 15, walletsPerBot: 5 };');
+    expect(entitlements).toContain('export const FREE_LOGGED_CHECKS_PER_DAY = 5_000;');
+    expect(article).toContain('3 agents, 15 addresses shared across them, 5 wallets per agent, and 5,000 recorded checks per agent per day');
+    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('<strong>Effective Date:</strong> November 5, 2026');
+    expect(article.replace(/<[^>]+>/g, ' ')).not.toContain('—');
+  });
+});
