@@ -34,6 +34,8 @@ vi.mock('@/lib/db', () => ({
 }));
 const mem = vi.hoisted(() => ({ session: null as null | { tenantId: string; isDemo?: boolean } }));
 vi.mock('@/lib/requireTenantSession', () => ({ requireTenantSession: async () => mem.session }));
+// These cases are the private Vault (owner only); tests/agentics/ownerOnlyPublicMode.test.ts covers the open one.
+vi.mock('../../src/lib/agenticsFlag.mjs', () => ({ AGENTICS_VAULT_PUBLIC: false }));
 const keys = vi.hoisted(() => ({ list: [] as Array<{ id: string; status: string }> }));
 vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async () => keys.list }));
 const checks = vi.hoisted(() => ({
