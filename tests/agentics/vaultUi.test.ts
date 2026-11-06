@@ -287,6 +287,45 @@ describe('one agent', () => {
 describe('the registry', () => {
   const panel = (destinations: Destination[], plan: PlanSummary = FREE) => render(React.createElement(RegistryPanel, { tinId: 'tin-1', destinations, plan }));
 
+  it('gives each registered address a QR button, named for that address, so the other side of the flow can be paid from a phone', () => {
+    const html = panel([dest(1), dest(2, { trustStatus: 'flagged', trust: readout({ result: 'fail', hits: ['phishing'] }) })]);
+    expect((html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>/g) ?? []).length).toBe(2);
+    expect(html).toContain(`aria-label="Show a QR code for address ${shortenAddress(addr(1))}"`);
+    expect(html).toContain('title="Show a QR code to pay this address"');
+    expect(html).not.toMatch(/role="dialog"/);
+    expect(unlabelled(html)).toEqual([]);
+  });
+
+  it('a registered address\'s QR dialog shows its standing and label, the whole address and the chain; it encodes the address and nothing else', async () => {
+    const { QrPanel, qrTextOf, qrFileNameOf } = await import('../../src/components/agentics/WalletQr');
+    const d = dest(5, { chain: 'polygon', label: 'Supplier invoices' });
+    const subject = { kind: 'destination' as const, destination: d };
+    const html = render(React.createElement(QrPanel, { subject, chainName: 'Polygon', titleId: 't', onClose: () => {} }));
+    const t = textOf(html);
+    expect(t).toContain('Registered address QR code');
+    expect(t).toContain('Pass');
+    expect(t).toContain('Your label: Supplier invoices');
+    expect(t).toContain(addr(5));
+    expect(t).toContain('Send only on Polygon.');
+    expect(t).not.toContain('flagged on your list');
+    expect(qrTextOf(subject)).toBe(addr(5));
+    expect(qrFileNameOf(subject)).toBe('almstins-registered-address-polygon-qr.png');
+    expect(qrFileNameOf(subject)).not.toMatch(/Supplier|c0ffee/i);
+  });
+
+  it('a flagged address keeps its QR code, but its dialog says first that a person should review it; a pending one says nothing is claimed yet', async () => {
+    const { QrPanel } = await import('../../src/components/agentics/WalletQr');
+    const flagged = render(React.createElement(QrPanel, { subject: { kind: 'destination', destination: dest(6, { trustStatus: 'flagged', trust: readout({ result: 'fail', hits: ['sanctioned'] }) }) }, chainName: 'Ethereum', titleId: 't', onClose: () => {} }));
+    expect(textOf(flagged)).toContain('Fail');
+    expect(textOf(flagged)).toContain('This address is flagged on your list. A person should review it before anything is sent to it.');
+    expect(flagged).toContain('ag-notice ag-notice--warn');
+    expect(flagged.indexOf('flagged on your list')).toBeLessThan(flagged.indexOf(addr(6)));
+    const pending = render(React.createElement(QrPanel, { subject: { kind: 'destination', destination: dest(7, { trustStatus: 'pending', trust: null }) }, chainName: 'Ethereum', titleId: 't', onClose: () => {} }));
+    expect(textOf(pending)).toContain('Its checks have not finished, so nothing is claimed about it yet.');
+    const unlabelledDest = render(React.createElement(QrPanel, { subject: { kind: 'destination', destination: dest(8, { label: null }) }, chainName: 'Ethereum', titleId: 't', onClose: () => {} }));
+    expect(textOf(unlabelledDest)).not.toContain('Your label');
+  });
+
   it('shows Pass, Fail, Limited or Not checked as a word on every address, and a mark that is not a color', () => {
     const html = panel([
       dest(1),
