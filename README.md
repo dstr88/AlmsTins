@@ -112,6 +112,11 @@ owner-only until `AGENTICS_VAULT_PUBLIC` in `src/lib/agenticsFlag.mjs` is set to
   **unmatched**. A payment routed through a contract is recorded as a transfer to the
   contract, labeled where the listing says so. The newest few minutes are never read, so a
   reorganization cannot undo a recorded block.
+- **Daily prices** (`dailyPrices.ts`): a transfer is written as soon as it is read, with its token
+  and exact amount. Its USD value is the day's price at 12:00 UTC, so one made before that time is
+  written with a pending mark. After each pass, the prices its pending transfers need are looked
+  up once per coin and day into `agent_daily_prices`, and every read works the value out from that
+  table. The ledger row itself is never changed.
 - **Cursors** (`watchState.ts`): one per wallet (`agent_wallet_cursors`). A wallet's first read
   under it starts from the oldest of its earlier per-destination cursors, or from its
   registration. Event ids are derived from the transaction hash and leg, so reading the same

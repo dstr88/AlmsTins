@@ -397,6 +397,8 @@ export const copy = {
     amount: (amount: string, asset: string) => `${amount} ${asset}`,
     usd: (usd: string) => `${usd} at the time`,
     noUsd: 'No USD value on record',
+    pricePending: 'USD value pending: added after 12:00 UTC',
+    usdUnderCent: 'Under one US cent at the time',
     chainTx: 'View on the explorer',
     linkReason: {
       no_preceding_check: 'No check came before this transfer, so it carries the status unknown.',

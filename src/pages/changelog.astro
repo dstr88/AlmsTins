@@ -40,6 +40,14 @@ const t = getChangelog(lang);
           <article class="entry">
             <time class="entry-date">November 5, 2026 · Agent Vault</time>
             <div class="entry-body">
+              <p>A transfer of an agent's wallet now appears in the agent's record as soon as the chain confirms it, with its token and exact amount. Before, a transfer made before 12:00 UTC waited until after that time to appear, because its USD value is taken from that day's price at 12:00 UTC. Now its value follows: until the day's price is in, the record reads USD value pending, and once it is in, the value of every transfer of that coin that day is filled in together. Almstins looks up each coin's price once per day, however many transfers share it.</p>
+              <p>A value under one cent now reads Under one US cent instead of $0.00. A signed export made while a value is still pending marks that transfer as pending, and every file signed before this change still checks out at <a href="/verify-record">almstins.com/verify-record</a>.</p>
+            </div>
+          </article>
+
+          <article class="entry">
+            <time class="entry-date">November 5, 2026 · Agent Vault</time>
+            <div class="entry-body">
               <p>Every check your agent asks with its key now also screens the address at that moment, against sanctions lists and security screening, the same screening the public wallet checker runs. If it finds something, the check comes back flagged, an address on the agent's list is flagged there too, and you get an email at once. A check that has to screen fresh can take a few seconds longer.</p>
               <p>To keep that quick, Almstins keeps, for your account, the last 10 addresses whose screening passed. A check on one of them within 10 minutes of its last check reuses that screening and answers at once; each check starts the 10 minutes again. Your list, the agent's history and the public proof are still read every time, and any flag, or a change to the sanctions lists, takes the address out at once. The reused answer is still recorded, marked cached, with the time the screening was made, so the ledger, the signed export and the CSV show how fresh each answer was. Your agent's code does not change: ask before every payment.</p>
             </div>

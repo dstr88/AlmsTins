@@ -33,6 +33,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { parseChain, type VaultChain } from './addresses';
+import { applyDailyPrices } from './dailyPrices';
 import { addTransfer, emptySums, toSideTotal, type SideTotal } from './money';
 
 export type { SideTotal };
@@ -475,7 +476,7 @@ export async function listEvents(
     args,
   });
   const rows = r.rows.map(eventFrom);
-  const page = rows.slice(0, opts.limit);
+  const page = await applyDailyPrices(rows.slice(0, opts.limit));
   return { events: page, next: rows.length > opts.limit && page.length ? cursorOf(page[page.length - 1]) : null };
 }
 
@@ -559,7 +560,7 @@ export async function latestEventsWritten(tenantId: string, opts: { limit: numbe
     sql: `SELECT ${WRITTEN_COLUMNS} FROM agent_events WHERE tenant_id = ?${tin} ORDER BY created_at DESC, id DESC LIMIT ?`,
     args,
   });
-  return r.rows.map(writtenFrom).reverse();
+  return applyDailyPrices(r.rows.map(writtenFrom).reverse());
 }
 
 /**
@@ -585,7 +586,7 @@ export async function eventsWrittenSince(
     args,
   });
   const rows = r.rows.map(writtenFrom);
-  return { events: rows.slice(0, opts.limit), more: rows.length > opts.limit };
+  return { events: await applyDailyPrices(rows.slice(0, opts.limit)), more: rows.length > opts.limit };
 }
 
 /** Events written strictly after the (writtenAt, id) position, oldest first: the next page of a backlog. */
@@ -610,7 +611,7 @@ export async function eventsWrittenAfter(
     args,
   });
   const rows = r.rows.map(writtenFrom);
-  return { events: rows.slice(0, opts.limit), more: rows.length > opts.limit };
+  return { events: await applyDailyPrices(rows.slice(0, opts.limit)), more: rows.length > opts.limit };
 }
 
 /** When the newest event of one kind happened on a tin (UTC ISO-8601), or null when it has none. */
@@ -644,13 +645,15 @@ export async function sumTransactions(tenantId: string, tinId: string): Promise<
   let afterId = '';
   for (;;) {
     const r = await db.execute({
-      sql: `SELECT id, occurred_at, direction, usd_value FROM agent_events
+      sql: `SELECT id, occurred_at, direction, usd_value, amount, detail_json FROM agent_events
             WHERE tenant_id = ? AND tin_id = ? AND kind = 'transaction' AND (occurred_at > ? OR (occurred_at = ? AND id > ?))
             ORDER BY occurred_at ASC, id ASC LIMIT ?`,
       args: [tenantId, tinId, afterAt, afterAt, afterId, TOTALS_PAGE],
     });
     const rows = r.rows as any[];
-    for (const row of rows) addTransfer(row.direction === 'out' ? sides.out : sides.in, num(row.usd_value));
+    // A transfer recorded with its price pending counts with the day's price once it is in (./dailyPrices.ts).
+    const priced = await applyDailyPrices(rows.map((row) => ({ tx: { amount: String(row.amount ?? ''), usd: num(row.usd_value) }, detail: parseDetail(row.detail_json), direction: row.direction })));
+    for (const p of priced) addTransfer(p.direction === 'out' ? sides.out : sides.in, p.tx.usd);
     if (rows.length < TOTALS_PAGE) break;
     const last = rows[rows.length - 1];
     const nextAt = String(last.occurred_at);
@@ -694,8 +697,8 @@ export async function readEventsInRange(
       args: [tenantId, tinId, range.fromIso, range.toIso, afterAt, afterAt, afterId, pageSize],
     });
     const rows = r.rows as any[];
-    for (const row of rows) {
-      onEvent(eventFrom(row));
+    for (const event of await applyDailyPrices(rows.map(eventFrom))) {
+      onEvent(event);
       read += 1;
     }
     if (rows.length < pageSize) break;

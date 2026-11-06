@@ -15,6 +15,19 @@ const COINS_MEM_TTL = 10 * 60;        // 10 min
 const HISTORY_TURSO_TTL = 90 * 24 * 60 * 60; // 90 days
 const HISTORY_MEM_TTL = 10 * 60;             // 10 min
 
+/**
+ * Whether a fetched answer may be kept for HISTORY_TURSO_TTL. Only one that carries a price, and, for a
+ * range, only once the whole window is in the past: an answer for a window that has not ended yet (a
+ * transfer made this morning, priced at noon UTC) is empty or partial now and complete later, so keeping
+ * it would hide the real price for 90 days.
+ */
+export const isKeepableRange = (payload: RangePayload | null | undefined, toSec: number, nowMs: number): boolean =>
+  Boolean(payload?.prices?.length) && toSec * 1000 <= nowMs;
+const hasHistoryPrice = (payload: HistoryPayload | null | undefined): boolean => {
+  const p = payload?.market_data?.current_price?.usd;
+  return typeof p === 'number' && Number.isFinite(p) && p > 0;
+};
+
 const memoryCache = new Map<string, { expiresAt: number; payload: unknown }>();
 const inflight = new Map<string, Promise<unknown>>();
 
@@ -226,7 +239,8 @@ const getRangePrice = async (opts: {
   }
 
   const cached = await getCache<RangePayload>(cacheKey);
-  if (cached) {
+  // An empty answer kept before the rule above is treated as not kept: it is asked for again.
+  if (cached?.prices?.length) {
     setMem(cacheKey, cached, HISTORY_MEM_TTL);
     const best = cached.prices ? pickNearestPrice(cached.prices, targetMs) : null;
     if (best && best.price > 0) {
@@ -262,8 +276,10 @@ const getRangePrice = async (opts: {
     )}/market_chart/range?vs_currency=usd&from=${fromSec}&to=${toSec}`;
     try {
       const payload = (await fetchJson(url, headers)) as RangePayload;
-      setMem(cacheKey, payload, HISTORY_MEM_TTL);
-      await setCache(cacheKey, payload, HISTORY_TURSO_TTL);
+      if (isKeepableRange(payload, toSec, Date.now())) {
+        setMem(cacheKey, payload, HISTORY_MEM_TTL);
+        await setCache(cacheKey, payload, HISTORY_TURSO_TTL);
+      }
       return payload;
     } catch (err) {
       if (isPublic365DayLimit(err)) return null;
@@ -316,7 +332,7 @@ const getHistoryPrice = async (opts: {
   }
 
   const cached = await getCache<HistoryPayload>(cacheKey);
-  if (cached) {
+  if (cached && hasHistoryPrice(cached)) {
     setMem(cacheKey, cached, HISTORY_MEM_TTL);
     const p = cached.market_data?.current_price?.usd;
     if (typeof p === 'number' && Number.isFinite(p) && p > 0) {
@@ -351,8 +367,10 @@ const getHistoryPrice = async (opts: {
     )}&localization=false`;
     try {
       const payload = (await fetchJson(url, headers)) as HistoryPayload;
-      setMem(cacheKey, payload, HISTORY_MEM_TTL);
-      await setCache(cacheKey, payload, HISTORY_TURSO_TTL);
+      if (hasHistoryPrice(payload)) {
+        setMem(cacheKey, payload, HISTORY_MEM_TTL);
+        await setCache(cacheKey, payload, HISTORY_TURSO_TTL);
+      }
       return payload;
     } catch (err) {
       if (isPublic365DayLimit(err)) return null;

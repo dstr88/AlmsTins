@@ -34,6 +34,7 @@ let RegistryPanel: typeof import('../../src/components/agentics/RegistryPanel').
 let WalletsPanel: typeof import('../../src/components/agentics/WalletsPanel').default;
 let LedgerPanel: typeof import('../../src/components/agentics/LedgerPanel').default;
 let LedgerItem: typeof import('../../src/components/agentics/LedgerPanel').LedgerItem;
+let usdLine: typeof import('../../src/components/agentics/LedgerPanel').usdLine;
 let AgentKeyCard: typeof import('../../src/components/agentics/AgentKeyCard').default;
 let RemoveAgent: typeof import('../../src/components/agentics/RemoveAgent').default;
 let PlanMeter: typeof import('../../src/components/agentics/PlanMeter').default;
@@ -46,6 +47,7 @@ beforeAll(async () => {
   WalletsPanel = (await import('../../src/components/agentics/WalletsPanel')).default;
   const ledger = await import('../../src/components/agentics/LedgerPanel');
   LedgerPanel = ledger.default;
+  usdLine = ledger.usdLine;
   LedgerItem = ledger.LedgerItem;
   AgentKeyCard = (await import('../../src/components/agentics/AgentKeyCard')).default;
   RemoveAgent = (await import('../../src/components/agentics/RemoveAgent')).default;
@@ -83,7 +85,7 @@ const row = (over: Partial<LedgerRow> = {}): LedgerRow => ({
   id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, counterparty: null, unmatched: false, contract: null, limitReached: false, keyState: 'active', tx: null, screening: null, ...over,
 });
 const transfer = (over: Partial<LedgerRow> = {}): LedgerRow =>
-  row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', counterparty: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5 }, ...over });
+  row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', counterparty: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5, pricePending: false }, ...over });
 const totals = (over: Record<string, unknown> = {}) => ({
   transactions: 2,
   bought: { count: 1, pricedCount: 1, unpricedCount: 0, usd: 4500.5 },
@@ -600,7 +602,7 @@ describe('the ledger', () => {
     expect(inbound).toContain(`href="https://etherscan.io/tx/${HASH}"`);
     expect(inbound).toContain('target="_blank"');
     expect(inbound).toContain('rel="noopener noreferrer"');
-    const outbound = item(transfer({ tx: { hash: HASH, direction: 'out', amount: '300', asset: 'USDC', usd: 300 } }));
+    const outbound = item(transfer({ tx: { hash: HASH, direction: 'out', amount: '300', asset: 'USDC', usd: 300, pricePending: false } }));
     expect(textOf(outbound)).toContain('Sold (out)');
     expect(textOf(outbound)).toContain('300 USDC');
   });
@@ -621,7 +623,7 @@ describe('the ledger', () => {
   });
 
   it('marks the unmatched line in words and with a class, and says when a payment went through a contract', () => {
-    const unmatched = item(transfer({ registry: 'none', counterparty: 'unregistered', unmatched: true, tx: { hash: HASH, direction: 'out', amount: '9', asset: 'ETH', usd: 18000 } }));
+    const unmatched = item(transfer({ registry: 'none', counterparty: 'unregistered', unmatched: true, tx: { hash: HASH, direction: 'out', amount: '9', asset: 'ETH', usd: 18000, pricePending: false } }));
     expect(textOf(unmatched)).toContain('Unmatched: this payment went to an address not on the list, and no check was asked about it in the hour before.');
     expect(unmatched).toContain('ag-event ag-event--unmatched');
     expect(item(transfer())).not.toContain('ag-event--unmatched');
@@ -632,7 +634,7 @@ describe('the ledger', () => {
   });
 
   it('never shows an unpriced transfer as zero', () => {
-    const t = textOf(item(transfer({ tx: { hash: HASH, direction: 'in', amount: '10', asset: 'ODD', usd: null } })));
+    const t = textOf(item(transfer({ tx: { hash: HASH, direction: 'in', amount: '10', asset: 'ODD', usd: null, pricePending: false } })));
     expect(t).toContain('No USD value on record');
     expect(t).not.toContain('$0.00');
   });
@@ -654,14 +656,14 @@ describe('the ledger', () => {
     ] as const) {
       expect(explorerTxHref(chain as never, hash), `${chain} ${hash}`).toBeNull();
     }
-    const odd = item(transfer({ tx: { hash: '" onmouseover="alert(1)', direction: 'in', amount: '1', asset: 'ETH', usd: 1 } }));
+    const odd = item(transfer({ tx: { hash: '" onmouseover="alert(1)', direction: 'in', amount: '1', asset: 'ETH', usd: 1, pricePending: false } }));
     expect(odd).not.toContain('href=');
     expect(attributeNames(odd).filter((a) => /^on/.test(a))).toEqual([]);
     expect(item(transfer({ chain: null }))).not.toContain('href=');
   });
 
   it('shows what came from the chain, an asset\'s symbol and an amount, as text, whatever it holds', () => {
-    const html = item(transfer({ tx: { hash: HASH, direction: 'in', amount: HOSTILE, asset: HOSTILE, usd: null } }));
+    const html = item(transfer({ tx: { hash: HASH, direction: 'in', amount: HOSTILE, asset: HOSTILE, usd: null, pricePending: false } }));
     expect(html).not.toMatch(/<script/i);
     expect(html).not.toMatch(/<img/i);
     expect(attributeNames(html).filter((a) => /^on/.test(a))).toEqual([]);
@@ -783,6 +785,23 @@ describe('the words on the screens', () => {
 
   it('never say Almstins verifies a payment, only addresses: the Vault is not in the payment path', () => {
     for (const s of screens.flatMap((x) => strings(x))) expect(s, s).not.toMatch(/\b(approve|authorize|release|hold|freeze|reverse)s?\b.*\b(payment|transfer|funds)\b/i);
+  });
+});
+
+describe('a transfer\'s USD value, as a row and the Live card say it', () => {
+  it('is the value at the time, never $0.00 for a tiny one, and says when it is still to come', () => {
+    expect(usdLine({ usd: 3000, pricePending: false })).toBe(copy.ledger.usd('$3,000.00'));
+    expect(usdLine({ usd: 0.0002, pricePending: false })).toBe(copy.ledger.usdUnderCent);
+    expect(usdLine({ usd: 0.01, pricePending: false })).toBe(copy.ledger.usd('$0.01'));
+    expect(usdLine({ usd: 0, pricePending: false })).toBe(copy.ledger.usd('$0.00'));
+    expect(usdLine({ usd: null, pricePending: true })).toBe(copy.ledger.pricePending);
+    expect(usdLine({ usd: null, pricePending: false })).toBe(copy.ledger.noUsd);
+  });
+
+  it('the Live card uses the same words as the row', () => {
+    const src = read('src/components/agentics/FeedPage.tsx');
+    expect(src).toContain('usdLine(tx)');
+    expect(src).not.toContain('copy.ledger.noUsd');
   });
 });
 
