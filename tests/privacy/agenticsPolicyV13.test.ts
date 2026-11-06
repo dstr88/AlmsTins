@@ -11,8 +11,8 @@ import { VAULT_CHAINS } from '../../src/lib/agentVault/addresses';
  * what it reads, what it does not, and the Free plan's numbers. This file holds the two documents to the
  * code they describe, in all three languages, so neither can drift from what is built:
  *
- *   - the effective date is the same everywhere (November 5, 2026, the day v1.3 shipped: a later version changes
- *     EFFECTIVE below and the six body dates together, and this file fails if one is missed);
+ *   - the version and effective date are the same everywhere (v1.4, November 6, 2026; v1.3 shipped the day before: a later
+ *     version changes VERSION and EFFECTIVE below and the six body headers together, and this file fails if one is missed);
  *   - the policy discloses each thing the Vault keeps and reads, and the one thing it never does (link an
  *     address to a person);
  *   - the Terms' Free plan numbers are the numbers in entitlements.ts, and the chains it names are the ones
@@ -26,8 +26,9 @@ import { VAULT_CHAINS } from '../../src/lib/agentVault/addresses';
 const LANGS = ['en', 'es', 'fr'] as const;
 type Lang = (typeof LANGS)[number];
 
-/** The day the documents took effect, as each language writes it: the day v1.3 shipped. */
-const EFFECTIVE: Record<Lang, string> = { en: 'November 5, 2026', es: '5 de noviembre de 2026', fr: '5 novembre 2026' };
+/** The version both documents carry, and the day it took effect, as each language writes it (v1.4, Nov 6, 2026: the unmatched-payment email). */
+const VERSION = '1.4';
+const EFFECTIVE: Record<Lang, string> = { en: 'November 6, 2026', es: '6 de noviembre de 2026', fr: '6 novembre 2026' };
 
 const policyBodies: Record<Lang, string> = { en: policy.en.body, es: policy.es.body, fr: policy.fr.body };
 const termsBodies: Record<Lang, string> = { en: terms.en.body, es: terms.es.body, fr: terms.fr.body };
@@ -94,11 +95,11 @@ describe('the Terms name the chains the Vault reads, and no others', () => {
 
 describe('both documents carry the same version and effective date', () => {
   const header = /<p><strong>[^<]+<\/strong> (.+?) &nbsp;(?:&middot;|·)&nbsp; <strong>[^<]+<\/strong> (\d+\.\d+)<br\/>/;
-  it.each(LANGS)('%s: Privacy Policy and User Agreement are version 1.3 on the same day', (lang) => {
+  it.each(LANGS)('%s: Privacy Policy and User Agreement are the same version on the same day', (lang) => {
     const p = header.exec(policyBodies[lang]);
     const t = header.exec(termsBodies[lang]);
-    expect(p?.[2], 'policy version').toBe('1.3');
-    expect(t?.[2], 'terms version').toBe('1.3');
+    expect(p?.[2], 'policy version').toBe(VERSION);
+    expect(t?.[2], 'terms version').toBe(VERSION);
     expect(p?.[1], 'policy date').toBe(EFFECTIVE[lang]);
     expect(t?.[1], 'terms date').toBe(EFFECTIVE[lang]);
   });
