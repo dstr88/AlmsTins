@@ -158,3 +158,15 @@ describe('what is not an event', () => {
     for (const bad of [null, undefined, {}, 'x', 3]) expect(parseLedgerRows(bad)).toEqual([]);
   });
 });
+
+describe('the word a person reads for the history answer', () => {
+  it('is Established on screens, while the code agents receive and the ledger stores stays consistent-with-history', async () => {
+    const { VERIFY_STATUS_TITLE, reasonText, BUCKET_MEANING } = await import('../../src/lib/agentVault/reportText');
+    const { readFileSync } = await import('node:fs');
+    const events = readFileSync(new URL('../../src/lib/agentVault/events.ts', import.meta.url), 'utf8');
+    expect(VERIFY_STATUS_TITLE['consistent-with-history']).toBe('Established');
+    expect(events).toContain("export const VAULT_ANSWERS = ['proven', 'consistent-with-history', 'flagged', 'unknown'] as const;");
+    expect(reasonText('registered_and_checked_before')).toBe('Registered, and checked before. Established: the same address as before, which is not proof of ownership.');
+    expect(BUCKET_MEANING.no_issues).toMatch(/^Proven, or established: the same address this agent asked about before\./);
+  });
+});

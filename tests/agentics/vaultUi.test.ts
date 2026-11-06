@@ -491,7 +491,7 @@ describe('the ledger', () => {
   });
 
   it('words every answer and every registry word, and a check with no answer as that', () => {
-    for (const [answer, title] of [['proven', 'Proven'], ['consistent-with-history', 'Consistent with history'], ['flagged', 'Flagged'], ['unknown', 'Unknown']] as const) {
+    for (const [answer, title] of [['proven', 'Proven'], ['consistent-with-history', 'Established'], ['flagged', 'Flagged'], ['unknown', 'Unknown']] as const) {
       expect(textOf(item(row({ answer }))), answer).toContain(`Answer: ${title}`);
     }
     for (const [registry, word] of [['trusted', 'Trusted'], ['flagged', 'Flagged'], ['pending', 'Pending'], ['none', 'Not registered']] as const) {

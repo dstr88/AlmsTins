@@ -306,7 +306,7 @@ describe('one report', () => {
     expect(textOf(partial)).toContain('Partial day. This report was made at 2026-10-18 09:10:00 UTC');
     const quiet = render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } }));
     expect(textOf(quiet)).toContain('Nothing recorded for this agent needs a person to look at it.');
-    expect(textOf(quiet)).toContain('No check came back proven or consistent with history in this period.');
+    expect(textOf(quiet)).toContain('No check came back proven or established in this period.');
     expect(textOf(quiet)).not.toContain('Partial day');
   });
 

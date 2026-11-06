@@ -179,7 +179,7 @@ describe('the body of a digest', () => {
         '  Had issues: 1',
         '  Not confirmed: 1',
         'New (first check of a registered address): 3',
-        'Checks that came back proven or consistent with history: 1,284',
+        'Checks that came back proven or established: 1,284',
         'Agents with activity: 3',
         '',
         'View the full report (sign-in required):',
@@ -211,7 +211,7 @@ describe('the body of a digest', () => {
     expect(m.text).toContain('Nothing needs your attention.');
     expect(m.text).not.toContain('Had issues');
     expect(m.text).not.toContain('Not confirmed');
-    expect(m.text).toContain('Checks that came back proven or consistent with history: 40');
+    expect(m.text).toContain('Checks that came back proven or established: 40');
   });
 
   it('for a week: names the seven days, and says so', () => {

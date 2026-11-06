@@ -330,8 +330,8 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     write(lead, MARGIN.left + 12, y, { size: 9.5, font: 'Helvetica-Bold', width: CONTENT_W - 12 });
     const clearText =
       clear.checks === 0
-        ? 'No check came back proven or consistent with history in this period.'
-        : `${plural(clear.checks, 'check', 'checks')} came back proven or consistent with history. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`;
+        ? 'No check came back proven or established in this period.'
+        : `${plural(clear.checks, 'check', 'checks')} came back proven or established. ${plural(clear.addresses, 'address', 'addresses')} had only such checks and ${clear.addresses === 1 ? 'is' : 'are'} not listed. A clear result means the checks that ran came back without a flag; it is not a statement that an address is safe or legitimate. ${NOT_REGISTERED_NOTE}`;
     y += 14;
     para(clearText, { size: 8, alpha: PDF_ALPHA['--text-secondary'], x: MARGIN.left + 12, after: 18 });
 

@@ -4,7 +4,7 @@
 //
 // What these emails carry, and do not. The SUBJECT leads with whether anything needs a person:
 // "2 need your attention", or a quiet "No flags, 1,284 checks". It never says "verified": a check
-// that came back consistent with history has not been verified, only not flagged. The BODY is
+// that came back established (consistent-with-history) has not been verified, only not flagged. The BODY is
 // counts and a link to the Reports page, behind the sign-in. It never carries a wallet address, a
 // label (an address's or an agent's) or an amount of money: an email is less private than the
 // dashboard, and the detail is sensitive. tests/agentics/digest.test.ts renders every state with
@@ -93,7 +93,7 @@ export const en: AgentReportEmailLocale = {
     }
     lines.push(
       `New (first check of a registered address): ${formatCount(a.new)}`,
-      `Checks that came back proven or consistent with history: ${formatCount(a.clearChecks)}`,
+      `Checks that came back proven or established: ${formatCount(a.clearChecks)}`,
       `Agents with activity: ${formatCount(a.agents)}`,
       ...(a.limited > 0
         ? [

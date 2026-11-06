@@ -82,7 +82,7 @@ const FIELDS = [
 
 const VAULT_FIELDS = [
   ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
-  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history: on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
   ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
   ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
   ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
@@ -394,7 +394,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
     <p class="body">
       <b>The rule above does not change.</b> The vault field is the answer about your own registry; it does
       not loosen the public one. Use it to apply your own policy to the addresses you registered, and decide
-      for yourself what each answer is worth: consistent-with-history proves sameness, never ownership. An
+      for yourself what each answer is worth: consistent-with-history (Established) proves sameness, never ownership. An
       address that is not in your registry never clears, whatever the public proof says. If any part of the
       field is null, the vault could not be read: treat it as not cleared. Hold and escalate to a person
       whatever is not cleared, exactly as before.

@@ -21,7 +21,7 @@ export const BUCKET_MEANING: Record<ReportBucket, string> = {
   issues: 'Flagged: the registry flagged the address, or its proof is on a different domain than the agent expected.',
   not_confirmed: 'Unknown: the address is not in the registry, or is in it but its checks have not finished. A swapped address shows up here.',
   new: 'First check of a registered, trusted address. Its history baseline started; future checks are compared with it.',
-  no_issues: 'Proven, or consistent with the address\'s own history. Counted here, never listed.',
+  no_issues: 'Proven, or established: the same address this agent asked about before. Counted here, never listed.',
 };
 
 /** Why a check landed where it did, by the reason code the tin recorded. */
@@ -31,7 +31,7 @@ const REASON: Record<string, string> = {
   not_in_registry: 'Not in your registry. The agent asked about an address that is not on its list.',
   registry_pending: 'In your registry, but its checks have not finished.',
   domain_proof: 'Proven by a domain proof.',
-  registered_and_checked_before: 'Registered, and checked before. Consistent with history.',
+  registered_and_checked_before: 'Registered, and checked before. Established: the same address as before, which is not proof of ownership.',
   registered_first_check: 'First check of a registered address. History baseline started.',
   other: 'Reason not recorded.',
 };
@@ -40,9 +40,15 @@ export function reasonText(code: string): string {
   return REASON[code] ?? REASON.other;
 }
 
+/**
+ * The word a person reads for each verify-status. The API and the ledger keep the code
+ * `consistent-with-history` (agents match on it, and the ledger's CHECK constraint allows only the
+ * four codes); on every page, report and email it reads "Established": the address is the same one
+ * this agent asked about before. That proves sameness, never ownership, and it is never "proven".
+ */
 export const VERIFY_STATUS_TITLE: Record<string, string> = {
   proven: 'Proven',
-  'consistent-with-history': 'Consistent with history',
+  'consistent-with-history': 'Established',
   flagged: 'Flagged',
   unknown: 'Unknown',
 };

@@ -665,7 +665,7 @@ describe('an agent that was removed is no longer told about, in the daily digest
     expect(sent).toHaveLength(1);
     expect(sent[0].subject).not.toMatch(/^\d/); // it does not lead with "2 need your attention": the removed agent's two addresses are not counted
     expect(sent[0].text).toContain('Agents with activity: 1');
-    expect(sent[0].text).toContain('Checks that came back proven or consistent with history: 1');
+    expect(sent[0].text).toContain('Checks that came back proven or established: 1');
     expect(sent[0].text).not.toContain('Had issues');
   });
 
@@ -705,7 +705,7 @@ describe('the weekly digest', () => {
     expect(sent[0].subject).toBe('3 need your attention · Agent report, Oct 12 to Oct 18, 2026');
     expect(sent[0].text).toContain('  Had issues: 2');
     expect(sent[0].text).toContain('  Not confirmed: 1');
-    expect(sent[0].text).toContain('Checks that came back proven or consistent with history: 1');
+    expect(sent[0].text).toContain('Checks that came back proven or established: 1');
     expect(sent[0].text.split('\n')[0]).toBe('Agent report for October 12, 2026 to October 18, 2026 (UTC)');
   });
 

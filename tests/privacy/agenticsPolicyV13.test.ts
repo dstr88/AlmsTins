@@ -338,6 +338,17 @@ describe('User Agreement v1.3, Part B.9, keeps the product\'s rules', () => {
     expect(clause(b9, 7)).not.toMatch(narrow[lang]);
   });
 
+  const ESTABLISHED: Record<Lang, { b93: RegExp; b96: RegExp }> = {
+    en: { b93: /"Established," and "Trusted" are not safety guarantees/, b96: /"consistent with history," shown as "Established," means the destination matches one your Agent asked about before/ },
+    es: { b93: /"Established" y "Trusted" no son garantías de seguridad/, b96: /"consistent with history", que se muestra como "Established", significa/ },
+    fr: { b93: /« Established » et « Trusted » ne sont pas des garanties de sécurité/, b96: /« consistent with history », affiché comme « Established », signifie/ },
+  };
+  it.each(LANGS)('%s: "Established", the word the pages show for consistent-with-history, is named in B.9.6 and denied as a safety guarantee in B.9.3', (lang) => {
+    const b9 = partB9(termsBodies[lang]);
+    expect(clause(b9, 3)).toMatch(ESTABLISHED[lang].b93);
+    expect(clause(b9, 6)).toMatch(ESTABLISHED[lang].b96);
+  });
+
   it('English: the Record is evidence of the check, not of the underlying transaction, and the limits are stated', () => {
     const b9 = partB9(termsBodies.en);
     expect(clause(b9, 7)).toMatch(/It does not show what your Agent did after an answer/);

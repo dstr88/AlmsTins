@@ -113,7 +113,7 @@ describe('a signed report as a PDF', () => {
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
     for (const expected of [
       'Operator report', 'October 17, 2026 (UTC day)', 'Treasury agent', 'Had issues', 'Not confirmed', 'New', 'No issues',
-      'Ops wallet', 'BOUGHT', '$1,270.56', 'SOLD', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or consistent with history',
+      'Ops wallet', 'BOUGHT', '$1,270.56', 'SOLD', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or established',
     ]) {
       expect(text, expected).toContain(expected);
     }
@@ -196,7 +196,7 @@ describe('a signed report as a PDF', () => {
     expect(flow(text)).toContain('Nothing recorded for this agent needs a person to look at it.');
     expect(text).not.toContain('Nothing here needs');
     expect(text.match(/No transfers/g)).toHaveLength(2); // bought and sold
-    expect(flow(text)).toContain('No check came back proven or consistent with history in this period.');
+    expect(flow(text)).toContain('No check came back proven or established in this period.');
   });
 
   it('says an all-clear is about what the Vault recorded: a transfer to an unregistered address is recorded and marked, an unmatched outflow too', async () => {
