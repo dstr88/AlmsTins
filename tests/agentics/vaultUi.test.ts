@@ -761,7 +761,7 @@ describe('the words on the screens', () => {
     } else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, out);
     return out;
   };
-  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.walletsPage, copy.ledger, copy.refresh, copy.export];
+  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.walletsPage, copy.historyPage, copy.sources, copy.ledger, copy.refresh, copy.export];
 
   it('keep to the product\'s verbs and say nothing that stops a payment', () => {
     const all = screens.flatMap((s) => strings(s));

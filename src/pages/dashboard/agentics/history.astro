@@ -1,0 +1,36 @@
+---
+/**
+ * /dashboard/agentics/history[?year=YYYY][&agent=ID]: a year of the account's agents, starting with
+ * where the money they received came from. Closed to anyone the Agent Vault is not open to
+ * (src/lib/agenticsAccess.ts): the middleware answers them before this runs, and this checks again. The
+ * list is read straight from the Vault, never through its own API, and renders with no script. The
+ * page's title is the fixed word "History", never an agent's name or an address.
+ */
+import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
+import MoneySources from '../../../components/agentics/MoneySources';
+import { copy } from '../../../components/agentics/copy';
+import { HISTORY_PATH } from '../../../components/agentics/paths';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPlanSummary } from '@/lib/agentVault/entitlements';
+import { loadMoneySources } from '@/lib/agentVault/vaultPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const [plan, data] = await Promise.all([
+  getPlanSummary(session.tenantId),
+  loadMoneySources(session.tenantId, Astro.url.searchParams.get('year'), Astro.url.searchParams.get('agent')),
+]);
+---
+
+<AgenticsShell title="History" active="history" plan={plan}>
+  <div class="ag-page">
+    <header class="ag-hero">
+      <p class="ag-kicker">{copy.historyPage.kicker}</p>
+      <h1 class="ag-title">{copy.historyPage.title}</h1>
+      <p class="ag-sub">{copy.historyPage.lede}</p>
+    </header>
+    <MoneySources data={data} base={HISTORY_PATH} />
+  </div>
+</AgenticsShell>

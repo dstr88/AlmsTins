@@ -125,6 +125,11 @@ owner-only until `AGENTICS_VAULT_PUBLIC` in `src/lib/agenticsFlag.mjs` is set to
   Each has two windows, what it received and what it sent, newest first, that scroll, expand and
   load more, with a CSV download beside each (`/api/agentics/wallet-transfers`). Its reads use
   their own index, migration 0069.
+- **History page** (`/dashboard/agentics/history`): a year of the account's agents, starting with
+  where the money they received came from: every address that sent money to an agent's own wallet,
+  grouped by sender, largest first, named by the account's own labels and wallets, with its status on
+  the list. The same list shows on Memory Lane for an account with agents. No new table or index: it
+  reads a year of each agent's incoming transfers on the transfers index.
 - **Reports and export:** a daily report per agent, signed as a PDF and a proof bundle, and a
   signed export of the ledger for any range of days. Both count the transfers to addresses not
   on the list and the unmatched ones. Anyone can check a signed file at `/verify-record`, or

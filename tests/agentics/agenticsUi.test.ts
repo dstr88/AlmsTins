@@ -487,6 +487,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       'src/components/agentics/ExportCard.tsx',
       'src/components/agentics/FeedPage.tsx',
       'src/components/agentics/LedgerPanel.tsx',
+      'src/components/agentics/MoneySources.tsx',
       'src/components/agentics/PlanMeter.tsx',
       'src/components/agentics/RegistryPanel.tsx',
       'src/components/agentics/RemoveAgent.tsx',
@@ -515,6 +516,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       // page, but it lives in this directory, so the checks below read it as well.
       'src/pages/dashboard/agentics/agents.astro',
       'src/pages/dashboard/agentics/feed.astro',
+      'src/pages/dashboard/agentics/history.astro',
       'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',

@@ -515,6 +515,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/ExportCard.tsx',
       'src/components/agentics/FeedPage.tsx',
       'src/components/agentics/LedgerPanel.tsx',
+      'src/components/agentics/MoneySources.tsx',
       'src/components/agentics/PlanMeter.tsx',
       'src/components/agentics/RegistryPanel.tsx',
       'src/components/agentics/RemoveAgent.tsx',
@@ -562,6 +563,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/liveRead.ts',
       'src/lib/agentVault/mailer.ts',
       'src/lib/agentVault/money.ts',
+      'src/lib/agentVault/moneySources.ts',
       'src/lib/agentVault/pricePending.ts',
       'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/report.ts',
@@ -608,6 +610,7 @@ describe('the Vault keeps to the bright lines', () => {
       // so the Vault's wording and bright-line guards read it too (stricter, never looser).
       'src/pages/dashboard/agentics/agents.astro',
       'src/pages/dashboard/agentics/feed.astro',
+      'src/pages/dashboard/agentics/history.astro',
       'src/pages/dashboard/agentics/index.astro',
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',

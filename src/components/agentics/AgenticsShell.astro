@@ -31,13 +31,13 @@ import { getAuthSession } from '@/lib/authSession';
 import type { PlanSummary } from '@/lib/agentVault/entitlements';
 import { copy } from './copy';
 import PlanMeter from './PlanMeter';
-import { ACCOUNT_PATH, FEED_PATH, HOME_PATH, REPORTS_PATH, WALLETS_PATH } from './paths';
+import { ACCOUNT_PATH, FEED_PATH, HISTORY_PATH, HOME_PATH, REPORTS_PATH, WALLETS_PATH } from './paths';
 
 interface Props {
   /** The page's own fixed name. Never an account's text (see above). */
   title: string;
   /** Which entry of the Agentics bar is the current one. */
-  active?: 'agents' | 'wallets' | 'feed' | 'reports' | 'account';
+  active?: 'agents' | 'wallets' | 'feed' | 'reports' | 'history' | 'account';
   /** The account's plan and use, for the meter. Without it there is no meter. */
   plan?: PlanSummary;
   /** Whether the account has the Vault. When it does not (the account page, before the Vault is open) the bar has no link to its pages and no meter. */
@@ -70,6 +70,7 @@ const links = door.landing.footerLinks;
           {vault && <a href={WALLETS_PATH} aria-current={active === 'wallets' ? 'page' : undefined}>{copy.nav.wallets}</a>}
           {vault && <a href={FEED_PATH} aria-current={active === 'feed' ? 'page' : undefined}>{copy.nav.live}</a>}
           {vault && <a href={REPORTS_PATH} aria-current={active === 'reports' ? 'page' : undefined}>{copy.nav.reports}</a>}
+          {vault && <a href={HISTORY_PATH} aria-current={active === 'history' ? 'page' : undefined}>{copy.nav.history}</a>}
           <a href={ACCOUNT_PATH} aria-current={active === 'account' ? 'page' : undefined}>{copy.nav.account}</a>
         </nav>
         {vault && plan && <PlanMeter client:load plan={plan} />}

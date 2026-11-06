@@ -735,30 +735,34 @@ export const PERIOD_PAGE = 1000;
  * milliseconds, the form `occurred_at` is stored in, so a plain string comparison is a time
  * comparison. The end is exclusive: an event stamped at the stroke of midnight belongs to the day
  * that begins there. Returns how many events it read.
+ *
+ * `direction` narrows the read to the transfers that went that way (on the transfers index); an
+ * `onEvent` that returns false ends the read after that event.
  */
 export async function readEventsInRange(
   tenantId: string,
   tinId: string,
   range: { fromIso: string; toIso: string },
-  onEvent: (event: LedgerEvent) => void,
-  opts: { pageSize?: number } = {},
+  onEvent: (event: LedgerEvent) => unknown,
+  opts: { pageSize?: number; direction?: TransferDirection } = {},
 ): Promise<number> {
   await ensureAgentEventsTable();
   const pageSize = opts.pageSize ?? PERIOD_PAGE;
+  const only = opts.direction ? ` AND kind = 'transaction' AND direction = ?` : '';
   let afterAt = '';
   let afterId = '';
   let read = 0;
   for (;;) {
     const r = await db.execute({
       sql: `SELECT ${EVENT_COLUMNS} FROM agent_events
-            WHERE tenant_id = ? AND tin_id = ? AND occurred_at >= ? AND occurred_at < ? AND (occurred_at > ? OR (occurred_at = ? AND id > ?))
+            WHERE tenant_id = ? AND tin_id = ? AND occurred_at >= ? AND occurred_at < ?${only} AND (occurred_at > ? OR (occurred_at = ? AND id > ?))
             ORDER BY occurred_at ASC, id ASC LIMIT ?`,
-      args: [tenantId, tinId, range.fromIso, range.toIso, afterAt, afterAt, afterId, pageSize],
+      args: [tenantId, tinId, range.fromIso, range.toIso, ...(opts.direction ? [opts.direction] : []), afterAt, afterAt, afterId, pageSize],
     });
     const rows = r.rows as any[];
     for (const event of await applyDailyPrices(rows.map(eventFrom))) {
-      onEvent(event);
       read += 1;
+      if (onEvent(event) === false) return read;
     }
     if (rows.length < pageSize) break;
     const last = rows[rows.length - 1];
