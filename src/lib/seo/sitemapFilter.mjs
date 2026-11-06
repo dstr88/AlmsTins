@@ -36,7 +36,12 @@ const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 const OWNER_ONLY_PATHS = new Set(['/tax/', '/tax-login/', '/year-summary/']);
 
 // A signed-in page outside the denylisted prefixes: a sitemap is a public list, and this page is for one account only.
-const SIGNED_IN_PATHS = new Set(['/agentics/account/']);
+// The plans, redeem and info pages send a signed-out visitor to the sign-in page (they are not in the auth
+// middleware's public list), and /aave-alisis redirects there itself, so a crawler gets a login, not the page.
+const SIGNED_IN_PATHS = new Set(['/agentics/account/', '/myplans/', '/premiumplan/', '/redeem/', '/info/', '/aave-alisis/']);
+
+// Redirects, not pages: the sitemap lists where a redirect lands, never the redirect.
+const REDIRECT_PATHS = new Set(['/marchand/']);
 
 const DENY_SUBSTRINGS = [
 	'/dashboard',
@@ -62,6 +67,7 @@ export function sitemapFilter(page) {
 	const withSlash = path.endsWith('/') ? path : `${path}/`;
 	if (OWNER_ONLY_PATHS.has(withSlash.toLowerCase())) return false;
 	if (SIGNED_IN_PATHS.has(withSlash.toLowerCase())) return false;
+	if (REDIRECT_PATHS.has(withSlash.toLowerCase())) return false;
 	if (!PETRO_TINS_PUBLIC && withSlash.toLowerCase().startsWith('/petro-tins/')) return false;
 	if (withSlash.startsWith('/verify/') || withSlash.startsWith('/receivables/')) {
 		return PUBLIC_UNDER_PRODUCT_PREFIXES.has(withSlash);

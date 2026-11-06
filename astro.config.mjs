@@ -4,6 +4,7 @@ import react from '@astrojs/react';
 import node from '@astrojs/node';
 import sitemap from '@astrojs/sitemap';
 import { sitemapFilter } from './src/lib/seo/sitemapFilter.mjs';
+import { canonicalUrl } from './src/lib/seo/canonical.mjs';
 
 const host = process.env.HOST ?? '0.0.0.0';
 const port = process.env.PORT ? Number(process.env.PORT) : 10000;
@@ -15,6 +16,8 @@ export default defineConfig({
 		sitemap({
 			// Only include public, indexable pages (see src/lib/seo/sitemapFilter.mjs)
 			filter: sitemapFilter,
+			// The address each page's canonical tag names: no trailing slash (src/lib/seo/canonical.mjs).
+			serialize: (item) => ({ ...item, url: canonicalUrl(item.url) }),
 		}),
 	],
 	output: 'server',

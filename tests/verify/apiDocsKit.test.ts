@@ -64,9 +64,10 @@ describe('/agentics/docs on the docs kit', () => {
     expect(page).not.toMatch(/import Analytics\b/);
   });
 
-  it('carries its one description meta in the head slot', () => {
+  it('carries its one canonical and its one description meta in the head slot', () => {
     expect(page.match(/<meta name="description"/g)).toHaveLength(1);
-    expect(page).toMatch(/<Fragment slot="head">\s*<meta name="description" content="[^"]+" \/>\s*<\/Fragment>/);
+    expect(page.match(/rel="canonical"/g)).toHaveLength(1);
+    expect(page).toMatch(/<Fragment slot="head">\s*<link rel="canonical" href="https:\/\/almstins\.com\/agentics\/docs" \/>\s*<meta name="description" content="[^"]+" \/>\s*<\/Fragment>/);
   });
 });
 
