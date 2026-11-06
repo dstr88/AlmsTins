@@ -40,6 +40,7 @@ import { counterpartyOf, isUnmatched, registryOf, type CounterpartyStatus } from
 import { insertTransactionEvent, listChecksForLink, transactionEventExists, transactionEventId } from './events';
 import { defaultExplorer, type ExplorerDeps } from './explorer';
 import { LINK_LOOKUP_LIMIT, LINK_TOLERANCE_MS, LINK_WINDOW_MS, linkTransactionToCheck } from './link';
+import { fillPendingPrices } from './dailyPrices';
 import { defaultPricing, memoizePricing, priceTransfer, type PricingDeps } from './pricing';
 import { getTin, listDestinations, listWallets, listWatchTargets, type AgentWallet, type Destination, type Tin } from './store';
 import { EXPLORER_ACTIONS, normalizeTransfers, transferTime, type ExplorerAction, type Transfer } from './transfers';
@@ -73,7 +74,7 @@ export interface PassOptions {
 
 export type WalletStatus =
   | 'complete' // every listing was read to the newest confirmed block
-  | 'partial' //  read part of the way (a page limit, the deadline, or a price that is not in yet)
+  | 'partial' //  read part of the way (a page limit or the deadline)
   | 'unavailable' // the explorer could not be read; nothing moved
   | 'failed' //   the ledger could not be written; nothing moved
   | 'idle'; //    nothing to read yet (a wallet registered moments ago, or one with no readable registration time)
@@ -93,8 +94,12 @@ export interface WalletReport {
   recorded: number;
   /** Transfers that were already in the ledger. */
   alreadyRecorded: number;
-  /** Transfers left for the next pass because their price is not in yet. */
-  deferred: number;
+  /**
+   * Transfers newly recorded whose USD value is not available yet (the day's noon price has not come,
+   * or did not answer): recorded at once with their token and exact amount, and priced later from the
+   * day's price (./dailyPrices.ts). They never hold the read back.
+   */
+  pricePending: number;
   /** Of the transfers read, the ones whose other side was not on the list. */
   unregistered: number;
   /** Of those, the outflows with no check asked in the hour before: the unmatched lines. */
@@ -230,7 +235,7 @@ const emptyReport = (wallet: AgentWallet, destinations: number): WalletReport =>
   transfers: 0,
   recorded: 0,
   alreadyRecorded: 0,
-  deferred: 0,
+  pricePending: 0,
   unregistered: 0,
   unmatched: 0,
   throughAt: null,
@@ -265,7 +270,6 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
   if (unreadable > 0) console.warn('[agent-vault] explorer rows could not be read', { chain: wallet.chain, rows: unreadable });
   transfers.sort((a, b) => a.atSec - b.atSec || (a.hash < b.hash ? -1 : a.hash > b.hash ? 1 : a.leg < b.leg ? -1 : a.leg > b.leg ? 1 : 0));
 
-  let holdBackSec = Number.POSITIVE_INFINITY;
   for (const t of transfers) {
     // The wallet's history begins at its registration; the explorer's block range is coarser than that.
     if (t.atSec * 1000 < ctx.startMs && t.atSec * 1000 < storedMs(wallet.createdAt)) continue;
@@ -284,12 +288,9 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
       continue;
     }
 
+    // The transfer is recorded now, priced or not: a value that is not available yet is filled in later
+    // from the day's price, so a missing price never holds the transfer or the read back.
     const price = await priceTransfer(t, nowMs, ctx.pricing);
-    if (price.kind === 'retry') {
-      report.deferred += 1;
-      holdBackSec = Math.min(holdBackSec, t.atSec);
-      continue;
-    }
 
     const atMs = t.atSec * 1000;
     const checks = await listChecksForLink(tenantId, tin.id, t.counterparty, {
@@ -335,12 +336,18 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
         destinationCheckedAt: destination ? destination.trustCheckedAt : null,
         link: link.linked ? link.check : null,
         reason: link.linked ? null : link.reason,
-        price: price.kind === 'priced' ? { basis: price.basis, day: price.day, unitUsd: price.unitUsd } : { basis: null, reason: price.reason },
+        price:
+          price.kind === 'priced'
+            ? { basis: price.basis, day: price.day, unitUsd: price.unitUsd }
+            : price.kind === 'pending'
+              ? { basis: null, pending: true, coinId: price.coinId, day: price.day }
+              : { basis: null, reason: price.reason },
       },
       at: transferTime(t),
     });
     if (written.inserted) {
       report.recorded += 1;
+      if (price.kind === 'pending') report.pricePending += 1;
     } else {
       report.alreadyRecorded += 1;
     }
@@ -348,13 +355,12 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
 
   // How far this read got. A listing that ran to its end reached the newest confirmed block (and
   // the next read starts an overlap earlier); one that stopped early reached the block before the
-  // one it cut; and a transfer held back for a missing price pins the cursor just before itself.
+  // one it cut. A missing price never holds it back: the transfer was recorded and is priced later.
   let reached: number | null = Number.POSITIVE_INFINITY;
   for (const scan of scans) {
     const at = scan.complete ? horizonSec - CURSOR_OVERLAP_S : scan.reachedSec;
     reached = at === null || reached === null ? null : Math.min(reached, at);
   }
-  if (reached !== null && Number.isFinite(holdBackSec)) reached = Math.min(reached, holdBackSec - 1);
 
   const everyListingComplete = scans.every((s) => s.complete);
   const firstShortfall = scans.find((s) => !s.complete)?.reason ?? null;
@@ -364,8 +370,8 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
   }
   await advanceWalletCursor(tenantId, tin.id, wallet.id, reached * 1000, ctx.walletCursors);
   const throughAt = new Date(reached * 1000).toISOString();
-  if (everyListingComplete && report.deferred === 0) return { ...report, status: 'complete', throughAt };
-  return { ...report, status: 'partial', reason: firstShortfall ?? 'price_not_in_yet', throughAt };
+  if (everyListingComplete) return { ...report, status: 'complete', throughAt };
+  return { ...report, status: 'partial', reason: firstShortfall ?? 'page_limit', throughAt };
 }
 
 function logFailure(stage: string, err: unknown): void {
@@ -438,6 +444,17 @@ export async function runTinPass(
     report.recorded += walletReport.recorded;
     report.unregistered += walletReport.unregistered;
     report.unmatched += walletReport.unmatched;
+  }
+
+  // The day prices this tin's pending transfers need, looked up once each now that the pass is done (a
+  // day's price exists once noon UTC of that day has passed). A failure here never undoes the pass: the
+  // transfers stay recorded with their price pending, and the next pass tries again.
+  if (deps.now() < deadlineAt) {
+    try {
+      await fillPendingPrices(tenantId, tin.id, pricing, deps.now());
+    } catch (err) {
+      logFailure('prices', err);
+    }
   }
   return report;
 }

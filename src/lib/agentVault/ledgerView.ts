@@ -21,6 +21,7 @@
  */
 import type { VaultChain } from './addresses';
 import { counterpartyOf, isLinkReason, isUnmatched, type CounterpartyStatus, type LinkReason } from './counterparty';
+import { pendingPriceOf } from './pricePending';
 import type { RegistryVerdict, VaultAnswer } from './events';
 import { basisOf, hasLimitMarker, screeningOfDetail, type ScreeningRecord } from './report';
 import type { EventView } from './vault';
@@ -39,6 +40,8 @@ export interface LedgerTransfer {
   asset: string;
   /** USD at the time of the transfer, or null when it could not be priced. Never 0 for "unknown". */
   usd: number | null;
+  /** True while the day's price has not come in yet (./dailyPrices.ts): the value follows, it is not missing. */
+  pricePending: boolean;
 }
 
 export interface LedgerRow {
@@ -84,7 +87,7 @@ const KEY_STATES: Record<KeyState, true> = { active: true, pending: true, revoke
 const has = (set: object, v: unknown): boolean => typeof v === 'string' && Object.prototype.hasOwnProperty.call(set, v);
 const text = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
-function transferOf(raw: unknown): LedgerTransfer | null {
+function transferOf(raw: unknown, detail: Record<string, unknown> | null): LedgerTransfer | null {
   if (!raw || typeof raw !== 'object') return null;
   const t = raw as Record<string, unknown>;
   const hash = text(t.hash);
@@ -92,7 +95,7 @@ function transferOf(raw: unknown): LedgerTransfer | null {
   const asset = text(t.asset);
   if (hash === null || amount === null || asset === null) return null;
   const usd = typeof t.usd === 'number' && Number.isFinite(t.usd) ? t.usd : null;
-  return { hash, direction: t.direction === 'out' ? 'out' : 'in', amount, asset, usd };
+  return { hash, direction: t.direction === 'out' ? 'out' : 'in', amount, asset, usd, pricePending: usd === null && pendingPriceOf(detail) !== null };
 }
 
 /** One event as a screen reads it, or null when what came back is not an event (no id, no time, an unknown kind). */
@@ -105,7 +108,7 @@ export function toLedgerRow(event: Partial<EventView> | null | undefined): Ledge
   if (event.kind !== 'checked' && event.kind !== 'transaction') return null;
   const detail = event.detail && typeof event.detail === 'object' && !Array.isArray(event.detail) ? (event.detail as Record<string, unknown>) : null;
   const isCheck = event.kind === 'checked';
-  const tx = isCheck ? null : transferOf(event.tx);
+  const tx = isCheck ? null : transferOf(event.tx, detail);
   const reason = detail?.reason;
   const registry = has(REGISTRIES, event.registry) ? (event.registry as RegistryVerdict) : null;
   const linkReason = !isCheck && isLinkReason(reason) ? reason : null;

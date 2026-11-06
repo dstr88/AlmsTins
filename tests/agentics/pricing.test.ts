@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { COIN_IDS, PRICE_RETRY_WINDOW_MS, defaultPricing, memoizePricing, priceTransfer, type PricingDeps } from '../../src/lib/agentVault/pricing';
+import { COIN_IDS, PRICE_RETRY_WINDOW_MS, defaultPricing, memoizePricing, priceMomentMs, priceTransfer, type PricingDeps } from '../../src/lib/agentVault/pricing';
 import type { Transfer } from '../../src/lib/agentVault/transfers';
 import { addr } from '../helpers/agentVault';
 import { COPYCAT_USDC, USDC_ETHEREUM, blockTime } from '../helpers/fakeExplorer';
@@ -104,9 +104,10 @@ describe('the chain\'s own coin and the short list of known tokens', () => {
 });
 
 describe('a price that did not come back', () => {
-  it('is not written off while it may still arrive: retry', async () => {
+  it('is not written off while it may still arrive: the transfer is pending, with its coin and day', async () => {
     const { deps } = fakePrices();
-    expect(await priceTransfer(transfer({ atSec: Math.floor((NOW - DAY_MS) / 1000) }), NOW, deps)).toEqual({ kind: 'retry' });
+    const day = new Date(NOW - DAY_MS).toISOString().slice(0, 10);
+    expect(await priceTransfer(transfer({ atSec: Math.floor((NOW - DAY_MS) / 1000) }), NOW, deps)).toEqual({ kind: 'pending', coinId: 'ethereum', day });
   });
 
   it('is accepted as final once the transfer is older than the window', async () => {
@@ -171,7 +172,31 @@ describe('the app\'s CoinGecko helper, behind the default', () => {
 describe('the time of a transfer', () => {
   it('is read from the block\'s time, in UTC', async () => {
     const { deps, asked } = fakePrices({ ethereum: 1 });
-    await priceTransfer(transfer({ atSec: blockTime(1000) }), blockTime(1000) * 1000 + 1000, deps);
+    await priceTransfer(transfer({ atSec: blockTime(1000) }), blockTime(1000) * 1000 + 2 * DAY_MS, deps);
     expect(asked[0][1]).toBe(new Date(blockTime(1000) * 1000).toISOString().slice(0, 10));
+  });
+});
+
+describe('the day\'s price is taken at 12:00 UTC', () => {
+  const MORNING = Date.UTC(2026, 9, 18, 8, 15, 0);
+
+  it('a transfer made before that moment is recorded at once as pending, and nothing is asked for', async () => {
+    const { deps, asked } = fakePrices({ ethereum: 2500 });
+    expect(await priceTransfer(transfer({ atSec: Math.floor(MORNING / 1000) }), MORNING + 60_000, deps)).toEqual({ kind: 'pending', coinId: 'ethereum', day: '2026-10-18' });
+    expect(asked).toEqual([]);
+  });
+
+  it('after it, the same transfer is priced at the day\'s price', async () => {
+    const { deps } = fakePrices({ ethereum: 2500 });
+    expect(await priceTransfer(transfer({ atSec: Math.floor(MORNING / 1000), amount: '0.5' }), Date.UTC(2026, 9, 18, 12, 0, 1), deps)).toMatchObject({ kind: 'priced', usd: 1250, unitUsd: 2500, day: '2026-10-18' });
+  });
+
+  it('a stablecoin needs no price and is never pending', async () => {
+    const { deps } = fakePrices();
+    expect(await priceTransfer(token('USDC', USDC_ETHEREUM, '3', { atSec: Math.floor(MORNING / 1000) }), MORNING + 1000, deps)).toMatchObject({ kind: 'priced', usd: 3, basis: 'stablecoin_peg' });
+  });
+
+  it('the moment is noon UTC of the day', () => {
+    expect(new Date(priceMomentMs('2026-10-18')).toISOString()).toBe('2026-10-18T12:00:00.000Z');
   });
 });

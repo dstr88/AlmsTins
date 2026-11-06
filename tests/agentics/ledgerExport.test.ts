@@ -129,6 +129,18 @@ describe('the canonical record of an event', () => {
     });
   });
 
+  it('a transfer whose day\'s value had not come in carries `price_pending: true`, and no other leaf has the field at all', () => {
+    const pending = { basis: null, pending: true, coinId: 'matic-network', day: '2026-10-18' };
+    const unpriced = move({ tx: { ...(move().tx as NonNullable<LedgerEvent['tx']>), usd: null }, detail: { reason: 'no_preceding_check', price: pending } });
+    expect(ex.leafOf(unpriced)).toMatchObject({ usd: null, price_pending: true });
+    // Filled in by the time the file is made: the value is there and the field is absent.
+    expect(ex.leafOf(move({ detail: { reason: 'no_preceding_check', price: pending } }))).not.toHaveProperty('price_pending');
+    // An older transfer, or one with no value for good, has exactly the leaf it always had.
+    expect(ex.leafOf(move())).not.toHaveProperty('price_pending');
+    expect(ex.leafOf(move({ tx: { ...(move().tx as NonNullable<LedgerEvent['tx']>), usd: null }, detail: { price: { basis: null, reason: 'no_price' } } }))).not.toHaveProperty('price_pending');
+    expect(ex.leafOf(base)).not.toHaveProperty('price_pending');
+  });
+
   it('says what the registry said about the other side, marks the unmatched line, and says whether the other side is a contract (slice 8)', () => {
     const leaf = (over: Partial<LedgerEvent>) => ex.leafOf(move(over)) as { counterparty: string | null; unmatched: boolean; contract: boolean | null; registry: string | null };
     // The registry column keeps its own word (none); the leaf shows it as unregistered, beside the column as stored.

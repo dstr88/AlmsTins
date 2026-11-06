@@ -41,6 +41,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0065_agent_wallet_cursors.sql'),
   path.join(ROOT, 'migrations-pg/0066_agent_established_alerts.sql'),
   path.join(ROOT, 'migrations-pg/0067_agent_warm_addresses.sql'),
+  path.join(ROOT, 'migrations-pg/0068_agent_daily_prices.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
   path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
   path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
@@ -83,7 +84,7 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, and its warm-address cache, 0067', () => {
+  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, its warm-address cache, 0067, and its daily price table, 0068', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
     expect(files.filter((f) => f.startsWith('0055'))).toEqual(['0055_agent_events_feed_index.sql']);
@@ -95,8 +96,9 @@ describe('the schema file and the code create the same tables', () => {
     // 0065 is the Vault again: the per-wallet watcher cursor of slice 8 (every outflow), which replaces 0052's per-pair cursor.
     // 0066 adds the Established email switch to the delivery settings.
     // 0067 is the Vault's warm-address cache for the keyed check's screening.
+    // 0068 is the Vault's daily price table: one USD price per coin and day, filled after a transfer is recorded.
     // Nothing else sits above 0055.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -309,6 +311,31 @@ describe('the Established email switch: the schema file and the code add the sam
   });
 });
 
+describe('the daily price table: the schema file and the code create the same table', () => {
+  it('migrations-pg/0068_agent_daily_prices.sql holds exactly the statements ensureDailyPricesTable runs, in order', async () => {
+    const { AGENT_DAILY_PRICES_DDL } = await import('../../src/lib/agentVault/dailyPrices');
+    const statements = squash(read('migrations-pg/0068_agent_daily_prices.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_DAILY_PRICES_DDL.map(squash));
+  });
+
+  it('is public market data, one row per coin and day: no account, no wallet, no amount', async () => {
+    const { AGENT_DAILY_PRICES_DDL } = await import('../../src/lib/agentVault/dailyPrices');
+    const [table] = AGENT_DAILY_PRICES_DDL;
+    expect(table).toMatch(/PRIMARY KEY \(coin_id, day\)/);
+    expect(table).not.toMatch(/tenant|wallet|address|amount|tin_id|agent_id/i);
+  });
+
+  it('is written once per row and never changed: an insert that keeps a row already there, and no update', () => {
+    const src = read('src/lib/agentVault/dailyPrices.ts');
+    expect(src).toContain('ON CONFLICT (coin_id, day) DO NOTHING');
+    expect(src).not.toMatch(/UPDATE\s+agent_daily_prices/i);
+    expect(src).not.toMatch(/UPDATE\s+agent_events/i);
+  });
+});
+
 describe('the warm-address cache: the schema file and the code create the same table', () => {
   it('migrations-pg/0067_agent_warm_addresses.sql holds exactly the statements ensureWarmCacheTable runs, in order', async () => {
     const { AGENT_WARM_ADDRESSES_DDL } = await import('../../src/lib/agentVault/warmCache');
@@ -456,6 +483,7 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0065_agent_wallet_cursors.sql',
       'migrations-pg/0066_agent_established_alerts.sql',
       'migrations-pg/0067_agent_warm_addresses.sql',
+      'migrations-pg/0068_agent_daily_prices.sql',
       'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
@@ -496,6 +524,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/checkScreening.ts',
       'src/lib/agentVault/counterparty.ts',
       'src/lib/agentVault/cronAuth.ts',
+      'src/lib/agentVault/dailyPrices.ts',
       'src/lib/agentVault/delivery.ts',
       'src/lib/agentVault/deliveryStore.ts',
       'src/lib/agentVault/digest.ts',
@@ -510,6 +539,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/liveRead.ts',
       'src/lib/agentVault/mailer.ts',
       'src/lib/agentVault/money.ts',
+      'src/lib/agentVault/pricePending.ts',
       'src/lib/agentVault/pricing.ts',
       'src/lib/agentVault/report.ts',
       'src/lib/agentVault/reportFormat.ts',

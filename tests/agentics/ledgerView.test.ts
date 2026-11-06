@@ -76,7 +76,7 @@ describe('a transfer', () => {
   it('becomes a row with its facts, and the reason it has no check behind it', () => {
     expect(toLedgerRow(move())).toEqual({
       id: '00000000-0000-4000-8000-000000000002', at: AT, kind: 'transaction', address: addr(2), chain: 'polygon', answer: 'unknown', registry: 'trusted',
-      basis: null, linkReason: 'no_preceding_check', counterparty: 'trusted', unmatched: false, contract: null, limitReached: false, keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75 }, screening: null,
+      basis: null, linkReason: 'no_preceding_check', counterparty: 'trusted', unmatched: false, contract: null, limitReached: false, keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75, pricePending: false }, screening: null,
     });
   });
 
@@ -113,6 +113,18 @@ describe('a transfer', () => {
     expect(toLedgerRow(move({ tx: { ...move().tx!, usd: Number.POSITIVE_INFINITY } }))?.tx?.usd).toBeNull();
     expect(toLedgerRow(move({ tx: { ...move().tx!, usd: '5' as never } }))?.tx?.usd).toBeNull();
     expect(toLedgerRow(move({ tx: { ...move().tx!, usd: 0 } }))?.tx?.usd).toBe(0);
+  });
+
+  it('says a value is pending only when it has none yet and its detail carries the pending mark', () => {
+    const pending = { basis: null, pending: true, coinId: 'matic-network', day: '2026-10-18' };
+    expect(toLedgerRow(move({ tx: { ...move().tx!, usd: null }, detail: { price: pending } }))?.tx?.pricePending).toBe(true);
+    expect(toLedgerRow(move({ tx: { ...move().tx!, usd: null } }))?.tx?.pricePending).toBe(false);
+    // Filled in on read: the value is there, so it is not pending.
+    expect(toLedgerRow(move({ detail: { price: pending } }))?.tx?.pricePending).toBe(false);
+    // A malformed mark is not a pending value.
+    for (const odd of [{ ...pending, day: '18/10/2026' }, { ...pending, coinId: 'Not An Id' }, { ...pending, pending: 'yes' }]) {
+      expect(toLedgerRow(move({ tx: { ...move().tx!, usd: null }, detail: { price: odd } }))?.tx?.pricePending, JSON.stringify(odd)).toBe(false);
+    }
   });
 
   it('reads the direction: in is in, anything else out is not guessed', () => {

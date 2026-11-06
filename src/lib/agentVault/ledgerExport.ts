@@ -63,6 +63,7 @@ import { canonicalManifestBytes, getPublishedKeys, getSigningKey, signManifestWi
 import { verifyBundle, type VerifyOutcome } from '@/lib/recordProof/verify';
 import { counterpartyOf, isLinkReason, isUnmatched } from './counterparty';
 import { countEventsInRange, readEventsInRange, type LedgerEvent } from './events';
+import { pendingPriceOf } from './pricePending';
 import { fail, idOf, type Failure } from './errors';
 import { basisOf, DAY_MS, dayBounds, hasLimitMarker, parseDay, screeningOfDetail, utcDay } from './report';
 import { getTin } from './store';
@@ -205,6 +206,12 @@ export interface TransferLeaf {
   unmatched: boolean;
   /** Whether the other side is a contract, where the chain's listing could tell; null when it could not. */
   contract: boolean | null;
+  /**
+   * Present (and true) only on a transfer whose day's USD price had not come in when the file was made:
+   * its `usd` is null for now, not for good. Appended after the first files were signed, and only on
+   * those transfers, so every other leaf, and an older file's root, are exactly what they were.
+   */
+  price_pending?: true;
 }
 
 export type LedgerLeaf = CheckedLeaf | TransferLeaf;
@@ -272,6 +279,7 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
       counterparty,
       unmatched: isUnmatched({ direction: e.tx.direction, counterparty, linked: !isLinkReason(reason) }),
       contract: typeof contract === 'boolean' ? contract : null,
+      ...(e.tx.usd === null && pendingPriceOf(e.detail) ? { price_pending: true as const } : {}),
     };
   }
   return null;

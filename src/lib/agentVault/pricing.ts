@@ -15,9 +15,13 @@
  *     the list below, not from a search by symbol, because a symbol search can land on the wrong
  *     coin and a wrong value cannot be corrected later. It is a daily price, not the price at the
  *     minute, and the event says so. Any other asset has no value on record.
- *   - A price that should exist but did not come back (a rate limit, an outage) is not written as
- *     "no value" while it could still arrive: the transfer is deferred and read again on the next
- *     pass. Only after PRICE_RETRY_WINDOW_MS is the missing price accepted as final.
+ *   - A price that should exist but is not available yet is not written as "no value" while it
+ *     could still arrive. The day's price is taken at noon UTC, so a transfer made before noon has
+ *     none until noon has passed, and a lookup can also fail (a rate limit, an outage). Either way
+ *     the answer is `pending`: the transfer is recorded at once with its token and exact amount, and
+ *     its value is filled in later from the day's price (./dailyPrices.ts), one lookup per coin and
+ *     day however many transfers share it. Only after PRICE_RETRY_WINDOW_MS is a missing price
+ *     accepted as final.
  *
  * The lookups are injected, so the rules are tested without the network.
  */
@@ -45,7 +49,11 @@ export interface PricingDeps {
 export type PriceOutcome =
   | { kind: 'priced'; usd: number; unitUsd: number; basis: 'stablecoin_peg' | 'daily_price'; day: string }
   | { kind: 'unpriced'; reason: 'unknown_token' | 'no_price_id' | 'no_price' | 'bad_amount' }
-  | { kind: 'retry' };
+  /** The day's price is not available yet (noon UTC has not passed, or the lookup did not answer): fill it in later. */
+  | { kind: 'pending'; coinId: string; day: string };
+
+/** The moment a day's price is taken: noon UTC of that day, in milliseconds. */
+export const priceMomentMs = (day: string): number => Date.parse(`${day}T12:00:00.000Z`);
 
 /** The symbol a bridged token is known by here: `USDC.e` is USDC. */
 const baseSymbol = (symbol: string): string => symbol.toUpperCase().replace(/\.E$/, '');
@@ -75,9 +83,11 @@ export async function priceTransfer(t: Transfer, nowMs: number, deps: PricingDep
 
   const coinId = COIN_IDS.get(symbol) ?? null;
   if (!coinId) return { kind: 'unpriced', reason: 'no_price_id' };
+  // Noon UTC of the day has not come yet: there is no daily price to ask for. Never ask for a price in the future.
+  if (priceMomentMs(day) > nowMs) return { kind: 'pending', coinId, day };
   const unitUsd = await deps.unitPriceUsd(coinId, day);
   if (unitUsd === null) {
-    return t.atSec * 1000 > nowMs - PRICE_RETRY_WINDOW_MS ? { kind: 'retry' } : { kind: 'unpriced', reason: 'no_price' };
+    return t.atSec * 1000 > nowMs - PRICE_RETRY_WINDOW_MS ? { kind: 'pending', coinId, day } : { kind: 'unpriced', reason: 'no_price' };
   }
   const usd = amount * unitUsd;
   if (!Number.isFinite(usd)) return { kind: 'unpriced', reason: 'bad_amount' };

@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import { shortenAddress } from '@/lib/addressDisplay';
 import type { TinTotals } from '@/lib/agentVault/events';
-import { parseLedgerRows, type LedgerRow } from '@/lib/agentVault/ledgerView';
+import { parseLedgerRows, type LedgerRow, type LedgerTransfer } from '@/lib/agentVault/ledgerView';
 import { formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
 import { reasonText, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import { failureText, send } from './client';
@@ -81,6 +81,18 @@ function Strip({ totals }: { totals: TinTotals }) {
  * name and the owner's label for the address; the agent's own page gives neither. Both are the account's own
  * text, rendered as text.
  */
+/**
+ * A transfer's USD value as a row or a card says it: the value at the time; "under one US cent" for a
+ * value too small to show in cents (bots pay in fractions of a cent, and "$0.00" would read as worth
+ * nothing); that the value is still to come (the day's rate is taken at 12:00 UTC); or that there is no
+ * value on record. Never "$0.00" for a value that is missing.
+ */
+export function usdLine(tx: Pick<LedgerTransfer, 'usd' | 'pricePending'>): string {
+  if (tx.usd === null) return tx.pricePending ? copy.ledger.pricePending : copy.ledger.noUsd;
+  if (tx.usd > 0 && tx.usd < 0.01) return copy.ledger.usdUnderCent;
+  return copy.ledger.usd(formatUsd(tx.usd));
+}
+
 export const COUNTERPARTY_CLASS: Record<string, string> = {
   trusted: 'ag-pill ag-pill--gain',
   pending: 'ag-pill ag-pill--muted',
@@ -116,7 +128,7 @@ export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; ag
           <p className="ag-event__line">
             <span className="ag-mono">{copy.ledger.amount(tx.amount, tx.asset)}</span>
             {'  ·  '}
-            {tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}
+            {usdLine(tx)}
           </p>
           <p className="ag-event__line">{row.linkReason ? copy.ledger.linkReason[row.linkReason] : copy.ledger.inheritedFrom}</p>
           {row.unmatched ? <p className="ag-event__line ag-event__line--warn">{copy.ledger.unmatched}</p> : null}

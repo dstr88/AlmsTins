@@ -17,7 +17,7 @@
  * an agent's name, a label) is rendered as text by React, which escapes it. Nothing here builds HTML from data.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatClock, formatUsd } from '@/lib/agentVault/reportFormat';
+import { formatClock } from '@/lib/agentVault/reportFormat';
 import { reasonText, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import type { FeedPageData } from '@/lib/agentVault/vaultPages';
 import { failureText, send } from './client';
@@ -26,7 +26,7 @@ import { clearStage, enqueue, initialPlayer, isFlagged, nextDelay, pause, resume
 import { createFeedPoller, type ConnState, type FeedPoller } from './feedPoller';
 import { createFeedReader, type FeedReader, type ReaderState, type ReadResult } from './feedReader';
 import { addRows, clockOrDate, mergeRows, parseFeedRows, releaseRows, visibleRows, writtenIso, type ListState } from './feedRows';
-import { ANSWER_CLASS, COUNTERPARTY_CLASS, LedgerItem } from './LedgerPanel';
+import { ANSWER_CLASS, COUNTERPARTY_CLASS, LedgerItem, usdLine } from './LedgerPanel';
 import { explorerTxHref, HOME_PATH } from './paths';
 import { describeRefresh, passOf } from './refresh';
 import { Status } from './ui';
@@ -84,7 +84,7 @@ export function StageCard({ card }: { card: Card }) {
       {tx ? (
         <>
           <p className="ag-feed__big ag-mono">{copy.ledger.amount(tx.amount, tx.asset)}</p>
-          <p className="ag-feed__line">{tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}</p>
+          <p className="ag-feed__line">{usdLine(tx)}</p>
           <p className="ag-feed__line ag-mono">{row.label ? `${row.label} · ${short}` : short}</p>
           {row.unmatched ? <p className="ag-feed__line">{copy.ledger.unmatched}</p> : null}
           <p className="ag-feed__line ag-mono">

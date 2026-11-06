@@ -189,7 +189,7 @@ describe('a pass records every direct transfer of the agent\'s wallet, with the 
     expect(report.wallets).toHaveLength(1);
     expect(report.wallets[0]).toMatchObject({
       chain: 'ethereum', address: WALLET, status: 'complete', reason: null, destinations: 4, transfers: STOCK_TRANSFERS, recorded: STOCK_TRANSFERS,
-      alreadyRecorded: 0, deferred: 0, unregistered: STOCK_UNREGISTERED, unmatched: STOCK_UNREGISTERED,
+      alreadyRecorded: 0, pricePending: 0, unregistered: STOCK_UNREGISTERED, unmatched: STOCK_UNREGISTERED,
     });
     expect(report.registered).toEqual({ trusted: 3, pending: 1, flagged: 1 });
     expect(report).toMatchObject({ unregistered: STOCK_UNREGISTERED, unmatched: STOCK_UNREGISTERED });
@@ -275,7 +275,7 @@ describe('a pass records every direct transfer of the agent\'s wallet, with the 
     const report = await watcher.runTinPass(A, w.tin, deps());
     expect(JSON.stringify(report)).not.toContain(STRANGER);
     expect(Object.keys(report.wallets[0]).sort()).toEqual([
-      'address', 'alreadyRecorded', 'chain', 'deferred', 'destinations', 'reason', 'recorded', 'status', 'throughAt', 'transfers', 'unmatched', 'unregistered', 'walletId',
+      'address', 'alreadyRecorded', 'chain', 'destinations', 'pricePending', 'reason', 'recorded', 'status', 'throughAt', 'transfers', 'unmatched', 'unregistered', 'walletId',
     ]);
     expect(Object.keys(report).sort()).toEqual(['recorded', 'registered', 'startedAt', 'tinId', 'unmatched', 'unregistered', 'wallets']);
   });
@@ -880,22 +880,53 @@ describe('a read that could not finish says so, and moves nothing it did not rea
 });
 
 describe('a price that has not come in yet', () => {
-  it('holds the transfer back, keeps the cursor just before it, and records it once the price arrives', async () => {
+  it('records the transfer at once, with its token and exact amount, marks its value pending, and moves the cursor past it', async () => {
     const w = await world();
     stockExplorer();
-    prices = {}; // ETH has no price today
+    prices = {}; // ETH has no price yet
     const report = await watcher.runTinPass(A, w.tin, deps());
-    expect(report.wallets[0]).toMatchObject({ status: 'partial', reason: 'price_not_in_yet' });
-    expect(report.wallets[0].deferred).toBeGreaterThan(0);
-    expect(ledger().every((r) => r.asset !== 'ETH')).toBe(true); // stablecoins and the copycat were recorded
-    const earliestEth = blockTime(999);
-    expect(walletCursors()[0].through_at).toBe(new Date((earliestEth - 1) * 1000).toISOString());
+    expect(report.wallets[0]).toMatchObject({ status: 'complete', reason: null, recorded: STOCK_TRANSFERS });
+    expect(report.wallets[0].pricePending).toBeGreaterThan(0);
+    expect(ledger()).toHaveLength(STOCK_TRANSFERS);
+    const eth = ledger().find((r) => r.block_number === 1500)!;
+    expect(eth).toMatchObject({ amount: '1.5', asset: 'ETH', usd_value: null });
+    expect(detailOf(eth).price).toEqual({ basis: null, pending: true, coinId: 'ethereum', day: blockIso(1500).slice(0, 10) });
+    // Stablecoins need no price, so they are never pending.
+    expect(detailOf(ledger().find((r) => r.block_number === 1900)!).price).toMatchObject({ basis: 'stablecoin_peg' });
+    expect(walletCursors()[0].through_at).not.toBe(new Date((blockTime(999) - 1) * 1000).toISOString());
+  });
+
+  it('fills the value from the day\'s price on a later pass, and every read shows it; the ledger row itself is never changed', async () => {
+    const w = await world();
+    stockExplorer();
+    prices = {};
+    await watcher.runTinPass(A, w.tin, deps());
+    const before = await events.listEvents(A, w.tin.id, { limit: 100 });
+    expect(before.events.find((e) => e.tx?.blockNumber === 1500)?.tx?.usd).toBeNull();
 
     prices = { ethereum: 2000 };
-    const next = await watcher.runTinPass(A, w.tin, deps());
-    expect(next.wallets[0].status).toBe('complete');
-    expect(ledger()).toHaveLength(STOCK_TRANSFERS);
-    expect(ledger().find((r) => r.block_number === 1500)).toMatchObject({ usd_value: 3000 });
+    await watcher.runTinPass(A, w.tin, deps());
+    const days = new Set(ledger().filter((r) => detailOf(r).price?.pending).map((r) => detailOf(r).price.day));
+    expect(fake.rows('agent_daily_prices')).toHaveLength(days.size); // one row per coin and day, not per transfer
+    expect(fake.rows('agent_daily_prices')).toContainEqual(expect.objectContaining({ coin_id: 'ethereum', day: blockIso(1500).slice(0, 10), status: 'priced', unit_usd: 2000 }));
+    expect(ledger().find((r) => r.block_number === 1500)).toMatchObject({ usd_value: null });
+    const after = await events.listEvents(A, w.tin.id, { limit: 100 });
+    const e = after.events.find((x) => x.tx?.blockNumber === 1500)!;
+    expect(e.tx?.usd).toBe(3000);
+    expect(e.detail?.price).toMatchObject({ basis: 'daily_price', unitUsd: 2000, filledLater: true });
+  });
+
+  it('asks for one coin\'s price for one day once, however many transfers share it', async () => {
+    const w = await world();
+    stockExplorer();
+    prices = {};
+    await watcher.runTinPass(A, w.tin, deps());
+    priceCalls.length = 0;
+    prices = { ethereum: 2000 };
+    await watcher.runTinPass(A, w.tin, deps());
+    await watcher.runTinPass(A, w.tin, deps());
+    const pending = new Set(ledger().filter((r) => r.usd_value === null && detailOf(r).price?.pending).map((r) => detailOf(r).price.day));
+    expect(priceCalls).toHaveLength(pending.size);
   });
 
   it('is accepted as missing for good once the transfer is more than a week old', async () => {
