@@ -146,7 +146,7 @@ describe('the subject leads with whether action is needed', () => {
         expect(`${m.subject}\n${m.text}`, JSON.stringify(c)).not.toMatch(/\bverified\b|\ball clear\b/i);
       }
     }
-    const alert = getAgentReportEmail('en').alert({ appBase: APP });
+    const alert = getAgentReportEmail('en').alert({ appBase: APP, kind: 'mismatch' });
     expect(`${alert.subject}\n${alert.text}`).not.toMatch(/\bverified\b|\ball clear\b/i);
   });
 
@@ -249,7 +249,7 @@ describe('the body of a digest', () => {
       composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ issues: 1, notConfirmed: 2, new: 1, noIssuesChecks: 5 }), APP),
       composeDigest({ kind: 'day', from: DAY, to: DAY }, counts({ noIssuesChecks: 5 }), APP),
       composeDigest({ kind: 'week', from: '2026-10-11', to: DAY }, counts({}), APP),
-      getAgentReportEmail('en').alert({ appBase: APP }),
+      getAgentReportEmail('en').alert({ appBase: APP, kind: 'mismatch' }),
     ];
     for (const m of all) {
       const text = `${m.subject}\n${m.text}`;
