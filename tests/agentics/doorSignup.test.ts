@@ -89,18 +89,20 @@ describe('the campaign label', () => {
 describe('the table', () => {
   const squash = (sql: string) => sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').replace(/ ,/g, ',').trim();
 
-  it('migrations-pg/0060 and 0061 hold exactly the statements the code runs, in order', () => {
-    const file = ['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql']
+  it('migrations-pg/0060, 0061 and 0070 hold exactly the statements the code runs, in order', () => {
+    const file = ['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0070_agentics_signups_activity.sql']
       .flatMap((f) => squash(readFileSync(path.join(ROOT, 'migrations-pg', f), 'utf8')).split(';').map((x) => x.trim()).filter(Boolean));
     expect(file).toEqual(signup.AGENTICS_SIGNUPS_DDL.map(squash));
   });
 
-  it('adds the two opening columns to a table that already exists, and creates them on a fresh one', () => {
+  it('adds the opening and activity columns to a table that already exists, and creates them on a fresh one', () => {
     const ddl = signup.AGENTICS_SIGNUPS_DDL.map(squash);
     expect(ddl[0]).toMatch(/^CREATE TABLE IF NOT EXISTS agentics_signups/);
     expect(ddl.slice(1)).toEqual([
       'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS open_claimed_at TEXT',
       'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS opened_notified_at TEXT',
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS country TEXT',
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS last_seen_at TEXT',
     ]);
   });
 
@@ -142,6 +144,8 @@ describe('the table', () => {
     expect(ran.filter((sql) => /^ALTER TABLE/i.test(sql))).toEqual([
       'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS open_claimed_at TEXT',
       'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS opened_notified_at TEXT',
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS country TEXT',
+      'ALTER TABLE agentics_signups ADD COLUMN IF NOT EXISTS last_seen_at TEXT',
     ]);
     expect(ran.indexOf("SET LOCAL lock_timeout = '2s'")).toBeGreaterThan(-1);
     expect(ran.indexOf("SET LOCAL lock_timeout = '2s'")).toBeLessThan(ran.findIndex((sql) => /^ALTER TABLE/i.test(sql)));
@@ -641,5 +645,36 @@ describe('the opening email', () => {
   it('is removed with the account, like the rest of the row', async () => {
     const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
     expect(TENANT_TABLES as readonly string[]).toContain('agentics_signups');
+  });
+});
+
+describe('the admin page\'s notes: country and last visit', () => {
+  it('keeps the first country a visit gave, and only a two-letter code', async () => {
+    await signup.registerSignup(A, 'direct', false, NOW);
+    await signup.touchSignup(A, 'zz1', NOW);
+    expect(row()?.country ?? null).toBeNull();
+    await signup.touchSignup(A, 'DE', NOW);
+    await signup.touchSignup(A, 'FR', new Date(NOW.getTime() + 2 * signup.SEEN_EVERY_MS));
+    expect(row()?.country).toBe('DE');
+    expect(row(B)).toBeUndefined();
+  });
+
+  it('moves the last visit at most once an hour', async () => {
+    await signup.registerSignup(A, 'direct', false, NOW);
+    await signup.touchSignup(A, null, NOW);
+    expect(row()?.last_seen_at).toBe('2026-10-18 12:00:00');
+    await signup.touchSignup(A, null, new Date(NOW.getTime() + 30 * 60_000));
+    expect(row()?.last_seen_at).toBe('2026-10-18 12:00:00');
+    await signup.touchSignup(A, null, new Date(NOW.getTime() + 61 * 60_000));
+    expect(row()?.last_seen_at).toBe('2026-10-18 13:01:00');
+  });
+
+  it('is noted on every visit, and a failure there never stops the letter', async () => {
+    expect(await signup.welcomeOnFirstVisit({ tenantId: A, email: EMAIL, source: 'direct', country: 'CA' }, deps())).toBe('sent');
+    expect(row()).toMatchObject({ country: 'CA', last_seen_at: '2026-10-18 12:00:00' });
+
+    fake.options.failDml = (sql) => /^UPDATE agentics_signups SET (country|last_seen_at) =/i.test(sql);
+    expect(await signup.welcomeOnFirstVisit({ tenantId: B, email: EMAIL, source: 'direct', country: 'CA' }, deps())).toBe('sent');
+    expect(sendMail).toHaveBeenCalledTimes(2);
   });
 });

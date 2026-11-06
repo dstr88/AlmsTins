@@ -29,6 +29,7 @@ import { en as t } from '@/i18n/agentics';
 import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
 import { recordVaultFirstVisit } from '@/lib/agenticsFirstVisit';
 import { welcomeOnFirstVisit } from '@/lib/agenticsSignup';
+import { getClientCountry } from '@/lib/analytics/ip';
 import { cleanSource } from '@/lib/agenticsSource';
 import { getAuthSession } from '@/lib/authSession';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -50,7 +51,7 @@ if (canAccessAgenticsVault(session)) {
 const auth = await getAuthSession(Astro.request);
 const SEND_WAIT_MS = 4000;
 const outcome = await Promise.race([
-  welcomeOnFirstVisit({ tenantId: session.tenantId, email: auth?.user?.email ?? null, source: cleanSource(Astro.url.searchParams.get('src')) }),
+  welcomeOnFirstVisit({ tenantId: session.tenantId, email: auth?.user?.email ?? null, source: cleanSource(Astro.url.searchParams.get('src')), country: getClientCountry(Astro.request) }),
   new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), SEND_WAIT_MS)),
 ]);
 
