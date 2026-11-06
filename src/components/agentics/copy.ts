@@ -360,6 +360,14 @@ export const copy = {
     removing: 'Removing',
     removed: 'Wallet removed.',
     listLabel: 'Wallets of this agent',
+    qrOpen: (short: string) => `Show a QR code for wallet ${short}`,
+    qrOpenTitle: 'Show a QR code for this wallet',
+    qrTitle: 'Wallet QR code',
+    qrAlt: (chain: string) => `QR code of this ${chain} wallet's address`,
+    qrChain: (chain: string) =>
+      `Send only on ${chain}. The code contains the address and nothing else, so the wallet app that scans it cannot tell the chain from it.`,
+    qrDownload: 'Download the QR code',
+    qrClose: 'Close',
   },
 
   ledger: {

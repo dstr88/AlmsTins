@@ -470,6 +470,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/RemoveAgent.tsx',
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
+      'src/components/agentics/WalletQr.tsx',
       'src/components/agentics/WalletsPanel.tsx',
       'src/components/agentics/account.ts',
       'src/components/agentics/agentics.css',

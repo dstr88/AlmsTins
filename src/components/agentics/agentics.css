@@ -241,6 +241,10 @@
 .ag-paste > .ag-field { margin-bottom: 0.25rem; }
 .ag-select { max-width: 100%; }
 .ag-btn--small { font-size: 0.78rem; padding: 0.3rem 0.65rem; }
+.ag-btn--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0.3rem 0.45rem; line-height: 0; }
+.ag-qr { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center; }
+.ag-qr__img { width: 240px; max-width: 100%; height: auto; border-radius: 8px; image-rendering: pixelated; }
+.ag-qr__addr { margin: 0; max-width: 100%; }
 .ag-btn--danger { color: var(--loss); border-color: var(--loss-border); }
 .ag-btn--danger:hover { background: var(--loss-bg); color: var(--loss); }
 .ag-pill--bad { color: var(--loss); background: var(--loss-bg); border-color: var(--loss-border); }
