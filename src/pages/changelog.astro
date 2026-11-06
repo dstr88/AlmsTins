@@ -27,6 +27,13 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">November 5, 2026</time>
+          <div class="entry-body">
+            <p>The wallet checker now remembers the last 10 addresses you checked, so you can pick one again instead of pasting it. The list is kept only in your browser and is never sent to Almstins. Each address shows shortened, with its blockchain; picking one puts the whole address in the box, and nothing is checked until you press Check Wallet. Compare the whole address before you rely on it. Clear list removes them all. The cookie section of the Privacy Policy now lists it.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">October 30, 2026</time>
           <div class="entry-body">
             <p>Almstins now reads XPR Network accounts. Add an account on the Wallets page by typing its account name and the symbol XPR (an account name is plain text, so the symbol is how Almstins knows the chain). Almstins checks that the account exists, then shows its balance, the XPR coin (spendable, staked and unstaking) and every other token it holds, and imports its full transfer history, from public XPR Network servers that need no key. If those servers cannot be reached, the balance shows as unavailable rather than as zero, and the last good figure stays. Every token is listed by its contract and symbol, so a token that copies another's name is never mistaken for it; only the XPR coin is priced, and the other tokens are listed without a value.</p>

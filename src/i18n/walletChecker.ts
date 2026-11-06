@@ -93,6 +93,13 @@ export interface WalletCheckerLocale {
     scanDenied: string;
     scanNoCamera: string;
     scanGeneric: string;
+    /** The recently checked list under the input (src/lib/recentAddresses.ts); kept only in the browser. */
+    recentTitle: string;
+    recentNote: string;
+    recentClear: string;
+    recentClearAria: string;
+    /** aria-label for one entry; {address} is the whole address. */
+    recentUse: string;
     chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; tron: string; unknown: string };
     ens: string;
     cached: string;
@@ -418,6 +425,11 @@ export const en: WalletCheckerLocale = {
     scanDenied: 'Camera permission was denied. Allow camera access and try again.',
     scanNoCamera: 'No camera was found on this device.',
     scanGeneric: 'Couldn’t start the camera. The page must be served over HTTPS.',
+    recentTitle: 'Recently checked',
+    recentNote: 'Kept only in this browser. Never sent to Almstins.',
+    recentClear: 'Clear list',
+    recentClearAria: 'Clear the list of recently checked addresses',
+    recentUse: 'Put {address} in the address box',
     chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Unknown chain' },
     ens: 'ENS',
     cached: '⚡ Cached',
@@ -725,6 +737,11 @@ export const es: WalletCheckerLocale = {
     scanDenied: 'Se denegó el permiso de cámara. Permite el acceso a la cámara e inténtalo de nuevo.',
     scanNoCamera: 'No se encontró ninguna cámara en este dispositivo.',
     scanGeneric: 'No se pudo iniciar la cámara. La página debe servirse por HTTPS.',
+    recentTitle: 'Consultadas recientemente',
+    recentNote: 'Se guardan solo en este navegador. Nunca se envían a Almstins.',
+    recentClear: 'Borrar lista',
+    recentClearAria: 'Borrar la lista de direcciones consultadas recientemente',
+    recentUse: 'Poner {address} en el campo de dirección',
     chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Cadena desconocida' },
     ens: 'ENS',
     cached: '⚡ En caché',
@@ -1032,6 +1049,11 @@ export const fr: WalletCheckerLocale = {
     scanDenied: 'L’autorisation de la caméra a été refusée. Autorisez l’accès à la caméra et réessayez.',
     scanNoCamera: 'Aucune caméra n’a été trouvée sur cet appareil.',
     scanGeneric: 'Impossible de démarrer la caméra. La page doit être servie en HTTPS.',
+    recentTitle: 'Consultées récemment',
+    recentNote: 'Conservées uniquement dans ce navigateur. Jamais envoyées à Almstins.',
+    recentClear: 'Effacer la liste',
+    recentClearAria: 'Effacer la liste des adresses consultées récemment',
+    recentUse: 'Mettre {address} dans le champ d’adresse',
     chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Chaîne inconnue' },
     ens: 'ENS',
     cached: '⚡ En cache',

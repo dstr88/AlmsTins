@@ -8,6 +8,8 @@ import { goplusRanForAddress } from '@/lib/goplusCredit';
 import PoweredByGoPlus from './PoweredByGoPlus';
 import WalletActivityPanel from './WalletActivityPanel';
 import { findEvmAddress } from '@/lib/addressFormats';
+import { shortenAddress } from '@/lib/addressDisplay';
+import { clearRecentAddresses, readRecentAddresses, rememberRecentAddress, type RecentAddress } from '@/lib/recentAddresses';
 import { Modal } from '@/components/ui/Modal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -532,6 +534,66 @@ export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStri
   );
 }
 
+// The addresses this browser checked recently (src/lib/recentAddresses.ts). Each shows shortened
+// with its chain; picking one puts the whole address in the input and does not run a check.
+// Stored values are untrusted, so they are only ever rendered as text. Nothing shows when empty.
+export function RecentAddresses({ items, onPick, onClear, disabled, c }: {
+  items: RecentAddress[];
+  onPick: (address: string) => void;
+  onClear: () => void;
+  disabled?: boolean;
+  c: CheckerStrings;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ marginTop: '1rem', paddingTop: '0.9rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+        <span id="recent-addresses-title" style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {c.recentTitle}
+        </span>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={c.recentClearAria}
+          style={{ background: 'transparent', border: 'none', color: '#a5b4fc', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.78rem', padding: 0, textDecoration: 'underline', textUnderlineOffset: '2px' }}
+        >
+          {c.recentClear}
+        </button>
+      </div>
+      <ul aria-labelledby="recent-addresses-title" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+        {items.map(item => (
+          <li key={item.address}>
+            <button
+              type="button"
+              onClick={() => onPick(item.address)}
+              disabled={disabled}
+              title={item.address}
+              aria-label={c.recentUse.replace('{address}', item.address)}
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '999px',
+                color: disabled ? 'rgba(255,255,255,0.35)' : '#f5f8ff',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.78rem',
+                padding: '0.3rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{shortenAddress(item.address)}</span>
+              {item.chain && <span style={{ color: 'rgba(255,255,255,0.45)' }}>{chainLabel(item.chain, c)}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p style={{ margin: '0.5rem 0 0', fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)' }}>{c.recentNote}</p>
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -550,6 +612,9 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [verifiedPublisher, setVerifiedPublisher] = useState<PublicVerifyLookup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
+  // Read after mount, so the server render and the first client render match (both empty).
+  const [recent, setRecent]       = useState<RecentAddress[]>([]);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const didAutoCheck = useRef(false);
 
@@ -622,6 +687,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       } else {
         setResult(data.result);
         setCached(Boolean(data.cached));
+        // Only an address the server accepted and checked is remembered, and only in this browser.
+        setRecent(rememberRecentAddress(addr, data.result.chain));
         setActiveTab('safety');
         // Activity facts load from their own endpoint once the verdict is shown, so the
         // verdict never waits on the explorers' rate limits. They are never part of it.
@@ -662,6 +729,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { setRecent(readRecentAddresses()); }, []);
 
   // Keep a live ref to handleCheck so the scanner loop always calls the latest version
   useEffect(() => { handleCheckRef.current = handleCheck; }, [handleCheck]);
@@ -786,6 +855,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
         </label>
         <textarea
           id="wallet-input"
+          ref={inputRef}
           value={address}
           onChange={e => setAddress(e.target.value)}
           onKeyDown={handleKey}
@@ -878,6 +948,14 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
             {scanError}
           </p>
         )}
+
+        <RecentAddresses
+          items={recent}
+          disabled={loading}
+          onPick={picked => { setAddress(picked); inputRef.current?.focus(); }}
+          onClear={() => setRecent(clearRecentAddresses())}
+          c={c}
+        />
       </div>
 
       {/* Results */}
