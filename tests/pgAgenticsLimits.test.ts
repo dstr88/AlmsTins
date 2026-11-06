@@ -433,7 +433,7 @@ d('the daily limit of recorded checks, on a real Postgres', () => {
   const DAY = '2026-10-19';
   const at = (iso: string) => new Date(iso);
   const ask = (iso: string, over: Record<string, unknown> = {}) =>
-    checkLog.recordKeyedCheck({ keyId, value: addr(1), status: 'proven', level: 'verified', domain: 'acme.example', proofAgeDays: 3, sourceIp: '203.0.113.9', now: at(iso), ...over } as never, { onFlagged: () => undefined });
+    checkLog.recordKeyedCheck({ keyId, value: addr(1), status: 'proven', level: 'verified', domain: 'acme.example', proofAgeDays: 3, sourceIp: '203.0.113.9', now: at(iso), ...over } as never, { onAlert: () => undefined });
   const rows = async () => (await db.execute({ sql: `SELECT id, detail_json, occurred_at FROM agent_events WHERE tenant_id = ? AND tin_id = ? ORDER BY occurred_at, id`, args: [tenant, tinId] })).rows as unknown as Array<{ id: string; detail_json: string; occurred_at: string }>;
   const markers = async () => (await rows()).filter((r) => /"limit":\{"reached":true/.test(r.detail_json));
 
