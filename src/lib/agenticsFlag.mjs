@@ -19,4 +19,4 @@
 // can load it natively; TypeScript files import it through agenticsAccess.ts.
 
 /** @type {boolean} */
-export const AGENTICS_VAULT_PUBLIC = false;
+export const AGENTICS_VAULT_PUBLIC = true;

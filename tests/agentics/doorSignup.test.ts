@@ -15,6 +15,8 @@ vi.mock('@/lib/db', () => ({ db: { execute: (s: any) => holder.db.execute(s), ba
 // The real sendMail never runs: the default dependencies reach this spy, so the defaults can be checked.
 const realMail = vi.hoisted(() => ({ sendMail: vi.fn<(m: any) => Promise<void>>() }));
 vi.mock('@/lib/email', () => ({ sendMail: (m: any) => realMail.sendMail(m) }));
+// The letters while the Vault is private; the open ones pass vaultOpen: true where they are tested.
+vi.mock('../../src/lib/agenticsFlag.mjs', () => ({ AGENTICS_VAULT_PUBLIC: false }));
 
 const ROOT = path.resolve(__dirname, '../..');
 const A = 'tenant-a';

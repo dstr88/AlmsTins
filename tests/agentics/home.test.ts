@@ -35,12 +35,12 @@ describe('who gets which page: the decision the home page makes', () => {
   const OTHER = '00000000-0000-4000-8000-000000000002';
 
   it('the Vault is for the owner while it is private, and for no one else', () => {
-    expect(canAccessAgenticsVault({ tenantId: OWNER_TENANT_ID })).toBe(true);
-    expect(canAccessAgenticsVault({ tenantId: OTHER })).toBe(false);
-    expect(canAccessAgenticsVault({ tenantId: DEMO_TENANT_ID, isDemo: true })).toBe(false);
-    expect(canAccessAgenticsVault({ tenantId: OWNER_TENANT_ID, isDemo: true })).toBe(false);
-    expect(canAccessAgenticsVault({ tenantId: null })).toBe(false);
-    expect(canAccessAgenticsVault(null)).toBe(false);
+    expect(canAccessAgenticsVault({ tenantId: OWNER_TENANT_ID }, false)).toBe(true);
+    expect(canAccessAgenticsVault({ tenantId: OTHER }, false)).toBe(false);
+    expect(canAccessAgenticsVault({ tenantId: DEMO_TENANT_ID, isDemo: true }, false)).toBe(false);
+    expect(canAccessAgenticsVault({ tenantId: OWNER_TENANT_ID, isDemo: true }, false)).toBe(false);
+    expect(canAccessAgenticsVault({ tenantId: null }, false)).toBe(false);
+    expect(canAccessAgenticsVault(null, false)).toBe(false);
   });
 
   it('once the Vault is open it is for every real account, and still not for a demo session or a visitor with no tenant', () => {
