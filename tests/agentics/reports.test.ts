@@ -93,7 +93,7 @@ const put = (tenant: string, tinId: string, basis: string, answer: 'proven' | 'c
   });
 const putTransfer = (tenant: string, tinId: string, direction: 'in' | 'out', usd: number | null, when: string, leg = `native:${++n}`) =>
   events.insertTransactionEvent(tenant, {
-    tinId, address: addr(2), chain: 'ethereum', leg, answer: 'unknown', status: null,
+    tinId, address: addr(2), chain: 'ethereum', registry: 'trusted', leg, answer: 'unknown', status: null,
     tx: { hash: txHash(n), direction, wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd, blockNumber: 1 },
     detail: { reason: 'no_preceding_check' }, at: when,
   });

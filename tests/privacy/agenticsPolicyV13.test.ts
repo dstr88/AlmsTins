@@ -125,7 +125,11 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       routescan: /Routescan\/Snowtrace for Avalanche/,
       appendOnly: /<strong>dated, append-only record<\/strong>/,
       noPerson: /<strong>never<\/strong> link an address to a person, and we do not monitor third parties/,
-      onlyRegistered: /We read only the wallets and destinations you register\./,
+      onlyRegistered: /We read only the wallets you register, never the history of any other address\./,
+      everyTransfer: /every direct transfer we read of the agent's own wallet, in either direction \(its transaction hash, the address on the other side,/,
+      counterparty: /trusted, pending, or flagged for a destination you registered, or not on the list/,
+      unmatched: /with no check asked about it in the hour before, is marked as unmatched/,
+      sameClass: /the same kind the Service keeps for any wallet you add \(the first point of this Section\)/,
       noDestinationHistory: /We do not read a destination's own history/,
       emailsCarryCounts: /those emails carry counts and never an address, a label, or an amount/,
       unlistedChecks: /including checks about addresses that are not on the agent's list, which records that your agent asked and does not put the address under watch/,
@@ -145,7 +149,11 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       routescan: /Routescan\/Snowtrace para Avalanche/,
       appendOnly: /<strong>registro fechado y de solo adición<\/strong>/,
       noPerson: /<strong>Nunca<\/strong> vinculamos una dirección con una persona y no supervisamos a terceros/,
-      onlyRegistered: /Leemos únicamente las wallets y los destinos que usted registra\./,
+      onlyRegistered: /Leemos únicamente las wallets que usted registra, nunca el historial de otra dirección\./,
+      everyTransfer: /cada transferencia directa que leemos de la wallet propia del agente, en ambos sentidos \(su hash de transacción, la dirección del otro extremo,/,
+      counterparty: /de confianza, pendiente o marcada para un destino que usted registró, o fuera de la lista/,
+      unmatched: /sin ninguna verificación pedida sobre ella en la hora anterior, se marca como sin correspondencia/,
+      sameClass: /la misma clase de datos que el Servicio conserva para cualquier wallet que usted agrega \(primer punto de esta Sección\)/,
       noDestinationHistory: /No leemos el historial propio de un destino/,
       emailsCarryCounts: /esos correos incluyen recuentos y nunca una dirección, una etiqueta ni un monto/,
       unlistedChecks: /incluidas las verificaciones sobre direcciones que no están en la lista del agente, lo cual registra que su agente preguntó y no pone la dirección bajo vigilancia/,
@@ -165,7 +173,11 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       routescan: /Routescan\/Snowtrace pour Avalanche/,
       appendOnly: /<strong>registre daté, en ajout seul<\/strong>/,
       noPerson: /Nous ne relions <strong>jamais<\/strong> une adresse à une personne et nous ne surveillons pas de tiers/,
-      onlyRegistered: /Nous ne lisons que les wallets et les destinations que vous enregistrez\./,
+      onlyRegistered: /Nous ne lisons que les wallets que vous enregistrez, jamais l'historique d'une autre adresse\./,
+      everyTransfer: /chaque transfert direct que nous lisons du wallet propre de l'agent, dans les deux sens \(son hash de transaction, l'adresse de l'autre extrémité,/,
+      counterparty: /de confiance, en attente ou signalée pour une destination que vous avez enregistrée, ou hors liste/,
+      unmatched: /sans aucune vérification demandée à son sujet dans l'heure précédente, est marquée comme sans correspondance/,
+      sameClass: /de la même nature que celles que le Service conserve pour tout wallet que vous ajoutez \(premier point de cette Section\)/,
       noDestinationHistory: /Nous ne lisons pas l'historique propre d'une destination/,
       emailsCarryCounts: /ces e-mails contiennent des totaux et jamais une adresse, une étiquette ni un montant/,
       unlistedChecks: /y compris les vérifications portant sur des adresses qui ne figurent pas sur la liste de l'agent, ce qui enregistre que votre agent a posé la question et ne place pas l'adresse sous surveillance/,
@@ -191,7 +203,7 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
   it.each(LANGS)('%s: Section 5 says what is read, from where, and what is never done', (lang) => {
     const s5 = section(policyBodies[lang], 5);
     const p = P[lang];
-    for (const k of ['ownWallet', 'etherscan', 'routescan', 'appendOnly', 'noPerson', 'onlyRegistered', 'noDestinationHistory', 'emailsCarryCounts', 'unlistedChecks', 'dailyLimit', 'readCadence'] as const) {
+    for (const k of ['ownWallet', 'etherscan', 'routescan', 'appendOnly', 'noPerson', 'onlyRegistered', 'noDestinationHistory', 'emailsCarryCounts', 'unlistedChecks', 'dailyLimit', 'readCadence', 'everyTransfer', 'counterparty', 'unmatched', 'sameClass'] as const) {
       expect(s5, k).toMatch(p[k]);
     }
   });
@@ -199,6 +211,16 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
   it.each(LANGS)('%s: Section 10 lists report emails and Section 11 says the record outlives a removal until the account is deleted', (lang) => {
     expect(section(policyBodies[lang], 10)).toMatch(P[lang].mail);
     expect(section(policyBodies[lang], 11)).toMatch(P[lang].retention);
+  });
+
+  it.each(LANGS)('%s: Section 5 no longer promises the narrow record of before slice 8 (only the transfers with a trusted destination)', (lang) => {
+    const s5 = section(policyBodies[lang], 5);
+    const narrow: Record<Lang, RegExp[]> = {
+      en: [/keep only the transfers whose other side is one of your trusted destinations/, /between the agent's own wallet and a destination you trusted/],
+      es: [/conservamos únicamente las transferencias cuyo otro extremo/, /entre la wallet propia del agente y un destino en el que usted confió/],
+      fr: [/ne conservons que les transferts dont l'autre extrémité/, /entre le wallet propre de l'agent et une destination à laquelle vous avez accordé votre confiance/],
+    };
+    for (const re of narrow[lang]) expect(s5).not.toMatch(re);
   });
 
   it('does not describe a live feed, a watch on the receiving wallet, or a read of any chain the Vault does not read', () => {
@@ -296,6 +318,24 @@ describe('User Agreement v1.3, Part B.9, keeps the product\'s rules', () => {
     for (const s of fr.split(/(?<=[.;:])\s+/).filter((x) => /\bsûre?\b/i.test(x))) {
       expect(s, s.slice(0, 120)).toMatch(/\b(pas|jamais|ni|ne)\b|n'/i);
     }
+  });
+
+  const B97Every: Record<Lang, RegExp[]> = {
+    en: [/every direct transfer of your Agent's own wallet, in either direction/, /with the transaction hash and the address on the other side/, /not on the list for a transfer to an address that was never registered, which the Record keeps and marks rather than omits/, /is marked as unmatched/, /recorded as a transfer to that contract, marked as a contract call/],
+    es: [/todas las transferencias directas de la wallet propia de su Agente, en ambos sentidos/, /con el hash de la transacción y la dirección del otro extremo/, /que el Registro conserva y marca en lugar de omitir/, /se marca como sin correspondencia \("unmatched"\)/, /se registra como una transferencia a ese contrato, marcada como llamada a contrato/],
+    fr: [/tous les transferts directs du wallet propre de votre Agent, dans les deux sens/, /avec le hash de la transaction et l'adresse de l'autre extrémité/, /que le Registre conserve et marque au lieu de l'omettre/, /est marquée comme sans correspondance \(« unmatched »\)/, /est enregistré comme un transfert vers ce contrat, marqué comme appel de contrat/],
+  };
+  const B91Every: Record<Lang, RegExp> = {
+    en: /every direct transfer its own wallet makes or receives, each marked with whether the other side was one of your Registered Addresses/,
+    es: /todas las transferencias directas que su wallet propia realiza o recibe, cada una con la marca de si el otro extremo era una de sus Direcciones Registradas/,
+    fr: /tous les transferts directs que son wallet propre effectue ou reçoit, chacun portant la mention de ce que l'autre extrémité était ou non l'une de vos Adresses Enregistrées/,
+  };
+  it.each(LANGS)('%s: since slice 8 the Record covers every direct transfer of the own wallet and marks the other side (B.9.1, B.9.7), and no longer says an unregistered transfer is left out', (lang) => {
+    const b9 = partB9(termsBodies[lang]);
+    expect(clause(b9, 1)).toMatch(B91Every[lang]);
+    for (const re of B97Every[lang]) expect(clause(b9, 7)).toMatch(re);
+    const narrow: Record<Lang, RegExp> = { en: /It does not cover a transfer to an address that was never registered/, es: /No cubre una transferencia a una dirección que nunca se registró/, fr: /Il ne couvre pas un transfert vers une adresse qui n'a jamais été enregistrée/ };
+    expect(clause(b9, 7)).not.toMatch(narrow[lang]);
   });
 
   it('English: the Record is evidence of the check, not of the underlying transaction, and the limits are stated', () => {

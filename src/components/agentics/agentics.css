@@ -294,6 +294,8 @@
 .ag-event__addr { margin: 0.3rem 0 0; font-size: 0.78rem; overflow-wrap: anywhere; word-break: break-all; }
 .ag-event__line { margin: 0.2rem 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-secondary); overflow-wrap: anywhere; }
 .ag-event__line--warn { color: var(--warning); }
+.ag-event--unmatched { padding-left: 0.7rem; border-left: 3px solid var(--warning); }
+.ag-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.8rem 0 0; }
 .ag-readresult { min-height: 0; margin: 0 0 0.6rem; }
 
 @media (max-width: 760px) {
@@ -321,6 +323,7 @@
 }
 .ag-feed__card { min-width: 0; animation: ag-feed-in 0.28s ease-out both; }
 .ag-feed__card--flag { padding: 0.7rem 0.8rem; border-left: 4px solid var(--loss); border-radius: 8px; background: var(--loss-bg); }
+.ag-feed__card--unmatched { padding: 0.7rem 0.8rem; border-left: 4px solid var(--warning); border-radius: 8px; background: var(--warning-bg); }
 .ag-feed__top { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
 .ag-feed__time { margin-left: auto; font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); }
 .ag-feed__agent { margin: 0.6rem 0 0; font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); overflow-wrap: anywhere; }

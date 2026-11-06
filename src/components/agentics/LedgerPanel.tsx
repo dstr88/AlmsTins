@@ -1,17 +1,22 @@
 /**
  * The ledger of one agent: what it asked and what moved, newest first. A `checked` row is the
  * moment the agent asked about an address and what it was answered; a `transaction` row is funds
- * that moved between the agent's wallet and a registered, trusted address once the chain confirmed
- * them, with the status it took from the check that came before. Above the rows, the totals: raw
- * value in (bought) and out (sold), priced at the time of each transfer, with nothing set against
- * anything else. A button reads the chain now instead of waiting for the daily job.
+ * that moved between the agent's own wallet and one other address, in either direction, once the
+ * chain confirmed them, with the hash, the other side's address, what the registry said about the
+ * other side when the row was written (trusted, pending, flagged, or not on the list), and the
+ * status it took from the check that came before. An outflow to an address not on the list with no
+ * check before it is marked UNMATCHED. A switch narrows the list to the transfers whose other side
+ * was not on the list. Above the rows, the totals: raw value in (bought) and out (sold), priced at
+ * the time of each transfer, with nothing set against anything else. A button reads the chain now
+ * instead of waiting for the daily job.
  *
- * Everything that came from the ledger or the chain (an address, an asset's symbol) is rendered as
- * text by React, which escapes it, and a link to the chain's explorer is built only from a chain
- * the Vault reads and a hash that is 0x and 64 hex digits (./paths.ts). Nothing here builds HTML
- * from data.
+ * Everything that came from the ledger or the chain (an address, a hash, an asset's symbol) is
+ * rendered as text by React, which escapes it, and a link to the chain's explorer is built only
+ * from a chain the Vault reads and a hash that is 0x and 64 hex digits (./paths.ts). Nothing here
+ * builds HTML from data.
  */
 import { useState } from 'react';
+import { shortenAddress } from '@/lib/addressDisplay';
 import type { TinTotals } from '@/lib/agentVault/events';
 import { parseLedgerRows, type LedgerRow } from '@/lib/agentVault/ledgerView';
 import { formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
@@ -76,14 +81,23 @@ function Strip({ totals }: { totals: TinTotals }) {
  * name and the owner's label for the address; the agent's own page gives neither. Both are the account's own
  * text, rendered as text.
  */
+export const COUNTERPARTY_CLASS: Record<string, string> = {
+  trusted: 'ag-pill ag-pill--gain',
+  pending: 'ag-pill ag-pill--muted',
+  flagged: 'ag-pill ag-pill--bad',
+  unregistered: 'ag-pill ag-pill--warn',
+};
+
 export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; agent?: string; label?: string | null; recorded?: string }) {
   const tx = row.kind === 'transaction' ? row.tx : null;
   const kind = tx ? (tx.direction === 'in' ? copy.ledger.kind.in : copy.ledger.kind.out) : copy.ledger.kind.checked;
   const answer = row.answer ? VERIFY_STATUS_TITLE[row.answer] : copy.ledger.noAnswer;
-  const registry = row.registry ? copy.ledger.registry[row.registry] : null;
+  // A check says what the registry said about the address; a transfer says it as the other side's status.
+  const registry = !tx && row.registry ? copy.ledger.registry[row.registry] : null;
+  const counterparty = tx && row.counterparty ? copy.ledger.counterparty[row.counterparty] : null;
   const href = tx ? explorerTxHref(row.chain, tx.hash) : null;
   return (
-    <li className="ag-event">
+    <li className={row.unmatched ? 'ag-event ag-event--unmatched' : 'ag-event'}>
       <div className="ag-event__top">
         <time className="ag-event__time" dateTime={row.at}>
           {formatUtc(row.at)}
@@ -91,6 +105,7 @@ export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; ag
         <span className="ag-pill ag-pill--kind">{kind}</span>
         <span className={row.answer ? ANSWER_CLASS[row.answer] : 'ag-pill ag-pill--muted'}>{row.answer ? copy.ledger.answer(answer) : answer}</span>
         {registry ? <span className="ag-event__registry">{copy.ledger.registryIs(registry)}</span> : null}
+        {counterparty ? <span className={COUNTERPARTY_CLASS[row.counterparty as string]}>{counterparty}</span> : null}
       </div>
       {agent ? <p className="ag-event__agent">{agent}</p> : null}
       <p className="ag-event__addr ag-mono">{row.address}</p>
@@ -104,13 +119,19 @@ export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; ag
             {tx.usd === null ? copy.ledger.noUsd : copy.ledger.usd(formatUsd(tx.usd))}
           </p>
           <p className="ag-event__line">{row.linkReason ? copy.ledger.linkReason[row.linkReason] : copy.ledger.inheritedFrom}</p>
-          {href ? (
-            <p className="ag-event__line">
-              <a className="ag-link" href={href} target="_blank" rel="noopener noreferrer">
-                {copy.ledger.chainTx}
-              </a>
-            </p>
-          ) : null}
+          {row.unmatched ? <p className="ag-event__line ag-event__line--warn">{copy.ledger.unmatched}</p> : null}
+          {row.contract ? <p className="ag-event__line">{copy.ledger.contractCall}</p> : null}
+          <p className="ag-event__line ag-mono">
+            {copy.ledger.hash(shortenAddress(tx.hash))}
+            {href ? (
+              <>
+                {'  ·  '}
+                <a className="ag-link" href={href} target="_blank" rel="noopener noreferrer">
+                  {copy.ledger.chainTx}
+                </a>
+              </>
+            ) : null}
+          </p>
         </>
       ) : (
         <>
@@ -139,12 +160,17 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
   const [reading, setReading] = useState(false);
   const [readLines, setReadLines] = useState<string[] | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
+  const [unregisteredOnly, setUnregisteredOnly] = useState(false);
+
+  /** The ledger endpoint for a page: the agent, the page size, the narrowing if it is on, and the cursor if there is one. */
+  const pageUrl = (narrow: boolean, before: string | null) =>
+    `/api/agentics/events?tinId=${encodeURIComponent(tinId)}&limit=${PAGE}${narrow ? '&filter=unregistered' : ''}${before ? `&before=${encodeURIComponent(before)}` : ''}`;
 
   async function loadMore() {
     if (!next) return;
     setLoading(true);
     setLoadError(null);
-    const r = await send('GET', `/api/agentics/events?tinId=${encodeURIComponent(tinId)}&limit=${PAGE}&before=${encodeURIComponent(next)}`);
+    const r = await send('GET', pageUrl(unregisteredOnly, next));
     if (r.ok) {
       const more = parseLedgerRows(r.body?.events);
       setRows((prev) => {
@@ -172,7 +198,7 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
     setReadLines(describeRefresh(pass));
     // The rows and the totals as they stand now, including whatever the read just recorded.
     const [fresh, sums] = await Promise.all([
-      send('GET', `/api/agentics/events?tinId=${encodeURIComponent(tinId)}&limit=${PAGE}`),
+      send('GET', pageUrl(unregisteredOnly, null)),
       send('GET', `/api/agentics/totals?tinId=${encodeURIComponent(tinId)}`),
     ]);
     if (fresh.ok) {
@@ -182,6 +208,26 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
     const t = sums.ok ? totalsOf(sums.body) : null;
     if (t) setTotals(t);
     setReading(false);
+  }
+
+  /** The switch: the first page again, narrowed or not. The rows the page opened with are the unnarrowed first page, so turning it off restores them. */
+  async function toggleUnregistered(on: boolean) {
+    setUnregisteredOnly(on);
+    setLoadError(null);
+    if (!on) {
+      setRows(ledger.rows);
+      setNext(ledger.next);
+      return;
+    }
+    setLoading(true);
+    const r = await send('GET', pageUrl(true, null));
+    if (r.ok) {
+      setRows(parseLedgerRows(r.body?.events));
+      setNext(typeof r.body?.next === 'string' ? r.body.next : null);
+    } else {
+      setLoadError(failureText(r));
+    }
+    setLoading(false);
   }
 
   return (
@@ -216,8 +262,16 @@ export default function LedgerPanel({ tinId, ledger, totals: initialTotals }: Le
       </div>
       <Status kind="bad">{readError}</Status>
 
+      <div className="ag-filter">
+        <label className="ag-check">
+          <input type="checkbox" checked={unregisteredOnly} onChange={(e) => { void toggleUnregistered(e.target.checked); }} />
+          <span>{copy.ledger.filterUnregistered}</span>
+        </label>
+        {unregisteredOnly ? <span className="ag-hint">{copy.ledger.filterNote}</span> : null}
+      </div>
+
       {rows.length === 0 ? (
-        <p className="ag-empty">{copy.ledger.empty}</p>
+        <p className="ag-empty">{unregisteredOnly ? copy.ledger.emptyFiltered : copy.ledger.empty}</p>
       ) : (
         <ol className="ag-events" aria-label={copy.ledger.listLabel}>
           {rows.map((row) => (

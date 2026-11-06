@@ -65,7 +65,7 @@ async function seed(tenant = A.tenantId, label = 'Treasury agent') {
   const tin = expectOk(await vault.createTin(tenant, { label })).tin;
   await events.insertCheckedEvent(tenant, { tinId: tin.id, address: addr(1), chain: null, answer: 'unknown', registry: 'none', status: 'unknown', keyId: 'k', sourceIp: '203.0.113.9', detail: { basis: 'not_in_registry' }, at: at(2, 9) });
   await events.insertTransactionEvent(tenant, {
-    tinId: tin.id, address: addr(2), chain: 'ethereum', leg: 'native:0', answer: 'unknown', status: null,
+    tinId: tin.id, address: addr(2), chain: 'ethereum', registry: 'trusted', leg: 'native:0', answer: 'unknown', status: null,
     tx: { hash: `0x${'ab'.repeat(32)}`, direction: 'in', wallet: addr(900), amount: '2', asset: 'ETH', assetContract: null, usd: 100.5, blockNumber: 9 }, detail: { reason: 'no_preceding_check' }, at: at(2, 10),
   });
   return tin;

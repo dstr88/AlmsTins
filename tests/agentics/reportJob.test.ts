@@ -93,7 +93,7 @@ const put = (tenant: string, tinId: string, basis: string, answer: 'proven' | 'c
   events.insertCheckedEvent(tenant, { tinId, address, chain: null, answer, registry: 'none', status: 'unknown', keyId: `k${++k}`, sourceIp: null, detail: { basis }, at: when });
 const putTransfer = (tenant: string, tinId: string, usd: number, when: string) =>
   events.insertTransactionEvent(tenant, {
-    tinId, address: addr(2), chain: 'ethereum', leg: `native:${++k}`, answer: 'unknown', status: null,
+    tinId, address: addr(2), chain: 'ethereum', registry: 'trusted', leg: `native:${++k}`, answer: 'unknown', status: null,
     tx: { hash: txHash(k), direction: 'out', wallet: addr(1), amount: '1', asset: 'ETH', assetContract: null, usd, blockNumber: 1 }, detail: { reason: 'no_preceding_check' }, at: when,
   });
 const opt = (tenant: string, cadence: 'off' | 'daily' | 'weekly' | 'issues', alerts = false) => delivery.writeSettings(tenant, { cadence, alerts }, '2026-10-01 00:00:00');

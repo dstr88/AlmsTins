@@ -26,7 +26,7 @@ describe('the export card', () => {
   it('says what the signature covers, what it does not, and that the CSV is a copy that is not signed', () => {
     const t = textOf(render());
     expect(t).toContain('The signature covers the ledger as Almstins stored it when you exported it: every check and every transfer recorded for this agent in the range, and the moment the file was made.');
-    expect(t).toContain('It does not show that the agent asked before every payment, and it does not cover transfers to addresses that were never registered.');
+    expect(t).toContain('It does not show that the agent asked before every payment. Each transfer in it says whether the other side was on your list when it was recorded, and an outflow to an address not on the list with no check before it is marked as unmatched.');
     expect(t).toContain('The CSV is a convenience copy. It is not signed. Its file name ends in unsigned-copy, and the last column of every line is the ID of the signed file it copies, so the two can be matched.');
     expect(t).toContain('One file covers at most 366 days and 50,000 events.');
   });

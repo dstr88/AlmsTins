@@ -1,10 +1,10 @@
 /**
  * One agent, as a page: its key, the registry of addresses it may pay, its own wallets, its
  * ledger with the totals, and the export of that ledger. The two sentences that say what the Vault does and does not see sit at
- * the top, where they are read: the ledger records the checks the agent asks and the funds that
- * reach its registered addresses, and a transfer to an address that was never registered is
- * invisible here; and Pass means the checks that ran came back without a flag, never that an
- * address is safe.
+ * the top, where they are read: the ledger records the checks the agent asks and every direct
+ * transfer of its own wallets, marking whether the other side was on its list (an unregistered
+ * outflow with no check before it is the unmatched line); and Pass means the checks that ran came
+ * back without a flag, never that an address is safe.
  *
  * Rendered on the server and hydrated, so every figure is in the page before any script runs.
  * The page keeps the plan's figures current for the panels (and the meter in the bar) by reading

@@ -28,11 +28,16 @@
  * out is sold, in USD at the time of each transfer. A transfer with no USD value on record is
  * counted on its own and never added in as zero. Nothing here sets what was bought against what was
  * sold, and no figure is derived from the two: it is raw value in and raw value out, and no more.
+ * Since slice 8 the strip also counts the transfers by what the registry said about the other side
+ * when each was written (./counterparty.ts), and the UNMATCHED lines among them: outflows to an
+ * address not on the list with no check before them. The report's line "N transfers to addresses
+ * not on the list" comes from here.
  *
  * Whatever order the events come in, the report is the same (every tie is broken by time, then id),
  * so rebuilding it from the same ledger gives the same content, byte for byte.
  */
 import type { AnswerBasis } from './checkLog';
+import { counterpartyOf, isLinkReason, isUnmatched, type CounterpartyStatus } from './counterparty';
 import type { LedgerEvent, RegistryVerdict, VaultAnswer } from './events';
 import { addTransfer, emptySums, toSideTotal, type SideTotal } from './money';
 
@@ -174,14 +179,21 @@ export interface BucketListing extends BucketCounts {
 /** The bought and sold strip, and how the period's transfers were verified. */
 export interface ReportStrip {
   transfers: number;
-  /** Value that reached the agent's wallet from a trusted destination. */
+  /** Value that reached the agent's wallet, from any address. */
   bought: SideTotal;
-  /** Value that left the agent's wallet for a trusted destination. */
+  /** Value that left the agent's wallet, to any address. */
   sold: SideTotal;
   /** The transfers by the verify-status they inherited from the check that came before them. */
   byStatus: Record<VaultAnswer, number>;
   /** Transfers with the status `unknown` because no check came before them (reason no_preceding_check). */
   noPrecedingCheck: number;
+  /**
+   * The transfers by what the registry said about the other side when each was written. Absent on a
+   * report stored before slice 8, whose transfers all had a trusted destination on the other side.
+   */
+  byCounterparty?: Record<CounterpartyStatus, number>;
+  /** Outflows to an address not on the list with no check before them. Absent on a report stored before slice 8. */
+  unmatched?: number;
 }
 
 export interface ReportContent {
@@ -233,6 +245,7 @@ interface AddressState {
 }
 
 const zeroStatuses = (): Record<VaultAnswer, number> => ({ proven: 0, 'consistent-with-history': 0, flagged: 0, unknown: 0 });
+const zeroCounterparties = (): Record<CounterpartyStatus, number> => ({ trusted: 0, pending: 0, flagged: 0, unregistered: 0 });
 
 /**
  * Builds a report from a tin's events, one at a time, so a busy day never has to sit in memory
@@ -247,6 +260,8 @@ export class ReportBuilder {
   private readonly sold = emptySums();
   private readonly byStatus = zeroStatuses();
   private noPrecedingCheck = 0;
+  private readonly byCounterparty = zeroCounterparties();
+  private unmatched = 0;
   private limitReachedAt: string | null = null;
 
   constructor(private readonly opts: ReportOptions) {}
@@ -293,6 +308,10 @@ export class ReportBuilder {
     const status: VaultAnswer = event.answer ?? 'unknown';
     this.byStatus[status] += 1;
     if (status === 'unknown' && event.detail?.reason === 'no_preceding_check') this.noPrecedingCheck += 1;
+    // The other side as the registry stood at writing; a word the report does not know is not counted anywhere.
+    const counterparty = counterpartyOf(event.registry);
+    if (counterparty) this.byCounterparty[counterparty] += 1;
+    if (isUnmatched({ direction: tx.direction, counterparty, linked: !isLinkReason(event.detail?.reason) })) this.unmatched += 1;
   }
 
   /** The report. Call once all events are in; calling it again after more events is allowed and gives the report so far. */
@@ -342,6 +361,8 @@ export class ReportBuilder {
         sold: toSideTotal(this.sold),
         byStatus: { ...this.byStatus },
         noPrecedingCheck: this.noPrecedingCheck,
+        byCounterparty: { ...this.byCounterparty },
+        unmatched: this.unmatched,
       },
       ...(this.limitReachedAt !== null ? { limit: { reachedAt: this.limitReachedAt } } : {}),
     };
@@ -375,6 +396,9 @@ export interface ReportHeadline {
   transfers: number;
   bought: SideTotal;
   sold: SideTotal;
+  /** Transfers to or from addresses not on the list, and the unmatched lines among them (0 for a report made before slice 8). */
+  unregistered: number;
+  unmatched: number;
   /** Whether the agent reached its daily limit of recorded checks in the period (see ReportContent.limit). */
   limitReached: boolean;
 }
@@ -390,6 +414,8 @@ export function headlineOf(content: ReportContent): ReportHeadline {
     transfers: content.strip.transfers,
     bought: content.strip.bought,
     sold: content.strip.sold,
+    unregistered: content.strip.byCounterparty?.unregistered ?? 0,
+    unmatched: content.strip.unmatched ?? 0,
     limitReached: content.limit !== undefined,
   };
 }

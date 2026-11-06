@@ -17,7 +17,7 @@ export const TENANT_TABLES = [
   // Agentics signups (where the account came in, and whether its welcome letter went out)
   'agentics_signups',
   // Agent Vault (the owner's own records: delivery settings and alert claims, the ledger, its reports and the watcher's cursors, then destinations, then wallets, then tins)
-  'agent_alert_claims', 'agent_report_settings', 'agent_reports', 'agent_events', 'agent_watch_cursors', 'agent_destinations', 'agent_wallets', 'agent_tins',
+  'agent_alert_claims', 'agent_report_settings', 'agent_reports', 'agent_events', 'agent_watch_cursors', 'agent_wallet_cursors', 'agent_destinations', 'agent_wallets', 'agent_tins',
   // Transactions, imports and wallets
   'transaction_annotations', 'transaction_screenshots', 'transfer_matches', 'transactions', 'sui_transactions',
   'import_raw_rows', 'import_transactions', 'exchange_accounts', 'manual_cost_basis', 'protocol_positions',

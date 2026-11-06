@@ -20,7 +20,7 @@ import PDFDocument from 'pdfkit';
 import { LISTED_BUCKETS, MAX_LISTED_PER_BUCKET, type ListedBucketName, type ReportAddress, type ReportBucket, type ReportContent } from './report';
 import { bundleFileName, type AgentReportBundle } from './reportProof';
 import { formatClock, formatCount, formatDayLong, formatUsd, formatUtc, plural } from './reportFormat';
-import { BUCKET_MEANING, BUCKET_TITLE, NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON, VERIFY_STATUS_TITLE, reasonText } from './reportText';
+import { BUCKET_MEANING, BUCKET_TITLE, EVERY_TRANSFER_REGISTERED, NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON, VERIFY_STATUS_TITLE, reasonText, unregisteredLine } from './reportText';
 
 /** The token values this PDF uses, keyed by token name. tests/agentics/reportPdf.test.ts checks every one against tokens.css. */
 export const PDF_COLORS = {
@@ -234,7 +234,7 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
     side(MARGIN.left + half, 'Sold', strip.sold);
     doc.save().strokeColor(INK, PDF_ALPHA['--border-bright']).lineWidth(0.6).moveTo(MARGIN.left + half, y + 8).lineTo(MARGIN.left + half, y + stripH - 8).stroke().restore();
     y += stripH + 6;
-    para('Raw value in (bought) and out (sold) between the agent\'s wallets and registered destinations, priced at the time of each transfer. The two sides are not compared.', {
+    para('Raw value in (bought) and out (sold) of the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.', {
       size: 7.5,
       alpha: PDF_ALPHA['--text-secondary'],
       after: 4,
@@ -249,6 +249,11 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
         alpha: PDF_ALPHA['--text-secondary'],
         after: 6,
       });
+      // The counterparty line exists only on a report made since slice 8; an older report's PDF is unchanged.
+      if (strip.byCounterparty) {
+        const line = strip.byCounterparty.unregistered > 0 ? unregisteredLine(strip.byCounterparty.unregistered, strip.unmatched ?? 0) : EVERY_TRANSFER_REGISTERED;
+        para(line, { size: 7.5, alpha: PDF_ALPHA['--text-secondary'], after: 6 });
+      }
     }
     y += 8;
 

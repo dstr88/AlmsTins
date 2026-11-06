@@ -157,7 +157,7 @@ describe('the Reports page', () => {
     const html = render(React.createElement(ReportsPage, { data: pageData({ tins: [{ id: 't', label: 'Quiet', since: '2026-10-01', reports: [item(empty)] }] }) }));
     expect((html.match(/ag-count--zero/g) ?? []).length).toBe(4);
     expect(html).not.toMatch(/ag-count--issues|ag-count--confirm/);
-    expect(textOf(html)).toContain('No transfers with registered destinations');
+    expect(textOf(html)).toContain('No transfers');
   });
 
   it('says plainly when there are no agents, and when an agent has no reports', () => {
@@ -305,9 +305,26 @@ describe('one report', () => {
     const partial = render(React.createElement(ReportView, { report: detail(content({ partial: true })), signing: { available: true } }));
     expect(textOf(partial)).toContain('Partial day. This report was made at 2026-10-18 09:10:00 UTC');
     const quiet = render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } }));
-    expect(textOf(quiet)).toContain('Nothing recorded for your registered destinations needs a person to look at it.');
+    expect(textOf(quiet)).toContain('Nothing recorded for this agent needs a person to look at it.');
     expect(textOf(quiet)).toContain('No check came back proven or consistent with history in this period.');
     expect(textOf(quiet)).not.toContain('Partial day');
+  });
+
+  it('says how many transfers went to or came from addresses not on the list, and how many were unmatched; or that every one had a registered address (slice 8)', () => {
+    const stranger = (direction: 'in' | 'out', detail: Record<string, unknown>, when: string) => ({ ...move(direction, 1, when), registry: 'none' as const, address: addr(9), detail });
+    const some = content({ events: [
+      move('in', 1270.56, at(12)),
+      stranger('out', { reason: 'no_preceding_check' }, at(13)),
+      stranger('out', { link: { eventId: '11111111-1111-4111-8111-111111111111' } }, at(14)),
+      stranger('in', { reason: 'no_preceding_check' }, at(15)),
+    ] });
+    const t = textOf(render(React.createElement(ReportView, { report: detail(some), signing: { available: true } })));
+    expect(t).toContain('3 transfers to or from addresses not on the list; 1 was an outflow with no check before it (unmatched).');
+    const none = textOf(render(React.createElement(ReportView, { report: detail(content()), signing: { available: true } })));
+    expect(none).toContain('Every transfer in this period had a registered address on the other side.');
+    expect(none).not.toContain('transfers to or from addresses not on the list');
+    const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
+    expect(quiet).not.toContain('Every transfer in this period');
   });
 
   it('says a day that reached the daily limit of recorded checks was cut, and when; a day that was not says nothing', () => {
@@ -319,13 +336,12 @@ describe('one report', () => {
     expect(textOf(render(React.createElement(ReportView, { report: detail(content()), signing: { available: true } })))).not.toContain('Daily limit reached');
   });
 
-  it('an all-clear is about what was recorded: it names the registered destinations and says a transfer to an unregistered address is not seen', () => {
+  it('an all-clear is about what was recorded: it says a transfer to an unregistered address is recorded and marked, and an unmatched outflow is marked too', () => {
     const quiet = textOf(render(React.createElement(ReportView, { report: detail(content({ events: [] })), signing: { available: true } })));
-    expect(quiet).toContain('A transfer to an address that was never registered is not recorded here.');
+    expect(quiet).toContain('A transfer to or from an address that was never registered is recorded here and marked as not on the list; an outflow to one with no check before it is marked as unmatched.');
     expect(quiet).not.toMatch(/Nothing here needs/);
-    // The strip says the same about "no transfers" on both sides, on the page and in the list.
-    expect(quiet.match(/No transfers with registered destinations/g)).toHaveLength(2);
-    expect(quiet).not.toMatch(/No transfers(?! with registered destinations)/);
+    // The strip says "no transfers" on both sides, bought and sold.
+    expect(quiet.match(/No transfers/g)).toHaveLength(2);
   });
 
   it('the page and the PDF use one set of words for what was and was not recorded', async () => {

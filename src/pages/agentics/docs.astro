@@ -409,14 +409,19 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       <a href="/verify-record">/verify-record</a>.
     </p>
     <p class="body">
-      <b>What the vault does not see.</b> It records the checks your agent asks with its key and the transfers
-      to the addresses you trusted. A transfer to an address you did not register is not seen, and a check the
-      agent never asks leaves no record. Once a day, about once a minute while your Live page is open (one
-      agent at a time, in turn, up to a daily limit), or when you press Read the chain on the agent's page, the vault reads Ethereum, Polygon and Avalanche for
-      direct transfers between your agent's own wallets and your trusted addresses, and ties each one to
-      the check that came before it. The limit is per account per day: when the Live page's reads are used up it says so, and the daily
-      read and the Read the chain button still work. A payment routed through a swap or a router contract is a transfer to
-      that contract and is not seen.
+      <b>What the vault sees, and what it does not.</b> It records the checks your agent asks with its key and
+      every direct transfer of your agent's own wallets, in and out, with the transaction hash and the address on
+      the other side. Each transfer says what your list said about the other side when it was recorded: trusted,
+      pending or flagged for an address you registered, or not on the list. A transfer out to an address not on the
+      list, with no check asked about it in the hour before, is marked as unmatched: the agent paid someone it never
+      asked about. A check the agent never asks leaves no check record. Once a day, about once a minute while your
+      Live page is open (one agent at a time, in turn, up to a daily limit), or when you press Read the chain on the
+      agent's page, the vault reads Ethereum, Polygon and Avalanche for the direct transfers of your agent's own
+      wallets, and ties each one to the check that came before it. The limit is per account per day: when the Live
+      page's reads are used up it says so, and the daily read and the Read the chain button still work. A payment
+      routed through a swap or a router contract is recorded as a transfer to that contract, marked as a contract
+      call where the chain's listing says so. A wallet you did not register, and any chain the vault does not read,
+      are not seen.
     </p>
   </section>
 

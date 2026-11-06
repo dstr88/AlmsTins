@@ -52,7 +52,7 @@ import {
 } from './store';
 import { getEntitlements } from './entitlements';
 import { fail, failLimit, idOf, type Failure, type VaultError } from './errors';
-import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type TinTotals } from './events';
+import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type LedgerFilter, type TinTotals } from './events';
 import { defaultTrustDeps, forgetAnswersOf, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
 import { defaultWatchDeps, runTinPass, type TinPassReport, type WatchDeps } from './watcher';
@@ -499,7 +499,7 @@ export type EventPage = { ok: true; events: EventView[]; next: string | null };
 export async function listTinEvents(
   tenantId: string,
   tinId: unknown,
-  opts: { limit?: unknown; before?: unknown } = {},
+  opts: { limit?: unknown; before?: unknown; filter?: unknown } = {},
 ): Promise<EventPage | Failure> {
   const id = idOf(tinId);
   if (!id) return fail('invalid_id');
@@ -512,7 +512,9 @@ export async function listTinEvents(
     before = parseCursor(opts.before);
     if (!before) return fail('invalid_cursor');
   }
-  const page = await listEvents(tenantId, tin.id, { limit, before });
+  // The one narrowing a page can ask for; any other word is no narrowing at all, never a guess.
+  const filter: LedgerFilter | null = opts.filter === 'unregistered' ? 'unregistered' : null;
+  const page = await listEvents(tenantId, tin.id, { limit, before, filter });
   // A rotated key stays on the events it made, marked: the ledger never forgets who asked.
   const statuses = new Map((await listAgentKeys(tenantId)).map((k) => [k.id, k.status]));
   return {

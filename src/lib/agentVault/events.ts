@@ -2,11 +2,14 @@
  * The Agent Vault ledger: a dated record of what happened on one tin, kept append-only.
  *
  * Two kinds of event. `checked` (slice 2): an agent asked, through its API key, whether it may
- * send to an address, and this is what it was answered, and when. `transaction` (slice 3): the
- * chain confirmed funds moving between the agent's own wallet and a trusted, registered
- * destination, and this is the transfer, its USD value at the time, and the verify-status it
- * inherits from the check that came before it (./link.ts). The kind column allows both because a
- * CHECK constraint is not something the web database role can change later.
+ * send to an address, and this is what it was answered, and when. `transaction` (slice 3, widened
+ * in slice 8): the chain confirmed funds moving between the agent's own wallet and one other
+ * address, in either direction, and this is the transfer, its USD value at the time, what the
+ * agent's registry said about the other side at the moment of writing (`registry`: trusted,
+ * pending or flagged for a registered destination, `none` for an address that was not on the
+ * list), and the verify-status it inherits from the check that came before it (./link.ts). The
+ * kind column allows both because a CHECK constraint is not something the web database role can
+ * change later.
  *
  * Append-only by construction: this module inserts and reads, and nothing in it rewrites or
  * removes a row. A correction is a new event. The only way a row leaves is the whole account
@@ -120,9 +123,9 @@ export interface LedgerEvent {
   kind: EventKind;
   /** When it happened, UTC ISO-8601 with milliseconds. */
   at: string;
-  /** Normalized: lowercase for an EVM address, as given (trimmed) for any other chain. For a transaction, the destination. */
+  /** Normalized: lowercase for an EVM address, as given (trimmed) for any other chain. For a transaction, the other side of the transfer. */
   address: string;
-  /** The chain of the tin's registry row for this address, or null when the address is not registered. */
+  /** For a check, the chain of the tin's registry row for this address, or null when the address is not registered. For a transaction, the chain it happened on. */
   chain: VaultChain | null;
   /** For a check, what it answered. For a transaction, the answer of the check that came before it (`unknown` when none did). */
   answer: VaultAnswer | null;
@@ -331,9 +334,11 @@ export function transactionEventId(tenantId: string, tinId: string, chain: strin
 
 export interface TransactionEventInput {
   tinId: string;
-  /** The destination: the other side of the transfer. */
+  /** The other side of the transfer: a registered destination, or any address the wallet paid or was paid by. */
   address: string;
   chain: VaultChain;
+  /** What the tin's registry says about the other side at the moment of writing: `none` when it is not registered. */
+  registry: RegistryVerdict;
   /** The leg of the transaction this event stands for (see transfers.ts); with the hash, it identifies the movement. */
   leg: string;
   /** The verify-status inherited from the check that came before (`unknown` when none did). */
@@ -348,8 +353,9 @@ export interface TransactionEventInput {
 
 /**
  * Appends a `transaction` event unless this movement is already in the ledger. `inserted` is false
- * when it was, so reading the chain again adds nothing. Only called for a trusted, registered
- * destination (./watcher.ts), so the registry verdict is `trusted` at the moment of writing.
+ * when it was, so reading the chain again adds nothing. The registry verdict is the one at the
+ * moment of writing (./watcher.ts looks the other side up in the tin's registry); it is not
+ * revised when the registry changes later, so the Record shows what the Vault knew when it wrote.
  */
 export async function insertTransactionEvent(
   tenantId: string,
@@ -363,7 +369,7 @@ export async function insertTransactionEvent(
     address: input.address,
     chain: input.chain,
     answer: input.answer,
-    registry: 'trusted',
+    registry: input.registry,
     status: input.status,
     keyId: null,
     sourceIp: null,
@@ -442,14 +448,22 @@ export function parseCursor(raw: unknown): { at: string; id: string } | null {
   return m ? { at: m[1], id: m[2] } : null;
 }
 
-/** One page of a tin's events, newest first. `limit` is trusted to be a small positive integer (vault.ts clamps it). */
+/** The one narrowing a ledger page can ask for: the transfers whose other side was not on the agent's list when they were written. */
+export type LedgerFilter = 'unregistered';
+
+/**
+ * One page of a tin's events, newest first. `limit` is trusted to be a small positive integer (vault.ts
+ * clamps it). With `filter: 'unregistered'` the page holds only `transaction` events whose registry
+ * verdict is `none`; the cursor (`before`, `next`) works the same way inside that narrower list.
+ */
 export async function listEvents(
   tenantId: string,
   tinId: string,
-  opts: { limit: number; before?: { at: string; id: string } | null },
+  opts: { limit: number; before?: { at: string; id: string } | null; filter?: LedgerFilter | null },
 ): Promise<{ events: LedgerEvent[]; next: string | null }> {
   await ensureAgentEventsTable();
   const args: Array<string | number> = [tenantId, tinId];
+  const narrow = opts.filter === 'unregistered' ? ` AND kind = 'transaction' AND registry = 'none'` : '';
   let after = '';
   if (opts.before) {
     after = ` AND (occurred_at < ? OR (occurred_at = ? AND id < ?))`;
@@ -457,7 +471,7 @@ export async function listEvents(
   }
   args.push(opts.limit + 1);
   const r = await db.execute({
-    sql: `SELECT ${EVENT_COLUMNS} FROM agent_events WHERE tenant_id = ? AND tin_id = ?${after} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+    sql: `SELECT ${EVENT_COLUMNS} FROM agent_events WHERE tenant_id = ? AND tin_id = ?${narrow}${after} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
     args,
   });
   const rows = r.rows.map(eventFrom);
@@ -614,9 +628,9 @@ export async function latestEventTime(tenantId: string, tinId: string, kind: Eve
 /** What a tin's recorded transfers add up to. Raw value in and out, nothing netted, no price after the fact. */
 export interface TinTotals {
   transactions: number;
-  /** Value that reached the agent's wallet from a trusted destination. */
+  /** Value that reached the agent's wallet, from any address. */
   bought: SideTotal;
-  /** Value that left the agent's wallet for a trusted destination. */
+  /** Value that left the agent's wallet, to any address. */
   sold: SideTotal;
 }
 

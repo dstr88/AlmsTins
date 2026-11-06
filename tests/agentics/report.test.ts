@@ -14,6 +14,7 @@ import {
   dayBounds,
   hasLimitMarker,
   headlineOf,
+  type ReportContent,
   parseDay,
   utcDay,
   type ReportBucket,
@@ -368,6 +369,30 @@ describe('the bought and sold strip', () => {
     ]);
     expect(r.strip.byStatus).toEqual({ proven: 1, 'consistent-with-history': 1, flagged: 1, unknown: 3 });
     expect(r.strip.noPrecedingCheck).toBe(2);
+  });
+
+  it('counts the transfers by what the registry said about the other side, and the unmatched lines among them (slice 8)', () => {
+    const r = report([
+      transfer('out', 1, at(9), { registry: 'trusted' }),
+      transfer('out', 1, at(10), { registry: 'pending' }),
+      transfer('in', 1, at(11), { registry: 'flagged' }),
+      transfer('out', 1, at(12), { registry: 'none', answer: 'unknown', detail: { reason: 'no_preceding_check' } }), // unmatched
+      transfer('out', 1, at(13), { registry: 'none', answer: 'unknown', detail: { reason: 'ambiguous_checks' } }), // unmatched: no check stands behind it
+      transfer('out', 1, at(14), { registry: 'none', answer: 'unknown', detail: { link: { eventId: 'x' } } }), // asked first: not unmatched
+      transfer('in', 1, at(15), { registry: 'none', answer: 'unknown', detail: { reason: 'no_preceding_check' } }), // came in: not unmatched
+      transfer('out', 1, at(16), { registry: null }), // a word the report does not know is counted nowhere
+    ]);
+    expect(r.strip.byCounterparty).toEqual({ trusted: 1, pending: 1, flagged: 1, unregistered: 4 });
+    expect(r.strip.unmatched).toBe(2);
+    expect(headlineOf(r)).toMatchObject({ transfers: 8, unregistered: 4, unmatched: 2 });
+  });
+
+  it('a report with no transfers has zero counterparty counts, and a report stored before slice 8 (no counts) reads as zero in the headline', () => {
+    const r = report([]);
+    expect(r.strip.byCounterparty).toEqual({ trusted: 0, pending: 0, flagged: 0, unregistered: 0 });
+    expect(r.strip.unmatched).toBe(0);
+    const old = { ...r, strip: { transfers: r.strip.transfers, bought: r.strip.bought, sold: r.strip.sold, byStatus: r.strip.byStatus, noPrecedingCheck: 0 } } as ReportContent;
+    expect(headlineOf(old)).toMatchObject({ unregistered: 0, unmatched: 0 });
   });
 
   it('transfers never add to the check buckets, and checks never add to the strip', () => {

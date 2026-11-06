@@ -48,11 +48,19 @@ export const VERIFY_STATUS_TITLE: Record<string, string> = {
 };
 
 /**
- * What a report can and cannot say it saw. The Vault records the checks an agent asks for and the
- * transfers between the agent's wallets and the destinations on its registry. A transfer to an
- * address that was never registered is not visible to it, so an all-clear is about what was
- * recorded, never about everything the agent did.
+ * What a report can and cannot say it saw. The Vault records the checks an agent asks for and every
+ * direct transfer of the agent's own wallets, marking whether the other side was on its registry. A
+ * check the agent never asks leaves no check record, so an all-clear is about what was recorded,
+ * never about everything the agent did.
  */
-export const NO_TRANSFERS = 'No transfers with registered destinations';
-export const NOTHING_NEEDS_A_PERSON = 'Nothing recorded for your registered destinations needs a person to look at it.';
-export const NOT_REGISTERED_NOTE = 'A transfer to an address that was never registered is not recorded here.';
+export const NO_TRANSFERS = 'No transfers';
+export const NOTHING_NEEDS_A_PERSON = 'Nothing recorded for this agent needs a person to look at it.';
+export const NOT_REGISTERED_NOTE = 'A transfer to or from an address that was never registered is recorded here and marked as not on the list; an outflow to one with no check before it is marked as unmatched.';
+
+/** The report's line for the transfers whose other side was not on the list, and the unmatched among them. */
+export function unregisteredLine(unregistered: number, unmatched: number): string {
+  const head = `${unregistered.toLocaleString('en-US')} ${unregistered === 1 ? 'transfer' : 'transfers'} to or from addresses not on the list`;
+  if (unmatched === 0) return `${head}.`;
+  return `${head}; ${unmatched.toLocaleString('en-US')} ${unmatched === 1 ? 'was an outflow' : 'were outflows'} with no check before ${unmatched === 1 ? 'it' : 'them'} (unmatched).`;
+}
+export const EVERY_TRANSFER_REGISTERED = 'Every transfer in this period had a registered address on the other side.';

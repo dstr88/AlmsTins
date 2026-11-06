@@ -27,9 +27,14 @@
  * not in the file.
  *
  * WHAT THE SIGNATURE SAYS. That this is the ledger as Almstins stored it when the file was made, and
- * that it is unaltered. It does not say the agent asked before every payment, and it does not cover a
- * transfer to an address that was never registered: the Vault never watches one. A file is a
- * snapshot (generated_at), so a later export of the same range can hold more.
+ * that it is unaltered. It does not say the agent asked before every payment. Since slice 8 every
+ * direct transfer of the agent's own wallet is in the file, and each transfer leaf says what the
+ * registry said about the other side when it was written (`counterparty`), whether it is the unmatched
+ * line (`unmatched`: an outflow to an address not on the list with no check before it) and whether the
+ * other side is a contract where the chain's listing could tell (`contract`). Those three fields were
+ * added after the first files were signed; a verifier rebuilds a root from the leaves in the file
+ * itself, so an older file still verifies. A file is a snapshot (generated_at), so a later export of
+ * the same range can hold more.
  *
  * FAIL CLOSED. There is no unsigned JSON and no way to have one presented as signed: with no signing
  * key, or a key that Almstins does not publish, the export is refused (signing_unavailable). A range
@@ -55,6 +60,7 @@ import { LEAF_SCHEMA_VERSION, orderLeaves, serializeLeaf, toFixedTrimmed, type C
 import { buildMerkleRoot, hashLeaf, toHex } from '@/lib/recordProof/merkle';
 import { canonicalManifestBytes, getPublishedKeys, getSigningKey, signManifestWithKey, verifyManifestSignature } from '@/lib/recordProof/signing';
 import { verifyBundle, type VerifyOutcome } from '@/lib/recordProof/verify';
+import { counterpartyOf, isLinkReason, isUnmatched } from './counterparty';
 import { countEventsInRange, readEventsInRange, type LedgerEvent } from './events';
 import { fail, idOf, type Failure } from './errors';
 import { basisOf, DAY_MS, dayBounds, hasLimitMarker, parseDay, utcDay } from './report';
@@ -162,11 +168,12 @@ export interface TransferLeaf {
   /** The time of the block, UTC ISO-8601 with milliseconds. */
   date: string;
   event_id: string;
-  /** The registered, trusted destination: the other side of the transfer. */
+  /** The other side of the transfer: a registered destination, or any address the wallet paid or was paid by. */
   address: string;
   chain: string | null;
   /** The verify-status taken from the check that came before it (`unknown` when none did). */
   answer: string | null;
+  /** What the registry said about the other side when the row was written: trusted, flagged, pending, or none for an address not on the list. */
   registry: string | null;
   /** Why no check stands behind it, when none does: no_preceding_check or ambiguous_checks. */
   reason: string | null;
@@ -185,11 +192,16 @@ export interface TransferLeaf {
   /** USD at the time of the transfer as a decimal string, or null when it could not be priced (never "0" for "unknown"). */
   usd: string | null;
   block_number: number | null;
+  /** The registry's word for the other side as the Record shows it: trusted, pending, flagged or unregistered; null for a word this file does not know. */
+  counterparty: string | null;
+  /** True for an outflow to an address not on the list with no check before it. */
+  unmatched: boolean;
+  /** Whether the other side is a contract, where the chain's listing could tell; null when it could not. */
+  contract: boolean | null;
 }
 
 export type LedgerLeaf = CheckedLeaf | TransferLeaf;
 
-const LINK_REASONS: ReadonlySet<string> = new Set(['no_preceding_check', 'ambiguous_checks']);
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
@@ -216,6 +228,8 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
   if (e.kind === 'transaction' && e.tx) {
     const reason = e.detail?.reason;
     const link = e.detail?.link as { eventId?: unknown } | null | undefined;
+    const counterparty = counterpartyOf(e.registry);
+    const contract = e.detail?.contract;
     return {
       v: 1,
       kind: 'transaction',
@@ -225,7 +239,7 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
       chain: e.chain,
       answer: e.answer,
       registry: e.registry,
-      reason: typeof reason === 'string' && LINK_REASONS.has(reason) ? reason : null,
+      reason: isLinkReason(reason) ? reason : null,
       linked_check: link && typeof link.eventId === 'string' && EVENT_ID.test(link.eventId) ? link.eventId : null,
       tx_hash: e.tx.hash,
       direction: e.tx.direction,
@@ -235,6 +249,9 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
       asset_contract: e.tx.assetContract,
       usd: toFixedTrimmed(e.tx.usd, USD_PLACES),
       block_number: e.tx.blockNumber,
+      counterparty,
+      unmatched: isUnmatched({ direction: e.tx.direction, counterparty, linked: !isLinkReason(reason) }),
+      contract: typeof contract === 'boolean' ? contract : null,
     };
   }
   return null;
@@ -326,8 +343,9 @@ export const AGENT_LEDGER_DISCLAIMER =
   'This proof attests INTEGRITY (the lines of this ledger export are unaltered), ORIGIN (signed by the Almstins key ' +
   'it names, which Almstins publishes) and the time the file was generated. It evidences what the Agent Vault had ' +
   'recorded for this agent in the range, and when. It does NOT attest that the agent asked before every payment, ' +
-  'that any underlying check, address or transfer was correct or complete, or anything about a transfer to an ' +
-  'address that was never registered: the Vault does not watch one. The agent name (tin_label) is text the ' +
+  'or that any underlying check, address or transfer was correct or complete. A transfer line says what the agent\'s ' +
+  'registry said about the other side when the line was written (counterparty), and whether it was an outflow to an ' +
+  'address not on the list with no check before it (unmatched). The agent name (tin_label) is text the ' +
   'account holder chose; Almstins did not check it.';
 
 const APP_BASE = process.env.APP_URL ?? 'https://almstins.com';
@@ -600,13 +618,14 @@ export function ledgerFileName(manifest: Pick<LedgerManifest, 'from_day' | 'to_d
 
 /**
  * The columns of the CSV copy. `reason` is why a check was answered as it was (for a check) or why no
- * check stands behind a transfer (for a transfer); it is a code, never free text. The last column is
- * the id of the signed file this is a copy of, on every line, so a single row can be matched to the
- * signed file without a line of prose in front of the header.
+ * check stands behind a transfer (for a transfer); it is a code, never free text. `counterparty`,
+ * `unmatched` and `contract` are the three transfer fields slice 8 added (see TransferLeaf); they sit
+ * before the last column, which stays the id of the signed file this is a copy of, on every line, so
+ * a single row can be matched to the signed file without a line of prose in front of the header.
  */
 export const CSV_COLUMNS = [
   'time_utc', 'kind', 'direction', 'address', 'chain', 'answer', 'registry', 'reason', 'wallet', 'amount', 'asset', 'asset_contract',
-  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'unsigned_copy_of_bundle_id',
+  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'counterparty', 'unmatched', 'contract', 'unsigned_copy_of_bundle_id',
 ] as const;
 
 /**
@@ -645,7 +664,8 @@ export function ledgerCsv(bundle: LedgerBundle): string {
     return [
       l.date, l.kind === 'checked' ? 'checked' : 'transaction', t ? t.direction : '', l.address, l.chain, l.answer, l.registry, t ? t.reason : (l as CheckedLeaf).basis,
       t ? t.wallet : '', t ? t.amount : '', t ? t.asset : '', t ? t.asset_contract : '', t ? t.usd : '', t ? t.tx_hash : '', t ? t.block_number : '', l.event_id,
-      t ? t.linked_check : '', l.kind === 'checked' ? l.key_id : '', copyOf,
+      t ? t.linked_check : '', l.kind === 'checked' ? l.key_id : '',
+      t ? t.counterparty : '', t ? (t.unmatched ? 'true' : 'false') : '', t ? (t.contract === null ? '' : t.contract ? 'true' : 'false') : '', copyOf,
     ].map(csvCell).join(',');
   });
   return CSV_BOM + [CSV_COLUMNS.join(','), ...rows].join('\r\n') + '\r\n';

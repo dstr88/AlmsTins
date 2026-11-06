@@ -109,7 +109,7 @@ export function ledgerNote(m: DescribableManifest): string | null {
   if (m.record_type !== 'agent_ledger') return null;
   return (
     'An export is a snapshot of the ledger when it was made. A later export of the same days can contain more, such as a transfer the chain confirmed late; ' +
-    'this check reads only this file and cannot see one. It does not show that the agent asked before every payment, and it contains nothing about a transfer to an address that was never registered. ' +
+    'this check reads only this file and cannot see one. It does not show that the agent asked before every payment. A transfer line says whether the other side was on the agent\'s list when it was recorded, and an outflow to an address not on the list with no check before it is marked as unmatched. ' +
     'On a plan with a daily limit, a check that came after the limit was reached is answered and not recorded, except one that came back flagged; the check that found the limit used up is marked in this file.'
   );
 }

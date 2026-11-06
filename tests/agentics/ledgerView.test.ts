@@ -27,7 +27,7 @@ describe('a check', () => {
   it('becomes a row with what a screen reads and nothing else', () => {
     expect(toLedgerRow(check())).toEqual({
       id: '00000000-0000-4000-8000-000000000001', at: AT, kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged',
-      basis: 'registry_flagged', linkReason: null, limitReached: false, keyState: 'active', tx: null,
+      basis: 'registry_flagged', linkReason: null, counterparty: null, unmatched: false, contract: null, limitReached: false, keyState: 'active', tx: null,
     });
   });
 
@@ -76,8 +76,35 @@ describe('a transfer', () => {
   it('becomes a row with its facts, and the reason it has no check behind it', () => {
     expect(toLedgerRow(move())).toEqual({
       id: '00000000-0000-4000-8000-000000000002', at: AT, kind: 'transaction', address: addr(2), chain: 'polygon', answer: 'unknown', registry: 'trusted',
-      basis: null, linkReason: 'no_preceding_check', limitReached: false, keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75 },
+      basis: null, linkReason: 'no_preceding_check', counterparty: 'trusted', unmatched: false, contract: null, limitReached: false, keyState: null, tx: { hash: HASH, direction: 'out', amount: '12.5', asset: 'POL', usd: 9.75 },
     });
+  });
+
+  it('says what the registry said about the other side when the row was written: none is shown as unregistered, a word it does not know as null', () => {
+    expect(toLedgerRow(move({ registry: 'none' }))?.counterparty).toBe('unregistered');
+    for (const registry of ['trusted', 'pending', 'flagged'] as const) expect(toLedgerRow(move({ registry }))?.counterparty).toBe(registry);
+    expect(toLedgerRow(move({ registry: 'unregistered' as never }))?.counterparty).toBeNull();
+    expect(toLedgerRow(move({ registry: null }))?.counterparty).toBeNull();
+    expect(toLedgerRow(check({ registry: 'none' }))?.counterparty).toBeNull(); // a check is about an address, not a transfer's other side
+  });
+
+  it('marks the unmatched line: an outflow to an address not on the list with no check behind it, and nothing else', () => {
+    const out = (over: Partial<EventView> = {}) => toLedgerRow(move({ registry: 'none', detail: { reason: 'no_preceding_check' }, ...over }))?.unmatched;
+    expect(out()).toBe(true);
+    expect(out({ detail: { reason: 'ambiguous_checks' } })).toBe(true);
+    expect(out({ detail: { link: { eventId: 'x' } } })).toBe(false); // a check stands behind it, even one answered unknown
+    expect(out({ tx: { ...move().tx!, direction: 'in' } })).toBe(false);
+    expect(out({ registry: 'trusted' })).toBe(false);
+    expect(out({ registry: 'flagged' })).toBe(false);
+    expect(out({ tx: null })).toBe(false);
+    expect(toLedgerRow(check())?.unmatched).toBe(false);
+  });
+
+  it('says whether the other side is a contract only when the detail says so in so many words', () => {
+    expect(toLedgerRow(move({ detail: { contract: true } }))?.contract).toBe(true);
+    expect(toLedgerRow(move({ detail: { contract: false } }))?.contract).toBe(false);
+    for (const odd of ['true', 1, null, {}, undefined]) expect(toLedgerRow(move({ detail: { contract: odd } }))?.contract, String(odd)).toBeNull();
+    expect(toLedgerRow(check({ detail: { contract: true } }))?.contract).toBeNull();
   });
 
   it('keeps an unpriced transfer unpriced: null is never 0', () => {

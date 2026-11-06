@@ -11,7 +11,7 @@ import type { ReportAddress, ListedBucketName } from '@/lib/agentVault/report';
 import { LISTED_BUCKETS } from '@/lib/agentVault/report';
 import type { ReportDetail } from '@/lib/agentVault/reports';
 import { formatClock, formatCount, formatDayLong, formatUsd, formatUtc, plural } from '@/lib/agentVault/reportFormat';
-import { BUCKET_MEANING, BUCKET_TITLE, VERIFY_STATUS_TITLE, reasonText } from '@/lib/agentVault/reportText';
+import { BUCKET_MEANING, BUCKET_TITLE, EVERY_TRANSFER_REGISTERED, reasonText, unregisteredLine, VERIFY_STATUS_TITLE } from '@/lib/agentVault/reportText';
 import { copy } from './copy';
 import { bundleHref, pdfHref, reportHref, REPORTS_PATH, VERIFY_RECORD_PATH } from './paths';
 
@@ -130,6 +130,11 @@ export default function ReportView({ report, signing }: { report: ReportDetail; 
           {copy.strip.statuses}:{' '}
           {(['proven', 'consistent-with-history', 'flagged', 'unknown'] as const).map((k) => `${VERIFY_STATUS_TITLE[k].toLowerCase()} ${formatCount(c.strip.byStatus[k])}`).join('  ·  ')}
           {c.strip.noPrecedingCheck ? ` (${copy.strip.noCheckBefore(c.strip.noPrecedingCheck)})` : ''}.
+        </p>
+      ) : null}
+      {c.strip.transfers > 0 && c.strip.byCounterparty ? (
+        <p className={c.strip.unmatched ? 'ag-note ag-event__line--warn' : 'ag-note'}>
+          {c.strip.byCounterparty.unregistered > 0 ? unregisteredLine(c.strip.byCounterparty.unregistered, c.strip.unmatched ?? 0) : EVERY_TRANSFER_REGISTERED}
         </p>
       ) : null}
 
