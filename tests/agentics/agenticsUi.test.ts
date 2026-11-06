@@ -145,7 +145,7 @@ describe('the Reports page', () => {
     expect(t).toContain('1 not confirmed');
     expect(t).toContain('1 new');
     expect(t).toContain('1 no issues');
-    expect(t).toContain('Bought $1,270.56');
+    expect(t).toContain('Received $1,270.56');
     expect(t).toContain('Version 2');
     expect(t).toContain('Partial day');
     expect(t).toContain('Unsigned');

@@ -230,11 +230,11 @@ export function buildReportPdf(input: { content: ReportContent; bundle: AgentRep
           : `${plural(s.count, 'transfer', 'transfers')}${s.unpricedCount ? `, ${s.unpricedCount} without a USD value (not in the total)` : ''}`;
       write(sub, x + 12, y + 42, { size: 7, alpha: PDF_ALPHA['--text-secondary'], width: half - 20, lineBreak: false });
     };
-    side(MARGIN.left, 'Bought', strip.bought);
-    side(MARGIN.left + half, 'Sold', strip.sold);
+    side(MARGIN.left, 'Received', strip.bought);
+    side(MARGIN.left + half, 'Sent', strip.sold);
     doc.save().strokeColor(INK, PDF_ALPHA['--border-bright']).lineWidth(0.6).moveTo(MARGIN.left + half, y + 8).lineTo(MARGIN.left + half, y + stripH - 8).stroke().restore();
     y += stripH + 6;
-    para('Raw value in (bought) and out (sold) of the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.', {
+    para('Raw value received by and sent from the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.', {
       size: 7.5,
       alpha: PDF_ALPHA['--text-secondary'],
       after: 4,
