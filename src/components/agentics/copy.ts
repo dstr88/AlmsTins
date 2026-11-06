@@ -130,7 +130,7 @@ export const copy = {
       issues: 'Only when something needs a look',
     },
     establishedLabel: 'Also email me at once when a check comes back Established: an address on the list the agent asked about before (at most one an hour for each address)',
-    countsOnly: 'Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in. Something needs a look when an address had issues or was not confirmed.',
+    countsOnly: 'Emails carry counts, or the name of the answer, and nothing more. Wallet addresses, labels and amounts stay behind your sign-in. Something needs a look when an address had issues or was not confirmed.',
     save: 'Save',
     saving: 'Saving',
     saved: 'Saved.',
@@ -342,7 +342,7 @@ export const copy = {
 
   wallets: {
     title: 'Agent wallets',
-    lede: 'The wallets this agent sends from and receives to. Almstins only reads them, to find transfers between them and your registered addresses.',
+    lede: 'The wallets this agent sends from and receives to. Almstins only reads them, and records every direct transfer they make or receive, marking whether the other side was on your list.',
     empty: 'No wallets yet. Add the address this agent sends from.',
     count: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'}`,
     countOf: (n: number, limit: number) => `${n} of ${limit} wallets`,
