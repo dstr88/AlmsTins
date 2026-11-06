@@ -343,3 +343,34 @@
   .ag-feed__stage { min-height: 9.5rem; padding: 0.85rem 0.9rem; }
   .ag-feed__big { font-size: 1.35rem; }
 }
+
+/* ── The Wallets page: two windows per wallet, like an inbox and an outbox ── */
+.ag-windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 0.9rem; margin-top: 0.9rem; }
+.ag-window { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card-2); }
+.ag-window__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border-subtle); }
+.ag-window__title { margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-primary); }
+.ag-window__actions { display: flex; gap: 0.4rem; margin-left: auto; }
+/* About eight one-line rows, then it scrolls; Expand lets it grow to every row it has loaded. */
+.ag-window__scroll { max-height: 22rem; overflow-y: auto; overscroll-behavior: contain; padding: 0.25rem 0; }
+.ag-window__scroll--open { max-height: none; }
+.ag-window__scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 0 0 10px 10px; }
+.ag-window__scroll > .ag-empty { padding: 0.7rem 0.75rem; }
+.ag-window__more { margin: 0.5rem 0.75rem; }
+.ag-window .ag-status { padding: 0 0.75rem 0.5rem; }
+.ag-wrows { list-style: none; margin: 0; padding: 0; }
+.ag-wrow { border-bottom: 1px solid var(--border-subtle); }
+.ag-wrow:last-child { border-bottom: 0; }
+.ag-wrow--unmatched { box-shadow: inset 3px 0 0 var(--warning); }
+.ag-wrow__line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; color: var(--text-secondary); list-style: none; }
+.ag-wrow__line::-webkit-details-marker { display: none; }
+.ag-wrow__line::before { content: '▸'; color: var(--text-muted); font-size: 0.75rem; }
+.ag-wrow details[open] > .ag-wrow__line::before { content: '▾'; }
+.ag-wrow__line:hover { background: var(--surface-hover); }
+.ag-wrow__line:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ag-wrow__time { color: var(--text-muted); font-size: 0.78rem; }
+.ag-wrow__amount { color: var(--text-primary); font-weight: 700; }
+.ag-wrow__who { overflow-wrap: anywhere; }
+.ag-wrow__more { padding: 0 0.75rem 0.6rem 1.6rem; }
+.ag-pager-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 1rem 0 0.5rem; }
+.ag-pager { display: flex; align-items: center; gap: 0.6rem; }
+@media (prefers-reduced-motion: no-preference) { .ag-window__scroll { scroll-behavior: smooth; } }

@@ -1,0 +1,24 @@
+---
+/**
+ * /dashboard/agentics/wallets[?page=N]: every agent's own wallets, ten to a page, each with what it
+ * received and what it sent. Owner-only while the Agent Vault is private (src/lib/agenticsAccess.ts):
+ * the middleware answers anyone else with the 404 page before this runs, and this checks again, so the
+ * page stays closed even if the gate is ever loosened. The first rows are read straight from the Vault,
+ * never through its own API; after that each window pages through /api/agentics/wallet-transfers. The
+ * page's title is the fixed word "Wallets", never an agent's name or an address.
+ */
+import AgenticsShell from '../../../components/agentics/AgenticsShell.astro';
+import WalletsPage from '../../../components/agentics/WalletWindows';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { loadWalletsPage } from '@/lib/agentVault/vaultPages';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || !canAccessAgenticsVault(session)) return new Response(null, { status: 404 });
+
+const data = await loadWalletsPage(session.tenantId, Astro.url.searchParams.get('page'));
+---
+
+<AgenticsShell title="Wallets" active="wallets" plan={data.plan}>
+  <WalletsPage client:load data={data} />
+</AgenticsShell>

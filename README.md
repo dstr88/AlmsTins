@@ -121,6 +121,10 @@ owner-only until `AGENTICS_VAULT_PUBLIC` in `src/lib/agenticsFlag.mjs` is set to
   under it starts from the oldest of its earlier per-destination cursors, or from its
   registration. Event ids are derived from the transaction hash and leg, so reading the same
   history twice never writes a row twice.
+- **Wallets page** (`/dashboard/agentics/wallets`): every agent's own wallets, ten to a page.
+  Each has two windows, what it received and what it sent, newest first, that scroll, expand and
+  load more, with a CSV download beside each (`/api/agentics/wallet-transfers`). Its reads use
+  their own index, migration 0069.
 - **Reports and export:** a daily report per agent, signed as a PDF and a proof bundle, and a
   signed export of the ledger for any range of days. Both count the transfers to addresses not
   on the list and the unmatched ones. Anyone can check a signed file at `/verify-record`, or

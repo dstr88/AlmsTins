@@ -276,7 +276,7 @@ describe('one agent', () => {
     expect(unlabelled(html)).toEqual([]);
     for (const c of classes(html)) expect(c, c).toMatch(/^ag-/);
     for (const h of hrefs(html)) {
-      expect(h, h).toMatch(/^(\/dashboard\/agentics|\/verify\/agent-keys|\/verify-record|https:\/\/(etherscan\.io|polygonscan\.com|snowtrace\.io)\/tx\/0x[0-9a-f]{64})$/);
+      expect(h, h).toMatch(/^(\/dashboard\/agentics|\/dashboard\/agentics\/wallets|\/verify\/agent-keys|\/verify-record|https:\/\/(etherscan\.io|polygonscan\.com|snowtrace\.io)\/tx\/0x[0-9a-f]{64})$/);
     }
   });
 
@@ -761,7 +761,7 @@ describe('the words on the screens', () => {
     } else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, out);
     return out;
   };
-  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.ledger, copy.refresh, copy.export];
+  const screens = [copy.plan, copy.home, copy.agent, copy.registry, copy.readout, copy.wallets, copy.walletsPage, copy.ledger, copy.refresh, copy.export];
 
   it('keep to the product\'s verbs and say nothing that stops a payment', () => {
     const all = screens.flatMap((s) => strings(s));

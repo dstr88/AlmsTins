@@ -42,6 +42,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0066_agent_established_alerts.sql'),
   path.join(ROOT, 'migrations-pg/0067_agent_warm_addresses.sql'),
   path.join(ROOT, 'migrations-pg/0068_agent_daily_prices.sql'),
+  path.join(ROOT, 'migrations-pg/0069_agent_events_wallet_index.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
   path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
   path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
@@ -84,7 +85,7 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, its warm-address cache, 0067, and its daily price table, 0068', () => {
+  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, its warm-address cache, 0067, its daily price table, 0068, and the wallet windows\' index, 0069', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
     expect(files.filter((f) => f.startsWith('0055'))).toEqual(['0055_agent_events_feed_index.sql']);
@@ -97,8 +98,9 @@ describe('the schema file and the code create the same tables', () => {
     // 0066 adds the Established email switch to the delivery settings.
     // 0067 is the Vault's warm-address cache for the keyed check's screening.
     // 0068 is the Vault's daily price table: one USD price per coin and day, filled after a transfer is recorded.
+    // 0069 is the index the Wallets page reads one wallet's transfers in one direction by.
     // Nothing else sits above 0055.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql', '0069_agent_events_wallet_index.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -179,6 +181,25 @@ describe('the ledger schema file and the code create the same table', () => {
   it('the four verify-statuses are the four the design names', async () => {
     const { VAULT_ANSWERS } = await import('../../src/lib/agentVault/events');
     expect([...VAULT_ANSWERS]).toEqual(['proven', 'consistent-with-history', 'flagged', 'unknown']);
+  });
+});
+
+describe('the wallet windows\' index file and the code create the same index', () => {
+  it('migrations-pg/0069_agent_events_wallet_index.sql holds exactly the statements ensureWalletIndex runs, in order', async () => {
+    const { AGENT_EVENTS_WALLET_DDL } = await import('../../src/lib/agentVault/events');
+    const statements = squash(read('migrations-pg/0069_agent_events_wallet_index.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_EVENTS_WALLET_DDL.map(squash));
+  });
+
+  it('is one index on the ledger, led by tenant_id and the agent, on transfers only', async () => {
+    const { AGENT_EVENTS_WALLET_DDL, AGENT_EVENTS_WALLET_INDEX } = await import('../../src/lib/agentVault/events');
+    expect(AGENT_EVENTS_WALLET_DDL).toHaveLength(1);
+    expect(squash(AGENT_EVENTS_WALLET_DDL[0])).toBe(
+      `CREATE INDEX IF NOT EXISTS ${AGENT_EVENTS_WALLET_INDEX} ON agent_events (tenant_id, tin_id, wallet, direction, occurred_at, id) WHERE kind = 'transaction'`,
+    );
   });
 });
 
@@ -484,6 +505,7 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0066_agent_established_alerts.sql',
       'migrations-pg/0067_agent_warm_addresses.sql',
       'migrations-pg/0068_agent_daily_prices.sql',
+      'migrations-pg/0069_agent_events_wallet_index.sql',
       'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
@@ -499,6 +521,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
       'src/components/agentics/WalletQr.tsx',
+      'src/components/agentics/WalletWindows.tsx',
       'src/components/agentics/WalletsPanel.tsx',
       'src/components/agentics/account.ts',
       'src/components/agentics/agentics.css',
@@ -556,6 +579,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/trustPolicy.ts',
       'src/lib/agentVault/vault.ts',
       'src/lib/agentVault/vaultPages.ts',
+      'src/lib/agentVault/walletCsv.ts',
       'src/lib/agentVault/warmCache.ts',
       'src/lib/agentVault/warmRule.ts',
       'src/lib/agentVault/watchState.ts',
@@ -576,6 +600,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/api/agentics/reports/pdf.ts',
       'src/pages/api/agentics/tins.ts',
       'src/pages/api/agentics/totals.ts',
+      'src/pages/api/agentics/wallet-transfers.ts',
       'src/pages/api/agentics/wallets.ts',
       'src/pages/api/cron/agent-reports.ts',
       'src/pages/api/cron/sync-agent-wallets.ts',
@@ -587,6 +612,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/pages/dashboard/agentics/reports.astro',
       'src/pages/dashboard/agentics/reports/[id].astro',
       'src/pages/dashboard/agentics/tins/[id].astro',
+      'src/pages/dashboard/agentics/wallets.astro',
     ]);
   });
 

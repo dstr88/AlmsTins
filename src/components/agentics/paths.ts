@@ -11,6 +11,12 @@ export const HOME_PATH = '/dashboard/agentics';
 
 export const REPORTS_PATH = '/dashboard/agentics/reports';
 
+/** Every agent's own wallets, ten to a page, each with what it received and what it sent. */
+export const WALLETS_PATH = '/dashboard/agentics/wallets';
+
+/** One page of the wallets page; the first page has no query. */
+export const walletsHref = (page: number): string => (page > 1 ? `${WALLETS_PATH}?page=${page}` : WALLETS_PATH);
+
 /** The live feed: the ledger of every agent, as it is written. */
 export const FEED_PATH = '/dashboard/agentics/feed';
 
@@ -51,4 +57,11 @@ const VAULT_EXPLORER_CHAINS: ReadonlySet<string> = new Set<string>(VAULT_CHAINS)
  */
 export function explorerTxHref(chain: string | null | undefined, hash: string): string | null {
   return typeof chain === 'string' && VAULT_EXPLORER_CHAINS.has(chain) ? explorerTxUrl(chain, hash) : null;
+}
+
+/** One page of a wallet window (JSON), or its whole download (CSV). Every part is encoded, so a value can never change the path or the query. */
+export function walletWindowUrl(p: { tinId: string; walletId: string; direction: 'in' | 'out'; before?: string | null; csv?: boolean }): string {
+  const base = `/api/agentics/wallet-transfers?tinId=${encodeURIComponent(p.tinId)}&walletId=${encodeURIComponent(p.walletId)}&direction=${p.direction}`;
+  if (p.csv) return `${base}&format=csv`;
+  return p.before ? `${base}&before=${encodeURIComponent(p.before)}` : base;
 }
