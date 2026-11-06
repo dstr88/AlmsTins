@@ -437,6 +437,12 @@ describe('the registry', () => {
 describe('the wallets', () => {
   const panel = (wallets: AgentWallet[], plan: PlanSummary = FREE) => render(React.createElement(WalletsPanel, { tinId: 'tin-1', wallets, plan }));
 
+  it('says what reading a wallet records: every direct transfer, marked with whether the other side was on the list, not only transfers with registered addresses', () => {
+    const t = textOf(panel([wallet(1)]));
+    expect(t).toContain('The wallets this agent sends from and receives to. Almstins only reads them, and records every direct transfer they make or receive, marking whether the other side was on your list.');
+    expect(t).not.toMatch(/to find transfers between them and your registered addresses/);
+  });
+
   it('lists each wallet in full with its chain and a copy button, and counts them against the plan\'s limit for an agent', () => {
     const html = panel([wallet(1), wallet(2, { chain: 'avalanche' })]);
     const t = textOf(html);

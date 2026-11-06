@@ -1,6 +1,7 @@
 /**
  * The agent's own wallets: the addresses it sends from and receives to. Almstins only reads them,
- * to find transfers between them and the registered addresses. Add one (a chain and an address),
+ * and records every direct transfer they make or receive, marking whether the other side was on the
+ * agent's list (src/lib/agentVault/watcher.ts). Add one (a chain and an address),
  * remove one; the plan's limit for each agent is said before it is reached and in calm words when
  * it is.
  *

@@ -218,7 +218,8 @@ describe('the email settings', () => {
     expect((h.match(/<option /g) ?? []).length).toBe(4);
     expect(t).toContain('A check that does not come back proven or established is always emailed at once, at most one an hour for each address.');
     expect(t).toContain('The report email and the Established email are off until you turn them on.');
-    expect(t).toContain('Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in.');
+    expect(t).toContain('Emails carry counts, or the name of the answer, and nothing more. Wallet addresses, labels and amounts stay behind your sign-in.');
+    expect(t).not.toContain('Emails carry counts only');
   });
 
   it('the one switch is the Established email, shown as saved: off by default', () => {
