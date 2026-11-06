@@ -447,14 +447,14 @@ describe('the daily limit on recorded checks', () => {
       const total = events().length;
       expect(total).toBe(limit + extra);
       const { recordKeyedCheck } = await import('../../src/lib/agentVault/checkLog');
-      const onFlagged = vi.fn();
+      const onAlert = vi.fn();
       const block = await recordKeyedCheck(
         { keyId: KEY_LINKED, value: addr(1), status: 'mismatch', level: 'verified', domain: 'other.example', proofAgeDays: 3, sourceIp: '203.0.113.9', now: new Date(NOON) },
-        { onFlagged },
+        { onAlert },
       );
       expect(block).toMatchObject({ answer: 'flagged', logged: false, eventId: null, reason: 'log_limit' });
-      await vi.waitFor(() => expect(onFlagged).toHaveBeenCalledTimes(1));
-      expect(onFlagged).toHaveBeenCalledWith({ tenantId: A, tinId: tin.id, address: addr(1) });
+      await vi.waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1));
+      expect(onAlert).toHaveBeenCalledWith({ tenantId: A, tinId: tin.id, address: addr(1), kind: 'mismatch' });
       expect(events()).toHaveLength(total);
     });
   });

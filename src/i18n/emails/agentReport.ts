@@ -41,9 +41,24 @@ export interface DigestEmailArgs {
   appBase: string;
 }
 
+/** What the check was answered, as the alert names it (src/lib/agentVault/alerts.ts AlertKind). */
+export type AlertEmailKind = 'mismatch' | 'flagged' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established';
+
 export interface AlertEmailArgs {
   appBase: string;
+  kind: AlertEmailKind;
 }
+
+/** For each answer: the word the subject names it by, and the sentence that says what happened. Never an address, a label or an amount. */
+const ALERT_WORDS: Record<AlertEmailKind, { word: string; what: string }> = {
+  mismatch: { word: 'Mismatch', what: 'One of your agents asked about an address, and a domain other than the one it expected vouches for that address.' },
+  flagged: { word: 'Flagged', what: 'One of your agents asked about an address that is flagged in its registry.' },
+  not_on_list: { word: 'Not on the list', what: 'One of your agents asked about an address that is not on its list.' },
+  pending: { word: 'Pending', what: 'One of your agents asked about an address on its list whose checks have not finished.' },
+  unanchored: { word: 'Unanchored', what: 'One of your agents asked about an address on its list for the first time. Someone proved control of the address, but no domain currently vouches for it.' },
+  unknown: { word: 'Unknown', what: 'One of your agents asked about an address on its list for the first time, and no proof of that address is on record.' },
+  established: { word: 'Established', what: 'One of your agents asked about an address on its list that it has asked about before, and nothing flagged it. Established means the same address as before, not proof of ownership.' },
+};
 
 export interface AgentReportEmailLocale {
   lang: Lang;
@@ -115,21 +130,29 @@ export const en: AgentReportEmailLocale = {
     return { subject: `${digestLead(a)} · Agent report, ${when.subject}`, text: lines.join('\n') };
   },
 
-  alert: ({ appBase }) => ({
-    subject: 'Action needed: a check on a registered address came back flagged',
-    text: [
-      `One of your agents asked about an address on its registry, and the check came back flagged.`,
-      ``,
-      `A person should look at it before anything is sent to that address. Almstins flags and records. It does not hold or move funds and is never in the payment path.`,
-      ``,
-      `This email does not show the address. Open the Reports page, behind your sign-in, to see it:`,
-      reportsLink(appBase),
-      ``,
-      `You are getting this because you turned on flagged-check emails. You get at most one an hour for the same address. To turn them off, open the Reports page.`,
-      ``,
-      `Almstins`,
-    ].join('\n'),
-  }),
+  alert: ({ appBase, kind }) => {
+    const w = ALERT_WORDS[kind] ?? ALERT_WORDS.unknown;
+    const established = kind === 'established';
+    return {
+      subject: established ? 'A check came back Established' : `Action needed: a check came back ${w.word}`,
+      text: [
+        w.what,
+        ``,
+        established
+          ? `No action is needed. Almstins flags and records. It does not hold or move funds and is never in the payment path.`
+          : `A person should look at it before anything is sent to that address. Almstins flags and records. It does not hold or move funds and is never in the payment path.`,
+        ``,
+        `This email does not show the address. Open the Reports page, behind your sign-in, to see it:`,
+        reportsLink(appBase),
+        ``,
+        established
+          ? `You are getting this because you turned on Established emails. You get at most one an hour for the same address. To turn them off, open the Reports page.`
+          : `Almstins emails you about every check that does not come back proven or established, at most one an hour for the same address.`,
+        ``,
+        `Almstins`,
+      ].join('\n'),
+    };
+  },
 };
 
 const MAP: Record<Lang, AgentReportEmailLocale> = { en, es: en, fr: en };

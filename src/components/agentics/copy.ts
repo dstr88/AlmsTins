@@ -121,7 +121,7 @@ export const copy = {
 
   delivery: {
     title: 'Email',
-    lede: 'Reports are always made and kept here. Email is off until you turn it on, and goes to the email address on your account.',
+    lede: 'Reports are always made and kept here. Email goes to the email address on your account. A check that does not come back proven or established is always emailed at once, at most one an hour for each address. The report email and the Established email are off until you turn them on.',
     cadenceLabel: 'Report email',
     cadence: {
       off: 'Off',
@@ -129,7 +129,7 @@ export const copy = {
       weekly: 'Every Monday, for the week before',
       issues: 'Only when something needs a look',
     },
-    alertsLabel: 'Email me at once when a check on a registered address comes back flagged (at most one an hour for each address)',
+    establishedLabel: 'Also email me at once when a check comes back Established: an address on the list the agent asked about before (at most one an hour for each address)',
     countsOnly: 'Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in. Something needs a look when an address had issues or was not confirmed.',
     save: 'Save',
     saving: 'Saving',

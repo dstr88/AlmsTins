@@ -119,7 +119,7 @@ const pageData = (over: Partial<ReportsPageData> = {}): ReportsPageData => {
     yesterday: '2026-10-17',
     signing: { available: true },
     tins: [{ id: 'tin-1', label: 'Treasury agent', since: '2026-10-01', reports: [item(c), item(c, { id: 'rep-0', day: '2026-10-16', version: 1, partial: true, signed: false })] }],
-    delivery: { settings: { cadence: 'off', alerts: false }, recipientAvailable: true },
+    delivery: { settings: { cadence: 'off', establishedAlerts: false }, recipientAvailable: true },
     ...over,
   };
 };
@@ -207,23 +207,26 @@ describe('the Reports page', () => {
 });
 
 describe('the email settings', () => {
-  const html = (over: Partial<{ cadence: 'off' | 'daily' | 'weekly' | 'issues'; alerts: boolean; recipientAvailable: boolean }> = {}) =>
-    render(React.createElement(DeliverySettings, { settings: { cadence: over.cadence ?? 'off', alerts: over.alerts ?? false }, recipientAvailable: over.recipientAvailable ?? true }));
+  const html = (over: Partial<{ cadence: 'off' | 'daily' | 'weekly' | 'issues'; established: boolean; recipientAvailable: boolean }> = {}) =>
+    render(React.createElement(DeliverySettings, { settings: { cadence: over.cadence ?? 'off', establishedAlerts: over.established ?? false }, recipientAvailable: over.recipientAvailable ?? true }));
 
-  it('shows the four choices, with the saved one selected, and says everything is off until turned on', () => {
+  it('shows the four choices, with the saved one selected, and says which emails are off until turned on and which always go', () => {
     const h = html({ cadence: 'weekly' });
     const t = textOf(h);
     for (const label of ['Off', 'Every day', 'Every Monday, for the week before', 'Only when something needs a look']) expect(t, label).toContain(label);
     expect(h).toMatch(/<option value="weekly" selected="">/);
     expect((h.match(/<option /g) ?? []).length).toBe(4);
-    expect(t).toContain('Email is off until you turn it on');
+    expect(t).toContain('A check that does not come back proven or established is always emailed at once, at most one an hour for each address.');
+    expect(t).toContain('The report email and the Established email are off until you turn them on.');
     expect(t).toContain('Emails carry counts only. Wallet addresses, labels and amounts stay behind your sign-in.');
   });
 
-  it('shows the alerts choice as saved: off by default', () => {
+  it('the one switch is the Established email, shown as saved: off by default', () => {
     expect(html()).not.toMatch(/type="checkbox" checked/);
-    expect(html({ alerts: true })).toMatch(/type="checkbox" checked/);
-    expect(textOf(html())).toContain('at most one an hour for each address');
+    expect(html({ established: true })).toMatch(/type="checkbox" checked/);
+    expect((html().match(/type="checkbox"/g) ?? []).length).toBe(1);
+    expect(textOf(html())).toContain('Also email me at once when a check comes back Established: an address on the list the agent asked about before (at most one an hour for each address)');
+    expect(textOf(html())).not.toMatch(/comes back flagged/);
   });
 
   it('warns when there is no address to send to, and says nothing otherwise', () => {
@@ -232,7 +235,7 @@ describe('the email settings', () => {
   });
 
   it('is on the Reports page, after the agents, and every class on it belongs to Agentics', () => {
-    const page = render(React.createElement(ReportsPage, { data: pageData({ delivery: { settings: { cadence: 'daily', alerts: true }, recipientAvailable: true } }) }));
+    const page = render(React.createElement(ReportsPage, { data: pageData({ delivery: { settings: { cadence: 'daily', establishedAlerts: true }, recipientAvailable: true } }) }));
     expect(page.indexOf('Treasury agent')).toBeLessThan(page.indexOf('Report email'));
     expect(page).toMatch(/<option value="daily" selected="">/);
     for (const c of classes(page)) expect(c, c).toMatch(/^ag-/);

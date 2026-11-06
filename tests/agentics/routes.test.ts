@@ -136,7 +136,7 @@ const ENDPOINTS: Array<[string, () => APIRoute, string, string, unknown?]> = [
   ['reports pdf GET', () => pdfRoute.GET, '/api/agentics/reports/pdf?id=x', 'GET'],
   ['reports bundle GET', () => bundleRoute.GET, '/api/agentics/reports/bundle?id=x', 'GET'],
   ['report-settings GET', () => settingsRoute.GET, '/api/agentics/report-settings', 'GET'],
-  ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', alerts: true }],
+  ['report-settings PUT', () => settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'daily', establishedAlerts: true }],
   ['plan GET', () => planRoute.GET, '/api/agentics/plan', 'GET'],
   ['export GET', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17', 'GET'],
   ['export GET csv', () => exportRoute.GET, '/api/agentics/export?tinId=x&from=2026-10-01&to=2026-10-17&format=csv', 'GET'],
@@ -938,24 +938,24 @@ describe('the owner: report email settings', () => {
     const r = await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET');
     expect(r.res.status).toBe(200);
     expect(r.res.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(r.json).toEqual({ ok: true, settings: { cadence: 'off', alerts: false }, recipientAvailable: expect.any(Boolean) });
+    expect(r.json).toEqual({ ok: true, settings: { cadence: 'off', establishedAlerts: false }, recipientAvailable: expect.any(Boolean) });
     expect(r.raw).not.toMatch(/tenant|@/i);
   });
 
   it('saves what is given and leaves the rest', async () => {
     const first = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'weekly' });
     expect(first.res.status).toBe(200);
-    expect(first.json.settings).toEqual({ cadence: 'weekly', alerts: false });
-    const second = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { alerts: true });
-    expect(second.json.settings).toEqual({ cadence: 'weekly', alerts: true });
-    expect((await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET')).json.settings).toEqual({ cadence: 'weekly', alerts: true });
-    const off = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'off', alerts: false });
-    expect(off.json.settings).toEqual({ cadence: 'off', alerts: false });
+    expect(first.json.settings).toEqual({ cadence: 'weekly', establishedAlerts: false });
+    const second = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { establishedAlerts: true });
+    expect(second.json.settings).toEqual({ cadence: 'weekly', establishedAlerts: true });
+    expect((await call(settingsRoute.GET, '/api/agentics/report-settings', 'GET')).json.settings).toEqual({ cadence: 'weekly', establishedAlerts: true });
+    const off = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', { cadence: 'off', establishedAlerts: false });
+    expect(off.json.settings).toEqual({ cadence: 'off', establishedAlerts: false });
     expect(fake.rows('agent_report_settings')).toHaveLength(1);
   });
 
   it('refuses anything else with a code: an unknown cadence, a non-boolean, or nothing at all', async () => {
-    for (const body of [{ cadence: 'hourly' }, { cadence: 7 }, { cadence: null }, { alerts: 'yes' }, { alerts: 1 }, { alerts: null }, {}, { other: true }]) {
+    for (const body of [{ cadence: 'hourly' }, { cadence: 7 }, { cadence: null }, { establishedAlerts: 'yes' }, { establishedAlerts: 1 }, { establishedAlerts: null }, {}, { other: true }, { alerts: true }]) {
       const r = await call(settingsRoute.PUT, '/api/agentics/report-settings', 'PUT', body);
       expect(r.res.status, JSON.stringify(body)).toBe(400);
       expect(r.json, JSON.stringify(body)).toEqual({ ok: false, error: 'invalid_settings' });

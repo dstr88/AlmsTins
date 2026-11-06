@@ -3,9 +3,10 @@ import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/rece
 import { addr, expectOk, fakeDeps, type FakeDeps } from '../helpers/agentVault';
 
 /**
- * The real-time alert: when a keyed check answers `flagged` for a registered destination, the
- * operator is told at once, if the account turned alerts on, at most once an hour per address, and
- * never in a way that can change the answer the agent gets. Over the real SQL run by the in-memory
+ * The real-time alert: when a keyed check is answered anything but proven, the operator is told at
+ * once, at most once an hour per address, and never in a way that can change the answer the agent
+ * gets. Mismatch, flagged, not on the list, pending, unanchored and unknown always email; established
+ * emails only when the account turned that on; proven never does. Over the real SQL run by the in-memory
  * stand-in for the database. Nothing real is called: the mail and the recipient lookup are replaced.
  * Every address, key, tenant and email is invented.
  */
@@ -93,24 +94,76 @@ const alertDeps = (now: Date = NOW) => ({
   },
   appBase: APP,
 });
-const info = (over: Partial<import('../../src/lib/agentVault/alerts').FlaggedCheckInfo> = {}) => ({ tenantId: A, tinId: 'tin-1', address: addr(1), ...over });
-const turnOn = (tenant = A, alertsOn = true) => delivery.writeSettings(tenant, { cadence: 'off', alerts: alertsOn }, '2026-10-01 00:00:00');
+const info = (over: Partial<import('../../src/lib/agentVault/alerts').CheckAlertInfo> = {}) => ({ tenantId: A, tinId: 'tin-1', address: addr(1), kind: 'mismatch' as const, ...over });
+const turnOn = (tenant = A, establishedOn = true) => delivery.writeSettings(tenant, { cadence: 'off', establishedAlerts: establishedOn }, '2026-10-01 00:00:00');
 
-describe('alertFlaggedCheck', () => {
-  it('says nothing until the account turned alerts on, and claims nothing', async () => {
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('alerts_off');
+describe('alertCheck', () => {
+  it('an established answer says nothing until the account turned the Established email on, and claims nothing', async () => {
+    expect(await alerts.alertCheck(info({ kind: 'established' }), alertDeps())).toBe('not_turned_on');
     await turnOn(A, false);
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('alerts_off');
+    expect(await alerts.alertCheck(info({ kind: 'established' }), alertDeps())).toBe('not_turned_on');
     expect(outbox.sent).toEqual([]);
     expect(fake.rows('agent_alert_claims') ?? []).toEqual([]);
+    await turnOn(A, true);
+    expect(await alerts.alertCheck(info({ kind: 'established' }), alertDeps())).toBe('sent');
+    expect(outbox.sent[0].subject).toBe('A check came back Established');
+    expect(outbox.sent[0].text).toContain('No action is needed.');
+    expect(outbox.sent[0].text).toContain('because you turned on Established emails');
+  });
+
+  it('every other answer emails with no switch at all, each named in the subject, and none carries the address', async () => {
+    const subjects: Record<string, string> = {
+      mismatch: 'Action needed: a check came back Mismatch',
+      flagged: 'Action needed: a check came back Flagged',
+      not_on_list: 'Action needed: a check came back Not on the list',
+      pending: 'Action needed: a check came back Pending',
+      unanchored: 'Action needed: a check came back Unanchored',
+      unknown: 'Action needed: a check came back Unknown',
+    };
+    let n = 0;
+    for (const [kind, subject] of Object.entries(subjects)) {
+      // A different address each time, so the hourly limit does not hide one.
+      expect(await alerts.alertCheck(info({ kind: kind as never, address: addr(100 + ++n) }), alertDeps()), kind).toBe('sent');
+      const mail = outbox.sent[outbox.sent.length - 1];
+      expect(mail.subject, kind).toBe(subject);
+      expect(mail.text, kind).toContain('every check that does not come back proven or established');
+      expect(`${mail.subject}\n${mail.text}`, kind).not.toContain(addr(100 + n));
+    }
+    expect(outbox.sent).toHaveLength(6);
+    // Never with a setting: the account above never saved one.
+    expect(fake.rows('agent_report_settings') ?? []).toEqual([]);
+  });
+
+  it('the Established email has an hour of its own: it never uses up the hour a mismatch on the same address needs', async () => {
+    await turnOn();
+    expect(await alerts.alertCheck(info({ kind: 'established' }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ kind: 'mismatch' }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ kind: 'unknown' }), alertDeps())).toBe('rate_limited'); // the mismatch spent this address's hour
+    expect(await alerts.alertCheck(info({ kind: 'established' }), alertDeps())).toBe('rate_limited');
+    expect(fake.rows('agent_alert_claims').map((r) => r.address).sort()).toEqual([addr(1), `${addr(1)}|established`].sort());
+    expect(alerts.claimKeyOf({ address: addr(1), kind: 'flagged' })).toBe(addr(1));
+  });
+
+  it('names the alert from the reason the check gave and the public status: proven never alerts', () => {
+    const k = alerts.alertKindOf;
+    expect(k('domain_proof', 'proven')).toBeNull();
+    expect(k('registered_and_checked_before', 'unknown')).toBe('established');
+    expect(k('registered_and_checked_before', 'unanchored')).toBe('established');
+    expect(k('domain_mismatch', 'mismatch')).toBe('mismatch');
+    expect(k('registry_flagged', 'proven')).toBe('flagged');
+    expect(k('not_in_registry', 'proven')).toBe('not_on_list');
+    expect(k('registry_pending', 'unknown')).toBe('pending');
+    expect(k('registered_first_check', 'unanchored')).toBe('unanchored');
+    expect(k('registered_first_check', 'unknown')).toBe('unknown');
+    expect(k('something_new', 'proven')).toBe('unknown'); // when in doubt, the operator is told
   });
 
   it('tells the verified operator email once, with the email that leads with the action and links to the Reports page', async () => {
     await turnOn();
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('sent');
     expect(outbox.sent).toHaveLength(1);
     expect(outbox.sent[0].to).toBe('operator-a@example.test');
-    expect(outbox.sent[0].subject).toBe('Action needed: a check on a registered address came back flagged');
+    expect(outbox.sent[0].subject).toBe('Action needed: a check came back Mismatch');
     expect(outbox.sent[0].text).toContain('https://almstins.test/dashboard/agentics/reports');
     expect(`${outbox.sent[0].subject}\n${outbox.sent[0].text}`).not.toContain(addr(1));
     expect(fake.rows('agent_alert_claims')).toEqual([expect.objectContaining({ tenant_id: A, tin_id: 'tin-1', address: addr(1), last_sent_at: NOW.toISOString() })]);
@@ -118,11 +171,11 @@ describe('alertFlaggedCheck', () => {
 
   it('at most one an hour for the same address of the same agent: the second is rate limited', async () => {
     await turnOn();
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 30 * 60_000)))).toBe('rate_limited');
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 60 * 60_000)))).toBe('rate_limited'); // exactly an hour is not yet past it
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 30 * 60_000)))).toBe('rate_limited');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 60 * 60_000)))).toBe('rate_limited'); // exactly an hour is not yet past it
     expect(outbox.sent).toHaveLength(1);
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 60 * 60_000 + 1)))).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 60 * 60_000 + 1)))).toBe('sent');
     expect(outbox.sent).toHaveLength(2);
     expect(fake.rows('agent_alert_claims')).toHaveLength(1); // one row per address, moved forward
     expect(fake.rows('agent_alert_claims')[0].last_sent_at).toBe(new Date(NOW.getTime() + 60 * 60_000 + 1).toISOString());
@@ -131,17 +184,17 @@ describe('alertFlaggedCheck', () => {
   it('a different address, agent or account is its own alert', async () => {
     await turnOn(A);
     await turnOn(B);
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
-    expect(await alerts.alertFlaggedCheck(info({ address: addr(2) }), alertDeps())).toBe('sent');
-    expect(await alerts.alertFlaggedCheck(info({ tinId: 'tin-2' }), alertDeps())).toBe('sent');
-    expect(await alerts.alertFlaggedCheck(info({ tenantId: B }), alertDeps())).toBe('sent');
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('rate_limited');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ address: addr(2) }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ tinId: 'tin-2' }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ tenantId: B }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('rate_limited');
     expect(outbox.sent.map((m) => m.to)).toEqual(['operator-a@example.test', 'operator-a@example.test', 'operator-a@example.test', 'operator-b@example.test']);
   });
 
   it('a burst of flagged checks at once sends one email, however many see them', async () => {
     await turnOn();
-    const results = await Promise.all(Array.from({ length: 12 }, () => alerts.alertFlaggedCheck(info(), alertDeps())));
+    const results = await Promise.all(Array.from({ length: 12 }, () => alerts.alertCheck(info(), alertDeps())));
     expect(results.filter((r) => r === 'sent')).toHaveLength(1);
     expect(results.filter((r) => r === 'rate_limited')).toHaveLength(11);
     expect(outbox.sent).toHaveLength(1);
@@ -151,17 +204,17 @@ describe('alertFlaggedCheck', () => {
   it('with no email address on file it sends nothing and does not use up the hour', async () => {
     await turnOn();
     outbox.inboxes[A] = null;
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('no_recipient');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('no_recipient');
     expect(fake.rows('agent_alert_claims') ?? []).toEqual([]);
     outbox.inboxes[A] = 'operator-a@example.test';
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('sent');
   });
 
   it('a mail that will not send is reported, never thrown, and logs no address', async () => {
     await turnOn();
     outbox.fail = true;
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('failed');
     const logged = JSON.stringify(log.mock.calls);
     expect(logged).toContain('SmtpError');
     expect(logged).toContain('ECONNRESET');
@@ -173,25 +226,25 @@ describe('alertFlaggedCheck', () => {
     await turnOn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     outbox.fail = true;
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('failed');
     expect(outbox.sent).toEqual([]);
     outbox.fail = false; // the mail system is back a minute later
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 60_000)))).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 60_000)))).toBe('sent');
     expect(outbox.sent).toHaveLength(1);
     // And now that one did go, the hour is spent as it always was.
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 120_000)))).toBe('rate_limited');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 120_000)))).toBe('rate_limited');
   });
 
   it('a failed send after an alert that did go earlier leaves the address free for the next check, not held for an hour that never produced an email', async () => {
     await turnOn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('sent');
     const later = new Date(NOW.getTime() + 2 * 60 * 60_000);
     outbox.fail = true;
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(later))).toBe('failed');
+    expect(await alerts.alertCheck(info(), alertDeps(later))).toBe('failed');
     expect(fake.rows('agent_alert_claims')).toEqual([expect.objectContaining({ last_sent_at: delivery.NEVER_ALERTED })]);
     outbox.fail = false;
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(later.getTime() + 1_000)))).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(later.getTime() + 1_000)))).toBe('sent');
     expect(outbox.sent).toHaveLength(2);
   });
 
@@ -199,7 +252,7 @@ describe('alertFlaggedCheck', () => {
     await turnOn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     outbox.fail = true;
-    await alerts.alertFlaggedCheck(info(), alertDeps());
+    await alerts.alertCheck(info(), alertDeps());
     expect(fake.rows('agent_alert_claims')).toEqual([expect.objectContaining({ last_sent_at: delivery.NEVER_ALERTED })]);
     expect(delivery.NEVER_ALERTED < new Date(NOW.getTime() - alerts.ALERT_WINDOW_MS).toISOString()).toBe(true);
   });
@@ -208,11 +261,11 @@ describe('alertFlaggedCheck', () => {
     await turnOn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const down = { ...alertDeps(), send: async () => { throw Object.assign(new Error('refused'), { name: 'SmtpError', code: 'ECONNRESET' }); } };
-    const results = await Promise.all(Array.from({ length: 8 }, () => alerts.alertFlaggedCheck(info(), down)));
+    const results = await Promise.all(Array.from({ length: 8 }, () => alerts.alertCheck(info(), down)));
     expect(results.every((r) => r === 'failed' || r === 'rate_limited')).toBe(true);
     expect(results).toContain('failed');
     expect(outbox.sent).toEqual([]);
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps(new Date(NOW.getTime() + 1_000)))).toBe('sent');
+    expect(await alerts.alertCheck(info(), alertDeps(new Date(NOW.getTime() + 1_000)))).toBe('sent');
     expect(outbox.sent).toHaveLength(1);
   });
 
@@ -228,13 +281,13 @@ describe('alertFlaggedCheck', () => {
         outbox.sent.push(mail);
       },
     };
-    const results = await Promise.all(Array.from({ length: 12 }, () => alerts.alertFlaggedCheck(info(), flaky)));
+    const results = await Promise.all(Array.from({ length: 12 }, () => alerts.alertCheck(info(), flaky)));
     expect(results.filter((r) => r === 'failed')).toHaveLength(1);
     expect(results.filter((r) => r === 'sent').length).toBeLessThanOrEqual(1);
     expect(outbox.sent.length).toBeLessThanOrEqual(1);
     // Whichever way the burst fell (the first failure's claim given back before some of the others
     // looked, or after all of them did), one more check leaves exactly one email sent in all.
-    await alerts.alertFlaggedCheck(info(), flaky);
+    await alerts.alertCheck(info(), flaky);
     expect(outbox.sent).toHaveLength(1);
   });
 
@@ -245,7 +298,7 @@ describe('alertFlaggedCheck', () => {
     holder.intercept = (sql) => {
       if (/^UPDATE agent_alert_claims SET last_sent_at = \? WHERE .* AND last_sent_at = \?$/.test(sql)) throw Object.assign(new Error(`lost the connection for ${addr(1)}`), { name: 'DatabaseError', code: '57P01' });
     };
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('failed');
     const logged = JSON.stringify(log.mock.calls);
     expect(logged).toContain('SmtpError'); // the send failure
     expect(logged).toContain('DatabaseError'); // and the release that failed
@@ -270,11 +323,11 @@ describe('alertFlaggedCheck', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.stubEnv('EMAIL_SERVER', '');
     const withDefaultSender = { ...alerts.defaultAlertDeps(), now: () => NOW, recipient: async () => 'operator-a@example.test' };
-    expect(await alerts.alertFlaggedCheck(info(), withDefaultSender)).toBe('failed');
+    expect(await alerts.alertCheck(info(), withDefaultSender)).toBe('failed');
     expect(outbox.sent).toEqual([]);
     expect(JSON.stringify((console.error as any).mock.calls)).toContain('E_NO_MAIL_TRANSPORT');
     vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587');
-    expect(await alerts.alertFlaggedCheck(info(), { ...withDefaultSender, now: () => new Date(NOW.getTime() + 1_000) })).toBe('sent');
+    expect(await alerts.alertCheck(info(), { ...withDefaultSender, now: () => new Date(NOW.getTime() + 1_000) })).toBe('sent');
     expect(outbox.sent).toHaveLength(1);
   });
 
@@ -282,19 +335,22 @@ describe('alertFlaggedCheck', () => {
     await turnOn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const broken = { ...alertDeps(), recipient: async () => { throw new Error('directory down'); } };
-    expect(await alerts.alertFlaggedCheck(info(), broken)).toBe('failed');
+    expect(await alerts.alertCheck(info(), broken)).toBe('failed');
     holder.intercept = (sql) => { if (/agent_alert_claims/.test(sql)) throw Object.assign(new Error('relation exploded'), { code: 'XX000' }); };
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(await alerts.alertCheck(info(), alertDeps())).toBe('failed');
+    // The settings are read only for an established answer (the others have no switch to read).
     holder.intercept = (sql) => { if (/agent_report_settings/.test(sql) && /^SELECT/.test(sql)) throw new Error('settings down'); };
-    expect(await alerts.alertFlaggedCheck(info(), alertDeps())).toBe('failed');
+    expect(await alerts.alertCheck(info({ kind: 'established', address: addr(3) }), alertDeps())).toBe('failed');
   });
 
-  it('an account that was never set up (no row at all) is simply off', async () => {
-    expect(await alerts.alertFlaggedCheck(info({ tenantId: 'someone-new' }), alertDeps())).toBe('alerts_off');
+  it('an account that was never set up (no row at all) gets the alerts that have no switch, and not the Established one', async () => {
+    outbox.inboxes['someone-new'] = 'someone-new@example.test';
+    expect(await alerts.alertCheck(info({ tenantId: 'someone-new' }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ tenantId: 'someone-new', kind: 'established', address: addr(2) }), alertDeps())).toBe('not_turned_on');
   });
 });
 
-describe('what starts the alert: a keyed check that is flagged for a registered address', () => {
+describe('what starts the alert: a keyed check answered anything but proven', () => {
   const KEYED = (over: Partial<import('../../src/lib/agentVault/checkLog').KeyedCheckInput> = {}) => ({
     keyId: KEY_1, value: addr(1), status: 'unknown' as const, level: null, domain: null, proofAgeDays: null, sourceIp: '203.0.113.9', now: NOW, ...over,
   });
@@ -308,9 +364,9 @@ describe('what starts the alert: a keyed check that is flagged for a registered 
   it('a domain mismatch on a trusted address calls the alert once, with the account, agent and address, after the event is written', async () => {
     const tin = await tinWith(addr(1));
     const seen: Array<{ info: unknown; eventsThen: number }> = [];
-    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged: (i) => { seen.push({ info: i, eventsThen: events().length }); } });
+    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert: (i) => { seen.push({ info: i, eventsThen: events().length }); } });
     await vi.waitFor(() => expect(seen).toHaveLength(1));
-    expect(seen[0].info).toEqual({ tenantId: A, tinId: tin.id, address: addr(1) });
+    expect(seen[0].info).toEqual({ tenantId: A, tinId: tin.id, address: addr(1), kind: 'mismatch' });
     expect(seen[0].eventsThen).toBe(1); // the check was already on the ledger
     expect(block).toMatchObject({ answer: 'flagged', registry: 'trusted', logged: true });
   });
@@ -319,54 +375,66 @@ describe('what starts the alert: a keyed check that is flagged for a registered 
     const tin = await tinWith('');
     const d = (await store.insertDestination(A, { tinId: tin.id, chain: 'ethereum', address: addr(1), label: null, at: '2026-10-01 00:00:00' })).destination;
     await store.recordTrust(A, d.id, { status: 'flagged', readout: { result: 'fail', hits: ['sanctioned'], limits: [], checkedAt: '2026-10-01T00:00:00.000Z' } as never, checkedAt: '2026-10-01 00:00:00' });
-    const onFlagged = vi.fn();
-    const block = await checkLog.recordKeyedCheck(KEYED(), { onFlagged });
-    await vi.waitFor(() => expect(onFlagged).toHaveBeenCalledTimes(1));
+    const onAlert = vi.fn();
+    const block = await checkLog.recordKeyedCheck(KEYED(), { onAlert });
+    await vi.waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1));
+    expect(onAlert.mock.calls[0][0]).toMatchObject({ kind: 'flagged' });
     expect(block).toMatchObject({ answer: 'flagged', registry: 'flagged' });
   });
 
-  it('a mismatch on an address that is NOT in the registry does not alert: it shows in the report instead', async () => {
+  it('a mismatch on an address that is NOT in the registry alerts too, as a mismatch', async () => {
     await tinWith('');
-    const onFlagged = vi.fn();
-    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged });
+    const onAlert = vi.fn();
+    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert });
     expect(block).toMatchObject({ answer: 'flagged', registry: 'none', logged: true });
-    await new Promise((r) => setTimeout(r, 20));
-    expect(onFlagged).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1));
+    expect(onAlert.mock.calls[0][0]).toMatchObject({ kind: 'mismatch' });
   });
 
-  it('proven, consistent-with-history and unknown never alert', async () => {
+  it('proven never alerts; established, a first check with no proof, and an address not on the list each alert, named as such', async () => {
     await tinWith(addr(1));
-    const onFlagged = vi.fn();
-    await checkLog.recordKeyedCheck(KEYED({ status: 'proven' }), { onFlagged });
-    await checkLog.recordKeyedCheck(KEYED({ status: 'unknown' }), { onFlagged }); // second check: consistent with history
-    await checkLog.recordKeyedCheck(KEYED({ value: addr(9) }), { onFlagged }); // not in the registry: unknown
+    const onAlert = vi.fn();
+    await checkLog.recordKeyedCheck(KEYED({ status: 'proven' }), { onAlert }); // trusted and domain-proven
     await new Promise((r) => setTimeout(r, 20));
-    expect(onFlagged).not.toHaveBeenCalled();
+    expect(onAlert).not.toHaveBeenCalled();
+    await checkLog.recordKeyedCheck(KEYED({ status: 'unknown' }), { onAlert }); // asked before: established
+    await checkLog.recordKeyedCheck(KEYED({ value: addr(9) }), { onAlert }); // not in the registry
+    await vi.waitFor(() => expect(onAlert).toHaveBeenCalledTimes(2));
+    expect(onAlert.mock.calls.map((c) => c[0].kind)).toEqual(['established', 'not_on_list']);
+  });
+
+  it('a trusted address checked for the first time with no domain proof alerts as unanchored or unknown, from the public status', async () => {
+    await tinWith(`${addr(1)}\n${addr(2)}`);
+    const onAlert = vi.fn();
+    await checkLog.recordKeyedCheck(KEYED({ status: 'unanchored' }), { onAlert });
+    await checkLog.recordKeyedCheck(KEYED({ value: addr(2), status: 'unknown' }), { onAlert });
+    await vi.waitFor(() => expect(onAlert).toHaveBeenCalledTimes(2));
+    expect(onAlert.mock.calls.map((c) => c[0].kind)).toEqual(['unanchored', 'unknown']);
   });
 
   it('a check that could not be written does not alert', async () => {
     await tinWith(addr(1));
     holder.intercept = (sql) => { if (/^INSERT INTO agent_events/i.test(sql)) throw new Error('disk full'); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const onFlagged = vi.fn();
-    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged });
+    const onAlert = vi.fn();
+    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert });
     expect(block).toMatchObject({ logged: false, answer: 'flagged' });
     await new Promise((r) => setTimeout(r, 20));
-    expect(onFlagged).not.toHaveBeenCalled();
+    expect(onAlert).not.toHaveBeenCalled();
   });
 
   const strip = (b: unknown) => { const { eventId: _e, ...rest } = b as Record<string, unknown>; return rest; };
 
   it('however the alert fails, the answer is exactly what it would have been', async () => {
     await tinWith(addr(1));
-    const baseline = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged: () => {} });
+    const baseline = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert: () => {} });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     for (const hook of [
       () => { throw new Error('thrown at once'); },
       () => Promise.reject(Object.assign(new Error(`rejected for ${addr(1)}`), { name: 'AlertError', code: 'E_ALERT' })),
       () => new Promise(() => {}), // never settles
     ]) {
-      const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged: hook });
+      const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert: hook });
       expect(strip(block)).toEqual(strip(baseline));
       expect((block as { logged: boolean }).logged).toBe(true);
     }
@@ -380,18 +448,13 @@ describe('what starts the alert: a keyed check that is flagged for a registered 
   it('the answer is not delayed by a slow alert', async () => {
     await tinWith(addr(1));
     const started = Date.now();
-    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onFlagged: () => new Promise((r) => setTimeout(r, 400)) });
+    const block = await checkLog.recordKeyedCheck(KEYED({ status: 'mismatch' }), { onAlert: () => new Promise((r) => setTimeout(r, 400)) });
     expect(Date.now() - started).toBeLessThan(300);
     expect(block).toMatchObject({ logged: true });
   });
 
-  it('with nothing replaced, a flagged check on a registered address emails the operator when alerts are on, and only then', async () => {
+  it('with nothing replaced, a mismatch emails the operator with no setting at all, once an hour for the address', async () => {
     await tinWith(addr(1));
-    await recordFlagged();
-    await new Promise((r) => setTimeout(r, 40));
-    expect(outbox.sent).toEqual([]); // alerts are off by default
-
-    await turnOn();
     await recordFlagged();
     await vi.waitFor(() => expect(outbox.sent).toHaveLength(1));
     expect(outbox.sent[0].to).toBe('operator-a@example.test');
@@ -406,37 +469,38 @@ describe('what starts the alert: a keyed check that is flagged for a registered 
 
   const recordFlagged = () => checkLog.recordKeyedCheck(KEYED({ status: 'mismatch', now: new Date() }));
 
-  it('with the mail down, the answer is still the same bytes as with alerts off', async () => {
+  it('with the mail down, the answer is still the same bytes as with the mail up', async () => {
     await tinWith(addr(1));
-    const off = await recordFlagged();
-    await turnOn();
+    const up = await recordFlagged();
+    await new Promise((r) => setTimeout(r, 40));
+    fake.tables.set('agent_alert_claims', []); // so the next check tries to send again
     outbox.fail = true;
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const on = await recordFlagged();
+    const down = await recordFlagged();
     await new Promise((r) => setTimeout(r, 40));
-    expect(strip(on)).toEqual(strip(off));
+    expect(strip(down)).toEqual(strip(up));
   });
 });
 
 describe('the delivery store', () => {
   it('reads an account that set nothing as everything off', async () => {
-    expect(await delivery.readSettings('never-seen')).toEqual({ cadence: 'off', alerts: false, lastDigestKey: null });
+    expect(await delivery.readSettings('never-seen')).toEqual({ cadence: 'off', establishedAlerts: false, lastDigestKey: null });
   });
 
   it('keeps the settings of each account apart', async () => {
-    await delivery.writeSettings(A, { cadence: 'daily', alerts: true }, '2026-10-01 00:00:00');
-    await delivery.writeSettings(B, { cadence: 'weekly', alerts: false }, '2026-10-01 00:00:00');
-    expect(await delivery.readSettings(A)).toMatchObject({ cadence: 'daily', alerts: true });
-    expect(await delivery.readSettings(B)).toMatchObject({ cadence: 'weekly', alerts: false });
-    await delivery.writeSettings(A, { cadence: 'off', alerts: false }, '2026-10-02 00:00:00');
-    expect(await delivery.readSettings(A)).toMatchObject({ cadence: 'off', alerts: false });
+    await delivery.writeSettings(A, { cadence: 'daily', establishedAlerts: true }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(B, { cadence: 'weekly', establishedAlerts: false }, '2026-10-01 00:00:00');
+    expect(await delivery.readSettings(A)).toMatchObject({ cadence: 'daily', establishedAlerts: true });
+    expect(await delivery.readSettings(B)).toMatchObject({ cadence: 'weekly', establishedAlerts: false });
+    await delivery.writeSettings(A, { cadence: 'off', establishedAlerts: false }, '2026-10-02 00:00:00');
+    expect(await delivery.readSettings(A)).toMatchObject({ cadence: 'off', establishedAlerts: false });
     expect(await delivery.readSettings(B)).toMatchObject({ cadence: 'weekly' });
   });
 
   it('lists only the accounts with a digest on, in order, and says what each last got', async () => {
-    await delivery.writeSettings('tenant-c', { cadence: 'issues', alerts: false }, '2026-10-01 00:00:00');
-    await delivery.writeSettings(B, { cadence: 'off', alerts: true }, '2026-10-01 00:00:00');
-    await delivery.writeSettings(A, { cadence: 'daily', alerts: false }, '2026-10-01 00:00:00');
+    await delivery.writeSettings('tenant-c', { cadence: 'issues', establishedAlerts: false }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(B, { cadence: 'off', establishedAlerts: true }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(A, { cadence: 'daily', establishedAlerts: false }, '2026-10-01 00:00:00');
     expect(await delivery.listOptedIn(10)).toEqual([
       { tenantId: A, cadence: 'daily', lastDigestKey: null },
       { tenantId: 'tenant-c', cadence: 'issues', lastDigestKey: null },
@@ -445,11 +509,11 @@ describe('the delivery store', () => {
   });
 
   it('claims a digest for one caller only, gives it back only if it is still theirs, and saving settings does not forget the last digest', async () => {
-    await delivery.writeSettings(A, { cadence: 'daily', alerts: false }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(A, { cadence: 'daily', establishedAlerts: false }, '2026-10-01 00:00:00');
     expect(await delivery.claimDigest(A, 'daily:2026-10-17', 'daily')).toBe(true);
     expect(await delivery.claimDigest(A, 'daily:2026-10-17', 'daily')).toBe(false);
     expect(await delivery.claimDigest(B, 'daily:2026-10-17', 'daily')).toBe(false); // B has no settings row: nothing to claim
-    await delivery.writeSettings(A, { cadence: 'daily', alerts: true }, '2026-10-02 00:00:00');
+    await delivery.writeSettings(A, { cadence: 'daily', establishedAlerts: true }, '2026-10-02 00:00:00');
     expect((await delivery.readSettings(A)).lastDigestKey).toBe('daily:2026-10-17');
     await delivery.releaseDigest(A, 'daily:2026-10-16', null); // not the current one: left alone
     expect((await delivery.readSettings(A)).lastDigestKey).toBe('daily:2026-10-17');
@@ -461,7 +525,7 @@ describe('the delivery store', () => {
   });
 
   it('every statement names the account', async () => {
-    await delivery.writeSettings(A, { cadence: 'daily', alerts: true }, '2026-10-01 00:00:00');
+    await delivery.writeSettings(A, { cadence: 'daily', establishedAlerts: true }, '2026-10-01 00:00:00');
     await delivery.readSettings(A);
     await delivery.claimDigest(A, 'k', 'daily');
     await delivery.releaseDigest(A, 'k', null);

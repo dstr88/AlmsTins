@@ -4,12 +4,16 @@
  * in ./delivery.ts, ./digest.ts, ./reportJob.ts and ./alerts.ts.
  *
  * Everything here is per account (tenant_id on every statement), so a plan can cap it later
- * without any of it assuming one account. Nothing is on until the owner turns it on: an account
- * with no row has cadence `off` and alerts off.
+ * without any of it assuming one account. An account with no row has cadence `off` and the
+ * Established email off. The alert for a check that is not proven or established has no switch
+ * (./alerts.ts): it is always sent.
  *
  *   agent_report_settings  one row per account: the digest cadence (off, daily, weekly, issues),
- *                          whether to be told at once about a flagged check, and the key of the
- *                          last digest sent, which is what stops the same digest going out twice.
+ *                          whether to be emailed when a check comes back established
+ *                          (`established_alerts`, added by migration 0066), and the key of the last
+ *                          digest sent, which is what stops the same digest going out twice. The
+ *                          older `alerts` column (the opt-in for flagged-check emails before those
+ *                          became always-on) is kept and no longer read or written.
  *   agent_alert_claims     one row per (account, tin, address): when it was last alerted about.
  *                          A claim is one atomic step, so a burst of flagged checks on one address
  *                          sends one email an hour, however many processes see them at once. A
@@ -18,8 +22,8 @@
  * Settings are configuration, not evidence, so they are updated in place; the ledger and the
  * reports stay append-only. Both tables are removed with the account
  * (src/lib/accountDeleteTables.ts). Schema is created lazily by ensureAgentDeliveryTables and
- * mirrored in migrations-pg/0054_agent_report_delivery.sql (tests/agentics/guards.test.ts keeps
- * the two equal).
+ * mirrored in migrations-pg/0054_agent_report_delivery.sql and 0066_agent_established_alerts.sql
+ * (tests/agentics/guards.test.ts keeps each pair equal).
  */
 import { db } from '@/lib/db';
 
@@ -46,13 +50,21 @@ export const AGENT_DELIVERY_DDL: readonly string[] = [
   )`,
 ];
 
+/**
+ * The Established switch, added after 0054 had run (so it is not in that file's list). Migration 0066
+ * holds the same statement. The table has one row per account, so the ALTER is quick.
+ */
+export const AGENT_ESTABLISHED_ALERTS_DDL: readonly string[] = [
+  `ALTER TABLE agent_report_settings ADD COLUMN IF NOT EXISTS established_alerts INTEGER NOT NULL DEFAULT 0`,
+];
+
 let ensurePromise: Promise<void> | null = null;
 
-/** Creates the delivery tables if they are missing. Runs once per process; a failed run is retried by the next call. */
+/** Creates the delivery tables and columns if they are missing. Runs once per process; a failed run is retried by the next call. */
 export function ensureAgentDeliveryTables(): Promise<void> {
   if (!ensurePromise) {
     const run = (async () => {
-      for (const sql of AGENT_DELIVERY_DDL) await db.execute({ sql, args: [] });
+      for (const sql of [...AGENT_DELIVERY_DDL, ...AGENT_ESTABLISHED_ALERTS_DDL]) await db.execute({ sql, args: [] });
     })();
     ensurePromise = run;
     run.catch(() => {
@@ -67,18 +79,19 @@ const isCadence = (v: unknown): v is Cadence => typeof v === 'string' && (CADENC
 /** One account's settings. */
 export interface StoredSettings {
   cadence: Cadence;
-  alerts: boolean;
+  /** Whether a check that comes back established is emailed at once. Off until the owner turns it on. */
+  establishedAlerts: boolean;
   /** The key of the last digest sent (see digestKey in ./digest.ts), or null when none has been. */
   lastDigestKey: string | null;
 }
 
 /** What an account has when it has set nothing: nothing is sent. */
-export const NO_SETTINGS: StoredSettings = { cadence: 'off', alerts: false, lastDigestKey: null };
+export const NO_SETTINGS: StoredSettings = { cadence: 'off', establishedAlerts: false, lastDigestKey: null };
 
 function settingsFrom(r: any): StoredSettings {
   return {
     cadence: isCadence(r.cadence) ? r.cadence : 'off',
-    alerts: Number(r.alerts) === 1,
+    establishedAlerts: Number(r.established_alerts) === 1,
     lastDigestKey: r.last_digest_key == null ? null : String(r.last_digest_key),
   };
 }
@@ -87,20 +100,20 @@ function settingsFrom(r: any): StoredSettings {
 export async function readSettings(tenantId: string): Promise<StoredSettings> {
   await ensureAgentDeliveryTables();
   const r = await db.execute({
-    sql: `SELECT cadence, alerts, last_digest_key FROM agent_report_settings WHERE tenant_id = ? LIMIT 1`,
+    sql: `SELECT cadence, established_alerts, last_digest_key FROM agent_report_settings WHERE tenant_id = ? LIMIT 1`,
     args: [tenantId],
   });
   return r.rows.length ? settingsFrom(r.rows[0]) : { ...NO_SETTINGS };
 }
 
-/** Saves an account's cadence and alerts, creating its row if it has none. The last digest key is left as it is. */
-export async function writeSettings(tenantId: string, next: { cadence: Cadence; alerts: boolean }, at: string): Promise<void> {
+/** Saves an account's cadence and Established switch, creating its row if it has none. The last digest key is left as it is. */
+export async function writeSettings(tenantId: string, next: { cadence: Cadence; establishedAlerts: boolean }, at: string): Promise<void> {
   await ensureAgentDeliveryTables();
   await db.execute({
-    sql: `INSERT INTO agent_report_settings (tenant_id, cadence, alerts, updated_at)
+    sql: `INSERT INTO agent_report_settings (tenant_id, cadence, established_alerts, updated_at)
           VALUES (?, ?, ?, ?)
-          ON CONFLICT (tenant_id) DO UPDATE SET cadence = excluded.cadence, alerts = excluded.alerts, updated_at = excluded.updated_at`,
-    args: [tenantId, next.cadence, next.alerts ? 1 : 0, at],
+          ON CONFLICT (tenant_id) DO UPDATE SET cadence = excluded.cadence, established_alerts = excluded.established_alerts, updated_at = excluded.updated_at`,
+    args: [tenantId, next.cadence, next.establishedAlerts ? 1 : 0, at],
   });
 }
 

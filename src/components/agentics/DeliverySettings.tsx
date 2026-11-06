@@ -1,7 +1,8 @@
 /**
- * Report email settings: how often to be sent a digest, and whether to be told at once about a
- * flagged check. Everything is off until the owner turns it on. One form for the account, not one
- * per agent: there is one inbox and one digest.
+ * Report email settings: how often to be sent a digest, and whether to be told at once when a check
+ * comes back established. Both are off until the owner turns them on. A check that is neither proven
+ * nor established is always emailed, so it has no switch here (src/lib/agentVault/alerts.ts). One
+ * form for the account, not one per agent: there is one inbox and one digest.
  *
  * Rendered on the server with the saved settings and hydrated, so the form is in the page before
  * any script runs. The only text that is not this file's own copy is the API's error code, and
@@ -22,7 +23,7 @@ export interface DeliveryProps {
 
 export default function DeliverySettings({ settings, recipientAvailable }: DeliveryProps) {
   const [cadence, setCadence] = useState<ReportSettings['cadence']>(settings.cadence);
-  const [alerts, setAlerts] = useState(settings.alerts);
+  const [established, setEstablished] = useState(settings.establishedAlerts);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
 
@@ -33,7 +34,7 @@ export default function DeliverySettings({ settings, recipientAvailable }: Deliv
       const res = await fetch('/api/agentics/report-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cadence, alerts }),
+        body: JSON.stringify({ cadence, establishedAlerts: established }),
       });
       const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: unknown } | null;
       setStatus(res.ok && body?.ok ? { kind: 'ok', text: copy.delivery.saved } : { kind: 'bad', text: errorText(body?.error) });
@@ -71,8 +72,8 @@ export default function DeliverySettings({ settings, recipientAvailable }: Deliv
           </select>
         </label>
         <label className="ag-check">
-          <input type="checkbox" checked={alerts} onChange={(e) => setAlerts(e.target.checked)} />
-          <span>{copy.delivery.alertsLabel}</span>
+          <input type="checkbox" checked={established} onChange={(e) => setEstablished(e.target.checked)} />
+          <span>{copy.delivery.establishedLabel}</span>
         </label>
         <button className="ag-btn ag-btn--primary" type="submit" aria-disabled={busy || undefined}>
           {busy ? copy.delivery.saving : copy.delivery.save}

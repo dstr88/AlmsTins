@@ -131,7 +131,8 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       unmatched: /with no check asked about it in the hour before, is marked as unmatched/,
       sameClass: /the same kind the Service keeps for any wallet you add \(the first point of this Section\)/,
       noDestinationHistory: /We do not read a destination's own history/,
-      emailsCarryCounts: /those emails carry counts and never an address, a label, or an amount/,
+      emailsCarryCounts: /those emails carry counts or the name of the answer, and never an address, a label, or an amount/,
+      alertsAlways: /to email you at once whenever a check your agent asks is answered anything other than proven, at most one email an hour for the same address \(for an answer of established, only if you turn that email on\)/,
       unlistedChecks: /including checks about addresses that are not on the agent's list, which records that your agent asked and does not put the address under watch/,
       retention: /The Agent Vault's record is append-only while your account is open/,
       mail: /welcome, report, alert, and account emails/,
@@ -155,7 +156,8 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       unmatched: /sin ninguna verificación pedida sobre ella en la hora anterior, se marca como sin correspondencia/,
       sameClass: /la misma clase de datos que el Servicio conserva para cualquier wallet que usted agrega \(primer punto de esta Sección\)/,
       noDestinationHistory: /No leemos el historial propio de un destino/,
-      emailsCarryCounts: /esos correos incluyen recuentos y nunca una dirección, una etiqueta ni un monto/,
+      emailsCarryCounts: /esos correos incluyen recuentos o el nombre de la respuesta, y nunca una dirección, una etiqueta ni un monto/,
+      alertsAlways: /para escribirle de inmediato cada vez que una verificación que pide su agente recibe una respuesta distinta de proven, como máximo un correo por hora para la misma dirección \(para una respuesta established, solo si usted activa ese correo\)/,
       unlistedChecks: /incluidas las verificaciones sobre direcciones que no están en la lista del agente, lo cual registra que su agente preguntó y no pone la dirección bajo vigilancia/,
       retention: /El registro del Agent Vault es de solo adición mientras su cuenta esté abierta/,
       mail: /correos de bienvenida, de informe, de alerta y de cuenta/,
@@ -179,7 +181,8 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
       unmatched: /sans aucune vérification demandée à son sujet dans l'heure précédente, est marquée comme sans correspondance/,
       sameClass: /de la même nature que celles que le Service conserve pour tout wallet que vous ajoutez \(premier point de cette Section\)/,
       noDestinationHistory: /Nous ne lisons pas l'historique propre d'une destination/,
-      emailsCarryCounts: /ces e-mails contiennent des totaux et jamais une adresse, une étiquette ni un montant/,
+      emailsCarryCounts: /ces e-mails contiennent des totaux ou le nom de la réponse, et jamais une adresse, une étiquette ni un montant/,
+      alertsAlways: /pour vous écrire aussitôt chaque fois qu'une vérification demandée par votre agent reçoit une réponse autre que proven, au plus un e-mail par heure pour la même adresse \(pour une réponse established, seulement si vous activez cet e-mail\)/,
       unlistedChecks: /y compris les vérifications portant sur des adresses qui ne figurent pas sur la liste de l'agent, ce qui enregistre que votre agent a posé la question et ne place pas l'adresse sous surveillance/,
       retention: /Le registre de l'Agent Vault est en ajout seul tant que votre compte est ouvert/,
       mail: /e-mails de bienvenue, de rapport, d'alerte et de compte/,
@@ -203,7 +206,7 @@ describe('Privacy Policy v1.3 discloses what the Agent Vault keeps and reads', (
   it.each(LANGS)('%s: Section 5 says what is read, from where, and what is never done', (lang) => {
     const s5 = section(policyBodies[lang], 5);
     const p = P[lang];
-    for (const k of ['ownWallet', 'etherscan', 'routescan', 'appendOnly', 'noPerson', 'onlyRegistered', 'noDestinationHistory', 'emailsCarryCounts', 'unlistedChecks', 'dailyLimit', 'readCadence', 'everyTransfer', 'counterparty', 'unmatched', 'sameClass'] as const) {
+    for (const k of ['ownWallet', 'etherscan', 'routescan', 'appendOnly', 'noPerson', 'onlyRegistered', 'noDestinationHistory', 'emailsCarryCounts', 'unlistedChecks', 'dailyLimit', 'readCadence', 'everyTransfer', 'counterparty', 'unmatched', 'sameClass', 'alertsAlways'] as const) {
       expect(s5, k).toMatch(p[k]);
     }
   });
