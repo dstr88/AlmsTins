@@ -126,10 +126,10 @@ describe('Terms of Service (findings B-A7, B-A8, B-A3, A-A1)', () => {
 		}
 	});
 
-	it('is version 1.2, effective October 12, 2026, so readers can tell the wording changed', () => {
-		expect(bodies.en).toMatch(/October 12, 2026 &nbsp;·&nbsp; <strong>Version:<\/strong> 1\.2/);
-		expect(bodies.es).toMatch(/12 de octubre de 2026 &nbsp;·&nbsp; <strong>Versión:<\/strong> 1\.2/);
-		expect(bodies.fr).toMatch(/12 octobre 2026 &nbsp;·&nbsp; <strong>Version :<\/strong> 1\.2/);
+	it('is version 1.3 (Agentics, B.9), so readers can tell the wording changed; the date is held by agenticsPolicyV13.test.ts', () => {
+		expect(bodies.en).toMatch(/ &nbsp;·&nbsp; <strong>Version:<\/strong> 1\.3/);
+		expect(bodies.es).toMatch(/ &nbsp;·&nbsp; <strong>Versión:<\/strong> 1\.3/);
+		expect(bodies.fr).toMatch(/ &nbsp;·&nbsp; <strong>Version :<\/strong> 1\.3/);
 	});
 });
 

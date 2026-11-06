@@ -3,10 +3,11 @@ import { en, es, fr } from '../../src/i18n/privacyPolicy';
 import { en as agentics } from '../../src/i18n/agentics';
 
 /**
- * The privacy policy says what email an Agentics signup gets: a welcome email, and one email when the
- * vault opens, and not the getting-started series. That must match what the door promises on the
- * landing page and in the letter itself (src/i18n/agentics.ts) and what the code does
- * (tests/agentics/doorDrip.test.ts). Pure copy checks, all three languages.
+ * The privacy policy says what email an Agentics signup gets: a welcome email the first time the account
+ * opens Agentics, one email on the day the vault opens (for an account that signed up before), and not the
+ * getting-started series. That must match what the door promises on the landing page and in the letter
+ * itself (src/i18n/agentics.ts) and what the code does (tests/agentics/doorDrip.test.ts,
+ * tests/agentics/firstVisit.test.ts, tests/agentics/doorSignup.test.ts). Pure copy checks, all three languages.
  */
 
 const bodies = { en: en.body, es: es.body, fr: fr.body };
@@ -22,9 +23,9 @@ function sectionFour(body: string): string {
 
 describe('the Agentics email line in the privacy policy', () => {
   it('is in Section 4, in English, Spanish and French', () => {
-    expect(sectionFour(bodies.en)).toMatch(/Send you a welcome email when you create an Almstins Agentics account, and one email when the Almstins Agentics vault opens\./);
-    expect(sectionFour(bodies.es)).toMatch(/Enviarle un correo de bienvenida cuando cree una cuenta de Almstins Agentics, y un correo cuando se abra el Vault de Almstins Agentics\./);
-    expect(sectionFour(bodies.fr)).toMatch(/Vous envoyer un e-mail de bienvenue lorsque vous créez un compte Almstins Agentics, et un e-mail à l'ouverture du Vault Almstins Agentics\./);
+    expect(sectionFour(bodies.en)).toMatch(/Send you a welcome email the first time you open Almstins Agentics and, if you signed up before the Agent Vault opened to everyone, one email on the day it opens\./);
+    expect(sectionFour(bodies.es)).toMatch(/Enviarle un correo de bienvenida la primera vez que abra Almstins Agentics y, si se registró antes de que el Agent Vault se abriera a todos, un correo el día en que se abra\./);
+    expect(sectionFour(bodies.fr)).toMatch(/Vous envoyer un e-mail de bienvenue la première fois que vous ouvrez Almstins Agentics et, si vous vous êtes inscrit avant l'ouverture de l'Agent Vault à tous, un e-mail le jour de son ouverture\./);
   });
 
   it('says Agentics-only accounts do not get the getting-started series, in all three languages', () => {
@@ -48,7 +49,7 @@ describe('the Agentics email line in the privacy policy', () => {
     expect(agentics.letter.why).toContain('only email we will send until your vault opens');
   });
 
-  it('leaves the version and date alone: that is a decision for the policy\'s owner', () => {
-    expect(bodies.en).toMatch(/October 12, 2026 &nbsp;&middot;&nbsp; <strong>Version:<\/strong> 1\.2/);
+  it('is in version 1.3, which added Agentics (the date is held by agenticsPolicyV13.test.ts)', () => {
+    for (const [lang, body] of Object.entries(bodies)) expect(body, lang).toMatch(/<strong>Vers(?:ion|ión) ?:?<\/strong> 1\.3/);
   });
 });
