@@ -121,7 +121,7 @@ export const copy = {
 
   delivery: {
     title: 'Email',
-    lede: 'Reports are always made and kept here. Email goes to the email address on your account. A check that does not come back proven or established is always emailed at once, at most one an hour for each address. The report email and the Established email are off until you turn them on.',
+    lede: 'Reports are always made and kept here. Email goes to the email address on your account. A check that does not come back proven or established, and an unmatched payment (an agent paying an address not on its list without asking about it first), are always emailed at once, at most one an hour for each address. The report email and the Established email are off until you turn them on.',
     cadenceLabel: 'Report email',
     cadence: {
       off: 'Off',

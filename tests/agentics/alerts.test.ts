@@ -550,3 +550,61 @@ describe('the delivery store', () => {
     for (const sql of own) expect(sql, sql).toMatch(/\btenant_id\b/);
   });
 });
+
+describe('the unmatched-payment email', () => {
+  const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+
+  it('always goes, with no switch, links to the agent\'s page, and carries no address, label or amount', async () => {
+    expect(await alerts.alertCheck(info({ kind: 'unmatched', tinId: 'tin-7', address: addr(5) }), alertDeps())).toBe('sent');
+    const mail = outbox.sent[0];
+    expect(mail.to).toBe('operator-a@example.test');
+    expect(mail.subject).toBe('Action needed: an agent paid an address it never asked about');
+    expect(mail.text).toContain("One of your agents' wallets sent a payment to an address that is not on its list, and the agent asked no check about that address in the hour before.");
+    expect(mail.text).toContain(`${APP}/dashboard/agentics/tins/tin-7`);
+    expect(mail.text).not.toContain('/dashboard/agentics/reports');
+    expect(mail.text).toContain('This email does not show the address or the amount.');
+    expect(`${mail.subject}\n${mail.text}`.toLowerCase()).not.toContain(addr(5).toLowerCase());
+    expect(mail.text).not.toMatch(/\$\d|\bETH\b|\bUSDC\b/);
+    expect(mail.text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|halted|reversed?)\b/i);
+    expect(mail.text).not.toMatch(/\bsafe\b/i);
+  });
+
+  it('goes at most once an hour for the same address, then again after the hour', async () => {
+    const u = info({ kind: 'unmatched' });
+    expect(await alerts.alertCheck(u, alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(u, alertDeps(later(10)))).toBe('rate_limited');
+    expect(await alerts.alertCheck(info({ kind: 'unmatched', address: addr(2) }), alertDeps(later(10)))).toBe('sent');
+    expect(await alerts.alertCheck(u, alertDeps(later(61)))).toBe('sent');
+    expect(outbox.sent).toHaveLength(3);
+  });
+
+  it('has an hour of its own: a payment and a check about the same address never use up each other\'s email', async () => {
+    expect(await alerts.alertCheck(info({ kind: 'mismatch' }), alertDeps())).toBe('sent');
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(later(1)))).toBe('sent');
+    expect(await alerts.alertCheck(info({ kind: 'flagged' }), alertDeps(later(2)))).toBe('rate_limited');
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(later(3)))).toBe('rate_limited');
+    expect(alerts.claimKeyOf({ address: addr(1), kind: 'unmatched' })).toBe(`${addr(1)}|unmatched`);
+    expect(alerts.claimKeyOf({ address: addr(1), kind: 'mismatch' })).toBe(addr(1));
+  });
+
+  it('gives its hour back when the send fails, so the next unmatched payment tries again', async () => {
+    outbox.fail = true;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps())).toBe('failed');
+    outbox.fail = false;
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(later(1)))).toBe('sent');
+  });
+
+  it('says nothing, and claims nothing, for an account with no operator email', async () => {
+    expect(await alerts.alertCheck(info({ kind: 'unmatched', tenantId: 'tenant-none' }), alertDeps())).toBe('no_recipient');
+    expect(fake.rows('agent_alert_claims') ?? []).toEqual([]);
+  });
+
+  it('emails a payment no older than 36 hours when it is read, and not one older', () => {
+    const now = NOW.getTime();
+    expect(alerts.unmatchedAlertDue(now - 36 * 3_600_000, now)).toBe(true);
+    expect(alerts.unmatchedAlertDue(now - 36 * 3_600_000 - 1, now)).toBe(false);
+    expect(alerts.unmatchedAlertDue(now - 60_000, now)).toBe(true);
+    expect(alerts.unmatchedAlertDue(Number.NaN, now)).toBe(false);
+  });
+});

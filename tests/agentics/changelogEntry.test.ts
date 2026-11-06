@@ -24,13 +24,13 @@ describe('the changelog entry for every outflow', () => {
     expect(readFileSync(path.join(ROOT, 'src/lib/agenticsFlag.mjs'), 'utf8')).toMatch(/export const AGENTICS_VAULT_PUBLIC = (true|false);/);
   });
 
-  it('says what the record now covers, the unmatched mark, the contract case, and that no email is sent', () => {
+  it('says what the record now covers, the unmatched mark, the contract case, and that an unmatched payment is now emailed', () => {
     for (const words of [
       "every direct transfer of an agent's own wallet on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side",
       'trusted, pending or flagged for an address you registered, or not on the list',
       'is marked as unmatched',
       'recorded as a transfer to that contract',
-      'No email is sent for an unmatched payment.',
+      'An unmatched payment is now also emailed to you at once (November 6).',
       'every file signed before this change still checks out',
     ]) {
       expect(entry, words).toContain(words);
@@ -62,7 +62,24 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.3', () => 
     expect(entitlements).toContain('export const FREE_LIMITS: PlanLimits = { bots: 3, addresses: 15, walletsPerBot: 5 };');
     expect(entitlements).toContain('export const FREE_LOGGED_CHECKS_PER_DAY = 5_000;');
     expect(article).toContain('3 agents, 15 addresses shared across them, 5 wallets per agent, and 5,000 recorded checks per agent per day');
-    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('<strong>Effective Date:</strong> November 5, 2026');
     expect(article.replace(/<[^>]+>/g, ' ')).not.toContain('—');
+  });
+});
+
+describe('the changelog entry for Privacy Policy and User Agreement 1.4', () => {
+  const start = page.indexOf('Privacy Policy version 1.4 and User Agreement version 1.4 are in effect.');
+  const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
+
+  it('is public, dated the day the documents carry, and names the one change', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(article).toContain('<time class="entry-date">November 6, 2026</time>');
+    const before = page.slice(0, page.lastIndexOf('<article', start));
+    expect((before.match(/&& \(<>/g) ?? []).length).toBe((before.match(/<\/>\)\}/g) ?? []).length);
+    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('<strong>Effective Date:</strong> November 6, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.4');
+    expect(article).toContain('emails you at once when a transfer out of one of your agents');
+    expect(article).toContain("The User Agreement's wording is unchanged");
+    const text = article.replace(/<[^>]+>/g, ' ');
+    expect(text).not.toContain('—');
+    expect(text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|holds?|held)\b/i);
   });
 });

@@ -45,6 +45,7 @@ import { defaultPricing, memoizePricing, priceTransfer, type PricingDeps } from 
 import { getTin, listDestinations, listWallets, listWatchTargets, type AgentWallet, type Destination, type Tin } from './store';
 import { EXPLORER_ACTIONS, normalizeTransfers, transferTime, type ExplorerAction, type Transfer } from './transfers';
 import { advanceWalletCursor, oldestPairCursor, readPairCursors, readWalletCursors } from './watchState';
+import { alertCheck, unmatchedAlertDue, type CheckAlertInfo } from './alerts';
 
 /** Rows per explorer page, and pages per read: the explorer allows page times offset up to 10,000. */
 export const PAGE_SIZE = 1000;
@@ -63,9 +64,15 @@ export interface WatchDeps {
   now: () => number;
   /** Smaller pages for a test; the explorer's own limits (PAGE_SIZE, MAX_PAGES) when omitted. */
   limits?: { pageSize?: number; maxPages?: number };
+  /**
+   * Tells the operator about an unmatched payment (./alerts.ts alertCheck, kind `unmatched`). Called without
+   * waiting, after the transfer is written, so a slow mail server never holds a read back. Left out (a test
+   * that is not about alerts), nothing is sent.
+   */
+  alert?: (info: CheckAlertInfo) => Promise<unknown>;
 }
 
-export const defaultWatchDeps: WatchDeps = { explorer: defaultExplorer, pricing: defaultPricing, now: () => Date.now() };
+export const defaultWatchDeps: WatchDeps = { explorer: defaultExplorer, pricing: defaultPricing, now: () => Date.now(), alert: (info) => alertCheck(info) };
 
 export interface PassOptions {
   /** Stop starting new reads at this time (milliseconds since the epoch). What was read stays, and the cursor says where to resume. */
@@ -348,6 +355,11 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
     if (written.inserted) {
       report.recorded += 1;
       if (price.kind === 'pending') report.pricePending += 1;
+      // A payment the agent never asked about is emailed at once, once an hour per address (./alerts.ts), and
+      // only when it is new: a read catching up on old history records it and marks it, and sends nothing.
+      if (unmatched && deps.alert && unmatchedAlertDue(atMs, nowMs)) {
+        deps.alert({ tenantId, tinId: tin.id, address: t.counterparty, kind: 'unmatched' }).catch(() => {});
+      }
     } else {
       report.alreadyRecorded += 1;
     }

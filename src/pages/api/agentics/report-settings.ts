@@ -7,8 +7,9 @@
  *          cadence: off (the default), daily, weekly, or issues (only when something needs a look).
  *          establishedAlerts: true or false (false by default): an email at once when a check comes
  *                   back established, at most one an hour per address.
- *          Anything else is 400 invalid_settings. A check that is neither proven nor established is
- *          always emailed (src/lib/agentVault/alerts.ts); there is no setting for it.
+ *          Anything else is 400 invalid_settings. A check that is neither proven nor established, and
+ *          an unmatched payment, are always emailed (src/lib/agentVault/alerts.ts); there is no setting
+ *          for either.
  *
  * Per account, not per agent: one inbox, one digest. The digest and the Established email are off until turned on. The
  * email goes to the account's verified operator email; the address is never returned here, only

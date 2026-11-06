@@ -29,6 +29,13 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">November 6, 2026</time>
+          <div class="entry-body">
+            <p>Privacy Policy version 1.4 and User Agreement version 1.4 are in effect. The one change is in the Privacy Policy: it now says the Agent Vault emails you at once when a transfer out of one of your agents' wallets is marked as unmatched (a payment to an address that is not on the agent's list, with no check about it in the hour before), at most one email an hour for the same address. Like the other Vault emails, it never shows an address, a label or an amount. The User Agreement's wording is unchanged; it moves to 1.4 so the two documents keep one version and one date. Read them at <a href="/privacy">almstins.com/privacy</a> and in the footer.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">November 5, 2026</time>
           <div class="entry-body">
             <p>Privacy Policy version 1.3 and User Agreement version 1.3 are in effect. They add Almstins Agentics and its Agent Vault, which opens to free accounts soon. They say what the Vault keeps: the agents you create, the wallets and addresses you register for each, and a dated record of the checks an agent asks with its key and of every direct transfer of the agent's own wallets, each marked with whether the other side was on your list. They say what it reads: only the wallets you register, never the history of any other address. It never links an address to a person, and it is never in the payment path.</p>
@@ -37,6 +44,14 @@ const t = getChangelog(lang);
         </article>
 
         {AGENTICS_VAULT_PUBLIC && (<>
+          <article class="entry">
+            <time class="entry-date">November 6, 2026 · Agent Vault</time>
+            <div class="entry-body">
+              <p>An unmatched payment is now emailed to you at once: a payment out of one of your agents' wallets to an address that is not on its list, when the agent asked no check about that address in the hour before. It is always on, like the email for a check that does not come back proven or established, and it has its own limit of one email an hour for the same address, so it never uses up the hour an email about a check on the same address needs, or the other way round.</p>
+              <p>The email does not show the address or the amount. It links to the agent's page, behind your sign-in. A payment found more than 36 hours after it was made, when a read catches up after an outage, is recorded and marked as before and is not emailed.</p>
+            </div>
+          </article>
+
           <article class="entry">
             <time class="entry-date">November 6, 2026 · Agent Vault</time>
             <div class="entry-body">
@@ -87,7 +102,7 @@ const t = getChangelog(lang);
             <time class="entry-date">November 5, 2026 · Agent Vault</time>
             <div class="entry-body">
               <p>The Agent Vault now records every direct transfer of an agent's own wallet on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side. Before, it kept only the transfers between the agent's wallet and the addresses you trusted, and anything else was left out. Each transfer now says what your list said about the other side when it was recorded: trusted, pending or flagged for an address you registered, or not on the list. That status is kept as it was; registering an address later labels the transfers that come after.</p>
-              <p>A payment out to an address that is not on the list, when the agent asked no check about that address in the hour before, is marked as unmatched: the agent paid someone it never asked about. The agent's page has a switch that shows only the transfers whose other side was not on the list, and the Live page marks an unmatched payment on its card. A payment that goes through a swap or a router is recorded as a transfer to that contract, marked as a contract call where the chain's listing says so. No email is sent for an unmatched payment.</p>
+              <p>A payment out to an address that is not on the list, when the agent asked no check about that address in the hour before, is marked as unmatched: the agent paid someone it never asked about. The agent's page has a switch that shows only the transfers whose other side was not on the list, and the Live page marks an unmatched payment on its card. A payment that goes through a swap or a router is recorded as a transfer to that contract, marked as a contract call where the chain's listing says so. An unmatched payment is now also emailed to you at once (November 6).</p>
               <p>The daily report adds a line saying how many transfers went to or came from addresses not on the list, and how many of those were unmatched. The signed report and the signed export carry the same marks, and every file signed before this change still checks out at <a href="/verify-record">almstins.com/verify-record</a>. The Privacy Policy and the User Agreement describe the wider record.</p>
               <p>A check about an address your agent asked about before, on your trusted list and with nothing flagging it, now reads Established on the agent's page, the Live page and in reports. It means the same address as before, not proof of who owns it. Agents that read the answer through the API still get consistent-with-history, unchanged.</p>
               <p>Every check your agent asks that does not come back proven or established is now emailed to you at once, whatever the answer: mismatch, flagged, not on the list, pending, unanchored or unknown. These emails have no off switch, and you get at most one an hour for the same address. An Established answer is emailed only if you turn that on in the Email settings on the Reports page. The emails name the answer and never show the address, a label or an amount.</p>
