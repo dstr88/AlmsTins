@@ -12,13 +12,14 @@ import { listAgentKeys, type AgentKeyMeta } from '@/lib/agentKeys';
 import { getSigningKey } from '@/lib/recordProof/signing';
 import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay, getPlanSummary, type PlanSummary } from './entitlements';
 import { idOf } from './errors';
-import { countCheckedSince, latestEventTime, limitMarkerSince, sumTransactions, type TinTotals } from './events';
+import { countCheckedSince, latestEventTime, limitMarkerSince, readEventsInRange, sumTransactions, type TinTotals } from './events';
 import { parseLedgerRows, type LedgerRow } from './ledgerView';
 import { utcDay } from './report';
 import { createdDay } from './reports';
 import { getTin, listDestinations, listTins, listWallets, type AgentWallet, type Destination, type Tin } from './store';
 import { FEED_EPOCH, readFeed, type FeedEvent } from './feed';
 import { listTinEvents, listWalletWindow, WALLET_WINDOW_PAGE } from './vault';
+import { groupSources, historyYears, yearRange, type IncomingTransfer, type MoneySource, type SourcesTotal } from './moneySources';
 
 /** The ledger rows a page opens with; "load more" pages onward by cursor. */
 export const FIRST_LEDGER_PAGE = 50;
@@ -259,4 +260,84 @@ export async function loadWalletsPage(tenantId: string, pageRaw: unknown): Promi
     }),
   );
   return { plan, page, pages, total: all.length, first: shown.length ? (page - 1) * WALLETS_PER_PAGE + 1 : 0, wallets };
+}
+
+// ── History: where money came from ───────────────────────────────────────────
+
+/** The most incoming transfers one year's list reads. Past it the list says it stopped there. */
+export const MAX_SOURCE_TRANSFERS = 50_000;
+
+export interface MoneySourcesData {
+  /** The year shown, and every year the page offers, newest first. */
+  year: number;
+  years: number[];
+  /** The agent the list is narrowed to, or null for every agent. */
+  agentId: string | null;
+  agents: Array<{ id: string; label: string }>;
+  sources: MoneySource[];
+  total: SourcesTotal;
+  /** True when the year had more than MAX_SOURCE_TRANSFERS incoming transfers and the list stopped there. */
+  truncated: boolean;
+}
+
+/**
+ * Every transfer that reached one of this account's agents' own wallets in a UTC calendar year, grouped
+ * by the address that sent it (./moneySources.ts). `yearRaw` and `agentRaw` come from the query string:
+ * an unknown year is the newest, and an agent that is not one of this account's live agents is every
+ * agent. Reads only this account's agents, one at a time, on the transfers index, with the day prices
+ * laid over as on every other read.
+ */
+export async function loadMoneySources(tenantId: string, yearRaw: unknown, agentRaw: unknown, nowMs: number = Date.now()): Promise<MoneySourcesData> {
+  const tins = await listTins(tenantId);
+  const firstCreated = tins.reduce<string | null>((min, t) => (min === null || t.createdAt < min ? t.createdAt : min), null);
+  const { years, year } = historyYears(firstCreated, new Date(nowMs).getUTCFullYear(), typeof yearRaw === 'string' ? yearRaw : null);
+  const agentId = typeof agentRaw === 'string' && tins.some((t) => t.id === agentRaw) ? agentRaw : null;
+  const read = agentId ? tins.filter((t) => t.id === agentId) : tins;
+
+  const labels = new Map<string, string>();
+  const ownWallets = new Map<string, string>();
+  await Promise.all(
+    tins.map(async (tin) => {
+      const [wallets, destinations] = await Promise.all([listWallets(tenantId, tin.id), listDestinations(tenantId, tin.id)]);
+      for (const w of wallets) if (!ownWallets.has(`${w.chain}|${w.address}`)) ownWallets.set(`${w.chain}|${w.address}`, tin.label);
+      for (const d of destinations) if (d.label && !labels.has(`${d.chain}|${d.address}`)) labels.set(`${d.chain}|${d.address}`, d.label);
+    }),
+  );
+
+  const transfers: IncomingTransfer[] = [];
+  let truncated = false;
+  for (const tin of read) {
+    if (truncated) break;
+    await readEventsInRange(
+      tenantId,
+      tin.id,
+      yearRange(year),
+      (e) => {
+        if (transfers.length >= MAX_SOURCE_TRANSFERS) {
+          truncated = true;
+          return false;
+        }
+        if (!e.tx || !e.chain) return true;
+        transfers.push({
+          id: e.id,
+          at: e.at,
+          tinId: e.tinId,
+          chain: e.chain,
+          from: e.address,
+          wallet: e.tx.wallet,
+          amount: e.tx.amount,
+          asset: e.tx.asset,
+          assetContract: e.tx.assetContract,
+          usd: e.tx.usd,
+          hash: e.tx.hash,
+          registry: e.registry,
+          detail: e.detail,
+        });
+        return true;
+      },
+      { direction: 'in' },
+    );
+  }
+  const { sources, total } = groupSources(transfers, { labels, ownWallets, agentNames: new Map(tins.map((t) => [t.id, t.label])) });
+  return { year, years, agentId, agents: tins.map((t) => ({ id: t.id, label: t.label })), sources, total, truncated };
 }

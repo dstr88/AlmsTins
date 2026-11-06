@@ -11,7 +11,7 @@ import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib
 
 export const copy = {
   brand: 'Almstins Agentics',
-  nav: { agents: 'Agents', wallets: 'Wallets', live: 'Live', reports: 'Reports', account: 'Account' },
+  nav: { agents: 'Agents', wallets: 'Wallets', live: 'Live', reports: 'Reports', history: 'History', account: 'Account' },
 
   account: {
     kicker: 'Almstins Agentics',
@@ -559,6 +559,45 @@ export const copy = {
       export_too_large: 'That window has more than 50,000 transfers, too many for one download. Use the signed export on the agent\'s page, by day.',
       export_busy: 'A download is already being made. Wait a few seconds, then try again.',
     } as Record<string, string>,
+  },
+
+  historyPage: {
+    kicker: 'Agent Vault',
+    title: 'History',
+    lede: 'A year of your agents at a glance, starting with where the money they received came from.',
+    yearLabel: 'Year',
+    yearsLabel: 'Years',
+    agentLabel: 'Agent',
+    agentsLabel: 'Show money received by',
+    allAgents: 'All agents',
+  },
+
+  sources: {
+    title: 'Where money came from',
+    lede: (year: number) => `Every transfer that reached one of your agents' own wallets in ${year}, grouped by the address that sent it, largest first. A wallet's transfers are recorded from the day it was added to an agent.`,
+    received: (year: number) => `Received in ${year}`,
+    transfers: (n: number) => `${n.toLocaleString('en-US')} ${n === 1 ? 'transfer' : 'transfers'}`,
+    senders: 'Addresses it came from',
+    notOnList: 'From addresses not on your lists',
+    notOnListNone: 'None',
+    withoutValue: (n: number) => `${n.toLocaleString('en-US')} without a USD value (not in the total)`,
+    pending: (n: number) => `${n.toLocaleString('en-US')} with a USD value still to come: the day's rate is taken at 12:00 UTC.`,
+    truncated: (n: number) => `This list covers the first ${n.toLocaleString('en-US')} transfers of the year. Narrow it to one agent to see the rest.`,
+    empty: (year: number) => `Nothing reached your agents' wallets in ${year}. A transfer shows here once the chain confirms it and the Vault has read the wallet.`,
+    noAgents: 'No agents yet. Add an agent and its wallets, and the money they receive shows here.',
+    listLabel: (year: number) => `Addresses your agents received money from in ${year}, largest first`,
+    ownWallet: (agent: string) => `Your wallet: ${agent}`,
+    total: (usd: string) => `${usd} at the time`,
+    noUsd: 'No USD value on record',
+    last: (day: string) => `Last ${day}`,
+    span: (first: string, last: string) => (first === last ? `On ${first}` : `From ${first} to ${last}`),
+    sent: (amounts: string) => `Sent: ${amounts}`,
+    toAgents: (agents: string) => `To: ${agents}`,
+    contract: 'Came through a contract: the sender shown is the contract, not whoever paid into it.',
+    recentLabel: 'Latest transfers from this address',
+    toAgent: (agent: string) => `to ${agent}`,
+    more: (n: number) => `And ${n.toLocaleString('en-US')} earlier. Each wallet's Received window on the Wallets page lists every one.`,
+    seeWallets: 'Open the Wallets page',
   },
 
   errors: {

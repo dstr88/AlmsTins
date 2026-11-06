@@ -20,6 +20,16 @@ export const walletsHref = (page: number): string => (page > 1 ? `${WALLETS_PATH
 /** The live feed: the ledger of every agent, as it is written. */
 export const FEED_PATH = '/dashboard/agentics/feed';
 
+/** The History page: a year of the account's agents, starting with where their money came from. */
+export const HISTORY_PATH = '/dashboard/agentics/history';
+
+/** A History list's address for a year and an agent (or every agent), on the page at `base`. */
+export function historyHref(base: string, year: number, agentId: string | null): string {
+  const q = new URLSearchParams({ year: String(year) });
+  if (agentId) q.set('agent', agentId);
+  return `${base}?${q.toString()}`;
+}
+
 /** The account page: who is signed in, and deleting the account. For every account with a real session, with or without the Vault. */
 export const ACCOUNT_PATH = '/agentics/account';
 

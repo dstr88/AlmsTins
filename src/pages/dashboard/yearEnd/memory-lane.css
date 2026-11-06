@@ -289,3 +289,6 @@
 	.ml-title { font-size: 1.4rem; }
 	.ml-grid { grid-template-columns: 1fr; }
 }
+
+/* The agents' list (src/components/agentics/MoneySources.tsx, styled by agentics.css), between the stats and the positions. */
+.ml-agents { margin: 0 0 2rem; }

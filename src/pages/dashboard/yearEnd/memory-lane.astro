@@ -11,6 +11,10 @@ import { getLang } from '@/lib/i18n/locale';
 import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
 import { formatDate, formatUsd, toLang } from '@/lib/format';
+import { canAccessAgenticsVault } from '@/lib/agenticsAccess';
+import { loadMoneySources, type MoneySourcesData } from '@/lib/agentVault/vaultPages';
+import MoneySources from '../../../components/agentics/MoneySources';
+import '../../../components/agentics/agentics.css';
 
 const lang = getLang(Astro.request);
 const t = getMemoryLane(lang);
@@ -197,6 +201,24 @@ try {
 	console.error('[memory-lane] data load failed:', err);
 }
 
+// ── Agents: where their money came from ─────────────────────────────────────────
+// For an account with Agent Vault agents, the same list the Agentics History page shows, for the year
+// picked here. Read on its own, after the tracker's data: a Vault failure leaves the rest of the page as it was.
+let agentSources: MoneySourcesData | null = null;
+if (!isDemo && canAccessAgenticsVault(session)) {
+	try {
+		const d = await loadMoneySources(tenantId, String(year), Astro.url.searchParams.get('agent'));
+		if (d.agents.length > 0) agentSources = d;
+	} catch (err) {
+		console.error('[memory-lane] agent history load failed:', err);
+	}
+}
+// An account whose only history is its agents' opens on its newest agent year, and that year is offered.
+if (agentSources) {
+	if (!yearParam && availableYears.length === 0 && agentSources.years[0] !== year) return Astro.redirect(`?year=${agentSources.years[0]}`, 302);
+	availableYears = [...new Set([...availableYears, ...agentSources.years])].sort((a, b) => b - a);
+}
+
 // ── Coin classification ────────────────────────────────────────────────────────
 type CoinType = 'L1' | 'DeFi' | 'Wrapped' | 'Stable' | 'Other';
 function classifyCoin(symbol: string): CoinType {
@@ -376,6 +398,13 @@ function timelineId(asset: string) {
 				<span class="ml-stat__num">{open.length}</span>
 				<span class="ml-stat__label">{t.statOpen}</span>
 			</div>
+		</div>
+	)}
+
+	<!-- ══ AGENTS: WHERE MONEY CAME FROM ═════════════════════════════════════ -->
+	{agentSources && (
+		<div class="ml-agents">
+			<MoneySources data={agentSources} base="/dashboard/yearEnd/memory-lane" yearLinks={false} />
 		</div>
 	)}
 
@@ -664,7 +693,7 @@ function timelineId(asset: string) {
 	)}
 
 	<!-- ── Empty state ────────────────────────────────────────────────────── -->
-	{closed.length === 0 && open.length === 0 && (
+	{closed.length === 0 && open.length === 0 && !agentSources && (
 		<div class="ml-empty">
 			<p class="ml-empty-title">{t.emptyTitle(year)}</p>
 			<p class="ml-empty-sub">{t.emptySub}</p>
