@@ -15,6 +15,7 @@ import type { AgentWallet } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
 import { ConfirmRemove, VaultCopyButton, shouldTakeFocus, Status } from './ui';
+import { WALLETS_PATH } from './paths';
 import WalletQrButton from './WalletQr';
 
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
@@ -98,6 +99,13 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
         <span className="ag-card__meta">{limit === null ? copy.wallets.count(list.length) : copy.wallets.countOf(list.length, limit)}</span>
       </div>
       <p className="ag-hint">{copy.wallets.lede}</p>
+      {list.length ? (
+        <p className="ag-hint">
+          <a className="ag-link" href={WALLETS_PATH}>
+            {copy.wallets.openWindows}
+          </a>
+        </p>
+      ) : null}
 
       <form
         className="ag-form"

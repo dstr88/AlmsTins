@@ -11,7 +11,7 @@ import { NO_TRANSFERS, NOT_REGISTERED_NOTE, NOTHING_NEEDS_A_PERSON } from '@/lib
 
 export const copy = {
   brand: 'Almstins Agentics',
-  nav: { agents: 'Agents', live: 'Live', reports: 'Reports', account: 'Account' },
+  nav: { agents: 'Agents', wallets: 'Wallets', live: 'Live', reports: 'Reports', account: 'Account' },
 
   account: {
     kicker: 'Almstins Agentics',
@@ -350,6 +350,7 @@ export const copy = {
     title: 'Agent wallets',
     lede: 'The wallets this agent sends from and receives to. Almstins only reads them, and records every direct transfer they make or receive, marking whether the other side was on your list.',
     empty: 'No wallets yet. Add the address this agent sends from.',
+    openWindows: 'See what each wallet received and sent',
     count: (n: number) => `${n} ${n === 1 ? 'wallet' : 'wallets'}`,
     countOf: (n: number, limit: number) => `${n} of ${limit} wallets`,
     chainLabel: 'Chain',
@@ -523,6 +524,40 @@ export const copy = {
       export_busy: 'An export is already being made. Wait a few seconds, then try again.',
       invalid_period: 'That range is not available. Pick real days and times, with the start before the end and the end no later than now.',
       invalid_format: 'Something went wrong. Try again in a moment.',
+    } as Record<string, string>,
+  },
+
+  walletsPage: {
+    kicker: 'Agent Vault',
+    title: 'Wallets',
+    lede: 'Every agent\'s own wallets, ten to a page. Each has two windows, newest first: what it received and what it sent. Almstins only reads these wallets and records each transfer.',
+    empty: 'No wallets yet. Add a wallet on an agent\'s page, and its transfers show here.',
+    range: (first: number, last: number, total: number) => `Wallets ${first} to ${last} of ${total}`,
+    pageOf: (page: number, pages: number) => `Page ${page} of ${pages}`,
+    pagerLabel: 'Wallet pages',
+    prev: 'Previous page',
+    next: 'Next page',
+    agent: (label: string) => `Agent: ${label}`,
+    windows: { in: 'Received', out: 'Sent' } as Record<'in' | 'out', string>,
+    windowLabel: { in: (wallet: string) => `What ${wallet} received`, out: (wallet: string) => `What ${wallet} sent` } as Record<'in' | 'out', (wallet: string) => string>,
+    windowEmpty: { in: 'Nothing received yet.', out: 'Nothing sent yet.' } as Record<'in' | 'out', string>,
+    shown: (n: number, more: boolean) => (more ? `Latest ${n}, more below` : `${n} ${n === 1 ? 'transfer' : 'transfers'}`),
+    from: (address: string) => `From ${address}`,
+    to: (address: string) => `To ${address}`,
+    unmatched: 'Unmatched',
+    expand: 'Expand',
+    collapse: 'Show less',
+    expandLabel: { in: (wallet: string) => `Expand what ${wallet} received`, out: (wallet: string) => `Expand what ${wallet} sent` } as Record<'in' | 'out', (wallet: string) => string>,
+    more: 'Load more',
+    loading: 'Loading',
+    download: 'Download CSV',
+    downloading: 'Preparing the file',
+    downloadLabel: { in: (wallet: string) => `Download what ${wallet} received, as a CSV`, out: (wallet: string) => `Download what ${wallet} sent, as a CSV` } as Record<'in' | 'out', (wallet: string) => string>,
+    downloaded: 'The file is in your downloads.',
+    csvNote: 'Each download is every transfer in that window, oldest first, as a CSV. It is not signed: the signed export on the agent\'s page is the record.',
+    errors: {
+      export_too_large: 'That window has more than 50,000 transfers, too many for one download. Use the signed export on the agent\'s page, by day.',
+      export_busy: 'A download is already being made. Wait a few seconds, then try again.',
     } as Record<string, string>,
   },
 

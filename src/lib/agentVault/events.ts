@@ -496,8 +496,32 @@ export const AGENT_EVENTS_FEED_DDL: readonly string[] = [
 /** After a failed attempt the next one waits this long: a lock that stays busy must not cost every poll a two-second wait. */
 export const FEED_INDEX_RETRY_MS = 5 * 60_000;
 
-let feedIndexPromise: Promise<void> | null = null;
-let feedIndexRetryAt = 0;
+/**
+ * A function that makes sure one index on agent_events exists, the careful way (see ensureFeedIndex for
+ * why): it looks first and takes no lock when the index is there; when it is missing it builds it in a
+ * transaction that waits at most two seconds for the table's lock. It never throws. A failed attempt is
+ * logged by name and code as "<what> not ensured", and the next one waits FEED_INDEX_RETRY_MS.
+ */
+function lazyIndex(indexName: string, ddl: readonly string[], what: string): () => Promise<void> {
+  let promise: Promise<void> | null = null;
+  let retryAt = 0;
+  return () => {
+    if (promise) return promise;
+    if (Date.now() < retryAt) return Promise.resolve();
+    const attempt: Promise<void> = (async () => {
+      const have = await db.execute({ sql: `SELECT 1 AS present FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?`, args: [indexName] });
+      if (have.rows.length) return;
+      await db.batch([{ sql: `SET LOCAL lock_timeout = '2s'`, args: [] }, ...ddl.map((sql) => ({ sql, args: [] }))], 'write');
+    })().catch((err) => {
+      const e = err as { name?: unknown; code?: unknown } | null;
+      console.error(`[agent-vault] ${what} not ensured`, { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+      retryAt = Date.now() + FEED_INDEX_RETRY_MS;
+      if (promise === attempt) promise = null;
+    });
+    promise = attempt;
+    return attempt;
+  };
+}
 
 /**
  * Makes sure the feed's index exists. Runs once per process, and only when the feed is read, never for a
@@ -515,21 +539,56 @@ let feedIndexRetryAt = 0;
  * (the ledger, the agent's page and the reports have it). Another reason to run the migration first.
  * A failed attempt is logged by name and code, and the next one waits FEED_INDEX_RETRY_MS.
  */
-export function ensureFeedIndex(): Promise<void> {
-  if (feedIndexPromise) return feedIndexPromise;
-  if (Date.now() < feedIndexRetryAt) return Promise.resolve();
-  const attempt: Promise<void> = (async () => {
-    const have = await db.execute({ sql: `SELECT 1 AS present FROM pg_indexes WHERE schemaname = current_schema() AND indexname = ?`, args: [AGENT_EVENTS_FEED_INDEX] });
-    if (have.rows.length) return;
-    await db.batch([{ sql: `SET LOCAL lock_timeout = '2s'`, args: [] }, ...AGENT_EVENTS_FEED_DDL.map((sql) => ({ sql, args: [] }))], 'write');
-  })().catch((err) => {
-    const e = err as { name?: unknown; code?: unknown } | null;
-    console.error('[agent-vault] feed index not ensured', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
-    feedIndexRetryAt = Date.now() + FEED_INDEX_RETRY_MS;
-    if (feedIndexPromise === attempt) feedIndexPromise = null;
+export const ensureFeedIndex: () => Promise<void> = lazyIndex(AGENT_EVENTS_FEED_INDEX, AGENT_EVENTS_FEED_DDL, 'feed index');
+
+// ── One wallet's transfers, one direction at a time ──────────────────────────
+
+/** The index the wallet windows read by. Migration 0069 holds the same statement. */
+export const AGENT_EVENTS_WALLET_INDEX = 'agent_events_wallet_transfers';
+
+/**
+ * Kept out of AGENT_EVENTS_DDL for the same reason as the feed's index: that list is migration 0051 word
+ * for word. Built only when a wallet window is read, the careful way (lazyIndex); run migration 0069 by
+ * hand before the ledger is large.
+ */
+export const AGENT_EVENTS_WALLET_DDL: readonly string[] = [
+  `CREATE INDEX IF NOT EXISTS ${AGENT_EVENTS_WALLET_INDEX} ON agent_events (tenant_id, tin_id, wallet, direction, occurred_at, id) WHERE kind = 'transaction'`,
+];
+
+/** Makes sure the wallet windows' index exists. Never throws: the windows work without it, only slower. */
+export const ensureWalletIndex: () => Promise<void> = lazyIndex(AGENT_EVENTS_WALLET_INDEX, AGENT_EVENTS_WALLET_DDL, 'wallet index');
+
+/** Which way a transfer went for the agent's wallet: `in` reached it (received), `out` left it (sent). */
+export type TransferDirection = 'in' | 'out';
+
+/**
+ * One page of the transfers of one of the agent's own wallets in one direction, newest first: what a
+ * wallet window shows (src/components/agentics/WalletWindows.tsx). `wallet` is the wallet's stored
+ * address (lowercase, as the watcher writes it) and `chain` its chain, so the same address on two chains
+ * is two wallets. `limit` is trusted to be a small positive integer (vault.ts clamps it). The cursor
+ * works as listEvents' does. Day prices are laid over the page as on every other read.
+ */
+export async function listWalletTransfers(
+  tenantId: string,
+  tinId: string,
+  opts: { chain: string; wallet: string; direction: TransferDirection; limit: number; before?: { at: string; id: string } | null },
+): Promise<{ events: LedgerEvent[]; next: string | null }> {
+  await ensureAgentEventsTable();
+  await ensureWalletIndex();
+  const args: Array<string | number> = [tenantId, tinId, opts.wallet.toLowerCase(), opts.direction, opts.chain];
+  let after = '';
+  if (opts.before) {
+    after = ` AND (occurred_at < ? OR (occurred_at = ? AND id < ?))`;
+    args.push(opts.before.at, opts.before.at, opts.before.id);
+  }
+  args.push(opts.limit + 1);
+  const r = await db.execute({
+    sql: `SELECT ${EVENT_COLUMNS} FROM agent_events WHERE tenant_id = ? AND tin_id = ? AND kind = 'transaction' AND wallet = ? AND direction = ? AND chain = ?${after} ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+    args,
   });
-  feedIndexPromise = attempt;
-  return attempt;
+  const rows = r.rows.map(eventFrom);
+  const page = await applyDailyPrices(rows.slice(0, opts.limit));
+  return { events: page, next: rows.length > opts.limit && page.length ? cursorOf(page[page.length - 1]) : null };
 }
 
 /**

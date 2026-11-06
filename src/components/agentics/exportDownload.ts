@@ -95,3 +95,28 @@ export function saveBlob(blob: Blob, filename: string): void {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** What a refused wallet download says: the wallets page's own line for the codes it has one for, else the general one. */
+export function walletCsvErrorText(code: unknown): string {
+  return typeof code === 'string' && Object.prototype.hasOwnProperty.call(copy.walletsPage.errors, code) ? copy.walletsPage.errors[code] : errorText(code);
+}
+
+/** Asks for a wallet window's CSV (paths.ts walletWindowUrl). Like requestExport, every failure ends in a message, never a thrown error. */
+export async function requestWalletCsv(url: string, fallbackName: string, fetchFn: typeof fetch = fetch): Promise<ExportResult> {
+  let res: Response;
+  try {
+    res = await fetchFn(url, { credentials: 'same-origin' });
+  } catch {
+    return { ok: false, message: errorText('network') };
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+    return { ok: false, message: walletCsvErrorText(body?.error) };
+  }
+  try {
+    const blob = await res.blob();
+    return { ok: true, blob, filename: filenameFrom(res.headers.get('Content-Disposition'), fallbackName) };
+  } catch {
+    return { ok: false, message: errorText('network') };
+  }
+}

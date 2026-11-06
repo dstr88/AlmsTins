@@ -40,6 +40,14 @@ const t = getChangelog(lang);
           <article class="entry">
             <time class="entry-date">November 5, 2026 · Agent Vault</time>
             <div class="entry-body">
+              <p>A new Wallets page shows every agent's own wallets, ten to a page. Each wallet has two windows side by side, like an inbox and an outbox: what it received and what it sent, newest first. A window shows about eight transfers and scrolls, Expand opens it to every transfer it has loaded, and Load more reads further back. Each line shows when, how much, the USD value and the other side with its status on your list, and opens to the rest: the full address, your label for it, whether a check came before it, and the transaction on the chain's explorer.</p>
+              <p>Beside each window is a Download CSV button: every transfer in that window, oldest first, with the same values the signed export carries. The CSV is not signed; the signed export on the agent's page is the record. Find the page under Wallets in the menu, or from the wallets card on an agent's page.</p>
+            </div>
+          </article>
+
+          <article class="entry">
+            <time class="entry-date">November 5, 2026 · Agent Vault</time>
+            <div class="entry-body">
               <p>A transfer of an agent's wallet now appears in the agent's record as soon as the chain confirms it, with its token and exact amount. Before, a transfer made before 12:00 UTC waited until after that time to appear, because its USD value is taken from that day's price at 12:00 UTC. Now its value follows: until the day's price is in, the record reads USD value pending, and once it is in, the value of every transfer of that coin that day is filled in together. Almstins looks up each coin's price once per day, however many transfers share it.</p>
               <p>A value under one cent now reads Under one US cent instead of $0.00. A signed export made while a value is still pending marks that transfer as pending, and every file signed before this change still checks out at <a href="/verify-record">almstins.com/verify-record</a>.</p>
             </div>

@@ -52,7 +52,7 @@ import {
 } from './store';
 import { getEntitlements } from './entitlements';
 import { fail, failLimit, idOf, type Failure, type VaultError } from './errors';
-import { listEvents, parseCursor, sumTransactions, type LedgerEvent, type LedgerFilter, type TinTotals } from './events';
+import { listEvents, listWalletTransfers, parseCursor, sumTransactions, type LedgerEvent, type LedgerFilter, type TinTotals, type TransferDirection } from './events';
 import { defaultTrustDeps, forgetAnswersOf, runTrustChecks, type TrustDeps } from './trustChecks';
 import { nextTrustStatus, type TrustStatus } from './trustPolicy';
 import { defaultWatchDeps, runTinPass, type TinPassReport, type WatchDeps } from './watcher';
@@ -539,6 +539,45 @@ export async function listTinEvents(
     events: page.events.map(({ sourceIp: _hash, ...e }) => ({ ...e, keyStatus: e.keyId ? (statuses.get(e.keyId) ?? 'unknown') : null })),
     next: page.next,
   };
+}
+
+// ── One wallet's windows ─────────────────────────────────────────────────────
+
+/** The rows a wallet window loads at a time: it shows about eight and scrolls; "load more" asks for the next ones. */
+export const WALLET_WINDOW_PAGE = 25;
+
+/** A direction from a query string: `in` or `out`, and nothing else. */
+export const directionOf = (raw: unknown): TransferDirection | null => (raw === 'in' || raw === 'out' ? raw : null);
+
+/**
+ * One page of one of the agent's own wallets, in one direction, newest first: what it received (`in`)
+ * or what it sent (`out`). Everything comes from a query string, so all of it is checked here: the
+ * agent and the wallet must be this account's, and the wallet that agent's; a limit falls back to
+ * WALLET_WINDOW_PAGE and is capped; a cursor this code did not make is refused.
+ */
+export async function listWalletWindow(
+  tenantId: string,
+  opts: { tinId: unknown; walletId: unknown; direction: unknown; limit?: unknown; before?: unknown },
+): Promise<(EventPage & { chain: AgentWallet['chain'] }) | Failure> {
+  const tinId = idOf(opts.tinId);
+  const walletId = idOf(opts.walletId);
+  if (!tinId || !walletId) return fail('invalid_id');
+  const direction = directionOf(opts.direction);
+  if (!direction) return fail('invalid_format');
+  const tin = await getTin(tenantId, tinId);
+  if (!tin) return fail('tin_not_found');
+  const wallet = (await listWallets(tenantId, tin.id)).find((w) => w.id === walletId);
+  if (!wallet) return fail('wallet_not_found');
+  const asked = Number(opts.limit);
+  const limit = Number.isInteger(asked) && asked >= 1 ? Math.min(asked, MAX_EVENT_PAGE) : WALLET_WINDOW_PAGE;
+  let before: { at: string; id: string } | null = null;
+  if (opts.before != null && opts.before !== '') {
+    before = parseCursor(opts.before);
+    if (!before) return fail('invalid_cursor');
+  }
+  const page = await listWalletTransfers(tenantId, tin.id, { chain: wallet.chain, wallet: wallet.address, direction, limit, before });
+  // A transfer has no key behind it, so there is no key status to look up.
+  return { ok: true, events: page.events.map(({ sourceIp: _hash, ...e }) => ({ ...e, keyStatus: null })), next: page.next, chain: wallet.chain };
 }
 
 // ── Watching the destinations ────────────────────────────────────────────────

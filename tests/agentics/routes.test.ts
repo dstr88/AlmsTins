@@ -433,9 +433,9 @@ describe('the endpoint files', () => {
   };
   const files = walk(API);
 
-  it('finds the fifteen endpoint files', () => {
+  it('finds the sixteen endpoint files', () => {
     expect(files.map((f) => path.relative(API, f).split(path.sep).join('/')).sort()).toEqual([
-      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'export.ts', 'feed.ts', 'feed/read.ts', 'plan.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallets.ts',
+      'destinations.ts', 'destinations/trust.ts', 'events.ts', 'export.ts', 'feed.ts', 'feed/read.ts', 'plan.ts', 'refresh.ts', 'report-settings.ts', 'reports.ts', 'reports/bundle.ts', 'reports/pdf.ts', 'tins.ts', 'totals.ts', 'wallet-transfers.ts', 'wallets.ts',
     ]);
   });
 
@@ -444,7 +444,8 @@ describe('the endpoint files', () => {
       const src = readFileSync(file, 'utf8');
       // The export names an agent and a range of days (never an address), and a format; the ledger and the reports page by size and cursor.
       // The live feed asks by a time it was given (`since`), a cursor it was given (`after`), a page size and an agent: never an address.
-      const allowed = file.endsWith('export.ts') ? ['tinId', 'from', 'to', 'format'] : file.endsWith('events.ts') ? ['id', 'tinId', 'limit', 'before', 'filter'] : file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : file.endsWith('feed.ts') ? ['since', 'after', 'limit', 'tinId'] : ['id', 'tinId'];
+      // A wallet window names an agent and a wallet by id (never by address), a direction, a page size, a cursor and a format.
+      const allowed = file.endsWith('wallet-transfers.ts') ? ['tinId', 'walletId', 'direction', 'limit', 'before', 'format'] : file.endsWith('export.ts') ? ['tinId', 'from', 'to', 'format'] : file.endsWith('events.ts') ? ['id', 'tinId', 'limit', 'before', 'filter'] : file.endsWith('reports.ts') ? ['id', 'tinId', 'limit', 'before'] : file.endsWith('feed.ts') ? ['since', 'after', 'limit', 'tinId'] : ['id', 'tinId'];
       const keys = [...src.matchAll(/searchParams\.get\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
       for (const key of keys) expect(allowed, `${file}: ${key}`).toContain(key);
     }

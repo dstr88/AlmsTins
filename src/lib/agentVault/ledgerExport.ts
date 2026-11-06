@@ -664,7 +664,7 @@ export const CSV_COLUMNS = [
  * plain UTF-8 and keeps it (Python's csv module, unless it is opened with encoding='utf-8-sig') sees it
  * as the first character of the first column name.
  */
-const CSV_BOM = '\uFEFF';
+export const CSV_BOM = '\uFEFF';
 
 /**
  * One CSV cell. A cell that a spreadsheet could read as a formula (it starts with =, +, - or @, with

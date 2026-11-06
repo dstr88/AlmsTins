@@ -18,7 +18,7 @@ import { utcDay } from './report';
 import { createdDay } from './reports';
 import { getTin, listDestinations, listTins, listWallets, type AgentWallet, type Destination, type Tin } from './store';
 import { FEED_EPOCH, readFeed, type FeedEvent } from './feed';
-import { listTinEvents } from './vault';
+import { listTinEvents, listWalletWindow, WALLET_WINDOW_PAGE } from './vault';
 
 /** The ledger rows a page opens with; "load more" pages onward by cursor. */
 export const FIRST_LEDGER_PAGE = 50;
@@ -184,4 +184,79 @@ export async function loadFeedPage(tenantId: string): Promise<FeedPageData> {
     agents: tins.map((t) => ({ id: t.id, label: t.label })),
     initial: feed.ok ? { events: feed.events, since: feed.since } : { events: [], since: FEED_EPOCH },
   };
+}
+
+// ── The wallets page ─────────────────────────────────────────────────────────
+
+/** Wallets on one page of /dashboard/agentics/wallets. */
+export const WALLETS_PER_PAGE = 10;
+
+/** One window: the first rows of a wallet in one direction, and the cursor for the next ones. */
+export interface WalletWindowData {
+  rows: LedgerRow[];
+  next: string | null;
+}
+
+export interface WalletBox {
+  agent: { id: string; label: string };
+  wallet: AgentWallet;
+  /** What the wallet received, newest first. */
+  received: WalletWindowData;
+  /** What the wallet sent, newest first. */
+  sent: WalletWindowData;
+  /** The labels the agent gave its registered addresses, keyed `chain|address`, to name the other side of a row. */
+  labels: Record<string, string>;
+}
+
+export interface WalletsPageData {
+  plan: PlanSummary;
+  /** The page shown, from 1, and how many there are (at least 1, even with no wallet). */
+  page: number;
+  pages: number;
+  /** Every wallet of every agent on the account. */
+  total: number;
+  /** The place of the first wallet on this page among all of them, from 1 (0 when there is none). */
+  first: number;
+  wallets: WalletBox[];
+}
+
+/** A page number from a query string: a whole number from 1, or 1. A number past the last page is the last page. */
+export function pageOf(raw: unknown, pages: number): number {
+  const n = typeof raw === 'string' && /^\d{1,6}$/.test(raw) ? Number(raw) : 1;
+  return Math.min(Math.max(n, 1), Math.max(pages, 1));
+}
+
+async function windowOf(tenantId: string, tinId: string, walletId: string, direction: 'in' | 'out'): Promise<WalletWindowData> {
+  const r = await listWalletWindow(tenantId, { tinId, walletId, direction, limit: WALLET_WINDOW_PAGE });
+  return r.ok ? { rows: parseLedgerRows(r.events), next: r.next } : { rows: [], next: null };
+}
+
+/**
+ * Every agent's own wallets, ten to a page, in the order the agents and then their wallets were
+ * added, each with its two windows. Reads only this account's agents, and only the wallets of the
+ * page shown.
+ */
+export async function loadWalletsPage(tenantId: string, pageRaw: unknown): Promise<WalletsPageData> {
+  const [plan, tins] = await Promise.all([getPlanSummary(tenantId), listTins(tenantId)]);
+  const perAgent = await Promise.all(tins.map(async (tin) => ({ tin, wallets: await listWallets(tenantId, tin.id) })));
+  const all = perAgent.flatMap(({ tin, wallets }) => wallets.map((wallet) => ({ tin, wallet })));
+  const pages = Math.max(1, Math.ceil(all.length / WALLETS_PER_PAGE));
+  const page = pageOf(pageRaw, pages);
+  const shown = all.slice((page - 1) * WALLETS_PER_PAGE, page * WALLETS_PER_PAGE);
+  const labelsOf = new Map<string, Promise<Record<string, string>>>();
+  const labels = (tinId: string) => {
+    let p = labelsOf.get(tinId);
+    if (!p) {
+      p = listDestinations(tenantId, tinId).then((ds) => Object.fromEntries(ds.filter((d) => d.label).map((d) => [`${d.chain}|${d.address}`, d.label as string])));
+      labelsOf.set(tinId, p);
+    }
+    return p;
+  };
+  const wallets = await Promise.all(
+    shown.map(async ({ tin, wallet }): Promise<WalletBox> => {
+      const [received, sent, named] = await Promise.all([windowOf(tenantId, tin.id, wallet.id, 'in'), windowOf(tenantId, tin.id, wallet.id, 'out'), labels(tin.id)]);
+      return { agent: { id: tin.id, label: tin.label }, wallet, received, sent, labels: named };
+    }),
+  );
+  return { plan, page, pages, total: all.length, first: shown.length ? (page - 1) * WALLETS_PER_PAGE + 1 : 0, wallets };
 }
