@@ -42,7 +42,7 @@ export interface DigestEmailArgs {
 }
 
 /** What the check was answered, as the alert names it (src/lib/agentVault/alerts.ts AlertKind). */
-export type AlertEmailKind = 'mismatch' | 'flagged' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established';
+export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established';
 
 export interface AlertEmailArgs {
   appBase: string;
@@ -53,6 +53,7 @@ export interface AlertEmailArgs {
 const ALERT_WORDS: Record<AlertEmailKind, { word: string; what: string }> = {
   mismatch: { word: 'Mismatch', what: 'One of your agents asked about an address, and a domain other than the one it expected vouches for that address.' },
   flagged: { word: 'Flagged', what: 'One of your agents asked about an address that is flagged in its registry.' },
+  screening: { word: 'Flagged', what: 'One of your agents asked about an address, and the sanctions or security screening Almstins ran on it at that moment found something.' },
   not_on_list: { word: 'Not on the list', what: 'One of your agents asked about an address that is not on its list.' },
   pending: { word: 'Pending', what: 'One of your agents asked about an address on its list whose checks have not finished.' },
   unanchored: { word: 'Unanchored', what: 'One of your agents asked about an address on its list for the first time. Someone proved control of the address, but no domain currently vouches for it.' },

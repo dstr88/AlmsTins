@@ -35,6 +35,18 @@ vi.mock('@/lib/verifyEntities', () => ({
   lookupVerifiedUrl: (v: string) => entities.url(v),
 }));
 
+// The keyed check screens each address with the public checker's checkWallet (src/lib/agentVault/checkScreening.ts).
+// Here it answers from memory, a clean and complete screening unless a test sets one: no network.
+const screenAnswers = vi.hoisted(() => ({ byAddress: {} as Record<string, unknown> }));
+vi.mock('@/lib/walletChecker', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/walletChecker')>()),
+  checkWallet: async (address: string) => {
+    const set = screenAnswers.byAddress[address];
+    if (set instanceof Error) throw set;
+    return set ?? (await import('../helpers/agentVault')).walletResult();
+  },
+}));
+
 const KEY_LINKED = 'a1'.repeat(12);
 const KEY_UNLINKED = 'b2'.repeat(12);
 const KEY_OWNER = 'c3'.repeat(12);
@@ -56,6 +68,7 @@ let route: typeof import('../../src/pages/api/verify/check');
 let vault: typeof import('../../src/lib/agentVault/vault');
 
 beforeEach(async () => {
+  screenAnswers.byAddress = {};
   vi.stubGlobal('fetch', () => { throw new Error('the network is off in this test'); });
   vi.resetModules();
   fake = createReceivablesDbFake();
@@ -213,7 +226,7 @@ describe('what a keyed call on a linked key writes', () => {
     const { res, body } = await call(addr(1), { bearer: BEARER.linked });
     expect(res.status).toBe(200);
     expect(body.status).toBe('unknown');
-    expect(body.vault).toEqual({ cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false });
+    expect(body.vault).toEqual({ cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false, screening: null });
   });
 });
 

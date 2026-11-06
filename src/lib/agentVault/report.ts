@@ -5,8 +5,9 @@
  *
  * THE FOUR BUCKETS come from the answer of each `checked` event (./checkLog.ts deriveAnswer):
  *
- *   had issues     answer `flagged`: the registry flagged the address, or its proof is on a
- *                  different domain than the agent expected.
+ *   had issues     answer `flagged`: the registry flagged the address, the check's own sanctions or
+ *                  security screening found something, or its proof is on a different domain than
+ *                  the agent expected.
  *   not confirmed  answer `unknown` and NOT cleared: the address is not in the registry
  *                  (basis not_in_registry) or is in it but its checks have not finished
  *                  (registry_pending). An address swap shows up here, because a swapped address
@@ -58,6 +59,7 @@ const SEVERITY: Record<ReportBucket, number> = { issues: 3, not_confirmed: 2, ne
 /** The reasons a check can carry (checkLog.ts AnswerBasis). Anything else is shown as `other`, never as the text it carries. */
 export const ANSWER_BASES = [
   'registry_flagged',
+  'screening_flagged',
   'domain_mismatch',
   'not_in_registry',
   'registry_pending',
@@ -80,6 +82,35 @@ const BASES: ReadonlySet<string> = new Set(ANSWER_BASES);
 export function hasLimitMarker(detail: Record<string, unknown> | null | undefined): boolean {
   const limit = detail?.limit;
   return !!limit && typeof limit === 'object' && (limit as { reached?: unknown }).reached === true;
+}
+
+/** The screening behind a check, as its detail records it (./checkLog.ts). */
+export interface ScreeningRecord {
+  result: 'pass' | 'fail' | 'limited';
+  /** When the screening was made. For a cached one, earlier than the check. */
+  checkedAt: string | null;
+  /** True when the check reused a screening from the warm-address cache. */
+  cached: boolean;
+}
+
+const SCREENING_RESULTS: ReadonlySet<string> = new Set(['pass', 'fail', 'limited']);
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
+/**
+ * The screening a check's detail records, or null for a check written before checks were screened, or
+ * one whose record is not in the shape this code writes. Only recognized values come out. Pure, so the
+ * browser can use it too.
+ */
+export function screeningOfDetail(detail: Record<string, unknown> | null | undefined): ScreeningRecord | null {
+  const raw = detail?.screening;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const s = raw as { result?: unknown; checkedAt?: unknown; cached?: unknown };
+  if (typeof s.result !== 'string' || !SCREENING_RESULTS.has(s.result)) return null;
+  return {
+    result: s.result as ScreeningRecord['result'],
+    checkedAt: typeof s.checkedAt === 'string' && ISO_TIME.test(s.checkedAt) ? s.checkedAt : null,
+    cached: s.cached === true,
+  };
 }
 
 /** The basis of a check's answer, or `other` when it is missing or not one this file knows. */

@@ -17,6 +17,15 @@
  * "Cleared" here means what a Pass pill means in the registry: the address is on the owner's
  * trusted list and nothing we ran flagged it. It is never a statement that an address is safe.
  *
+ * Every keyed check on a tin is also screened (./checkScreening.ts): the public wallet checker's
+ * sanctions and security screening, asked about the address at check time. A screening that finds
+ * something flags the answer on the spot (basis `screening_flagged`), and an address in the tin's
+ * registry is flagged there too, with the same ratchet a re-check uses. A screening that passed
+ * moments ago is reused from the warm-address cache (./warmCache.ts): the check still answers and is
+ * still written, and its entry says `cached: true`, when the reused screening was made, and when it
+ * was served. A screening that could not run (`limited`) changes no answer; the block and the
+ * entry say so, and the address is not cached.
+ *
  * When the answer is `flagged` for an address that IS in the tin's registry, the operator is told
  * at once, if the account turned alerts on (./alerts.ts). That starts after the event is written
  * and is not waited for: the answer and the `vault` block are fixed before it runs, and nothing it
@@ -45,7 +54,8 @@ import { normalizeAddress, type VaultChain } from './addresses';
 import { alertKindOf, type CheckAlertInfo } from './alerts';
 import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay } from './entitlements';
 import { countCheckedSince, hasPriorCheck, insertCheckedEvent, limitMarkerSince, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
-import { findLiveTinByKey, listDestinationsByAddress } from './store';
+import { defaultScreeningDeps, screenForCheck, type CheckScreening, type ScreeningDeps } from './checkScreening';
+import { findLiveTinByKey, listDestinationsByAddress, recordTrust } from './store';
 import type { TrustStatus } from './trustPolicy';
 
 /** The public check's own statuses (GET /api/verify/check), as it answers them. */
@@ -53,6 +63,7 @@ export type CheckStatus = 'proven' | 'mismatch' | 'unanchored' | 'unknown';
 
 export type AnswerBasis =
   | 'registry_flagged'
+  | 'screening_flagged'
   | 'domain_mismatch'
   | 'not_in_registry'
   | 'registry_pending'
@@ -81,6 +92,7 @@ export interface DerivedAnswer {
  * record. Pure, so every row of the table is unit-tested.
  *
  *   flagged in the registry          -> flagged (a flag is a ratchet; nothing else outranks it)
+ *   the check's screening found something -> flagged (sanctions or a security flag, whatever the registry says)
  *   public status mismatch           -> flagged (proven by a different domain than the one expected)
  *   not in the registry              -> unknown, not cleared
  *   in the registry, still pending   -> unknown, not cleared
@@ -88,9 +100,10 @@ export interface DerivedAnswer {
  *   trusted and asked about before   -> consistent-with-history, cleared (sameness, never ownership)
  *   trusted, first check             -> unknown, cleared (the owner's say-so is the only support yet)
  */
-export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean }): DerivedAnswer {
+export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean; screening?: CheckScreening['result'] }): DerivedAnswer {
   const { status, registry, checkedBefore } = input;
   if (registry === 'flagged') return { answer: 'flagged', basis: 'registry_flagged', cleared: false, history: 'none' };
+  if (input.screening === 'fail') return { answer: 'flagged', basis: 'screening_flagged', cleared: false, history: 'none' };
   if (status === 'mismatch') return { answer: 'flagged', basis: 'domain_mismatch', cleared: false, history: 'none' };
   if (registry === 'none') return { answer: 'unknown', basis: 'not_in_registry', cleared: false, history: 'none' };
   if (registry === 'pending') return { answer: 'unknown', basis: 'registry_pending', cleared: false, history: 'none' };
@@ -193,13 +206,18 @@ export interface VaultBlock {
   /** The ledger event this check was written as, or null when it could not be written. */
   eventId: string | null;
   logged: boolean;
+  /**
+   * The check's screening of the address: `pass`, `fail` or `limited`; when it was made; and whether it
+   * was reused from the warm-address cache (`cached: true`, made up to ten minutes before this check).
+   */
+  screening: { result: CheckScreening['result']; checkedAt: string | null; cached: boolean } | null;
   /** Present only when the check was answered and deliberately not written: the agent's daily limit on recorded checks was reached. */
   reason?: 'log_limit';
 }
 
-const NO_ANSWER: VaultBlock = { cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false };
+const NO_ANSWER: VaultBlock = { cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false, screening: null };
 
-function logFailure(stage: 'read' | 'write', err: unknown): void {
+function logFailure(stage: 'read' | 'write' | 'flag' | 'evict', err: unknown): void {
   const e = err as { name?: unknown; code?: unknown } | null;
   console.error('[agent-vault] keyed check not logged', { stage, name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
 }
@@ -208,7 +226,14 @@ function logFailure(stage: 'read' | 'write', err: unknown): void {
 export interface KeyedCheckDeps {
   /** Tells the operator about a check that was not answered proven. Not waited for, and its failure is only logged. */
   onAlert?: (info: CheckAlertInfo) => unknown;
+  /** The check's screening and the warm-address cache (./checkScreening.ts). */
+  screening?: ScreeningDeps;
+  /** Writes a flag to a registered destination (store.ts recordTrust, whose ratchet keeps a flag a flag). */
+  recordTrust?: typeof recordTrust;
 }
+
+/** A destination's stored check time: `YYYY-MM-DD HH:MM:SS`, as vault.ts writes it. */
+const storedTime = (iso: string): string => iso.slice(0, 19).replace('T', ' ');
 
 const sendAlert = (info: CheckAlertInfo): Promise<unknown> => import('./alerts').then((m) => m.alertCheck(info));
 
@@ -248,6 +273,8 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   let chain: VaultChain | null;
   let derived: DerivedAnswer;
   let registry: RegistryVerdict;
+  let rows: Awaited<ReturnType<typeof listDestinationsByAddress>>;
+  let checkedBefore: boolean;
   try {
     const owner = await keyTenant(input.keyId);
     if (!owner) return null;
@@ -256,17 +283,52 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
     tenantId = owner;
     tinId = tin.id;
     address = eventAddress(input.value);
-    const rows = await listDestinationsByAddress(tenantId, tinId, address);
+    rows = await listDestinationsByAddress(tenantId, tinId, address);
     registry = registryVerdict(rows);
     chain = rows[0]?.chain ?? null;
-    const checkedBefore = await hasPriorCheck(tenantId, tinId, address);
-    derived = deriveAnswer({ status: input.status, registry, checkedBefore });
+    checkedBefore = await hasPriorCheck(tenantId, tinId, address);
   } catch (err) {
     logFailure('read', err);
     return { ...NO_ANSWER };
   }
 
-  const block = { cleared: derived.cleared, answer: derived.answer, registry, history: derived.history };
+  // The screening, from the warm-address cache when it may answer. Never throws.
+  const screeningDeps = deps.screening ?? defaultScreeningDeps;
+  const screening = await screenForCheck(tenantId, address, input.now, screeningDeps);
+  derived = deriveAnswer({ status: input.status, registry, checkedBefore, screening: screening.result });
+
+  // A fresh screening that found something flags a registered address on the spot, as a re-check would.
+  // A failure here is logged and changes nothing about the answer, which is already flagged. The readout
+  // written with it shows Verify as unavailable: the check answers Verify itself and did not ask it here.
+  // This check's own entry keeps the registry's word as it was read, before this flag.
+  if (screening.result === 'fail' && screening.readout) {
+    const write = deps.recordTrust ?? recordTrust;
+    const checkedAt = storedTime(screening.readout.checkedAt);
+    for (const row of rows) {
+      if (row.trustStatus === 'flagged') continue;
+      try {
+        await write(tenantId, row.id, { status: 'flagged', readout: screening.readout, checkedAt });
+      } catch (err) {
+        logFailure('flag', err);
+      }
+    }
+  }
+  // Any flag evicts: a flagged answer is never served from the cache, now or on the next check.
+  if (derived.answer === 'flagged' && screening.result !== 'fail') {
+    try {
+      await screeningDeps.warm.evict(tenantId, address);
+    } catch (err) {
+      logFailure('evict', err);
+    }
+  }
+
+  const block = {
+    cleared: derived.cleared,
+    answer: derived.answer,
+    registry,
+    history: derived.history,
+    screening: { result: screening.result, checkedAt: screening.checkedAt, cached: screening.cached },
+  };
 
   // The daily limit on recorded checks. A failure to count it is not a reason to change the answer or to
   // refuse to record: it is logged, and the check is written as it would be without a limit.
@@ -318,6 +380,15 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
         level: input.level,
         domain: input.domain,
         proofAgeDays: input.proofAgeDays,
+        // The screening behind this answer. A cached one keeps the time it was made, and says when it was served.
+        screening: {
+          result: screening.result,
+          hits: screening.hits,
+          limits: screening.limits,
+          checkedAt: screening.checkedAt,
+          cached: screening.cached,
+          ...(screening.cached ? { servedAt: input.now.toISOString() } : {}),
+        },
         ...(marksLimit && perDay !== null ? { limit: { reached: true, perDay } } : {}),
       },
       at: input.now.toISOString(),

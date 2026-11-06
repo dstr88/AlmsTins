@@ -18,7 +18,7 @@ export const BUCKET_TITLE: Record<ReportBucket, string> = {
 
 /** One line under each bucket's title: what puts an address there. */
 export const BUCKET_MEANING: Record<ReportBucket, string> = {
-  issues: 'Flagged: the registry flagged the address, or its proof is on a different domain than the agent expected.',
+  issues: 'Flagged: the registry flagged the address, the sanctions or security screening found something, or its proof is on a different domain than the agent expected.',
   not_confirmed: 'Unknown: the address is not in the registry, or is in it but its checks have not finished. A swapped address shows up here.',
   new: 'First check of a registered, trusted address. Its history baseline started; future checks are compared with it.',
   no_issues: 'Proven, or established: the same address this agent asked about before. Counted here, never listed.',
@@ -27,6 +27,7 @@ export const BUCKET_MEANING: Record<ReportBucket, string> = {
 /** Why a check landed where it did, by the reason code the tin recorded. */
 const REASON: Record<string, string> = {
   registry_flagged: 'Flagged. The address is flagged in your registry. A person should review it.',
+  screening_flagged: 'Flagged. The sanctions or security screening run on this check found something. A person should review it.',
   domain_mismatch: 'Flagged. Its proof is on a different domain than the agent expected. A person should review it.',
   not_in_registry: 'Not in your registry. The agent asked about an address that is not on its list.',
   registry_pending: 'In your registry, but its checks have not finished.',

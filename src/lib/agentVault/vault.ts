@@ -247,6 +247,21 @@ export interface AddDestinationsResult {
 const storedTime = (iso: string): string => iso.slice(0, 19).replace('T', ' ');
 
 /**
+ * A destination that becomes flagged is forgotten by the warm-address cache (./warmCache.ts), so no
+ * keyed check reuses a screening of it. A failure is logged by name and code; the flag is already
+ * written, and every check reads the registry anyway, so a flagged destination is never cleared.
+ */
+async function forgetWarm(tenantId: string, address: string): Promise<void> {
+  try {
+    const { evictWarm } = await import('./warmCache');
+    await evictWarm(tenantId, address);
+  } catch (err) {
+    const e = err as { name?: unknown; code?: unknown } | null;
+    console.error('[agent-vault] warm address not forgotten', { name: String(e?.name ?? 'Error'), code: String(e?.code ?? '') });
+  }
+}
+
+/**
  * Adds the destinations in a pasted list to a tin and, unless `trust` is false, checks them.
  *
  *   - A line that is not an address is reported in `rejected` with a reason.
@@ -350,6 +365,7 @@ export async function addDestinations(
       const status = nextTrustStatus(d.trustStatus, readout);
       const checkedAt = storedTime(readout.checkedAt);
       const written = await recordTrust(tenantId, d.id, { status, readout, checkedAt });
+      if (status === 'flagged') await forgetWarm(tenantId, d.address);
       settled.push(written ? { ...d, trustStatus: status, trustCheckedAt: checkedAt, trust: readout } : d);
     }
     added = settled;
@@ -448,6 +464,7 @@ export async function trustDestinations(
     const status = nextTrustStatus(d.trustStatus, readout);
     const checkedAt = storedTime(readout.checkedAt);
     const written = await recordTrust(tenantId, d.id, { status, readout, checkedAt });
+    if (status === 'flagged') await forgetWarm(tenantId, d.address);
     destinations.push(written ? { ...d, trustStatus: status, trustCheckedAt: checkedAt, trust: readout } : d);
   }
   return { ok: true, tinId, destinations, stillFlagged, notFound, remaining };

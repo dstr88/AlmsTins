@@ -33,7 +33,8 @@
  * line (`unmatched`: an outflow to an address not on the list with no check before it) and whether the
  * other side is a contract where the chain's listing could tell (`contract`). Those three fields were
  * added after the first files were signed; a verifier rebuilds a root from the leaves in the file
- * itself, so an older file still verifies. A file is a snapshot (generated_at), so a later export of
+ * itself, so an older file still verifies. A check leaf likewise gained `screening`, `screened_at` and
+ * `cached` (Nov 5, 2026) when checks began to be screened, only on the checks that carry them. A file is a snapshot (generated_at), so a later export of
  * the same range can hold more.
  *
  * FAIL CLOSED. There is no unsigned JSON and no way to have one presented as signed: with no signing
@@ -63,7 +64,7 @@ import { verifyBundle, type VerifyOutcome } from '@/lib/recordProof/verify';
 import { counterpartyOf, isLinkReason, isUnmatched } from './counterparty';
 import { countEventsInRange, readEventsInRange, type LedgerEvent } from './events';
 import { fail, idOf, type Failure } from './errors';
-import { basisOf, DAY_MS, dayBounds, hasLimitMarker, parseDay, utcDay } from './report';
+import { basisOf, DAY_MS, dayBounds, hasLimitMarker, parseDay, screeningOfDetail, utcDay } from './report';
 import { getTin } from './store';
 
 export const LEDGER_RECORD_TYPE = 'agent_ledger' as const;
@@ -160,6 +161,12 @@ export interface CheckedLeaf {
   key_id: string | null;
   /** Present, and true, only on the check that found the agent's daily limit of recorded checks used up. Checks after it that day were answered and not recorded, except flagged ones. */
   limit_reached?: true;
+  /** The check's sanctions and security screening: pass, fail or limited. Absent on a check written before checks were screened. */
+  screening?: 'pass' | 'fail' | 'limited';
+  /** When that screening was made, UTC ISO-8601. For a cached one it is earlier than `date`, the time the answer was served. */
+  screened_at?: string;
+  /** Present, and true, only when the check reused a screening from the warm-address cache. */
+  cached?: true;
 }
 
 export interface TransferLeaf {
@@ -202,6 +209,16 @@ export interface TransferLeaf {
 
 export type LedgerLeaf = CheckedLeaf | TransferLeaf;
 
+/** The leaf fields for a check's screening; none for a check that records no screening. */
+function screeningLeafFields(s: ReturnType<typeof screeningOfDetail>): Pick<CheckedLeaf, 'screening' | 'screened_at' | 'cached'> {
+  if (!s) return {};
+  return {
+    screening: s.result,
+    ...(s.checkedAt ? { screened_at: s.checkedAt } : {}),
+    ...(s.cached ? { cached: true as const } : {}),
+  };
+}
+
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
@@ -223,6 +240,9 @@ export function leafOf(e: LedgerEvent): LedgerLeaf | null {
       basis: basisOf(e.detail),
       key_id: e.keyId,
       ...(hasLimitMarker(e.detail) ? { limit_reached: true as const } : {}),
+      // Appended after the first files were signed, and only on checks that carry them, so an older
+      // check's leaf, and an older file's root, are exactly what they were.
+      ...screeningLeafFields(screeningOfDetail(e.detail)),
     };
   }
   if (e.kind === 'transaction' && e.tx) {
@@ -619,13 +639,15 @@ export function ledgerFileName(manifest: Pick<LedgerManifest, 'from_day' | 'to_d
 /**
  * The columns of the CSV copy. `reason` is why a check was answered as it was (for a check) or why no
  * check stands behind a transfer (for a transfer); it is a code, never free text. `counterparty`,
- * `unmatched` and `contract` are the three transfer fields slice 8 added (see TransferLeaf); they sit
- * before the last column, which stays the id of the signed file this is a copy of, on every line, so
+ * `unmatched` and `contract` are the three transfer fields slice 8 added (see TransferLeaf), and
+ * `screening`, `screened_at` and `cached` are a check's screening (see CheckedLeaf); they sit before
+ * the last column, which stays the id of the signed file this is a copy of, on every line, so
  * a single row can be matched to the signed file without a line of prose in front of the header.
  */
 export const CSV_COLUMNS = [
   'time_utc', 'kind', 'direction', 'address', 'chain', 'answer', 'registry', 'reason', 'wallet', 'amount', 'asset', 'asset_contract',
-  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'counterparty', 'unmatched', 'contract', 'unsigned_copy_of_bundle_id',
+  'usd', 'tx_hash', 'block_number', 'event_id', 'linked_check', 'key_id', 'counterparty', 'unmatched', 'contract', 'screening', 'screened_at', 'cached',
+  'unsigned_copy_of_bundle_id',
 ] as const;
 
 /**
@@ -661,11 +683,13 @@ export function ledgerCsv(bundle: LedgerBundle): string {
   const copyOf = bundle.manifest.record_id;
   const rows = bundle.leaves.map((l) => {
     const t = l.kind === 'transaction' ? l : null;
+    const c = l.kind === 'checked' ? l : null;
     return [
       l.date, l.kind === 'checked' ? 'checked' : 'transaction', t ? t.direction : '', l.address, l.chain, l.answer, l.registry, t ? t.reason : (l as CheckedLeaf).basis,
       t ? t.wallet : '', t ? t.amount : '', t ? t.asset : '', t ? t.asset_contract : '', t ? t.usd : '', t ? t.tx_hash : '', t ? t.block_number : '', l.event_id,
       t ? t.linked_check : '', l.kind === 'checked' ? l.key_id : '',
-      t ? t.counterparty : '', t ? (t.unmatched ? 'true' : 'false') : '', t ? (t.contract === null ? '' : t.contract ? 'true' : 'false') : '', copyOf,
+      t ? t.counterparty : '', t ? (t.unmatched ? 'true' : 'false') : '', t ? (t.contract === null ? '' : t.contract ? 'true' : 'false') : '',
+      c?.screening ?? '', c?.screened_at ?? '', c?.screening ? (c.cached ? 'true' : 'false') : '', copyOf,
     ].map(csvCell).join(',');
   });
   return CSV_BOM + [CSV_COLUMNS.join(','), ...rows].join('\r\n') + '\r\n';

@@ -26,6 +26,18 @@ vi.mock('@/lib/db', () => ({
 }));
 const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>> }));
 vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async (tenantId: string) => keys.byTenant[tenantId] ?? [] }));
+
+// The keyed check screens each address with the public checker's checkWallet (src/lib/agentVault/checkScreening.ts).
+// Here it answers from memory, a clean and complete screening unless a test sets one: no network.
+const screenAnswers = vi.hoisted(() => ({ byAddress: {} as Record<string, unknown> }));
+vi.mock('@/lib/walletChecker', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/walletChecker')>()),
+  checkWallet: async (address: string) => {
+    const set = screenAnswers.byAddress[address];
+    if (set instanceof Error) throw set;
+    return set ?? (await import('../helpers/agentVault')).walletResult();
+  },
+}));
 const outbox = vi.hoisted(() => ({
   sent: [] as Array<{ to: string; subject: string; text: string }>,
   inboxes: {} as Record<string, string | null>,
@@ -57,6 +69,7 @@ let checkLog: typeof import('../../src/lib/agentVault/checkLog');
 let deps: FakeDeps;
 
 beforeEach(async () => {
+  screenAnswers.byAddress = {};
   vi.stubGlobal('fetch', () => { throw new Error('the network is off in this test'); });
   vi.stubEnv('EMAIL_SERVER', 'smtp://mail.example.test:587'); // the Vault's own sender refuses to send with none
   vi.resetModules();

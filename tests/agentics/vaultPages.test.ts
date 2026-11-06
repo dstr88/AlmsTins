@@ -243,7 +243,7 @@ describe('one agent', () => {
     expect(text).not.toContain('onerror');
     const checkRow = page?.ledger.rows.find((r) => r.kind === 'checked');
     expect(checkRow?.basis).toBe('other');
-    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'contract', 'counterparty', 'id', 'keyState', 'kind', 'limitReached', 'linkReason', 'registry', 'tx', 'unmatched']);
+    expect(Object.keys(checkRow ?? {}).sort()).toEqual(['address', 'answer', 'at', 'basis', 'chain', 'contract', 'counterparty', 'id', 'keyState', 'kind', 'limitReached', 'linkReason', 'registry', 'screening', 'tx', 'unmatched']);
   });
 
   it('offers the keys it could take, never the one it has, nor one another agent has', async () => {

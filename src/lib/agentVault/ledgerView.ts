@@ -22,7 +22,7 @@
 import type { VaultChain } from './addresses';
 import { counterpartyOf, isLinkReason, isUnmatched, type CounterpartyStatus, type LinkReason } from './counterparty';
 import type { RegistryVerdict, VaultAnswer } from './events';
-import { basisOf, hasLimitMarker } from './report';
+import { basisOf, hasLimitMarker, screeningOfDetail, type ScreeningRecord } from './report';
 import type { EventView } from './vault';
 
 export type { LinkReason };
@@ -67,6 +67,12 @@ export interface LedgerRow {
   /** For a check: whether the key that asked is still in use. A rotated key stays marked. Null for a transfer. */
   keyState: KeyState | null;
   tx: LedgerTransfer | null;
+  /**
+   * For a check: the sanctions and security screening behind it, and whether it was reused from the
+   * warm-address cache (then `checkedAt` is when the reused screening was made, and `at` when it was
+   * served). Null for a transfer, and for a check written before checks were screened.
+   */
+  screening: ScreeningRecord | null;
 }
 
 // A Record over each union, so a word added to the ledger without a line here fails the build.
@@ -120,6 +126,7 @@ export function toLedgerRow(event: Partial<EventView> | null | undefined): Ledge
     limitReached: isCheck && hasLimitMarker(detail),
     keyState: isCheck && event.keyId ? (has(KEY_STATES, event.keyStatus) ? (event.keyStatus as KeyState) : 'unknown') : null,
     tx,
+    screening: isCheck ? screeningOfDetail(detail) : null,
   };
 }
 
