@@ -1,8 +1,8 @@
 // Privacy Policy — footer-modal content, all user-visible copy (EN · ES · FR).
 //
-// Operative Privacy Policy v1.3. The effective date, 2026-10-26, is PROVISIONAL: set it and the three body dates to the day this
-// ships (tests/privacy/agenticsPolicyV13.test.ts fails if the three languages and the User Agreement disagree).
-// v1.3 adds Almstins Agentics, the Agent Vault: Sections 3.1, 3.2, 4, 5, 10 and 11. Counsel reviews it before it ships.
+// Operative Privacy Policy v1.3, effective 2026-11-05, the day it shipped (the owner's decision: ship now, with counsel's review
+// to follow; a change from that review ships as v1.4). tests/privacy/agenticsPolicyV13.test.ts fails if the three languages and
+// the User Agreement disagree on the date. v1.3 adds Almstins Agentics, the Agent Vault: Sections 3.1, 3.2, 4, 5, 10 and 11.
 // ES and FR are first-pass legal translations pending review by a fluent legal translator
 // (including the v1.2 changes to Sections 1 through 13 and 16, and the v1.3 changes to Sections 3.1, 3.2, 4, 5, 10 and 11).
 //
@@ -32,7 +32,7 @@ export const en: PrivacyLocale = {
   ariaLabel: 'Privacy Policy',
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
-<p><strong>Effective Date:</strong> October 26, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.3<br/>
+<p><strong>Effective Date:</strong> November 5, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.3<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
@@ -212,7 +212,7 @@ export const es: PrivacyLocale = {
   ariaLabel: 'Política de Privacidad',
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
-<p><strong>Fecha de Vigencia:</strong> 26 de octubre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.3<br/>
+<p><strong>Fecha de Vigencia:</strong> 5 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.3<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
@@ -392,7 +392,7 @@ export const fr: PrivacyLocale = {
   ariaLabel: 'Politique de Confidentialité',
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
-<p><strong>Date d'entrée en vigueur :</strong> 26 octobre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.3<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 5 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.3<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>

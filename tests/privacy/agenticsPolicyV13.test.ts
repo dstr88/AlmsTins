@@ -11,7 +11,7 @@ import { VAULT_CHAINS } from '../../src/lib/agentVault/addresses';
  * what it reads, what it does not, and the Free plan's numbers. This file holds the two documents to the
  * code they describe, in all three languages, so neither can drift from what is built:
  *
- *   - the effective date is the same everywhere (it is PROVISIONAL until the day the documents ship: change
+ *   - the effective date is the same everywhere (November 5, 2026, the day v1.3 shipped: a later version changes
  *     EFFECTIVE below and the six body dates together, and this file fails if one is missed);
  *   - the policy discloses each thing the Vault keeps and reads, and the one thing it never does (link an
  *     address to a person);
@@ -26,8 +26,8 @@ import { VAULT_CHAINS } from '../../src/lib/agentVault/addresses';
 const LANGS = ['en', 'es', 'fr'] as const;
 type Lang = (typeof LANGS)[number];
 
-/** The day the documents take effect, as each language writes it. PROVISIONAL: set on the day they ship. */
-const EFFECTIVE: Record<Lang, string> = { en: 'October 26, 2026', es: '26 de octubre de 2026', fr: '26 octobre 2026' };
+/** The day the documents took effect, as each language writes it: the day v1.3 shipped. */
+const EFFECTIVE: Record<Lang, string> = { en: 'November 5, 2026', es: '5 de noviembre de 2026', fr: '5 novembre 2026' };
 
 const policyBodies: Record<Lang, string> = { en: policy.en.body, es: policy.es.body, fr: policy.fr.body };
 const termsBodies: Record<Lang, string> = { en: terms.en.body, es: terms.es.body, fr: terms.fr.body };
