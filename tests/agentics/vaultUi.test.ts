@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { addr } from '../helpers/agentVault';
+import { shortenAddress } from '../../src/lib/addressDisplay';
 import { brightLineViolations } from '../helpers/brightLineWording';
 import type { TrustReadout } from '../../src/lib/agentVault/trustPolicy';
 import type { Destination, AgentWallet } from '../../src/lib/agentVault/store';
@@ -443,6 +444,46 @@ describe('the wallets', () => {
     expect(t).not.toMatch(/to find transfers between them and your registered addresses/);
   });
 
+  it('gives each wallet a QR button, named for the wallet, that opens a dialog and is not one by itself', () => {
+    const html = panel([wallet(1), wallet(2, { chain: 'avalanche' })]);
+    const buttons = html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>/g) ?? [];
+    expect(buttons).toHaveLength(2);
+    expect(html).toContain(`aria-label="Show a QR code for wallet ${shortenAddress(addr(901))}"`);
+    expect(html).toContain(`aria-label="Show a QR code for wallet ${shortenAddress(addr(902))}"`);
+    expect(html).toContain('title="Show a QR code for this wallet"');
+    expect(html).not.toMatch(/role="dialog"/); // closed until pressed
+    expect(unlabelled(html)).toEqual([]);
+  });
+
+  it('the QR dialog shows the whole address, the chain to send on, a copy button and a way to close, and encodes the address and nothing else', async () => {
+    const { WalletQrPanel, walletQrText, walletQrFileName } = await import('../../src/components/agentics/WalletQr');
+    const w = wallet(2, { chain: 'avalanche' });
+    const html = render(React.createElement(WalletQrPanel, { wallet: w, chainName: 'Avalanche', titleId: 'qr-title', onClose: () => {} }));
+    const t = textOf(html);
+    expect(html).toContain('id="qr-title"');
+    expect(t).toContain('Wallet QR code');
+    expect(t).toContain(addr(902)); // whole, never shortened: someone may send money to it
+    expect(t).toContain('Send only on Avalanche. The code contains the address and nothing else, so the wallet app that scans it cannot tell the chain from it.');
+    expect(t).toContain('Close');
+    expect(html).toMatch(/Copy/);
+    expect(walletQrText(w)).toBe(addr(902));
+    expect(walletQrFileName(w)).toBe('almstins-agent-wallet-avalanche-qr.png');
+    expect(walletQrFileName(w)).not.toContain(addr(902).slice(2));
+    expect(t).not.toMatch(/\bsafe\b/i);
+  });
+
+  it('the code it draws reads back as exactly the wallet\'s address', async () => {
+    const { toQrDataUrl } = await import('../../src/lib/qrMake');
+    const { decodeQrFromImageData } = await import('../../src/lib/qrScan');
+    // @ts-expect-error pngjs (a dependency of qrcode) ships no type declarations
+    const { PNG } = await import('pngjs');
+    const { WALLET_QR_SIZE, WALLET_QR_MARGIN, walletQrText } = await import('../../src/components/agentics/WalletQr');
+    const w = wallet(3);
+    const url = await toQrDataUrl(walletQrText(w), { width: WALLET_QR_SIZE, margin: WALLET_QR_MARGIN });
+    const png = PNG.sync.read(Buffer.from(url.replace(/^data:image\/png;base64,/, ''), 'base64'));
+    expect(decodeQrFromImageData({ data: new Uint8ClampedArray(png.data), width: png.width, height: png.height })).toBe(addr(903));
+  });
+
   it('lists each wallet in full with its chain and a copy button, and counts them against the plan\'s limit for an agent', () => {
     const html = panel([wallet(1), wallet(2, { chain: 'avalanche' })]);
     const t = textOf(html);
@@ -708,7 +749,7 @@ describe('the words on the screens', () => {
 
 describe('the files', () => {
   const files = [
-    'AgentsHome.tsx', 'AgentPage.tsx', 'RegistryPanel.tsx', 'WalletsPanel.tsx', 'LedgerPanel.tsx', 'AgentKeyCard.tsx', 'RemoveAgent.tsx', 'PlanMeter.tsx', 'ExportCard.tsx', 'ui.tsx',
+    'AgentsHome.tsx', 'AgentPage.tsx', 'RegistryPanel.tsx', 'WalletsPanel.tsx', 'WalletQr.tsx', 'LedgerPanel.tsx', 'AgentKeyCard.tsx', 'RemoveAgent.tsx', 'PlanMeter.tsx', 'ExportCard.tsx', 'ui.tsx',
   ].map((f) => `src/components/agentics/${f}`);
 
   it('build no HTML from data, run no code from a string, and never make an element out of a div or a span that is clicked', () => {

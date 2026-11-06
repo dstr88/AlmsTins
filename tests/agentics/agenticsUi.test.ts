@@ -492,6 +492,7 @@ describe('the files under src/components/agentics and src/pages/dashboard/agenti
       'src/components/agentics/RemoveAgent.tsx',
       'src/components/agentics/ReportView.tsx',
       'src/components/agentics/ReportsPage.tsx',
+      'src/components/agentics/WalletQr.tsx',
       'src/components/agentics/WalletsPanel.tsx',
       'src/components/agentics/account.ts',
       'src/components/agentics/agentics.css',

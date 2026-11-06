@@ -1,7 +1,8 @@
 /**
  * The agent's own wallets: the addresses it sends from and receives to. Almstins only reads them,
  * and records every direct transfer they make or receive, marking whether the other side was on the
- * agent's list (src/lib/agentVault/watcher.ts). Add one (a chain and an address),
+ * agent's list (src/lib/agentVault/watcher.ts). Each wallet has a QR icon that shows its address as a
+ * QR code, to fund it from a phone (./WalletQr.tsx). Add one (a chain and an address),
  * remove one; the plan's limit for each agent is said before it is reached and in calm words when
  * it is.
  *
@@ -14,6 +15,7 @@ import type { AgentWallet } from '@/lib/agentVault/store';
 import { failureText, send } from './client';
 import { copy } from './copy';
 import { ConfirmRemove, VaultCopyButton, shouldTakeFocus, Status } from './ui';
+import WalletQrButton from './WalletQr';
 
 const chainName = (chain: string): string => (Object.prototype.hasOwnProperty.call(copy.registry.chains, chain) ? copy.registry.chains[chain] : chain);
 
@@ -156,6 +158,7 @@ export default function WalletsPanel({ tinId, wallets, plan }: WalletsPanelProps
                 <span className="ag-pill">{chainName(w.chain)}</span>
                 <span className="ag-addr ag-mono">{w.address}</span>
                 <VaultCopyButton value={w.address} />
+                <WalletQrButton wallet={w} chainName={chainName(w.chain)} />
               </div>
               <div className="ag-dest__actions">
                 <ConfirmRemove
