@@ -32,6 +32,13 @@ describe('sitemap filter', () => {
     expect(sitemapFilter(url('/agentics/docs/'))).toBe(true);
   });
 
+  it('leaves out pages that send a signed-out visitor to the sign-in page, and redirects', () => {
+    for (const p of ['/myplans/', '/PremiumPlan/', '/redeem/', '/info/', '/aave-alisis/', '/marchand/', '/myplans', '/marchand']) {
+      expect(sitemapFilter(url(p)), p).toBe(false);
+    }
+    for (const p of ['/about/', '/privacy/', '/changelog/', '/prices/', '/wallet-checker/']) expect(sitemapFilter(url(p)), p).toBe(true);
+  });
+
   it('drops every desk and single-use-link page under the product prefixes', () => {
     for (const p of [
       '/verify/desk/', '/verify/client/', '/verify/registry/', '/verify/login/', '/verify/scan/',

@@ -2,6 +2,7 @@
 import Footer from "@/components/Footer.astro";
 import Analytics from "@/components/Analytics.astro";
 import { isLang } from "@/lib/i18n/locale";
+import { canonicalUrl } from "@/lib/seo/canonical.mjs";
 import '@/styles/tokens.css';
 
 export interface Props {
@@ -33,7 +34,7 @@ const {
   imageAlt,
 } = Astro.props;
 const ogImage = image ?? 'https://almstins.com/og-default.png';
-const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
+const canonicalHref = canonical ?? canonicalUrl(Astro.url.pathname);
 ---
 
 <!doctype html>

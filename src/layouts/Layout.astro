@@ -21,6 +21,7 @@ import minerva from '@/assets/Minerva.png';
 import { getLang, isLang } from '@/lib/i18n/locale';
 import { getDashboardCommon } from '@/i18n/dashboard/common';
 import { formatDate, formatDateTime, toDate } from '@/lib/format';
+import { canonicalUrl } from '@/lib/seo/canonical.mjs';
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -123,7 +124,7 @@ export interface Props {
 const {
   title = 'Almstins — Crypto Portfolio Tracker & Bookkeeping Tool',
   description = 'Track your crypto wallets, DeFi positions, and exchange accounts in one place. Calculate realized gains, download your Year Summary, and stay on top of your net worth.',
-  canonical = Astro.url.href,
+  canonical = canonicalUrl(Astro.url.pathname),
   image = 'https://almstins.com/og-default.png',
   noindex = false,
   logoutRedirect,
