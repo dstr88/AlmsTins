@@ -230,6 +230,8 @@ interface WalletContext {
   pricing: PricingDeps;
   deadlineAt: number;
   horizonBlock: (chain: VaultChain, horizonSec: number) => Promise<number | null>;
+  /** The addresses this pass wrote a new, emailable unmatched payment to (./alerts.ts unmatchedAlertDue). */
+  unmatchedDue: Set<string>;
 }
 
 const emptyReport = (wallet: AgentWallet, destinations: number): WalletReport => ({
@@ -355,11 +357,10 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
     if (written.inserted) {
       report.recorded += 1;
       if (price.kind === 'pending') report.pricePending += 1;
-      // A payment the agent never asked about is emailed at once, once an hour per address (./alerts.ts), and
-      // only when it is new: a read catching up on old history records it and marks it, and sends nothing.
-      if (unmatched && deps.alert && unmatchedAlertDue(atMs, nowMs)) {
-        deps.alert({ tenantId, tinId: tin.id, address: t.counterparty, kind: 'unmatched' }).catch(() => {});
-      }
+      // A payment the agent never asked about is emailed once the whole pass is written (runTinPass), so the
+      // email can count every payment the pass found; only when it is new: a read catching up on old history
+      // records it and marks it, and sends nothing.
+      if (unmatched && unmatchedAlertDue(atMs, nowMs)) ctx.unmatchedDue.add(t.counterparty);
     } else {
       report.alreadyRecorded += 1;
     }
@@ -435,6 +436,7 @@ export async function runTinPass(
     return hit;
   };
 
+  const unmatchedDue = new Set<string>();
   for (const wallet of wallets) {
     const onChain = destinations.filter((d) => d.chain === wallet.chain).length;
     const startMs = walletStartMs(wallet, walletCursors, pairCursors);
@@ -446,7 +448,7 @@ export async function runTinPass(
       walletReport = { ...emptyReport(wallet, onChain), status: 'partial', reason: 'deadline' };
     } else {
       try {
-        walletReport = await watchWallet({ tenantId, tin, wallet, startMs, registry, destinations: onChain, walletCursors, deps, pricing, deadlineAt, horizonBlock });
+        walletReport = await watchWallet({ tenantId, tin, wallet, startMs, registry, destinations: onChain, walletCursors, deps, pricing, deadlineAt, horizonBlock, unmatchedDue });
       } catch (err) {
         logFailure('wallet', err);
         walletReport = { ...emptyReport(wallet, onChain), status: 'failed', reason: 'write_failed' };
@@ -456,6 +458,12 @@ export async function runTinPass(
     report.recorded += walletReport.recorded;
     report.unregistered += walletReport.unregistered;
     report.unmatched += walletReport.unmatched;
+  }
+
+  // One unmatched-payment email per address the pass found one for, now that every wallet's transfers are
+  // written, so the email counts them all (./alerts.ts). Not waited for: a slow mail server never holds a read.
+  if (deps.alert) {
+    for (const address of unmatchedDue) deps.alert({ tenantId, tinId: tin.id, address, kind: 'unmatched' }).catch(() => {});
   }
 
   // The day prices this tin's pending transfers need, looked up once each now that the pass is done (a

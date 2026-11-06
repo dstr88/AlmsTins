@@ -608,3 +608,79 @@ describe('the unmatched-payment email', () => {
     expect(alerts.unmatchedAlertDue(Number.NaN, now)).toBe(false);
   });
 });
+
+describe('the unmatched-payment email counts the payments it covers', () => {
+  let events: typeof import('../../src/lib/agentVault/events');
+  let seq = 0;
+  beforeEach(async () => {
+    events = await import('../../src/lib/agentVault/events');
+  });
+  const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000);
+  const stamp = (d: Date) => d.toISOString().slice(0, 19).replace('T', ' ');
+
+  /** A transfer in the ledger, written at `written` (the table's own created_at), made at `made`. */
+  async function payment(o: { to?: string; made: Date; written: Date; unmatched?: boolean; direction?: 'in' | 'out'; tin?: string }) {
+    seq += 1;
+    const e = await events.insertTransactionEvent(A, {
+      tinId: o.tin ?? 'tin-1', address: o.to ?? addr(1), chain: 'ethereum', registry: 'none', leg: `native:${seq}`, answer: 'unknown', status: null,
+      tx: { hash: `0x${seq.toString(16).padStart(64, '0')}`, direction: o.direction ?? 'out', wallet: addr(50), amount: '1', asset: 'ETH', assetContract: null, usd: 10, blockNumber: seq },
+      detail: { counterparty: 'unregistered', unmatched: o.unmatched ?? true },
+      at: o.made.toISOString(),
+    });
+    fake.rows('agent_events').find((r) => r.id === e.id)!.created_at = stamp(o.written);
+  }
+  const unmatchedMail = () => outbox.sent.filter((m) => m.subject.includes('never asked about'));
+
+  it('the first email counts every payment the read found, and none it should not', async () => {
+    for (const n of [-30, -20, -10]) await payment({ made: minutes(n), written: minutes(-1) });
+    await payment({ made: minutes(-5), written: minutes(-1), unmatched: false });             // matched: not counted
+    await payment({ made: minutes(-5), written: minutes(-1), direction: 'in' });              // received: not counted
+    await payment({ to: addr(2), made: minutes(-5), written: minutes(-1) });                  // another address
+    await payment({ tin: 'tin-2', made: minutes(-5), written: minutes(-1) });                 // another agent
+    await payment({ made: new Date(NOW.getTime() - 37 * 3_600_000), written: minutes(-1) });  // too old to email: not counted
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps())).toBe('sent');
+    const text = unmatchedMail()[0].text;
+    expect(text).toContain('Your agent made 3 payments to this address without a check first.');
+    expect(text).not.toContain('since our last email');
+  });
+
+  it('one payment is said in the singular', async () => {
+    await payment({ made: minutes(-3), written: minutes(-1) });
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps())).toBe('sent');
+    expect(unmatchedMail()[0].text).toContain('Your agent made 1 payment to this address without a check first.');
+  });
+
+  it('the next email counts the payments the hourly limit kept quiet, plus the one that calls it, since the last email', async () => {
+    await payment({ made: minutes(-3), written: minutes(-1) });
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps())).toBe('sent');
+    await payment({ made: minutes(5), written: minutes(6) });
+    await payment({ made: minutes(10), written: minutes(11) });
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(minutes(11)))).toBe('rate_limited');
+    await payment({ made: minutes(70), written: minutes(71) });
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(minutes(71)))).toBe('sent');
+    const mails = unmatchedMail();
+    expect(mails).toHaveLength(2);
+    expect(mails[1].text).toContain('Your agent made 3 payments to this address without a check first since our last email.');
+  });
+
+  it('after a send that failed, the next email counts those payments too', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const n of [-4, -3]) await payment({ made: minutes(n), written: minutes(-1) });
+    outbox.fail = true;
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps())).toBe('failed');
+    outbox.fail = false;
+    await payment({ made: minutes(2), written: minutes(3) });
+    expect(await alerts.alertCheck(info({ kind: 'unmatched' }), alertDeps(minutes(3)))).toBe('sent');
+    const text = unmatchedMail()[0].text;
+    expect(text).toContain('Your agent made 3 payments to this address without a check first.');
+    expect(text).not.toContain('since our last email');
+  });
+
+  it('a count, never an amount: still no address, label or amount in the email', async () => {
+    for (const n of [-4, -3]) await payment({ made: minutes(n), written: minutes(-1) });
+    await alerts.alertCheck(info({ kind: 'unmatched', address: addr(1) }), alertDeps());
+    const mail = unmatchedMail()[0];
+    expect(`${mail.subject}\n${mail.text}`.toLowerCase()).not.toContain(addr(1).toLowerCase());
+    expect(mail.text).not.toMatch(/\$\d|\bETH\b/);
+  });
+});

@@ -1327,3 +1327,31 @@ describe('an unmatched payment found by a read is emailed once, if it is new', (
     expect(typeof watcher.defaultWatchDeps.alert).toBe('function');
   });
 });
+
+describe('a read that finds several unmatched payments asks for one email per address, after the whole pass is written', () => {
+  it('three payments to one address and one to another: two emails, and the first says three', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id);
+    explorer.add('ethereum', WALLET, 'txlist',
+      nativeRow({ hash: 1, block: 19_900, from: WALLET, to: STRANGER, value: units('1') }),
+      nativeRow({ hash: 2, block: 19_910, from: WALLET, to: STRANGER, value: units('1') }),
+      nativeRow({ hash: 3, block: 19_920, from: WALLET, to: STRANGER, value: units('1') }),
+      nativeRow({ hash: 4, block: 19_930, from: WALLET, to: addr(93), value: units('1') }));
+    const alerts = await import('../../src/lib/agentVault/alerts');
+    const mail: Array<{ subject: string; text: string }> = [];
+    const pending: Promise<unknown>[] = [];
+    const alertDeps = {
+      now: () => new Date(nowMs),
+      recipient: async () => 'operator@example.test',
+      send: async (m: { to: string; subject: string; text: string }) => { mail.push(m); },
+      appBase: 'https://almstins.test',
+    };
+    const asked: string[] = [];
+    await watcher.runTinPass(A, tin, deps({ alert: (info: any) => { asked.push(info.address); const p = alerts.alertCheck(info, alertDeps); pending.push(p); return p; } }));
+    await Promise.all(pending);
+    expect(asked.sort()).toEqual([STRANGER, addr(93)].sort());
+    const texts = mail.map((m) => m.text).sort();
+    expect(texts.some((t) => t.includes('Your agent made 3 payments to this address without a check first.'))).toBe(true);
+    expect(texts.some((t) => t.includes('Your agent made 1 payment to this address without a check first.'))).toBe(true);
+  });
+});

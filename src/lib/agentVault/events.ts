@@ -785,6 +785,23 @@ export async function countEventsInRange(tenantId: string, tinId: string, range:
   return Number((r.rows[0] as any)?.n ?? 0);
 }
 
+/**
+ * How many unmatched payments one agent made to one address (./counterparty.ts isUnmatched): transfers out,
+ * marked unmatched, made at or after `fromIso`, and, when `afterWritten` is given, written after that moment
+ * (UTC "YYYY-MM-DD HH:MM:SS", the form created_at is stored in). What the unmatched-payment email counts
+ * (./alerts.ts). On the tin and address index.
+ */
+export async function countUnmatchedPayments(tenantId: string, tinId: string, address: string, opts: { fromIso: string; afterWritten: string | null }): Promise<number> {
+  await ensureAgentEventsTable();
+  const written = opts.afterWritten ? ` AND created_at > ?` : '';
+  const r = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM agent_events
+          WHERE tenant_id = ? AND tin_id = ? AND address = ? AND occurred_at >= ? AND kind = 'transaction' AND direction = 'out' AND detail_json LIKE ?${written}`,
+    args: [tenantId, tinId, address, opts.fromIso, '%"unmatched":true%', ...(opts.afterWritten ? [opts.afterWritten] : [])],
+  });
+  return Number((r.rows[0] as any)?.n ?? 0);
+}
+
 /** True when this tin has at least one event in [fromIso, toIso): the cheap question a daily job asks before it reads a whole day. */
 export async function hasEventsInRange(tenantId: string, tinId: string, range: { fromIso: string; toIso: string }): Promise<boolean> {
   await ensureAgentEventsTable();
