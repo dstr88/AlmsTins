@@ -364,6 +364,22 @@ describe('/agentics/docs: your vault', () => {
     expect(vault()).not.toMatch(/real[- ]time|live feed|as it happens/i);
   });
 
+  it('the FAQ answers what the vault records about the agent\'s own wallet, as the watcher does it (slice 8)', () => {
+    const faq = docs.slice(docs.indexOf('const FAQ = ['), docs.indexOf('];', docs.indexOf('const FAQ = [')));
+    expect(faq).toContain('Does the vault record a payment to an address I never registered?');
+    expect(faq).toContain("every direct transfer of your agent's own wallets on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side");
+    expect(faq).toContain('What does unmatched mean on a transfer?');
+    expect(faq).toContain('with no check about that address asked in the hour before');
+    expect(faq).toContain('No email is sent for one.');
+    expect(faq).toContain('keeps the status your list gave the other side when it was recorded');
+    expect(faq).toContain("It reads only the wallets you register as your agent's own.");
+    // The rules the answers describe are the ones the code applies.
+    const counterparty = read('src/lib/agentVault/counterparty.ts');
+    expect(counterparty).toContain("return t.direction === 'out' && t.counterparty === 'unregistered' && !t.linked;");
+    expect(read('src/lib/agentVault/link.ts')).toContain('export const LINK_WINDOW_MS = 60 * 60 * 1000;');
+    expect(faq).not.toMatch(/\bwatch(es|ing)?\b/i);
+  });
+
   it('check.ts names the field in its own header, and returns it only from the spread that is not on an anonymous call', () => {
     expect(check).toContain('its answer gains one more field, `vault`');
     expect(check).toContain('...(vault ? { vault } : {}),');

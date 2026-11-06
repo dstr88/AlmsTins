@@ -4,6 +4,8 @@ import { getLang } from '@/lib/i18n/locale';
 import { getChangelog } from '@/i18n/changelog';
 // PetroTins entries show only while PetroTins is public (src/lib/petroTinsFlag.mjs).
 import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
+// Agent Vault entries show only once the Vault is open to every account (src/lib/agenticsFlag.mjs).
+import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 const lang = getLang(Astro.request);
 const t = getChangelog(lang);
 ---
@@ -25,6 +27,17 @@ const t = getChangelog(lang);
       <p class="page-sub">{t.sub}</p>
 
       <div class="entries">
+
+        {AGENTICS_VAULT_PUBLIC && (<>
+          <article class="entry">
+            <time class="entry-date">November 5, 2026 · Agent Vault</time>
+            <div class="entry-body">
+              <p>The Agent Vault now records every direct transfer of an agent's own wallet on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side. Before, it kept only the transfers between the agent's wallet and the addresses you trusted, and anything else was left out. Each transfer now says what your list said about the other side when it was recorded: trusted, pending or flagged for an address you registered, or not on the list. That status is kept as it was; registering an address later labels the transfers that come after.</p>
+              <p>A payment out to an address that is not on the list, when the agent asked no check about that address in the hour before, is marked as unmatched: the agent paid someone it never asked about. The agent's page has a switch that shows only the transfers whose other side was not on the list, and the Live page marks an unmatched payment on its card. A payment that goes through a swap or a router is recorded as a transfer to that contract, marked as a contract call where the chain's listing says so. No email is sent for an unmatched payment.</p>
+              <p>The daily report adds a line saying how many transfers went to or came from addresses not on the list, and how many of those were unmatched. The signed report and the signed export carry the same marks, and every file signed before this change still checks out at <a href="/verify-record">almstins.com/verify-record</a>. The Privacy Policy and the User Agreement describe the wider record.</p>
+            </div>
+          </article>
+        </>)}
 
         <article class="entry">
           <time class="entry-date">October 30, 2026</time>
