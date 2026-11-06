@@ -596,14 +596,14 @@ describe('the ledger', () => {
 
   it('shows a transfer in as bought and one out as sold, with the amount, the USD at the time and a link to the explorer that is safe to follow', () => {
     const inbound = item(transfer());
-    expect(textOf(inbound)).toContain('Bought (in)');
+    expect(textOf(inbound)).toContain('Received');
     expect(textOf(inbound)).toContain('1.5 ETH');
     expect(textOf(inbound)).toContain('$4,500.50 at the time');
     expect(inbound).toContain(`href="https://etherscan.io/tx/${HASH}"`);
     expect(inbound).toContain('target="_blank"');
     expect(inbound).toContain('rel="noopener noreferrer"');
     const outbound = item(transfer({ tx: { hash: HASH, direction: 'out', amount: '300', asset: 'USDC', usd: 300, pricePending: false } }));
-    expect(textOf(outbound)).toContain('Sold (out)');
+    expect(textOf(outbound)).toContain('Sent');
     expect(textOf(outbound)).toContain('300 USDC');
   });
 
@@ -697,8 +697,8 @@ describe('the ledger', () => {
   it('shows the totals strip: bought and sold, raw, with a transfer without a price counted on its own and no word for any difference', () => {
     const html = render(React.createElement(LedgerPanel, { tinId: 'tin-1', ledger: { rows: [], next: null }, totals: totals() as never }));
     const t = textOf(html);
-    expect(t).toContain('Bought $4,500.50 1 transfer');
-    expect(t).toContain('Sold $0.00 1 transfer, 1 without a USD value (not in the total)');
+    expect(t).toContain('Received $4,500.50 1 transfer');
+    expect(t).toContain('Sent $0.00 1 transfer, 1 without a USD value (not in the total)');
     expect(t).toContain('The two sides are not compared.');
     expect(t).not.toMatch(/\bnet\b|\bloss\b|\bprofit\b|\bgain\b/i);
   });

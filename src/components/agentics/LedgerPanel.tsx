@@ -6,7 +6,7 @@
  * other side when the row was written (trusted, pending, flagged, or not on the list), and the
  * status it took from the check that came before. An outflow to an address not on the list with no
  * check before it is marked UNMATCHED. A switch narrows the list to the transfers whose other side
- * was not on the list. Above the rows, the totals: raw value in (bought) and out (sold), priced at
+ * was not on the list. Above the rows, the totals: raw value received and sent, priced at
  * the time of each transfer, with nothing set against anything else. A button reads the chain now
  * instead of waiting for the daily job.
  *

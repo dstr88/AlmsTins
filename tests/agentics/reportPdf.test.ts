@@ -113,7 +113,7 @@ describe('a signed report as a PDF', () => {
     const { text } = await readPdf(await buildReportPdf({ content, bundle: makeBundle(content) }));
     for (const expected of [
       'Operator report', 'October 17, 2026 (UTC day)', 'Treasury agent', 'Had issues', 'Not confirmed', 'New', 'No issues',
-      'Ops wallet', 'BOUGHT', '$1,270.56', 'SOLD', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or established',
+      'Ops wallet', 'RECEIVED', '$1,270.56', 'SENT', '$0.00', '1 without a USD value (not in the total)', '1 check came back proven or established',
     ]) {
       expect(text, expected).toContain(expected);
     }

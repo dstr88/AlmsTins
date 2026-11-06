@@ -52,7 +52,7 @@ export const copy = {
     makeButton: 'Make report',
     making: 'Making the report',
     todayNote: 'Today gives a partial report: it holds what was recorded up to the moment it is made, and says so.',
-    columns: { day: 'Day (UTC)', counts: 'Addresses', moved: 'Bought and sold', made: 'Made' },
+    columns: { day: 'Day (UTC)', counts: 'Addresses', moved: 'Received and sent', made: 'Made' },
   },
 
   pills: {
@@ -70,11 +70,11 @@ export const copy = {
   },
 
   strip: {
-    bought: 'Bought',
-    sold: 'Sold',
+    bought: 'Received',
+    sold: 'Sent',
     none: NO_TRANSFERS,
     withoutValue: (n: number) => `${n} without a USD value (not in the total)`,
-    note: 'Raw value in (bought) and out (sold) of the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
+    note: 'Raw value received by and sent from the agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
     statuses: 'Transfers by the verify-status they inherited from the check before them',
     noCheckBefore: (n: number) => `${n} with no check before them`,
     unregistered: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'} to or from addresses not on the list`,
@@ -382,7 +382,7 @@ export const copy = {
     lede: 'Newest first. A check the agent asks with its key is a row the moment it asks, up to the plan\'s daily limit. A transfer is a row once the chain confirms it. Times are UTC. Rows are never edited or removed.',
     empty: 'Nothing recorded yet. A check appears when the agent asks about an address, and a transfer appears after the chain confirms it.',
     listLabel: 'Ledger of this agent, newest first',
-    kind: { checked: 'Checked', in: 'Bought (in)', out: 'Sold (out)' },
+    kind: { checked: 'Checked', in: 'Received', out: 'Sent' },
     answer: (title: string) => `Answer: ${title}`,
     registry: { trusted: 'Trusted', flagged: 'Flagged', pending: 'Pending', none: 'Not registered' } as Record<string, string>,
     registryIs: (what: string) => `Registry: ${what}`,
@@ -421,7 +421,7 @@ export const copy = {
     allLoaded: 'That is every row.',
     loadFailed: 'Could not load more rows.',
     totalsTitle: 'Totals',
-    totalsNote: 'Raw value in (bought) and out (sold) of this agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
+    totalsNote: 'Raw value received by and sent from this agent\'s wallets, with any address, priced at the time of each transfer. The two sides are not compared.',
     transfers: (n: number) => `${n} ${n === 1 ? 'transfer' : 'transfers'}`,
     readTitle: 'Read the chain',
     readLede: 'The Vault reads the chain for new transfers of this agent\'s wallets once a day, and about once a minute while your Live page is open (one agent at a time, in turn, up to a daily limit). Read it now to see them sooner.',

@@ -212,9 +212,10 @@ describe('a card on the stage', () => {
     expect((t.match(/0xc0ffee/g) ?? []).length).toBe(1);
   });
 
-  it('for funds that left the agent\'s wallet: sold, the exact amount and asset, the dollars at the time, and where', () => {
+  it('for funds that left the agent\'s wallet: sent, the exact amount and asset, the dollars at the time, and where', () => {
     const t = textOf(card(row({ kind: 'transaction', chain: 'ethereum', tx: tx(), label: 'Exchange deposit' })));
-    expect(t).toContain('Sold (out)');
+    expect(t).toContain('Sent');
+    expect(t).not.toMatch(/Sold|Bought/);
     expect(t).toContain('1.5 ETH');
     expect(t).toContain('$4,200.00 at the time');
     expect(t).toContain('Exchange deposit · ');
@@ -237,9 +238,10 @@ describe('a card on the stage', () => {
     expect(trusted).not.toContain('ag-feed__card--unmatched');
   });
 
-  it('for funds that reached it: bought; and with no price it says there is none, never $0', () => {
+  it('for funds that reached it: received; and with no price it says there is none, never $0', () => {
     const t = textOf(card(row({ kind: 'transaction', chain: 'polygon', tx: tx({ direction: 'in', usd: null, asset: 'POL' }) })));
-    expect(t).toContain('Bought (in)');
+    expect(t).toContain('Received');
+    expect(t).not.toMatch(/Sold|Bought/);
     expect(t).toContain('1.5 POL');
     expect(t).toContain('No USD value on record');
     expect(t).not.toContain('$0');
