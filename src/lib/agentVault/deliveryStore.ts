@@ -173,6 +173,14 @@ export async function releaseDigest(tenantId: string, key: string, previous: str
 /** What an address whose alert did not go out is put back to: long before any cutoff, so the next check can claim it. */
 export const NEVER_ALERTED = '1970-01-01T00:00:00.000Z';
 
+/** When an alert was last sent for this key, or null when it never was (or its last send failed and was given back). */
+export async function readAlertClaim(tenantId: string, tinId: string, address: string): Promise<string | null> {
+  await ensureAgentDeliveryTables();
+  const r = await db.execute({ sql: `SELECT last_sent_at FROM agent_alert_claims WHERE tenant_id = ? AND tin_id = ? AND address = ? LIMIT 1`, args: [tenantId, tinId, address] });
+  const at = (r.rows[0] as { last_sent_at?: unknown } | undefined)?.last_sent_at;
+  return typeof at === 'string' && at !== NEVER_ALERTED ? at : null;
+}
+
 /**
  * Claims the right to send a flagged-check alert about one address on one agent: at most one an
  * hour. Two statements, each atomic in Postgres, which together cannot let two callers both win:

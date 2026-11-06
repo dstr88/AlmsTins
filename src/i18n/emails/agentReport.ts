@@ -49,6 +49,10 @@ export interface AlertEmailArgs {
   kind: AlertEmailKind;
   /** The agent's id: an unmatched-payment email links to the agent's page. An id, never a name. */
   tinId?: string;
+  /** For an unmatched-payment email: how many unmatched payments to the address it covers (a count, never an amount). */
+  payments?: number;
+  /** For an unmatched-payment email: whether an earlier one went for this address, so the count runs from it. */
+  sinceLast?: boolean;
 }
 
 /** For each answer: the word the subject names it by, and the sentence that says what happened. Never an address, a label or an amount. */
@@ -75,6 +79,10 @@ export const defaultAppBase = (): string => (process.env.APP_URL ?? process.env.
 
 /** The page the emails point to: the Reports page, behind the sign-in. */
 export const reportsLink = (appBase: string): string => `${appBase.replace(/\/+$/, '')}/dashboard/agentics/reports`;
+
+/** How many unmatched payments an email covers, as a sentence: a count, never an amount. */
+export const unmatchedCountLine = (n: number, sinceLast: boolean): string =>
+  `Your agent made ${formatCount(n)} ${n === 1 ? 'payment' : 'payments'} to this address without a check first${sinceLast ? ' since our last email' : ''}.`;
 
 /** One agent's page, behind the sign-in: where an unmatched-payment email sends the operator. The agent's id only, never its name. */
 export const agentLink = (appBase: string, tinId: string): string => `${appBase.replace(/\/+$/, '')}/dashboard/agentics/tins/${encodeURIComponent(tinId)}`;
@@ -137,7 +145,7 @@ export const en: AgentReportEmailLocale = {
     return { subject: `${digestLead(a)} · Agent report, ${when.subject}`, text: lines.join('\n') };
   },
 
-  alert: ({ appBase, kind, tinId }) => {
+  alert: ({ appBase, kind, tinId, payments, sinceLast }) => {
     const w = ALERT_WORDS[kind] ?? ALERT_WORDS.unknown;
     const established = kind === 'established';
     if (kind === 'unmatched') {
@@ -145,6 +153,8 @@ export const en: AgentReportEmailLocale = {
         subject: 'Action needed: an agent paid an address it never asked about',
         text: [
           w.what,
+          ``,
+          unmatchedCountLine(payments ?? 1, sinceLast === true),
           ``,
           `A person should look at it. The payment has already gone out on the chain. Almstins flags and records. It does not hold or move funds and is never in the payment path.`,
           ``,

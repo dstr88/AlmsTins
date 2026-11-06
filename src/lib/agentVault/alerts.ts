@@ -21,6 +21,10 @@
  * watcher calls it when it writes such a transfer (./watcher.ts), and only for a transfer no older
  * than UNMATCHED_ALERT_MAX_AGE_MS when it is read, so a read that catches up on old history does not
  * email about payments made long ago. It links to the agent's page rather than the Reports page.
+ * It says how many unmatched payments to that address it covers: every one this agent made to it in the
+ * last UNMATCHED_ALERT_MAX_AGE_MS that was recorded after the previous unmatched email for the address
+ * (the ones the hourly limit kept quiet, and the ones the read that calls it found), or, with no previous
+ * email (or one whose send failed), every one in that window. Payments too old to email are not counted.
  *
  *   - At most one an hour per account, agent and address, by an atomic claim (./deliveryStore.ts
  *     claimAlert): a burst of checks on one address sends one email, even across processes. The
@@ -38,7 +42,8 @@
  */
 import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
 import { defaultAppBase, getAgentReportEmail } from '@/i18n/emails/agentReport';
-import { claimAlert, readSettings, releaseAlert } from './deliveryStore';
+import { claimAlert, readAlertClaim, readSettings, releaseAlert } from './deliveryStore';
+import { countUnmatchedPayments } from './events';
 import { sendVaultMail } from './mailer';
 
 /**
@@ -103,6 +108,8 @@ export type AlertOutcome = 'sent' | 'not_turned_on' | 'no_recipient' | 'rate_lim
 
 export interface AlertDeps {
   now: () => Date;
+  /** How many unmatched payments an unmatched-payment email covers (../events.ts countUnmatchedPayments); the real count when left out. */
+  countUnmatched?: typeof countUnmatchedPayments;
   recipient: (tenantId: string) => Promise<string | null>;
   send: (mail: { to: string; subject: string; text: string }) => Promise<void>;
   appBase: string;
@@ -125,6 +132,19 @@ function logFailure(what: string, err: unknown): void {
 export const claimKeyOf = (info: Pick<CheckAlertInfo, 'address' | 'kind'>): string =>
   info.kind === 'established' ? `${info.address}|established` : info.kind === 'unmatched' ? `${info.address}|unmatched` : info.address;
 
+/** UTC "YYYY-MM-DD HH:MM:SS", the form the ledger's created_at is written in. */
+const writtenStamp = (iso: string): string => iso.slice(0, 19).replace('T', ' ');
+
+/** The unmatched payments one email covers, at least the one that called it (a count that reads 0 was raced by a concurrent read). */
+async function unmatchedCount(info: CheckAlertInfo, previous: string | null, now: Date, deps: AlertDeps): Promise<number> {
+  const count = deps.countUnmatched ?? countUnmatchedPayments;
+  const n = await count(info.tenantId, info.tinId, info.address, {
+    fromIso: new Date(now.getTime() - UNMATCHED_ALERT_MAX_AGE_MS).toISOString(),
+    afterWritten: previous ? writtenStamp(previous) : null,
+  });
+  return Math.max(1, n);
+}
+
 /** Tells the operator about a check that was not answered proven, or an unmatched payment, unless it has been said this hour (or it is established and that email is off). Never throws. */
 export async function alertCheck(info: CheckAlertInfo, deps: AlertDeps = defaultAlertDeps()): Promise<AlertOutcome> {
   try {
@@ -134,10 +154,13 @@ export async function alertCheck(info: CheckAlertInfo, deps: AlertDeps = default
     const now = deps.now();
     const claimedAt = now.toISOString();
     const key = claimKeyOf(info);
+    // The previous unmatched email for this address, read before the claim moves it: what the count runs from.
+    const previous = info.kind === 'unmatched' ? await readAlertClaim(info.tenantId, info.tinId, key) : null;
     const won = await claimAlert(info.tenantId, info.tinId, key, claimedAt, new Date(now.getTime() - ALERT_WINDOW_MS).toISOString());
     if (!won) return 'rate_limited';
     try {
-      const mail = getAgentReportEmail('en').alert({ appBase: deps.appBase, kind: info.kind, tinId: info.tinId });
+      const payments = info.kind === 'unmatched' ? await unmatchedCount(info, previous, now, deps) : undefined;
+      const mail = getAgentReportEmail('en').alert({ appBase: deps.appBase, kind: info.kind, tinId: info.tinId, payments, sinceLast: previous !== null });
       await deps.send({ to, subject: mail.subject, text: mail.text });
       return 'sent';
     } catch (err) {
