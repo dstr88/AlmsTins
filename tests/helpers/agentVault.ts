@@ -5,6 +5,8 @@
 import type { WalletCheckResult } from '../../src/lib/walletChecker';
 import type { TrustDeps } from '../../src/lib/agentVault/trustChecks';
 import type { VerifyLookup } from '../../src/lib/agentVault/trustPolicy';
+import type { ScreeningDeps } from '../../src/lib/agentVault/checkScreening';
+import { warmEntryUsable, type WarmEntry } from '../../src/lib/agentVault/warmRule';
 
 /** The success branch of a result, or a thrown error that shows what came back instead. */
 export function expectOk<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
@@ -90,4 +92,58 @@ export function fakeDeps(): FakeDeps {
     },
   };
   return deps;
+}
+
+/**
+ * A stand-in for the keyed check's screening (src/lib/agentVault/checkScreening.ts ScreeningDeps):
+ * no network and no database. `answers` holds what the screening says per address (a clean, complete
+ * answer when none is set; an Error makes it throw), `warm` is the warm-address cache in memory, run by
+ * the real rule (warmEntryUsable), and `budget` false makes every fresh screening over budget.
+ */
+export interface FakeScreening extends ScreeningDeps {
+  answers: Record<string, WalletCheckResult | Error>;
+  warm: ScreeningDeps['warm'] & { rows: Map<string, WarmEntry & { evicted: boolean }> };
+  calls: { screen: string[]; evict: string[] };
+  budget: boolean;
+}
+
+export function fakeScreening(): FakeScreening {
+  const rows = new Map<string, WarmEntry & { evicted: boolean }>();
+  const key = (t: string, a: string) => `${t}|${a}`;
+  const s: FakeScreening = {
+    answers: {},
+    calls: { screen: [], evict: [] },
+    budget: true,
+    async screen(address) {
+      s.calls.screen.push(address);
+      const answer = s.answers[address];
+      if (answer instanceof Error) throw answer;
+      return answer ?? walletResult();
+    },
+    async spend() {
+      return s.budget;
+    },
+    warm: {
+      rows,
+      async take(t, a, now) {
+        const row = rows.get(key(t, a));
+        if (!row || row.evicted) return null;
+        if (!warmEntryUsable(row, null, now)) {
+          row.evicted = true;
+          return null;
+        }
+        row.lastUsedAt = now.toISOString();
+        return { screenedAt: row.screenedAt };
+      },
+      async put(t, a, screenedAt, now) {
+        rows.set(key(t, a), { screenedAt, lastUsedAt: now.toISOString(), evicted: false });
+      },
+      async evict(t, a) {
+        s.calls.evict.push(a);
+        const row = rows.get(key(t, a));
+        if (row) row.evicted = true;
+      },
+    },
+  };
+  return s;
 }

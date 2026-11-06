@@ -43,6 +43,7 @@ const at = (h: number, m = 0, s = 0, ms = 0) => new Date(Date.UTC(2026, 9, 17, h
 type Basis = (typeof ANSWER_BASES)[number];
 const ANSWER_OF: Record<Basis, VaultAnswer> = {
   registry_flagged: 'flagged',
+  screening_flagged: 'flagged',
   domain_mismatch: 'flagged',
   not_in_registry: 'unknown',
   registry_pending: 'unknown',
@@ -118,16 +119,18 @@ describe('which bucket a check falls in', () => {
     for (const status of ['proven', 'mismatch', 'unanchored', 'unknown'] as const) {
       for (const registry of ['trusted', 'flagged', 'pending', 'none'] as const) {
         for (const checkedBefore of [true, false]) {
-          const d = deriveAnswer({ status, registry, checkedBefore });
-          seen.add(d.basis);
-          const bucket = classifyCheck({ answer: d.answer, detail: { basis: d.basis } });
-          const label = `${status}/${registry}/${checkedBefore}`;
-          if (d.answer === 'flagged') expect(bucket, label).toBe('issues');
-          else if (d.answer === 'unknown' && d.cleared) expect(bucket, label).toBe('new');
-          else if (d.answer === 'unknown') expect(bucket, label).toBe('not_confirmed');
-          else expect(bucket, label).toBe('no_issues');
-          // A cleared check never lands in a bucket that asks for attention.
-          if (d.cleared) expect(['new', 'no_issues'], label).toContain(bucket);
+          for (const screening of ['pass', 'fail', 'limited'] as const) {
+            const d = deriveAnswer({ status, registry, checkedBefore, screening });
+            seen.add(d.basis);
+            const bucket = classifyCheck({ answer: d.answer, detail: { basis: d.basis } });
+            const label = `${status}/${registry}/${checkedBefore}/${screening}`;
+            if (d.answer === 'flagged') expect(bucket, label).toBe('issues');
+            else if (d.answer === 'unknown' && d.cleared) expect(bucket, label).toBe('new');
+            else if (d.answer === 'unknown') expect(bucket, label).toBe('not_confirmed');
+            else expect(bucket, label).toBe('no_issues');
+            // A cleared check never lands in a bucket that asks for attention.
+            if (d.cleared) expect(['new', 'no_issues'], label).toContain(bucket);
+          }
         }
       }
     }

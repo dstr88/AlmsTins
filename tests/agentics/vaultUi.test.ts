@@ -79,7 +79,7 @@ const dest = (n: number, over: Partial<Destination> = {}): Destination => ({
 const wallet = (n: number, over: Partial<AgentWallet> = {}): AgentWallet => ({ id: `w${n}`, tinId: 'tin-1', chain: 'ethereum', address: addr(900 + n), createdAt: '2026-10-01 00:00:00', ...over });
 const HASH = `0x${'ab'.repeat(32)}`;
 const row = (over: Partial<LedgerRow> = {}): LedgerRow => ({
-  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, counterparty: null, unmatched: false, contract: null, limitReached: false, keyState: 'active', tx: null, ...over,
+  id: 'e1', at: '2026-10-17T09:30:00.123Z', kind: 'checked', address: addr(1), chain: 'ethereum', answer: 'flagged', registry: 'flagged', basis: 'registry_flagged', linkReason: null, counterparty: null, unmatched: false, contract: null, limitReached: false, keyState: 'active', tx: null, screening: null, ...over,
 });
 const transfer = (over: Partial<LedgerRow> = {}): LedgerRow =>
   row({ id: 'e2', kind: 'transaction', answer: 'unknown', registry: 'trusted', counterparty: 'trusted', basis: null, keyState: null, linkReason: 'no_preceding_check', tx: { hash: HASH, direction: 'in', amount: '1.5', asset: 'ETH', usd: 4500.5 }, ...over });

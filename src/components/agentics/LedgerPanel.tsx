@@ -136,6 +136,10 @@ export function LedgerItem({ row, agent, label, recorded }: { row: LedgerRow; ag
       ) : (
         <>
           <p className="ag-event__line">{reasonText(row.basis ?? 'other')}</p>
+          {row.screening ? (
+            <p className={row.screening.result === 'pass' ? 'ag-event__line' : 'ag-event__line ag-event__line--warn'}>{copy.ledger.screening[row.screening.result]}</p>
+          ) : null}
+          {row.screening?.cached && row.screening.checkedAt ? <p className="ag-event__line">{copy.ledger.cached(formatUtc(row.screening.checkedAt))}</p> : null}
           {row.keyState === 'revoked' ? <p className="ag-event__line">{copy.ledger.keyRevoked}</p> : null}
           {row.keyState === 'unknown' ? <p className="ag-event__line">{copy.ledger.keyUnknown}</p> : null}
           {row.limitReached ? <p className="ag-event__line ag-event__line--warn">{copy.ledger.limitReached}</p> : null}

@@ -82,11 +82,12 @@ const FIELDS = [
 
 const VAULT_FIELDS = [
   ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
-  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, the sanctions or security screening this check ran found something (see screening), or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
   ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
   ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
   ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
   ['logged', 'Whether the check was written to the ledger. false when it could not be, or when the agent had reached its daily limit (see reason).'],
+  ['screening', "The sanctions and security screening this check ran on the address, the same one the public wallet checker runs (the OFAC sanctions mirror and GoPlus): result pass, fail or limited; checkedAt, when that screening was made; and cached, true when a screening that passed a few minutes earlier was reused (see below). fail flags the answer, and flags the address in your registry if it is there. limited means part of it could not run (a source did not answer, it took longer than 12 seconds, or your account's checks per minute were used up): it changes no answer, it is never read as a pass, and it is not reused. null when the vault could not be read."],
   ['reason', 'Present only when logged is false because the agent reached its daily limit of recorded checks: log_limit. The Free plan records 5,000 checks per agent per UTC day, and keeps recording the ones that come back flagged, up to 500 more. The check that finds the day full is recorded with a mark, so the ledger, the report and the export show where the day was cut. The check itself still answers in full.'],
 ];
 
@@ -385,7 +386,8 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
   "registry": "trusted",     // "trusted" | "flagged" | "pending" | "none"
   "history": "consistent",   // "consistent" | "none"
   "eventId": "6f1c0a52-9d3e-4b7a-8c10-2e5d7a9b4f31",  // the ledger row this check was written as, or null
-  "logged": true             // false when nothing was written; then see reason
+  "logged": true,            // false when nothing was written; then see reason
+  "screening": { "result": "pass", "checkedAt": "2026-11-05T14:02:11.000Z", "cached": true }  // "pass" | "fail" | "limited"
 }`}</pre>
     </div>
     <ul class="pr">
@@ -400,9 +402,22 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       whatever is not cleared, exactly as before.
     </p>
     <p class="body">
+      <b>Each check is screened.</b> With a linked key, every address check also runs the sanctions and security
+      screening on the address, so an address listed since you registered it, or one never on your list, is
+      flagged on the spot. A screening that has to be asked fresh can add a few seconds to the answer (at most
+      12). To keep that rare, Almstins keeps, for your account, the last 10 addresses whose screening passed. A
+      check on one of them within 10 minutes of its last use reuses that screening and answers at once, and
+      each use starts the 10 minutes again. Only the screening is reused: your registry, the agent's history and
+      the public proof are read on every check. Any flag takes the address out of the list, and a flag is never
+      answered from it: a screening that finds something, a flagged answer, an address that becomes flagged in
+      your registry, or a change to the sanctions lists. Your agent's code does not change: ask before every
+      payment, and the vault decides whether the screening can be reused.
+    </p>
+    <p class="body">
       <b>What is recorded.</b> For each address check made with a linked key: the address as you asked, the
       time, the answer and why it was answered so, the registry's word, the status, level, domain and proof
-      age the public check returned, which key asked, and the caller's network address kept only as a salted
+      age the public check returned, the screening's result and when it was made (a reused one is marked
+      cached, so the ledger shows how fresh it was), which key asked, and the caller's network address kept only as a salted
       one-way hash. Calls with no key, keys not linked to an agent, and payment links or QR values (which
       carry no <code>vault</code> field) are never recorded. Rows are never edited or removed while your account
       exists; deleting the account deletes them. On the Free plan an agent has 5,000 recorded checks per UTC

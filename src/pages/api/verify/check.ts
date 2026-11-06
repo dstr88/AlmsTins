@@ -34,16 +34,21 @@
  * `mismatch` answer, and only when it derives from `domain` under the same rule public
  * cards use (displayableName) — never the account's raw freeform text, which is never an
  * identity we can vouch for (S7b: the same "no freeform label, ever, in public" rule
- * verifyPublicCard.ts already enforces for wallet-checker and /verify/scan). Read-only, no
- * upstream fetch at check time (no SSRF surface). Additive-only response contract; `v`
+ * verifyPublicCard.ts already enforces for wallet-checker and /verify/scan). Read-only. The public
+ * answer makes no upstream fetch at check time (no SSRF surface); only the vault path below screens,
+ * through the public wallet checker's own validated, timed-out calls. Additive-only response contract; `v`
  * bumps only on a breaking change — a new `status` value is additive (an agent that reads
  * status verbatim without an exhaustive switch already treats anything but `proven` as a
  * hold, per /agentics/docs).
  *
  * A KEYED call whose key is linked to one of the owner's Agent Vault tins is also written to that
  * tin's ledger, and its answer gains one more field, `vault` (cleared, answer, registry, history,
- * eventId, logged): see src/lib/agentVault/checkLog.ts. Nothing above changes, anonymous calls
- * never get the field and are never recorded, and a failure there never changes the answer.
+ * eventId, logged, screening): see src/lib/agentVault/checkLog.ts. On that path the address is also
+ * screened (sanctions and security, src/lib/agentVault/checkScreening.ts), or the screening is reused
+ * from the account's warm-address cache when it passed within the last ten minutes of use
+ * (src/lib/agentVault/warmCache.ts); a screening hit flags the vault answer. Nothing above changes,
+ * anonymous calls never get the field and are never screened or recorded, and a failure there never
+ * changes the public answer.
  */
 import type { APIRoute } from 'astro';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';

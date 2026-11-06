@@ -10,7 +10,8 @@
  *   established   only if the account turned the Established email on (off by default). The API
  *                 calls it consistent-with-history: the same trusted address this agent asked about
  *                 before, with nothing flagging it.
- *   everything else, always, with no switch: mismatch, flagged in the registry, not on the agent's
+ *   everything else, always, with no switch: mismatch, flagged in the registry, flagged by the
+ *                 check's own sanctions or security screening, not on the agent's
  *                 list, still pending, unanchored, unknown. An option to turn these off may come
  *                 with text messages, not before.
  *
@@ -35,7 +36,7 @@ import { sendVaultMail } from './mailer';
  * What a check was answered, as the alert names it. One word for each case an operator tells apart;
  * `proven` is not among them (it never emails).
  */
-export const ALERT_KINDS = ['mismatch', 'flagged', 'not_on_list', 'pending', 'unanchored', 'unknown', 'established'] as const;
+export const ALERT_KINDS = ['mismatch', 'flagged', 'screening', 'not_on_list', 'pending', 'unanchored', 'unknown', 'established'] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
 /** One alert's worth of a check. */
@@ -61,6 +62,9 @@ export function alertKindOf(basis: string, status: string): AlertKind | null {
       return 'mismatch';
     case 'registry_flagged':
       return 'flagged';
+    case 'screening_flagged':
+      // The check's own screening found something. The email says Flagged, and that it was the screening.
+      return 'screening';
     case 'not_in_registry':
       return 'not_on_list';
     case 'registry_pending':

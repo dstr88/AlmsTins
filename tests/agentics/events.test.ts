@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
-import { addr, upper, expectOk, fakeDeps, walletResult, type FakeDeps } from '../helpers/agentVault';
+import { addr, upper, expectOk, fakeDeps, fakeScreening, walletResult, type FakeDeps } from '../helpers/agentVault';
 import { hashWithSalt } from '../../src/lib/analytics/hash';
 
 /**
@@ -29,6 +29,18 @@ vi.mock('@/lib/db', () => ({
 const keys = vi.hoisted(() => ({ byTenant: {} as Record<string, Array<{ id: string; status: string }>> }));
 vi.mock('@/lib/agentKeys', () => ({ listAgentKeys: async (tenantId: string) => keys.byTenant[tenantId] ?? [] }));
 
+// The keyed check screens each address with the public checker's checkWallet (src/lib/agentVault/checkScreening.ts).
+// Here it answers from memory, a clean and complete screening unless a test sets one: no network.
+const screenAnswers = vi.hoisted(() => ({ byAddress: {} as Record<string, unknown> }));
+vi.mock('@/lib/walletChecker', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/lib/walletChecker')>()),
+  checkWallet: async (address: string) => {
+    const set = screenAnswers.byAddress[address];
+    if (set instanceof Error) throw set;
+    return set ?? (await import('../helpers/agentVault')).walletResult();
+  },
+}));
+
 const A = 'tenant-a';
 const B = 'tenant-b';
 const KEY_1 = 'a1'.repeat(12);
@@ -44,6 +56,7 @@ let checkLog: typeof import('../../src/lib/agentVault/checkLog');
 let deps: FakeDeps;
 
 beforeEach(async () => {
+  screenAnswers.byAddress = {};
   vi.stubGlobal('fetch', () => { throw new Error('the network is off in this test'); });
   vi.resetModules();
   fake = createReceivablesDbFake();
@@ -153,6 +166,8 @@ describe('a keyed check is written to the ledger of the tin its key is linked to
     expect(rows[0].id).toBe(block!.eventId);
     expect(JSON.parse(rows[0].detail_json)).toEqual({
       basis: 'registered_first_check', cleared: true, history: 'none', level: 'claimed', domain: null, proofAgeDays: 12,
+      // The check's own screening: fresh here, so it carries the time the screening says it was made.
+      screening: { result: 'pass', hits: [], limits: [], checkedAt: '2026-10-01T12:00:00.000Z', cached: false },
     });
   });
 
@@ -248,7 +263,10 @@ describe('a keyed check is written to the ledger of the tin its key is linked to
 
     const block = await ask();
 
-    expect(block).toEqual({ cleared: true, answer: 'unknown', registry: 'trusted', history: 'none', eventId: null, logged: false });
+    expect(block).toEqual({
+      cleared: true, answer: 'unknown', registry: 'trusted', history: 'none', eventId: null, logged: false,
+      screening: { result: 'pass', checkedAt: '2026-10-01T12:00:00.000Z', cached: false },
+    });
     expect(rowsOf('agent_events')).toEqual([]);
     // The failure is logged by name and code only, never the database's message.
     expect(JSON.stringify(spy.mock.calls)).toContain('53100');
@@ -259,7 +277,7 @@ describe('a keyed check is written to the ledger of the tin its key is linked to
     await newTin();
     holder.intercept = (sql) => { if (/FROM agent_destinations/i.test(sql)) throw new Error('connection lost'); };
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await ask()).toEqual({ cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false });
+    expect(await ask()).toEqual({ cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false, screening: null });
     expect(rowsOf('agent_events')).toEqual([]);
   });
 
@@ -460,5 +478,128 @@ describe('reading a tin\'s ledger (listTinEvents)', () => {
     expect(text).not.toContain(hashWithSalt('203.0.113.9'));
     expect(text).not.toContain('203.0.113.9');
     expect(text).not.toMatch(/source_?ip/i);
+  });
+});
+
+describe('each keyed check is screened, with the warm-address cache in front (decided Nov 5, 2026)', () => {
+  const MIN = 60_000;
+  const at = (ms: number) => new Date(NOW.getTime() + ms);
+  const askScreened = (screening: ReturnType<typeof fakeScreening>, over: Partial<import('../../src/lib/agentVault/checkLog').KeyedCheckInput> = {}, extra: Partial<import('../../src/lib/agentVault/checkLog').KeyedCheckDeps> = {}) =>
+    checkLog.recordKeyedCheck(
+      { keyId: KEY_1, value: addr(1), status: 'unknown', level: null, domain: null, proofAgeDays: null, sourceIp: null, now: NOW, ...over },
+      { screening, onAlert: () => {}, ...extra },
+    );
+  const detailOf = (i: number) => JSON.parse(rowsOf('agent_events')[i].detail_json);
+
+  it('a screening hit flags the answer on the spot, even for an address not on the list, and alerts as a screening flag', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    s.answers[addr(9)] = walletResult({ flags: { sanctioned: true } });
+    const alerts: string[] = [];
+    const block = await askScreened(s, { value: addr(9), status: 'proven', level: 'verified', domain: 'acme.example' }, { onAlert: (i) => { alerts.push(i.kind); } });
+    expect(block).toMatchObject({ answer: 'flagged', cleared: false, registry: 'none', logged: true, screening: { result: 'fail', cached: false } });
+    expect(detailOf(0)).toMatchObject({ basis: 'screening_flagged', screening: { result: 'fail', hits: ['sanctioned'], cached: false } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(alerts).toEqual(['screening']);
+  });
+
+  it('a screening hit on a registered, trusted address flags it on the agent\'s list too, and the flag holds', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    expect(rowsOf('agent_destinations')[0].trust_status).toBe('trusted');
+    const s = fakeScreening();
+    s.answers[addr(1)] = walletResult({ flags: { phishing: true } });
+    expect(await askScreened(s)).toMatchObject({ answer: 'flagged', registry: 'trusted', screening: { result: 'fail' } });
+    const [dest] = rowsOf('agent_destinations');
+    expect(dest.trust_status).toBe('flagged');
+    expect(JSON.parse(dest.trust_detail_json)).toMatchObject({ result: 'fail', hits: ['phishing'] });
+    // The next check reads the registry's flag: a clean screening a moment later does not clear it.
+    s.answers[addr(1)] = walletResult();
+    expect(await askScreened(s, { now: at(MIN) })).toMatchObject({ answer: 'flagged', registry: 'flagged' });
+    expect(detailOf(1).basis).toBe('registry_flagged');
+  });
+
+  it('a check within ten minutes of the last reuses the screening: nothing is asked, and the entry says cached, with both times', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    s.answers[addr(1)] = walletResult({ checkedAt: '2026-10-18T11:59:59.000Z' });
+    const first = await askScreened(s);
+    const second = await askScreened(s, { now: at(4 * MIN) });
+    expect(s.calls.screen).toEqual([addr(1)]);
+    expect(first?.screening).toEqual({ result: 'pass', checkedAt: '2026-10-18T11:59:59.000Z', cached: false });
+    expect(second).toMatchObject({ answer: 'consistent-with-history', cleared: true, logged: true, screening: { result: 'pass', checkedAt: '2026-10-18T11:59:59.000Z', cached: true } });
+    const [, row] = rowsOf('agent_events');
+    expect(row.occurred_at).toBe(at(4 * MIN).toISOString());
+    expect(JSON.parse(row.detail_json).screening).toEqual({ result: 'pass', hits: [], limits: [], checkedAt: '2026-10-18T11:59:59.000Z', cached: true, servedAt: at(4 * MIN).toISOString() });
+    // Every check is still written: a cached answer is a check like any other.
+    expect(rowsOf('agent_events')).toHaveLength(2);
+  });
+
+  it('after ten minutes without a check the address is screened fresh again', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    await askScreened(s);
+    expect((await askScreened(s, { now: at(10 * MIN) }))?.screening?.cached).toBe(false);
+    expect(s.calls.screen).toHaveLength(2);
+  });
+
+  it('only the screening is reused: a registry flag set between two checks is answered at once, and evicts the address', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    await askScreened(s);
+    const [dest] = rowsOf('agent_destinations');
+    await store.recordTrust(A, dest.id, { status: 'flagged', readout: { v: 1, checkedAt: NOW.toISOString(), result: 'fail', hits: ['mixer'], limits: [], sanctions: 'clear', screening: 'hit', verify: 'unknown', provenBy: null, communityReports: null }, checkedAt: '2026-10-18 12:00:30' });
+    expect(await askScreened(s, { now: at(MIN) })).toMatchObject({ answer: 'flagged', registry: 'flagged', screening: { cached: true } });
+    expect(s.calls.evict).toEqual([addr(1)]);
+    expect((await askScreened(s, { now: at(2 * MIN) }))?.screening?.cached).toBe(false);
+  });
+
+  it('a domain mismatch evicts too, so a flagged answer is never followed by a cached one', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    await askScreened(s);
+    expect(await askScreened(s, { now: at(MIN), status: 'mismatch' })).toMatchObject({ answer: 'flagged' });
+    expect(s.calls.evict).toEqual([addr(1)]);
+  });
+
+  it('a screening that could not run changes no answer, is said, and is not cached', async () => {
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    const s = fakeScreening();
+    s.answers[addr(1)] = walletResult({ coverage: { goplus: 'error' } });
+    expect(await askScreened(s)).toMatchObject({ answer: 'unknown', cleared: true, screening: { result: 'limited', cached: false } });
+    expect(detailOf(0).screening).toMatchObject({ result: 'limited', limits: ['screening'] });
+    expect(s.warm.rows.size).toBe(0);
+  });
+});
+
+describe('a destination that becomes flagged on add or re-check leaves the warm-address cache', () => {
+  it('evicts the address in the database when a re-check flags it', async () => {
+    const warm = await import('../../src/lib/agentVault/warmCache');
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    await warm.putWarm(A, addr(1), '2026-10-18T11:59:59.000Z', NOW);
+    const [dest] = rowsOf('agent_destinations');
+    deps.wallets[addr(1)] = walletResult({ flags: { stealingAttack: true } });
+    expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids: [dest.id] }, deps));
+    expect(rowsOf('agent_destinations')[0].trust_status).toBe('flagged');
+    const [row] = rowsOf('agent_warm_addresses');
+    expect(row).toMatchObject({ tenant_id: A, address: addr(1) });
+    expect(row.evicted_at).not.toBeNull();
+  });
+
+  it('a clean re-check leaves the cache as it is', async () => {
+    const warm = await import('../../src/lib/agentVault/warmCache');
+    const tin = await newTin();
+    await register(A, tin.id, addr(1));
+    await warm.putWarm(A, addr(1), '2026-10-18T11:59:59.000Z', NOW);
+    const [dest] = rowsOf('agent_destinations');
+    expectOk(await vault.trustDestinations(A, { tinId: tin.id, ids: [dest.id] }, deps));
+    expect(rowsOf('agent_warm_addresses')[0].evicted_at).toBeNull();
   });
 });

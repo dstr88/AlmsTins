@@ -390,6 +390,13 @@ export const copy = {
     } as Record<string, string>,
     inheritedFrom: 'Status taken from the check that came before it.',
     limitReached: 'The daily limit of recorded checks was reached with this check. Checks after it that day were answered and not recorded, except flagged ones.',
+    // The check's own sanctions and security screening (src/lib/agentVault/checkScreening.ts).
+    screening: {
+      pass: 'Sanctions and security screening: nothing found.',
+      fail: 'Sanctions and security screening: found something. A person should review it.',
+      limited: 'Sanctions and security screening: could not run in full. That is not read as a pass.',
+    } as Record<'pass' | 'fail' | 'limited', string>,
+    cached: (screenedAt: string) => `Cached: this answer reused the screening made at ${screenedAt}. It was served at the time above.`,
     keyRevoked: 'Asked with a key that has since been revoked.',
     keyUnknown: 'Asked with a key that is no longer on this account.',
     loadMore: 'Load more',
