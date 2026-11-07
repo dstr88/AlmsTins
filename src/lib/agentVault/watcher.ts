@@ -42,7 +42,7 @@ import { defaultExplorer, type ExplorerDeps } from './explorer';
 import { LINK_LOOKUP_LIMIT, LINK_TOLERANCE_MS, LINK_WINDOW_MS, linkTransactionToCheck } from './link';
 import { fillPendingPrices } from './dailyPrices';
 import { defaultPricing, memoizePricing, priceTransfer, type PricingDeps } from './pricing';
-import { getTin, listDestinations, listWallets, listWatchTargets, type AgentWallet, type Destination, type Tin } from './store';
+import { listDestinations, listWallets, type AgentWallet, type Destination, type Tin } from './store';
 import { EXPLORER_ACTIONS, normalizeTransfers, transferTime, type ExplorerAction, type Transfer } from './transfers';
 import { advanceWalletCursor, oldestPairCursor, readPairCursors, readWalletCursors } from './watchState';
 import { alertCheck, unmatchedAlertDue, type CheckAlertInfo } from './alerts';
@@ -54,8 +54,6 @@ export const MAX_PAGES = 10;
 export const CURSOR_OVERLAP_S = 60 * 60;
 /** How old a block must be before it is read, per chain, so a reorganization is unlikely to undo it. */
 export const CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = { ethereum: 180, polygon: 600, avalanche: 60 };
-/** The most wallet rows the daily job reads to find its tins. */
-export const MAX_TARGET_ROWS = 5_000;
 
 export interface WatchDeps {
   explorer: ExplorerDeps;
@@ -77,6 +75,11 @@ export const defaultWatchDeps: WatchDeps = { explorer: defaultExplorer, pricing:
 export interface PassOptions {
   /** Stop starting new reads at this time (milliseconds since the epoch). What was read stays, and the cursor says where to resume. */
   deadlineAt?: number;
+  /**
+   * Read only these of the tin's wallets, in this order (the daily pass, ./syncPass.ts, which reads the least
+   * recently read first). A wallet no longer live is skipped. Every live wallet, oldest first, when omitted.
+   */
+  walletIds?: readonly string[];
 }
 
 export type WalletStatus =
@@ -405,13 +408,15 @@ export async function runTinPass(
 ): Promise<TinPassReport> {
   const startedMs = deps.now();
   const deadlineAt = opts.deadlineAt ?? Number.POSITIVE_INFINITY;
-  const [wallets, destinations, walletCursors, pairCursors] = await Promise.all([
+  const [live, destinations, walletCursors, pairCursors] = await Promise.all([
     listWallets(tenantId, tin.id),
     listDestinations(tenantId, tin.id),
     readWalletCursors(tenantId, tin.id),
     readPairCursors(tenantId, tin.id),
   ]);
   const registry = registryIndex(destinations);
+  const byId = new Map(live.map((w) => [w.id, w]));
+  const wallets = opts.walletIds ? opts.walletIds.flatMap((id) => byId.get(id) ?? []) : live;
 
   const report: TinPassReport = {
     tinId: tin.id,
@@ -477,53 +482,6 @@ export async function runTinPass(
     }
   }
   return report;
-}
-
-export interface WatchRunSummary {
-  /** Tins visited. */
-  tins: number;
-  wallets: number;
-  complete: number;
-  partial: number;
-  unavailable: number;
-  failed: number;
-  /** Events newly written. */
-  recorded: number;
-  /** True when the deadline ended the run before every tin was visited. */
-  truncated: boolean;
-}
-
-/**
- * The daily job: every tin that has a wallet, one after another. Numbers only, so the summary can
- * be printed in a public log without naming anyone.
- */
-export async function runAllTins(deps: WatchDeps = defaultWatchDeps, opts: PassOptions = {}): Promise<WatchRunSummary> {
-  const summary: WatchRunSummary = { tins: 0, wallets: 0, complete: 0, partial: 0, unavailable: 0, failed: 0, recorded: 0, truncated: false };
-  const deadlineAt = opts.deadlineAt ?? Number.POSITIVE_INFINITY;
-  for (const target of await listWatchTargets(MAX_TARGET_ROWS)) {
-    if (deps.now() >= deadlineAt) {
-      summary.truncated = true;
-      break;
-    }
-    try {
-      const tin = await getTin(target.tenantId, target.tinId);
-      if (!tin) continue;
-      const pass = await runTinPass(target.tenantId, tin, deps, opts);
-      summary.tins += 1;
-      summary.recorded += pass.recorded;
-      for (const w of pass.wallets) {
-        summary.wallets += 1;
-        if (w.status === 'complete' || w.status === 'idle') summary.complete += 1;
-        else if (w.status === 'partial') summary.partial += 1;
-        else if (w.status === 'unavailable') summary.unavailable += 1;
-        else summary.failed += 1;
-      }
-    } catch (err) {
-      logFailure('tin', err);
-      summary.failed += 1;
-    }
-  }
-  return summary;
 }
 
 export { counterpartyOf };

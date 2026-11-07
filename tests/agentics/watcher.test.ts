@@ -1021,66 +1021,7 @@ describe('accounts never see each other', () => {
 
 // ── The daily job and the button ─────────────────────────────────────────────
 
-describe('the daily job', () => {
-  it('visits every tin with a wallet, once, whatever its registry holds, and reports numbers only', async () => {
-    const mine = await world();
-    stockExplorer();
-    const tinB = await makeTin(B, 'Agent');
-    await makeWallet(B, tinB.id);
-    await makeDestination(B, tinB.id, D1, 'trusted', 1000);
-    const bare = await makeTin(A, 'No destinations yet');
-    await makeWallet(A, bare.id, addr(5));
-    const flaggedOnly = await makeTin(A, 'Only flagged');
-    await makeWallet(A, flaggedOnly.id, addr(6));
-    await makeDestination(A, flaggedOnly.id, addr(30), 'flagged', 1000);
-    const noWallet = await makeTin(A, 'No wallet');
-    await makeDestination(A, noWallet.id, addr(31), 'trusted', 1000);
-
-    const summary = await watcher.runAllTins(deps());
-    expect(summary).toEqual({ tins: 4, wallets: 4, complete: 4, partial: 0, unavailable: 0, failed: 0, recorded: STOCK_TRANSFERS * 2, truncated: false });
-    expect(Object.values(summary).every((v) => typeof v === 'number' || typeof v === 'boolean')).toBe(true);
-    expect(JSON.stringify(summary)).not.toMatch(/0x/);
-    expect(ledger(A)).toHaveLength(STOCK_TRANSFERS);
-    expect(ledger(B)).toHaveLength(STOCK_TRANSFERS);
-    expect(mine.tin.id).toBeTruthy();
-  });
-
-  it('stops starting new tins at the deadline and says it was cut short', async () => {
-    await world();
-    stockExplorer();
-    const summary = await watcher.runAllTins(deps(), { deadlineAt: nowMs - 1 });
-    expect(summary).toMatchObject({ tins: 0, truncated: true });
-    expect(explorer.calls).toEqual([]);
-  });
-
-  it('a tin that fails does not stop the others', async () => {
-    const mine = await world();
-    stockExplorer();
-    const tinB = await makeTin(B, 'Agent');
-    await makeWallet(B, tinB.id);
-    await makeDestination(B, tinB.id, D1, 'trusted', 1000);
-    const real = holder.db.execute.bind(holder.db);
-    holder.db = { ...holder.db, execute: async (s: any) => {
-      const sql = typeof s === 'string' ? s : s.sql;
-      if (/FROM agent_wallets/i.test(sql) && (s.args ?? []).includes(A)) throw new Error('database hiccup');
-      return real(s);
-    } };
-    const summary = await watcher.runAllTins(deps());
-    expect(summary.failed).toBe(1);
-    expect(summary.tins).toBe(1);
-    expect(ledger(B).length).toBeGreaterThan(0);
-    expect(mine.tin.id).toBeTruthy();
-  });
-
-  it('skips a tin that was removed after its wallet was added', async () => {
-    const w = await world();
-    stockExplorer();
-    await store.softDeleteTin(A, w.tin.id, stored(10_000));
-    const summary = await watcher.runAllTins(deps());
-    expect(summary.tins).toBe(0);
-    expect(ledger()).toEqual([]);
-  });
-});
+// The daily job (the day's pass, in as many calls as it takes) is in tests/agentics/syncPass.test.ts.
 
 describe('the owner asks for a read now', () => {
   it('runs the pass for the tin and answers what it did', async () => {

@@ -121,6 +121,12 @@ owner-only until `AGENTICS_VAULT_PUBLIC` in `src/lib/agenticsFlag.mjs` is set to
   under it starts from the oldest of its earlier per-destination cursors, or from its
   registration. Event ids are derived from the transaction hash and leg, so reading the same
   history twice never writes a row twice.
+- **Daily pass** (`syncPass.ts`): the day's read of every wallet is one pass, named by its UTC date,
+  made of as many nine-minute calls as it takes. Each call reads the wallets with no finished read in
+  today's pass, least recently read first, and answers `done` and how many are `remaining`; one row
+  per wallet (`agent_wallet_reads`, migration 0071) says when and in which pass it was last read. The
+  Sync Agent Wallets workflow calls until the pass is done, then runs Agent Reports as its second job,
+  and goes red on a failed wallet anywhere in the pass.
 - **Wallets page** (`/dashboard/agentics/wallets`): every agent's own wallets, ten to a page.
   Each has two windows, what it received and what it sent, newest first, that scroll, expand and
   load more, with a CSV download beside each (`/api/agentics/wallet-transfers`). Its reads use

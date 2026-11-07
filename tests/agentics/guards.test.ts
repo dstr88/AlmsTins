@@ -43,6 +43,7 @@ const VAULT_FILES = [
   path.join(ROOT, 'migrations-pg/0067_agent_warm_addresses.sql'),
   path.join(ROOT, 'migrations-pg/0068_agent_daily_prices.sql'),
   path.join(ROOT, 'migrations-pg/0069_agent_events_wallet_index.sql'),
+  path.join(ROOT, 'migrations-pg/0071_agent_wallet_reads.sql'),
   path.join(ROOT, 'src/pages/api/cron/sync-agent-wallets.ts'),
   path.join(ROOT, 'src/pages/api/cron/agent-reports.ts'),
   path.join(ROOT, 'src/i18n/emails/agentReport.ts'),
@@ -85,7 +86,7 @@ describe('the schema file and the code create the same tables', () => {
     expect(files.filter((f) => f.startsWith('0053'))).toEqual(['0053_agent_reports.sql']);
   });
 
-  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, its warm-address cache, 0067, its daily price table, 0068, the wallet windows\' index, 0069, and the door\'s activity columns, 0070', () => {
+  it('report delivery is 0054, the only 0054; the feed\'s index is 0055, the only 0055; the only migrations numbered higher are the door\'s 0060 and 0061, the counterparty column\'s 0062, the tax allocation table\'s 0063, the receivables notices\' 0064, the Vault\'s per-wallet cursors, 0065, its Established email switch, 0066, its warm-address cache, 0067, its daily price table, 0068, the wallet windows\' index, 0069, the door\'s activity columns, 0070, and the Vault\'s daily-pass reads, 0071', () => {
     const files = readdirSync(path.join(ROOT, 'migrations-pg')).sort();
     expect(files.filter((f) => f.startsWith('0054'))).toEqual(['0054_agent_report_delivery.sql']);
     expect(files.filter((f) => f.startsWith('0055'))).toEqual(['0055_agent_events_feed_index.sql']);
@@ -100,8 +101,9 @@ describe('the schema file and the code create the same tables', () => {
     // 0068 is the Vault's daily price table: one USD price per coin and day, filled after a transfer is recorded.
     // 0069 is the index the Wallets page reads one wallet's transfers in one direction by.
     // 0070 adds country and last_seen_at to the door's signup table, for the admin page (not the Vault).
+    // 0071 is the Vault's daily pass of the chain read: one row per wallet saying when it was last read, and in which pass.
     // Nothing else sits above 0055.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql', '0069_agent_events_wallet_index.sql', '0070_agentics_signups_activity.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql', '0069_agent_events_wallet_index.sql', '0070_agentics_signups_activity.sql', '0071_agent_wallet_reads.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {
@@ -282,6 +284,24 @@ describe('the per-wallet cursor schema file and the code create the same table (
     const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
     expect(at('agent_wallet_cursors')).toBeGreaterThanOrEqual(0);
     expect(at('agent_wallet_cursors')).toBeLessThan(at('agent_tins'));
+  });
+});
+
+describe('the daily-pass schema file and the code create the same table', () => {
+  it('migrations-pg/0071_agent_wallet_reads.sql holds exactly the statements ensureAgentWalletReadsTable runs, in order', async () => {
+    const { AGENT_WALLET_READS_DDL } = await import('../../src/lib/agentVault/syncPass');
+    const statements = squash(read('migrations-pg/0071_agent_wallet_reads.sql').replace(/--[^\n]*/g, ''))
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toEqual(AGENT_WALLET_READS_DDL.map(squash));
+  });
+
+  it('is removed with the account, before the tins', async () => {
+    const { TENANT_TABLES } = await import('../../src/lib/accountDeleteTables');
+    const at = (t: string) => (TENANT_TABLES as readonly string[]).indexOf(t);
+    expect(at('agent_wallet_reads')).toBeGreaterThanOrEqual(0);
+    expect(at('agent_wallet_reads')).toBeLessThan(at('agent_tins'));
   });
 });
 
@@ -507,6 +527,7 @@ describe('the Vault keeps to the bright lines', () => {
       'migrations-pg/0067_agent_warm_addresses.sql',
       'migrations-pg/0068_agent_daily_prices.sql',
       'migrations-pg/0069_agent_events_wallet_index.sql',
+      'migrations-pg/0071_agent_wallet_reads.sql',
       'src/components/agentics/AccountPanel.tsx',
       'src/components/agentics/AgentKeyCard.tsx',
       'src/components/agentics/AgentPage.tsx',
@@ -577,6 +598,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/reportText.ts',
       'src/lib/agentVault/reports.ts',
       'src/lib/agentVault/store.ts',
+      'src/lib/agentVault/syncPass.ts',
       'src/lib/agentVault/transfers.ts',
       'src/lib/agentVault/trustChecks.ts',
       'src/lib/agentVault/trustPolicy.ts',

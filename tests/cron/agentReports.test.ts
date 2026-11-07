@@ -139,15 +139,11 @@ describe('what it does and answers', () => {
 describe('the workflow that calls it', () => {
   const wf = readFileSync(path.join(ROOT, '.github/workflows/agent-reports.yml'), 'utf8');
   const watcher = readFileSync(path.join(ROOT, '.github/workflows/sync-agent-wallets.yml'), 'utf8');
-  const cronOf = (text: string) => /cron:\s*'(\d+) (\d+) \* \* \*'/.exec(text);
 
-  it('runs once a day, after the chain watcher has had its whole budget', () => {
-    const mine = cronOf(wf);
-    const theirs = cronOf(watcher);
-    expect(mine && theirs).toBeTruthy();
-    const minutes = (m: RegExpExecArray) => Number(m[2]) * 60 + Number(m[1]);
-    // The watcher stops starting reads after nine minutes, so this runs at least ten minutes later.
-    expect(minutes(mine!) - minutes(theirs!)).toBeGreaterThanOrEqual(10);
+  it('has no schedule of its own: the chain watcher\'s workflow calls it once the day\'s pass is done, and it can be started by hand', () => {
+    expect(wf).not.toMatch(/schedule:|cron:/);
+    expect(wf).toMatch(/^on:\n  workflow_call:\n  workflow_dispatch:\n/m);
+    expect(watcher).toMatch(/needs: sync-agent-wallets\n    if: \$\{\{ always\(\) && needs\.sync-agent-wallets\.outputs\.done == 'true' \}\}\n    uses: \.\/\.github\/workflows\/agent-reports\.yml/);
   });
 
   it('calls this endpoint through the retry wrapper, with the secret in a header only (never in the URL), and prints numbers and true/false only', () => {
