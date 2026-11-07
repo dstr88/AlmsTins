@@ -109,7 +109,19 @@ const trust = [
     description,
     applicationCategory: 'FinanceApplication',
     operatingSystem: 'Any',
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    // Free while the first pilots run; the price after is $95 a month for 10 contracts (owner
+    // decision, Oct 16, 2026). Keep these in step with the hero's price line below.
+    offers: [
+      { '@type': 'Offer', name: 'Pilot', price: '0', priceCurrency: 'USD', description: 'Free during the pilot.' },
+      {
+        '@type': 'Offer',
+        name: 'Standard',
+        price: '95',
+        priceCurrency: 'USD',
+        description: '$95 a month for 10 contracts, with room to grow.',
+        priceSpecification: { '@type': 'UnitPriceSpecification', price: '95', priceCurrency: 'USD', unitText: 'MONTH' },
+      },
+    ],
     creator: { '@type': 'Organization', name: 'Almstins', url: 'https://almstins.com' },
   })} />
 
@@ -148,6 +160,7 @@ const trust = [
           <a class="rbtn rbtn--ghost" href={receivablesPath('registry')}>Check a receivable</a>
         </div>
         <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
+        <p class="rhero__price">Free during the pilot. $95 a month for 10 contracts after, with room to grow.</p>
       </div>
 
       <!-- Synthetic product preview (decorative; the demo entity, never real data) -->
@@ -353,6 +366,7 @@ const trust = [
   .rhero__sub { font-size: 1.05rem; color: var(--text-secondary); line-height: 1.7; margin: 0 0 1.6rem; }
   .rhero__ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
   .rhero__who { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 1.5rem 0 0; }
+  .rhero__price { font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; line-height: 1.6; margin: 0.5rem 0 0; }
 
   /* Synthetic product-preview card (decorative) */
   .rhero__visual { display: flex; justify-content: center; }
