@@ -7,11 +7,14 @@ import path from 'node:path';
 /**
  * The two Agent Vault workflows, run for real. Each one's `run:` script is taken out of the
  * workflow file and executed with bash the way GitHub does (`bash -eo pipefail`), with a fake
- * `curl` on the PATH that writes a chosen answer where the script asks for it, and the real `jq`.
- * No network. What is pinned:
+ * `curl` on the PATH that writes a chosen answer where the script asks for it (one line of answers
+ * per call, the last repeated), and the real `jq`. No network. What is pinned:
  *
- *   - the job goes RED (exit 1) when the answer says a report or a send failed, a wallet failed, or
- *     the run was cut short, and when the answer is not JSON or not ok; it stays green otherwise;
+ *   - Agent Reports goes RED (exit 1) when the answer says a report or a send failed or the run was
+ *     cut short, and when the answer is not JSON or not ok; it stays green otherwise;
+ *   - Sync Agent Wallets calls again until the day's pass is done, then says so to the reports job;
+ *     it goes RED when a call is not ok, when the pass is not done after its most calls, or when the
+ *     finished pass counts a failed wallet: the whole pass is judged, not one call;
  *   - this repository's Actions logs are public, so only numbers and true/false are ever printed,
  *     and the red message names no value.
  *
@@ -57,7 +60,11 @@ beforeAll(() => {
       '  prev="$a"',
       'done',
       'printf "%s\\n" "$@" > "$RUNNER_TEMP/curl-args.txt"',
-      '[ -n "$out" ] && printf "%s" "$FAKE_ANSWER" > "$out"',
+      'n=$(( $(cat "$RUNNER_TEMP/curl-count" 2>/dev/null || echo 0) + 1 ))',
+      'echo "$n" > "$RUNNER_TEMP/curl-count"',
+      'ans=$(printf "%s\\n" "$FAKE_ANSWER" | sed -n "${n}p")',
+      '[ -z "$ans" ] && ans=$(printf "%s\\n" "$FAKE_ANSWER" | tail -n 1)',
+      '[ -n "$out" ] && printf "%s" "$ans" > "$out"',
       'echo "HTTP 200"',
       'exit "${FAKE_CURL_EXIT:-0}"',
       '',
@@ -71,6 +78,8 @@ afterAll(() => {
 });
 
 function run(file: string, answer: string, env: Record<string, string> = {}) {
+  rmSync(path.join(work, 'curl-count'), { force: true });
+  writeFileSync(path.join(work, 'github-output'), '');
   const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', runScriptOf(file)], {
     cwd: ROOT,
     encoding: 'utf8',
@@ -81,10 +90,13 @@ function run(file: string, answer: string, env: Record<string, string> = {}) {
       CRON_SECRET: CANARY_SECRET,
       FAKE_ANSWER: answer,
       CRON_CURL_RETRY_DELAY: '0',
+      GITHUB_OUTPUT: path.join(work, 'github-output'),
       ...env,
     },
   });
-  return { status: r.status, out: `${r.stdout}${r.stderr}`, args: readFileSync(path.join(work, 'curl-args.txt'), 'utf8').split('\n') };
+  const calls = Number(readFileSync(path.join(work, 'curl-count'), 'utf8').trim());
+  const output = readFileSync(path.join(work, 'github-output'), 'utf8');
+  return { status: r.status, out: `${r.stdout}${r.stderr}`, args: readFileSync(path.join(work, 'curl-args.txt'), 'utf8').split('\n'), calls, output };
 }
 
 const REPORTS = 'agent-reports.yml';
@@ -153,37 +165,79 @@ describe('Agent Reports goes red when the run says something went wrong', () => 
 
 const WATCHER = 'sync-agent-wallets.yml';
 const watcherAnswer = (over: Record<string, unknown> = {}) =>
-  JSON.stringify({ ok: true, elapsed_ms: 987, tins: 3, wallets: 5, complete: 4, partial: 1, unavailable: 0, failed: 0, recorded: 12, truncated: false, ...over });
+  JSON.stringify({
+    ok: true, elapsed_ms: 987, done: true, remaining: 0, tins: 3, wallets: 5, complete: 4, partial: 1, unavailable: 0, failed: 0, recorded: 12, truncated: false,
+    pass_wallets: 5, pass_complete: 4, pass_partial: 1, pass_unavailable: 0, pass_failed: 0, pass_recorded: 12, ...over,
+  });
+/** The answers of a pass that takes `n` calls: n - 1 cut short with wallets left, then the last. */
+const passOf = (n: number, last: Record<string, unknown> = {}) =>
+  [...Array.from({ length: n - 1 }, (_, i) => watcherAnswer({ done: false, remaining: (n - 1 - i) * 10, truncated: true })), watcherAnswer(last)].join('\n');
 
-describe('Sync Agent Wallets goes red when a wallet could not be written or the run was cut short', () => {
-  it('stays green for a clean run, and prints the numbers', () => {
+describe('Sync Agent Wallets calls until the day\'s pass is done, and judges the whole pass', () => {
+  it('a pass done in one call is one call, green, and tells the reports job it is done', () => {
     const r = run(WATCHER, watcherAnswer());
     expect(r.status).toBe(0);
+    expect(r.calls).toBe(1);
     expect(r.out).toContain('"wallets":5');
+    expect(r.out).toContain('"done":true');
     expect(r.out).not.toMatch(/problem/i);
+    expect(r.output).toBe('done=true\n');
+  });
+
+  it('calls again while wallets are left: a call cut short is normal, not red', () => {
+    const r = run(WATCHER, passOf(4));
+    expect(r.status).toBe(0);
+    expect(r.calls).toBe(4);
+    expect(r.out.match(/"done":false/g)).toHaveLength(3);
+    expect(r.output).toBe('done=true\n');
+  });
+
+  it('goes red when the finished pass counts a failed wallet, but still tells the reports job the pass is done', () => {
+    const r = run(WATCHER, passOf(2, { pass_failed: 1 }));
+    expect(r.status).toBe(1);
+    expect(r.calls).toBe(2);
+    expect(r.out).toMatch(/finished with a problem: failed wallets in the day's pass/);
+    expect(r.output).toBe('done=true\n');
+  });
+
+  it('judges the pass, not the last call: a failed wallet earlier in the pass is red even when the last call read nothing', () => {
+    const r = run(WATCHER, passOf(3, { wallets: 0, complete: 0, partial: 0, failed: 0, pass_failed: 2 }));
+    expect(r.status).toBe(1);
+  });
+
+  it('a wallet the explorer could not answer for, or read part of the way, is picked up tomorrow: not red', () => {
+    expect(run(WATCHER, watcherAnswer({ unavailable: 3, partial: 2, pass_unavailable: 3, pass_partial: 2 })).status).toBe(0);
   });
 
   it.each([
-    ['a wallet whose ledger write failed', { failed: 1 }],
-    ['a run the deadline cut short', { truncated: true }],
-    ['an answer that is not ok', { ok: false }],
-  ])('goes red for %s, after printing the numbers', (_name, over) => {
-    const r = run(WATCHER, watcherAnswer(over));
+    ['not ok', watcherAnswer({ ok: false })],
+    ['not JSON', 'upstream connect error'],
+    ['empty', ''],
+  ])('goes red at once for a call that answers %s, and never says the pass is done', (_name, bad) => {
+    const r = run(WATCHER, [watcherAnswer({ done: false, remaining: 5 }), bad].join('\n'));
     expect(r.status).toBe(1);
-    expect(r.out).toContain('"wallets":5');
-    expect(r.out).toMatch(/finished with a problem/);
+    expect(r.calls).toBe(2);
+    expect(r.out).toMatch(/call 2 did not answer ok/);
+    expect(r.output).toBe('');
   });
 
-  it('a wallet the explorer could not answer for, or read part of the way, is picked up from its cursor tomorrow: not red', () => {
-    expect(run(WATCHER, watcherAnswer({ unavailable: 3, partial: 2 })).status).toBe(0);
+  it('stops after its most calls when the pass never says done, red, and the reports do not run', () => {
+    const r = run(WATCHER, watcherAnswer({ done: false, remaining: 3 }));
+    expect(r.status).toBe(1);
+    expect(r.calls).toBe(32);
+    expect(r.out).toMatch(/stopped after 32 calls with wallets still to read/);
+    expect(r.output).toBe('');
   });
 
-  it('goes red for an answer that is not JSON at all', () => {
-    expect(run(WATCHER, 'upstream connect error').status).toBe(1);
+  it('a failed request fails the job at once, and the reports do not run', () => {
+    const r = run(WATCHER, watcherAnswer(), { FAKE_CURL_EXIT: '22' });
+    expect(r.status).toBe(22);
+    expect(r.calls).toBe(1);
+    expect(r.output).toBe('');
   });
 
   it('prints only numbers and true/false', () => {
-    const r = run(WATCHER, watcherAnswer({ note: CANARY_TEXT, failed: 1 }));
+    const r = run(WATCHER, passOf(2, { note: CANARY_TEXT, pass_failed: 1 }));
     expect(r.out).not.toContain(CANARY_TEXT);
     expect(r.out).not.toContain(CANARY_SECRET);
   });

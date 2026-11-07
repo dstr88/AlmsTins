@@ -1,13 +1,12 @@
 name: Agent Reports
 
 # Daily: the Agent Vault makes the operator reports of the last three days for every agent that did
-# anything, and emails the accounts that turned a digest on the digest of yesterday. Runs after the
-# chain watcher (Sync Agent Wallets, 08:10 UTC, which stops starting new reads after nine minutes)
-# so a transfer is in the ledger before the day's report is made. The job goes red when the run
-# reports a failed report, a failed send or a truncated run.
+# anything, and emails the accounts that turned a digest on the digest of yesterday. It has no
+# schedule of its own: Sync Agent Wallets calls it as its second job, once the day's read of the chain
+# is done, so a transfer is in the ledger before the day's report is made. It can still be started by
+# hand. The job goes red when the run reports a failed report, a failed send or a truncated run.
 on:
-  schedule:
-    - cron: '10 9 * * *'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

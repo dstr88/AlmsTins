@@ -1,14 +1,15 @@
 /**
  * GET /api/cron/sync-agent-wallets
  *
- * The Agent Vault's daily read of the chain. For every tin with a wallet, read every direct
- * transfer the agent's own wallets made or received, mark what the registry says about the other
- * side, and record the new ones in the ledger (src/lib/agentVault/watcher.ts).
+ * One call of the Agent Vault's daily read of the chain. For every agent wallet, read every direct
+ * transfer it made or received, mark what the registry says about the other side, and record the
+ * new ones in the ledger (src/lib/agentVault/watcher.ts).
  *
- * It paces itself on the shared explorer rate limit, stops starting new reads after about nine
- * minutes, and picks up where it stopped the next day (the cursors keep what was read). The
- * answer is numbers and true/false only: the workflow prints it in a public log, so it names no
- * wallet and no account.
+ * The day is one pass made of as many calls as it takes (src/lib/agentVault/syncPass.ts): each call
+ * reads the wallets the pass has not read yet, least recently read first, stops starting new reads
+ * after about nine minutes, and answers `done` and how many are `remaining`. The workflow calls
+ * again until `done`. The answer is numbers and true/false only: the workflow prints it in a public
+ * log, so it names no wallet and no account.
  *
  * Protected by CRON_SECRET, compared in constant time and closed when it is not set (header or
  * ?secret=, like the other cron routes; the workflow sends the header only, so the secret is never in
@@ -16,7 +17,8 @@
  */
 import type { APIRoute } from 'astro';
 import { cronSecretMatches } from '@/lib/agentVault/cronAuth';
-import { defaultWatchDeps, runAllTins } from '@/lib/agentVault/watcher';
+import { runSyncCall } from '@/lib/agentVault/syncPass';
+import { defaultWatchDeps } from '@/lib/agentVault/watcher';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -31,7 +33,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const started = Date.now();
   try {
-    const summary = await runAllTins(defaultWatchDeps, { deadlineAt: started + RUN_BUDGET_MS });
+    const summary = await runSyncCall(defaultWatchDeps, { deadlineAt: started + RUN_BUDGET_MS });
     return json({ ok: true, elapsed_ms: Date.now() - started, ...summary }, 200, { noStore: true });
   } catch (err) {
     const e = err as { name?: unknown; code?: unknown } | null;

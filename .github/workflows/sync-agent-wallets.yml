@@ -1,9 +1,17 @@
 name: Sync Agent Wallets
 
-# Daily: the Agent Vault reads the chain for each tin's trusted destinations and records the
-# movements of funds between the agent's own wallets and those destinations. Only registered,
-# trusted destinations are watched. Runs after the weekly wallet syncs so it never shares their hour.
-# The job goes red when the run reports a failed wallet or a truncated run.
+# Daily: the Agent Vault reads the chain for every agent's own wallets and records each direct
+# transfer, in both directions, with what the registry says about the other side. The day is one
+# pass made of as many calls as it takes: each call reads the wallets the pass has not read yet,
+# least recently read first, for about nine minutes, and answers whether the pass is done. This job
+# calls again until it is. Runs after the weekly wallet syncs so it never shares their hour.
+#
+# Agent Reports runs as the second job, once the pass is done, so a day's report is never made
+# before that day's read of the chain.
+#
+# The sync job goes red when a call answers with a problem (not JSON, not ok, an HTTP error or a
+# timeout), when the pass is not done after the most calls it may make, or when the finished pass
+# counts a wallet whose ledger could not be written. It judges the whole pass, not one call.
 on:
   schedule:
     - cron: '10 8 * * *'
@@ -12,9 +20,19 @@ on:
 permissions:
   contents: read
 
+# Two loops never overlap: a run that starts while another is going waits for it, and is not cancelled.
+concurrency:
+  group: sync-agent-wallets
+  cancel-in-progress: false
+
 jobs:
   sync-agent-wallets:
     runs-on: ubuntu-latest
+    # GitHub stops any job at six hours. Five hours is about 32 nine-minute calls, a few thousand light
+    # wallets, against one call today; it leaves the reports job room inside the day.
+    timeout-minutes: 300
+    outputs:
+      done: ${{ steps.sync.outputs.done }}
     steps:
       # Only the curl wrapper. It retries a request that never reached the server, nothing else.
       - uses: actions/checkout@v4
@@ -23,7 +41,8 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      - name: Trigger sync-agent-wallets
+      - name: Trigger sync-agent-wallets until the day's pass is done
+        id: sync
         env:
           SYNC_URL:    ${{ secrets.SYNC_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -32,17 +51,43 @@ jobs:
             echo "SYNC_URL or CRON_SECRET secret missing."
             exit 1
           fi
-          bash scripts/cron-curl.sh -sS --fail --max-time 600 \
-            -o "$RUNNER_TEMP/cron-response.json" -w 'HTTP %{http_code}\n' \
-            "$SYNC_URL/api/cron/sync-agent-wallets" \
-            -H "x-cron-secret: $CRON_SECRET"
-          # Print only numbers and true/false fields (counts, ok). This repo's Actions logs are public.
-          jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"
-          # Go red when the ledger could not be written for a wallet (failed), or the deadline cut the
-          # run short (truncated). A wallet the explorer could not answer for (unavailable) or only
-          # read part of the way (partial) is picked up from its cursor tomorrow and is not red.
-          # Prints no value, only this line. An answer that is not JSON, or not ok, is red too.
-          if ! jq -e '.ok == true and (.failed // 0) == 0 and (.truncated // false) == false' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
-            echo "Sync Agent Wallets finished with a problem: failed wallets or a truncated run. See the counts above."
+          # A bound on the loop, so an answer that never says done cannot call until the job timeout.
+          max_calls=32
+          calls=0
+          while :; do
+            calls=$((calls + 1))
+            bash scripts/cron-curl.sh -sS --fail --max-time 600 \
+              -o "$RUNNER_TEMP/cron-response.json" -w 'HTTP %{http_code}\n' \
+              "$SYNC_URL/api/cron/sync-agent-wallets" \
+              -H "x-cron-secret: $CRON_SECRET"
+            # Print only numbers and true/false fields (counts, ok, done). This repo's Actions logs are public.
+            jq -c 'with_entries(select(.value | type == "number" or type == "boolean"))' "$RUNNER_TEMP/cron-response.json" 2>/dev/null || echo "(response was not JSON)"
+            # An answer that is not JSON, or not ok, is red at once. Prints no value, only this line.
+            if ! jq -e '.ok == true' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
+              echo "Sync Agent Wallets call $calls did not answer ok. See the counts above."
+              exit 1
+            fi
+            if jq -e '.done == true' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
+              break
+            fi
+            if [ "$calls" -ge "$max_calls" ]; then
+              echo "Sync Agent Wallets stopped after $calls calls with wallets still to read. See the counts above."
+              exit 1
+            fi
+          done
+          echo "done=true" >> "$GITHUB_OUTPUT"
+          # The pass is done; go red when it counts a wallet whose ledger could not be written (pass_failed).
+          # A wallet the explorer could not answer for, or read only part of the way, is picked up from its
+          # cursor in tomorrow's pass and is not red.
+          if ! jq -e '(.pass_failed // 0) == 0' "$RUNNER_TEMP/cron-response.json" > /dev/null 2>&1; then
+            echo "Sync Agent Wallets finished with a problem: failed wallets in the day's pass. See the counts above."
             exit 1
           fi
+
+  # The day's reports, once the pass is done, even when the pass counted a failed wallet (the sync job is
+  # red for that on its own). Never when the pass did not finish: the next day's run makes the missed day.
+  agent-reports:
+    needs: sync-agent-wallets
+    if: ${{ always() && needs.sync-agent-wallets.outputs.done == 'true' }}
+    uses: ./.github/workflows/agent-reports.yml
+    secrets: inherit
