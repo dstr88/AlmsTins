@@ -16,7 +16,7 @@ const TENANT = [
   'monthly_digests','nft_hidden','nft_whitelist','petro_shared_cc','petro_splits','petro_splits_assignments',
   'petro_splits_bills','petro_splits_carried','petro_splits_payments','petro_splits_people','petro_subscriptions',
   'petro_tin_entries','petro_tins','petro_visits','portfolio_reconciliation','portfolio_reconciliation_assets',
-  'price_alert_preferences','promo_redemptions','protocol_positions','reconciliation_notes','subscriptions',
+  'price_alert_preferences','promo_redemptions','protocol_positions','receivables_subscriptions','reconciliation_notes','subscriptions',
   'sui_transactions','support_messages','tax_1099_reconciliation','tax_1099_uploads','tax_classifications',
   'tax_disposals','tax_documents','tax_lot_pins','tax_lots','tax_pipeline_runs','tax_review_items',
   'tax_wash_sales','tenant_intake','tenant_memberships','tenant_settings','tradfi_loan_payments',

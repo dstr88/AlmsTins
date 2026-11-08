@@ -101,6 +101,10 @@ const PRIVATE_ALLOWED_LINES: Record<string, readonly string[]> = {
 	[RECEIVABLES_HOSTS.desk]: ["// Currency default follows the visitor (same as the cairn desk): Render's Cloudflare"],
 	[RECEIVABLES_HOSTS.registry]: ['            <option value="contract">Contract receivable</option><option value="milestone">Milestone receivable</option>'],
 	[RECEIVABLES_HOSTS.client]: [],
+	// Tier T1: the contract count reads the work paper's sealed projects, so one line names its table.
+	'src/lib/receivables/server/entitlements.ts': [
+		'      sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND (is_test IS NULL OR is_test = ?)`,',
+	],
 	[RECEIVABLES_LANDING]: [
 		'// The milestone desk (construction/tranche financing — "cairn") is a separate product',
 		'// page" apart from "page exists but you\'re not allowed"). Link to /verify/cairn',

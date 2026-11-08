@@ -24,6 +24,10 @@ export const POST: APIRoute = async ({ request }) => {
   try { body = await request.json(); } catch { return json({ ok: false, error: 'invalid_json' }, 400); }
 
   const result = await sealProject(session.tenantId, String(body.projectId ?? ''));
+  // 409 plan_limit / free_plan_locked: the account holds its plan's open contracts already
+  // (src/lib/receivables/server/entitlements.ts); a sealed project is one of them.
+  const conflict = result.ok ? false
+    : result.error === 'already_sealed' || result.error === 'plan_limit' || result.error === 'free_plan_locked';
   return result.ok ? json(result)
-    : json(result, result.error === 'not_found' ? 404 : result.error === 'already_sealed' ? 409 : 400);
+    : json(result, result.error === 'not_found' ? 404 : conflict ? 409 : 400);
 };

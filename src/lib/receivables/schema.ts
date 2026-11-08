@@ -195,10 +195,37 @@ export const CREATE_NOTICE_OPTOUTS = `
   )
 `;
 
+/**
+ * receivables_subscriptions (tier T1 / D9, D11, D15): the plan a receivables account is on, as a
+ * table of this product's own. Never the tracker's `subscriptions` row: a tracker plan unlocks
+ * nothing here and a receivables plan unlocks nothing there (the same seam the Agent Vault keeps).
+ *
+ * No row means the free plan. A row is written by billing (T4) when an account moves to Standard,
+ * and by the aging cron (T2) when two lapses in a trailing year lock the free plan: free_locked_at
+ * set means the account records no new contracts until it moves to Standard. The lock is account
+ * state only; nothing on any record or public surface ever reads it.
+ */
+export const CREATE_RECEIVABLES_SUBSCRIPTIONS = `
+  CREATE TABLE IF NOT EXISTS receivables_subscriptions (
+    tenant_id               TEXT NOT NULL PRIMARY KEY,
+    plan                    TEXT NOT NULL DEFAULT 'free',
+    status                  TEXT NOT NULL DEFAULT 'active',
+    stripe_customer_id      TEXT,
+    stripe_subscription_id  TEXT,
+    stripe_price_id         TEXT,
+    current_period_end      TEXT,
+    free_locked_at          TEXT,
+    free_locked_reason_json TEXT,
+    created_at              TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at              TEXT
+  )
+`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
 export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_ANCHOR_ATTEMPTS,
   CREATE_STATUS_EVENTS,
   CREATE_NOTICE_LOG,
   CREATE_NOTICE_OPTOUTS,
+  CREATE_RECEIVABLES_SUBSCRIPTIONS,
 ];
