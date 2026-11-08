@@ -1,0 +1,13 @@
+---
+// PlanLine (tier T3): the one line on the financing desk that says which plan this account is on
+// and how many contracts it holds open, from GET /api/verify/receivables/plan. Markup only:
+// planLine.client.ts (mounted by the desk's page entry module) fetches the summary and fills the
+// text; the line stays hidden until it has one, so a desk that cannot reach the route looks as it
+// did before. Nothing is stored: a claim recorded or released reloads the record, and the line
+// re-reads itself on that signal.
+import './PlanLine.css';
+---
+<p class="plan-line" data-rcv-root="plan" role="status" hidden>
+	<span class="plan-line__text" data-plan-text></span>
+	<span class="plan-line__lock" data-plan-lock hidden></span>
+</p>

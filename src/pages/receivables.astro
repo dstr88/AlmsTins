@@ -4,6 +4,7 @@ import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
 import { receivablesPath, receivablesLogin } from '../lib/receivables/paths';
+import { LANDING_PRICE, CONTRACT_DEFINITION } from '../lib/receivables/copy/plan';
 import AccountMenu from '../components/verify/AccountMenu.astro';
 import { requireTenantSession } from '../lib/requireTenantSession';
 import { getAuthSession } from '../lib/authSession';
@@ -109,16 +110,17 @@ const trust = [
     description,
     applicationCategory: 'FinanceApplication',
     operatingSystem: 'Any',
-    // Free while the first pilots run; the price after is $95 a month for 10 contracts (owner
-    // decision, Oct 16, 2026). Keep these in step with the hero's price line below.
+    // Free: one contract at a time; Standard is $95 a month for ten (owner decision, Nov 7, 2026:
+    // free forever, no pilot plan). A contract is one open record on either paper. Keep these in
+    // step with the hero's price line below, which reads the same copy module (copy/plan.ts).
     offers: [
-      { '@type': 'Offer', name: 'Pilot', price: '0', priceCurrency: 'USD', description: 'Free during the pilot.' },
+      { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', description: 'Free: one contract at a time.' },
       {
         '@type': 'Offer',
         name: 'Standard',
         price: '95',
         priceCurrency: 'USD',
-        description: '$95 a month for 10 contracts, with room to grow.',
+        description: '$95 a month for ten contracts.',
         priceSpecification: { '@type': 'UnitPriceSpecification', price: '95', priceCurrency: 'USD', unitText: 'MONTH' },
       },
     ],
@@ -160,7 +162,8 @@ const trust = [
           <a class="rbtn rbtn--ghost" href={receivablesPath('registry')}>Check a receivable</a>
         </div>
         <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
-        <p class="rhero__price">Free during the pilot. $95 a month for 10 contracts after, with room to grow.</p>
+        <p class="rhero__price">{LANDING_PRICE}</p>
+        <p class="rhero__price-def">{CONTRACT_DEFINITION}</p>
       </div>
 
       <!-- Synthetic product preview (decorative; the demo entity, never real data) -->
@@ -367,6 +370,7 @@ const trust = [
   .rhero__ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
   .rhero__who { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 1.5rem 0 0; }
   .rhero__price { font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; line-height: 1.6; margin: 0.5rem 0 0; }
+  .rhero__price-def { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 0.35rem 0 0; max-width: 34rem; }
 
   /* Synthetic product-preview card (decorative) */
   .rhero__visual { display: flex; justify-content: center; }

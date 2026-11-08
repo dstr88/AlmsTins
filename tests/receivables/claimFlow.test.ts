@@ -216,6 +216,31 @@ describe('the claim post', () => {
 		expect(host.afterNotOk).toHaveBeenCalledTimes(1);
 	});
 
+	it('desk: the plan limit shows the server sentence, not the code, then awaits the refresh', async () => {
+		const sentence = 'This account holds one open contract. Release it, close it, or move to Standard to record another.';
+		const { post } = poster({ status: 409, body: { ok: false, error: 'plan_limit', message: sentence, use: { claims: 1, projects: 0, total: 1 }, limit: 1, plan: 'free' } });
+		const { host, notes } = makeHost();
+		await submitClaim(options('desk', post, host));
+		expect(notes.at(-1)).toEqual({ tone: 'loss', parts: [sentence] });
+		expect(log).not.toContain('ask:plan_limit');
+		expect(host.afterNotOk).toHaveBeenCalledTimes(1);
+		expect(host.afterSaved).not.toHaveBeenCalled();
+	});
+
+	it('both hosts: a locked free plan shows the server sentence; without one, the fallback', async () => {
+		const sentence = 'Two claims on this account passed their promised dates and were not maintained for six months (2026-04-01, 2026-10-20). The free plan records no new contracts until the account moves to Standard.';
+		const { post } = poster(
+			{ status: 409, body: { ok: false, error: 'free_plan_locked', message: sentence, use: { claims: 0, projects: 0, total: 0 }, lockedAt: '2026-10-20 09:00:00', reason: null } },
+			{ status: 409, body: { ok: false, error: 'free_plan_locked' } },
+		);
+		const desk = makeHost();
+		await submitClaim(options('desk', post, desk.host));
+		expect(desk.notes.at(-1)).toEqual({ tone: 'loss', parts: [sentence] });
+		const registry = makeHost();
+		await submitClaim(options('registry', post, registry.host));
+		expect(registry.notes.at(-1)).toEqual({ tone: 'loss', parts: ['Could not register the claim.'] });
+	});
+
 	it('registry failure: the message, or the fallback', async () => {
 		const { post } = poster({ body: { ok: false, error: 'not_found', message: 'No receivable with that ID.' } }, { body: { ok: false, error: 'x' } });
 		const { host, notes } = makeHost();

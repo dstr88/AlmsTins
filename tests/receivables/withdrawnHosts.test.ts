@@ -32,6 +32,7 @@ const COMPONENT_ROOTS: Record<string, RegExp> = {
 	'dup-record': /<DuplicateFlag\b[^>]*\bname="record"[^>]*\/>/,
 	'seen-before': /<SeenBeforeForm\b[^>]*\/>/,
 	'needs-update': /<NoticeInbox\b[^>]*\/>/,
+	'plan': /<PlanLine\b[^>]*\/>/,
 };
 
 describe('entry-module roots appear exactly once in their host', () => {
