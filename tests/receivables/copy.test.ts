@@ -12,6 +12,7 @@ import * as duplicateCopy from '../../src/lib/receivables/copy/duplicate';
 import * as seenBeforeCopy from '../../src/lib/receivables/copy/seenBefore';
 import * as agingCopy from '../../src/lib/receivables/copy/aging';
 import * as noticesCopy from '../../src/lib/receivables/copy/notices';
+import * as planCopy from '../../src/lib/receivables/copy/plan';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
 import { TERMS } from '../../src/lib/verifyTerms';
 
@@ -32,6 +33,7 @@ const COPY_MODULES: Record<string, Record<string, unknown>> = {
 	seenBefore: seenBeforeCopy,
 	aging: agingCopy,
 	notices: noticesCopy,
+	plan: planCopy,
 };
 
 /** Every string in a copy value, with its path. null (a "show nothing" slot) is skipped. */
@@ -329,6 +331,9 @@ describe('copy placeholders', () => {
 		// A4 notice templates: the deal-identifier block and its links. Figures and dates only —
 		// there is deliberately NO party-name placeholder (D8's misdelivery rule).
 		'amount', 'days', 'deal', 'facts', 'invoice', 'lapse', 'promised', 'recorded', 'touched', 'url',
+		// Tier T1: the plan line's figures and the lock's two dates. Figures, dates and the plan's
+		// name only; still no party-name placeholder anywhere.
+		'used', 'limit', 'plan', 'dates',
 	]);
 
 	for (const [path, value] of ALL_STRINGS) {

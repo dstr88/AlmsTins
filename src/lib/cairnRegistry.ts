@@ -18,6 +18,7 @@
  * Lazy ensureCairnTables() + app-enforced tenant isolation, mirroring receivablesRegistry.ts.
  */
 import { db } from '@/lib/db';
+import { gateNewContract } from '@/lib/receivables/server/entitlements';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import {
   canonicalManifestBytes,
@@ -507,6 +508,16 @@ export async function sealProject(
   if (!pr.rows.length) return { ok: false, error: 'not_found', message: 'Project not found.' };
   const p = pr.rows[0] as any;
   if (p.signed_at != null) return { ok: false, error: 'already_sealed', message: 'This schedule is already signed and sealed.' };
+
+  // Sealing is where a project becomes a contract the account holds (receivables tier T1, D9 and
+  // D17): one on Free, ten on Standard, counted with the account's active claims. A draft is not
+  // one yet, so building the schedule is never gated, and a test project is neither counted nor
+  // limited. Asked before the schedule's own checks, so an account at its limit hears that first.
+  const isTestProject = p.is_test === true || p.is_test === 1 || String(p.is_test) === 'true';
+  if (!isTestProject) {
+    const gate = await gateNewContract(tenantId);
+    if (!gate.ok) return { ok: false, error: gate.error, message: gate.message };
+  }
 
   const ms = await db.execute({
     sql: `SELECT id, seq, title, description, tranche_amount, target_date

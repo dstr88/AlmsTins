@@ -52,6 +52,7 @@ import {
   type Lifecycle,
 } from '@/lib/receivables/status';
 import { agingStateOf, effectivePromisedDate, type ClaimAgingState } from '@/lib/receivables/aging';
+import { gateNewContract, type ContractGateRefusal } from '@/lib/receivables/server/entitlements';
 import type { NoticeKind, NoticeRole } from '@/lib/receivables/notices';
 import {
   isExtensionReasonCode,
@@ -1537,6 +1538,9 @@ export type AddClaimResult =
   | { ok: false; error: 'invalid'; message: string }
   | { ok: false; error: 'exceeds_headroom'; message: string; available: number; claimed: number; face: number }
   | { ok: false; error: 'diligence_required'; message: string }
+  /** The account holds its plan's contracts already (409 plan_limit), or its free plan is locked
+   *  (409 free_plan_locked): see src/lib/receivables/server/entitlements.ts. Never for a test record. */
+  | ContractGateRefusal
   /** Only for a caller that sent acceptsWarnings: true. The full duplicateCheck for a verified
    *  account, { state } alone for any other (owner decision 9). */
   | { ok: false; error: 'possible_duplicate'; message: string; warnings: ['possible_duplicate']; duplicateCheck: DuplicateCheck | { state: DuplicateState } }
@@ -1640,6 +1644,16 @@ export async function addClaim(
       ok: false, error: 'diligence_required',
       message: 'No debtor confirmation is on record for this receivable. Accept responsibility for having verified it yourself before financing.',
     };
+  }
+
+  // The account's own limit (tier T1, D9): one open contract on Free, ten on Standard, counted
+  // over both papers. After the record's own checks and before the headroom sum, so a banker
+  // hears about a missing confirmation first and about the slot before any figure on this
+  // invoice. Test records are neither counted nor limited, like the diligence gate above. A
+  // release is never gated, so an account over its limit keeps every record it holds.
+  if (rcv.is_test !== true) {
+    const gate = await gateNewContract(tenantId);
+    if (!gate.ok) return gate;
   }
 
   // The stored ID, never the caller's string: an ID sent with stray spaces still finds the

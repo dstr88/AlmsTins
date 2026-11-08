@@ -14,6 +14,11 @@
  *
  * 410 withdrawn when the receivable's owner withdrew it (S2): nothing new is recorded on it.
  *
+ * 409 plan_limit when the account already holds its plan's open contracts (one on Free, ten on
+ * Standard, over claims and sealed projects together), and 409 free_plan_locked when two of its
+ * claims lapsed within a year (src/lib/receivables/server/entitlements.ts). Neither applies to a test
+ * record, and a release is never gated.
+ *
  * Duplicate check (S3): when the receivable matches another record that is recorded as financed,
  * a caller that sends acceptsWarnings: true gets 409 possible_duplicate { warnings, duplicateCheck }
  * and records the claim by sending it again with acknowledge: ['possible_duplicate'], which is
@@ -58,6 +63,8 @@ export const POST: APIRoute = async ({ request }) => {
     result.error === 'not_found' ? 404
     : result.error === 'exceeds_headroom' ? 409
     : result.error === 'diligence_required' ? 409
+    : result.error === 'plan_limit' ? 409
+    : result.error === 'free_plan_locked' ? 409
     : result.error === 'possible_duplicate' ? 409
     : result.error === 'withdrawn' ? 410
     : 400;
