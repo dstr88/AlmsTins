@@ -25,21 +25,35 @@ const authSession = await getAuthSession(Astro.request);
 const email = authSession?.user?.email ?? null;
 
 const FINANCIER_FAQ = [
-  ["What's the difference between the desk and the public registry?", "The registry (/verify/registry) is a public workbench — anyone can check a receivable's status with no account. The desk is your own signed-in workspace: it's built for one job, deciding whether to advance against a receivable you're looking at, and recording the claim if you do."],
-  ['Why was I asked to accept responsibility before I could register my claim?', "That happens when there's no debtor confirmation on record yet. Almstins doesn't verify the debtor's identity for you — financing without that confirmation means you're relying on your client's paperwork alone, and the platform makes you say so explicitly rather than assuming it on your behalf. Your acceptance is itself signed and timestamped to Bitcoin."],
+  ["What's the difference between the desk and the public registry?", "The registry (/verify/registry) is a public workbench. Anyone can check a receivable's status with no account. The desk is your own signed-in workspace, built for one job: deciding whether to advance against a receivable you're looking at, and recording the claim if you do."],
+  ['Why was I asked to accept responsibility before I could register my claim?', "That happens when there's no debtor confirmation on record yet. Almstins doesn't verify the debtor's identity for you. Financing without that confirmation means you're relying on your client's paperwork alone, and the platform makes you say so explicitly rather than assuming it on your behalf. Your acceptance is itself signed and timestamped to Bitcoin."],
   ['Why did I get a duplicate-financing warning?', "Your amount is more than the receivable's remaining headroom (face value minus every other active claim). You can register only what is left, or record it anyway. If you record it anyway, that choice is signed into your claim, so the record shows you saw the warning."],
-  ["What does \"Your book\" show me?", "Every receivable you created, plus every receivable you've only claimed against as a second financier — the latter are tagged \"claimed only\" so you can tell them apart. You don't have to remember an ID yourself just because you weren't the one who recorded the original deal."],
-  ['What does "Verify now" actually check?', "Five things, fresh, every time you click it: the record's signature is still valid, the receivable isn't over-financed, whether the debtor has acknowledged the debt, whether every active claim has had its funds confirmed received, and whether the record is anchored to Bitcoin. A single warning anywhere demotes the whole result to \"needs attention\" — there's no partial credit."],
-  ['What does the "Test" toggle on the intake card do?', "It marks a receivable as practice data, baked directly into its signed record — a test receivable can't later be turned into a real one, because doing so would change its ID entirely. Use it for a walkthrough or a demo without touching your real book."],
-  ['How do I ask the debtor to confirm the debt?', "From the record, send the debtor a single-use link. It asks for their own reference number — not just the invoice number you already have, so they actually have to check — plus a short checklist, before it counts as a real acknowledgment. Nothing about it can be filled in on their behalf."],
+  ["What does \"Your book\" show me?", "Every receivable you created, plus every receivable you've only claimed against as a second financier. The latter are tagged \"claimed only\" so you can tell them apart. You don't have to remember an ID yourself just because you weren't the one who recorded the original deal."],
+  ['What does "Verify now" actually check?', "Five things, fresh, every time you click it: the record's signature is still valid, the receivable isn't over-financed, whether the debtor has acknowledged the debt, whether every active claim has had its funds confirmed received, and whether the record is anchored to Bitcoin. A single warning anywhere demotes the whole result to \"needs attention\". There's no partial credit."],
+  ['What does the "Test" toggle on the intake card do?', "It marks a receivable as practice data, baked directly into its signed record. A test receivable can't later be turned into a real one, because doing so would change its ID entirely. Use it for a walkthrough or a demo without touching your real book. Test records never count toward your plan."],
+  ['How do I ask the debtor to confirm the debt?', "From the record, send the debtor a single-use link. It asks for their own reference number, not just the invoice number you already have, so they actually have to check, plus a short checklist, before it counts as a real acknowledgment. Nothing about it can be filled in on their behalf."],
+  ['What does "1 of 1 contracts on the Free plan" mean?', "Your account holds one open contract at a time on the Free plan. A contract is a claim you have registered and not yet settled, or a project you have sealed and not yet closed, on either desk. The line counts both together. Recording a deal, attaching paperwork and asking a debtor to confirm cost nothing and never count."],
+  ['Does recording a deal use up my contract?', "No. You can record as many deals as you like, send confirmation links and check status on all of them. The contract is the claim: the moment you register that you advanced money against a receivable, that receivable is your one open contract until you settle it."],
+  ['I was refused when I tried to register a claim. What now?', "The refusal means your one slot is taken. Open the record that holds it. If the debtor has paid, mark the claim settled from its row; that frees the slot at once. If the money is still out, the claim stays, and you have two choices: wait, or move to Standard, which holds ten. Nothing is lost by the refusal. The deal you were about to finance stays recorded, and you can register the claim as soon as a slot is free."],
+  ['What does "release" mean?', "Settling a claim. The Settled control on the claim's own row records that the financing came back, repaid or released, and discharges the claim. It is signed in your name and timestamped. A discharged claim stays on the record, marked as such, and no longer counts against your plan."],
+  ['What is Standard?', "Ten open contracts at a time, across both desks, for $95 a month. Everything else is the same: the same records, the same signatures, the same timestamps. Billing is not open yet. If you need a second slot now, write to hello@almstins.com from the email on your account and we will set it up by hand."],
+  ['What happens if a claim of mine lapses?', "A claim lapses when its promised payment date is 180 days past, or when nothing on it has been touched for 180 days, and you have not recorded it settled, extended or unpaid. The lapse is recorded as a signed event on the claim, dated at the lapse. A lapsed claim still holds your slot until you update it. Two lapses within a year lock the Free plan: no new claims or sealed projects until the account moves to Standard. You get one email when that happens. The lock is a fact about your account, not about any receivable; it never appears on a record."],
+  ['How do I avoid the lapse?', "Keep the claim current. Settled, Extend and Unpaid sit on the claim's row. Extend asks for a reason and a new date, and resets the clock. Unpaid records that the debtor did not pay; it is honest, it frees nothing, and it is not a lapse. The \"Needs an update\" list at the top of the desk shows every claim that is past its promised date or inside the grace window."],
+];
+
+const FUNDER_FAQ = [
+  ['When does a project count as my contract?', "From the moment you seal it. A draft is not a contract: you can edit it, leave it and come back, and it never counts. Sealing signs the schedule, locks it, and takes your one Free slot until you close the project."],
+  ['How do I close a project?', "Sign the close, dated, in your name. Completed needs two things already on the record: the inspector's attestation that the final milestone is reached, and your own record that its tranche was paid. Terminated and Abandoned are your statement alone, and the other party may dispute them. All three end the project and free the slot. The record stays readable afterward, with every gap it had."],
+  ['Do milestones expire?', "No. Nothing on the work paper runs on a clock. A project ends only when you close it. The lapse rules for claims apply to the financing desk, not to projects."],
+  ['What happens to inspector links when I close?', "They stop working. An inspector who opens one after the close sees that the project is closed and cannot answer."],
 ];
 
 const CLIENT_FAQ = [
-  ['What is the receivable ID, and how do I share it?', "It's both the identifier and the key — whoever holds it can look up the receivable's status. Copying it and handing it to a financier is the act that gives them access, so treat it the way you'd treat an account number: share it only with the financier you intend to work with."],
-  ["Can I revoke it once I've shared it?", "No — it doesn't expire on its own, and there's no way to un-share a copy once it's been sent. Don't post it anywhere public, and only hand it to financiers you actually intend to work with."],
+  ['What is the receivable ID, and how do I share it?', "It's both the identifier and the key: whoever holds it can look up the receivable's status. Copying it and handing it to a financier is the act that gives them access, so treat it the way you'd treat an account number: share it only with the financier you intend to work with."],
+  ["Can I revoke it once I've shared it?", "No. It doesn't expire on its own, and there's no way to un-share a copy once it's been sent. Don't post it anywhere public, and only hand it to financiers you actually intend to work with."],
   ['What does "mark settled" do?', "It records that the debtor paid and closes the receivable out. It's your confirmation, not the financier's."],
-  ['Do I need to do anything once a financier claims against my receivable?', "Not automatically — their claim shows up on your record on its own. If they've registered an advance, they may separately ask you to confirm the money actually reached you; that confirmation is what turns their claim from their own word into something both sides have signed."],
-  ['What if the financier recorded something about my deal incorrectly?', "You may get a one-time link asking you to confirm the intake record is accurate. Use \"Something here is wrong\" instead of \"Confirm this is right\" if it isn't — that response is recorded as a dispute, not silently ignored."],
+  ['Do I need to do anything once a financier claims against my receivable?', "Not automatically. Their claim shows up on your record on its own. If they've registered an advance, they may separately ask you to confirm the money actually reached you; that confirmation is what turns their claim from their own word into something both sides have signed."],
+  ['What if the financier recorded something about my deal incorrectly?', "You may get a one-time link asking you to confirm the intake record is accurate. Use \"Something here is wrong\" instead of \"Confirm this is right\" if it isn't. That response is recorded as a dispute, not silently ignored."],
 ];
 ---
 <!doctype html>
@@ -48,7 +62,7 @@ const CLIENT_FAQ = [
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FAQ · Almstins Receivables</title>
-  <meta name="description" content="Common questions for the financing desk and the client portal." />
+  <meta name="description" content="Common questions for the financing desk, the milestone desk and the client portal." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
@@ -93,10 +107,11 @@ const CLIENT_FAQ = [
     <header>
       <div class="eyebrow">Almstins Receivables · signed in as {email ?? 'you'}</div>
       <h1>FAQ</h1>
-      <p class="lede">Common questions for the two signed-in workspaces. For the public, no-account tools, see the registry's own FAQ.</p>
+      <p class="lede">Common questions for the three signed-in workspaces. For the public, no-account tools, see the registry's own FAQ.</p>
       <nav class="back-links" aria-label="Back to a workspace">
         <a href="/verify/desk">← Financing Desk</a>
         <a href="/verify/client">← Client Portal</a>
+        <a href="/verify/cairn">← Milestone Desk</a>
         <a href="/verify/registry">Public receivable check</a>
         <a href="/verify/guide">Full user's guide</a>
       </nav>
@@ -107,6 +122,19 @@ const CLIENT_FAQ = [
       <p class="sub">Using the financing desk.</p>
       <div class="faq">
         {FINANCIER_FAQ.map(([q, a]) => (
+          <details class="faq-item">
+            <summary>{q}</summary>
+            <div class="a">{a}</div>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section id="funders">
+      <h2>For funders on the milestone desk</h2>
+      <p class="sub">Using the work paper.</p>
+      <div class="faq">
+        {FUNDER_FAQ.map(([q, a]) => (
           <details class="faq-item">
             <summary>{q}</summary>
             <div class="a">{a}</div>

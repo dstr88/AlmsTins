@@ -57,7 +57,7 @@ const groups = [
     cards: [
       ...(signedIn ? [] : [{ href: receivablesLogin(), title: 'Sign in', body: 'Log in as a client or a financier.' }]),
       { href: receivablesPath('guide'), title: 'Using the desk', body: 'A short guide to the financing desk.' },
-      { href: receivablesPath('runsheet'), title: 'Pilot run sheet', body: 'Run one real receivable end to end.' },
+      { href: receivablesPath('runsheet'), title: 'Run sheet', body: 'Run one real receivable end to end.' },
       { href: receivablesPath('changelog'), title: 'What changed', body: 'The build log for Almstins Verify.' },
     ],
   },
