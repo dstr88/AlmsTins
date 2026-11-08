@@ -1,0 +1,9 @@
+---
+// /learn in French. Copy: src/i18n/learn.ts (fr). Template: LearnPage.astro. Rendered per
+// request like the English page, so the request-time middleware (the sanctions geoblock) runs.
+import { fr } from '@/i18n/learn';
+import LearnPage from '@/components/LearnPage.astro';
+
+export const prerender = false;
+---
+<LearnPage t={fr} />

@@ -42,10 +42,14 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/prices/') ||
 		// Changelog — public "What's new" page, linked from the login/marketing page
 		pathname === '/changelog' ||
-		// Learn — the public page that lays out every tool with a link to each, and the tutorials.
-		// Exact path: the tutorials it links to are public on their own.
+		// Learn — the public page that lays out every tool with a link to each, and the tutorials,
+		// in English, Spanish and French. Exact paths: the tutorials it links to are public on their own.
 		pathname === '/learn' ||
 		pathname === '/learn/' ||
+		pathname === '/learn/es' ||
+		pathname === '/learn/es/' ||
+		pathname === '/learn/fr' ||
+		pathname === '/learn/fr/' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
 		// Credentials signup endpoint — must be reachable without a session

@@ -4,6 +4,9 @@
  * offers, tool by tool, with a link on every item. Copy: src/i18n/learn.ts (one LearnCopy per
  * language; English today). Wrapper: src/pages/learn.astro.
  *
+ * One template, three copies (en, es, fr): the language switch in the top bar lists every copy
+ * (LEARN_LANGS) and marks the current one.
+ *
  * Public and indexable: LoginLayout with noindex={false} and the page's canonical URL. The layout
  * renders the one Analytics tag and the Footer, so this file renders neither. The path is public
  * through isPublicPath (src/middleware/auth.ts) and the sitemap submits it by the default rule
@@ -14,7 +17,7 @@
  * the one accent family, the four surfaces, the three text levels.
  */
 import LoginLayout from '@/layouts/LoginLayout.astro';
-import type { LearnCopy } from '@/i18n/learn';
+import { LEARN_LANGS, type LearnCopy } from '@/i18n/learn';
 
 interface Props {
 	t: LearnCopy;
@@ -23,9 +26,18 @@ const { t } = Astro.props;
 ---
 
 <LoginLayout title={t.meta.title} description={t.meta.description} lang={t.lang} noindex={false} canonical={t.canonical}>
+	<Fragment slot="head">
+		{LEARN_LANGS.map((l) => <link rel="alternate" hreflang={l.code} href={`https://almstins.com${l.href}`} />)}
+		<link rel="alternate" hreflang="x-default" href="https://almstins.com/learn" />
+	</Fragment>
 	<header class="top">
 		<a class="top__brand" href="/">{t.nav.brand}</a>
 		<nav class="top__nav" aria-label="Site">
+			<span class="top__langs">
+				{LEARN_LANGS.map((l) => (
+					<a href={l.href} lang={l.code} hreflang={l.code} aria-current={l.code === t.lang ? 'true' : undefined}>{l.label}</a>
+				))}
+			</span>
 			{t.nav.links.map((l) => <a href={l.href}>{l.label}</a>)}
 		</nav>
 	</header>
@@ -165,6 +177,9 @@ const { t } = Astro.props;
 	.top__nav { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 	.top__nav a { color: var(--text-secondary); text-decoration: none; font-size: 0.92rem; font-weight: 500; }
 	.top__nav a:hover, .top__nav a:focus-visible { color: var(--accent); }
+	.top__langs { display: inline-flex; gap: 0.5rem; padding-right: 0.75rem; border-right: 1px solid var(--border-subtle); }
+	.top__langs a { font-size: 0.8rem; color: var(--text-muted); }
+	.top__langs a[aria-current="true"] { color: var(--text-primary); font-weight: 700; }
 
 	.learn { width: 100%; max-width: 1080px; margin: 0 auto; padding: 1rem 1rem 4rem; }
 
