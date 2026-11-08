@@ -1,0 +1,11 @@
+---
+// Public page: everything Almstins offers, tool by tool, with a link on every item, and the
+// tutorials, guides and demos at the end. Copy: src/i18n/learn.ts. Template: LearnPage.astro.
+// Rendered per request on purpose: a prerendered page would skip the request-time middleware,
+// including the sanctions geoblock.
+import { en } from '@/i18n/learn';
+import LearnPage from '@/components/LearnPage.astro';
+
+export const prerender = false;
+---
+<LearnPage t={en} />
