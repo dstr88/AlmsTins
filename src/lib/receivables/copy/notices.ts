@@ -22,6 +22,8 @@
 
 export const NOTICE_SUBJECT_LENDER = 'Your financing desk: a record needs your update';
 export const NOTICE_SUBJECT_CLIENT = 'A notice about a financing record on one of your invoices';
+/** The plan lock (tier T2 / D16): account mail to the lender alone, as generic as the others. */
+export const NOTICE_SUBJECT_FREE_LOCKED = 'Your financing desk: your free plan';
 
 // ── The deal-identifier block (every line embeds it through these) ─────────────
 
@@ -44,6 +46,10 @@ export const NOTICE_LENDER_LAPSE_WARN =
 	'Your claim against {deal} has had no dated update from you since {touched}. It lapses on {lapse} and is then no longer counted in the financing answer. One dated update keeps it counted.';
 export const NOTICE_LENDER_LAPSED =
 	'Your claim against {deal} is lapsed — record not maintained. It is no longer counted in the financing answer. One dated update from you counts it again.';
+/** The plan lock (tier T2 / D11, D16). {dates} is empty or " (day, day)": the two lapses. States
+ *  the dated facts on the record and the one way to clear the lock; never a judgment of the lender. */
+export const NOTICE_LENDER_FREE_LOCKED =
+	'Two claims on your account passed their promised dates and were not maintained for six months{dates}. The record shows each as lapsed. Your free plan records no new contracts until the account moves to Standard. Nothing on your existing records has changed.';
 
 // ── Client lines (actor-voiced, same register as the A3 lookup copy) ────────────
 
@@ -57,6 +63,8 @@ export const NOTICE_CLIENT_LAPSED =
 // ── The lines under a deal block ────────────────────────────────────────────────
 
 export const NOTICE_LENDER_OPEN = 'Update it from your desk: {url}';
+/** Under the plan-lock line: the desk itself, no record to open. */
+export const NOTICE_LENDER_DESK = 'Your desk: {url}';
 export const NOTICE_CLIENT_CHECK = 'Check the record any time: {url}';
 
 // ── Footers ─────────────────────────────────────────────────────────────────────

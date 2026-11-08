@@ -202,3 +202,79 @@ export async function getPlanSummary(tenantId: string): Promise<PlanSummary> {
   const [entitlements, use] = await Promise.all([getReceivablesEntitlements(tenantId), countContracts(tenantId)]);
   return { ...entitlements, use };
 }
+
+// ── The free plan's lock (D11), written by the daily aging cron ──────────────────────────────────
+
+/** Two lapses within this many days lock the free plan. Keyed to the cron's own `lapsed` events, so
+ *  only conduct the registry can see and that is the banker's own (a record not maintained) ever
+ *  counts; a default is the banker's loss, never his abuse, and never counts. */
+export const LOCK_LAPSES = 2;
+export const LOCK_WINDOW_DAYS = 365;
+
+const DAY_MS = 86_400_000;
+const stamp = (d: Date): string => d.toISOString().replace('T', ' ').slice(0, 19);
+
+/** This account's `lapsed` events on real receivables inside the trailing window, oldest first. */
+async function recentLapses(tenantId: string, now: Date): Promise<LockReason> {
+  const since = stamp(new Date(now.getTime() - LOCK_WINDOW_DAYS * DAY_MS));
+  const r = await db.execute({
+    sql: `SELECT e.claim_id AS claim_id, e.created_at AS created_at
+            FROM receivable_status_events e
+            JOIN receivables r ON r.id = e.receivable_id
+           WHERE e.tenant_id = ? AND e.kind = ? AND (r.is_test IS NULL OR r.is_test = ?)
+           ORDER BY e.created_at ASC, e.id ASC`,
+    args: [tenantId, 'lapsed', false],
+  });
+  const rows = (r.rows as Array<Record<string, unknown>>)
+    .map((x) => ({ claimId: String(x.claim_id), at: String(x.created_at) }))
+    .filter((x) => x.at >= since);
+  return { claimIds: rows.map((x) => x.claimId), lapsedAts: rows.map((x) => x.at) };
+}
+
+export interface LockOutcome {
+  /** The free plan is locked after this call (whether by it or before it). */
+  locked: boolean;
+  /** This call set the lock. */
+  justLocked: boolean;
+  reason: LockReason | null;
+}
+
+/**
+ * Lock the free plan when LOCK_LAPSES of this account's claims lapsed within LOCK_WINDOW_DAYS
+ * (D11). Idempotent: a locked plan stays as it was locked, with its original reason. The owner's
+ * account and a live Standard plan are never locked; nothing here touches any record, and the lock
+ * is cleared only by a Standard activation (T4). The reason keeps the two most recent lapses, the
+ * ones the sentence names.
+ */
+export async function lockFreePlanAfterLapses(tenantId: string, now: Date = new Date()): Promise<LockOutcome> {
+  if (isOwner(tenantId)) return { locked: false, justLocked: false, reason: null };
+  const ent = await getReceivablesEntitlements(tenantId);
+  if (ent.plan !== 'free') return { locked: false, justLocked: false, reason: null };
+  if (ent.freeLockedAt) return { locked: true, justLocked: false, reason: ent.freeLockedReason };
+
+  const recent = await recentLapses(tenantId, now);
+  if (recent.claimIds.length < LOCK_LAPSES) return { locked: false, justLocked: false, reason: null };
+  const reason: LockReason = {
+    claimIds: recent.claimIds.slice(-LOCK_LAPSES),
+    lapsedAts: recent.lapsedAts.slice(-LOCK_LAPSES),
+  };
+  const at = stamp(now);
+  const existing = await db.execute({
+    sql: `SELECT tenant_id FROM receivables_subscriptions WHERE tenant_id = ? LIMIT 1`,
+    args: [tenantId],
+  });
+  if (existing.rows.length) {
+    await db.execute({
+      sql: `UPDATE receivables_subscriptions SET free_locked_at = ?, free_locked_reason_json = ?, updated_at = ?
+             WHERE tenant_id = ? AND free_locked_at IS NULL`,
+      args: [at, JSON.stringify(reason), at, tenantId],
+    });
+  } else {
+    await db.execute({
+      sql: `INSERT INTO receivables_subscriptions (tenant_id, plan, status, free_locked_at, free_locked_reason_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [tenantId, 'free', 'active', at, JSON.stringify(reason), at, at],
+    });
+  }
+  return { locked: true, justLocked: true, reason };
+}

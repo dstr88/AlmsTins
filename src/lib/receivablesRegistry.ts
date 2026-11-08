@@ -51,11 +51,12 @@ import {
   type FinancingStatus,
   type Lifecycle,
 } from '@/lib/receivables/status';
-import { agingStateOf, effectivePromisedDate, type ClaimAgingState } from '@/lib/receivables/aging';
+import { agingStateOf, effectivePromisedDate, lapseAtMs, type ClaimAgingState } from '@/lib/receivables/aging';
 import { gateNewContract, type ContractGateRefusal } from '@/lib/receivables/server/entitlements';
 import type { NoticeKind, NoticeRole } from '@/lib/receivables/notices';
 import {
   isExtensionReasonCode,
+  isStatusEventKind,
   type ExtensionReasonCode,
   type StatusEventKind,
 } from '@/lib/receivables/statusEvents';
@@ -76,6 +77,7 @@ import { fillCopy } from '@/lib/receivables/fillCopy';
 import {
   ADD_RECEIVABLE_DELETED_AT,
   CREATE_STATUS_EVENTS_CLAIM_IDX,
+  CREATE_STATUS_EVENTS_LAPSED_IDX,
   CREATE_STATUS_EVENTS_RCV_IDX,
   DDL_LOCK_TIMEOUT,
   FINGERPRINT_COLUMN_ADDS,
@@ -689,6 +691,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   for (const sql of RECEIVABLE_TABLE_CREATES) await db.execute({ sql, args: [] });
   await db.execute({ sql: CREATE_STATUS_EVENTS_RCV_IDX, args: [] });
   await db.execute({ sql: CREATE_STATUS_EVENTS_CLAIM_IDX, args: [] });
+  await db.execute({ sql: CREATE_STATUS_EVENTS_LAPSED_IDX, args: [] });
   // Each column add runs under DDL_LOCK_TIMEOUT (see schema.ts). The first add that waits out the
   // timeout ends the list for this run: every later add would queue behind the same lock for
   // another three seconds while holding up that table's reads. The skipped adds are retried a
@@ -1149,12 +1152,15 @@ async function claimAgingByClaimId(
   });
   const eventsByClaim = new Map<string, PublicStatusEvent[]>();
   for (const row of er.rows as any[]) {
+    // A kind this build does not know is left out, never read as another kind.
+    const kind = String(row.kind);
+    if (!isStatusEventKind(kind)) continue;
     const claimId = String(row.claim_id);
     const list = eventsByClaim.get(claimId) ?? [];
     if (!eventsByClaim.has(claimId)) eventsByClaim.set(claimId, list);
     list.push({
       id: String(row.id),
-      kind: String(row.kind) === 'unpaid' ? 'unpaid' : 'extended',
+      kind,
       date: String(row.created_at),
       newPromisedDate: row.new_promised_date != null ? String(row.new_promised_date) : null,
       signed: !!row.signature_json,
@@ -1187,7 +1193,8 @@ async function claimAgingByClaimId(
     const touches = [
       row.created_at != null ? String(row.created_at) : null,
       row.affirmed_at != null ? String(row.affirmed_at) : null,
-      ...events.map((e) => e.date),
+      // The cron's `lapsed` entry records the silence; it does not break it (tier T2).
+      ...events.filter((e) => e.kind !== 'lapsed').map((e) => e.date),
       reverifiedByTenant.get(tenantId) ?? null,
     ].filter((t): t is string => t !== null);
     const lastOwnerTouchAt = touches.length ? touches.reduce((a, b) => (a > b ? a : b)) : null;
@@ -2451,9 +2458,9 @@ export async function listOwnClaimStatusEvents(tenantId: string, claimId: string
           FROM receivable_status_events WHERE claim_id = ? AND tenant_id = ? ORDER BY created_at ASC, id ASC`,
     args: [String(claimId).trim(), tenantId],
   });
-  const events: OwnStatusEvent[] = (er.rows as any[]).map((row) => ({
+  const events: OwnStatusEvent[] = (er.rows as any[]).filter((row) => isStatusEventKind(String(row.kind))).map((row) => ({
     id: String(row.id),
-    kind: String(row.kind) === 'unpaid' ? 'unpaid' : 'extended',
+    kind: String(row.kind) as StatusEventKind,
     date: String(row.created_at),
     newPromisedDate: row.new_promised_date != null ? String(row.new_promised_date) : null,
     reasonCode: isExtensionReasonCode(row.reason_code) ? row.reason_code : null,
@@ -2543,6 +2550,55 @@ export async function listNeedsUpdate(tenantId: string, now: Date = new Date()):
   const rank = (a: NeedsUpdateItem) => (a.aging === 'past_due_not_updated' ? 0 : 1);
   out.sort((a, b) => rank(a) - rank(b) || String(a.promisedDate ?? '').localeCompare(String(b.promisedDate ?? '')));
   return out;
+}
+
+/**
+ * The cron's own entry on a lapsed claim's chain (tier T2): one signed `lapsed` status event per
+ * claim, ever, dated at the instant the record lapsed (aging.ts lapseAtMs, D7′), not at the run that
+ * noticed it, so a claim that lapsed before this shipped carries its real day and the plan lock
+ * (server/entitlements.ts) counts real days. Idempotent on (claim, kind). Never an owner touch: the
+ * chain reader leaves `lapsed` out of the touch set, so recording the silence does not break it, and
+ * the headroom the lapse freed stays freed. The event belongs to the claim's financier (tenant_id),
+ * so the anchor cron stamps it under that account like any status event (ANCHOR_SPEC status_event,
+ * cronStamps). Answers what it wrote, or `written: false` when the event was already there or the
+ * lapse instant is not yet reached (a caller passing a claim that only reads lapsed by a different
+ * clock gets nothing written).
+ */
+export async function recordClaimLapse(
+  c: { claimId: string; receivableId: string; lenderTenantId: string; promisedDate: string | null; lastOwnerTouchAt: string | null },
+  now: Date = new Date(),
+): Promise<{ written: boolean; eventId?: string; lapsedAt?: string }> {
+  await ensureReceivablesTables();
+  const lapseMs = lapseAtMs(c.promisedDate, c.lastOwnerTouchAt);
+  if (lapseMs === null || lapseMs > now.getTime()) return { written: false };
+  const existing = await db.execute({
+    sql: `SELECT id FROM receivable_status_events WHERE claim_id = ? AND kind = ? LIMIT 1`,
+    args: [c.claimId, 'lapsed' satisfies StatusEventKind],
+  });
+  if (existing.rows.length) return { written: false };
+
+  const lapsedAt = new Date(lapseMs).toISOString().replace('T', ' ').slice(0, 19);
+  const recordedAt = now.toISOString().replace('T', ' ').slice(0, 19);
+  const manifest: Record<string, unknown> = {
+    v: 1, kind: 'claim_lapsed', receivableId: c.receivableId, claimId: c.claimId, lapsedAt, recordedAt, by: 'system',
+  };
+  // Omitted when absent, so the manifest never carries an empty key.
+  if (c.lastOwnerTouchAt) manifest.lastTouchAt = c.lastOwnerTouchAt;
+  if (c.promisedDate) manifest.promisedDate = c.promisedDate;
+  const { signature, digest } = sign(manifest);
+  const eventId = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO receivable_status_events
+            (id, tenant_id, receivable_id, claim_id, kind, new_promised_date, reason_code, reason_note, manifest_json, signature_json, digest, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      eventId, c.lenderTenantId, c.receivableId, c.claimId, 'lapsed', null, null, null,
+      JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest, lapsedAt,
+    ],
+  });
+  // The lapse is a change to the record, so it floats the record in every party's book like any event.
+  await touchReceivable(c.receivableId);
+  return { written: true, eventId, lapsedAt };
 }
 
 /** One active claim as the daily notice cron reads it: the aging facts plus the deal

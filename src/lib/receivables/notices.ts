@@ -13,9 +13,14 @@
  *   day 15     BOTH — lender: the record reads past due, not updated; client: the actor-voiced
  *              freshness line, with a link to check the record.
  *   day 20     BOTH — the last payment-date reminder; says the lapse notices still follow.
- *   lapse−14d  LENDER only — measured on the OTHER clock, owner silence (lastOwnerTouch): the
- *              claim lapses on <date> and is then no longer counted.
+ *   lapse−14d  LENDER only — measured on the OTHER clock, the lapse instant (aging.ts lapseAtMs:
+ *              owner silence, and for a dated record also the promised date, each + 180 days;
+ *              the later wins, D7′): the claim lapses on <date> and is then no longer counted.
  *   at lapse   BOTH — lapsed, record not maintained; one dated update counts it again.
+ *   free_locked LENDER only, once per account, not per claim (tier T2 / D11, D16): two of the
+ *              account's claims lapsed within a year, so its free plan records no new contracts
+ *              until it moves to Standard. Built by buildFreeLockedEmail, not noticeBlock; logged
+ *              against the second lapse's claim so the one-email-ever rule still holds.
  *
  * Any owner update stops the promised-date sequence: a touch after the promised day means the
  * financier has spoken since the promise passed (a discharge or settlement ends it through the
@@ -29,7 +34,7 @@
  */
 import {
 	GRACE_DAYS,
-	LAPSE_AFTER_DAYS,
+	lapseAtMs,
 	timestampToUtcMs,
 	ymdToUtcMs,
 	type ClaimAgingState,
@@ -48,11 +53,14 @@ import {
 	NOTICE_LENDER_DAY15,
 	NOTICE_LENDER_DAY20,
 	NOTICE_LENDER_DEAL,
+	NOTICE_LENDER_DESK,
+	NOTICE_LENDER_FREE_LOCKED,
 	NOTICE_LENDER_LAPSE_WARN,
 	NOTICE_LENDER_LAPSED,
 	NOTICE_LENDER_OPEN,
 	NOTICE_OPTOUT_LINE,
 	NOTICE_SUBJECT_CLIENT,
+	NOTICE_SUBJECT_FREE_LOCKED,
 	NOTICE_SUBJECT_LENDER,
 } from './copy/notices';
 
@@ -63,16 +71,18 @@ export const DAY20_AFTER_PROMISE = 20;
 /** The lapse warning leads the lapse itself by this many days of owner silence (~day 166). */
 export const LAPSE_WARN_LEAD_DAYS = 14;
 
-export type NoticeKind = 'day9' | 'day15' | 'day20' | 'lapse_warn' | 'lapsed';
+export type NoticeKind = 'day9' | 'day15' | 'day20' | 'lapse_warn' | 'lapsed' | 'free_locked';
 export type NoticeRole = 'lender' | 'client';
 
-/** Who each notice reaches. Day 9 and the lapse warning are lender-only (see the header). */
+/** Who each notice reaches. Day 9, the lapse warning and the plan lock are lender-only (see the
+ *  header); the lock is about the account, which no client email ever mentions. */
 export const NOTICE_RECIPIENTS: Readonly<Record<NoticeKind, readonly NoticeRole[]>> = {
 	day9: ['lender'],
 	day15: ['lender', 'client'],
 	day20: ['lender', 'client'],
 	lapse_warn: ['lender'],
 	lapsed: ['lender', 'client'],
+	free_locked: ['lender'],
 };
 
 /** What the schedule reads about one claim — the registry's aging loader supplies all three. */
@@ -93,13 +103,13 @@ export function daysPastPromised(promisedDate: string | null, now: Date): number
 	return Math.floor(now.getTime() / DAY_MS) - Math.floor(ms / DAY_MS);
 }
 
-/** The day a claim lapses on its current silence (lastOwnerTouch + LAPSE_AFTER_DAYS), YMD, or
- *  null when the touch is missing or unparseable (such a claim never lapses — aging.ts's fail
- *  direction — so there is no date to warn about either). */
-export function lapseDayOf(lastOwnerTouchAt: string | null): string | null {
-	const ms = timestampToUtcMs(lastOwnerTouchAt);
-	if (ms === null) return null;
-	return new Date(ms + LAPSE_AFTER_DAYS * DAY_MS).toISOString().slice(0, 10);
+/** The day a claim lapses on its current facts (aging.ts lapseAtMs, D7′: the later of touch + 180
+ *  days and, for a dated record, promised date + 180 days), YMD, or null when the touch is missing
+ *  or unparseable (such a claim never lapses — aging.ts's fail direction — so there is no date to
+ *  warn about either). Without a promised date it is the touch alone, as before D7′. */
+export function lapseDayOf(lastOwnerTouchAt: string | null, promisedDate: string | null = null): string | null {
+	const ms = lapseAtMs(promisedDate, lastOwnerTouchAt);
+	return ms === null ? null : new Date(ms).toISOString().slice(0, 10);
 }
 
 /**
@@ -129,9 +139,10 @@ export function dueNotices(facts: NoticeClaimFacts, now: Date): NoticeKind[] {
 		}
 	}
 
-	// The lapse clock runs on owner silence alone. At LAPSE_AFTER_DAYS the state above is
-	// already 'lapsed', so this branch only ever adds the warning.
-	if (touchMs !== null && now.getTime() - touchMs >= (LAPSE_AFTER_DAYS - LAPSE_WARN_LEAD_DAYS) * DAY_MS) {
+	// The lapse clock (D7′): the warning leads the lapse instant by LAPSE_WARN_LEAD_DAYS. At that
+	// instant the state above is already 'lapsed', so this branch only ever adds the warning.
+	const lapseMs = lapseAtMs(facts.promisedDate, facts.lastOwnerTouchAt);
+	if (lapseMs !== null && now.getTime() >= lapseMs - LAPSE_WARN_LEAD_DAYS * DAY_MS) {
 		out.push('lapse_warn');
 	}
 	return out;
@@ -177,13 +188,15 @@ export function noticeBlock(
 	now: Date,
 ): string | null {
 	if (!NOTICE_RECIPIENTS[notice].includes(role)) return null;
+	// The plan lock is about the account, not a deal: it has no block here (buildFreeLockedEmail).
+	if (notice === 'free_locked') return null;
 	const facts = factsOf(deal);
 	const origin = base.replace(/\/+$/, '');
 	if (role === 'lender') {
 		const vars = {
 			deal: fillCopy(NOTICE_LENDER_DEAL, { invoice: deal.invoiceNo, facts, recorded: deal.recordedDay }),
 			touched: day(deal.lastOwnerTouchAt),
-			lapse: lapseDayOf(deal.lastOwnerTouchAt) ?? '',
+			lapse: lapseDayOf(deal.lastOwnerTouchAt, deal.promisedDate) ?? '',
 		};
 		const line =
 			notice === 'day9' ? fillCopy(NOTICE_LENDER_DAY9, vars)
@@ -224,4 +237,17 @@ export function buildNoticeEmail(
 	const parts = [...blocks, NOTICE_FOOTER];
 	if (role === 'client' && opts.optoutUrl) parts.push(fillCopy(NOTICE_OPTOUT_LINE, { url: opts.optoutUrl }));
 	return { subject, text: parts.join('\n\n') };
+}
+
+/**
+ * The one lender email for a free plan that locked (tier T2 / D11, D16): the two lapse days, what
+ * the lock means, that nothing on the existing records changed, and the desk. Account mail, so no
+ * opt-out; no deal identifiers beyond the days, so nothing a lock screen could leak.
+ */
+export function buildFreeLockedEmail(lapseDays: readonly string[], base: string): { subject: string; text: string } {
+	const origin = base.replace(/\/+$/, '');
+	const dates = lapseDays.map((d) => d.slice(0, 10)).filter(Boolean);
+	const line = fillCopy(NOTICE_LENDER_FREE_LOCKED, { dates: dates.length ? ` (${dates.join(', ')})` : '' });
+	const desk = fillCopy(NOTICE_LENDER_DESK, { url: `${origin}/verify/desk` });
+	return { subject: NOTICE_SUBJECT_FREE_LOCKED, text: [line, desk, NOTICE_FOOTER].join('\n\n') };
 }

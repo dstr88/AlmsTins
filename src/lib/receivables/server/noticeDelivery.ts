@@ -20,6 +20,9 @@
  *     record, which stops the schedule at the source.
  *   - digest: one email per recipient per run — every qualifying claim becomes one block in
  *     that email, so a neglectful lender's client is informed, not flooded.
+ *   - the lapse on the record (tier T2): every claim that reads lapsed gets the cron's own signed
+ *     `lapsed` status event, once, dated at the lapse (recordClaimLapse); two such on one account
+ *     within a year lock its free plan (lockFreePlanAfterLapses, D11) and draw one lender email.
  */
 import { sendMail } from '@/lib/email';
 import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
@@ -28,9 +31,11 @@ import {
 	listAgingNoticeCandidates,
 	listSentNotices,
 	noticeOptoutFor,
+	recordClaimLapse,
 	recordNoticeSent,
 } from '@/lib/receivablesRegistry';
 import {
+	buildFreeLockedEmail,
 	buildNoticeEmail,
 	dueNotices,
 	noticeBlock,
@@ -38,6 +43,7 @@ import {
 	type NoticeKind,
 	type NoticeRole,
 } from '@/lib/receivables/notices';
+import { lockFreePlanAfterLapses, type LockReason } from './entitlements';
 
 export interface NoticeRunCounts {
 	/** Active claims the pass looked at. */
@@ -56,6 +62,12 @@ export interface NoticeRunCounts {
 	suppressed: number;
 	/** Digest emails whose send threw; nothing was logged, so the next run retries them. */
 	failed: number;
+	/** Tier T2: `lapsed` status events written this run (one per claim, ever, dated at the lapse). */
+	lapsesRecorded: number;
+	/** Tier T2: free plans this run locked (two lapses within a year, D11). */
+	locked: number;
+	/** Tier T2: plan-lock emails that went out (one per lock, ever, logged against the second lapse). */
+	lockNotices: number;
 }
 
 interface Bucket {
@@ -72,6 +84,7 @@ export async function runAgingNotices(now: Date = new Date()): Promise<NoticeRun
 	const counts: NoticeRunCounts = {
 		candidates: 0, due: 0, sent: 0, logged: 0,
 		skippedTest: 0, skippedNoAddress: 0, suppressed: 0, failed: 0,
+		lapsesRecorded: 0, locked: 0, lockNotices: 0,
 	};
 	const base = baseUrl();
 	const candidates = await listAgingNoticeCandidates(now);
@@ -133,6 +146,37 @@ export async function runAgingNotices(now: Date = new Date()): Promise<NoticeRun
 				if (optoutUrl) bucket.optoutUrl = optoutUrl;
 			}
 		}
+	}
+
+	// Tier T2: the cron's own entry on each lapsed claim's chain, then the plan lock it may trigger.
+	// A practice record's lapse is recorded like any other (the chain is the record) but never counts
+	// toward a lock. The lock email goes once per lock, ever, logged against the second lapse's claim.
+	const locks = new Map<string, LockReason>();
+	for (const c of candidates) {
+		if (c.aging !== 'lapsed') continue;
+		const wrote = await recordClaimLapse(c, now);
+		if (wrote.written) counts.lapsesRecorded++;
+		if (c.isTest || locks.has(c.lenderTenantId)) continue;
+		const lock = await lockFreePlanAfterLapses(c.lenderTenantId, now);
+		if (lock.justLocked) counts.locked++;
+		if (lock.locked && lock.reason && lock.reason.claimIds.length) locks.set(c.lenderTenantId, lock.reason);
+	}
+	for (const [tenantId, reason] of locks) {
+		const claimId = reason.claimIds[reason.claimIds.length - 1];
+		const sent = await listSentNotices([claimId]);
+		if (sent.has(`${claimId}|free_locked|lender`)) continue;
+		const email = await resolveLender(tenantId);
+		if (!email) { counts.skippedNoAddress++; continue; }
+		const { subject, text } = buildFreeLockedEmail(reason.lapsedAts, base);
+		try {
+			await sendMail({ to: email, subject, text });
+		} catch (err) {
+			counts.failed++;
+			console.error('[receivables-notices] lock notice send failed:', (err as Error)?.message ?? err);
+			continue;
+		}
+		counts.lockNotices++;
+		await recordNoticeSent(claimId, 'free_locked', 'lender', now);
 	}
 
 	for (const bucket of buckets.values()) {
