@@ -21,6 +21,7 @@ import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.
 import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 import NoticeInbox from '@/components/receivables/NoticeInbox/NoticeInbox.astro';
+import PlanLine from '@/components/receivables/PlanLine/PlanLine.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -508,6 +509,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       </div>
       <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.
         <a id="primer-open" class="primer-open" href="#">How this works</a></p>
+      <PlanLine />
     </header>
 
     <div id="updates-banner" class="updates-banner"></div>

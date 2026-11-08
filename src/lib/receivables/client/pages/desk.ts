@@ -27,6 +27,7 @@
 import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { closeAck } from '@/components/receivables/AckPrompt/ackPrompt.client';
 import { mountNoticeInbox } from '@/components/receivables/NoticeInbox/noticeInbox.client';
+import { mountPlanLine } from '@/components/receivables/PlanLine/planLine.client';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { mountSeenBeforeForm } from '@/components/receivables/SeenBeforeForm/seenBeforeForm.client';
@@ -99,3 +100,9 @@ if (seenBefore) mountSeenBeforeForm(seenBefore);
 // one-click Settled / Extend / Unpaid clears the item at the source.
 const needsUpdate = document.querySelector<HTMLElement>('[data-rcv-root="needs-update"]');
 if (needsUpdate) mountNoticeInbox(needsUpdate);
+
+// Plan line (tier T3): which plan this account is on and how many contracts it holds open, from
+// GET /plan, computed on load. It re-reads itself whenever a record reloads, since a claim
+// recorded or released there changes the count.
+const planLine = document.querySelector<HTMLElement>('[data-rcv-root="plan"]');
+if (planLine) mountPlanLine(planLine);

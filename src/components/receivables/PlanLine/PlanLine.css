@@ -1,0 +1,8 @@
+/* PlanLine — presentation only.
+   One line under the desk's lede: the plan's name and the contract count, and, only while the
+   free plan is locked, a second sentence in the caution tone (tones.css, reached through the
+   host's fragments.css). Text is set by planLine.client.ts; the line is hidden until it has one. */
+
+.plan-line { display: flex; flex-wrap: wrap; gap: .35rem .8rem; margin: 0; font-size: .85rem; line-height: 1.6; color: var(--text-muted); }
+.plan-line__text { color: var(--text-secondary); font-weight: 600; }
+.plan-line__lock { color: var(--rcv-caution); }

@@ -27,6 +27,11 @@
  * acceptance if it was withdrawn while the prompt was open. That is said plainly (copy/withdrawn.ts),
  * never as a prompt, and the page refreshes so the record shows as withdrawn.
  *
+ * The account's plan (tier T1) answers 409 plan_limit when it already holds its open contracts
+ * (one on Free, ten on Standard) and 409 free_plan_locked when two of its claims lapsed within a
+ * year. Neither is a warning to acknowledge: the server's sentence (copy/plan.ts) is shown as
+ * written, on the desk and the registry page alike, and the page refreshes.
+ *
  * The page keeps what is page-specific through `host`: its inputs, its note box, its number
  * formats, and what it refreshes afterward. Notes are built from DOM nodes with textContent.
  */
@@ -186,6 +191,15 @@ export async function submitClaim(o: SubmitClaimOptions, acks: ClaimAcks = {}): 
 				if (!sameRecord(host, input)) { closeAck(root); return; }
 				return submitClaim(o, { ...acks, acknowledge: [...acknowledge, 'possible_duplicate'] });
 			});
+			return;
+		}
+		if (j.error === 'plan_limit' || j.error === 'free_plan_locked') {
+			// The account's own limit (tier T1): one open contract on Free, ten on Standard, over both
+			// papers. Nothing to acknowledge and nothing to force; the server's sentence says what frees
+			// a slot, so it is shown as written on both pages, and the page refreshes as after any
+			// answer that recorded nothing.
+			say('loss', [txt(String(j.message || copy.failedFallback))]);
+			await host.afterNotOk?.();
 			return;
 		}
 		say('loss', [txt(fillCopy(copy.failed, { code: String(j.error || UNKNOWN_ERROR), message: String(j.message || copy.failedFallback) }))]);
