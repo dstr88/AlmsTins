@@ -1,6 +1,6 @@
 ---
 import Analytics from '@/components/Analytics.astro';
-// The pilot run sheet — the page you keep open during the call.
+// The run sheet: the page you keep open during the first call with a financier.
 //
 // noindex, no login. It is meant to be handed out by link, not found. A page beats a
 // shared document here because it lives on the domain the product lives on, it updates
@@ -71,7 +71,7 @@ const QUESTIONS = [
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Receivables pilot run sheet · Almstins Verify</title>
+  <title>Receivables run sheet · Almstins Verify</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
@@ -131,7 +131,7 @@ const QUESTIONS = [
 <body>
   <div class="wrap">
     <header>
-      <div class="eyebrow">Receivables pilot</div>
+      <div class="eyebrow">Receivables</div>
       <h1>Run sheet</h1>
       <div class="when">About 60 minutes</div>
     </header>
