@@ -28,6 +28,7 @@ const KEPT: Record<string, string> = {
 	cairn_milestones: 'milestone-desk record other parties rely on',
 	cairn_attestations: 'other parties’ attestations',
 	cairn_documents: 'evidence other parties submitted',
+	cairn_closures: 'the signed close of a milestone-desk record other parties rely on',
 	promo_redemptions: 'kept for a code\u2019s use count, unlinked from the account (tenant_id becomes deleted:<id>)',
 };
 

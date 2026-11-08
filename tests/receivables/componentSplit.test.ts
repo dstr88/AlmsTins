@@ -103,7 +103,8 @@ const PRIVATE_ALLOWED_LINES: Record<string, readonly string[]> = {
 	[RECEIVABLES_HOSTS.client]: [],
 	// Tier T1: the contract count reads the work paper's sealed projects, so one line names its table.
 	'src/lib/receivables/server/entitlements.ts': [
-		'      sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND (is_test IS NULL OR is_test = ?)`,',
+		'      sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND closed_at IS NULL AND (is_test IS NULL OR is_test = ?)`,',
+		'        sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND (is_test IS NULL OR is_test = ?)`,',
 	],
 	[RECEIVABLES_LANDING]: [
 		'// The milestone desk (construction/tranche financing — "cairn") is a separate product',

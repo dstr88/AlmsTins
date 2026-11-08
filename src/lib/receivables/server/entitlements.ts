@@ -124,10 +124,19 @@ export interface ContractUse {
 
 /** Postgres undefined_table, or the test double's wording for the same: the work paper creates
  *  its tables lazily through its own registry, so an account that never opened a project may
- *  ask before they exist. That is zero projects, not a failure. */
+ *  ask before they exist. That is zero projects, not a failure. A missing COLUMN is not this. */
 const isMissingRelation = (e: unknown): boolean => {
   const err = e as { code?: unknown; message?: unknown } | null;
-  return err?.code === '42P01' || /does not exist/i.test(String(err?.message ?? ''));
+  const msg = String(err?.message ?? '');
+  return err?.code === '42P01' || (/does not exist/i.test(msg) && !/column/i.test(msg));
+};
+
+/** Postgres undefined_column, or the test double's wording: the work paper's close column
+ *  (closed_at) is added by its own registry's ensure, which may not have run in this process yet.
+ *  Then every sealed project counts as open, as it did before the close existed. */
+const isMissingColumn = (e: unknown): boolean => {
+  const err = e as { code?: unknown; message?: unknown } | null;
+  return err?.code === '42703' || /column .* does not exist/i.test(String(err?.message ?? ''));
 };
 
 export async function countContracts(tenantId: string): Promise<ContractUse> {
@@ -141,15 +150,24 @@ export async function countContracts(tenantId: string): Promise<ContractUse> {
   });
   let projects = 0;
   try {
-    // Until the work paper's close ships (T5, closed_at), every sealed project is open. A draft
-    // (signed_at NULL) is not a contract yet: nothing relies on it, and sealing is where the gate sits.
+    // A sealed project that has not been closed (T5). A draft (signed_at NULL) is not a contract
+    // yet: nothing relies on it, and sealing is where the gate sits. A close frees the slot.
     const projectRows = await db.execute({
-      sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND (is_test IS NULL OR is_test = ?)`,
+      sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND closed_at IS NULL AND (is_test IS NULL OR is_test = ?)`,
       args: [tenantId, false],
     });
     projects = projectRows.rows.length;
   } catch (e) {
-    if (!isMissingRelation(e)) throw e;
+    if (isMissingColumn(e)) {
+      // The close column is not there yet in this database: every sealed project is open.
+      const projectRows = await db.execute({
+        sql: `SELECT id FROM cairn_projects WHERE tenant_id = ? AND signed_at IS NOT NULL AND (is_test IS NULL OR is_test = ?)`,
+        args: [tenantId, false],
+      });
+      projects = projectRows.rows.length;
+    } else if (!isMissingRelation(e)) {
+      throw e;
+    }
   }
   const claims = claimRows.rows.length;
   return { claims, projects, total: claims + projects };
