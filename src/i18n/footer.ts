@@ -20,6 +20,8 @@ export interface FooterLocale {
   aboutHref: string;
   pricingLabel: string;
   pricingHref: string;
+  learnLabel: string;
+  learnHref: string;
   privacyLabel: string;
   termsLabel: string;
   privacyAria: string;
@@ -34,6 +36,8 @@ export const en: FooterLocale = {
   aboutHref: '/about',
   pricingLabel: 'pricing',
   pricingHref: '/prices',
+  learnLabel: 'learn',
+  learnHref: '/learn',
   privacyLabel: 'privacy-policy',
   termsLabel: 'user agreement',
   privacyAria: 'Privacy Policy',
@@ -48,6 +52,8 @@ export const es: FooterLocale = {
   aboutHref: '/about/es',
   pricingLabel: 'precios',
   pricingHref: '/prices/es',
+  learnLabel: 'aprender',
+  learnHref: '/learn',
   privacyLabel: 'política de privacidad',
   termsLabel: 'acuerdo de usuario',
   privacyAria: 'Política de Privacidad',
@@ -62,6 +68,8 @@ export const fr: FooterLocale = {
   aboutHref: '/about/fr',
   pricingLabel: 'tarifs',
   pricingHref: '/prices/fr',
+  learnLabel: 'découvrir',
+  learnHref: '/learn',
   privacyLabel: 'politique de confidentialité',
   termsLabel: 'accord d’utilisateur',
   privacyAria: 'Politique de Confidentialité',
