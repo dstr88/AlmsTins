@@ -104,6 +104,8 @@ export const UNPAID_DONE = 'Flagged unpaid. The promised date stands, so the rec
 export const CHAIN_HEADING = 'Status history';
 export const CHAIN_EXTENDED = 'Extended';
 export const CHAIN_UNPAID = 'Flagged unpaid';
+/** The cron's own entry on the chain (tier T2): the day the record lapsed, as a signed fact. */
+export const CHAIN_LAPSED = 'Lapsed, record not maintained';
 export const CHAIN_PROMISED = 'promised {day}';
 
 /** How the status row reports a mutation's outcome. The demo line mirrors the registry's. */

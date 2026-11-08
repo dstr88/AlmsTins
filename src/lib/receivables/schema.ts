@@ -159,6 +159,10 @@ export const CREATE_STATUS_EVENTS_RCV_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_status_events_rcv ON receivable_status_events (receivable_id)`;
 export const CREATE_STATUS_EVENTS_CLAIM_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_status_events_claim ON receivable_status_events (claim_id)`;
+/** The lock's count (tier T2 / D11): an account's lapsed events in a trailing year. Partial, so
+ *  the owner-written chain pays nothing for it. */
+export const CREATE_STATUS_EVENTS_LAPSED_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_status_events_lapsed ON receivable_status_events (tenant_id, created_at) WHERE kind = 'lapsed'`;
 
 /**
  * receivable_notice_log (aging A4 / D8): which aging-notice emails have gone out, one row per

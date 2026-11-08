@@ -7,9 +7,13 @@
  *   due_in_grace         the promised date passed, within GRACE_DAYS calendar days (a normal slip)
  *   past_due_not_updated grace expired and the financier has not updated the record
  *   no_promised_date     the record carries no date to age against (D2); still lapses (D7)
- *   lapsed               no owner-initiated dated event for LAPSE_AFTER_DAYS (D7): the record was
- *                        not maintained, so it stops counting toward headroom and the
- *                        duplicate-financing answer — the history stays visible, marked
+ *   lapsed               the record was not maintained (D7, clock revised Nov 7, 2026, D7′): no
+ *                        owner-initiated dated event for LAPSE_AFTER_DAYS AND, for a dated record,
+ *                        LAPSE_AFTER_DAYS past the promised payment date — the negligence is
+ *                        measured from when the client was due to pay, not from the banker's last
+ *                        click. An undated record lapses on silence alone. A lapsed claim stops
+ *                        counting toward headroom and the duplicate-financing answer — the history
+ *                        stays visible, marked; the lender's own slot is not freed (tier, D10)
  *   settled              the claim was discharged (or its receivable settled): nothing to age
  *
  * Pure and client-safe, like status.ts: no database, no clock — `now` is always a parameter, so
@@ -26,7 +30,8 @@
 /** Calendar days after the promised date during which the record reads as a normal slip. */
 export const GRACE_DAYS = 10;
 
-/** Days of owner silence after which a claim's record goes terminal-stale (D7). Donnie's knob:
+/** Days of owner silence after which a claim's record goes terminal-stale (D7), and, for a dated
+ *  record, the days past the promised payment date that must also have run (D7′). Donnie's knob:
  *  longest common tenor (90d) + grace + a quarter of silence; keep within ~120..365. */
 export const LAPSE_AFTER_DAYS = 180;
 
@@ -102,6 +107,22 @@ export function wholeMonthsSince(ts: string | null | undefined, now: Date): numb
 }
 
 /**
+ * The instant a claim lapses on its current facts (D7′), as epoch ms: the later of the last owner
+ * touch + LAPSE_AFTER_DAYS and, for a dated record, the promised date + LAPSE_AFTER_DAYS. Null when
+ * the touch is missing or unparseable: such a claim never lapses (the fail direction below), so
+ * there is no instant to warn about either. Exported for the notice schedule (notices.ts), which
+ * must name the same day the state turns on, and for the cron that records the lapse at that day.
+ */
+export function lapseAtMs(promisedDate: string | null, lastOwnerTouch: string | null): number | null {
+	const touchMs = timestampToUtcMs(lastOwnerTouch);
+	if (touchMs === null) return null;
+	const bySilence = touchMs + LAPSE_AFTER_DAYS * DAY_MS;
+	const promisedMs = ymdToUtcMs(promisedDate);
+	if (promisedMs === null) return bySilence;
+	return Math.max(bySilence, promisedMs + LAPSE_AFTER_DAYS * DAY_MS);
+}
+
+/**
  * The aging state of one claim. `claimStatus` is the claim row's status ('active' | 'discharged');
  * anything but 'active' reads settled and short-circuits. `lastOwnerTouch` is the latest
  * owner-initiated dated event the caller found; `now` is the moment the question is asked.
@@ -115,10 +136,13 @@ export function agingStateOf(
 ): ClaimAgingState {
 	if (claimStatus !== 'active') return 'settled';
 
-	const touchMs = timestampToUtcMs(lastOwnerTouch);
-	if (touchMs !== null && now.getTime() - touchMs >= LAPSE_AFTER_DAYS * DAY_MS) return 'lapsed';
+	const promised = effectivePromisedDate(dueDate, extensions);
+	// D7′: silence alone lapses an undated record; a dated one must also be LAPSE_AFTER_DAYS past
+	// the date the client was due to pay. The second clock only ever delays a lapse.
+	const lapseMs = lapseAtMs(promised, lastOwnerTouch);
+	if (lapseMs !== null && now.getTime() >= lapseMs) return 'lapsed';
 
-	const promisedMs = ymdToUtcMs(effectivePromisedDate(dueDate, extensions));
+	const promisedMs = ymdToUtcMs(promised);
 	if (promisedMs === null) return 'no_promised_date';
 
 	// Calendar days, not elapsed hours: on the promised date the record is active all day,

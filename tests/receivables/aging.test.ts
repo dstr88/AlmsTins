@@ -4,6 +4,7 @@ import {
 	effectivePromisedDate,
 	GRACE_DAYS,
 	LAPSE_AFTER_DAYS,
+	lapseAtMs,
 } from '../../src/lib/receivables/aging';
 
 /**
@@ -73,19 +74,38 @@ describe('settled short-circuits', () => {
 	});
 });
 
-describe('the lapse backstop (D7)', () => {
+describe('the lapse backstop (D7; clock revised to D7′ on Nov 7, 2026)', () => {
 	const touch = '2026-01-01 00:00:00';
 	const touchMs = Date.UTC(2026, 0, 1);
+	const promisedMs = Date.UTC(2026, 0, 15);
 
-	it('fires at exactly LAPSE_AFTER_DAYS of owner silence', () => {
-		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('lapsed');
+	it('a dated record lapses only once BOTH clocks have run: owner silence, and 180 days past the promised date', () => {
+		// Promised 2026-01-15, touched 2026-01-01: silence runs out 2026-06-30, the promised-date
+		// clock 2026-07-14. Day 180 of silence is still the honest past-due window.
+		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(promisedMs + LAPSE_AFTER_DAYS * DAY_MS - 1))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(promisedMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('lapsed');
 	});
 
-	it('does not fire one millisecond earlier', () => {
-		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS - 1))).toBe('past_due_not_updated');
+	it('a later touch holds a dated record past the promised-date clock: the later clock wins', () => {
+		// Touched 2026-05-01: silence runs out 2026-10-28, after the promised-date clock (2026-07-14).
+		const later = '2026-05-01 00:00:00';
+		const laterMs = Date.UTC(2026, 4, 1);
+		expect(agingStateOf('2026-01-15', [], 'active', later, at('2026-07-14T00:00:00Z'))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-01-15', [], 'active', later, new Date(laterMs + LAPSE_AFTER_DAYS * DAY_MS - 1))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-01-15', [], 'active', later, new Date(laterMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('lapsed');
 	});
 
-	it('undated records lapse too', () => {
+	it('a 120-day invoice registered and never touched lapses 180 days after its promised date, not 60 days after it', () => {
+		// Registered 2026-01-01, promised 2026-05-01: day 180 of silence (2026-06-30) is 60 days past
+		// due, inside the honest past-due window; the lapse comes 2026-10-28.
+		expect(agingStateOf('2026-05-01', [], 'active', touch, at('2026-06-30T00:00:00Z'))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-05-01', [], 'active', touch, at('2026-10-27T23:59:59Z'))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-05-01', [], 'active', touch, at('2026-10-28T00:00:00Z'))).toBe('lapsed');
+	});
+
+	it('undated records lapse on silence alone, at exactly LAPSE_AFTER_DAYS and not one millisecond earlier', () => {
+		expect(agingStateOf(null, [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS - 1))).toBe('no_promised_date');
 		expect(agingStateOf(null, [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('lapsed');
 	});
 
@@ -93,9 +113,10 @@ describe('the lapse backstop (D7)', () => {
 		expect(agingStateOf(null, [], 'active', touch, at('2026-02-01T00:00:00Z'))).toBe('no_promised_date');
 	});
 
-	it('lapse beats the date states: a record inside grace still lapses on owner silence', () => {
-		// Due 2026-06-25: 2026-06-30 would be grace day 5, but the touch is 180 days old.
-		expect(agingStateOf('2026-06-25', [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('lapsed');
+	it('a record inside grace never lapses, however old the silence: the promised-date clock holds it (D7′)', () => {
+		// Due 2026-06-25 and the touch 180 days old on 2026-06-30: grace day 5, with 175 days left on
+		// the promised-date clock. Before D7′ this read lapsed.
+		expect(agingStateOf('2026-06-25', [], 'active', touch, new Date(touchMs + LAPSE_AFTER_DAYS * DAY_MS))).toBe('due_in_grace');
 	});
 
 	it('a missing or unparseable touch never lapses (a plumbing bug must keep the encumbrance)', () => {
@@ -112,5 +133,22 @@ describe('the lapse backstop (D7)', () => {
 		// 2026-07-08 sits inside the fresh grace window that opened on 2026-07-01.
 		const extended = [{ newPromisedDate: '2026-07-01' }];
 		expect(agingStateOf('2026-01-15', extended, 'active', '2026-06-20 00:00:00', at('2026-07-08T00:00:00Z'))).toBe('due_in_grace');
+	});
+
+	it('an extension pushes the lapse by the same amount: the promised-date clock runs from the new date', () => {
+		// Promised 2026-01-15, extended on 2026-02-01 to 2026-04-15: the lapse moves to 2026-10-12.
+		const extended = [{ newPromisedDate: '2026-04-15' }];
+		const extTouch = '2026-02-01 00:00:00';
+		expect(agingStateOf('2026-01-15', extended, 'active', extTouch, at('2026-10-11T23:59:59Z'))).toBe('past_due_not_updated');
+		expect(agingStateOf('2026-01-15', extended, 'active', extTouch, at('2026-10-12T00:00:00Z'))).toBe('lapsed');
+	});
+
+	it('lapseAtMs names the instant the state turns on: the later clock, or null without a touch', () => {
+		expect(lapseAtMs('2026-01-15', touch)).toBe(promisedMs + LAPSE_AFTER_DAYS * DAY_MS);
+		expect(lapseAtMs(null, touch)).toBe(touchMs + LAPSE_AFTER_DAYS * DAY_MS);
+		expect(lapseAtMs('2025-01-01', touch)).toBe(touchMs + LAPSE_AFTER_DAYS * DAY_MS);
+		expect(lapseAtMs('2026-01-15', null)).toBeNull();
+		expect(lapseAtMs('2026-01-15', 'garbage')).toBeNull();
+		expect(agingStateOf('2026-01-15', [], 'active', touch, new Date(lapseAtMs('2026-01-15', touch)!))).toBe('lapsed');
 	});
 });

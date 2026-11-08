@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { agingStateOf, effectivePromisedDate, GRACE_DAYS, LAPSE_AFTER_DAYS } from '../../src/lib/receivables/aging';
 import {
+	buildFreeLockedEmail,
 	buildNoticeEmail,
 	DAY15_AFTER_PROMISE,
 	DAY20_AFTER_PROMISE,
@@ -15,6 +16,7 @@ import {
 } from '../../src/lib/receivables/notices';
 import {
 	NOTICE_SUBJECT_CLIENT,
+	NOTICE_SUBJECT_FREE_LOCKED,
 	NOTICE_SUBJECT_LENDER,
 } from '../../src/lib/receivables/copy/notices';
 
@@ -60,6 +62,8 @@ describe('the schedule constants are the plan\'s (Donnie\'s 9 / 15 / 20, warn 14
 			day20: ['lender', 'client'],
 			lapse_warn: ['lender'],
 			lapsed: ['lender', 'client'],
+			// Tier T2: the plan lock is account mail, lender only; no client email ever mentions a plan.
+			free_locked: ['lender'],
 		});
 	});
 });
@@ -131,12 +135,17 @@ describe('dueNotices: the lapse clock (owner silence)', () => {
 		expect(silent(LAPSE_AFTER_DAYS + 40)).toEqual(['lapsed']);
 	});
 
-	it('the two clocks are independent: deep past-due AND near-lapse both fire', () => {
+	it('the two clocks are independent: deep past-due AND near-lapse both fire, once the lapse is two weeks out (D7′)', () => {
 		const touch = '2026-01-01 00:00:00';
-		const now = new Date(at('2026-01-01', '00:00:00').getTime() + 170 * DAY_MS); // 2026-06-20
-		const facts = factsOf('2026-02-01', [], touch, now);
+		// Due 2026-02-01: silence runs out 2026-06-30, the promised-date clock 2026-07-31, so the lapse
+		// is 2026-07-31 and the warning starts 2026-07-17. At 170 days of silence only the day-20 line is due.
+		const early = new Date(at('2026-01-01', '00:00:00').getTime() + 170 * DAY_MS); // 2026-06-20
+		expect(dueNotices(factsOf('2026-02-01', [], touch, early), early)).toEqual(['day20']);
+		const warn = at('2026-07-17', '00:00:00');
+		const facts = factsOf('2026-02-01', [], touch, warn);
 		expect(facts.aging).toBe('past_due_not_updated');
-		expect(dueNotices(facts, now)).toEqual(['day20', 'lapse_warn']);
+		expect(dueNotices(facts, warn)).toEqual(['day20', 'lapse_warn']);
+		expect(dueNotices(factsOf('2026-02-01', [], touch, at('2026-07-16', '23:59:59')), at('2026-07-16', '23:59:59'))).toEqual(['day20']);
 	});
 
 	it('a missing or unparseable touch never draws a lapse warning (aging.ts\'s fail direction)', () => {
@@ -145,10 +154,13 @@ describe('dueNotices: the lapse clock (owner silence)', () => {
 		expect(dueNotices(factsOf(PROMISED, [], 'not a date', now), now)).toEqual(['day20']);
 	});
 
-	it('lapseDayOf is touch + LAPSE_AFTER_DAYS, and null without a touch', () => {
+	it('lapseDayOf is the later of touch + LAPSE_AFTER_DAYS and promised + LAPSE_AFTER_DAYS, and null without a touch', () => {
 		expect(lapseDayOf('2026-01-01 00:00:00')).toBe('2026-06-30');
+		expect(lapseDayOf('2026-01-01 00:00:00', null)).toBe('2026-06-30');
+		expect(lapseDayOf('2026-01-01 00:00:00', '2026-02-01')).toBe('2026-07-31');
+		expect(lapseDayOf('2026-01-01 00:00:00', '2025-06-01')).toBe('2026-06-30');
 		expect(lapseDayOf(null)).toBeNull();
-		expect(lapseDayOf('garbage')).toBeNull();
+		expect(lapseDayOf('garbage', '2026-02-01')).toBeNull();
 	});
 
 	it('daysPastPromised runs the same calendar-day math as the states', () => {
@@ -202,7 +214,10 @@ describe('noticeBlock: the deal-identifier block, with no party name anywhere', 
 		const quiet = { ...DEAL, lastOwnerTouchAt: '2026-05-01 10:00:00' };
 		const block = noticeBlock('lapse_warn', 'lender', quiet, BASE, NOW)!;
 		expect(block).toContain('since 2026-05-01');
-		expect(block).toContain(`lapses on ${lapseDayOf(quiet.lastOwnerTouchAt)}`);
+		// D7′: the day named is the later clock. Silence alone would say 2026-10-28; the promised
+		// date (2026-10-03) + 180 days is 2027-04-01, so that is the day the record lapses.
+		expect(block).toContain(`lapses on ${lapseDayOf(quiet.lastOwnerTouchAt, quiet.promisedDate)}`);
+		expect(block).toContain('lapses on 2027-04-01');
 		expect(block).toContain('no longer counted');
 	});
 });
@@ -230,5 +245,35 @@ describe('buildNoticeEmail: generic subjects, the digest shape, the opt-out foot
 		expect(lender.text).not.toContain('x.test/never');
 		// Both end on the boundary line the other receivables mail already carries.
 		for (const t of [client.text, lender.text]) expect(t).toContain('records and proves');
+	});
+});
+
+describe('the plan lock (tier T2 / D11, D16)', () => {
+	const deal: NoticeDeal = {
+		receivableId: 'd'.repeat(64), invoiceNo: 'INV-7', face: 1000, currency: 'USD',
+		promisedDate: '2026-10-01', recordedDay: '2026-09-02', lastOwnerTouchAt: '2026-09-02 10:00:00',
+	};
+
+	it('has no deal block: noticeBlock answers null for both roles', () => {
+		expect(noticeBlock('free_locked', 'lender', deal, 'https://alms.test', at('2026-11-01'))).toBeNull();
+		expect(noticeBlock('free_locked', 'client', deal, 'https://alms.test', at('2026-11-01'))).toBeNull();
+	});
+
+	it('buildFreeLockedEmail: a generic subject, the two days, the desk, the footer, and no opt-out', () => {
+		const { subject, text } = buildFreeLockedEmail(['2026-04-01 09:00:00', '2026-10-20 09:00:00'], 'https://alms.test/');
+		expect(subject).toBe(NOTICE_SUBJECT_FREE_LOCKED);
+		expect(text).toContain('(2026-04-01, 2026-10-20)');
+		expect(text).toContain('records no new contracts until the account moves to Standard');
+		expect(text).toContain('Nothing on your existing records has changed.');
+		expect(text).toContain('Your desk: https://alms.test/verify/desk');
+		expect(text).toContain('Almstins Verify records and proves.');
+		expect(text).not.toMatch(/opt|No more of these/);
+		expect(text).not.toMatch(/INV-|Bigco|Acme/);
+	});
+
+	it('without the days the sentence still stands, with no empty parenthesis', () => {
+		const { text } = buildFreeLockedEmail([], 'https://alms.test');
+		expect(text).toContain('for six months. The record shows each as lapsed.');
+		expect(text).not.toContain('()');
 	});
 });

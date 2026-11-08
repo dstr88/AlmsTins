@@ -1,16 +1,24 @@
 /**
  * Status events — the vocabulary of a claim's one-click updates (receivables aging, A1).
  *
- * Two kinds ride the append-only receivable_status_events table: `extended` (a new promised
- * date, with a mandatory structured reason) and `unpaid` (the lender flags it; optional note).
- * "Settled" is NOT an event kind — it is the existing dischargeClaim, which already signs and
- * stamps a dated claim_discharge record.
+ * Three kinds ride the append-only receivable_status_events table: `extended` (a new promised
+ * date, with a mandatory structured reason) and `unpaid` (the lender flags it; optional note), both
+ * written by the claim's own financier, and `lapsed` (tier T2), written by the daily aging cron at
+ * the instant the claim's record lapsed (aging.ts lapseAtMs), so the lapse is a signed, dated fact
+ * on the chain and not only a state derived on read. A `lapsed` event is never an owner touch: it
+ * records the silence, it does not break it. "Settled" is NOT an event kind — it is the existing
+ * dischargeClaim, which already signs and stamps a dated claim_discharge record.
  *
  * Import-free on purpose (the anchorSpec.ts convention): pages and copy modules read these
  * constants without pulling in the database.
  */
 
-export const STATUS_EVENT_KINDS = ['extended', 'unpaid'] as const;
+export const STATUS_EVENT_KINDS = ['extended', 'unpaid', 'lapsed'] as const;
+/** The kinds a claim's own financier writes; `lapsed` is the system's. */
+export const OWNER_STATUS_EVENT_KINDS = ['extended', 'unpaid'] as const;
+export function isStatusEventKind(x: unknown): x is StatusEventKind {
+	return typeof x === 'string' && (STATUS_EVENT_KINDS as readonly string[]).includes(x);
+}
 export type StatusEventKind = (typeof STATUS_EVENT_KINDS)[number];
 
 /**

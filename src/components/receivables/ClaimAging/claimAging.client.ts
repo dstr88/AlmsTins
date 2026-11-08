@@ -25,7 +25,7 @@ import { fillCopy } from '@/lib/receivables/fillCopy';
 import { EXTENSION_REASON_CODES, type ExtensionReasonCode } from '@/lib/receivables/statusEvents';
 import {
 	ACTION_CANCEL, ACTION_EXTEND, ACTION_SETTLED, ACTION_UNPAID,
-	CHAIN_EXTENDED, CHAIN_HEADING, CHAIN_PROMISED, CHAIN_UNPAID,
+	CHAIN_EXTENDED, CHAIN_HEADING, CHAIN_PROMISED, CHAIN_LAPSED, CHAIN_UNPAID,
 	EXTEND_DATE_LABEL, EXTEND_DONE, EXTEND_GO, EXTEND_NOTE_LABEL, EXTEND_NOTE_PLACEHOLDER,
 	EXTEND_REASON_LABEL, EXTEND_REASON_PICK, EXTEND_TITLE,
 	EXTENSION_DATE_REQUIRED, EXTENSION_REASON_FRAME, EXTENSION_REASON_LABELS, EXTENSION_REASON_REQUIRED,
@@ -287,7 +287,7 @@ export function mountClaimAging(claims: HTMLElement, host: ClaimAgingHost): Clai
 			for (const e of events) {
 				const li = document.createElement('li');
 				li.className = 'clag__chain-item';
-				const kind = String(e?.kind) === 'unpaid' ? CHAIN_UNPAID : CHAIN_EXTENDED;
+				const kind = String(e?.kind) === 'unpaid' ? CHAIN_UNPAID : String(e?.kind) === 'lapsed' ? CHAIN_LAPSED : CHAIN_EXTENDED;
 				const moved = String(e?.kind) === 'extended' && typeof e?.newPromisedDate === 'string' && e.newPromisedDate
 					? ' · ' + fillCopy(CHAIN_PROMISED, { day: e.newPromisedDate })
 					: '';
