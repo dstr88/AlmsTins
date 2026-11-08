@@ -151,6 +151,27 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <div id="ask-linkbox" class="linkbox" hidden></div>
       </div>
 
+      <div id="close-wrap" hidden style="margin-top:1rem; border:1px solid var(--border-bright); border-radius:11px; padding:1rem 1.1rem">
+        <h2 style="font-size:1rem">Close the project</h2>
+        <p class="hint">
+          Nothing here expires. A project ends only when you sign a close, dated. Completed needs the
+          inspector's attestation on the final milestone and your payment record for it, both already
+          on the record. Terminated and abandoned are your statement alone; the other party may
+          dispute it. The record stays readable afterward, with every gap it had.
+        </p>
+        <div class="row">
+          <select id="close-kind" style="flex:0 1 12rem">
+            <option value="completed">Completed</option>
+            <option value="terminated">Terminated</option>
+            <option value="abandoned">Abandoned</option>
+          </select>
+          <input id="close-by" class="grow" placeholder="Your name, as the funder" autocomplete="off" />
+          <input id="close-note" class="grow" placeholder="Note (optional)" autocomplete="off" />
+          <button id="close-go" class="small">Sign the close</button>
+        </div>
+        <div id="close-out" class="note"></div>
+      </div>
+
       <div id="trail-wrap" hidden style="margin-top:1.1rem">
         <h2 style="font-size:1rem">The trail</h2>
         <p class="hint">Every answer that has come back, signed and dated. This is what a tranche releases against.</p>
@@ -360,6 +381,9 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         // create-card toggle already marks what you record; this marks where you ARE.
         const isTest = j.project.isTest === true;
         const sealed = j.project.sealedAt != null;
+        // Tier T5: a project ends only by a signed close; closed is not expired, and the record
+        // stays fully readable below. Nothing can be added to it.
+        const closed = j.project.closedAt != null;
         currentTotal = Number(j.project.totalValue || 0);
         currentCcy = j.project.currency;
         const sym = document.getElementById('m-sym');
@@ -369,20 +393,23 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         if (note) note.textContent = `either box works · % means % of the ${money(currentTotal, currentCcy)} total`;
         card.classList.toggle('is-test', isTest);
         document.getElementById('ms-title')!.innerHTML =
-          `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}${sealed ? ' <span class="pill" style="color:var(--gain);border-color:var(--gain-border);background:var(--gain-bg)">sealed</span>' : ' <span class="pill" style="color:var(--text-muted);border-color:var(--border-bright);background:transparent">draft</span>'}`;
+          `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}${sealed ? ' <span class="pill" style="color:var(--gain);border-color:var(--gain-border);background:var(--gain-bg)">sealed</span>' : ' <span class="pill" style="color:var(--text-muted);border-color:var(--border-bright);background:transparent">draft</span>'}${closed ? ` <span class="pill pill--closed">closed · ${esc(j.project.closeKind)}</span>` : ''}`;
         document.getElementById('ms-sub')!.textContent =
           `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total` +
           `${sealed ? ` · signed and sealed ${String(j.project.sealedAt).slice(0, 10)}` : ' · a draft, edit freely'}` +
+          `${closed ? ` · closed as ${j.project.closeKind} ${String(j.project.closedAt).slice(0, 10)}` : ''}` +
           `${isTest ? ' · practice project, nothing here counts' : ''}`;
-        renderMilestones(j.milestones || [], j.project.currency, sealed);
+        renderMilestones(j.milestones || [], j.project.currency, sealed, closed);
         (document.getElementById('seal-wrap') as HTMLElement).hidden = sealed || !(j.milestones || []).length;
+        (document.getElementById('close-wrap') as HTMLElement).hidden = !sealed || closed;
+        (document.getElementById('ask-card') as HTMLElement).hidden = (document.getElementById('ask-card') as HTMLElement).hidden || closed;
         // The add-milestone form only makes sense while drafting.
         const canDraft = !sealed;
         ['m-title','m-amt','m-pct','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.disabled = !canDraft; });
         (document.getElementById('m-go') as HTMLButtonElement).disabled = !canDraft;
         if (sealed && editingId) cancelEdit();
         renderAlloc(j.project, j.milestones || []);
-        renderTrail(j.attestations || []);
+        renderTrail(j.attestations || [], j.closure || null);
         renderDocs(j.documents || [], j.milestones || []);
         loadRequests(id);
         if (scroll) {
@@ -395,7 +422,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     let msRows: any[] = [];
     let editingId: string | null = null;
 
-    function renderMilestones(rows: any[], ccy: string, sealed: boolean) {
+    function renderMilestones(rows: any[], ccy: string, sealed: boolean, closed = false) {
       msRows = rows;
       const box = document.getElementById('ms-list')!;
       // Park the gauge back in its home above the table BEFORE wiping the table —
@@ -408,10 +435,11 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           <td class="seq">${esc(m.seq)}</td>
           <td>${esc(m.title)}${m.description ? `<div class="muted">${esc(m.description)}</div>` : ''}</td>
           <td class="num">${esc(money(m.trancheAmount, ccy))}${pctOf(Number(m.trancheAmount) || 0) ? `<div class="muted">${esc(pctOf(Number(m.trancheAmount) || 0))}</div>` : ''}</td>
-          <td>${esc(m.targetDate || '—')}</td>
-          <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${sealed ? esc(m.status) : 'draft'}</span></td>
+          <td>${esc(m.targetDate || '—')}${sealed && agingLine(m) ? `<div class="muted">${esc(agingLine(m))}</div>` : ''}</td>
+          <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${sealed ? esc(m.status) : 'draft'}</span>${sealed && m.paidAt ? ` <span class="st st--paid" title="Tranche recorded paid ${esc(String(m.paidAt).slice(0, 10))}">paid</span>` : ''}</td>
           <td class="act"><div class="row" style="gap:.35rem;justify-content:flex-end">
-            ${sealed && m.status !== 'attested' ? `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>` : ''}
+            ${sealed && !closed && m.status !== 'attested' ? `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>` : ''}
+            ${sealed && !closed && m.status === 'attested' && !m.paidAt ? `<button class="small ghost" type="button" data-pay="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Record payment</button>` : ''}
             ${!sealed ? `<button class="small ghost" type="button" data-edit="${esc(m.id)}">Edit</button><button class="small ghost" type="button" data-del="${esc(m.id)}" title="Remove this draft milestone">&#10005;</button>` : ''}
           </div></td>
         </tr>`).join('') + '</tbody></table></div>';
@@ -437,6 +465,11 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       box.querySelectorAll('[data-ask]').forEach((el) =>
         el.addEventListener('click', () => openAsk(
           (el as HTMLElement).dataset.ask as string,
+          (el as HTMLElement).dataset.mtitle as string,
+        )));
+      box.querySelectorAll('[data-pay]').forEach((el) =>
+        el.addEventListener('click', () => recordPayment(
+          (el as HTMLElement).dataset.pay as string,
           (el as HTMLElement).dataset.mtitle as string,
         )));
       box.querySelectorAll('[data-edit]').forEach((el) =>
@@ -497,6 +530,67 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         const j = await r.json();
         if (!j.ok) { show(out as HTMLElement, esc(j.message || 'Could not seal the schedule.'), 'note-loss'); return; }
         show(out as HTMLElement, `<b>Sealed.</b> ${esc(j.milestones)} milestones signed as one schedule${j.anchored ? ', stamped to Bitcoin' : ''}. You can now ask inspectors.`, 'note-gain');
+        openProject(currentProject, false);
+        loadProjects();
+      } catch { show(out as HTMLElement, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // Tier T5. The state line under a milestone's target: the server derives the state
+    // (src/lib/cairn/aging.ts); the desk only words the two that need a date. Nothing here
+    // ever reads "late" or "missed": the gap is stated with its date, and that is all.
+    function agingLine(m: any): string {
+      if (m.aging === 'past_target_no_update' || m.aging === 'due_in_grace') {
+        const since = String(m.lastSignedAt || m.targetDate || '').slice(0, 10);
+        return since ? `Target date passed; no update recorded since ${since}.` : 'Target date passed; no update recorded.';
+      }
+      return '';
+    }
+
+    // The funder's own signature that a tranche was paid: the third a milestone can carry, after
+    // the inspector's. No money moves; this records that you say it did, signed in your name.
+    async function recordPayment(id: string, mtitle: string) {
+      const out = document.getElementById('seal-out')!;
+      const m = msRows.find((r) => r.id === id);
+      if (!m) return;
+      const by = (prompt(`Record the tranche for ${mtitle} as paid.\n\nYour name, as the funder, for the signed record:`) || '').trim();
+      if (!by) return;
+      if (!confirm(`Record ${money(m.trancheAmount, currentCcy)} for ${mtitle} as paid, signed by ${by}? This cannot be undone.`)) return;
+      show(out as HTMLElement, 'Signing the payment record…');
+      try {
+        const r = await fetch('/api/verify/cairn/tranche', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ milestoneId: id, by }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out as HTMLElement, esc(j.message || 'Could not record the payment.'), 'note-loss'); return; }
+        show(out as HTMLElement, `<b>Recorded.</b> The tranche for ${esc(mtitle)} is on the record as paid${j.anchored ? ', stamped to Bitcoin' : ''}.`, 'note-gain');
+        if (currentProject) openProject(currentProject, false);
+      } catch { show(out as HTMLElement, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // The close. A project ends only by a signed statement; nothing here expires. Completed needs
+    // the inspector's word on the final milestone and your record of its payment, both already on
+    // the record; terminated and abandoned are your statement alone, signed in your name.
+    async function closeProjectUi() {
+      const out = document.getElementById('close-out')!;
+      if (!currentProject) return;
+      const kind = (document.getElementById('close-kind') as HTMLSelectElement).value;
+      const by = ((document.getElementById('close-by') as HTMLInputElement).value || '').trim();
+      const note = ((document.getElementById('close-note') as HTMLInputElement).value || '').trim();
+      if (!by) { show(out as HTMLElement, 'Your name, as the funder, goes on the signed close.', 'note-loss'); return; }
+      const what = kind === 'completed'
+        ? 'Close this project as completed? The close is signed in your name and cannot be undone.'
+        : `Close this project as ${kind}? This is your statement, signed in your name; the other party may dispute it. Open inspector links will stop working. This cannot be undone.`;
+      if (!confirm(what)) return;
+      show(out as HTMLElement, 'Signing the close…');
+      try {
+        const r = await fetch('/api/verify/cairn/close', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: currentProject, kind, by, note: note || null }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out as HTMLElement, esc(j.message || 'Could not close the project.'), 'note-loss'); return; }
+        show(out as HTMLElement, `<b>Closed as ${esc(j.kind)}.</b> Signed${j.anchored ? ' and stamped to Bitcoin' : ''}. The record stays readable here.`, 'note-gain');
         openProject(currentProject, false);
         loadProjects();
       } catch { show(out as HTMLElement, 'Could not reach the registry. Try again.', 'note-loss'); }
@@ -604,13 +698,18 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
-    function renderTrail(rows: any[]) {
+    function renderTrail(rows: any[], closure: any = null) {
       const wrap = document.getElementById('trail-wrap')!;
       const box = document.getElementById('trail')!;
-      if (!rows.length) { wrap.hidden = true; return; }
+      if (!rows.length && !closure) { wrap.hidden = true; return; }
       wrap.hidden = false;
-      box.innerHTML = rows.map((a: any) => `
-        <div class="tr-item${String(a.statement).startsWith('DISPUTED') ? ' tr-item--disputed' : ''}">
+      const closeItem = closure ? `
+        <div class="tr-item tr-item--close">
+          <div>${esc(closure.statement)}</div>
+          <div class="when">${esc(String(closure.closedAt).slice(0, 10))}${closure.anchored ? ' · stamped to Bitcoin' : ''}${closure.signed ? ' · signed' : ''} · ${esc(closure.signerRole)}</div>
+        </div>` : '';
+      box.innerHTML = closeItem + rows.map((a: any) => `
+        <div class="tr-item${String(a.statement).startsWith('DISPUTED') ? ' tr-item--disputed' : a.role === 'funder' ? ' tr-item--paid' : ''}">
           <div>${esc(a.statement)}</div>
           ${a.findings ? `<div class="found"><b>What the inspector found</b>${esc(a.findings)}</div>` : ''}
           <div class="when">${esc(a.attestedAt)}${a.anchored ? ' · stamped to Bitcoin' : ''} · signed</div>
@@ -771,7 +870,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         box.innerHTML = rows.map((p: any) => `
           <div class="prow" data-open="${esc(p.id)}">
             <div>
-              <div class="prow__name">${esc(p.name)} ${p.isTest ? '<span class="pill">test</span>' : ''}</div>
+              <div class="prow__name">${esc(p.name)} ${p.isTest ? '<span class="pill">test</span>' : ''}${p.closedAt ? ` <span class="pill pill--closed">closed · ${esc(p.closeKind)}</span>` : ''}</div>
               <div class="prow__meta">${esc(p.counterparty)} · ${esc(money(p.totalValue, p.currency))} · ${esc(p.milestoneCount)} milestone${p.milestoneCount === 1 ? '' : 's'}</div>
             </div>
             <button class="small ghost" type="button">Open</button>
@@ -785,6 +884,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
     document.getElementById('m-cancel')?.addEventListener('click', cancelEdit);
     document.getElementById('seal-go')?.addEventListener('click', sealSchedule);
+    document.getElementById('close-go')?.addEventListener('click', closeProjectUi);
     document.getElementById('m-rest')?.addEventListener('click', () => {
       const remaining = currentTotal - currentAllocated + (editingId ? editingOrigAmt : 0);
       if (remaining <= 0) return;

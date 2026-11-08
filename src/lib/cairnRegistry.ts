@@ -22,10 +22,12 @@ import { gateNewContract } from '@/lib/receivables/server/entitlements';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import {
   canonicalManifestBytes,
-  signManifest,
-  getPublicKeyHex,
+  signManifestWithKey,
   getSigningKeyId,
 } from '@/lib/recordProof/signing';
+import {
+  CLOSE_KINDS, isCloseKind, milestoneAgingOf, type CloseKind, type MilestoneAgingState,
+} from '@/lib/cairn/aging';
 
 /** Timestamp matching the columns' to_char(now() … 'YYYY-MM-DD HH24:MI:SS') default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -92,6 +94,26 @@ export interface MilestoneSummary {
   targetDate: string | null;
   status: MilestoneStatus;
   createdAt: string;
+  /** When the funder recorded the tranche paid (tier T5); null until then. */
+  paidAt: string | null;
+  paidAmount: number | null;
+  /** The derived state (src/lib/cairn/aging.ts), at the moment of the read. */
+  aging: MilestoneAgingState;
+  /** The last signature on this milestone (an attestation or the payment record), or null. */
+  lastSignedAt: string | null;
+}
+
+/** The signed close of a project (tier T5, D13 and D14). One per project, ever. */
+export interface ClosureSummary {
+  id: string;
+  kind: CloseKind;
+  signerRole: 'funder' | 'contractor' | 'inspector';
+  by: string;
+  statement: string;
+  closedAt: string;
+  digest: string;
+  signed: boolean;
+  anchored: boolean;
 }
 
 export interface ProjectSummary {
@@ -102,6 +124,9 @@ export interface ProjectSummary {
   currency: string;
   isTest: boolean;
   sealedAt: string | null;
+  /** Set by a signed close (tier T5). A closed project stays fully readable; closed is not expired. */
+  closedAt: string | null;
+  closeKind: CloseKind | null;
   createdAt: string;
   updatedAt: string;
   milestoneCount: number;
@@ -223,8 +248,42 @@ export async function ensureCairnTables(): Promise<void> {
   // Draft -> sealed lifecycle: a schedule is built freely, then signed in one deliberate
   // act. NULL = still a draft; the timestamp is when the owner put their name to it all.
   await db.execute({ sql: `ALTER TABLE cairn_projects ADD COLUMN IF NOT EXISTS signed_at TEXT`, args: [] });
+  // Tier T5: the close. A project ends only by a signed statement (completed, terminated or
+  // abandoned); nothing on the work paper ever expires. closed_at and close_kind mirror the latest
+  // cairn_closures row for cheap reads; the row is the record.
+  await db.execute({ sql: `ALTER TABLE cairn_projects ADD COLUMN IF NOT EXISTS closed_at TEXT`, args: [] });
+  await db.execute({ sql: `ALTER TABLE cairn_projects ADD COLUMN IF NOT EXISTS close_kind TEXT`, args: [] });
+  // Tier T5: the funder's own signature on a milestone, that its tranche was paid. Orthogonal to
+  // status (the inspector's verdict); a milestone may carry both.
+  await db.execute({ sql: `ALTER TABLE cairn_milestones ADD COLUMN IF NOT EXISTS paid_at TEXT`, args: [] });
+  await db.execute({ sql: `ALTER TABLE cairn_milestones ADD COLUMN IF NOT EXISTS paid_amount DOUBLE PRECISION`, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_CLOSURES_SQL, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_CLOSURES_IDX, args: [] });
   ensured = true;
 }
+
+// The signed close of a project (tier T5, D13 and D14). `completed` needs two signatures already on
+// the record (the inspector's attestation on the final milestone and the funder's record of its
+// tranche paid) and is signed by the funder; `terminated` and `abandoned` take one signer, recorded
+// as that party's statement. Every close names who signed and in what role. Append-only.
+const ENSURE_CAIRN_CLOSURES_SQL = `
+  CREATE TABLE IF NOT EXISTS cairn_closures (
+    id             TEXT NOT NULL PRIMARY KEY,
+    project_id     TEXT NOT NULL,
+    tenant_id      TEXT NOT NULL,
+    kind           TEXT NOT NULL,
+    signer_role    TEXT NOT NULL,
+    signed_by      TEXT NOT NULL,
+    statement      TEXT NOT NULL,
+    manifest_json  TEXT NOT NULL,
+    signature_json TEXT,
+    digest         TEXT NOT NULL,
+    anchor_json    TEXT,
+    created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_CAIRN_CLOSURES_IDX =
+  `CREATE INDEX IF NOT EXISTS cairn_closures_project ON cairn_closures (project_id)`;
 
 // Paperwork on a milestone, in both directions: the lender attaches the report form the
 // inspector must use; the inspector uploads the completed form (photo or PDF) from the
@@ -252,14 +311,17 @@ const ENSURE_CAIRN_DOCS_IDX =
   `CREATE INDEX IF NOT EXISTS cairn_documents_ms ON cairn_documents (milestone_id)`;
 
 // ── Signing ─────────────────────────────────────────────────────────────────
+/** Sign a manifest with the Almstins key. The stored key ID and public key are the seed's, the key
+ *  that made the signature, never the published-key override (the receivables registry's rule), so a
+ *  record signed during a key rotation still verifies. Null when no key is configured: the record is
+ *  stored unsigned rather than crashing. */
 function sign(manifest: object): { signature: Signature | null; digest: string } {
   const bytes = canonicalManifestBytes(manifest);
   const digest = sha256hex(bytes);
-  const sig = signManifest(bytes);
-  const pub = getPublicKeyHex();
-  if (!sig || !pub) return { signature: null, digest };
+  const sig = signManifestWithKey(bytes);
+  if (!sig) return { signature: null, digest };
   return {
-    signature: { keyId: sig.keyId, alg: sig.alg, signatureHex: sig.signatureHex, publicKeyHex: pub },
+    signature: { keyId: sig.keyId, alg: sig.alg, signatureHex: sig.signatureHex, publicKeyHex: sig.publicKeyHex },
     digest,
   };
 }
@@ -602,6 +664,7 @@ export async function listProjects(tenantId: string): Promise<ProjectSummary[]> 
   await ensureCairnTables();
   const r = await db.execute({
     sql: `SELECT p.id, p.name, p.counterparty, p.total_value, p.currency, p.is_test, p.signed_at,
+                 p.closed_at, p.close_kind,
                  p.created_at, COALESCE(p.updated_at, p.created_at) AS last_activity,
                  (SELECT COUNT(*) FROM cairn_milestones m WHERE m.project_id = p.id) AS milestone_count
           FROM cairn_projects p
@@ -618,41 +681,89 @@ export async function listProjects(tenantId: string): Promise<ProjectSummary[]> 
     currency: String(row.currency),
     isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
     sealedAt: row.signed_at != null ? String(row.signed_at) : null,
+    closedAt: row.closed_at != null ? String(row.closed_at) : null,
+    closeKind: isCloseKind(row.close_kind) ? row.close_kind : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.last_activity ?? row.created_at),
     milestoneCount: Number(row.milestone_count ?? 0),
   }));
 }
 
-export async function listMilestones(tenantId: string, projectId: string): Promise<MilestoneSummary[]> {
+export async function listMilestones(tenantId: string, projectId: string, now: Date = new Date()): Promise<MilestoneSummary[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, seq, title, description, tranche_amount, target_date, status, created_at
+    sql: `SELECT id, seq, title, description, tranche_amount, target_date, status, created_at, paid_at, paid_amount
           FROM cairn_milestones
           WHERE project_id = ? AND tenant_id = ?
           ORDER BY seq ASC`,
     args: [String(projectId), tenantId],
   });
-  return (r.rows as any[]).map((row) => ({
+  // The last signature on each milestone (any attestation, the inspector's or the funder's), for
+  // the dated "no update recorded since" line. Read once per project, reduced here.
+  const signed = await db.execute({
+    sql: `SELECT milestone_id, created_at FROM cairn_attestations WHERE project_id = ? AND tenant_id = ?`,
+    args: [String(projectId), tenantId],
+  });
+  const lastSigned = new Map<string, string>();
+  for (const row of signed.rows as any[]) {
+    const mid = String(row.milestone_id);
+    const at = String(row.created_at);
+    const prev = lastSigned.get(mid);
+    if (!prev || at > prev) lastSigned.set(mid, at);
+  }
+  return (r.rows as any[]).map((row) => {
+    const targetDate = row.target_date != null ? String(row.target_date) : null;
+    const status = String(row.status) as MilestoneStatus;
+    const paidAt = row.paid_at != null ? String(row.paid_at) : null;
+    return {
+      id: String(row.id),
+      seq: Number(row.seq),
+      title: String(row.title),
+      description: row.description != null ? String(row.description) : null,
+      trancheAmount: Number(row.tranche_amount),
+      targetDate,
+      status,
+      createdAt: String(row.created_at),
+      paidAt,
+      paidAmount: row.paid_amount != null ? Number(row.paid_amount) : null,
+      aging: milestoneAgingOf({ targetDate, status, paidAt }, now),
+      lastSignedAt: lastSigned.get(String(row.id)) ?? null,
+    };
+  });
+}
+
+/** The project's signed close, or null while it is open. */
+export async function getClosure(tenantId: string, projectId: string): Promise<ClosureSummary | null> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, kind, signer_role, signed_by, statement, created_at, digest, signature_json, anchor_json
+            FROM cairn_closures WHERE project_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 1`,
+    args: [String(projectId), tenantId],
+  });
+  const row = r.rows[0] as any;
+  if (!row || !isCloseKind(row.kind)) return null;
+  const role = String(row.signer_role);
+  return {
     id: String(row.id),
-    seq: Number(row.seq),
-    title: String(row.title),
-    description: row.description != null ? String(row.description) : null,
-    trancheAmount: Number(row.tranche_amount),
-    targetDate: row.target_date != null ? String(row.target_date) : null,
-    status: String(row.status) as MilestoneStatus,
-    createdAt: String(row.created_at),
-  }));
+    kind: row.kind,
+    signerRole: role === 'contractor' ? 'contractor' : role === 'inspector' ? 'inspector' : 'funder',
+    by: String(row.signed_by),
+    statement: String(row.statement),
+    closedAt: String(row.created_at),
+    digest: String(row.digest),
+    signed: row.signature_json != null,
+    anchored: row.anchor_json != null,
+  };
 }
 
 /** One project the tenant owns, with its milestones and the attestation trail. Tenant-scoped. */
 export async function getProjectForOwner(
   tenantId: string,
   projectId: string,
-): Promise<{ project: ProjectSummary; milestones: MilestoneSummary[]; attestations: AttestationSummary[]; documents: CairnDocMeta[] } | null> {
+): Promise<{ project: ProjectSummary; milestones: MilestoneSummary[]; attestations: AttestationSummary[]; documents: CairnDocMeta[]; closure: ClosureSummary | null } | null> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, name, counterparty, total_value, currency, is_test, signed_at, created_at,
+    sql: `SELECT id, name, counterparty, total_value, currency, is_test, signed_at, closed_at, close_kind, created_at,
                  COALESCE(updated_at, created_at) AS last_activity
           FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [String(projectId), tenantId],
@@ -662,6 +773,7 @@ export async function getProjectForOwner(
   const milestones = await listMilestones(tenantId, String(row.id));
   const attestations = await listAttestations(tenantId, String(row.id));
   const documents = await listProjectDocuments(tenantId, String(row.id));
+  const closure = await getClosure(tenantId, String(row.id));
   return {
     project: {
       id: String(row.id),
@@ -671,6 +783,8 @@ export async function getProjectForOwner(
       currency: String(row.currency),
       isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
       sealedAt: row.signed_at != null ? String(row.signed_at) : null,
+      closedAt: row.closed_at != null ? String(row.closed_at) : null,
+      closeKind: isCloseKind(row.close_kind) ? row.close_kind : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.last_activity ?? row.created_at),
       milestoneCount: milestones.length,
@@ -678,6 +792,7 @@ export async function getProjectForOwner(
     milestones,
     attestations,
     documents,
+    closure,
   };
 }
 
@@ -734,7 +849,7 @@ export async function createInspectorInvite(
   const milestoneId = clampStr(input.milestoneId, 80);
 
   const owns = await db.execute({
-    sql: `SELECT m.id, p.signed_at
+    sql: `SELECT m.id, p.signed_at, p.closed_at
             FROM cairn_milestones m JOIN cairn_projects p ON p.id = m.project_id
            WHERE m.id = ? AND m.project_id = ? AND m.tenant_id = ? LIMIT 1`,
     args: [milestoneId, projectId, tenantId],
@@ -743,6 +858,8 @@ export async function createInspectorInvite(
   // Drafts take no inspectors: an attestation must bind to a milestone that can no longer
   // shift under the inspector's feet. Seal the schedule first.
   if ((owns.rows[0] as any).signed_at == null) return { ok: false, error: 'draft' };
+  // A closed project takes none either (tier T5): the record is complete as signed.
+  if ((owns.rows[0] as any).closed_at != null) return { ok: false, error: 'closed' };
 
   const token = cairnToken();
   const expiresAt = new Date(Date.now() + CAIRN_INVITE_TTL_DAYS * 86400_000)
@@ -986,6 +1103,173 @@ export async function listAttestations(tenantId: string, projectId: string): Pro
     digest: String(row.digest),
     anchored: row.anchor_json != null,
   }));
+}
+
+// ── The funder's signatures (tier T5): the tranche paid, and the close ──────────
+
+/** Stamp a digest to Bitcoin now, non-fatal: the signed record stands on its own if the calendar is
+ *  down. The cron that upgrades receipts does not cover the work paper yet. */
+async function stampNow(table: 'cairn_attestations' | 'cairn_closures', id: string, digest: string): Promise<boolean> {
+  try {
+    const { OpenTimestampsAnchor } = await import('@/lib/rwaProof/anchorOpenTimestamps');
+    const receipt = await new OpenTimestampsAnchor().stamp(digest.toLowerCase());
+    await db.execute({ sql: `UPDATE ${table} SET anchor_json = ? WHERE id = ?`, args: [JSON.stringify(receipt), id] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export type TrancheResult =
+  | { ok: true; attestationId: string; milestoneId: string; digest: string; signed: boolean; anchored: boolean; paidAt: string }
+  | { ok: false; error: 'not_found' | 'draft' | 'closed' | 'not_attested' | 'already_paid' | 'name_required' | 'invalid'; message: string };
+
+/**
+ * The funder records that a milestone's tranche was paid: the third signature a milestone can
+ * carry, after the inspector's attestation (required first: the funder releases against proof) and
+ * beside any dispute. A signed, dated attestation row in the funder's own role, and paid_at on the
+ * milestone. No money moves here; this records that the funder says it did. One per milestone, ever.
+ */
+export async function acknowledgeTranche(
+  tenantId: string,
+  milestoneId: string,
+  input: { by: string; amount?: number | null; date?: string | null; note?: string | null },
+  now: Date = new Date(),
+): Promise<TrancheResult> {
+  await ensureCairnTables();
+  const by = clampStr(input.by, 100);
+  if (!by) return { ok: false, error: 'name_required', message: 'Your name, as the funder, is required on the signed record.' };
+  const r = await db.execute({
+    sql: `SELECT m.id, m.project_id, m.seq, m.title, m.status, m.tranche_amount, m.paid_at, p.signed_at, p.closed_at, p.currency
+            FROM cairn_milestones m JOIN cairn_projects p ON p.id = m.project_id
+           WHERE m.id = ? AND m.tenant_id = ? LIMIT 1`,
+    args: [clampStr(milestoneId, 80), tenantId],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found', message: 'Milestone not found.' };
+  const m = r.rows[0] as any;
+  if (m.signed_at == null) return { ok: false, error: 'draft', message: 'Seal the schedule before recording a payment.' };
+  if (m.closed_at != null) return { ok: false, error: 'closed', message: 'This project is closed; its record is complete as signed.' };
+  if (m.paid_at != null) return { ok: false, error: 'already_paid', message: 'This tranche is already recorded as paid.' };
+  if (String(m.status) !== 'attested') {
+    return { ok: false, error: 'not_attested', message: 'Record the payment once an inspector has attested the milestone reached.' };
+  }
+  const amount = input.amount == null || input.amount === undefined ? Number(m.tranche_amount) : Number(input.amount);
+  if (!Number.isFinite(amount) || amount < 0) return { ok: false, error: 'invalid', message: 'The amount must be zero or more.' };
+  const date = isYmd(input.date) ? input.date! : now.toISOString().slice(0, 10);
+  const note = input.note ? clampStr(input.note, 600) : null;
+  const paidAt = now.toISOString().replace('T', ' ').slice(0, 19);
+
+  const stage = `milestone ${Number(m.seq)}, "${String(m.title)}"`;
+  const statement = `PAID. The funder records the tranche for ${stage} as paid on ${date} (${amount} ${String(m.currency)})${note ? `. Note: ${note}` : ''}. Recorded by ${by} from the project account.`;
+  const manifest: Record<string, unknown> = {
+    v: 1, kind: 'cairn_tranche_paid', milestoneId: String(m.id), projectId: String(m.project_id),
+    role: 'funder', by, amount, currency: String(m.currency), date, statement,
+  };
+  if (note) manifest.note = note;
+  const { signature, digest } = sign(manifest);
+  const attestationId = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO cairn_attestations
+            (id, milestone_id, project_id, tenant_id, role, attested_by, attester_title, statement, findings, attested_at, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      attestationId, String(m.id), String(m.project_id), tenantId, 'funder', by, null, statement, null, date,
+      JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
+    ],
+  });
+  await db.execute({
+    sql: `UPDATE cairn_milestones SET paid_at = ?, paid_amount = ? WHERE id = ? AND tenant_id = ?`,
+    args: [paidAt, amount, String(m.id), tenantId],
+  });
+  await touchProject(String(m.project_id));
+  const anchored = await stampNow('cairn_attestations', attestationId, digest);
+  return { ok: true, attestationId, milestoneId: String(m.id), digest, signed: !!signature, anchored, paidAt };
+}
+
+export type CloseResult =
+  | { ok: true; closureId: string; kind: CloseKind; digest: string; signed: boolean; anchored: boolean; closedAt: string }
+  | { ok: false; error: 'not_found' | 'draft' | 'already_closed' | 'invalid_kind' | 'name_required' | 'final_milestone_unattested' | 'final_tranche_unpaid' | 'empty'; message: string };
+
+/**
+ * Close a project by signature (D13, D14). Nothing on the work paper expires: a project ends only
+ * when a party says so, signed and dated, and a closed project stays fully readable with every gap
+ * it ever had. `completed` is the funder's close and needs two signatures already on the record:
+ * the inspector's attestation on the final milestone and the funder's record of its tranche paid
+ * (the contractor is the one party with a reason to say done when it is not, so its word alone never
+ * closes a project as complete). `terminated` and `abandoned` take one signer and are recorded as
+ * that party's statement; here the signer is the funder, from the project account. Every close
+ * names who signed and in what role. Open inspector links die with the close.
+ */
+export async function closeProject(
+  tenantId: string,
+  projectId: string,
+  input: { kind: string; by: string; note?: string | null },
+  now: Date = new Date(),
+): Promise<CloseResult> {
+  await ensureCairnTables();
+  if (!isCloseKind(input.kind)) return { ok: false, error: 'invalid_kind', message: `A close is one of: ${CLOSE_KINDS.join(', ')}.` };
+  const by = clampStr(input.by, 100);
+  if (!by) return { ok: false, error: 'name_required', message: 'Your name, as the funder, is required on the signed close.' };
+  const pr = await db.execute({
+    sql: `SELECT id, name, counterparty, signed_at, closed_at FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [clampStr(projectId, 80), tenantId],
+  });
+  if (!pr.rows.length) return { ok: false, error: 'not_found', message: 'Project not found.' };
+  const p = pr.rows[0] as any;
+  if (p.signed_at == null) return { ok: false, error: 'draft', message: 'A draft is not closed; it is edited or removed.' };
+  if (p.closed_at != null) return { ok: false, error: 'already_closed', message: 'This project is already closed.' };
+
+  const ms = await db.execute({
+    sql: `SELECT id, seq, title, status, paid_at FROM cairn_milestones WHERE project_id = ? AND tenant_id = ? ORDER BY seq ASC`,
+    args: [String(p.id), tenantId],
+  });
+  if (!ms.rows.length) return { ok: false, error: 'empty', message: 'A sealed schedule has milestones; none were found.' };
+  const last = ms.rows[ms.rows.length - 1] as any;
+  if (input.kind === 'completed') {
+    if (String(last.status) !== 'attested') {
+      return { ok: false, error: 'final_milestone_unattested', message: `Completed needs the inspector's attestation on the final milestone (${Number(last.seq)}, "${String(last.title)}").` };
+    }
+    if (last.paid_at == null) {
+      return { ok: false, error: 'final_tranche_unpaid', message: `Completed needs the final tranche recorded as paid (milestone ${Number(last.seq)}, "${String(last.title)}").` };
+    }
+  }
+  const note = input.note ? clampStr(input.note, 600) : null;
+  const closedAt = now.toISOString().replace('T', ' ').slice(0, 19);
+  const date = closedAt.slice(0, 10);
+  const statement =
+    input.kind === 'completed'
+      ? `COMPLETED. The funder closes "${String(p.name)}" as completed: the final milestone is attested reached and its tranche recorded paid${note ? `. Note: ${note}` : ''}. Signed by ${by}, funder, on ${date}.`
+    : input.kind === 'terminated'
+      ? `TERMINATED${note ? ` — ${note}` : ''}. The funder closes "${String(p.name)}" as terminated. This is the funder's statement; the other party may dispute it. Signed by ${by}, funder, on ${date}.`
+      : `ABANDONED${note ? ` — ${note}` : ''}. The funder closes "${String(p.name)}" as abandoned. This is the funder's statement; the other party may dispute it. Signed by ${by}, funder, on ${date}.`;
+  const manifest: Record<string, unknown> = {
+    v: 1, kind: 'cairn_closure', projectId: String(p.id), closeKind: input.kind, signerRole: 'funder', by, date, statement,
+    milestones: (ms.rows as any[]).map((m) => ({ id: String(m.id), seq: Number(m.seq), status: String(m.status), paid: m.paid_at != null })),
+  };
+  if (note) manifest.note = note;
+  const { signature, digest } = sign(manifest);
+  const closureId = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO cairn_closures
+            (id, project_id, tenant_id, kind, signer_role, signed_by, statement, manifest_json, signature_json, digest, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      closureId, String(p.id), tenantId, input.kind, 'funder', by, statement,
+      JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest, closedAt,
+    ],
+  });
+  await db.execute({
+    sql: `UPDATE cairn_projects SET closed_at = ?, close_kind = ? WHERE id = ? AND tenant_id = ?`,
+    args: [closedAt, input.kind, String(p.id), tenantId],
+  });
+  // Open links die with the close: a late answer cannot land on a record that is complete as signed.
+  await db.execute({
+    sql: `UPDATE cairn_invites SET revoked_at = ? WHERE project_id = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [closedAt, String(p.id)],
+  });
+  await touchProject(String(p.id));
+  const anchored = await stampNow('cairn_closures', closureId, digest);
+  return { ok: true, closureId, kind: input.kind, digest, signed: !!signature, anchored, closedAt };
 }
 
 // ── Milestone paperwork (both directions) ─────────────────────────────────────
