@@ -59,6 +59,8 @@ vi.mock('@/lib/verifyRegistry', async (importOriginal) => {
     ensureVerifyTables: async () => {},
     listProvenDomainsForMonitor: async () => [],
     listMonitoredDestinations: async () => [],
+    provenHoldersOf: async () => [],
+    clearStalePlatformListed: async () => 0,
   };
 });
 vi.mock('@/lib/email', () => ({ sendMail }));

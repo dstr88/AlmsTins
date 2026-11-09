@@ -19,6 +19,7 @@ const lib = vi.hoisted(() => ({
   connectEntity: vi.fn(async (_tenantId: string, _id: string, _endpoint: string, _key: string):
     Promise<{ ok: true; count: number } | { ok: false; code: string }> => ({ ok: true, count: 3 })),
   listEntities: vi.fn(async () => []),
+  listEntityConflicts: vi.fn(async () => []),
   deleteEntity: vi.fn(async () => true),
 }));
 

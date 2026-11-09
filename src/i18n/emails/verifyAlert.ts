@@ -12,6 +12,12 @@
 //   - destination_swap: the public page a merchant asked us to watch is no longer
 //                      showing the destination they registered — a different value
 //                      has replaced it (a likely QR/address swap on their own page).
+//   - list_conflict  : to a platform (guard PR B, spec 3g): its pulled list has entries another
+//                      account has proven; `items` are those addresses, used for the count only,
+//                      and the dashboard shows which. Nothing names the other account.
+//   - listed_by_platform: to a merchant (spec 3g): a platform's published list carries one of
+//                      their proven destinations. No address, no platform, no amount in the
+//                      email; `domain` and `items` are ignored. The dashboard marks the row.
 //
 // Same email-i18n pattern as healthAlert.ts: render(args) -> { subject, text };
 // the cron resolves the recipient's stored language via auth_users.lang.
@@ -23,7 +29,7 @@ export interface RenderedEmail {
   text: string;
 }
 
-export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed' | 'destination_swap';
+export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed' | 'destination_swap' | 'list_conflict' | 'listed_by_platform';
 
 export interface VerifyAlertEmailLocale {
   lang: Lang;
@@ -69,6 +75,42 @@ export const en: VerifyAlertEmailLocale = {
           `Check that your endpoint is reachable and the API key you issued us is still valid.`,
           ``,
           `Manage your verified endpoint:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'list_conflict') {
+      const n = items.length;
+      return {
+        subject: `⚠️ Your published list has ${n} ${n === 1 ? 'entry' : 'entries'} another account has proven: ${domain}`,
+        text: [
+          `Your published list for ${domain} has ${n} ${n === 1 ? 'entry' : 'entries'} another Almstins account`,
+          `has proven control of. ${n === 1 ? 'It is' : 'They are'} shown to no one until the conflict clears.`,
+          ``,
+          `Open your Verify dashboard to see which. If ${n === 1 ? 'the entry is' : 'they are'} yours, prove`,
+          `${n === 1 ? 'it' : 'them'} from your account; if not, remove ${n === 1 ? 'it' : 'them'} from your list.`,
+          ``,
+          `Your lists:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'listed_by_platform') {
+      return {
+        subject: `A platform's published list carries one of your proven destinations`,
+        text: [
+          `A platform's published address list carries one of the destinations you have proven.`,
+          `Your proof stands. Until the listing is withdrawn, that address answers as disputed to`,
+          `anyone who checks it, and no party is named.`,
+          ``,
+          `Your dashboard marks the destination. If you also run that platform, prove the address`,
+          `from the same account and the conflict clears.`,
+          ``,
+          `Your destinations:`,
           `${manage}`,
           ``,
           `— Almstins Verify`,
@@ -149,6 +191,42 @@ export const es: VerifyAlertEmailLocale = {
         ].join('\n'),
       };
     }
+    if (kind === 'list_conflict') {
+      const n = items.length;
+      return {
+        subject: `⚠️ Tu lista publicada tiene ${n} ${n === 1 ? 'entrada' : 'entradas'} que otra cuenta ha demostrado: ${domain}`,
+        text: [
+          `Tu lista publicada para ${domain} tiene ${n} ${n === 1 ? 'entrada' : 'entradas'} cuyo control otra cuenta`,
+          `de Almstins ha demostrado. No se ${n === 1 ? 'muestra' : 'muestran'} a nadie hasta que el conflicto se resuelva.`,
+          ``,
+          `Abre tu panel de Verify para ver ${n === 1 ? 'cuál' : 'cuáles'}. Si ${n === 1 ? 'es tuya, demuéstrala' : 'son tuyas, demuéstralas'}`,
+          `desde tu cuenta; si no, ${n === 1 ? 'quítala' : 'quítalas'} de tu lista.`,
+          ``,
+          `Tus listas:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'listed_by_platform') {
+      return {
+        subject: `La lista publicada de una plataforma incluye uno de tus destinos demostrados`,
+        text: [
+          `La lista de direcciones publicada de una plataforma incluye uno de los destinos que has demostrado.`,
+          `Tu prueba se mantiene. Hasta que se retire la entrada, esa dirección responde como en disputa`,
+          `a quien la compruebe, y no se nombra a ninguna de las partes.`,
+          ``,
+          `Tu panel marca el destino. Si esa plataforma también es tuya, demuestra la dirección desde la`,
+          `misma cuenta y el conflicto se resuelve.`,
+          ``,
+          `Tus destinos:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
     if (kind === 'destination_swap') {
       return {
         subject: `⚠️ Posible sustitución en tu página publicada — ${domain}`,
@@ -217,6 +295,42 @@ export const fr: VerifyAlertEmailLocale = {
           `Vérifiez que votre point d'accès est joignable et que la clé API que vous nous avez fournie est toujours valide.`,
           ``,
           `Gérez votre point d'accès vérifié :`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'list_conflict') {
+      const n = items.length;
+      return {
+        subject: `⚠️ Votre liste publiée contient ${n} ${n === 1 ? 'entrée' : 'entrées'} qu'un autre compte a prouvée${n === 1 ? '' : 's'} : ${domain}`,
+        text: [
+          `Votre liste publiée pour ${domain} contient ${n} ${n === 1 ? 'entrée' : 'entrées'} dont un autre compte Almstins`,
+          `a prouvé le contrôle. ${n === 1 ? 'Elle n’est montrée' : 'Elles ne sont montrées'} à personne tant que le conflit n’est pas levé.`,
+          ``,
+          `Ouvrez votre tableau de bord Verify pour voir ${n === 1 ? 'laquelle' : 'lesquelles'}. Si ${n === 1 ? 'elle est à vous, prouvez-la' : 'elles sont à vous, prouvez-les'}`,
+          `depuis votre compte ; sinon, ${n === 1 ? 'retirez-la' : 'retirez-les'} de votre liste.`,
+          ``,
+          `Vos listes :`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'listed_by_platform') {
+      return {
+        subject: `La liste publiée d'une plateforme contient l'une de vos destinations prouvées`,
+        text: [
+          `La liste d’adresses publiée d’une plateforme contient l’une des destinations que vous avez prouvées.`,
+          `Votre preuve reste valable. Tant que l’entrée n’est pas retirée, cette adresse répond comme`,
+          `contestée à quiconque la vérifie, et aucune partie n’est nommée.`,
+          ``,
+          `Votre tableau de bord marque la destination. Si cette plateforme est aussi la vôtre, prouvez`,
+          `l’adresse depuis le même compte et le conflit est levé.`,
+          ``,
+          `Vos destinations :`,
           `${manage}`,
           ``,
           `— Almstins Verify`,

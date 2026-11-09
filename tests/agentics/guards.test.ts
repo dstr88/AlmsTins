@@ -103,8 +103,9 @@ describe('the schema file and the code create the same tables', () => {
     // 0070 adds country and last_seen_at to the door's signup table, for the admin page (not the Vault).
     // 0071 is the Vault's daily pass of the chain read: one row per wallet saying when it was last read, and in which pass.
     // 0072 is Verify's cross-account guard for platform lists: conflict columns on the mirror (not the Vault).
+    // 0073 is the same guard's merchant-side mark, platform_listed_at on a destination (not the Vault).
     // Nothing else sits above 0055.
-    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql', '0069_agent_events_wallet_index.sql', '0070_agentics_signups_activity.sql', '0071_agent_wallet_reads.sql', '0072_verify_mirror_conflicts.sql']);
+    expect(files.filter((f) => /^\d{4}_/.test(f) && Number(f.slice(0, 4)) > 55)).toEqual(['0060_agentics_signups.sql', '0061_agentics_signups_opening.sql', '0062_counterparty_address.sql', '0063_tax_wallet_allocation_override.sql', '0064_receivable_notices.sql', '0065_agent_wallet_cursors.sql', '0066_agent_established_alerts.sql', '0067_agent_warm_addresses.sql', '0068_agent_daily_prices.sql', '0069_agent_events_wallet_index.sql', '0070_agentics_signups_activity.sql', '0071_agent_wallet_reads.sql', '0072_verify_mirror_conflicts.sql', '0073_verify_destination_platform_listed.sql']);
   });
 
   it('every table is keyed by tenant_id, and soft-deletes with deleted_at', async () => {

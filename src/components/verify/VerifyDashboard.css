@@ -49,6 +49,11 @@
 .vd__alertemail-form button[type="submit"] { border-color: var(--accent-glow); color: var(--accent); }
 .vd__alertemail-form button:disabled { opacity: 0.6; cursor: default; }
 
+/* Guard PR B: "Listed by a platform" beside the status badge (ListedPill.tsx). Same caution trio the
+   receivables tag pill reads through its tones; this file reads the tokens the dashboard already uses. */
+.vd-pill { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 99px; }
+.vd-pill--listed { font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.1rem 0.38rem; color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
+
 /* F12: when an address stays anchored, or has gone stale — under the status badge */
 .vd-row__confirmed { font-size: 0.78rem; color: var(--text-muted); }
 
@@ -218,6 +223,19 @@
 .ve-card__head { display: flex; align-items: center; gap: 0.6rem; }
 .ve-card__domain { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); word-break: break-all; }
 .ve-card__synced { font-size: 0.78rem; color: var(--gain); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Guard PR B: the platform's conflicted entries, under the card head (ConflictList.tsx). */
+.ve-conflicts { margin-top: 0.6rem; padding: 0.6rem 0.75rem; border-radius: 8px; color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
+.ve-conflicts__line { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); }
+.ve-conflicts__details { margin-top: 0.4rem; }
+.ve-conflicts__summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); list-style: none; }
+.ve-conflicts__summary::-webkit-details-marker { display: none; }
+.ve-conflicts__summary::before { content: '▸'; display: inline-block; margin-right: 0.35rem; transition: transform 0.15s; }
+.ve-conflicts__details[open] .ve-conflicts__summary::before { transform: rotate(90deg); }
+.ve-conflicts__list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.ve-conflicts__item { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+.ve-conflicts__address { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.8rem; color: var(--text-primary); min-width: 0; overflow-wrap: anywhere; flex: 1 1 18rem; }
+.ve-conflicts__word { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--warning); white-space: nowrap; }
+
 /* Entity connect inputs stack full-width (direct children of the panel, unlike the
    merchant prove inputs which sit inside a .vd-prove__row flex container). */
 .vd-prove > .vd-prove__input { display: block; width: 100%; box-sizing: border-box; }

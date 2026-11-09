@@ -117,6 +117,8 @@ vi.mock('@/lib/db', () => {
     }
     // The public lookup (lookupVerifiedAddress): no platform lists here, then the merchant half.
     // It honors what the SQL asks for, so dropping the case arm or the fixed order shows up.
+    // Guard PR B (claimStateElsewhere): is a fresh platform list of another approved account carrying this address? None here.
+    if (sql.startsWith('SELECT m.address AS address FROM verified_address_mirror m JOIN verified_entities e ON e.id = m.entity_id WHERE lower(m.address) = ?')) return { rows: [] };
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
     // The cross-account guard's reads in the lookup (verifyEntities.ts): no platform lists here, so the
     // merchant answers; the merchant-side read answers from the rows like the guard's own query would.

@@ -10,7 +10,12 @@
  *     (verifyEntityAccess.ts) are refreshed; any other list is never re-pulled. Alert the
  *     owner on a revocation (an address dropped from their list) or on the ok->fail
  *     TRANSITION of their endpoint (the public badge will lapse within the TTL — fail-safe,
- *     never stale-verified).
+ *     never stale-verified). The cross-account guard (verifyMirrorGuard.ts, spec 3g): when a
+ *     pull newly marks entries as conflicts, the platform is told how many, and each merchant
+ *     whose proof one collides with is told, once per run, with no address in the email.
+ *
+ *  D. The guard's sweep (spec 3i): a merchant row's platform_listed_at is cleared once no other
+ *     account's mirror lists the address, verified or as a conflict.
  *
  *  B. Merchant proofs — re-fetch each proven domain's proof, the plain .well-known file or,
  *     when that's absent, the encrypted roster document its DNS TXT record points to (see
@@ -38,7 +43,7 @@ import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
   releaseDomainAnchor, recheckDomainListing, markDomainProofFailed, markDomainProofRechecked,
-  listMonitoredDestinations, recordMonitorResult,
+  listMonitoredDestinations, recordMonitorResult, provenHoldersOf, clearStalePlatformListed,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof, verifyRosterDocument } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
@@ -88,7 +93,10 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   // ── Pass A: Verified Entity mirror re-validation ──────────────────────────────
-  const entity = { checked: 0, revokedAlerts: 0, unreachableAlerts: 0, errors: 0 };
+  const entity = { checked: 0, revokedAlerts: 0, unreachableAlerts: 0, conflictAlerts: 0, listedAlerts: 0, errors: 0 };
+  // Merchants told this run that a platform list carries one of their proofs: once per run each,
+  // whatever the number of lists or addresses.
+  const merchantsTold = new Set<string>();
   try {
     const targets = await listEntitiesForMonitor();
     for (const t of targets) {
@@ -103,8 +111,20 @@ export const GET: APIRoute = async ({ request }) => {
               && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
             entity.unreachableAlerts++;
           }
-        } else if (r.removed.length) {
-          if (await alert(t.tenantId, 'revoked', t.domain, r.removed)) entity.revokedAlerts++;
+        } else {
+          if (r.removed.length && (await alert(t.tenantId, 'revoked', t.domain, r.removed))) entity.revokedAlerts++;
+          if (r.conflicts.added.length) {
+            // The platform: the count, and the dashboard shows which (its own list, nothing private).
+            if (await alert(t.tenantId, 'list_conflict', t.domain, r.conflicts.added)) entity.conflictAlerts++;
+            // Each merchant whose proof an entry collides with: no address, no platform in the email.
+            for (const address of r.conflicts.added) {
+              for (const holder of await provenHoldersOf(address)) {
+                if (holder === t.tenantId || merchantsTold.has(holder)) continue;
+                merchantsTold.add(holder);
+                if (await alert(holder, 'listed_by_platform', '', [])) entity.listedAlerts++;
+              }
+            }
+          }
         }
       } catch (err) {
         entity.errors++;
@@ -211,12 +231,23 @@ export const GET: APIRoute = async ({ request }) => {
     console.error('[cron/verify-monitor] watch pass failed', err);
   }
 
+  // ── Pass D: the guard's sweep ─────────────────────────────────────────────────
+  // A merchant row keeps "Listed by a platform" only while some other account's mirror still
+  // lists the address. A withdrawn listing or a deleted platform clears it here (spec 3i).
+  const sweep = { listedCleared: 0, errors: 0 };
+  try {
+    sweep.listedCleared = await clearStalePlatformListed();
+  } catch (err) {
+    sweep.errors++;
+    console.error('[cron/verify-monitor] platform_listed_at sweep failed', err);
+  }
+
   // Heartbeat: this run completed. A separate, frequently-running cron (refresh-threat-lists)
   // alerts the owner if this heartbeat goes stale — the dead-man's-switch for a silently-stopped
   // watchman. (Users stay safe regardless: badges fail closed to unverified via the max-stale TTL.)
   await recordCronSuccess('verify-monitor');
 
   const elapsed_ms = Date.now() - startedAt;
-  console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant, 'watch:', watch);
-  return json({ ok: true, elapsed_ms, entity, merchant, watch }, 200, { pretty: true });
+  console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant, 'watch:', watch, 'sweep:', sweep);
+  return json({ ok: true, elapsed_ms, entity, merchant, watch, sweep }, 200, { pretty: true });
 };

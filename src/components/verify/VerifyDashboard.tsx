@@ -11,6 +11,9 @@ import { VERIFY_ADDRESS_RAILS, VERIFY_EVM_RAILS } from '@/lib/chains';
 import { formatDateTime, formatTime } from '@/lib/format';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { QrImage } from '@/components/ui/QrImage';
+import { ListedPill } from './ListedPill';
+import { ConflictList } from './ConflictList';
+import type { EntityConflictView } from './conflictWords';
 import type { Lang } from '@/lib/i18n/locale';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -31,6 +34,8 @@ interface Destination {
   monitorUrl: string | null;
   monitorStatus: string | null;
   monitorCheckedAt: string | null;
+  /** A platform's published list also carries this proven address (guard PR B, spec 3e). */
+  platformListedAt?: string | null;
   /** The claim was made under the old self-send check: the satoshi test must be taken again
    *  (on this row) before a domain can verify it. The account's own view only. */
   needsReproof?: boolean;
@@ -257,6 +262,9 @@ interface VEntity {
   apiEndpoint: string | null;
   lastPullStatus: string | null;
   lastPullCount: number;
+  /** Entries the last pull wrote as conflicts (guard PR B), and the entries themselves. */
+  lastPullConflicts?: number;
+  conflicts?: EntityConflictView[];
 }
 
 const ENTITY_WK_PATH = '/.well-known/almstins-verify.json';
@@ -418,6 +426,10 @@ function EntityCard({ e, t, onChange, approved }: {
         )}
         <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
       </div>
+
+      {approved && proven && (
+        <ConflictList count={e.lastPullConflicts ?? 0} conflicts={e.conflicts ?? []} t={t} />
+      )}
 
       {approved && !proven && (
         <div className="vd-prove">
@@ -604,6 +616,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
           className={`vd-badge vd-badge--${d.proofStatus}`}
           title={fresh && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
         >{statusLabel(d.proofStatus, fresh, t)}</span>
+        <ListedPill d={d} t={t} />
         {anchored && (
           <span className="vd-row__confirmed">
             {fresh

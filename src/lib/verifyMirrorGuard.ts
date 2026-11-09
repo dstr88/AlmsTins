@@ -124,5 +124,26 @@ export async function classifyPulledList(ctx: PullContext, addresses: PulledAddr
   return mine.map((m) => classifyListed(m, merchants, earlier));
 }
 
+/**
+ * Spec 3e, from the platform's side: the merchants whose proven address this pull found on the list
+ * get platform_listed_at set, so their dashboards show the pill without waiting for a flip of their
+ * own. Keeps the first date. Cross-tenant by design, like the prefilter above; writes one column and
+ * reads nothing back. Best-effort: the mirror is already written, and the sweep settles the rest.
+ */
+export async function markMerchantsListed(ctx: PullContext, conflicted: PulledAddress[], now: string): Promise<void> {
+  const keys = [...new Set(conflicted.map((a) => claimIdentity('address', a.address).canonical).filter(Boolean))];
+  for (const key of keys) {
+    try {
+      await db.execute({
+        sql: `UPDATE verify_destinations SET platform_listed_at = COALESCE(platform_listed_at, ?)
+              WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ? AND lower(value) = ?`,
+        args: [now, ctx.tenantId, key.toLowerCase()],
+      });
+    } catch (err) {
+      console.warn('[verify-entities] platform_listed_at not recorded for a listed address', err instanceof Error ? err.name : err);
+    }
+  }
+}
+
 /** The canonical key of a looked-up address, exported so the lookup and the guard agree. */
 export const guardKey = (value: string): string => addressKey(value);
