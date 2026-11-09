@@ -36,8 +36,10 @@ vi.mock('@/lib/db', () => {
     const args = (stmt.args ?? []) as string[];
     // Schema and cold-start backfills (ensureEntityTables, ensureVerifyTables).
     if (/^(CREATE|ALTER|UPDATE) /.test(sql)) return { rows: [], rowsAffected: 0 };
-    // No platform publishes these values.
+    // No platform publishes these values, so the guard's reads find nothing.
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
+    if (sql.startsWith('SELECT 1 AS one FROM verified_address_mirror m')) return { rows: [] };
+    if (sql.startsWith("SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ?")) return { rows: [] };
     if (sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
       mem.selects.push(sql);
       const [exact, folded] = args;

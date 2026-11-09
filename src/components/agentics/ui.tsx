@@ -83,7 +83,9 @@ export function Readout({ id, d }: { id: string; d: Pick<Destination, 'trust'> }
         ? copy.readout.verify.claimed
         : t.verify === 'unknown'
           ? copy.readout.verify.unknown
-          : copy.readout.verify.unavailable;
+          : t.verify === 'disputed'
+            ? copy.readout.verify.disputed
+            : copy.readout.verify.unavailable;
   return (
     <div className="ag-readout" id={id}>
       <dl className="ag-dl ag-dl--tight">

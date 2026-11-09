@@ -438,12 +438,14 @@ export function TabContent({ tab, result, activityLoad, c }: {
 // address, the card is neutral and renders after the warning (never green).
 export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStrings }) {
   const isVerified = card.level === 'verified';
+  const isDisputed = card.level === 'disputed';
   const publisher = isVerified ? card.publisher : null;
   const publisherLine = publisherText(publisher, {
     listedBy: c.verifiedListedBy, listedOn: c.verifiedListedOn, viaBy: c.verifiedViaBy, viaOn: c.verifiedViaOn,
   });
   const detail = isVerified
     ? (publisher ? fillTemplate(publisher.listed ? c.verifiedBody : c.verifiedViaBody, { domain: publisher.domain }) : null)
+    : isDisputed ? c.disputedBody
     : withTip(c.claimedBody, c.accountableDomainTip);
   const sinceText = card.since
     ? fillTemplate(isVerified ? c.verifiedSince : c.claimedSince, { date: card.since })
@@ -455,7 +457,7 @@ export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStri
         fontWeight: 700, fontSize: '0.95rem',
         color: card.tone === 'positive' ? 'var(--gain)' : card.tone === 'caution' ? 'var(--warning)' : 'var(--text-primary)',
       }}>
-        {isVerified ? c.verifiedTitle : c.claimedTitle}
+        {isVerified ? c.verifiedTitle : isDisputed ? c.disputedTitle : c.claimedTitle}
       </div>
       {publisherLine && (
         <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.45 }}>
@@ -473,7 +475,7 @@ export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStri
         </p>
       )}
       <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
-        {isVerified ? c.verifiedSub : c.claimedSub}
+        {isVerified ? c.verifiedSub : isDisputed ? c.disputedSub : c.claimedSub}
       </p>
       {sinceText && (
         <p style={{

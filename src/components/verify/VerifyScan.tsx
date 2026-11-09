@@ -58,6 +58,17 @@ export function ScanVerifyCard({ card, noun, t }: { card: PublicVerifyCard | nul
       </div>
     );
   }
+  if (card.level === 'disputed') {
+    // Two accounts stand behind the value (a platform's list and a merchant's proof, or two
+    // lists). Nothing vouches for it until one withdraws: no name, no domain, no date.
+    return (
+      <div className="vs__card vs__card--warn">
+        <div className="vs__verdict">◑ {t.disputedTitle[noun]}</div>
+        <p className="vs__detail">{t.disputedBody[noun]}</p>
+        {card.afterSafety && <p className="vs__detail vs__detail--spaced">{t.flaggedNote[noun]}</p>}
+      </div>
+    );
+  }
   if (card.level === 'verified') {
     // Green only when the safety screen did not flag the value; otherwise neutral.
     return (

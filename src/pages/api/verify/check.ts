@@ -146,8 +146,12 @@ export const GET: APIRoute = async ({ request, url }) => {
   // business-name domain (VerifiedAddressHit.provingDomain — null whenever level isn't
   // 'verified', so this branch never runs on a stale or control-only hit).
   const provingDomain = normDomain(hit?.provingDomain);
+  // Two accounts stand behind the destination (a platform list and a merchant's proof, or two
+  // lists): nothing vouches for it until one withdraws, so it reads unknown, with reason
+  // disputed, never unanchored (that would say a proof is on record for the caller).
+  const disputed = hit?.level === 'disputed';
   const status =
-    !hit ? 'unknown'
+    !hit || disputed ? 'unknown'
     : hit.level !== 'verified' ? 'unanchored'
     : expect ? (provingDomain && domainMatches(provingDomain, expect) ? 'proven' : 'mismatch')
     : 'proven';
@@ -182,6 +186,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         proofAgeDays,
         sourceIp: clientIpKey(request).replace(/^ip:/, ''),
         now: checkedAt,
+        disputed,
       });
     } catch {
       // The Vault is optional: the check's own answer stands.
@@ -191,13 +196,14 @@ export const GET: APIRoute = async ({ request, url }) => {
   return json({
     v: 1,
     status,
-    level: hit?.level ?? null,
+    level: disputed ? null : (hit?.level ?? null),
     domain: anchored ? provingDomain : null,
     label,
     chain: hit?.chain ?? null,
     since,
     proofAgeDays,
     checkedAt: checkedAt.toISOString(),
+    reason: disputed ? 'disputed' : null,
     ...(vault ? { vault } : {}),
   }, 200, { headers: HEADERS });
 };

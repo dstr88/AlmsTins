@@ -118,6 +118,13 @@ vi.mock('@/lib/db', () => {
     // The public lookup (lookupVerifiedAddress): no platform lists here, then the merchant half.
     // It honors what the SQL asks for, so dropping the case arm or the fixed order shows up.
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
+    // The cross-account guard's reads in the lookup (verifyEntities.ts): no platform lists here, so the
+    // merchant answers; the merchant-side read answers from the rows like the guard's own query would.
+    if (sql.startsWith('SELECT 1 AS one FROM verified_address_mirror m')) return { rows: [] };
+    if (sql === "SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ? AND lower(value) = ?") {
+      const [tenant, folded] = args as string[];
+      return { rows: store.rows.filter((r) => r.kind === 'address' && r.proof_status === 'proven' && r.tenant_id !== tenant && r.value.toLowerCase() === folded).map((r) => ({ value: r.value })) };
+    }
     if (sql.startsWith('SELECT tenant_id, rail, value,')
       && sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
       const [exact, folded] = args as string[];

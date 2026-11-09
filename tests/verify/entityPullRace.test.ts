@@ -26,12 +26,12 @@ function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: numb
   const sql = oneLine(sqlIn);
   const t = (name: string): Row[] => (mem.tables[name] ??= []);
 
-  if (sql === 'SELECT id, domain, proof_status, api_endpoint, api_key_encrypted FROM verified_entities WHERE id = ? AND tenant_id = ?') {
+  if (sql === 'SELECT id, domain, proof_status, api_endpoint, api_key_encrypted, proven_at FROM verified_entities WHERE id = ? AND tenant_id = ?') {
     return { rows: t('verified_entities').filter((r) => r.id === args[0] && r.tenant_id === args[1]), rowsAffected: 0 };
   }
-  if (sql === "UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?") {
-    const hit = t('verified_entities').filter((r) => r.id === args[3] && r.tenant_id === args[4]);
-    for (const r of hit) Object.assign(r, { last_pull_status: 'ok', last_pull_count: args[0], last_pulled_at: args[1] });
+  if (sql === "UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pull_conflicts = ?, last_pulled_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?") {
+    const hit = t('verified_entities').filter((r) => r.id === args[4] && r.tenant_id === args[5]);
+    for (const r of hit) Object.assign(r, { last_pull_status: 'ok', last_pull_count: args[0], last_pull_conflicts: args[1], last_pulled_at: args[2] });
     return { rows: [], rowsAffected: hit.length };
   }
   if (sql === 'DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?') {
@@ -39,23 +39,32 @@ function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: numb
     mem.tables.verified_address_mirror = t('verified_address_mirror').filter((r) => !(r.entity_id === args[0] && r.tenant_id === args[1]));
     return { rows: [], rowsAffected: before - mem.tables.verified_address_mirror.length };
   }
-  if (sql === "INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at) SELECT ?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ? WHERE EXISTS (SELECT 1 FROM verified_entities WHERE id = ? AND tenant_id = ? AND proof_status = 'proven')") {
-    const [id, entityId, tenantId, address, chain, domain, refreshedAt, eId, eTenant] = args;
+  if (sql === "INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at, conflict_with, conflict_seen_at) SELECT ?, ?, ?, ?, ?, ?, ?, 'api_endpoint', ?, ?, ? WHERE EXISTS (SELECT 1 FROM verified_entities WHERE id = ? AND tenant_id = ? AND proof_status = 'proven')") {
+    const [id, entityId, tenantId, address, chain, domain, status, refreshedAt, conflictWith, conflictSeenAt, eId, eTenant] = args;
     const live = t('verified_entities').some((e) => e.id === eId && e.tenant_id === eTenant && e.proof_status === 'proven');
     if (!live) return { rows: [], rowsAffected: 0 };
     t('verified_address_mirror').push({
       id, entity_id: entityId, tenant_id: tenantId, address, chain, entity_domain: domain,
-      status: 'verified', source: 'api_endpoint', refreshed_at: refreshedAt,
+      status, source: 'api_endpoint', refreshed_at: refreshedAt, conflict_with: conflictWith, conflict_seen_at: conflictSeenAt,
     });
     return { rows: [], rowsAffected: 1 };
   }
   if (/^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS /.test(sql)) return { rows: [], rowsAffected: 0 };
+  if (/^ALTER TABLE \w+ ADD COLUMN IF NOT EXISTS /.test(sql)) return { rows: [], rowsAffected: 0 };
+  // The guard's two prefilter reads (verifyMirrorGuard.ts). No merchant proofs and no earlier
+  // platform exist in these fixtures, so both answer nothing and every entry mirrors as verified.
+  if (/^SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> \? AND lower\(value\) IN \(/.test(sql)) {
+    return { rows: [], rowsAffected: 0 };
+  }
+  if (/^SELECT m\.address AS address FROM verified_address_mirror m JOIN verified_entities e ON e\.id = m\.entity_id WHERE m\.status = 'verified' AND m\.entity_id <> \?/.test(sql)) {
+    return { rows: [], rowsAffected: 0 };
+  }
   if (sql === 'DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?') {
     const before = t('verified_entities').length;
     mem.tables.verified_entities = t('verified_entities').filter((r) => !(r.id === args[0] && r.tenant_id === args[1]));
     return { rows: [], rowsAffected: before - mem.tables.verified_entities.length };
   }
-  if (sql === 'SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?') {
+  if (sql === 'SELECT address, status FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?') {
     return { rows: t('verified_address_mirror').filter((r) => r.entity_id === args[0] && r.tenant_id === args[1]), rowsAffected: 0 };
   }
 
@@ -134,10 +143,11 @@ const mirrorOf = (tenant: string) => mem.tables.verified_address_mirror.filter((
 
 describe('pullEntity: replacing the mirror', () => {
   it('replaces the entity\'s mirrored list in one transaction', async () => {
-    expect(await pullEntity(T, E)).toEqual({ ok: true, count: 2 });
+    expect(await pullEntity(T, E)).toEqual({ ok: true, count: 2, conflicts: 0 });
     expect(mirrorOf(T).map((r) => r.address).sort()).toEqual([NEW_1, NEW_2].sort());
     expect(mirrorOf(OTHER).map((r) => r.address)).toEqual([OTHER_ADDR]);
-    expect(mem.tables.verified_entities.find((r) => r.id === E)).toMatchObject({ last_pull_status: 'ok', last_pull_count: 2 });
+    expect(mem.tables.verified_entities.find((r) => r.id === E)).toMatchObject({ last_pull_status: 'ok', last_pull_count: 2, last_pull_conflicts: 0 });
+    for (const r of mirrorOf(T)) expect(r).toMatchObject({ status: 'verified', conflict_with: null, conflict_seen_at: null });
 
     // One batch: the entity row first (the lock), then the delete, then guarded inserts.
     expect(mem.batches).toHaveLength(1);

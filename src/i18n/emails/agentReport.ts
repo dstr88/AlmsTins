@@ -42,7 +42,7 @@ export interface DigestEmailArgs {
 }
 
 /** What the check was answered, as the alert names it (src/lib/agentVault/alerts.ts AlertKind). */
-export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'established' | 'unmatched';
+export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'disputed' | 'established' | 'unmatched';
 
 export interface AlertEmailArgs {
   appBase: string;
@@ -64,6 +64,7 @@ const ALERT_WORDS: Record<AlertEmailKind, { word: string; what: string }> = {
   pending: { word: 'Pending', what: 'One of your agents asked about an address on its list whose checks have not finished.' },
   unanchored: { word: 'Unanchored', what: 'One of your agents asked about an address on its list for the first time. Someone proved control of the address, but no domain currently vouches for it.' },
   unknown: { word: 'Unknown', what: 'One of your agents asked about an address on its list for the first time, and no proof of that address is on record.' },
+  disputed: { word: 'Disputed', what: 'One of your agents asked about an address that two Almstins accounts stand behind, a platform\'s published list and another account\'s proof, or two lists. It answers unknown until one of them withdraws.' },
   established: { word: 'Established', what: 'One of your agents asked about an address on its list that it has asked about before, and nothing flagged it. Established means the same address as before, not proof of ownership.' },
   unmatched: { word: 'Unmatched', what: "One of your agents' wallets sent a payment to an address that is not on its list, and the agent asked no check about that address in the hour before." },
 };

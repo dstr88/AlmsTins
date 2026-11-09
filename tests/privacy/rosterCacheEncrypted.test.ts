@@ -68,6 +68,9 @@ vi.mock('@/lib/db', () => {
     if (sql.startsWith('SELECT value FROM verify_destinations WHERE kind = ?')) return { rows: [] };
     // The public lookup.
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
+    // The cross-account guard's reads (verifyEntities.ts lookup): no platform list and no second account here.
+    if (sql.startsWith('SELECT 1 AS one FROM verified_address_mirror m')) return { rows: [] };
+    if (sql.startsWith("SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ?")) return { rows: [] };
     if (sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
       return { rows: project(sql, mem.dests.filter((d) => d.proof_status === 'proven'
         && (d.value === args[0] || d.value.toLowerCase() === args[1]))) };

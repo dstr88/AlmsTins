@@ -156,3 +156,41 @@ describe('/verify/scan Verify card', () => {
     expect(html).toContain('Not a verified destination');
   });
 });
+
+describe('a disputed destination (two accounts stand behind it): nobody is named', () => {
+  const disputed = lookup({ level: 'disputed', label: SQUAT, domain: 'acme.com', source: 'conflict' as never, since: '2026-09-01' });
+
+  it('wallet checker: caution card, "two" parties, no label, no domain, no date, no control claim', () => {
+    const html = walletCard(disputed, 'clean');
+    expect(html).toContain('Published by two parties');
+    expect(html).toContain('Treat it as unverified');
+    expect(html).not.toContain(SQUAT);
+    expect(html).not.toContain('acme.com');
+    expect(html).not.toContain('2026-09-01');
+    expect(html).not.toMatch(CONTROL_PROVEN);
+    // The caution-tape frame carries green stripes by design; the title itself is never green.
+    expect(html).toContain('color:var(--warning)');
+    expect(html).not.toContain('color:var(--gain)');
+  });
+
+  it('wallet checker, flagged: neutral, with the warning note, still nobody named', () => {
+    const html = walletCard(disputed, 'danger');
+    expect(html).toContain(wcEn.checker.verifyFlaggedNote);
+    expect(html).not.toContain(SQUAT);
+    expect(html).not.toContain('acme.com');
+  });
+
+  it('scan page: the warn card for each noun, no name, no domain, no date', () => {
+    for (const noun of ['address', 'link', 'code'] as const) {
+      const html = scanCard(disputed, 'clean', noun);
+      expect(html).toContain('vs__card--warn');
+      expect(html).toContain(verifyScanCopy.en.disputedTitle[noun]);
+      expect(html).toContain('two parties');
+      expect(html).not.toContain(SQUAT);
+      expect(html).not.toContain('acme.com');
+      expect(html).not.toContain('2026-09-01');
+      expect(html).not.toContain('style=');
+    }
+    expect(scanCard(disputed, 'danger')).toContain(verifyScanCopy.en.flaggedNote.address);
+  });
+});

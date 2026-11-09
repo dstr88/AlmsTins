@@ -65,6 +65,15 @@ function field(name: string): string {
   return m![1];
 }
 
+/** The text of one "Your vault" field entry (the VAULT_FIELDS table), by name. The top-level answer has a `reason` field of its own. */
+function vaultField(name: string): string {
+  const block = docs.slice(docs.indexOf('const VAULT_FIELDS'));
+  const m = block.match(new RegExp(`\\['${name}', '((?:[^'\\\\]|\\\\.)*)'\\]`))
+    ?? block.match(new RegExp(`\\['${name}', "((?:[^"\\\\]|\\\\.)*)"\\]`));
+  expect(m, `vault field ${name} not found`).not.toBeNull();
+  return m![1];
+}
+
 describe('/agentics/docs: the safe-reading rule', () => {
   it('the sample code proceeds only on status proven AND level verified, with expect passed', () => {
     const code = snippet();
@@ -347,8 +356,8 @@ describe('/agentics/docs: your vault', () => {
   });
 
   it('describes the daily limit as the code applies it: a mark on the check that finds the day full, and a room for flagged checks', () => {
-    expect(field('reason')).toContain('keeps recording the ones that come back flagged, up to 500 more');
-    expect(field('reason')).toContain('The check that finds the day full is recorded with a mark');
+    expect(vaultField('reason')).toContain('keeps recording the ones that come back flagged, up to 500 more');
+    expect(vaultField('reason')).toContain('The check that finds the day full is recorded with a mark');
     expect(entitlements).toContain('export const FLAGGED_LOGGED_PAST_LIMIT = 500;');
     expect(vault()).toContain('plus room for up to 500 more that come back flagged');
     expect(vault()).toContain('the check that found the day full carries a mark');

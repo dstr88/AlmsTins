@@ -42,5 +42,5 @@ export const POST: APIRoute = async ({ request, params }) => {
   const result = await connectEntity(session.tenantId, String(params.id ?? ''), endpoint, apiKey);
   if (!result.ok && result.code === 'not_found') return json({ ok: false, error: 'not_found' }, 404);
   if (!result.ok && result.code === ENTITY_NOT_APPROVED) return entityNotApprovedResponse();
-  return json(result.ok ? { ok: true, outcome: 'pulled', count: result.count } : { ok: true, outcome: result.code });
+  return json(result.ok ? { ok: true, outcome: 'pulled', count: result.count, conflicts: result.conflicts } : { ok: true, outcome: result.code });
 };

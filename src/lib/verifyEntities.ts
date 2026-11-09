@@ -13,6 +13,12 @@
  * Publishing is by approval (verifyEntityAccess.ts): create, prove, set-endpoint and pull
  * refuse a tenant that is not approved, the monitor only refreshes approved tenants, and the
  * public lookup ignores mirror rows whose tenant is not approved. Delete is never gated.
+ *
+ * The cross-account guard (verifyMirrorGuard.ts, Nov 2026): a pulled entry that another account
+ * holds as a proven destination, or that an earlier-proven platform already lists, is mirrored
+ * with status 'conflict' and answers nobody; the lookup returns a disputed hit for it, and for a
+ * merchant's proven address that a fresh platform list also carries. Nothing is deleted, nobody
+ * is named.
  */
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
@@ -24,6 +30,7 @@ import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypt
 import { normalizeDestinationValue, addressKey, ensureVerifyTables } from './verifyRegistry';
 import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
 import { merchantAddressAssurance, staleCutoffUtc } from './verifyAnchor';
+import { classifyPulledList, type Classified } from './verifyMirrorGuard';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -41,6 +48,8 @@ export interface VerifiedEntity {
   lastPulledAt: string | null;
   lastPullStatus: string | null;
   lastPullCount: number;
+  /** Entries of the last pull that conflict with another account's proof or an earlier list. */
+  lastPullConflicts: number;
 }
 
 const ENSURE_ENTITIES = `
@@ -86,6 +95,18 @@ const ENSURE_MIRROR_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS verified_address
 const ENSURE_MIRROR_TENANT_IDX = `CREATE INDEX IF NOT EXISTS verified_address_mirror_tenant
   ON verified_address_mirror (tenant_id)`;
 
+/**
+ * The guard's columns and index (verifyMirrorGuard.ts), added to the tables above. Lazily here,
+ * durably in migrations-pg/0072_verify_mirror_conflicts.sql; tests/verify/mirrorGuard.test.ts keeps
+ * the two identical. Every statement is safe to run again.
+ */
+export const MIRROR_GUARD_DDL: readonly string[] = [
+  `ALTER TABLE verified_address_mirror ADD COLUMN IF NOT EXISTS conflict_with TEXT`,
+  `ALTER TABLE verified_address_mirror ADD COLUMN IF NOT EXISTS conflict_seen_at TEXT`,
+  `ALTER TABLE verified_entities ADD COLUMN IF NOT EXISTS last_pull_conflicts INTEGER NOT NULL DEFAULT 0`,
+  `CREATE INDEX IF NOT EXISTS verified_address_mirror_address_status ON verified_address_mirror (address, status)`,
+];
+
 let ensured = false;
 export async function ensureEntityTables(): Promise<void> {
   if (ensured) return;
@@ -95,11 +116,12 @@ export async function ensureEntityTables(): Promise<void> {
   await db.execute({ sql: ENSURE_MIRROR_ADDR_IDX, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_UNIQUE, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_TENANT_IDX, args: [] });
+  for (const sql of MIRROR_GUARD_DDL) await db.execute({ sql, args: [] });
   ensured = true;
 }
 
 const ENTITY_COLS = `id, domain, challenge_token, proof_status, api_endpoint, api_key_encrypted,
-  last_pulled_at, last_pull_status, last_pull_count`;
+  last_pulled_at, last_pull_status, last_pull_count, last_pull_conflicts`;
 
 function mapEntity(r: any): VerifiedEntity {
   return {
@@ -113,6 +135,7 @@ function mapEntity(r: any): VerifiedEntity {
     lastPulledAt: r.last_pulled_at ? String(r.last_pulled_at) : null,
     lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
     lastPullCount: Number(r.last_pull_count ?? 0),
+    lastPullConflicts: Number(r.last_pull_conflicts ?? 0),
   };
 }
 
@@ -137,7 +160,7 @@ export async function getEntity(tenantId: string, id: string): Promise<VerifiedE
 /** Internal: fetch the encrypted key column (never exposed via the mapped entity). */
 async function getEntityRaw(tenantId: string, id: string): Promise<any | null> {
   const res = await db.execute({
-    sql: `SELECT id, domain, proof_status, api_endpoint, api_key_encrypted FROM verified_entities
+    sql: `SELECT id, domain, proof_status, api_endpoint, api_key_encrypted, proven_at FROM verified_entities
           WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -210,12 +233,17 @@ export async function setEntityEndpoint(
   return { ok: true };
 }
 
-export type PullResult = { ok: true; count: number } | { ok: false; code: EntityPullCode | string };
+export type PullResult = { ok: true; count: number; conflicts: number } | { ok: false; code: EntityPullCode | string };
 
 /**
  * Pull the entity's live list and replace its mirrored addresses. Refuses (before any read
  * or write) a tenant that is not approved, so neither connect nor the monitor can add
  * addresses for one.
+ *
+ * Every pulled entry is classified first (verifyMirrorGuard.ts): one another account has proven,
+ * or an earlier-proven platform lists, is written as a conflict rather than verified. A classifier
+ * that cannot read answers 'guard_unavailable' and the mirror is left as it was: a list that could
+ * not be checked never replaces one that was.
  */
 export async function pullEntity(tenantId: string, id: string): Promise<PullResult> {
   if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
@@ -238,6 +266,20 @@ export async function pullEntity(tenantId: string, id: string): Promise<PullResu
     return { ok: false, code: result.code };
   }
 
+  // The guard: classify every entry against other accounts' proofs and earlier lists before
+  // anything is written. A classifier that throws (a database error) leaves the mirror as it was.
+  let classified: Classified[];
+  try {
+    classified = await classifyPulledList(
+      { tenantId, entityId: id, provenAt: raw.proven_at ? String(raw.proven_at) : null },
+      result.addresses,
+    );
+  } catch (err) {
+    console.error('[verify-entities] guard could not classify the list', err instanceof Error ? err.name : err);
+    return { ok: false, code: 'guard_unavailable' };
+  }
+  const conflicts = classified.filter((c) => c.status === 'conflict').length;
+
   // Replace the entity's mirrored set with the current published list, in one transaction.
   // The entity row may have gone while the fetch ran (its account was deleted, or the
   // owner removed it), so the transaction starts by updating (and so locking) that row,
@@ -246,23 +288,26 @@ export async function pullEntity(tenantId: string, id: string): Promise<PullResu
   // mirror (see verifyAccountDelete.ts), so it also removes anything a pull committed first.
   const replaced = await db.batch([
     {
-      sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ?
+      sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pull_conflicts = ?, last_pulled_at = ?, updated_at = ?
             WHERE id = ? AND tenant_id = ?`,
-      args: [result.addresses.length, now, now, id, tenantId],
+      args: [result.addresses.length, conflicts, now, now, id, tenantId],
     },
     {
       sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
       args: [id, tenantId],
     },
-    ...result.addresses.map((a) => ({
-      sql: `INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at)
-            SELECT ?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?
+    ...result.addresses.map((a, i) => ({
+      sql: `INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at, conflict_with, conflict_seen_at)
+            SELECT ?, ?, ?, ?, ?, ?, ?, 'api_endpoint', ?, ?, ?
             WHERE EXISTS (SELECT 1 FROM verified_entities WHERE id = ? AND tenant_id = ? AND proof_status = 'proven')`,
-      args: [randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), now, id, tenantId],
+      args: [
+        randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), classified[i].status, now,
+        classified[i].conflictWith, classified[i].status === 'conflict' ? now : null, id, tenantId,
+      ],
     })),
   ], 'write');
   if (!Number(replaced[0]?.rowsAffected ?? 0)) return { ok: false, code: 'not_found' };
-  return { ok: true, count: result.addresses.length };
+  return { ok: true, count: result.addresses.length, conflicts };
 }
 
 /** Set endpoint + key, then immediately pull. One action for the "connect" UI. */
@@ -291,8 +336,10 @@ export async function deleteEntity(tenantId: string, id: string): Promise<void> 
 // ── Phase 4: public address lookup ───────────────────────────────────────────
 
 export interface VerifiedAddressHit {
-  /** Whether this is an entity's published address or a merchant's proven self-listing. */
-  source: 'entity' | 'merchant';
+  /** An entity's published address, a merchant's proven self-listing, or 'conflict': two accounts
+   *  stand behind the same address (a platform list and a merchant's proof, or two platform lists)
+   *  and the answer names neither (verifyMirrorGuard.ts, G3). */
+  source: 'entity' | 'merchant' | 'conflict';
   /**
    * Assurance level (the customer-facing grade):
    *  - 'verified' — the destination is anchored to a PROVEN DOMAIN that would catch a
@@ -301,8 +348,10 @@ export interface VerifiedAddressHit {
    *  - 'claimed' — CONTROL was proven (e.g. micro-deposit) but the address is NOT tied
    *    to an accountable domain. Control alone is not a safety signal — a scammer can
    *    prove control of their own address — so this is shown as caution, not endorsement.
+   *  - 'disputed' — two accounts stand behind the address (source 'conflict'). Nothing
+   *    vouches for it until one withdraws: no domain, no name, no date.
    */
-  level: 'claimed' | 'verified';
+  level: 'claimed' | 'verified' | 'disputed';
   /** ISO datetime (UTC) behind the level — the "verified/claimed since" date. For 'verified' it is
    *  when the domain anchor was attached; for 'claimed', when control was proven. Null if unknown. */
   since: string | null;
@@ -366,8 +415,14 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     args: [normalized, staleCutoffUtc(), ...publishers],
   });
   const approvedRow = (ent.rows as any[])[0];
+  const key = addressKey(rawValue);
   if (approvedRow && canPublishEntities(String(approvedRow.tenant_id ?? ''))) {
     const r = approvedRow;
+    // The guard's read-side half (G4): a merchant proof that landed after the platform's last
+    // pull is not yet marked on the mirror, so ask once more here. Another account's proven
+    // destination with the same claim identity makes this a dispute, answered as nobody (G3).
+    // The platform's own account may prove and list the same address: that is one party.
+    if (await provenByAnotherAccount(key, String(r.tenant_id))) return disputedHit(r.chain);
     // Entity mirror = domain-published by definition → Verified. "Since" = when the
     // entity proved its domain (verified_entities.proven_at).
     return {
@@ -384,7 +439,6 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    Matched on addressKey, the key the claim guard uses: an EVM or segwit address in any
   //    letter case is one wallet ('BC1Q…', the QR form, is 'bc1q…'); base58 stays exact. The SQL
   //    finds every case spelling (lower(value) = key) and the key compare in code decides.
-  const key = addressKey(rawValue);
   await ensureVerifyTables();
   const dest = await db.execute({
     sql: `SELECT tenant_id, rail, value, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
@@ -394,6 +448,12 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   });
   const matches = (dest.rows as any[]).filter((r) => addressKey(String(r.value)) === key);
   if (matches.length) {
+    // The guard's other direction: a fresh list of an approved platform, another account's,
+    // carries this address (as verified before its next pull, or already marked a conflict by
+    // it). Two parties stand behind the address, so it answers as nobody (G3) until the listing
+    // is withdrawn or the proof released. A stale list stops answering anything, as always.
+    const holder = String(matches[0].tenant_id);
+    if (await listedByAnotherPlatform(normalized, holder)) return disputedHit(String(matches[0].rail));
     // Fail-closed freshness: 'verified' also requires the anchor to have been POSITIVELY
     // re-confirmed by a domain proof within the max-stale window (Pass B still finds it in the
     // domain's file, or the owner proved the domain again; a published-page check never counts
@@ -418,7 +478,6 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // Rows from two accounts are a claim the guard would not allow today (proven before it
     // existed): nothing can say whose domain stands behind the wallet, so no row lifts it to
     // Verified and no listing domain is shown.
-    const holder = String(matches[0].tenant_id);
     const ambiguous = matches.some((r) => String(r.tenant_id) !== holder);
     const own = matches.filter((r) => String(r.tenant_id) === holder);
     const hit = ambiguous ? own[0] : (own.find((r) => rate(r).level === 'verified') ?? own[0]);
@@ -450,6 +509,47 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     };
   }
   return null;
+}
+
+/** The answer for an address two accounts stand behind: nothing vouches, nobody is named. */
+function disputedHit(chain: unknown): VerifiedAddressHit {
+  return { source: 'conflict', level: 'disputed', since: null, domain: null, provingDomain: null, label: null, chain: chain ? String(chain) : null };
+}
+
+/**
+ * Does an account other than `exceptTenant` hold a proven destination with this address's claim
+ * identity? The same prefilter-then-canonical-compare as isClaimedElsewhere; here the key is the
+ * lookup's own (addressKey), so the guard can never see two wallets where the lookup sees one.
+ */
+async function provenByAnotherAccount(key: string, exceptTenant: string): Promise<boolean> {
+  if (!key) return false;
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT value FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ? AND lower(value) = ?`,
+    args: [exceptTenant, key.toLowerCase()],
+  });
+  return (res.rows as any[]).some((r) => addressKey(String(r.value)) === key);
+}
+
+/**
+ * Does a fresh list of an approved platform, other than `exceptTenant`'s, carry this address,
+ * whether it is still mirrored as verified or already marked a conflict? Reads the same rows the
+ * platform branch reads, with the conflict rows added.
+ */
+async function listedByAnotherPlatform(normalized: string, exceptTenant: string): Promise<boolean> {
+  const publishers = publishingTenantIds();
+  const res = await db.execute({
+    sql: `SELECT 1 AS one FROM verified_address_mirror m
+          JOIN verified_entities e ON e.id = m.entity_id
+          WHERE m.address = ? AND m.status IN ('verified', 'conflict')
+            AND m.refreshed_at IS NOT NULL AND m.refreshed_at >= ?
+            AND lower(e.tenant_id) IN (${publishers.map(() => '?').join(', ')})
+            AND e.tenant_id <> ?
+          LIMIT 1`,
+    args: [normalized, staleCutoffUtc(), ...publishers, exceptTenant],
+  });
+  return res.rows.length > 0;
 }
 
 /**
@@ -564,6 +664,8 @@ export interface EntityMonitorResult {
   removed: string[];
   /** Newly published addresses (informational; no alert). */
   added: string[];
+  /** The guard's conflicts: entries newly marked a conflict by this pull, and ones no longer marked. */
+  conflicts: { added: string[]; cleared: string[] };
 }
 
 /**
@@ -572,20 +674,30 @@ export interface EntityMonitorResult {
  * the public lookup's max-stale TTL is what fails it safe, not a destructive delete.
  */
 export async function monitorEntity(tenantId: string, id: string): Promise<EntityMonitorResult> {
-  if (!canPublishEntities(tenantId)) return { pull: { ok: false, code: ENTITY_NOT_APPROVED }, removed: [], added: [] };
-  const before = await db.execute({
-    sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  const beforeSet = new Set((before.rows as any[]).map(r => String(r.address)));
+  const none = { added: [] as string[], cleared: [] as string[] };
+  if (!canPublishEntities(tenantId)) return { pull: { ok: false, code: ENTITY_NOT_APPROVED }, removed: [], added: [], conflicts: none };
+  const read = async () => {
+    const res = await db.execute({
+      sql: `SELECT address, status FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+      args: [id, tenantId],
+    });
+    const all = new Set<string>();
+    const conflicted = new Set<string>();
+    for (const r of res.rows as any[]) {
+      all.add(String(r.address));
+      if (String(r.status) === 'conflict') conflicted.add(String(r.address));
+    }
+    return { all, conflicted };
+  };
+  const before = await read();
   const pull = await pullEntity(tenantId, id);
-  if (!pull.ok) return { pull, removed: [], added: [] };
-  const after = await db.execute({
-    sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  const afterSet = new Set((after.rows as any[]).map(r => String(r.address)));
-  const removed = [...beforeSet].filter(a => !afterSet.has(a));
-  const added = [...afterSet].filter(a => !beforeSet.has(a));
-  return { pull, removed, added };
+  if (!pull.ok) return { pull, removed: [], added: [], conflicts: none };
+  const after = await read();
+  const removed = [...before.all].filter(a => !after.all.has(a));
+  const added = [...after.all].filter(a => !before.all.has(a));
+  const conflicts = {
+    added: [...after.conflicted].filter(a => !before.conflicted.has(a)),
+    cleared: [...before.conflicted].filter(a => !after.conflicted.has(a)),
+  };
+  return { pull, removed, added, conflicts };
 }

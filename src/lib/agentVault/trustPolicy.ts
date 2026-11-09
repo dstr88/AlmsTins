@@ -24,8 +24,9 @@ export const TRUST_STATUSES: readonly TrustStatus[] = ['trusted', 'flagged', 'pe
 /** The pill. */
 export type TrustResult = 'pass' | 'fail' | 'limited';
 export type CheckState = 'clear' | 'hit' | 'unavailable';
-/** What the Verify registry knows about the address: domain-anchored, control-only, nothing, or the lookup failed. */
-export type VerifyState = 'proven' | 'claimed' | 'unknown' | 'unavailable';
+/** What the Verify registry knows about the address: domain-anchored, control-only, nothing, two accounts
+ *  standing behind it (disputed: pending, never trusted, until one withdraws), or the lookup failed. */
+export type VerifyState = 'proven' | 'claimed' | 'unknown' | 'disputed' | 'unavailable';
 
 /** The walletChecker.ts flags that are security findings (sanctions is its own check, reported first). */
 export const SECURITY_FLAGS = [
@@ -40,7 +41,7 @@ const HIT_CODES: ReadonlySet<string> = new Set(['sanctioned', ...SECURITY_FLAGS,
 const LIMIT_CODES: ReadonlySet<string> = new Set(['sanctions', 'screening', 'verify']);
 const RESULTS: ReadonlySet<string> = new Set(['pass', 'fail', 'limited']);
 const CHECK_STATES: ReadonlySet<string> = new Set(['clear', 'hit', 'unavailable']);
-const VERIFY_STATES: ReadonlySet<string> = new Set(['proven', 'claimed', 'unknown', 'unavailable']);
+const VERIFY_STATES: ReadonlySet<string> = new Set(['proven', 'claimed', 'unknown', 'disputed', 'unavailable']);
 
 /** The full readout behind a pill: which sources were asked, what each said, and what could not run. */
 export interface TrustReadout {
@@ -66,8 +67,9 @@ export interface TrustReadout {
 
 /** What the Verify registry says about an address, from the lookups the pre-send check already uses. */
 export interface VerifyLookup {
-  /** 'verified': anchored to a proven domain. 'claimed': control proven, no domain behind it. null: no record. */
-  level: 'verified' | 'claimed' | null;
+  /** 'verified': anchored to a proven domain. 'claimed': control proven, no domain behind it. 'disputed': two
+   *  accounts stand behind it and the registry answers for neither. null: no record. */
+  level: 'verified' | 'claimed' | 'disputed' | null;
   /** The domain that vouches for the address (set only when level is 'verified'). */
   domain: string | null;
   /** Another account holds this address as a proven destination (isClaimedElsewhere). */
@@ -122,14 +124,18 @@ export function summarizeChecks({ wallet, verify, checkedAt }: SummarizeInput): 
   let verifyState: VerifyState = 'unavailable';
   let provenBy: string | null = null;
   // An answer that is not the shape the lookup returns is an answer we cannot use: unavailable.
-  if (verify && typeof verify.claimedElsewhere === 'boolean' && (verify.level === null || verify.level === 'verified' || verify.level === 'claimed')) {
+  if (verify && typeof verify.claimedElsewhere === 'boolean' && (verify.level === null || verify.level === 'verified' || verify.level === 'claimed' || verify.level === 'disputed')) {
     if (verify.level === 'verified') {
       verifyState = 'proven';
       provenBy = verify.domain ?? null;
+    } else if (verify.level === 'disputed') {
+      // Two accounts stand behind the address. Not a hit (nobody is accused) and not a pass: the
+      // readout names the dispute and the destination stays pending until one party withdraws.
+      verifyState = 'disputed';
     } else {
       verifyState = verify.level === 'claimed' ? 'claimed' : 'unknown';
     }
-    if (verify.claimedElsewhere && verify.level !== 'verified') hits.push('claimedElsewhere');
+    if (verify.claimedElsewhere && verify.level !== 'verified' && verify.level !== 'disputed') hits.push('claimedElsewhere');
   }
 
   const limits: TrustLimit[] = [];
@@ -140,7 +146,7 @@ export function summarizeChecks({ wallet, verify, checkedAt }: SummarizeInput): 
   return {
     v: 1,
     checkedAt,
-    result: hits.length ? 'fail' : limits.length ? 'limited' : 'pass',
+    result: hits.length ? 'fail' : limits.length || verifyState === 'disputed' ? 'limited' : 'pass',
     hits,
     limits,
     sanctions,

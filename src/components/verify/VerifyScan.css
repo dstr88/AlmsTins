@@ -21,6 +21,7 @@
 .vs__card--ok { background: var(--gain-bg); border-color: var(--gain-border); }
 .vs__card--warn { background: var(--accent-soft); border-color: var(--accent-glow); }
 .vs__card--err { background: var(--loss-bg); border-color: var(--loss-border); }
+.vs__detail--spaced { margin-top: 0.35rem; }
 .vs__verdict { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.25rem; color: var(--text-primary); }
 .vs__card--ok .vs__verdict { color: var(--gain); }
 .vs__card--err .vs__verdict { color: var(--loss); }

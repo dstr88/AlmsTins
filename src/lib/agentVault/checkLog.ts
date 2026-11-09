@@ -69,7 +69,8 @@ export type AnswerBasis =
   | 'registry_pending'
   | 'domain_proof'
   | 'registered_and_checked_before'
-  | 'registered_first_check';
+  | 'registered_first_check'
+  | 'destination_disputed';
 
 /** The registry's word for an address across the chains the owner may have listed it on: a flag wins, then trusted, then pending. */
 export function registryVerdict(rows: ReadonlyArray<{ trustStatus: TrustStatus }>): RegistryVerdict {
@@ -94,17 +95,20 @@ export interface DerivedAnswer {
  *   flagged in the registry          -> flagged (a flag is a ratchet; nothing else outranks it)
  *   the check's screening found something -> flagged (sanctions or a security flag, whatever the registry says)
  *   public status mismatch           -> flagged (proven by a different domain than the one expected)
+ *   disputed destination             -> unknown, not cleared (two accounts stand behind it; the public
+ *                                       answer carries reason disputed; the owner's list cannot clear it)
  *   not in the registry              -> unknown, not cleared
  *   in the registry, still pending   -> unknown, not cleared
  *   trusted and domain-proven        -> proven, cleared
  *   trusted and asked about before   -> consistent-with-history, cleared (sameness, never ownership)
  *   trusted, first check             -> unknown, cleared (the owner's say-so is the only support yet)
  */
-export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean; screening?: CheckScreening['result'] }): DerivedAnswer {
+export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean; screening?: CheckScreening['result']; disputed?: boolean }): DerivedAnswer {
   const { status, registry, checkedBefore } = input;
   if (registry === 'flagged') return { answer: 'flagged', basis: 'registry_flagged', cleared: false, history: 'none' };
   if (input.screening === 'fail') return { answer: 'flagged', basis: 'screening_flagged', cleared: false, history: 'none' };
   if (status === 'mismatch') return { answer: 'flagged', basis: 'domain_mismatch', cleared: false, history: 'none' };
+  if (input.disputed) return { answer: 'unknown', basis: 'destination_disputed', cleared: false, history: 'none' };
   if (registry === 'none') return { answer: 'unknown', basis: 'not_in_registry', cleared: false, history: 'none' };
   if (registry === 'pending') return { answer: 'unknown', basis: 'registry_pending', cleared: false, history: 'none' };
   const history = checkedBefore ? 'consistent' : 'none';
@@ -195,6 +199,8 @@ export interface KeyedCheckInput {
   /** The caller's address as the rate limiter sees it. It is kept only as a salted one-way hash, never as the address (see recordKeyedCheck). */
   sourceIp: string | null;
   now: Date;
+  /** Two accounts stand behind the destination (the public answer's reason disputed). Read as not cleared, whatever the registry says short of flagged. */
+  disputed?: boolean;
 }
 
 /** The block added to a keyed answer. Nulls mean "no answer": treat it as not cleared. */
@@ -295,7 +301,7 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   // The screening, from the warm-address cache when it may answer. Never throws.
   const screeningDeps = deps.screening ?? defaultScreeningDeps;
   const screening = await screenForCheck(tenantId, address, input.now, screeningDeps);
-  derived = deriveAnswer({ status: input.status, registry, checkedBefore, screening: screening.result });
+  derived = deriveAnswer({ status: input.status, registry, checkedBefore, screening: screening.result, disputed: input.disputed === true });
 
   // A fresh screening that found something flags a registered address on the spot, as a re-check would.
   // A failure here is logged and changes nothing about the answer, which is already flagged. The readout

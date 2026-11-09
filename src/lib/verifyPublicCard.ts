@@ -27,7 +27,8 @@ import { nameMatchesDomain } from './verifyNameMatch';
 
 /** The fields of GET /api/verify/lookup a public card reads. */
 export interface PublicVerifyLookup {
-  level: 'verified' | 'claimed' | null;
+  /** 'disputed': two accounts stand behind the destination and the answer names neither. */
+  level: 'verified' | 'claimed' | 'disputed' | null;
   since: string | null;
   domain: string | null;
   /** The domain that actually vouches for this destination, or null — see check.ts /
@@ -50,7 +51,7 @@ export interface PublicPublisher {
 export type VerifyCardTone = 'positive' | 'caution' | 'neutral';
 
 export interface PublicVerifyCard {
-  level: 'verified' | 'claimed';
+  level: 'verified' | 'claimed' | 'disputed';
   /** 'positive' (green) only for a Verified result the safety screen did not flag. */
   tone: VerifyCardTone;
   /** Who listed the destination. Always null for Claimed. */
@@ -135,8 +136,13 @@ export function publicVerifyCard(
   lookup: PublicVerifyLookup | null | undefined,
   safetyVerdict: string | null | undefined,
 ): PublicVerifyCard | null {
-  if (!lookup || (lookup.level !== 'verified' && lookup.level !== 'claimed')) return null;
+  if (!lookup || (lookup.level !== 'verified' && lookup.level !== 'claimed' && lookup.level !== 'disputed')) return null;
   const flagged = safetyFlagged(safetyVerdict);
+  // Disputed: two parties published the destination. No publisher, no date, caution unless the
+  // safety screen already leads (then neutral, after it), the same rule as Claimed.
+  if (lookup.level === 'disputed') {
+    return { level: 'disputed', tone: flagged ? 'neutral' : 'caution', publisher: null, since: null, afterSafety: flagged };
+  }
   const since = clean(lookup.since);
   return {
     level: lookup.level,

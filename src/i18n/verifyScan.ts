@@ -32,6 +32,9 @@ export interface VerifyScanCopy {
   /** Claimed body. Contains one [[term]] explained by accountableDomainTip. */
   claimedBody: ByNoun;
   claimedSince: string;
+  /** Disputed: two accounts stand behind the value; the card names neither. */
+  disputedTitle: ByNoun;
+  disputedBody: ByNoun;
   accountableDomainTip: string;
   /** On the Verify card when the safety screen flagged the value (the warning leads). */
   flaggedNote: ByNoun;
@@ -91,6 +94,16 @@ const en: VerifyScanCopy = {
     code: 'An Almstins account registered this payment code. No website vouches for it right now: no [[accountable domain]] has confirmed it recently. Registering a code isn’t proof of who owns it, and a scammer can register their own. Confirm the recipient another way before you send.',
   },
   claimedSince: 'Claimed since {date}.',
+  disputedTitle: {
+    address: 'Published by two parties',
+    link: 'Registered by two parties',
+    code: 'Registered by two parties',
+  },
+  disputedBody: {
+    address: 'Two Almstins accounts stand behind this address: a platform’s published list and another account’s proof, or two platforms’ lists. Until one of them withdraws, Almstins shows neither and vouches for nothing. Confirm the recipient another way before you pay.',
+    link: 'Two Almstins accounts stand behind this link. Until one of them withdraws, Almstins shows neither and vouches for nothing. Confirm the recipient another way before you pay.',
+    code: 'Two Almstins accounts stand behind this payment code. Until one of them withdraws, Almstins shows neither and vouches for nothing. Confirm the recipient another way before you pay.',
+  },
   accountableDomainTip: 'A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. A claimed address has no recent confirmation from such a domain.',
   flaggedNote: {
     address: 'The safety screen flagged this address, and Almstins Verify doesn’t cancel that warning. Read it before you decide to pay.',
@@ -172,6 +185,16 @@ const es: VerifyScanCopy = {
     code: 'Una cuenta de Almstins registró este código de pago. Ahora mismo ningún sitio web lo respalda: ningún [[dominio responsable]] lo ha confirmado recientemente. Registrar un código no prueba quién es su dueño, y un estafador puede registrar el suyo. Confirma al destinatario por otra vía antes de enviar.',
   },
   claimedSince: 'Reclamado desde el {date}.',
+  disputedTitle: {
+    address: 'Publicada por dos partes',
+    link: 'Registrado por dos partes',
+    code: 'Registrado por dos partes',
+  },
+  disputedBody: {
+    address: 'Dos cuentas de Almstins respaldan esta dirección: la lista publicada de una plataforma y la prueba de otra cuenta, o las listas de dos plataformas. Hasta que una de ellas la retire, Almstins no muestra ninguna y no responde por nada. Confirma al destinatario por otra vía antes de pagar.',
+    link: 'Dos cuentas de Almstins respaldan este enlace. Hasta que una de ellas lo retire, Almstins no muestra ninguna y no responde por nada. Confirma al destinatario por otra vía antes de pagar.',
+    code: 'Dos cuentas de Almstins respaldan este código de pago. Hasta que una de ellas lo retire, Almstins no muestra ninguna y no responde por nada. Confirma al destinatario por otra vía antes de pagar.',
+  },
   accountableDomainTip: 'Un dominio que el propietario demostró controlar mediante un registro DNS. Vincula la dirección a un sitio web público y responsable, de modo que una dirección sustituida en una página falsa no pasaría la comprobación. Una dirección reclamada no tiene una confirmación reciente de un dominio así.',
   flaggedNote: {
     address: 'La revisión de seguridad marcó esta dirección, y Almstins Verify no anula esa advertencia. Léela antes de decidir si pagas.',
@@ -253,6 +276,16 @@ const fr: VerifyScanCopy = {
     code: 'Un compte Almstins a enregistré ce code de paiement. Pour l’instant, aucun site web ne s’en porte garant : aucun [[domaine responsable]] ne l’a confirmé récemment. Enregistrer un code ne prouve pas à qui il appartient, et un escroc peut enregistrer le sien. Confirmez le destinataire autrement avant d’envoyer.',
   },
   claimedSince: 'Revendiqué depuis le {date}.',
+  disputedTitle: {
+    address: 'Publiée par deux parties',
+    link: 'Enregistré par deux parties',
+    code: 'Enregistré par deux parties',
+  },
+  disputedBody: {
+    address: 'Deux comptes Almstins se portent garants de cette adresse : la liste publiée d’une plateforme et la preuve d’un autre compte, ou les listes de deux plateformes. Tant que l’un d’eux ne se retire pas, Almstins n’en montre aucun et ne garantit rien. Confirmez le destinataire autrement avant de payer.',
+    link: 'Deux comptes Almstins se portent garants de ce lien. Tant que l’un d’eux ne se retire pas, Almstins n’en montre aucun et ne garantit rien. Confirmez le destinataire autrement avant de payer.',
+    code: 'Deux comptes Almstins se portent garants de ce code de paiement. Tant que l’un d’eux ne se retire pas, Almstins n’en montre aucun et ne garantit rien. Confirmez le destinataire autrement avant de payer.',
+  },
   accountableDomainTip: 'Un domaine dont le propriétaire a prouvé le contrôle via un enregistrement DNS. Il relie l’adresse à un site web public et responsable, de sorte qu’une adresse remplacée sur une fausse page échouerait à la vérification. Une adresse revendiquée n’a pas de confirmation récente d’un tel domaine.',
   flaggedNote: {
     address: 'Le contrôle de sécurité a signalé cette adresse, et Almstins Verify n’annule pas cet avertissement. Lisez-le avant de décider de payer.',

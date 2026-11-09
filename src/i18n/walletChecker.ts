@@ -209,6 +209,11 @@ export interface WalletCheckerLocale {
     claimedTitle: string;
     claimedBody: string;
     claimedSub: string;
+    // Disputed: two accounts stand behind the address (a platform's list and a merchant's proof,
+    // or two lists). The card names neither and vouches for nothing until one withdraws.
+    disputedTitle: string;
+    disputedBody: string;
+    disputedSub: string;
     accountableDomainTip: string;
     verifiedSince: string;
     claimedSince: string;
@@ -518,6 +523,9 @@ export const en: WalletCheckerLocale = {
     claimedTitle: 'Claimed by an Almstins account',
     claimedBody: 'An Almstins account has claimed this address. No website vouches for it right now: no [[accountable domain]] has confirmed it recently, so a swapped address couldn’t be caught here.',
     claimedSub: 'A claim isn’t proof it’s safe: anyone can claim their own address. Confirm the recipient another way before you pay.',
+    disputedTitle: 'Published by two parties',
+    disputedBody: 'Two Almstins accounts stand behind this address: a platform’s published list and another account’s proof, or two platforms’ lists. Until one of them withdraws, Almstins shows neither and vouches for nothing.',
+    disputedSub: 'Treat it as unverified. Confirm the recipient another way before you pay.',
     accountableDomainTip: 'A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. A claimed address has no recent confirmation from such a domain.',
     verifiedSince: 'Verified since {date}',
     claimedSince: 'Claimed since {date}',
@@ -825,6 +833,9 @@ export const es: WalletCheckerLocale = {
     claimedTitle: 'Reclamada por una cuenta de Almstins',
     claimedBody: 'Una cuenta de Almstins reclamó esta dirección. Ahora mismo ningún sitio web la respalda: ningún [[dominio responsable]] la ha confirmado recientemente, así que aquí no podría detectarse una dirección sustituida.',
     claimedSub: 'Un reclamo no prueba que sea segura: cualquiera puede reclamar su propia dirección. Confirma al destinatario por otra vía antes de pagar.',
+    disputedTitle: 'Publicada por dos partes',
+    disputedBody: 'Dos cuentas de Almstins respaldan esta dirección: la lista publicada de una plataforma y la prueba de otra cuenta, o las listas de dos plataformas. Hasta que una de ellas la retire, Almstins no muestra ninguna y no responde por nada.',
+    disputedSub: 'Trátala como no verificada. Confirma al destinatario por otra vía antes de pagar.',
     accountableDomainTip: 'Un dominio que el propietario demostró controlar mediante un registro DNS. Vincula la dirección a un sitio web público y responsable, de modo que una dirección sustituida en una página falsa no pasaría la comprobación. Una dirección reclamada no tiene una confirmación reciente de un dominio así.',
     verifiedSince: 'Verificado desde {date}',
     claimedSince: 'Reclamado desde {date}',
@@ -1132,6 +1143,9 @@ export const fr: WalletCheckerLocale = {
     claimedTitle: 'Revendiquée par un compte Almstins',
     claimedBody: 'Un compte Almstins a revendiqué cette adresse. Pour l’instant, aucun site web ne s’en porte garant : aucun [[domaine responsable]] ne l’a confirmée récemment, donc une adresse substituée ne serait pas détectée ici.',
     claimedSub: 'Une revendication ne prouve pas qu’elle est sûre : n’importe qui peut revendiquer sa propre adresse. Confirmez le destinataire autrement avant de payer.',
+    disputedTitle: 'Publiée par deux parties',
+    disputedBody: 'Deux comptes Almstins se portent garants de cette adresse : la liste publiée d’une plateforme et la preuve d’un autre compte, ou les listes de deux plateformes. Tant que l’un d’eux ne se retire pas, Almstins n’en montre aucun et ne garantit rien.',
+    disputedSub: 'Considérez-la comme non vérifiée. Confirmez le destinataire autrement avant de payer.',
     accountableDomainTip: 'Un domaine dont le propriétaire a prouvé le contrôle via un enregistrement DNS. Il relie l’adresse à un site web public et responsable, de sorte qu’une adresse remplacée sur une fausse page échouerait à la vérification. Une adresse revendiquée n’a pas de confirmation récente d’un tel domaine.',
     verifiedSince: 'Vérifié depuis {date}',
     claimedSince: 'Revendiqué depuis {date}',
