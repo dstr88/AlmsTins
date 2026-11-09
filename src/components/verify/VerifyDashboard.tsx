@@ -42,7 +42,10 @@ interface Destination {
 }
 
 const ADDRESS_RAILS: readonly string[] = VERIFY_ADDRESS_RAILS;
-const LIMITS = { address: 2, qr: 1 } as const;
+/** The Free plan's caps, the fallback until the destinations API answers with the account's own
+ *  (verifyEntitlements.ts; null is no limit). The write enforces them; this only words them. */
+const LIMITS: PlanLimits = { address: 2, qr: 1 };
+type PlanLimits = { address: number | null; qr: number | null };
 // Chain names are proper nouns (kept across languages); only the URL rail is localized.
 const CHAIN_LABEL: Record<string, string> = {
   ethereum: 'Ethereum', polygon: 'Polygon', avalanche: 'Avalanche',
@@ -112,6 +115,7 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
   t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean;
 }) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [limits, setLimits] = useState<PlanLimits>(LIMITS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,7 +124,11 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
     try {
       const res = await fetch('/api/verify/destinations');
       const data = await res.json();
-      if (data.ok) { setDestinations(data.destinations); setError(null); }
+      if (data.ok) {
+        setDestinations(data.destinations);
+        if (data.limits) setLimits({ address: data.limits.address ?? null, qr: data.limits.qr ?? null });
+        setError(null);
+      }
       else setError(t.loadError);
     } catch {
       setError(t.loadError);
@@ -144,9 +152,9 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
       {!loading && destinations.length > 0 && !isDemo && <AlertEmailRow t={t} />}
       {!loading && destinations.length > 0 && <VerifySign t={t} />}
 
-      <DestSection title={t.addressesTitle} kind="address" limit={LIMITS.address}
+      <DestSection title={t.addressesTitle} kind="address" limit={limits.address}
         items={addresses} loading={loading} onChange={load} t={t} isDemo={isDemo} />
-      <DestSection title={t.qrTitle} kind="qr" limit={LIMITS.qr}
+      <DestSection title={t.qrTitle} kind="qr" limit={limits.qr}
         items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
 
       {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} approved={entitiesApproved} />}
@@ -465,15 +473,16 @@ function EntityCard({ e, t, onChange, approved }: {
 }
 
 function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }: {
-  title: string; kind: 'address' | 'qr'; limit: number;
+  title: string; kind: 'address' | 'qr'; limit: number | null;
   items: Destination[]; loading: boolean; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean;
 }) {
-  const atLimit = items.length >= limit;
+  // A null limit is a plan with no cap: the count stands alone and the add form never closes.
+  const atLimit = limit !== null && items.length >= limit;
   return (
     <section className="vd-sec">
       <div className="vd-sec__head">
         <h2 className="vd-sec__title">{title}</h2>
-        <span className="vd-sec__count">{items.length} / {limit}</span>
+        <span className="vd-sec__count">{limit === null ? items.length : `${items.length} / ${limit}`}</span>
       </div>
       <div className="vd-list">
         {items.map(d => <DestRow key={d.id} d={d} onChange={onChange} t={t} isDemo={isDemo} />)}
@@ -500,7 +509,7 @@ function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }
       {/* Live add-form is hidden in the demo — registering is a real-account action. */}
       {!isDemo && (atLimit
         ? <p className="vd-sec__limit">{t.limitReached.replace('{n}', String(limit))}</p>
-        : <AddForm kind={kind} onChange={onChange} t={t} />)}
+        : <AddForm kind={kind} limit={limit} onChange={onChange} t={t} />)}
     </section>
   );
 }
@@ -1118,7 +1127,7 @@ function ProvePanel({ d, t, onProven, mode = 'prove' }: {
   );
 }
 
-function AddForm({ kind, onChange, t }: { kind: 'address' | 'qr'; onChange: () => void; t: VerifyDashboardLocale }) {
+function AddForm({ kind, limit, onChange, t }: { kind: 'address' | 'qr'; limit: number | null; onChange: () => void; t: VerifyDashboardLocale }) {
   const [rail, setRail] = useState(kind === 'qr' ? 'url' : 'ethereum');
   const [value, setValue] = useState('');
   const [label, setLabel] = useState('');
@@ -1137,7 +1146,7 @@ function AddForm({ kind, onChange, t }: { kind: 'address' | 'qr'; onChange: () =
       const data = await res.json();
       if (data.ok) { setValue(''); setLabel(''); onChange(); }
       else setErr(
-        data.error === 'limit_reached' ? t.limitReached.replace('{n}', String(LIMITS[kind]))
+        data.error === 'limit_reached' ? t.limitReached.replace('{n}', String(limit ?? LIMITS[kind]))
         : data.error === 'duplicate' ? t.addErrDuplicate
         : data.error === 'invalid' ? t.addErrInvalid
         : data.error === 'claimed_elsewhere' ? t.addErrClaimed

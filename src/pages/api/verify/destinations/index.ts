@@ -1,11 +1,13 @@
 /**
  * GET  /api/verify/destinations  — list the tenant's registered Destinations (with the
  *                                  owner-only needsReproof flag; see listDestinationsForOwner)
- * POST /api/verify/destinations  — register a new Destination (free-tier limited)
+ *                                  and the plan's limits per kind (verifyEntitlements.ts)
+ * POST /api/verify/destinations  — register a new Destination (capped by the plan; 403 limit_reached)
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { listDestinationsForOwner, createDestination } from '@/lib/verifyRegistry';
+import { getVerifyEntitlements } from '@/lib/verifyEntitlements';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -13,8 +15,12 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
-  const destinations = await listDestinationsForOwner(session.tenantId);
-  return json({ ok: true, destinations });
+  const [destinations, entitlements] = await Promise.all([
+    listDestinationsForOwner(session.tenantId),
+    getVerifyEntitlements(session.tenantId),
+  ]);
+  // The plan's caps per kind (null: no limit), so the dashboard words the same rule the write enforces.
+  return json({ ok: true, destinations, limits: entitlements.limits });
 };
 
 export const POST: APIRoute = async ({ request }) => {

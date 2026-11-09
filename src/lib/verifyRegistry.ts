@@ -12,6 +12,7 @@
  * owner registers about their OWN destinations, linked privately to their account.
  */
 import { db } from '@/lib/db';
+import { getVerifyEntitlements, verifyLimitFor, VERIFY_FREE_LIMITS } from './verifyEntitlements';
 import { randomUUID, createHash } from 'crypto';
 import { generateChallenge } from './verifyProof';
 import { captureSelfSendBaseline, detectBoundSelfSend, parseSelfSendBaseline, railNeedsBaseline } from './verifyDeposit';
@@ -50,12 +51,16 @@ export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | '
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = VERIFY_ADDRESS_RAILS;
 
-/** Free beta limits, per kind: 2 wallet addresses + 1 payment QR (3 destinations total,
+/** Free plan limits, per kind: 2 wallet addresses + 1 payment QR (3 destinations total,
  *  one of which can be a QR). One value = one destination; the same QR displayed in many
  *  places is still one row (the UNIQUE(tenant_id, kind, value) index dedups it), so
- *  placements never count against this. */
-export const FREE_LIMIT_ADDRESS = 2;
-export const FREE_LIMIT_QR = 1;
+ *  placements never count against this. The plan itself, and who has no limit, is decided in
+ *  verifyEntitlements.ts; these two names stay for the callers that only need the Free numbers. */
+export const FREE_LIMIT_ADDRESS = VERIFY_FREE_LIMITS.address as number;
+export const FREE_LIMIT_QR = VERIFY_FREE_LIMITS.qr as number;
+
+/** The first key of the advisory lock the capped insert takes ("VRFY"), so it never meets another feature's. */
+const CAP_LOCK_CLASS = 0x56524659;
 
 export interface Destination {
   id: string;
@@ -827,30 +832,34 @@ export async function createDestination(
   }
   const label = input.label ? String(input.label).trim().slice(0, 80) || null : null;
 
-  // Free beta limit, per kind: 2 wallet addresses + 1 payment QR. Placements don't count
-  // (the same QR in ten spots is one registered value).
-  const kindLimit = kind === 'qr' ? FREE_LIMIT_QR : FREE_LIMIT_ADDRESS;
-  const countRes = await db.execute({
-    sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ? AND kind = ?`,
-    args: [tenantId, kind],
-  });
-  if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= kindLimit) {
-    return {
-      ok: false,
-      error: 'limit_reached',
-      message: kind === 'qr'
-        ? 'Free beta includes 1 payment QR. Need more? Get in touch.'
-        : 'Free beta includes 2 wallet addresses. Need more? Get in touch.',
-    };
-  }
-
-  // Per-tenant duplicate guard (also backed by the unique index).
+  // Per-tenant duplicate guard (also backed by the unique index). Before the cap on purpose: a value
+  // the account already holds is told so, never that the plan is full.
+  const duplicateRefusal: CreateResult = { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   const dup = await db.execute({
     sql: `SELECT 1 FROM verify_destinations WHERE tenant_id = ? AND kind = ? AND value = ? LIMIT 1`,
     args: [tenantId, kind, value],
   });
-  if (dup.rows.length) {
-    return { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
+  if (dup.rows.length) return duplicateRefusal;
+
+  // The plan's cap for this kind (verifyEntitlements.ts): 2 addresses and 1 payment QR on the
+  // Free plan, none for the owner. Placements don't count (the same QR in ten spots is one
+  // registered value). This early read gives the plain refusal before anything else is touched
+  // (the name claim below reserves a name); the insert at the end re-counts under the account's
+  // lock, so two requests racing for the last slot can never both land.
+  const kindLimit = verifyLimitFor(await getVerifyEntitlements(tenantId), kind);
+  const limitRefusal: CreateResult = {
+    ok: false,
+    error: 'limit_reached',
+    message: kind === 'qr'
+      ? `The free plan includes ${FREE_LIMIT_QR} payment QR. Need more? Get in touch.`
+      : `The free plan includes ${FREE_LIMIT_ADDRESS} wallet addresses. Need more? Get in touch.`,
+  };
+  if (kindLimit !== null) {
+    const countRes = await db.execute({
+      sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ? AND kind = ?`,
+      args: [tenantId, kind],
+    });
+    if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= kindLimit) return limitRefusal;
   }
 
   // Domain-anchored business name. A name is RESERVED globally only when the tenant has
@@ -891,18 +900,45 @@ export async function createDestination(
   }
 
   const id = randomUUID();
+  const rowArgs = [
+    id, tenantId, kind, rail, value, label, displayHint,
+    isQr && hasProvenDomain ? 'account_claim' : 'none',
+    isQr && hasProvenDomain ? 'proven' : 'unproven',
+    isQr && hasProvenDomain ? nowUtc() : null,
+  ];
   try {
-    await db.execute({
-      sql: `INSERT INTO verify_destinations
-              (id, tenant_id, kind, rail, value, label, display_hint, proof_method, proof_status, proven_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id, tenantId, kind, rail, value, label, displayHint,
-        isQr && hasProvenDomain ? 'account_claim' : 'none',
-        isQr && hasProvenDomain ? 'proven' : 'unproven',
-        isQr && hasProvenDomain ? nowUtc() : null,
-      ],
-    });
+    if (kindLimit === null) {
+      await db.execute({
+        sql: `INSERT INTO verify_destinations
+                (id, tenant_id, kind, rail, value, label, display_hint, proof_method, proof_status, proven_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: rowArgs,
+      });
+    } else {
+      // The capped insert: an advisory lock for this account, then count and insert in one
+      // statement, in one transaction. Two requests for one account take turns, so the second
+      // counts the row the first wrote; other accounts do not wait (the second key is a hash of
+      // the account id, and a collision only makes two accounts take turns, never share a count).
+      const results = await db.batch([
+        { sql: `SELECT pg_advisory_xact_lock(${CAP_LOCK_CLASS}, hashtext(?))`, args: [tenantId] },
+        {
+          sql: `INSERT INTO verify_destinations
+                  (id, tenant_id, kind, rail, value, label, display_hint, proof_method, proof_status, proven_at)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE (SELECT COUNT(*) FROM verify_destinations WHERE tenant_id = ? AND kind = ?) < ?`,
+          args: [...rowArgs, tenantId, kind, kindLimit],
+        },
+      ], 'write');
+      if ((results[1]?.rowsAffected ?? 0) === 0) {
+        // Nothing landed: the account is at the cap. If the very value raced in meanwhile, that is
+        // the better answer (the Vault's rule too: a repeat is never told the plan is full).
+        const again = await db.execute({
+          sql: `SELECT 1 FROM verify_destinations WHERE tenant_id = ? AND kind = ? AND value = ? LIMIT 1`,
+          args: [tenantId, kind, value],
+        });
+        return again.rows.length ? duplicateRefusal : limitRefusal;
+      }
+    }
   } catch (e) {
     // A unique-index violation here is a race the pre-checks didn't catch. For a QR
     // it's the global claim-once index (another account proved this URL first); for an
@@ -910,7 +946,7 @@ export async function createDestination(
     console.warn('[verify] destination insert blocked (unique violation?):', e);
     return isQr
       ? { ok: false, error: 'claimed_elsewhere', message: 'This payment link is already verified by another Almstins account.' }
-      : { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
+      : duplicateRefusal;
   }
   const row = await db.execute({
     sql: `SELECT ${DEST_COLS}

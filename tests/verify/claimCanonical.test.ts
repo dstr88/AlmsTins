@@ -229,7 +229,27 @@ vi.mock('@/lib/db', () => {
     }
     throw new Error(`fake db: unexpected SQL: ${sql}`);
   };
-  return { db: { execute, batch: async () => { throw new Error('fake db: batch not supported'); } } };
+  // createDestination's capped insert: the account lock, then INSERT ... SELECT ... WHERE the count is
+  // under the cap. No concurrency here, so the lock does nothing and the count decides.
+  const batch = async (stmts: Array<{ sql: string; args?: unknown[] }>) => {
+    const out: Array<{ rows: unknown[]; rowsAffected: number }> = [];
+    for (const s of stmts) {
+      const sql = s.sql.replace(/\s+/g, ' ').trim();
+      const args = s.args ?? [];
+      if (/^SELECT pg_advisory_xact_lock\(\d+, hashtext\(\?\)\)$/.test(sql)) { out.push({ rows: [], rowsAffected: 0 }); continue; }
+      if (sql.startsWith('INSERT INTO verify_destinations') && sql.includes('WHERE (SELECT COUNT(*) FROM verify_destinations WHERE tenant_id = ? AND kind = ?) < ?')) {
+        const [tenantId, kind, cap] = args.slice(-3) as [string, string, number];
+        const used = store.rows.filter((r) => r.tenant_id === tenantId && r.kind === kind).length;
+        if (used >= Number(cap)) { out.push({ rows: [], rowsAffected: 0 }); continue; }
+        await execute({ sql: s.sql, args: args.slice(0, -3) });
+        out.push({ rows: [], rowsAffected: 1 });
+        continue;
+      }
+      throw new Error(`fake db: batch statement not supported: ${sql}`);
+    }
+    return out;
+  };
+  return { db: { execute, batch } };
 });
 
 // The self-send path reads the chain; stub it to "the bound self-send was found". No rail
