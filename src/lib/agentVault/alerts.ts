@@ -50,7 +50,7 @@ import { sendVaultMail } from './mailer';
  * What a check was answered, as the alert names it. One word for each case an operator tells apart;
  * `proven` is not among them (it never emails).
  */
-export const ALERT_KINDS = ['mismatch', 'flagged', 'screening', 'not_on_list', 'pending', 'unanchored', 'unknown', 'established', 'unmatched'] as const;
+export const ALERT_KINDS = ['mismatch', 'flagged', 'screening', 'not_on_list', 'pending', 'unanchored', 'unknown', 'disputed', 'established', 'unmatched'] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
 /** One alert's worth of a check. */
@@ -83,6 +83,9 @@ export function alertKindOf(basis: string, status: string): AlertKind | null {
       return 'not_on_list';
     case 'registry_pending':
       return 'pending';
+    case 'destination_disputed':
+      // Two accounts stand behind the address; the check answered unknown with reason disputed.
+      return 'disputed';
     default:
       // A trusted address's first check with no domain proof, or a reason this file does not know:
       // say what the public check said. When in doubt the operator is told, never left out.

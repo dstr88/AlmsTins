@@ -87,6 +87,15 @@ describe('a freeform label is never a publisher', () => {
     expect(publicPublisher(hit({ label: 'Acme', domain: '   ' }))).toBeNull();
   });
 
+  it('a disputed hit renders a caution card with no publisher and no date, neutral after a flagged screen', () => {
+    const lookup = hit({ level: 'disputed', label: 'Acme', domain: 'acme.com', since: '2026-09-01', source: 'conflict' as never });
+    expect(publicPublisher(lookup)).toBeNull();
+    const card = publicVerifyCard(lookup, 'clean');
+    expect(card).toEqual({ level: 'disputed', tone: 'caution', publisher: null, since: null, afterSafety: false });
+    expect(publicVerifyCard(lookup, 'danger')).toEqual({ level: 'disputed', tone: 'neutral', publisher: null, since: null, afterSafety: true });
+    expect(JSON.stringify(card)).not.toContain('acme');
+  });
+
   it('no hit, or no level, renders no Verify card', () => {
     expect(publicVerifyCard(null, 'clean')).toBeNull();
     expect(publicVerifyCard(hit({ level: null, label: 'Acme', domain: 'acme.com' }), 'clean')).toBeNull();
@@ -225,9 +234,14 @@ describe('copy guards (en/es/fr)', () => {
     expect(c.claimedBody).not.toMatch(/\{name\}|\{label\}|\{domain\}/);
     expect(splitTip(c.claimedBody)).not.toBeNull();
     expect(c.chains.tron).toBeTruthy();
-    for (const v of [c.verifiedTitle, c.verifiedBody, c.verifiedSub, c.claimedTitle, c.claimedBody, c.claimedSub, c.verifyFlaggedNote]) {
+    for (const v of [c.verifiedTitle, c.verifiedBody, c.verifiedSub, c.claimedTitle, c.claimedBody, c.claimedSub, c.verifyFlaggedNote, c.disputedTitle, c.disputedBody, c.disputedSub]) {
       expect(v).not.toMatch(MEMBER);
       expect(v).not.toMatch(CONTROL);
+    }
+    // A disputed card names nobody: no slot for a name or a domain, and no claim of proof.
+    for (const v of [c.disputedTitle, c.disputedBody, c.disputedSub]) {
+      expect(v).not.toMatch(/\{name\}|\{label\}|\{domain\}/);
+      expect(v).not.toMatch(CONTROL_PROVEN);
     }
     expect(c).not.toHaveProperty('verifiedMerchant');
     expect(c).not.toHaveProperty('verifiedVia');
@@ -249,9 +263,13 @@ describe('copy guards (en/es/fr)', () => {
       expect(t.claimedTitle[n]).not.toMatch(CONTROL_PROVEN);
       expect(t.claimedBody[n]).not.toMatch(/\{name\}|\{label\}|\{domain\}/);
       expect(splitTip(t.claimedBody[n])).not.toBeNull();
-      for (const v of [t.claimedBody[n], t.flaggedNote[n], t.safetyDanger[n], t.safetyCaution[n], t.safetyUnclear[n], t.notVerifiedBody[n]]) {
+      for (const v of [t.claimedBody[n], t.flaggedNote[n], t.safetyDanger[n], t.safetyCaution[n], t.safetyUnclear[n], t.notVerifiedBody[n], t.disputedTitle[n], t.disputedBody[n]]) {
         expect(v).not.toMatch(MEMBER);
         expect(v).not.toMatch(CONTROL);
+      }
+      for (const v of [t.disputedTitle[n], t.disputedBody[n]]) {
+        expect(v).not.toMatch(/\{name\}|\{label\}|\{domain\}/);
+        expect(v).not.toMatch(CONTROL_PROVEN);
       }
     }
     expect(t.accountableDomainTip).not.toMatch(SKIPPED);

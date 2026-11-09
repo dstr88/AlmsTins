@@ -34,6 +34,7 @@ const REASON: Record<string, string> = {
   domain_proof: 'Proven by a domain proof.',
   registered_and_checked_before: 'Registered, and checked before. Established: the same address as before, which is not proof of ownership.',
   registered_first_check: 'First check of a registered address. History baseline started.',
+  destination_disputed: 'Disputed. Two Almstins accounts stand behind this address, so nothing vouches for it until one withdraws. A person should confirm the recipient another way.',
   other: 'Reason not recorded.',
 };
 

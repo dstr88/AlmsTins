@@ -69,6 +69,10 @@ const ANSWERS = [
   },
 ] as const;
 
+// One reason an unknown can carry: two accounts stand behind the destination (a platform's published
+// list and another account's proof, or two platforms' lists). Nothing vouches for it until one withdraws.
+const DISPUTED_NOTE = 'An unknown with reason disputed means two accounts stand behind the destination, a platform\'s published list and another account\'s proof, or two platforms\' lists, and Almstins vouches for neither until one of them withdraws. Hold it like any other unknown.';
+
 const FIELDS = [
   ['status', "proven, mismatch, unanchored or unknown. proven and mismatch always come with level verified; unanchored always comes with level claimed; unknown always with level null — so status alone tells you which, but the rule below still checks level too, as belt-and-suspenders. Treat a status you do not recognize as a hold."],
   ['level', 'verified when a proof is current: for a crypto address, a listing on a proven domain re-confirmed within the last 24 hours; for a platform\'s list, a list refreshed within the last 24 hours; for a payment link, an account that holds a domain-verified business name (no ownership proof specific to the link, and no freshness check unless the link is monitored). claimed when control was proven by a self-send, or a payment link was registered, but no domain currently vouches for the destination. null when status is unknown.'],
@@ -78,11 +82,12 @@ const FIELDS = [
   ['since', 'The date of the proof behind level (YYYY-MM-DD). For a verified crypto address, the date its listing on a proven domain was first confirmed, never an older self-send date; for a claimed one, the date control was proven. For a payment link, the date it was registered; for a platform\'s list, the date the platform proved its domain. Or null. It follows level: when an address drops from verified to claimed, since moves to the date control was proven, which can be earlier.'],
   ['proofAgeDays', 'Whole days since since. This is not freshness: an old proof can still be verified, and a lapsed listing reads claimed or unknown. Freshness lives in level. Because since follows level, proofAgeDays can jump when level changes.'],
   ['checkedAt', 'When this answer was computed (ISO 8601, UTC).'],
+  ['reason', 'disputed when two accounts stand behind the destination (a platform\'s published list and another account\'s proof, or two platforms\' lists): status is then unknown and level null, and nothing vouches for it until one of them withdraws. null otherwise. Additive: an agent that does not read it already holds on unknown.'],
 ];
 
 const VAULT_FIELDS = [
   ['cleared', "true when the address is on this agent's trusted list and nothing we ran flagged it; false when it is not on the list, is still pending, or is flagged; null when the vault could not be read. It is never a statement that an address is safe or legitimate."],
-  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, the sanctions or security screening this check ran found something (see screening), or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. null when the vault could not be read."],
+  ['answer', "What this agent was told, with its registry taken into account. proven: on the trusted list, and a domain currently vouches for it. consistent-with-history (shown as Established on your agent's pages and reports): on the trusted list, nothing flagged it, and this agent has asked about it before (sameness, never ownership; only checks that were recorded count as asked before). flagged: the registry flagged it, the sanctions or security screening this check ran found something (see screening), or a different domain than the one you expected vouches for it, whether or not the address is on your list. unknown: everything else, including an address that is not on the list, whatever the public proof says. An address you trusted that has no domain proof and that this agent has not asked about before reads unknown with cleared true: your say-so is the only support it has yet. An address two accounts stand behind (the public answer carries reason disputed) reads unknown and is never cleared, whatever your list says, until one of them withdraws. null when the vault could not be read."],
   ['registry', 'Where the address stands in this agent\'s registry: trusted, flagged, pending (added, but a check could not finish) or none (not registered). null when the vault could not be read.'],
   ['history', 'consistent when the address is trusted and this agent has asked about it before; none otherwise. It proves the address has not changed, not who owns it. null when the vault could not be read.'],
   ['eventId', 'The id of the ledger row this check was written as, or null when nothing was written.'],
@@ -206,7 +211,8 @@ const FAQ = [
   "chain": "ethereum",
   "since": "2026-07-14",       // date of the proof behind level (verified address: when its listing was first confirmed)
   "proofAgeDays": 59,          // age of that proof, not freshness (freshness lives in level)
-  "checkedAt": "2026-09-11T14:30:00Z"
+  "checkedAt": "2026-09-11T14:30:00Z",
+  "reason": null               // "disputed" when two accounts stand behind the destination; null otherwise
 }`}</pre>
     </div>
   </section>
@@ -247,6 +253,7 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
   <section id="answers">
     <h2>The answers, read with level</h2>
     <AnswerCards items={ANSWERS} />
+    <p class="body">{DISPUTED_NOTE}</p>
   </section>
 
   <section>

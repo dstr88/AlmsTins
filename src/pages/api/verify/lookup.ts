@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const domain = verified ? (hit?.domain ?? null) : null;
     return json({
       ok: true,
-      verified: !!hit,
+      verified: !!hit && hit.level !== 'disputed',
       // Three-tier grade: 'verified' (domain-anchored) or 'claimed' (control only).
       // null when there's no hit (registered/unproven is never surfaced as positive).
       level: hit?.level ?? null,

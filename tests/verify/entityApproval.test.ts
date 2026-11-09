@@ -83,7 +83,7 @@ vi.mock('@/lib/db', () => {
     if (sql.startsWith('SELECT id, domain, challenge_token') && sql.includes('WHERE id = ? AND tenant_id = ?')) {
       return { rows: byIdTenant(args[0], args[1]) };
     }
-    if (sql.startsWith('SELECT id, domain, proof_status, api_endpoint, api_key_encrypted FROM verified_entities WHERE id = ? AND tenant_id = ?')) {
+    if (sql.startsWith('SELECT id, domain, proof_status, api_endpoint, api_key_encrypted, proven_at FROM verified_entities WHERE id = ? AND tenant_id = ?')) {
       return { rows: byIdTenant(args[0], args[1]) };
     }
     if (sql.startsWith('INSERT INTO verified_entities')) {
@@ -105,9 +105,9 @@ vi.mock('@/lib/db', () => {
       return { rows: [], rowsAffected: 1 };
     }
     if (sql.startsWith("UPDATE verified_entities SET last_pull_status = 'ok'")) {
-      const [count, at, , id, tenant] = args;
+      const [count, conflicts, at, , id, tenant] = args;
       const hit = byIdTenant(id, tenant);
-      for (const e of hit) { e.last_pull_status = 'ok'; e.last_pull_count = count; e.last_pulled_at = at; }
+      for (const e of hit) { e.last_pull_status = 'ok'; e.last_pull_count = count; e.last_pull_conflicts = conflicts; e.last_pulled_at = at; }
       return { rows: [], rowsAffected: hit.length }; // 0 when the entity is gone: the pull reports not_found
     }
     if (sql.startsWith('UPDATE verified_entities SET last_pull_status = ?')) {
@@ -120,19 +120,23 @@ vi.mock('@/lib/db', () => {
       return { rows: [], rowsAffected: 1 };
     }
     if (sql.startsWith('INSERT INTO verified_address_mirror')) {
-      const [id, entity_id, tenant_id, address, chain, entity_domain, refreshed_at] = args;
+      const [id, entity_id, tenant_id, address, chain, entity_domain, status, refreshed_at] = args;
       // The pull's insert is guarded by WHERE EXISTS (the entity is still there and proven).
       if (/WHERE EXISTS/.test(sql) && !byIdTenant(entity_id, tenant_id).some((e) => e.proof_status === 'proven')) {
         return { rows: [], rowsAffected: 0 };
       }
-      mem.mirror.push({ id, entity_id, tenant_id, address, chain, entity_domain, status: 'verified', refreshed_at });
+      mem.mirror.push({ id, entity_id, tenant_id, address, chain, entity_domain, status, refreshed_at });
       return { rows: [], rowsAffected: 1 };
     }
+    // The cross-account guard (verifyMirrorGuard.ts): no merchant proofs and one list per address here.
+    if (sql.startsWith("SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ?")) return { rows: [] };
+    if (sql.startsWith('SELECT m.address AS address FROM verified_address_mirror m')) return { rows: [] };
+    if (sql.startsWith('SELECT 1 AS one FROM verified_address_mirror m')) return { rows: [] };
     if (sql.startsWith('DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?')) {
       mem.entities = mem.entities.filter((e) => !(e.id === args[0] && e.tenant_id === args[1]));
       return { rows: [], rowsAffected: 1 };
     }
-    if (sql.startsWith('SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?')) {
+    if (sql.startsWith('SELECT address, status FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?')) {
       return { rows: mem.mirror.filter((m) => m.entity_id === args[0] && m.tenant_id === args[1]) };
     }
     if (sql.startsWith('SELECT id, tenant_id, domain, last_pull_status FROM verified_entities')) {
@@ -356,7 +360,7 @@ describe.each([
 
     const connected = await post(CONNECT, `/api/verify/entities/${id}/connect`,
       { endpoint: 'platform.example', apiKey: 'secret-key' }, { id });
-    expect(connected.body).toEqual({ ok: true, outcome: 'pulled', count: 1 });
+    expect(connected.body).toEqual({ ok: true, outcome: 'pulled', count: 1, conflicts: 0 });
     expect(mem.mirror.map((m) => m.address)).toEqual([LIST_ADDR]);
 
     const hit = await lookupVerifiedAddress(LIST_ADDR);
@@ -374,7 +378,7 @@ describe('the library refuses the same writes (backstop under the routes and the
     expect(await setEntityEndpoint(OTHER, 'e-other', 'https://other.example/x', 'k')).toEqual({ ok: false, code: 'not_approved' });
     expect(await pullEntity(OTHER, 'e-other')).toEqual({ ok: false, code: 'not_approved' });
     expect(await connectEntity(OTHER, 'e-other', 'https://other.example/x', 'k')).toEqual({ ok: false, code: 'not_approved' });
-    expect(await monitorEntity(OTHER, 'e-other')).toEqual({ pull: { ok: false, code: 'not_approved' }, removed: [], added: [] });
+    expect(await monitorEntity(OTHER, 'e-other')).toEqual({ pull: { ok: false, code: 'not_approved' }, removed: [], added: [], conflicts: { added: [], cleared: [] } });
     expect(mem.writes).toEqual([]);
     expect(proof.verifyDomainProof).not.toHaveBeenCalled();
     expect(proof.pullEntityList).not.toHaveBeenCalled();
@@ -382,7 +386,7 @@ describe('the library refuses the same writes (backstop under the routes and the
 
   it('lets an approved tenant pull', async () => {
     seedPublished(LISTED, 'e-listed', 'listed.example');
-    expect(await pullEntity(LISTED, 'e-listed')).toEqual({ ok: true, count: 1 });
+    expect(await pullEntity(LISTED, 'e-listed')).toEqual({ ok: true, count: 1, conflicts: 0 });
     expect(proof.pullEntityList).toHaveBeenCalledTimes(1);
   });
 });

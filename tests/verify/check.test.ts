@@ -148,6 +148,25 @@ describe('label: S7b — only alongside proven/mismatch, and only when it derive
   });
 });
 
+describe('a disputed hit (two accounts stand behind the destination) reads unknown with reason disputed', () => {
+  const disputedHit = { source: 'conflict', level: 'disputed', since: null, domain: null, provingDomain: null, label: null, chain: 'ethereum' };
+
+  it('is unknown, not unanchored, with level null and no domain, expect or not', async () => {
+    entities.address.mockResolvedValue(disputedHit);
+    const { body } = await call({ value: ADDR });
+    expect(body).toMatchObject({ status: 'unknown', level: null, domain: null, label: null, reason: 'disputed', since: null, proofAgeDays: null });
+    expect((await call({ value: ADDR, expect: 'acme.com' })).body).toMatchObject({ status: 'unknown', reason: 'disputed' });
+  });
+
+  it('every other answer carries reason null, so the field is additive', async () => {
+    expect((await call({ value: ADDR })).body.reason).toBeNull();
+    entities.address.mockResolvedValue(hit());
+    expect((await call({ value: ADDR })).body.reason).toBeNull();
+    entities.address.mockResolvedValue(hit({ level: 'claimed', provingDomain: null, domain: null }));
+    expect((await call({ value: ADDR })).body.reason).toBeNull();
+  });
+});
+
 describe('entity (platform list) hits: always verified, domain === provingDomain', () => {
   it('an entity hit reads proven, and domain is the platform\'s own domain', async () => {
     entities.address.mockResolvedValue({ source: 'entity', level: 'verified', since: '2026-01-01', domain: 'exchange.example', provingDomain: 'exchange.example', label: null, chain: 'ethereum' });

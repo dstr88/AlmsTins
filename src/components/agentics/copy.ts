@@ -327,6 +327,7 @@ export const copy = {
       proven: (domain: string | null) => (domain ? `Proven by a domain proof on ${domain}` : 'Proven by a domain proof'),
       claimed: 'Control proven, with no domain behind it',
       unknown: 'No record',
+      disputed: 'Disputed: two accounts stand behind it, so the registry answers for neither. Pending until one withdraws.',
       unavailable: 'Could not run',
     },
     hits: {

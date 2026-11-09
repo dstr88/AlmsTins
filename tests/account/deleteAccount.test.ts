@@ -168,6 +168,24 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
   // Public lookups (lookupVerifiedAddress, lookupVerifiedUrl) and the claim guard
   // (isClaimedElsewhere). Matched loosely on the table and filter so column-list changes
   // elsewhere don't break this suite.
+  // The cross-account guard's two reads in the lookup (verifyEntities.ts): another account's proof
+  // behind a platform row, and another platform's fresh row behind a merchant's proof.
+  if (sql === "SELECT value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ? AND lower(value) = ?") {
+    const rows = t('verify_destinations').filter((r) => r.kind === 'address' && r.proof_status === 'proven'
+      && r.tenant_id !== args[0] && String(r.value).toLowerCase() === args[1]).map((r) => ({ value: r.value }));
+    return { rows, rowsAffected: 0 };
+  }
+  if (sql.startsWith('SELECT 1 AS one FROM verified_address_mirror m JOIN verified_entities e')) {
+    const [address, cutoff, ...rest] = args;
+    const exceptTenant = rest[rest.length - 1];
+    const publishers = rest.slice(0, -1).map((p) => String(p).toLowerCase());
+    const any = t('verified_address_mirror').some((r) => {
+      if (r.address !== address || !['verified', 'conflict'].includes(r.status) || !r.refreshed_at || r.refreshed_at < cutoff) return false;
+      const e = t('verified_entities').find((x) => x.id === r.entity_id);
+      return !!e && publishers.includes(String(e.tenant_id).toLowerCase()) && e.tenant_id !== exceptTenant;
+    });
+    return { rows: any ? [{ one: 1 }] : [], rowsAffected: 0 };
+  }
   if (sql.includes('FROM verified_address_mirror m JOIN verified_entities e')) {
     const rows = t('verified_address_mirror')
       .filter((r) => r.status === 'verified' && r.address === args[0] && r.refreshed_at && r.refreshed_at >= args[1])
