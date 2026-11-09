@@ -229,6 +229,14 @@ export interface VerifyDashboardLocale {
   entApprovalNotice: string; // "… {email} …", rendered as a mailto link
   entNotApproved: string;
   entNotPublished: string; // badge on a list whose account is not approved
+  // Guard PR B (spec 3e, 3h): the merchant's pill and the platform's conflict list.
+  listedPill: string;
+  listedTitle: string;
+  entConflicts: string; // "{n} …", two or more
+  entConflictsOne: string;
+  entConflictsShow: string;
+  conflictWithMerchant: string;
+  conflictWithPlatform: string;
   // Demo mode (seeded sample vendor account) — banner + how-to guide.
   demoBanner: string;
   demoSignupCta: string;
@@ -432,6 +440,13 @@ export const en: VerifyDashboardLocale = {
   entApprovalNotice: 'Platform lists are by approval during early access. To request access, contact {email}.',
   entNotApproved: '⚠ Platform lists are by approval during early access. Contact support@almstins.com to request access.',
   entNotPublished: 'Not published (approval required)',
+  listedPill: 'Listed by a platform',
+  listedTitle: "A platform's published list also carries this address. Your proof stands; the platform has been told.",
+  entConflicts: '{n} entries another account has proven. They are shown to no one until the conflict clears.',
+  entConflictsOne: '1 entry another account has proven. It is shown to no one until the conflict clears.',
+  entConflictsShow: 'Show the entries',
+  conflictWithMerchant: 'Proven by a merchant',
+  conflictWithPlatform: 'Listed earlier by another platform',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
   demoBannerText: "You're in the vendor demo. Sign in to register and prove your own addresses.",
@@ -654,6 +669,13 @@ export const es: VerifyDashboardLocale = {
   entApprovalNotice: 'Las listas de plataformas requieren aprobación durante el acceso anticipado. Para solicitar acceso, escribe a {email}.',
   entNotApproved: '⚠ Las listas de plataformas requieren aprobación durante el acceso anticipado. Escribe a support@almstins.com para solicitar acceso.',
   entNotPublished: 'No publicada (requiere aprobación)',
+  listedPill: 'Listada por una plataforma',
+  listedTitle: 'La lista publicada de una plataforma también incluye esta dirección. Tu prueba se mantiene; la plataforma ha sido avisada.',
+  entConflicts: '{n} entradas que otra cuenta ha demostrado. No se muestran a nadie hasta que el conflicto se resuelva.',
+  entConflictsOne: '1 entrada que otra cuenta ha demostrado. No se muestra a nadie hasta que el conflicto se resuelva.',
+  entConflictsShow: 'Ver las entradas',
+  conflictWithMerchant: 'Demostrada por un comercio',
+  conflictWithPlatform: 'Listada antes por otra plataforma',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
   demoBannerText: 'Estás en la demo para comercios. Inicia sesión para registrar y demostrar tus propias direcciones.',
@@ -876,6 +898,13 @@ export const fr: VerifyDashboardLocale = {
   entApprovalNotice: 'Pendant l’accès anticipé, les listes de plateformes sont soumises à approbation. Pour demander l’accès, écrivez à {email}.',
   entNotApproved: '⚠ Pendant l’accès anticipé, les listes de plateformes sont soumises à approbation. Écrivez à support@almstins.com pour demander l’accès.',
   entNotPublished: 'Non publiée (approbation requise)',
+  listedPill: 'Listée par une plateforme',
+  listedTitle: 'La liste publiée d’une plateforme contient aussi cette adresse. Votre preuve reste valable ; la plateforme a été prévenue.',
+  entConflicts: '{n} entrées qu’un autre compte a prouvées. Elles ne sont montrées à personne tant que le conflit n’est pas levé.',
+  entConflictsOne: '1 entrée qu’un autre compte a prouvée. Elle n’est montrée à personne tant que le conflit n’est pas levé.',
+  entConflictsShow: 'Voir les entrées',
+  conflictWithMerchant: 'Prouvée par un commerçant',
+  conflictWithPlatform: 'Listée plus tôt par une autre plateforme',
   demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
   demoSignupCta: 'Inscrivez-vous gratuitement →',
   demoBannerText: 'Vous êtes dans la démo commerçant. Connectez-vous pour enregistrer et prouver vos propres adresses.',

@@ -9,7 +9,7 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { listEntities, createEntity } from '@/lib/verifyEntities';
+import { listEntities, createEntity, listEntityConflicts } from '@/lib/verifyEntities';
 import { canPublishEntities, entityNotApprovedResponse, ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import { buildProofFile, WELL_KNOWN_PATH } from '@/lib/verifyProof';
 import { json } from '@/lib/http';
@@ -19,7 +19,14 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
-  return json({ ok: true, entities: await listEntities(session.tenantId) });
+  // Guard PR B (spec 3h): a list with conflicts carries its conflicted entries for the card. The
+  // entries are the platform's own addresses with a word each; no other party is named.
+  const entities = await listEntities(session.tenantId);
+  const withConflicts = await Promise.all(entities.map(async (e) => ({
+    ...e,
+    conflicts: e.lastPullConflicts > 0 ? await listEntityConflicts(session.tenantId, e.id) : [],
+  })));
+  return json({ ok: true, entities: withConflicts });
 };
 
 export const POST: APIRoute = async ({ request }) => {

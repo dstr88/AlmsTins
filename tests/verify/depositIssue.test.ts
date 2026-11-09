@@ -115,6 +115,8 @@ function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: numb
     Object.assign(c, { status, attempts: c.attempts + 1, last_outcome: outcome, last_checked_at: stamp });
     return { rows: [], rowsAffected: 1 };
   }
+  // Guard PR B (claimStateElsewhere): no platform list carries any address in these fixtures.
+  if (sql.startsWith('SELECT m.address AS address FROM verified_address_mirror m JOIN verified_entities e ON e.id = m.entity_id WHERE lower(m.address) = ?')) return none;
   // The S5a claim guard: other tenants' proven rows of this kind, lowercased containment.
   if (sql === "SELECT value FROM verify_destinations WHERE kind = ? AND proof_status = 'proven' AND tenant_id <> ? AND strpos(lower(value), ?) > 0") {
     const [kind, tenant, needle] = args;

@@ -36,6 +36,42 @@ function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: numb
 
   if (/^CREATE (UNIQUE )?(TABLE|INDEX) IF NOT EXISTS /.test(sql)) return { rows: [], rowsAffected: 0 };
   if (/^ALTER TABLE \w+ ADD COLUMN IF NOT EXISTS /.test(sql)) return { rows: [], rowsAffected: 0 };
+  // ── guard PR B: the merchant side ──
+  if (sql === "UPDATE verify_destinations SET platform_listed_at = COALESCE(platform_listed_at, ?) WHERE kind = 'address' AND proof_status = 'proven' AND tenant_id <> ? AND lower(value) = ?") {
+    const hit = t('verify_destinations').filter((r) => r.kind === 'address' && r.proof_status === 'proven' && r.tenant_id !== args[1] && String(r.value).toLowerCase() === args[2]);
+    for (const r of hit) r.platform_listed_at = r.platform_listed_at ?? args[0];
+    return { rows: [], rowsAffected: hit.length };
+  }
+  if (sql === 'UPDATE verify_destinations SET platform_listed_at = COALESCE(platform_listed_at, ?) WHERE id = ? AND tenant_id = ?') {
+    const hit = t('verify_destinations').filter((r) => r.id === args[1] && r.tenant_id === args[2]);
+    for (const r of hit) r.platform_listed_at = r.platform_listed_at ?? args[0];
+    return { rows: [], rowsAffected: hit.length };
+  }
+  if (sql.startsWith("UPDATE verify_destinations d SET platform_listed_at = NULL WHERE d.platform_listed_at IS NOT NULL AND NOT EXISTS (")) {
+    const hit = t('verify_destinations').filter((d) => d.platform_listed_at && !t('verified_address_mirror').some((m) =>
+      String(m.address).toLowerCase() === String(d.value).toLowerCase() && ['verified', 'conflict'].includes(m.status) && m.tenant_id !== d.tenant_id));
+    for (const d of hit) d.platform_listed_at = null;
+    return { rows: [], rowsAffected: hit.length };
+  }
+  if (sql === "SELECT value FROM verify_destinations WHERE kind = ? AND proof_status = 'proven' AND tenant_id <> ? AND strpos(lower(value), ?) > 0") {
+    return { rows: t('verify_destinations').filter((r) => r.kind === args[0] && r.proof_status === 'proven' && r.tenant_id !== args[1] && String(r.value).toLowerCase().includes(args[2])).map((r) => ({ value: r.value })), rowsAffected: 0 };
+  }
+  if (sql.startsWith("SELECT m.address AS address FROM verified_address_mirror m JOIN verified_entities e ON e.id = m.entity_id WHERE lower(m.address) = ? AND m.status IN ('verified', 'conflict')")) {
+    const [address, cutoff, exceptTenant, ...publishers] = args;
+    const pubs = new Set(publishers.map((p) => String(p).toLowerCase()));
+    const rows = t('verified_address_mirror').filter((m) => {
+      if (String(m.address).toLowerCase() !== address || !['verified', 'conflict'].includes(m.status) || !m.refreshed_at || m.refreshed_at < cutoff) return false;
+      const e = t('verified_entities').find((x) => x.id === m.entity_id);
+      return !!e && e.proof_status === 'proven' && e.tenant_id !== exceptTenant && pubs.has(String(e.tenant_id).toLowerCase());
+    });
+    return { rows: rows.map((m) => ({ address: m.address })), rowsAffected: 0 };
+  }
+  if (sql === "SELECT tenant_id, value FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND lower(value) = ?") {
+    return { rows: t('verify_destinations').filter((r) => r.kind === 'address' && r.proof_status === 'proven' && String(r.value).toLowerCase() === args[0]).map((r) => ({ tenant_id: r.tenant_id, value: r.value })), rowsAffected: 0 };
+  }
+  if (sql === "SELECT address, chain, conflict_with, conflict_seen_at FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ? AND status = 'conflict' ORDER BY conflict_seen_at ASC, address ASC") {
+    return { rows: t('verified_address_mirror').filter((r) => r.entity_id === args[0] && r.tenant_id === args[1] && r.status === 'conflict'), rowsAffected: 0 };
+  }
   // The registry's cold-start backfills (ensureVerifyTables): nothing to backfill here.
   if (/^UPDATE verify_destinations (d )?SET /.test(sql) && !sql.includes('WHERE id = ?')) return { rows: [], rowsAffected: 0 };
 
@@ -148,8 +184,8 @@ vi.mock('@/lib/verifyCrypto', async (importOriginal) => ({
 }));
 
 import { classifyListed, classifyPulledList, VERIFIED } from '../../src/lib/verifyMirrorGuard';
-import { claimIdentity } from '../../src/lib/verifyRegistry';
-import { lookupVerifiedAddress, monitorEntity, pullEntity, MIRROR_GUARD_DDL } from '../../src/lib/verifyEntities';
+import { claimIdentity, claimStateElsewhere, clearStalePlatformListed, provenHoldersOf, PLATFORM_LISTED_DDL } from '../../src/lib/verifyRegistry';
+import { listEntityConflicts, lookupVerifiedAddress, monitorEntity, pullEntity, MIRROR_GUARD_DDL } from '../../src/lib/verifyEntities';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
@@ -203,10 +239,91 @@ const mirrorRow = (entityId: string, tenant: string, address: string, over: Row 
 const mirror = (tenant: string) => mem.tables.verified_address_mirror.filter((r) => r.tenant_id === tenant);
 
 describe('the schema file and the code add the same columns', () => {
+  const squash = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+  const statementsOf = (file: string) => read(file).replace(/--[^\n]*/g, '').split(';').map((s) => squash(s)).filter(Boolean);
   it('migrations-pg/0072_verify_mirror_conflicts.sql holds exactly the statements ensureEntityTables adds, in order', () => {
-    const squash = (sql: string) => sql.replace(/\s+/g, ' ').trim();
-    const statements = read('migrations-pg/0072_verify_mirror_conflicts.sql').replace(/--[^\n]*/g, '').split(';').map((s) => squash(s)).filter(Boolean);
-    expect(statements).toEqual(MIRROR_GUARD_DDL.map(squash));
+    expect(statementsOf('migrations-pg/0072_verify_mirror_conflicts.sql')).toEqual(MIRROR_GUARD_DDL.map(squash));
+  });
+  it('migrations-pg/0073_verify_destination_platform_listed.sql holds exactly what ensureVerifyTables adds for PR B', () => {
+    expect(statementsOf('migrations-pg/0073_verify_destination_platform_listed.sql')).toEqual(PLATFORM_LISTED_DDL.map(squash));
+  });
+});
+
+describe('PR B, the merchant side (spec 3e, 3g, 3i): the listing is recorded, nobody is named, and it clears', () => {
+  const dest = (value: string, tenant = MERCHANT, over: Row = {}): Row => ({ id: `d-${tenant}-${value.slice(-6)}`, ...merchantProof(value, tenant, over) });
+
+  it('claimStateElsewhere: a fresh list of another approved platform reads as listedByPlatform, not as claimed (G1)', async () => {
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, SHARED)];
+    expect(await claimStateElsewhere(MERCHANT, 'address', SHARED)).toEqual({ claimedElsewhere: false, listedByPlatform: true });
+    expect(await claimStateElsewhere(MERCHANT, 'address', SHARED_UPPER)).toEqual({ claimedElsewhere: false, listedByPlatform: true });
+    // A row already marked a conflict still counts as listed; a stale one does not; the platform's own account is not "another".
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, SHARED, { status: 'conflict', conflict_with: 'merchant' })];
+    expect((await claimStateElsewhere(MERCHANT, 'address', SHARED)).listedByPlatform).toBe(true);
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, SHARED, { refreshed_at: STALE })];
+    expect((await claimStateElsewhere(MERCHANT, 'address', SHARED)).listedByPlatform).toBe(false);
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, SHARED)];
+    expect((await claimStateElsewhere(PLATFORM, 'address', SHARED)).listedByPlatform).toBe(false);
+    // An unapproved platform's list is not a listing.
+    vi.stubEnv('VERIFY_ENTITY_TENANTS', LATER);
+    expect((await claimStateElsewhere(MERCHANT, 'address', SHARED)).listedByPlatform).toBe(false);
+  });
+
+  it('claimStateElsewhere: another account\'s proof is still a refusal, and the platform read is then skipped', async () => {
+    mem.tables.verify_destinations = [dest(SHARED, 'tenant-other')];
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, SHARED)];
+    expect(await claimStateElsewhere(MERCHANT, 'address', SHARED)).toEqual({ claimedElsewhere: true, listedByPlatform: false });
+    // A payment link is never on a platform list.
+    expect(await claimStateElsewhere(MERCHANT, 'qr', 'https://buy.stripe.com/abc')).toEqual({ claimedElsewhere: false, listedByPlatform: false });
+  });
+
+  it('the pull marks the merchant\'s row with the first date the listing was seen, and only for merchant conflicts', async () => {
+    mem.tables.verify_destinations = [dest(SHARED), dest(OWN, 'tenant-other', { platform_listed_at: '2026-01-01 00:00:00' })];
+    mem.tables.verified_address_mirror = [mirrorRow(E1, PLATFORM, OWN)]; // E1 lists OWN earlier, so E2's OWN is a platform conflict
+    fetchList.mockResolvedValue({ ok: true, addresses: [{ address: SHARED_UPPER, chain: 'ethereum' }, { address: OWN, chain: 'ethereum' }] });
+    expect(await pullEntity(LATER, E2)).toEqual({ ok: true, count: 2, conflicts: 2 });
+    const rows = mem.tables.verify_destinations;
+    expect(rows.find((r) => r.value === SHARED).platform_listed_at).toBeTruthy();
+    expect(rows.find((r) => r.value === OWN).platform_listed_at).toBe('2026-01-01 00:00:00'); // the earlier date stays
+    // The mirror still names nobody.
+    expect(JSON.stringify(mirror(LATER))).not.toContain(MERCHANT);
+  });
+
+  it('the platform\'s own view of its conflicts carries the address, the chain and a word, never a party (case 7)', async () => {
+    mem.tables.verify_destinations = [dest(SHARED)];
+    fetchList.mockResolvedValue({ ok: true, addresses: [{ address: SHARED, chain: 'ethereum' }, { address: OWN, chain: 'ethereum' }] });
+    await pullEntity(PLATFORM, E1);
+    const list = await listEntityConflicts(PLATFORM, E1);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ address: SHARED, chain: 'ethereum', conflictWith: 'merchant' });
+    expect(list[0].since).toBeTruthy();
+    expect(Object.keys(list[0]).sort()).toEqual(['address', 'chain', 'conflictWith', 'since']);
+    const text = JSON.stringify(list);
+    for (const secret of [MERCHANT, 'shop.example']) expect(text).not.toContain(secret);
+    // Another tenant reads nothing of it.
+    expect(await listEntityConflicts(LATER, E1)).toEqual([]);
+  });
+
+  it('provenHoldersOf names every account holding the address proven, matched on the lookup key, for the cron only', async () => {
+    mem.tables.verify_destinations = [dest(SHARED), dest(SHARED_UPPER, 'tenant-two'), dest(OWN, 'tenant-three')];
+    expect((await provenHoldersOf(SHARED)).sort()).toEqual([MERCHANT, 'tenant-two'].sort());
+    expect(await provenHoldersOf(BASE58)).toEqual([]);
+  });
+
+  it('the sweep clears platform_listed_at once no other account\'s mirror lists the address (spec 3i)', async () => {
+    mem.tables.verify_destinations = [
+      dest(SHARED, MERCHANT, { platform_listed_at: FRESH }),            // still listed by E1
+      dest(OWN, 'tenant-other', { platform_listed_at: FRESH }),       // listing withdrawn
+      dest(BTC, 'tenant-three', { platform_listed_at: FRESH }),       // listed only by its own account's platform
+    ];
+    mem.tables.verified_address_mirror = [
+      mirrorRow(E1, PLATFORM, SHARED, { status: 'conflict', conflict_with: 'merchant' }),
+      mirrorRow(E1, 'tenant-three', BTC),
+    ];
+    expect(await clearStalePlatformListed()).toBe(2);
+    const by = (v: string) => mem.tables.verify_destinations.find((r) => r.value === v).platform_listed_at;
+    expect(by(SHARED)).toBe(FRESH);
+    expect(by(OWN)).toBeNull();
+    expect(by(BTC)).toBeNull();
   });
 });
 

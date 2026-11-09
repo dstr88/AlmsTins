@@ -66,6 +66,8 @@ vi.mock('@/lib/db', () => {
     // No legacy claims, and no other account holds the wallet.
     if (sql.startsWith('SELECT d.id, d.kind, d.value FROM verify_destinations d')) return { rows: [] };
     if (sql.startsWith('SELECT value FROM verify_destinations WHERE kind = ?')) return { rows: [] };
+    // Guard PR B (claimStateElsewhere): is a fresh platform list of another approved account carrying this address? None here.
+    if (sql.startsWith('SELECT m.address AS address FROM verified_address_mirror m JOIN verified_entities e ON e.id = m.entity_id WHERE lower(m.address) = ?')) return { rows: [] };
     // The public lookup.
     if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
     // The cross-account guard's reads (verifyEntities.ts lookup): no platform list and no second account here.

@@ -30,7 +30,7 @@ import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypt
 import { normalizeDestinationValue, addressKey, ensureVerifyTables } from './verifyRegistry';
 import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
 import { merchantAddressAssurance, staleCutoffUtc } from './verifyAnchor';
-import { classifyPulledList, type Classified } from './verifyMirrorGuard';
+import { classifyPulledList, markMerchantsListed, type Classified } from './verifyMirrorGuard';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -307,7 +307,40 @@ export async function pullEntity(tenantId: string, id: string): Promise<PullResu
     })),
   ], 'write');
   if (!Number(replaced[0]?.rowsAffected ?? 0)) return { ok: false, code: 'not_found' };
+  // Spec 3e: the merchants whose proof this list collides with learn of it on their own rows.
+  const withMerchants = result.addresses.filter((_, i) => classified[i].conflictWith === 'merchant');
+  if (withMerchants.length) await markMerchantsListed({ tenantId, entityId: id, provenAt: null }, withMerchants, now);
   return { ok: true, count: result.addresses.length, conflicts };
+}
+
+export interface EntityConflict {
+  address: string;
+  chain: string;
+  /** 'merchant' or 'platform': a word for what the entry conflicts with, never a party (G5). */
+  conflictWith: 'merchant' | 'platform';
+  /** When a pull first wrote the entry as a conflict. */
+  since: string | null;
+}
+
+/**
+ * The conflicted entries of one of this tenant's lists, for its own dashboard (spec 3h). The
+ * addresses are the platform's own published list, so nothing private is shown; the other party
+ * is a word. Tenant-scoped.
+ */
+export async function listEntityConflicts(tenantId: string, id: string): Promise<EntityConflict[]> {
+  await ensureEntityTables();
+  const res = await db.execute({
+    sql: `SELECT address, chain, conflict_with, conflict_seen_at FROM verified_address_mirror
+          WHERE entity_id = ? AND tenant_id = ? AND status = 'conflict'
+          ORDER BY conflict_seen_at ASC, address ASC`,
+    args: [id, tenantId],
+  });
+  return (res.rows as any[]).map((r) => ({
+    address: String(r.address),
+    chain: String(r.chain),
+    conflictWith: String(r.conflict_with) === 'platform' ? 'platform' : 'merchant',
+    since: r.conflict_seen_at ? String(r.conflict_seen_at) : null,
+  }));
 }
 
 /** Set endpoint + key, then immediately pull. One action for the "connect" UI. */

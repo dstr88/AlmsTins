@@ -21,7 +21,8 @@ import {
 } from './verifyTestAmount';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
 import { normalizeName, registrableLabel, nameMatchesDomain } from './verifyNameMatch';
-import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
+import { decideAnchor, decideAnchorLoss, staleCutoffUtc } from './verifyAnchor';
+import { publishingTenantIds } from './verifyEntityAccess';
 import { detectChain } from './walletChecker';
 import { encryptRosterPayload, decryptRosterDocument, getDecryptablePublicJwk } from './verifyEncryption';
 import { BECH32_ADDRESS, EVM_ADDRESS_LOWER, findEvmAddress } from './addressFormats';
@@ -79,6 +80,11 @@ export interface Destination {
   monitorUrl: string | null;
   monitorStatus: string | null;
   monitorCheckedAt: string | null;
+  /** Guard PR B (spec 3e): when a platform's published list was first seen to carry this proven
+   *  address. The merchant's proof stands (G1); the dashboard shows a pill. Set at the merchant's
+   *  flip (claimStateElsewhere) or by the platform's pull (verifyMirrorGuard.ts), cleared by the
+   *  watchman's sweep once no platform lists it. Never on a public answer. */
+  platformListedAt: string | null;
   /** Owner's dashboard only (listDestinationsForOwner): the claim was made under the old,
    *  unbound self-send rule and needs the satoshi test again before a domain can anchor it.
    *  Never on a public answer. */
@@ -87,7 +93,8 @@ export interface Destination {
 
 /** The columns mapRow reads. */
 const DEST_COLS = `id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain,
-  domain_anchored_at, last_confirmed_at, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at`;
+  domain_anchored_at, last_confirmed_at, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at,
+  platform_listed_at`;
 
 const ENSURE_SQL = `
   CREATE TABLE IF NOT EXISTS verify_destinations (
@@ -298,6 +305,13 @@ const ENSURE_MONITOR_COLS = [
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS last_confirmed_at TEXT`,
 ];
 
+// Guard PR B (spec 3e, 3i): the merchant-side mark that a platform list carries a proven address.
+// Lazy here; durable in migrations-pg/0073_verify_destination_platform_listed.sql, the two kept
+// identical by tests/verify/mirrorGuard.test.ts.
+export const PLATFORM_LISTED_DDL: readonly string[] = [
+  `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS platform_listed_at TEXT`,
+];
+
 let ensured = false;
 export async function ensureVerifyTables(): Promise<void> {
   if (ensured) return;
@@ -316,6 +330,10 @@ export async function ensureVerifyTables(): Promise<void> {
   }
   try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
   catch (e) { console.error('[verify] display_hint column not applied:', e); }
+  for (const sql of PLATFORM_LISTED_DDL) {
+    try { await db.execute({ sql, args: [] }); }
+    catch (e) { console.error('[verify] platform_listed_at column not applied:', e); }
+  }
   // Caches the last successfully decrypted + challenge-matched roster (addresses + labels),
   // encrypted to the roster key exactly like the published file (sealRosterCache), never as
   // plain JSON. The durable record of what the domain currently publishes, independent of
@@ -375,6 +393,7 @@ function mapRow(r: any): Destination {
     monitorUrl: r.monitor_url ? String(r.monitor_url) : null,
     monitorStatus: r.monitor_status ? String(r.monitor_status) : null,
     monitorCheckedAt: r.monitor_checked_at ? String(r.monitor_checked_at) : null,
+    platformListedAt: r.platform_listed_at ? String(r.platform_listed_at) : null,
   };
 }
 
@@ -582,8 +601,34 @@ export async function isClaimedElsewhere(
   kind: DestinationKind,
   value: string,
 ): Promise<boolean> {
+  return (await claimStateElsewhere(tenantId, kind, value)).claimedElsewhere;
+}
+
+export interface ClaimState {
+  /** Another account holds this canonical identity as a proven destination: do not flip (S5a). */
+  claimedElsewhere: boolean;
+  /** A fresh platform list of another, approved account carries this address (guard PR B, spec 3e).
+   *  Not a refusal: the proof outranks the listing (G1). The flip records it as platform_listed_at,
+   *  and the dashboard shows the pill. Addresses only; a payment link is never on a platform list. */
+  listedByPlatform: boolean;
+}
+
+export const NOT_CLAIMED: ClaimState = { claimedElsewhere: false, listedByPlatform: false };
+
+/**
+ * The S5a guard with one more reading (spec 3e). The first half is isClaimedElsewhere as it was;
+ * the second reads the platform mirror the same way the lookup does (listedByAnotherPlatform in
+ * verifyEntities.ts): fresh rows, verified or already a conflict, of approved publishers other than
+ * this tenant, prefiltered on the lowercased address, decided on the canonical identity in code.
+ * Neither half names the other party. Throws on a DB error (the caller fails closed).
+ */
+export async function claimStateElsewhere(
+  tenantId: string,
+  kind: DestinationKind,
+  value: string,
+): Promise<ClaimState> {
   const mine = claimIdentity(kind, value);
-  if (!mine.canonical) return false;
+  if (!mine.canonical) return NOT_CLAIMED;
   await ensureVerifyTables();
   const res = await db.execute({
     sql: `SELECT value FROM verify_destinations
@@ -592,7 +637,79 @@ export async function isClaimedElsewhere(
     args: [kind, tenantId, mine.canonical.toLowerCase()],
   });
   const others = (res.rows as any[]).map((r) => claimIdentity(kind, String(r.value)));
-  return !canAnchor(mine, others);
+  if (!canAnchor(mine, others)) return { claimedElsewhere: true, listedByPlatform: false };
+  if (kind !== 'address') return NOT_CLAIMED;
+  return { claimedElsewhere: false, listedByPlatform: await listedByPlatform(tenantId, mine) };
+}
+
+async function listedByPlatform(tenantId: string, mine: ClaimIdentity): Promise<boolean> {
+  const publishers = publishingTenantIds();
+  if (!publishers.length) return false;
+  const res = await db.execute({
+    sql: `SELECT m.address AS address FROM verified_address_mirror m
+          JOIN verified_entities e ON e.id = m.entity_id
+          WHERE lower(m.address) = ? AND m.status IN ('verified', 'conflict')
+            AND m.refreshed_at IS NOT NULL AND m.refreshed_at >= ?
+            AND e.proof_status = 'proven' AND e.tenant_id <> ?
+            AND lower(e.tenant_id) IN (${publishers.map(() => '?').join(', ')})`,
+    args: [mine.canonical.toLowerCase(), staleCutoffUtc(), tenantId, ...publishers],
+  });
+  return (res.rows as any[]).some((r) => sameClaimIdentity(mine, claimIdentity('address', String(r.address))));
+}
+
+/**
+ * Record on one of this tenant's destinations that a platform list carries it (spec 3e). Keeps the
+ * first date: the pill reads "since", and a later pull must not move it. Best-effort: the flip it
+ * follows has already happened, and the watchman's pull marks the same thing on its own.
+ */
+async function markPlatformListed(tenantId: string, destinationId: string, now: string): Promise<void> {
+  try {
+    await db.execute({
+      sql: `UPDATE verify_destinations SET platform_listed_at = COALESCE(platform_listed_at, ?)
+            WHERE id = ? AND tenant_id = ?`,
+      args: [now, destinationId, tenantId],
+    });
+  } catch (e) {
+    console.warn('[verify] platform_listed_at not recorded:', destinationId, e instanceof Error ? e.name : e);
+  }
+}
+
+/**
+ * Every tenant holding this address as a proven destination (the watchman's Pass A, to tell each
+ * merchant a platform list carries one of theirs; spec 3g). Cross-tenant by design, a privileged
+ * maintenance read: it returns tenant ids to the cron only, which emails through the recipient
+ * resolver and never puts the address in that email. Matched on the lookup's key.
+ */
+export async function provenHoldersOf(address: string): Promise<string[]> {
+  const key = addressKey(address);
+  if (!key) return [];
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT tenant_id, value FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND lower(value) = ?`,
+    args: [key.toLowerCase()],
+  });
+  return [...new Set((res.rows as any[]).filter((r) => addressKey(String(r.value)) === key).map((r) => String(r.tenant_id)))];
+}
+
+/**
+ * The watchman's sweep (spec 3i): a destination keeps its platform_listed_at only while some other
+ * account's mirror still lists the address, verified or as a conflict. A withdrawn listing, or a
+ * deleted platform, clears the merchant's pill at the next run. Returns how many it cleared.
+ */
+export async function clearStalePlatformListed(): Promise<number> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `UPDATE verify_destinations d SET platform_listed_at = NULL
+          WHERE d.platform_listed_at IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM verified_address_mirror m
+              WHERE lower(m.address) = lower(d.value) AND m.status IN ('verified', 'conflict')
+                AND m.tenant_id <> d.tenant_id
+            )`,
+    args: [],
+  });
+  return Number(res.rowsAffected ?? 0);
 }
 
 // The business-name ↔ domain rule lives in a pure module so the public cards in the
@@ -1053,7 +1170,8 @@ export async function recordProofResult(
     if (action === 'other_domain') { out.otherDomain.push(d.id); continue; }
     if (action === 'legacy_unbound') { out.legacyUnbound.push(d.id); continue; }
     try {
-      if (action !== 'reconfirm' && await isClaimedElsewhere(tenantId, 'address', d.value)) {
+      const claim = action === 'reconfirm' ? NOT_CLAIMED : await claimStateElsewhere(tenantId, 'address', d.value);
+      if (claim.claimedElsewhere) {
         out.claimedElsewhere.push(d.id);
         continue;
       }
@@ -1089,8 +1207,10 @@ export async function recordProofResult(
                     AND proof_domain = ? AND (domain_anchored_at IS NOT NULL OR proof_method = 'well_known')`,
             args: [now, now, d.id, tenantId, domain],
           });
-      if ((res.rowsAffected ?? 0) > 0) out.flipped.push(d.id);
-      else console.warn('[verify] destination not anchored (changed concurrently):', d.id);
+      if ((res.rowsAffected ?? 0) > 0) {
+        out.flipped.push(d.id);
+        if (claim.listedByPlatform) await markPlatformListed(tenantId, d.id, now);
+      } else console.warn('[verify] destination not anchored (changed concurrently):', d.id);
     } catch (e) {
       // Claim-once backstop: the partial unique index rejects an exact (rail, value) that
       // another account proved in the moment since the guard ran (Postgres 23505). Any
@@ -1280,7 +1400,8 @@ export async function recordRosterProofResult(
     if (action === 'other_domain') { out.otherDomain.push(d.id); continue; }
     if (action === 'legacy_unbound') { out.legacyUnbound.push(d.id); continue; }
     try {
-      if (action !== 'reconfirm' && await isClaimedElsewhere(tenantId, 'address', d.value)) {
+      const claim = action === 'reconfirm' ? NOT_CLAIMED : await claimStateElsewhere(tenantId, 'address', d.value);
+      if (claim.claimedElsewhere) {
         out.claimedElsewhere.push(d.id);
         continue;
       }
@@ -1309,8 +1430,10 @@ export async function recordRosterProofResult(
                     AND proof_domain = ? AND (domain_anchored_at IS NOT NULL OR proof_method = 'well_known')`,
             args: [now, now, d.id, tenantId, domain],
           });
-      if ((res.rowsAffected ?? 0) > 0) out.flipped.push(d.id);
-      else console.warn('[verify] roster destination not anchored (changed concurrently):', d.id);
+      if ((res.rowsAffected ?? 0) > 0) {
+        out.flipped.push(d.id);
+        if (claim.listedByPlatform) await markPlatformListed(tenantId, d.id, now);
+      } else console.warn('[verify] roster destination not anchored (changed concurrently):', d.id);
     } catch (e) {
       if ((e as { code?: string })?.code === '23505') out.claimedElsewhere.push(d.id);
       console.warn('[verify] roster destination not anchored (already claimed elsewhere?):', d.id, e);
@@ -2042,7 +2165,8 @@ export async function verifyMicroDeposit(
   // S5a: another account already proved this wallet under another spelling or rail,
   // which the exact index below can't see. Hold this one out. A DB error here throws,
   // so nothing flips (fail closed).
-  if (await isClaimedElsewhere(tenantId, 'address', dest.value)) {
+  const claim = await claimStateElsewhere(tenantId, 'address', dest.value);
+  if (claim.claimedElsewhere) {
     await record('claimed_elsewhere');
     return { outcome: 'claimed_elsewhere' };
   }
@@ -2086,5 +2210,7 @@ export async function verifyMicroDeposit(
           WHERE destination_id = ? AND tenant_id = ?`,
     args: [stamp, detected.ref, stamp, stamp, destinationId, tenantId],
   });
+  // Spec 3e: a platform list already carries this address. The proof stands; the row says so.
+  if (claim.listedByPlatform) await markPlatformListed(tenantId, destinationId, stamp);
   return { outcome: 'proven', ref: detected.ref };
 }

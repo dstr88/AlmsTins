@@ -33,6 +33,8 @@ vi.mock('@/lib/verifyRegistry', async (importOriginal) => {
     markDomainProofRechecked: reg.markDomainProofRechecked,
     markDomainProofFailed: reg.markDomainProofFailed,
     listMonitoredDestinations: async () => [],
+    provenHoldersOf: async () => [],
+    clearStalePlatformListed: async () => 0,
   };
 });
 vi.mock('@/lib/verifyProof', async (importOriginal) => {
