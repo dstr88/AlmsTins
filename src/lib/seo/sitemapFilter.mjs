@@ -38,7 +38,7 @@ const OWNER_ONLY_PATHS = new Set(['/tax/', '/tax-login/', '/year-summary/']);
 // A signed-in page outside the denylisted prefixes: a sitemap is a public list, and this page is for one account only.
 // The plans, redeem and info pages send a signed-out visitor to the sign-in page (they are not in the auth
 // middleware's public list), and /aave-alisis redirects there itself, so a crawler gets a login, not the page.
-const SIGNED_IN_PATHS = new Set(['/agentics/account/', '/myplans/', '/premiumplan/', '/redeem/', '/info/', '/aave-alisis/']);
+const SIGNED_IN_PATHS = new Set(['/agentics/account/', '/myplans/', '/redeem/', '/info/', '/aave-alisis/']);
 
 // Redirects, not pages: the sitemap lists where a redirect lands, never the redirect.
 const REDIRECT_PATHS = new Set(['/marchand/']);
