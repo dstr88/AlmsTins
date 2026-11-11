@@ -1,15 +1,38 @@
 import crypto from 'node:crypto';
-import nodemailer from 'nodemailer';
 import { db } from './db';
+import { sendMail } from './email';
 import { ensureFreeSubscription } from './subscriptions';
+import { getSignInContext, methodLabel } from './signupService';
 
 const TENANT_ALERT_EMAIL = 'donnie@titaniumhut.com';
 
-async function sendTenantAlert(userId: string, tenantId: string) {
-	const server = import.meta.env.EMAIL_SERVER;
-	const from = import.meta.env.EMAIL_FROM;
-	if (!server || !from) return;
+/**
+ * The owner's notice that an account got its first tenant. It names the service the sign-in was
+ * headed for and how it signed in (src/lib/signupService.ts), so a spam signup can be told apart
+ * at a glance. Outside a sign-in (onboarding) both read Unknown. Never throws: a failed notice
+ * must not fail a sign-in.
+ */
+export function tenantAlertMessage(input: {
+	userId: string;
+	tenantId: string;
+	email: string | null;
+	service: string;
+	method: string;
+}): { subject: string; text: string } {
+	return {
+		subject: `New tenant created: ${input.service}`,
+		text: [
+			'A new tenant was created.',
+			`Service: ${input.service}`,
+			`Sign-in: ${input.method}`,
+			`User: ${input.userId}`,
+			`Email: ${input.email ?? 'unknown'}`,
+			`Tenant: ${input.tenantId}`,
+		].join('\n'),
+	};
+}
 
+async function sendTenantAlert(userId: string, tenantId: string) {
 	let email: string | null = null;
 	try {
 		const userResult = await db.execute({
@@ -21,14 +44,16 @@ async function sendTenantAlert(userId: string, tenantId: string) {
 		email = null;
 	}
 
+	const ctx = getSignInContext();
+	const message = tenantAlertMessage({
+		userId,
+		tenantId,
+		email,
+		service: ctx?.service.label ?? 'Unknown',
+		method: methodLabel(ctx?.provider),
+	});
 	try {
-		const transport = nodemailer.createTransport(server);
-		await transport.sendMail({
-			to: TENANT_ALERT_EMAIL,
-			from,
-			subject: 'New tenant created',
-			text: `A new tenant was created.\nUser: ${userId}\nEmail: ${email ?? 'unknown'}\nTenant: ${tenantId}`,
-		});
+		await sendMail({ to: TENANT_ALERT_EMAIL, subject: message.subject, text: message.text });
 	} catch (error) {
 		console.warn('[tenants] Failed to send tenant alert email', error);
 	}
