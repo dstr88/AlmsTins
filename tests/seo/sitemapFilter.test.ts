@@ -33,7 +33,7 @@ describe('sitemap filter', () => {
   });
 
   it('leaves out pages that send a signed-out visitor to the sign-in page, and redirects', () => {
-    for (const p of ['/myplans/', '/PremiumPlan/', '/redeem/', '/info/', '/aave-alisis/', '/marchand/', '/myplans', '/marchand']) {
+    for (const p of ['/myplans/', '/redeem/', '/info/', '/aave-alisis/', '/marchand/', '/myplans', '/marchand']) {
       expect(sitemapFilter(url(p)), p).toBe(false);
     }
     for (const p of ['/about/', '/privacy/', '/changelog/', '/prices/', '/wallet-checker/']) expect(sitemapFilter(url(p)), p).toBe(true);

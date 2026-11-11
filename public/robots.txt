@@ -2,7 +2,6 @@ User-agent: *
 Allow: /
 Allow: /wallet-checker
 Allow: /myplans
-Allow: /PremiumPlan
 
 # Keep authenticated and transactional pages out of indexes
 Disallow: /dashboard/
