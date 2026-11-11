@@ -14,6 +14,7 @@ import { authorizeCredentials } from '@/lib/credentialsAuth';
 import { guardSignIn } from '@/lib/authLinkGuard';
 import { routeSignInError } from '@/lib/authErrorRedirect';
 import { callbackHeaders, jwtCallback, rateLimitedRedirect } from '@/lib/authRoute';
+import { callbackUrlFromRequest, formCallbackUrl, noteSignInProvider, runWithSignInContext } from '@/lib/signupService';
 
 const providers = [];
 
@@ -82,6 +83,8 @@ const authConfig = {
 	},
 	callbacks: {
 		async signIn({ user, account, profile, email }: { user?: any; account?: any; profile?: any; email?: any }) {
+			// The method, for the new-tenant notice (src/lib/signupService.ts). A label only.
+			noteSignInProvider(account?.provider);
 			// ── Blocked email-domain screen (sanctions supplement; weak signal) ────
 			// Reject any sign-in / sign-up whose email domain is on the blocklist.
 			// The IP geo-block (src/middleware/geoblock.ts) is the primary control.
@@ -421,7 +424,12 @@ export const GET: APIRoute = async ({ request }) => {
 	const configError = earlyConfigCheck();
 	if (configError) return configError;
 	try {
-		return await Auth(buildAuthRequest(request, await callbackHeaders(request)), authConfig);
+		const headers = await callbackHeaders(request);
+		// Where the sign-in is headed (the emailed link's query, or the callback-url cookie), so a
+		// tenant created by this request can name its service. A label only.
+		return await runWithSignInContext(callbackUrlFromRequest(request), () =>
+			Auth(buildAuthRequest(request, headers), authConfig),
+		);
 	} catch (error) {
 		logAuthError(request, error);
 		return buildAuthFailureResponse(request);
@@ -435,7 +443,13 @@ export const POST: APIRoute = async ({ request }) => {
 	const limited = rateLimitedRedirect(request);
 	if (limited) return limited;
 	try {
-		const response = await Auth(buildAuthRequest(request, await callbackHeaders(request)), authConfig);
+		const headers = await callbackHeaders(request);
+		// A password sign-in carries its destination in the form; read it from a copy so Auth.js
+		// still gets the untouched body.
+		const fromForm = await formCallbackUrl(request);
+		const response = await runWithSignInContext(callbackUrlFromRequest(request, fromForm), () =>
+			Auth(buildAuthRequest(request, headers), authConfig),
+		);
 		// Errors land on the page the form was posted from (and keep ?code=).
 		return routeSignInError(request, response);
 	} catch (error) {
