@@ -13,12 +13,13 @@ const AAVE_SELECTORS = new Map<string, string>([
 	['0x69328dec', 'withdraw'],
 ]);
 
-type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon'>;
+type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon' | 'arbitrum'>;
 
 const ETHEREUM_CHAIN_ID = CHAIN_IDS.ethereum;
 const ETHERSCAN_CHAIN_IDS: Record<EtherscanChain, number> = {
 	ethereum: CHAIN_IDS.ethereum,
 	polygon: CHAIN_IDS.polygon,
+	arbitrum: CHAIN_IDS.arbitrum,
 };
 
 export type ScanChain = SupportedChain;
@@ -54,7 +55,7 @@ export function buildScanUrl(chain: ScanChain, params: ScanParams) {
 	if (chain === 'ethereum') {
 		return buildEtherscanV2Url(ETHEREUM_CHAIN_ID, params);
 	}
-	if (chain === 'polygon') {
+	if (chain === 'polygon' || chain === 'arbitrum') {
 		return buildEtherscanV2Url(ETHERSCAN_CHAIN_IDS[chain], params);
 	}
 	if (chain === 'avalanche') {

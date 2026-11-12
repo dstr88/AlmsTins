@@ -23,6 +23,7 @@ export const CHAIN_IDS = {
   ethereum: CHAINS.ethereum.evmChainId,
   polygon: CHAINS.polygon.evmChainId,
   avalanche: CHAINS.avalanche.evmChainId,
+  arbitrum: CHAINS.arbitrum.evmChainId,
 } as const;
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';

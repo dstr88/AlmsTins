@@ -6,10 +6,10 @@ import { extractSpamDomains, savePhishingDomains } from '@/lib/phishingDomains';
 import { CHAINS, type EVM_DISCOVERY_CHAINS } from '@/lib/chains';
 
 /**
- * Every token an Ethereum or Polygon wallet holds, read from Alchemy: the native coin plus each
+ * Every token an Ethereum, Polygon or Arbitrum wallet holds, read from Alchemy: the native coin plus each
  * ERC-20 with a balance, minus scam copies and phishing airdrops.
  *
- * Both writers of a wallet's Ethereum and Polygon snapshot use this (Sync Tins through
+ * Both writers of a wallet's Ethereum, Polygon and Arbitrum snapshot use this (Sync Tins through
  * computeWalletValue, and the wallet card's refresh in /api/wallets/[id]/tokens). They used to
  * build the snapshot two different ways: Sync Tins read a short hand-kept list of contracts and
  * the card read Alchemy's ERC-20 list without the native coin. Whichever ran last became the
@@ -21,6 +21,7 @@ export type EvmDiscoveryChain = (typeof EVM_DISCOVERY_CHAINS)[number];
 const ALCHEMY_CHAIN: Record<EvmDiscoveryChain, AlchemyChain> = {
 	ethereum: 'eth-mainnet',
 	polygon: 'polygon-mainnet',
+	arbitrum: 'arb-mainnet',
 };
 
 

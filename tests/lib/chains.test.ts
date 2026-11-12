@@ -46,11 +46,11 @@ describe('chains: each feature list keeps the members it had', () => {
 		['CREATE_WALLET_FALLBACK_CHAINS (wallets.createWallet)', CREATE_WALLET_FALLBACK_CHAINS, ['ethereum', 'avalanche']],
 		['SYNC_CRON_FALLBACK_CHAINS (cron/sync-wallets)', SYNC_CRON_FALLBACK_CHAINS, ['ethereum', 'polygon']],
 		['WALLET_SYNC_EVM_CHAINS (sync/syncTransactions)', WALLET_SYNC_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche']],
-		['EVM_DISCOVERY_CHAINS (wallets/[id]/tokens)', EVM_DISCOVERY_CHAINS, ['ethereum', 'polygon']],
+		['EVM_DISCOVERY_CHAINS (wallets/[id]/tokens)', EVM_DISCOVERY_CHAINS, ['ethereum', 'polygon', 'arbitrum']],
 		['WALLET_TX_CHAINS (wallets/[id]/transactions)', WALLET_TX_CHAINS, ['ethereum', 'avalanche', 'polygon']],
 		['VAULT_CHAINS (agentVault)', VAULT_CHAINS, ['ethereum', 'polygon', 'avalanche']],
 		['VERIFY_ADDRESS_RAILS (verifyRegistry, VerifyDashboard)', VERIFY_ADDRESS_RAILS, ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin']],
-		['NETWORTH_CHAINS (networth)', NETWORTH_CHAINS, ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr']],
+		['NETWORTH_CHAINS (networth)', NETWORTH_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr']],
 		['TIN_BADGE_EVM_CHAINS (vault.astro)', TIN_BADGE_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum']],
 		['EXPLORER_EVM_CHAINS (explorerLinks)', EXPLORER_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'bsc']],
 	])('%s', (_name, list, expected) => {
@@ -118,8 +118,8 @@ describe('chains: native coins', () => {
 });
 
 describe('chains: EVM ids and Aave markets', () => {
-	it('CHAIN_IDS in etherscan.ts is unchanged', () => {
-		expect(CHAIN_IDS).toEqual({ ethereum: 1, polygon: 137, avalanche: 43114 });
+	it('CHAIN_IDS in etherscan.ts keeps its ids', () => {
+		expect(CHAIN_IDS).toEqual({ ethereum: 1, polygon: 137, avalanche: 43114, arbitrum: 42161 });
 		expect(evmChainId('polygon')).toBe(137);
 		expect(evmChainId('bitcoin')).toBeNull();
 	});
