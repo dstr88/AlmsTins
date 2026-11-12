@@ -61,6 +61,11 @@ export function serviceForPath(path: string | null | undefined): SignupService {
 	return SERVICES['wallet-watcher'];
 }
 
+/** The label of a stored service id, as the owner's list words it; Unknown for a missing or unrecognised id. */
+export function serviceLabelForId(id: string | null | undefined): string {
+	return id && Object.prototype.hasOwnProperty.call(SERVICES, id) ? SERVICES[id as SignupServiceId].label : SERVICES.unknown.label;
+}
+
 /** A sign-in method as the notice words it. */
 export function methodLabel(provider: string | null | undefined): string {
 	switch (provider) {
@@ -134,13 +139,15 @@ export interface SignInContext {
 	service: SignupService;
 	/** The provider id once the signIn callback knows it (google, github, email, credentials). */
 	provider: string | null;
+	/** The two-letter country Cloudflare gives this request, or null. */
+	country: string | null;
 }
 
 const storage = new AsyncLocalStorage<SignInContext>();
 
-/** Run one auth request with its destination recorded. */
-export function runWithSignInContext<T>(callbackUrl: string | null, fn: () => T): T {
-	return storage.run({ service: serviceForPath(callbackUrl), provider: null }, fn);
+/** Run one auth request with its destination and its country recorded. */
+export function runWithSignInContext<T>(callbackUrl: string | null, fn: () => T, country: string | null = null): T {
+	return storage.run({ service: serviceForPath(callbackUrl), provider: null, country }, fn);
 }
 
 /** The current auth request's context, or undefined outside one (onboarding, scripts). */
