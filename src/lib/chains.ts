@@ -236,8 +236,11 @@ export const SYNC_CRON_FALLBACK_CHAINS = ['ethereum', 'polygon'] as const satisf
 /** The chains the EVM transaction sync (src/lib/sync/syncTransactions.ts) reads from Etherscan and Routescan. */
 export const WALLET_SYNC_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const satisfies readonly ChainId[];
 
-/** The chains whose full token list is read from Alchemy (src/lib/evmTokenDiscovery.ts). */
-export const EVM_DISCOVERY_CHAINS = ['ethereum', 'polygon'] as const satisfies readonly ChainId[];
+/**
+ * The chains whose full token list is read from Alchemy (src/lib/evmTokenDiscovery.ts). Arbitrum
+ * is read only for a wallet that lists it.
+ */
+export const EVM_DISCOVERY_CHAINS = ['ethereum', 'polygon', 'arbitrum'] as const satisfies readonly ChainId[];
 
 /** The chains /api/wallets/[id]/transactions reads and accepts, in the order its error message lists them. */
 export const WALLET_TX_CHAINS = ['ethereum', 'avalanche', 'polygon'] as const satisfies readonly ChainId[];
@@ -252,7 +255,7 @@ export const VERIFY_ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoi
 export const VERIFY_EVM_RAILS: ReadonlySet<string> = new Set(VERIFY_ADDRESS_RAILS.filter((c) => CHAINS[c].family === 'evm'));
 
 /** The chains whose snapshot tokens count toward net worth (src/lib/networth.ts). */
-export const NETWORTH_CHAINS = ['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr'] as const satisfies readonly ChainId[];
+export const NETWORTH_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr'] as const satisfies readonly ChainId[];
 
 /** The EVM chains a dashboard tin's badge names on its own (vault.astro); any other mix shows ETH. */
 export const TIN_BADGE_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];

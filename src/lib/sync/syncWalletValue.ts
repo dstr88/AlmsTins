@@ -93,12 +93,12 @@ export async function syncWalletValuesForAllWallets(tenantId: string): Promise<W
 }
 
 /**
- * Ethereum and Polygon balances come from Alchemy's full token list, the same source the wallet
+ * Ethereum, Polygon and Arbitrum balances come from Alchemy's full token list, the same source the wallet
  * card's refresh uses, so the two never disagree about what the wallet holds. The short list in
  * balances.ts is the fallback when Alchemy is unreachable, and the only source for other chains.
  */
 async function getChainBalances(chain: SupportedChain, address: string, walletId: string): Promise<TokenBalance[]> {
-	if (chain === 'ethereum' || chain === 'polygon') {
+	if (chain === 'ethereum' || chain === 'polygon' || chain === 'arbitrum') {
 		try {
 			return await discoverEvmBalances(chain, address);
 		} catch (error) {

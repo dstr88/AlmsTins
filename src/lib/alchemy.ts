@@ -3,7 +3,7 @@
 // Server startup env sanity (boolean only).
 console.log('[env] ALCHEMY_API_KEY present', Boolean(process.env.ALCHEMY_API_KEY));
 
-export type AlchemyChain = 'eth-mainnet' | 'polygon-mainnet';
+export type AlchemyChain = 'eth-mainnet' | 'polygon-mainnet' | 'arb-mainnet';
 
 type AlchemyRpcBody = {
 	jsonrpc: '2.0';
@@ -15,6 +15,7 @@ type AlchemyRpcBody = {
 const ALCHEMY_BASE_URL: Record<AlchemyChain, string> = {
 	'eth-mainnet': 'https://eth-mainnet.g.alchemy.com/v2',
 	'polygon-mainnet': 'https://polygon-mainnet.g.alchemy.com/v2',
+	'arb-mainnet': 'https://arb-mainnet.g.alchemy.com/v2',
 };
 
 export async function alchemyRpc(chain: AlchemyChain, body: AlchemyRpcBody) {
@@ -75,7 +76,7 @@ export async function getAllTokenBalances(chain: AlchemyChain, address: string) 
 	return tokenBalances;
 }
 
-/** The wallet's native coin balance (ETH on eth-mainnet, POL on polygon-mainnet), in wei. */
+/** The wallet's native coin balance (ETH on eth-mainnet, POL on polygon-mainnet, ETH on arb-mainnet), in wei. */
 export async function getNativeBalanceWei(chain: AlchemyChain, address: string): Promise<bigint> {
 	const result = await alchemyRpc(chain, {
 		jsonrpc: '2.0',

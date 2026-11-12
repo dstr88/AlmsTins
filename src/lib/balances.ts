@@ -41,6 +41,7 @@ const NATIVE_TOKEN_META: Partial<Record<SupportedChain, { symbol: string; decima
 	ethereum: CHAINS.ethereum.native,
 	polygon: CHAINS.polygon.native,
 	avalanche: CHAINS.avalanche.native,
+	arbitrum: CHAINS.arbitrum.native,
 };
 
 type ChainToken = {

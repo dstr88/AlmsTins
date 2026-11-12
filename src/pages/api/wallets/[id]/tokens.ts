@@ -504,9 +504,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 				if (isEvm) {
 					// Same function Sync Tins uses, so both write identical, priced snapshots. Ethereum
-					// and Polygon read from Alchemy; Avalanche, refreshed here when the wallet lists it
-					// (it used to be left to Sync Tins alone), reads from balances.ts.
-					const snapshotChains: SupportedChain[] = [...EVM_DISCOVERY_CHAINS];
+					// and Polygon read from Alchemy, and Arbitrum does too when the wallet lists it. Avalanche,
+					// refreshed here when the wallet lists it (it used to be left to Sync Tins alone), reads
+					// from balances.ts.
+					const snapshotChains: SupportedChain[] = EVM_DISCOVERY_CHAINS.filter((c) => c !== 'arbitrum' || walletChains.includes(c));
 					if (walletChains.includes('avalanche')) snapshotChains.push('avalanche');
 					for (const chain of snapshotChains) {
 						const [breakdown] = await computeWalletValue(tenantId, walletId, walletAddress, [chain]);
