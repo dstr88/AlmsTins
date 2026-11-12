@@ -37,9 +37,9 @@ export const TENANT_TABLES = [
   'tenant_outbound_emails',
   // Community contributions, support, billing and the operator's activity log. The receivables
   // plan row is the account's own (which plan, and whether its free plan is locked), not a record
-  // another party relies on, so it goes with the account.
+  // another party relies on, so it goes with the account. So does the Verify plan row.
   'address_fraud_reports', 'address_reviews', 'community_wallet_flags', 'support_messages',
-  'subscriptions', 'receivables_subscriptions', 'admin_activity_log',
+  'subscriptions', 'receivables_subscriptions', 'verify_subscriptions', 'admin_activity_log',
   // The legacy profile row and memberships
   'users', 'memberships',
 ] as const;

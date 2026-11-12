@@ -45,16 +45,16 @@ const rows = (tenant: string, kind?: string) =>
 describe('the plan an account is on', () => {
   it('is Free for every account but the owner: 2 addresses and 1 payment QR', async () => {
     for (const tenant of [A, B, '00000000-0000-4000-8000-000000000002', 'x']) {
-      expect(await ent.getVerifyEntitlements(tenant), tenant).toEqual({ plan: 'free', label: 'Free', limits: { address: 2, qr: 1 } });
+      expect(await ent.getVerifyEntitlements(tenant), tenant).toEqual({ plan: 'free', label: 'Free', limits: { address: 2, qr: 1, total: null } });
     }
-    expect(ent.VERIFY_FREE_LIMITS).toEqual({ address: 2, qr: 1 });
+    expect(ent.VERIFY_FREE_LIMITS).toEqual({ address: 2, qr: 1, total: null });
     expect(reg.FREE_LIMIT_ADDRESS).toBe(2);
     expect(reg.FREE_LIMIT_QR).toBe(1);
   });
 
   it('is Unlimited for the owner, whatever the case of the id', async () => {
     for (const id of [OWNER_TENANT_ID, OWNER_TENANT_ID.toUpperCase()]) {
-      expect(await ent.getVerifyEntitlements(id)).toEqual({ plan: 'unlimited', label: 'Unlimited', limits: { address: null, qr: null } });
+      expect(await ent.getVerifyEntitlements(id)).toEqual({ plan: 'unlimited', label: 'Unlimited', limits: { address: null, qr: null, total: null } });
     }
   });
 });

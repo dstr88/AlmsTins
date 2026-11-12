@@ -35,6 +35,7 @@ export interface VerifyDashboardLocale {
   copied: string;
   loading: string;
   limitReached: string; // "… ({n}) …"
+  planLimitReached: string; // a paid plan at its total: "{plan}", "{n}"
   // Row
   confirmRemove: string;
   removeAria: string;
@@ -274,6 +275,7 @@ export const en: VerifyDashboardLocale = {
   copied: 'Copied',
   loading: 'Loading…',
   limitReached: 'Free early-access limit reached ({n}). More capacity is coming.',
+  planLimitReached: 'This account has all {n} destinations of the {plan} plan. Remove one to add another, or contact us for a larger plan.',
   confirmRemove: 'Remove this destination?',
   removeAria: 'Remove destination',
   chainAria: 'Chain',
@@ -503,6 +505,7 @@ export const es: VerifyDashboardLocale = {
   copied: 'Copiado',
   loading: 'Cargando…',
   limitReached: 'Límite de acceso anticipado gratuito alcanzado ({n}). Pronto habrá más capacidad.',
+  planLimitReached: 'Esta cuenta ya tiene los {n} destinos del plan {plan}. Elimina uno para añadir otro, o escríbenos para un plan mayor.',
   confirmRemove: '¿Eliminar este destino?',
   removeAria: 'Eliminar destino',
   chainAria: 'Cadena',
@@ -732,6 +735,7 @@ export const fr: VerifyDashboardLocale = {
   copied: 'Copié',
   loading: 'Chargement…',
   limitReached: 'Limite d’accès anticipé gratuit atteinte ({n}). Plus de capacité arrive bientôt.',
+  planLimitReached: 'Ce compte a déjà les {n} destinations du forfait {plan}. Supprimez-en une pour en ajouter une autre, ou écrivez-nous pour un forfait supérieur.',
   confirmRemove: 'Supprimer cette destination ?',
   removeAria: 'Supprimer la destination',
   chainAria: 'Chaîne',

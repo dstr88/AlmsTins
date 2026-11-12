@@ -1,0 +1,163 @@
+/* VerifyPlans: presentation only.
+   Markup lives in VerifyPlans.astro, behavior in verifyPlans.client.ts, words in
+   verifyPlans.copy.ts. Nothing here encodes logic: a state is a class or an attribute
+   the client script sets, never a style it writes inline.
+
+   The /admin page's own styles are scoped to its markup, so the heading and the table
+   here repeat its look (uppercase section title, bordered table card) by value. */
+
+.vplans { margin-bottom: 2rem; }
+
+.vplans__title {
+	margin: 0 0 0.35rem;
+	font-size: 0.78rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: rgba(255,255,255,0.4);
+}
+.vplans__intro {
+	margin: 0 0 0.85rem;
+	font-size: 0.82rem;
+	color: rgba(255,255,255,0.45);
+}
+
+/* The form: one row on a wide screen, wrapping as the page narrows. */
+.vplans__form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+	margin-bottom: 0.5rem;
+}
+.vplans__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	flex: 0 1 12rem;
+	min-width: 0;
+}
+.vplans__field--account { flex: 1 1 16rem; }
+/* Wide enough for the longest plan name with its number beside it. */
+.vplans__field--plan { flex-basis: 15rem; }
+.vplans__field--note { flex: 2 1 18rem; }
+.vplans__label {
+	font-size: 0.72rem;
+	color: rgba(255,255,255,0.4);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+.vplans__in {
+	width: 100%;
+	padding: 0.45rem 0.6rem;
+	border-radius: 7px;
+	border: 1px solid rgba(255,255,255,0.12);
+	background: rgba(255,255,255,0.03);
+	color: #e2e8f0;
+	font: inherit;
+	font-size: 0.85rem;
+	box-sizing: border-box;
+	color-scheme: dark;
+}
+.vplans__in:focus-visible { outline: 2px solid #6366f1; outline-offset: 1px; }
+.vplans__in:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.vplans__submit {
+	padding: 0.48rem 1rem;
+	border-radius: 7px;
+	border: 1px solid rgba(99,102,241,0.5);
+	background: rgba(99,102,241,0.18);
+	color: #c7d2fe;
+	font: inherit;
+	font-size: 0.85rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+.vplans__submit:hover:not(:disabled) { background: rgba(99,102,241,0.3); }
+.vplans__submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.vplans__status {
+	min-height: 1.2rem;
+	margin: 0 0 0.75rem;
+	font-size: 0.82rem;
+	color: rgba(255,255,255,0.45);
+}
+.vplans__status--ok { color: #86efac; }
+.vplans__status--error { color: #fca5a5; }
+
+/* The list. */
+.vplans__wrap {
+	background: rgba(255,255,255,0.03);
+	border: 1px solid rgba(255,255,255,0.07);
+	border-radius: 12px;
+	overflow-x: auto;
+}
+.vplans__table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.82rem;
+}
+.vplans__table th {
+	text-align: left;
+	padding: 0.5rem 0.75rem;
+	color: rgba(255,255,255,0.35);
+	font-weight: 500;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	border-bottom: 1px solid rgba(255,255,255,0.07);
+	white-space: nowrap;
+}
+.vplans__table td {
+	padding: 0.6rem 0.75rem;
+	border-bottom: 1px solid rgba(255,255,255,0.05);
+	color: #cbd5e1;
+	vertical-align: top;
+}
+.vplans__table tr:last-child td { border-bottom: none; }
+.vplans__table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+
+.vplans__email { display: block; }
+.vplans__tenant {
+	display: block;
+	font-family: ui-monospace, monospace;
+	font-size: 0.7rem;
+	color: rgba(255,255,255,0.35);
+}
+.vplans__muted { color: rgba(255,255,255,0.4); }
+.vplans__note {
+	max-width: 22rem;
+	overflow-wrap: anywhere;
+}
+
+.vplans__pill {
+	display: inline-block;
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	font-size: 0.7rem;
+	font-weight: 600;
+	background: rgba(255,255,255,0.08);
+	color: rgba(255,255,255,0.6);
+}
+.vplans__pill--live { background: rgba(74,222,128,0.15); color: #86efac; }
+.vplans__pill--ended { background: rgba(251,191,36,0.15); color: #fcd34d; }
+
+.vplans__edit {
+	font: inherit;
+	font-size: 0.78rem;
+	padding: 0.2rem 0.6rem;
+	border-radius: 6px;
+	border: 1px solid rgba(255,255,255,0.12);
+	background: transparent;
+	color: #cbd5e1;
+	cursor: pointer;
+}
+.vplans__edit:hover { background: rgba(255,255,255,0.07); }
+
+.vplans__empty {
+	margin: 0;
+	padding: 0.85rem 0.75rem;
+	font-size: 0.82rem;
+	color: rgba(255,255,255,0.35);
+}
+.vplans__empty[hidden] { display: none; }

@@ -1,0 +1,87 @@
+---
+/**
+ * VerifyPlans.astro: the owner's switch for Verify plans on /admin.
+ *
+ * A form that puts one account on Free, Business or Pro, and under it the list of every account
+ * that has a plan row: the plan, whether it is live, what it counts as today and how many
+ * destinations the account holds. Until billing is wired this is how a customer is upgraded:
+ * they pay an invoice, the owner sets the plan here.
+ *
+ * ── Rendering split ─────────────────────────────────────────────────────────
+ * The server renders the form and an empty table. The client fetches the rows from
+ * /api/admin/verify-plan on load and again after every change, so there is one row
+ * renderer and the list always shows what the database holds.
+ *
+ * ── Files ───────────────────────────────────────────────────────────────────
+ * Words in verifyPlans.copy.ts, behavior in verifyPlans.client.ts, presentation in
+ * VerifyPlans.css. The rules (which account an email names, what Free does to a row) are in
+ * src/lib/verifyPlanAdmin.ts, behind the route.
+ */
+import { VERIFY_PLANS, VERIFY_PLAN_ORDER } from '@/lib/verifyPlans';
+import { VERIFY_PLAN_NOTE_MAX } from '@/lib/verifyPlanAdmin';
+import { VERIFY_PLANS_COPY as copy } from './verifyPlans.copy';
+import './VerifyPlans.css';
+
+// A paid-through date is a UTC day, so the earliest one the picker offers is today in UTC.
+const today = new Date().toISOString().slice(0, 10);
+
+const options = VERIFY_PLAN_ORDER.map((id) => {
+	const { name, limits } = VERIFY_PLANS[id];
+	const label = limits.total !== null
+		? copy.planTotal.replace('{name}', name).replace('{n}', String(limits.total))
+		: copy.planPerKind.replace('{name}', name).replace('{a}', String(limits.address)).replace('{q}', String(limits.qr));
+	return { id, label };
+});
+---
+
+<section class="vplans" id="verify-plans">
+	<h2 class="vplans__title">{copy.title}</h2>
+	<p class="vplans__intro">{copy.intro}</p>
+
+	<form class="vplans__form" novalidate>
+		<label class="vplans__field vplans__field--account">
+			<span class="vplans__label">{copy.account}</span>
+			<input class="vplans__in" name="account" type="text" autocomplete="off" spellcheck="false" placeholder={copy.accountHint} required />
+		</label>
+		<label class="vplans__field vplans__field--plan">
+			<span class="vplans__label">{copy.plan}</span>
+			<select class="vplans__in" name="plan">
+				{options.map((o) => <option value={o.id} selected={o.id === 'business'}>{o.label}</option>)}
+			</select>
+		</label>
+		<label class="vplans__field">
+			<span class="vplans__label">{copy.paidThrough}</span>
+			<input class="vplans__in" name="paidThrough" type="date" min={today} title={copy.paidThroughHint} />
+		</label>
+		<label class="vplans__field vplans__field--note">
+			<span class="vplans__label">{copy.note}</span>
+			<input class="vplans__in" name="note" type="text" autocomplete="off" maxlength={VERIFY_PLAN_NOTE_MAX} placeholder={copy.noteHint} />
+		</label>
+		<button class="vplans__submit" type="submit">{copy.submit}</button>
+	</form>
+	<p class="vplans__status" role="status" aria-live="polite"></p>
+
+	<div class="vplans__wrap">
+		<table class="vplans__table">
+			<thead>
+				<tr>
+					<th>{copy.colAccount}</th>
+					<th>{copy.colPlan}</th>
+					<th>{copy.colState}</th>
+					<th>{copy.colReadsAs}</th>
+					<th>{copy.colPaidThrough}</th>
+					<th>{copy.colDestinations}</th>
+					<th>{copy.colNote}</th>
+					<th>{copy.colChanged}</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody class="vplans__rows" aria-busy="true"></tbody>
+		</table>
+		<p class="vplans__empty">{copy.loading}</p>
+	</div>
+</section>
+
+<script>
+	import './verifyPlans.client.ts';
+</script>

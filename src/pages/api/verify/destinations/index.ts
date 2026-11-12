@@ -1,7 +1,8 @@
 /**
  * GET  /api/verify/destinations  — list the tenant's registered Destinations (with the
  *                                  owner-only needsReproof flag; see listDestinationsForOwner)
- *                                  and the plan's limits per kind (verifyEntitlements.ts)
+ *                                  the plan the account is on (id and name) and its limits:
+ *                                  per kind, and in total over both kinds (verifyEntitlements.ts)
  * POST /api/verify/destinations  — register a new Destination (capped by the plan; 403 limit_reached)
  */
 import type { APIRoute } from 'astro';
@@ -19,8 +20,13 @@ export const GET: APIRoute = async ({ request }) => {
     listDestinationsForOwner(session.tenantId),
     getVerifyEntitlements(session.tenantId),
   ]);
-  // The plan's caps per kind (null: no limit), so the dashboard words the same rule the write enforces.
-  return json({ ok: true, destinations, limits: entitlements.limits });
+  // The plan and its caps (null: no limit), so the dashboard words the same rule the write enforces.
+  return json({
+    ok: true,
+    destinations,
+    plan: { id: entitlements.plan, name: entitlements.label },
+    limits: entitlements.limits,
+  });
 };
 
 export const POST: APIRoute = async ({ request }) => {
