@@ -410,6 +410,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 			});
 		}
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
+		// force=1 skips the staleness gate below. The wallet card sends it after its chain list
+		// changes, so a chain the owner has just ticked is read now, not 15 minutes later.
+		const forceRefresh = url.searchParams.get('force') === '1';
 		const walletRow = walletResult.rows?.[0] as { address?: string | null; chains?: string | null; label?: string | null } | undefined;
 		const walletAddress = String(walletRow?.address ?? '').trim();
 		const walletLabel = String(walletRow?.label ?? '').trim() || null;
@@ -466,7 +469,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		// from anyway. A user who wants fresher data has Sync Tins, which is unthrottled.
 		const REFRESH_MIN_AGE_MS = 15 * 60 * 1000;
 		let refreshFresh = false;
-		if (refreshMissing && tenantId !== DEMO_TENANT_ID) {
+		if (refreshMissing && tenantId !== DEMO_TENANT_ID && !forceRefresh) {
 			try {
 				const ageRes = await db.execute({
 					sql: `SELECT MAX(captured_at) AS captured_at

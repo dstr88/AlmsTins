@@ -245,6 +245,9 @@ export const EVM_DISCOVERY_CHAINS = ['ethereum', 'polygon', 'arbitrum'] as const
 /** The chains /api/wallets/[id]/transactions reads and accepts, in the order its error message lists them. */
 export const WALLET_TX_CHAINS = ['ethereum', 'avalanche', 'polygon'] as const satisfies readonly ChainId[];
 
+/** The EVM chains a wallet card lets its owner tick on or off (src/components/dashboard/WalletChainPicker.tsx). */
+export const WALLET_CARD_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];
+
 /** The chains the Agent Vault watches (src/lib/agentVault). */
 export const VAULT_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const satisfies readonly ChainId[];
 

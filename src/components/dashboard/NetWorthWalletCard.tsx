@@ -3,6 +3,8 @@ import { getClientLang } from '@/lib/i18n/clientLang';
 import { getNetWorthWalletCard } from '@/i18n/components/netWorthWalletCard';
 import { formatUsd } from '@/lib/format';
 import { shortenAddress } from '@/lib/addressDisplay';
+import WalletChainPicker from './WalletChainPicker';
+import { hasChainPicker } from '@/lib/walletChainPicker';
 
 type Token = {
 	tokenSymbol: string;
@@ -24,6 +26,9 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 	const [totalUsd, setTotalUsd] = useState<number>(0);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	// The wallet's chain list, for the picker; bumped after a save so the balances re-read with the new list.
+	const [chains, setChains] = useState<string[] | null>(null);
+	const [refreshKey, setRefreshKey] = useState(0);
 	const t = getNetWorthWalletCard(getClientLang());
 
 	useEffect(() => {
@@ -36,7 +41,9 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 			setTokens(null);
 
 			try {
-				const res = await fetch(`/api/wallets/${walletId}/tokens`);
+				const res = await fetch(refreshKey
+					? `/api/wallets/${walletId}/tokens?refreshMissing=1&force=1`
+					: `/api/wallets/${walletId}/tokens`);
 
 				if (res.status === 404) {
 					console.warn('[NetWorthWalletCard] No tokens for wallet', walletId);
@@ -73,7 +80,21 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 		return () => {
 			cancelled = true;
 		};
-	}, [walletId]);
+	}, [walletId, refreshKey]);
+
+	useEffect(() => {
+		if (!hasChainPicker(walletAddress)) return;
+		let cancelled = false;
+		fetch(`/api/wallets/${walletId}`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((data) => {
+				if (!cancelled && Array.isArray(data?.chains)) setChains(data.chains);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [walletId, walletAddress]);
 
 	useEffect(() => {
 		if (!tokens) return;
@@ -103,6 +124,16 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 				</h3>
 			</div>
 
+			{chains && hasChainPicker(walletAddress) && (
+				<WalletChainPicker
+					walletId={walletId}
+					chains={chains}
+					onSaved={(saved) => {
+						setChains(saved);
+						setRefreshKey((k) => k + 1);
+					}}
+				/>
+			)}
 			{loading && <p style={{ margin: '0.5rem 0' }}>{t.loadingBalances}</p>}
 
 			{error && (
