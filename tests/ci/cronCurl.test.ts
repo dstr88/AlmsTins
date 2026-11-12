@@ -220,7 +220,7 @@ describe('every workflow that calls an app endpoint uses cron-curl.sh', () => {
 	});
 
 	it.each(cronWorkflows.map((w) => [w.file, w.text]))('%s checks out only the wrapper, read-only', (_f, text) => {
-		expect(text).toMatch(/uses: actions\/checkout@v4\n\s+with:\n(\s+[a-z-]+: [^\n]+\n)*?\s+sparse-checkout: scripts\/cron-curl\.sh\n/);
+		expect(text).toMatch(/uses: actions\/checkout@v7\n\s+with:\n(\s+[a-z-]+: [^\n]+\n)*?\s+sparse-checkout: scripts\/cron-curl\.sh\n/);
 		expect(text).toMatch(/sparse-checkout-cone-mode: false/);
 		expect(text).toMatch(/persist-credentials: false/);
 		expect(text).toMatch(/^permissions:\n\s+contents: read$/m);
