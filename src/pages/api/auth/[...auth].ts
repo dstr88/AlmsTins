@@ -14,7 +14,8 @@ import { authorizeCredentials } from '@/lib/credentialsAuth';
 import { guardSignIn } from '@/lib/authLinkGuard';
 import { routeSignInError } from '@/lib/authErrorRedirect';
 import { callbackHeaders, jwtCallback, rateLimitedRedirect } from '@/lib/authRoute';
-import { callbackUrlFromRequest, formCallbackUrl, noteSignInProvider, runWithSignInContext } from '@/lib/signupService';
+import { callbackUrlFromRequest, formCallbackUrl, getSignInContext, noteSignInProvider, runWithSignInContext } from '@/lib/signupService';
+import { getClientCountry } from '@/lib/analytics/ip';
 
 const providers = [];
 
@@ -249,6 +250,20 @@ ON CONFLICT DO NOTHING`,
 					});
 					throw error;
 				}
+				// The service and country of this sign-in, for the owner's list of last logins. Its own write,
+				// so a database that does not have the two columns yet still records last_login below.
+				try {
+					const ctx = getSignInContext();
+					await db.execute({
+						sql: `UPDATE auth_users SET last_login_service = ?, last_login_country = ? WHERE id = ?`,
+						args: [ctx?.service.id ?? null, ctx?.country ?? null, userId],
+					});
+				} catch (error) {
+					console.warn('[auth][signIn] last_login service/country update failed', {
+						userId,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
 				// Stamp last_login and backfill email if the DB record has none.
 				// Uses the raw provider profile email which is available even when the
 				// adapter user object has a stale/empty email. The address is written only
@@ -427,8 +442,10 @@ export const GET: APIRoute = async ({ request }) => {
 		const headers = await callbackHeaders(request);
 		// Where the sign-in is headed (the emailed link's query, or the callback-url cookie), so a
 		// tenant created by this request can name its service. A label only.
-		return await runWithSignInContext(callbackUrlFromRequest(request), () =>
-			Auth(buildAuthRequest(request, headers), authConfig),
+		return await runWithSignInContext(
+			callbackUrlFromRequest(request),
+			() => Auth(buildAuthRequest(request, headers), authConfig),
+			getClientCountry(request),
 		);
 	} catch (error) {
 		logAuthError(request, error);
@@ -447,8 +464,10 @@ export const POST: APIRoute = async ({ request }) => {
 		// A password sign-in carries its destination in the form; read it from a copy so Auth.js
 		// still gets the untouched body.
 		const fromForm = await formCallbackUrl(request);
-		const response = await runWithSignInContext(callbackUrlFromRequest(request, fromForm), () =>
-			Auth(buildAuthRequest(request, headers), authConfig),
+		const response = await runWithSignInContext(
+			callbackUrlFromRequest(request, fromForm),
+			() => Auth(buildAuthRequest(request, headers), authConfig),
+			getClientCountry(request),
 		);
 		// Errors land on the page the form was posted from (and keep ?code=).
 		return routeSignInError(request, response);
