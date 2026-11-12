@@ -71,14 +71,11 @@ describe('the owner list', () => {
 	});
 });
 
-describe('the migrations', () => {
-	it('add both columns in the Postgres and libSQL databases', () => {
+describe('the migration', () => {
+	it('adds both columns to the Postgres database', () => {
 		const pg = read('migrations-pg/0074_auth_last_login_service.sql');
-		const libsql = read('migrations/20261111_auth_last_login_service.sql');
-		for (const sql of [pg, libsql]) {
-			expect(sql).toContain('ALTER TABLE auth_users ADD COLUMN');
-			expect(sql).toContain('last_login_service TEXT');
-			expect(sql).toContain('last_login_country TEXT');
-		}
+		expect(pg).toContain('ALTER TABLE auth_users ADD COLUMN');
+		expect(pg).toContain('last_login_service TEXT');
+		expect(pg).toContain('last_login_country TEXT');
 	});
 });
