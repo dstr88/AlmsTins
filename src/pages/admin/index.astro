@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
 import { countUniqueChecksByKind, countUniqueChecksByKindAndCountry } from '@/lib/checkLog';
 import MailboxWindows from '@/components/admin/MailboxWindows.astro';
+import VerifyPlans from '@/components/admin/VerifyPlans.astro';
 import { getAuthSession } from '@/lib/authSession';
 import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
 import { formatDate, formatDateTime } from '@/lib/format';
@@ -609,6 +610,9 @@ const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 			</div>
 		</div>
 	</div>
+
+	<!-- ── Verify plans: the owner's switch (set a plan by hand, list the plan rows) ── -->
+	<VerifyPlans />
 
 	<!-- ── Safety-checker usage ─────────────────────────────────────
 	     Totals + geographic breakdown live together so they read as one metric,

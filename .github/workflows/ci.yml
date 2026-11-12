@@ -71,9 +71,10 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           RUN_PG_AGENTICS_LIMITS: '1'
 
-      # The Verify free plan's caps under concurrency, the same way: the account's advisory lock and
-      # the capped insert in createDestination. The in-memory test (tests/verify/freeCap.test.ts) pins
-      # the rules; only a real database shows that a race for the last place still adds exactly one.
+      # The Verify plan caps under concurrency, the same way: the account's advisory lock and the
+      # capped insert in createDestination, for Free (by kind) and for Business and Pro (in total).
+      # The in-memory tests (tests/verify/freeCap.test.ts, tests/verify/paidPlans.test.ts) pin the
+      # rules; only a real database shows that a race for the last place still adds exactly one.
       - name: Verify limits under concurrency (Postgres)
         run: npx vitest run tests/pgVerifyLimits.test.ts
         env:

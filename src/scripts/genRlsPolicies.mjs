@@ -21,7 +21,7 @@ const TENANT = [
   'tax_disposals','tax_documents','tax_lot_pins','tax_lots','tax_pipeline_runs','tax_review_items',
   'tax_wash_sales','tenant_intake','tenant_memberships','tenant_settings','tradfi_loan_payments',
   'transaction_annotations','transaction_screenshots','transactions','transfer_matches','user_scam_contracts',
-  'user_settings','users','vault_notes','wallet_claims','wallet_defi_sync','wallet_holdings_snapshot',
+  'user_settings','users','vault_notes','verify_subscriptions','wallet_claims','wallet_defi_sync','wallet_holdings_snapshot',
   'wallet_nft_snapshot','wallet_snapshots','wallet_sync_state','wallets',
 ];
 

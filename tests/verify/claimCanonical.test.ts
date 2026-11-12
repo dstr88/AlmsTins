@@ -98,6 +98,10 @@ vi.mock('@/lib/db', () => {
     if (sql === `SELECT 1 FROM verify_destinations d WHERE d.id = ? AND d.tenant_id = ? AND d.proof_status = 'proven' AND ${LEGACY_SQL('d')} LIMIT 1`) {
       return { rows: store.rows.filter((r) => r.id === args[0] && r.tenant_id === args[1] && r.proof_status === 'proven' && isLegacy(r)) };
     }
+    // The account's Verify plan (getVerifyEntitlements): no row, so every account here is on Free.
+    if (sql === 'SELECT plan, status, paid_through FROM verify_subscriptions WHERE tenant_id = ? LIMIT 1') {
+      return { rows: [] };
+    }
     if (sql.startsWith('SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ? AND kind = ?')) {
       return { rows: [{ cnt: store.rows.filter((r) => r.tenant_id === args[0] && r.kind === args[1]).length }] };
     }
