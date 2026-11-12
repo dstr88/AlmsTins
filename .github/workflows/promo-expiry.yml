@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Only the curl wrapper. It retries a request that never reached the server, nothing else.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: scripts/cron-curl.sh
           sparse-checkout-cone-mode: false
