@@ -28,8 +28,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The browser itself comes from Playwright's own servers. Three tries, 30 seconds apart.
       - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
+        run: |
+          for attempt in 1 2 3; do
+            if npx playwright install chromium; then exit 0; fi
+            echo "Browser install failed (attempt $attempt of 3)."
+            if [ "$attempt" -lt 3 ]; then sleep 30; fi
+          done
+          exit 1
+
+      # Chromium's system packages come from Ubuntu's mirrors, a separate download that apt retries on
+      # its own. In run 189 (2026-11-11) the runner could not resolve the mirrors for ten minutes
+      # ("Temporary failure resolving 'azure.archive.ubuntu.com'"), the install failed and no test ran.
+      # The runner image already holds Chromium's libraries (that run was missing nine font packages
+      # and nothing else), so a failure here is a warning and the tests still run.
+      - name: Install Chromium's system packages
+        run: |
+          if ! npx playwright install-deps chromium; then
+            echo "::warning::Chromium's system packages could not be installed. The tests run on the libraries the runner already has."
+          fi
 
       # On a push-triggered run, give Render ~90 seconds to finish deploying
       # before we hit the live URL. Adjust if your build takes longer.
