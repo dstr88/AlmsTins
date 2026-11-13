@@ -97,7 +97,7 @@ describe('opening a link', () => {
 		const made = await cairn.createShareLink(OWNER, { projectId: 'p1', label: 'Funder' });
 		if (!made.ok) throw new Error('mint failed');
 		const opened = await cairn.readShareLink(made.token);
-		expect(opened).toEqual({ tenantId: OWNER, projectId: 'p1', label: 'Funder' });
+		expect(opened).toEqual({ tenantId: OWNER, projectId: 'p1', label: 'Funder', milestoneId: null });
 		const row = await fake.execute({ sql: 'SELECT last_used_at FROM cairn_share_links WHERE id = ?', args: [made.id] });
 		expect(row.rows[0].last_used_at).not.toBeNull();
 	});
@@ -157,5 +157,52 @@ describe('the owner’s list of links', () => {
 		const byLabel = Object.fromEntries(list.map((l) => [l.label, l.state]));
 		expect(byLabel).toEqual({ Contractor: 'active', 'Old funder': 'revoked' });
 		expect(JSON.stringify(list)).not.toContain(active.token);
+	});
+});
+
+describe('a link limited to one milestone', () => {
+	const milestone = (id: string, projectId: string, seq: number, title: string) => ({
+		id, project_id: projectId, tenant_id: OWNER, seq, title, description: null, tranche_amount: 100_000,
+		target_date: '2026-10-01', status: 'pending', manifest_json: '{}', signature_json: null,
+		digest: '0'.repeat(64), anchor_json: null, created_at: '2026-09-05 10:00:00', paid_at: null, paid_amount: null,
+	});
+
+	beforeEach(() => {
+		fake.seed('cairn_milestones', milestone('ms-a', 'p1', 1, 'Foundation'));
+		fake.seed('cairn_milestones', milestone('ms-b', 'p1', 2, 'Roof'));
+		fake.seed('cairn_milestones', milestone('ms-other', 'p2', 1, 'Elsewhere'));
+	});
+
+	it('lists and reads only that milestone’s files', async () => {
+		seedDoc('d-a', 'p1', OWNER, { milestone_id: 'ms-a' });
+		seedDoc('d-b', 'p1', OWNER, { milestone_id: 'ms-b' });
+		const made = await cairn.createShareLink(OWNER, { projectId: 'p1', label: 'Inspector', milestoneId: 'ms-a' });
+		if (!made.ok) throw new Error('mint failed');
+		const opened = await cairn.readShareLink(made.token);
+		expect(opened?.milestoneId).toBe('ms-a');
+		const listed = await cairn.listShareDocuments(OWNER, 'p1', opened?.milestoneId ?? null);
+		expect(listed.map((d) => d.id)).toEqual(['d-a']);
+		expect(await cairn.readShareDocument(OWNER, 'p1', 'd-b', 'ms-a')).toBeNull();
+		expect((await cairn.readShareDocument(OWNER, 'p1', 'd-a', 'ms-a'))?.data.toString('utf8')).toBe('hello');
+	});
+
+	it('a project-wide link still lists every live file', async () => {
+		seedDoc('d-a', 'p1', OWNER, { milestone_id: 'ms-a' });
+		seedDoc('d-b', 'p1', OWNER, { milestone_id: 'ms-b' });
+		const listed = await cairn.listShareDocuments(OWNER, 'p1', null);
+		expect(listed.map((d) => d.id).sort()).toEqual(['d-a', 'd-b']);
+	});
+
+	it('refuses a milestone from another project', async () => {
+		expect(await cairn.createShareLink(OWNER, { projectId: 'p1', milestoneId: 'ms-other' }))
+			.toEqual({ ok: false, error: 'milestone_not_found' });
+	});
+
+	it('the owner’s list names the milestone a link is limited to', async () => {
+		await cairn.createShareLink(OWNER, { projectId: 'p1', label: 'Inspector', milestoneId: 'ms-a' });
+		await cairn.createShareLink(OWNER, { projectId: 'p1', label: 'Funder' });
+		const list = await cairn.listShareLinks(OWNER, 'p1');
+		const byLabel = Object.fromEntries(list.map((l) => [l.label, l.milestoneTitle]));
+		expect(byLabel).toEqual({ Inspector: 'Foundation', Funder: null });
 	});
 });

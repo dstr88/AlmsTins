@@ -4,7 +4,8 @@
  * GET   ?t=<token>                  — the project's paperwork as a page of links (public)
  * GET   ?t=<token>&id=<documentId>  — one file, read-only (public)
  * GET   ?projectId=…                — the owner's links with their state (authenticated)
- * POST  { action: 'create', projectId, label, days? } — mint one link; the link comes back once
+ * POST  { action: 'create', projectId, label, days?, milestoneId? } — mint one link; the link comes back once
+ *                                                                  (milestoneId limits it to one milestone)
  * POST  { action: 'revoke', id }    — withdraw one link (authenticated)
  *
  * The token is the authority for the two public reads. It opens that project's live files and
@@ -62,7 +63,7 @@ const page = (status: number, title: string, body: string) =>
     { status, headers: pageHeaders },
   );
 
-function linksPage(token: string, label: string | null, docs: CairnDocMeta[]): string {
+function linksPage(token: string, label: string | null, docs: CairnDocMeta[], limited: boolean): string {
   const items = docs.length
     ? docs.map((d) =>
         `<li><a href="?t=${encodeURIComponent(token)}&amp;id=${encodeURIComponent(d.id)}">${esc(d.filename)}</a>` +
@@ -70,8 +71,8 @@ function linksPage(token: string, label: string | null, docs: CairnDocMeta[]): s
         `${esc(String(d.uploadedAt).slice(0, 10))}</small></li>`).join('')
     : '<li>No paperwork on this project yet.</li>';
   return `<h1>Paperwork${label ? ` for ${esc(label)}` : ''}</h1>` +
-    `<p>Read-only copies of the paperwork on this project. This link expires on its own date, and the ` +
-    `person who sent it can withdraw it.</p><ul>${items}</ul>`;
+    `<p>Read-only copies of the paperwork${limited ? ' for one milestone' : ' on this project'}. This link ` +
+    `expires on its own date, and the person who sent it can withdraw it.</p><ul>${items}</ul>`;
 }
 
 export const GET: APIRoute = async ({ request }) => {
@@ -87,12 +88,12 @@ export const GET: APIRoute = async ({ request }) => {
     }
     const docId = url.searchParams.get('id');
     if (docId) {
-      const found = await readShareDocument(link.tenantId, link.projectId, docId);
+      const found = await readShareDocument(link.tenantId, link.projectId, docId, link.milestoneId);
       if (!found) return page(404, 'Not found', '<h1>That file is not available</h1>');
       return fileResponse(found);
     }
-    const docs = await listShareDocuments(link.tenantId, link.projectId);
-    return page(200, 'Paperwork', linksPage(token, link.label, docs));
+    const docs = await listShareDocuments(link.tenantId, link.projectId, link.milestoneId);
+    return page(200, 'Paperwork', linksPage(token, link.label, docs, link.milestoneId != null));
   }
 
   // The owner's list of links. A demo session sees nothing here.
@@ -123,6 +124,7 @@ export const POST: APIRoute = async ({ request }) => {
       projectId: String(body.projectId ?? ''),
       label: body.label ?? null,
       days: body.days,
+      milestoneId: body.milestoneId ?? null,
     });
     if (!made.ok) return json(made, 404);
     const origin = new URL(request.url).origin;
