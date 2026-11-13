@@ -190,6 +190,27 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <div id="req-list" style="display:flex;flex-direction:column;gap:.5rem"></div>
       </div>
 
+      <div id="share-wrap" hidden style="margin-top:1.1rem">
+        <h2 style="font-size:1rem">Download links</h2>
+        <p class="hint">One link per party: the funder, the contractor, or anyone else who needs the paperwork. Each link opens this project's files read-only, expires on its own date, and can be withdrawn.</p>
+        <div class="row" style="flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+          <label class="fld">Who it is for <span class="req">required</span>
+            <input id="share-label" placeholder="Contractor" autocomplete="off" />
+          </label>
+          <label class="fld">Expires
+            <select id="share-days">
+              <option value="30">in 30 days</option>
+              <option value="90">in 90 days</option>
+              <option value="180" selected>in 6 months</option>
+              <option value="365">in 1 year</option>
+            </select>
+          </label>
+          <button id="share-go" class="small" type="button">Make link</button>
+        </div>
+        <div id="share-new" class="note" style="margin-top:.6rem"></div>
+        <div id="share-list" style="display:flex;flex-direction:column;gap:.5rem;margin-top:.6rem"></div>
+      </div>
+
       <hr class="sep" />
       <div class="grid2">
         <label class="fld">Milestone <span class="req">required</span>
@@ -411,6 +432,9 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         renderAlloc(j.project, j.milestones || []);
         renderTrail(j.attestations || [], j.closure || null);
         renderDocs(j.documents || [], j.milestones || []);
+        const hasPaperwork = (j.documents || []).some((d: any) => !d.purgedAt);
+        (document.getElementById('share-wrap') as HTMLElement).hidden = !hasPaperwork;
+        if (hasPaperwork) loadShares(id);
         loadRequests(id);
         if (scroll) {
           card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -815,6 +839,50 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       } catch { wrap.hidden = true; }
     }
 
+    async function loadShares(projectId: string) {
+      const box = document.getElementById('share-list')!;
+      try {
+        const j = await (await fetch('/api/verify/cairn/share?projectId=' + encodeURIComponent(projectId))).json();
+        const links = j.links ?? [];
+        box.innerHTML = links.length ? links.map((l: any) => `
+          <div class="reqrow">
+            <div>
+              <b>${esc(l.label || 'Unlabeled link')}</b>
+              <div class="muted">${esc(l.state)} · expires ${esc(String(l.expiresAt).slice(0, 10))}${
+                l.lastUsedAt ? ` · last opened ${esc(String(l.lastUsedAt).slice(0, 10))}` : ' · not opened yet'}</div>
+            </div>
+            <div class="row">${l.state === 'active'
+              ? `<button class="small ghost" type="button" data-share-revoke="${esc(l.id)}">Withdraw</button>` : ''}</div>
+          </div>`).join('') : '<div class="muted">No download links yet.</div>';
+        box.querySelectorAll('[data-share-revoke]').forEach((el) =>
+          el.addEventListener('click', async () => {
+            await fetch('/api/verify/cairn/share', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'revoke', id: (el as HTMLElement).dataset.shareRevoke }),
+            });
+            loadShares(projectId);
+          }));
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createShare() {
+      const out = document.getElementById('share-new')!;
+      if (!currentProject) return;
+      const label = ($('share-label') as HTMLInputElement).value.trim();
+      const days = Number((document.getElementById('share-days') as HTMLSelectElement).value);
+      if (!label) { show(out, 'Say who the link is for, such as Funder or Contractor.', 'note-loss'); return; }
+      const j = await (await fetch('/api/verify/cairn/share', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', projectId: currentProject, label, days }),
+      })).json();
+      if (!j.ok) { show(out, 'The link could not be made.', 'note-loss'); return; }
+      const copied = await copyText(j.link);
+      show(out, `Link for ${esc(label)}, valid until ${esc(String(j.expiresAt).slice(0, 10))}. ${
+        copied ? 'Copied to the clipboard.' : 'Copy it now.'} It is shown once: <code style="word-break:break-all">${esc(j.link)}</code>`);
+      ($('share-label') as HTMLInputElement).value = '';
+      loadShares(currentProject);
+    }
+
     async function addMilestone() {
       const out = $('m-out') as unknown as HTMLElement;
       if (!currentProject) { show(out, 'Record a project first.', 'note-loss'); return; }
@@ -882,6 +950,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
     document.getElementById('p-go')?.addEventListener('click', createProject);
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
+    document.getElementById('share-go')?.addEventListener('click', createShare);
     document.getElementById('m-cancel')?.addEventListener('click', cancelEdit);
     document.getElementById('seal-go')?.addEventListener('click', sealSchedule);
     document.getElementById('close-go')?.addEventListener('click', closeProjectUi);

@@ -259,6 +259,8 @@ export async function ensureCairnTables(): Promise<void> {
   await db.execute({ sql: `ALTER TABLE cairn_milestones ADD COLUMN IF NOT EXISTS paid_amount DOUBLE PRECISION`, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_CLOSURES_SQL, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_CLOSURES_IDX, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_SHARE_SQL, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_SHARE_IDX, args: [] });
   ensured = true;
 }
 
@@ -309,6 +311,29 @@ const ENSURE_CAIRN_DOCS_SQL = `
 `;
 const ENSURE_CAIRN_DOCS_IDX =
   `CREATE INDEX IF NOT EXISTS cairn_documents_ms ON cairn_documents (milestone_id)`;
+
+// ── Download links: the paperwork, for parties who hold no account ──────────
+// The owner mints one labeled link per party. The token is 32 random bytes, shown once, and only
+// its SHA-256 is stored, so a leaked table does not leak working links. A link opens the project's
+// paperwork read-only, expires (180 days by default, 365 at most), and can be revoked.
+const CAIRN_SHARE_DEFAULT_DAYS = 180;
+const CAIRN_SHARE_MAX_DAYS = 365;
+
+const ENSURE_CAIRN_SHARE_SQL = `
+  CREATE TABLE IF NOT EXISTS cairn_share_links (
+    id            TEXT NOT NULL PRIMARY KEY,
+    token_hash    TEXT NOT NULL UNIQUE,
+    from_tenant   TEXT NOT NULL,
+    project_id    TEXT NOT NULL,
+    label         TEXT,
+    expires_at    TEXT NOT NULL,
+    revoked_at    TEXT,
+    last_used_at  TEXT,
+    created_at    TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_CAIRN_SHARE_IDX =
+  `CREATE INDEX IF NOT EXISTS cairn_share_links_project ON cairn_share_links (project_id)`;
 
 // ── Signing ─────────────────────────────────────────────────────────────────
 /** Sign a manifest with the Almstins key. The stored key ID and public key are the seed's, the key
@@ -1520,4 +1545,137 @@ export async function getSendableCairnRequest(tenantId: string, token: string): 
     expiresAt: String(row.expires_at),
     isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
   };
+}
+
+// ── Download links (tier: milestone desk) ────────────────────────────────────
+
+export interface ShareLinkSummary {
+  id: string;
+  label: string | null;
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  state: 'active' | 'expired' | 'revoked';
+}
+
+/** Mint a download link for one party. The token comes back once; only its hash is kept. */
+export async function createShareLink(
+  tenantId: string,
+  input: { projectId: string; label?: string | null; days?: unknown },
+): Promise<{ ok: true; id: string; token: string; expiresAt: string } | { ok: false; error: string }> {
+  await ensureCairnTables();
+  const projectId = clampStr(input.projectId, 80);
+  const owns = await db.execute({
+    sql: `SELECT id FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [projectId, tenantId],
+  });
+  if (!owns.rows.length) return { ok: false, error: 'not_found' };
+
+  const asked = Math.floor(Number(input.days ?? CAIRN_SHARE_DEFAULT_DAYS));
+  const days = Number.isFinite(asked)
+    ? Math.min(CAIRN_SHARE_MAX_DAYS, Math.max(1, asked))
+    : CAIRN_SHARE_DEFAULT_DAYS;
+  const token = cairnToken();
+  const id = randomUUID();
+  const expiresAt = new Date(Date.now() + days * 86400_000)
+    .toISOString().replace('T', ' ').slice(0, 19);
+  await db.execute({
+    sql: `INSERT INTO cairn_share_links (id, token_hash, from_tenant, project_id, label, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      id, sha256hex(Buffer.from(token, 'utf8')), tenantId, projectId,
+      input.label ? clampStr(input.label, 160) : null,
+      expiresAt,
+    ],
+  });
+  return { ok: true, id, token, expiresAt };
+}
+
+/** The owner's links on one project, with their state. Tokens are never returned here. */
+export async function listShareLinks(tenantId: string, projectId: string): Promise<ShareLinkSummary[]> {
+  await ensureCairnTables();
+  const now = nowUtc();
+  const r = await db.execute({
+    sql: `SELECT id, label, created_at, expires_at, revoked_at, last_used_at
+            FROM cairn_share_links WHERE project_id = ? AND from_tenant = ? ORDER BY created_at DESC`,
+    args: [String(projectId || '').trim(), tenantId],
+  });
+  return r.rows.map((x: any) => ({
+    id: String(x.id),
+    label: x.label != null ? String(x.label) : null,
+    createdAt: String(x.created_at),
+    expiresAt: String(x.expires_at),
+    lastUsedAt: x.last_used_at != null ? String(x.last_used_at) : null,
+    state: x.revoked_at != null ? 'revoked' : String(x.expires_at) <= now ? 'expired' : 'active',
+  }));
+}
+
+/** Withdraw one link. Only the account that minted it may. */
+export async function revokeShareLink(tenantId: string, id: string): Promise<boolean> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `UPDATE cairn_share_links SET revoked_at = ?
+           WHERE id = ? AND from_tenant = ? AND revoked_at IS NULL`,
+    args: [nowUtc(), String(id || '').trim(), tenantId],
+  });
+  return !!r.rowsAffected;
+}
+
+/**
+ * The project a download link opens, or null when the token is unknown, revoked or past its
+ * expiry. Records the time the link was last used.
+ */
+export async function readShareLink(
+  token: string,
+): Promise<{ tenantId: string; projectId: string; label: string | null } | null> {
+  await ensureCairnTables();
+  const presented = String(token || '').trim();
+  if (!presented) return null;
+  const r = await db.execute({
+    sql: `SELECT id, from_tenant, project_id, label, expires_at, revoked_at
+            FROM cairn_share_links WHERE token_hash = ? LIMIT 1`,
+    args: [sha256hex(Buffer.from(presented, 'utf8'))],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.revoked_at != null || String(row.expires_at) <= nowUtc()) return null;
+  await db.execute({
+    sql: `UPDATE cairn_share_links SET last_used_at = ? WHERE id = ?`,
+    args: [nowUtc(), String(row.id)],
+  });
+  return {
+    tenantId: String(row.from_tenant),
+    projectId: String(row.project_id),
+    label: row.label != null ? String(row.label) : null,
+  };
+}
+
+/** The live paperwork on one project, for a download link's page. Purged files are not listed. */
+export async function listShareDocuments(tenantId: string, projectId: string): Promise<CairnDocMeta[]> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json
+            FROM cairn_documents WHERE project_id = ? AND tenant_id = ? AND purged_at IS NULL
+            ORDER BY uploaded_at ASC`,
+    args: [String(projectId || '').trim(), tenantId],
+  });
+  return r.rows.map(cairnDocRow);
+}
+
+/** One file, read through a download link. Scoped to the link's project as well as its tenant. */
+export async function readShareDocument(
+  tenantId: string,
+  projectId: string,
+  documentId: string,
+): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json, data
+            FROM cairn_documents WHERE id = ? AND tenant_id = ? AND project_id = ? AND purged_at IS NULL LIMIT 1`,
+    args: [String(documentId || '').trim(), tenantId, String(projectId || '').trim()],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.data == null) return null;
+  return { meta: cairnDocRow(row), data: Buffer.from(String(row.data), 'base64') };
 }

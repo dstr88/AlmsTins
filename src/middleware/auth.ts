@@ -157,6 +157,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Milestone-desk paperwork — the ?t= token path serves the report form to the
 		// inspector and accepts their completed upload; the handler gates every other branch.
 		pathname === '/api/verify/cairn/document' ||
+		// Milestone-desk download links: the ?t= token path serves a project's paperwork to a party with
+		// no account; every other branch of the handler requires the owner's session.
+		pathname === '/api/verify/cairn/share' ||
 		// Receivables paperwork — same reasoning, and a bug fix: the debtor reading the
 		// attached note via ?t= was 401ing because this was never listed. The handler
 		// requires a session on all non-token branches.
