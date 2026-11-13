@@ -33,7 +33,8 @@
  *     account. Answered and already-revoked invites stay as they are.
  *   - The tenant's read markers (receivable_seen) are deleted. They are its own UI state.
  * Milestone desk: the tenant's own open requests (cairn_invites.from_tenant) are revoked
- * for the same reason; its projects and attestations stay, like the receivable records.
+ * for the same reason, and its download links (cairn_share_links.from_tenant) are revoked
+ * the same way; its projects and attestations stay, like the receivable records.
  * Kept on purpose: receivables, claims, attestations, offers, access grants, documents and
  * re-verifications. Other parties' claims, confirmations and access hang off them, and
  * removing them would erase a financing record those parties rely on (and could let the
@@ -81,10 +82,16 @@ const STEPS: ReadonlyArray<{ table: string; sql: string }> = [
     sql: `UPDATE cairn_invites SET revoked_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
           WHERE from_tenant = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
   },
+  // The owner's download links: revoked, not deleted, so the record of what was shared stays.
+  {
+    table: 'cairn_share_links',
+    sql: `UPDATE cairn_share_links SET revoked_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
+          WHERE from_tenant = ? AND revoked_at IS NULL`,
+  },
 ];
 
 export interface VerifyAccountDeleteResult {
-  /** Rows affected per table (removed; for the two invite tables, revoked). Missing tables report 0. */
+  /** Rows affected per table (removed; for the invite and download-link tables, revoked). Missing tables report 0. */
   affected: Record<string, number>;
 }
 

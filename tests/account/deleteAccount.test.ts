@@ -158,6 +158,13 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
     for (const r of open) r.revoked_at = nowStamp();
     return { rows: [], rowsAffected: open.length };
   }
+  // The owner's download links: every live one on the tenant is revoked.
+  const shareRevoke = sql.match(/^UPDATE cairn_share_links SET revoked_at = to_char\(now\(\) AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'\) WHERE from_tenant = \? AND revoked_at IS NULL$/);
+  if (shareRevoke) {
+    const live = t('cairn_share_links').filter((r) => r.from_tenant === args[0] && r.revoked_at == null);
+    for (const r of live) r.revoked_at = nowStamp();
+    return { rows: [], rowsAffected: live.length };
+  }
 
   // Agent key auth (authenticateAgentKey) and its fire-and-forget usage touch.
   if (sql === "SELECT id, domain FROM verify_agent_keys WHERE key_hash = ? AND status = 'active' LIMIT 1") {
@@ -279,7 +286,7 @@ const VERIFY_TABLES = [
   'verified_address_mirror',
 ];
 /** The two tenant-only receivable steps. */
-const RECEIVABLE_TABLES = ['receivable_invites', 'receivable_seen', 'cairn_invites'];
+const RECEIVABLE_TABLES = ['receivable_invites', 'receivable_seen', 'cairn_invites', 'cairn_share_links'];
 const ALL_STEP_TABLES = [...VERIFY_TABLES, ...RECEIVABLE_TABLES];
 
 function seedTenant(tenant: string, user: string, tag: string, wallet: string, mirror: string, key: string): void {
@@ -327,6 +334,7 @@ function seedTenant(tenant: string, user: string, tag: string, wallet: string, m
   add('cairn_invites', { token: `ms-open-${tag}`, from_tenant: tenant, accepted_at: null, revoked_at: null });
   add('cairn_invites', { token: `ms-answered-${tag}`, from_tenant: tenant, accepted_at: '2026-09-02 00:00:00', revoked_at: null });
   add('cairn_invites', { token: `ms-revoked-${tag}`, from_tenant: tenant, accepted_at: null, revoked_at: '2026-09-03 00:00:00' });
+  add('cairn_share_links', { id: `sl-${tag}`, token_hash: `hash-${tag}`, from_tenant: tenant, project_id: `ms-proj-${tag}`, label: 'Funder', expires_at: '2027-01-01 00:00:00', revoked_at: null, last_used_at: null, created_at: '2026-09-01 00:00:00' });
 }
 
 const rowsOf = (table: string, tenant: string) => (mem.tables[table] ?? []).filter((r) => r.tenant_id === tenant);
@@ -461,13 +469,14 @@ describe('POST /api/account/delete: Verify data', () => {
         || sql === "UPDATE promo_redemptions SET tenant_id = 'deleted:' || id WHERE tenant_id = ?"
         || sql === 'UPDATE auth_users SET active_tenant_id = NULL WHERE active_tenant_id = ?'
         || /^DELETE FROM \w+ WHERE \w+ IN \(SELECT id FROM \w+ WHERE tenant_id = \?\)$/.test(sql)
-        || /^UPDATE (receivable_invites|cairn_invites) SET revoked_at = .* WHERE from_tenant = \? AND accepted_at IS NULL AND revoked_at IS NULL$/.test(sql);
+        || /^UPDATE (receivable_invites|cairn_invites) SET revoked_at = .* WHERE from_tenant = \? AND accepted_at IS NULL AND revoked_at IS NULL$/.test(sql)
+        || /^UPDATE cairn_share_links SET revoked_at = .* WHERE from_tenant = \? AND revoked_at IS NULL$/.test(sql);
       expect(scoped, sql).toBe(true);
       expect(c.args, sql).toEqual([A]);
     }
 
     for (const [table, rows] of Object.entries(before)) {
-      if (table === 'receivable_invites' || table === 'cairn_invites') continue; // revoked in place, asserted below
+      if (['receivable_invites', 'cairn_invites', 'cairn_share_links'].includes(table)) continue; // revoked in place, asserted below
       const others = rows.filter((r) => r.tenant_id !== A && r.id !== USER_A && r.user_id !== USER_A);
       expect(mem.tables[table], table).toEqual(others);
     }
@@ -477,6 +486,8 @@ describe('POST /api/account/delete: Verify data', () => {
       .toEqual(before.receivable_invites.filter((r) => r.from_tenant === B));
     expect(mem.tables.cairn_invites.filter((r) => r.from_tenant === B))
       .toEqual(before.cairn_invites.filter((r) => r.from_tenant === B));
+    expect((mem.tables.cairn_share_links ?? []).filter((r) => r.from_tenant === B))
+      .toEqual((before.cairn_share_links ?? []).filter((r) => r.from_tenant === B));
   });
 
   it('revokes only the tenant\'s own open receivable requests and deletes its read markers', async () => {
