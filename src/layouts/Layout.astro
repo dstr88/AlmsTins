@@ -62,6 +62,7 @@ if (user?.id) {
     alertEmail = userRow.rows[0] ? String((userRow.rows[0] as any).alert_email ?? '') || null : null;
     memberSinceIso = memberRow.rows[0] ? String((memberRow.rows[0] as any).created_at ?? '') || null : null;
   } catch { /* non-fatal */ }
+}
 // The product and country of the last sign-in, read on their own, so a database that does not have
 // the two columns yet still shows the rest of the menu.
 let lastLoginPlace: string | null = null;
@@ -76,7 +77,6 @@ if (user?.id) {
       lastLoginPlace = `${serviceLabelForId(row.last_login_service ? String(row.last_login_service) : null)} · ${countryName(row.last_login_country ? String(row.last_login_country) : null)}`;
     }
   } catch { /* non-fatal */ }
-}
 }
 
 // Prefer session email, fall back to DB email
