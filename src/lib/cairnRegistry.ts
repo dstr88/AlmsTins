@@ -261,6 +261,8 @@ export async function ensureCairnTables(): Promise<void> {
   await db.execute({ sql: ENSURE_CAIRN_CLOSURES_IDX, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_SHARE_SQL, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_SHARE_IDX, args: [] });
+  // A link can be limited to one milestone (an inspector's): NULL means the whole project.
+  await db.execute({ sql: `ALTER TABLE cairn_share_links ADD COLUMN IF NOT EXISTS milestone_id TEXT`, args: [] });
   ensured = true;
 }
 
@@ -1552,6 +1554,9 @@ export async function getSendableCairnRequest(tenantId: string, token: string): 
 export interface ShareLinkSummary {
   id: string;
   label: string | null;
+  /** The one milestone this link is limited to, or null for the whole project. */
+  milestoneId: string | null;
+  milestoneTitle: string | null;
   createdAt: string;
   expiresAt: string;
   lastUsedAt: string | null;
@@ -1561,7 +1566,7 @@ export interface ShareLinkSummary {
 /** Mint a download link for one party. The token comes back once; only its hash is kept. */
 export async function createShareLink(
   tenantId: string,
-  input: { projectId: string; label?: string | null; days?: unknown },
+  input: { projectId: string; label?: string | null; days?: unknown; milestoneId?: string | null },
 ): Promise<{ ok: true; id: string; token: string; expiresAt: string } | { ok: false; error: string }> {
   await ensureCairnTables();
   const projectId = clampStr(input.projectId, 80);
@@ -1570,6 +1575,15 @@ export async function createShareLink(
     args: [projectId, tenantId],
   });
   if (!owns.rows.length) return { ok: false, error: 'not_found' };
+
+  const milestoneId = input.milestoneId ? clampStr(input.milestoneId, 80) : null;
+  if (milestoneId) {
+    const inProject = await db.execute({
+      sql: `SELECT id FROM cairn_milestones WHERE id = ? AND project_id = ? AND tenant_id = ? LIMIT 1`,
+      args: [milestoneId, projectId, tenantId],
+    });
+    if (!inProject.rows.length) return { ok: false, error: 'milestone_not_found' };
+  }
 
   const asked = Math.floor(Number(input.days ?? CAIRN_SHARE_DEFAULT_DAYS));
   const days = Number.isFinite(asked)
@@ -1580,10 +1594,10 @@ export async function createShareLink(
   const expiresAt = new Date(Date.now() + days * 86400_000)
     .toISOString().replace('T', ' ').slice(0, 19);
   await db.execute({
-    sql: `INSERT INTO cairn_share_links (id, token_hash, from_tenant, project_id, label, expires_at)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO cairn_share_links (id, token_hash, from_tenant, project_id, milestone_id, label, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      id, sha256hex(Buffer.from(token, 'utf8')), tenantId, projectId,
+      id, sha256hex(Buffer.from(token, 'utf8')), tenantId, projectId, milestoneId,
       input.label ? clampStr(input.label, 160) : null,
       expiresAt,
     ],
@@ -1595,19 +1609,30 @@ export async function createShareLink(
 export async function listShareLinks(tenantId: string, projectId: string): Promise<ShareLinkSummary[]> {
   await ensureCairnTables();
   const now = nowUtc();
-  const r = await db.execute({
-    sql: `SELECT id, label, created_at, expires_at, revoked_at, last_used_at
-            FROM cairn_share_links WHERE project_id = ? AND from_tenant = ? ORDER BY created_at DESC`,
-    args: [String(projectId || '').trim(), tenantId],
+  const pid = String(projectId || '').trim();
+  const titles = await db.execute({
+    sql: `SELECT id, title FROM cairn_milestones WHERE project_id = ? AND tenant_id = ?`,
+    args: [pid, tenantId],
   });
-  return r.rows.map((x: any) => ({
-    id: String(x.id),
-    label: x.label != null ? String(x.label) : null,
-    createdAt: String(x.created_at),
-    expiresAt: String(x.expires_at),
-    lastUsedAt: x.last_used_at != null ? String(x.last_used_at) : null,
-    state: x.revoked_at != null ? 'revoked' : String(x.expires_at) <= now ? 'expired' : 'active',
-  }));
+  const titleOf = new Map<string, string>(titles.rows.map((x: any) => [String(x.id), String(x.title)]));
+  const r = await db.execute({
+    sql: `SELECT id, label, milestone_id, created_at, expires_at, revoked_at, last_used_at
+            FROM cairn_share_links WHERE project_id = ? AND from_tenant = ? ORDER BY created_at DESC`,
+    args: [pid, tenantId],
+  });
+  return r.rows.map((x: any) => {
+    const milestoneId = x.milestone_id != null ? String(x.milestone_id) : null;
+    return {
+      id: String(x.id),
+      label: x.label != null ? String(x.label) : null,
+      milestoneId,
+      milestoneTitle: milestoneId ? (titleOf.get(milestoneId) ?? null) : null,
+      createdAt: String(x.created_at),
+      expiresAt: String(x.expires_at),
+      lastUsedAt: x.last_used_at != null ? String(x.last_used_at) : null,
+      state: x.revoked_at != null ? 'revoked' : String(x.expires_at) <= now ? 'expired' : 'active',
+    };
+  });
 }
 
 /** Withdraw one link. Only the account that minted it may. */
@@ -1622,17 +1647,18 @@ export async function revokeShareLink(tenantId: string, id: string): Promise<boo
 }
 
 /**
- * The project a download link opens, or null when the token is unknown, revoked or past its
- * expiry. Records the time the link was last used.
+ * The project a download link opens, and the one milestone it is limited to (null for the whole
+ * project), or null when the token is unknown, revoked or past its expiry. Records the time the
+ * link was last used.
  */
 export async function readShareLink(
   token: string,
-): Promise<{ tenantId: string; projectId: string; label: string | null } | null> {
+): Promise<{ tenantId: string; projectId: string; label: string | null; milestoneId: string | null } | null> {
   await ensureCairnTables();
   const presented = String(token || '').trim();
   if (!presented) return null;
   const r = await db.execute({
-    sql: `SELECT id, from_tenant, project_id, label, expires_at, revoked_at
+    sql: `SELECT id, from_tenant, project_id, milestone_id, label, expires_at, revoked_at
             FROM cairn_share_links WHERE token_hash = ? LIMIT 1`,
     args: [sha256hex(Buffer.from(presented, 'utf8'))],
   });
@@ -1647,32 +1673,51 @@ export async function readShareLink(
     tenantId: String(row.from_tenant),
     projectId: String(row.project_id),
     label: row.label != null ? String(row.label) : null,
+    milestoneId: row.milestone_id != null ? String(row.milestone_id) : null,
   };
 }
 
-/** The live paperwork on one project, for a download link's page. Purged files are not listed. */
-export async function listShareDocuments(tenantId: string, projectId: string): Promise<CairnDocMeta[]> {
+/**
+ * The live paperwork a download link can list: every file on the project, or only the files of
+ * the milestone the link is limited to. Purged files are not listed.
+ */
+export async function listShareDocuments(
+  tenantId: string,
+  projectId: string,
+  milestoneId: string | null = null,
+): Promise<CairnDocMeta[]> {
   await ensureCairnTables();
+  const scoped = milestoneId != null;
   const r = await db.execute({
     sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json
-            FROM cairn_documents WHERE project_id = ? AND tenant_id = ? AND purged_at IS NULL
+            FROM cairn_documents WHERE project_id = ? AND tenant_id = ? AND purged_at IS NULL${scoped ? ' AND milestone_id = ?' : ''}
             ORDER BY uploaded_at ASC`,
-    args: [String(projectId || '').trim(), tenantId],
+    args: scoped
+      ? [String(projectId || '').trim(), tenantId, String(milestoneId)]
+      : [String(projectId || '').trim(), tenantId],
   });
   return r.rows.map(cairnDocRow);
 }
 
-/** One file, read through a download link. Scoped to the link's project as well as its tenant. */
+/**
+ * One file, read through a download link. Scoped to the link's project and, when the link is
+ * limited, to its milestone, as well as its tenant.
+ */
 export async function readShareDocument(
   tenantId: string,
   projectId: string,
   documentId: string,
+  milestoneId: string | null = null,
 ): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
   await ensureCairnTables();
+  const scoped = milestoneId != null;
   const r = await db.execute({
     sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json, data
-            FROM cairn_documents WHERE id = ? AND tenant_id = ? AND project_id = ? AND purged_at IS NULL LIMIT 1`,
-    args: [String(documentId || '').trim(), tenantId, String(projectId || '').trim()],
+            FROM cairn_documents WHERE id = ? AND tenant_id = ? AND project_id = ? AND purged_at IS NULL${scoped ? ' AND milestone_id = ?' : ''}
+            LIMIT 1`,
+    args: scoped
+      ? [String(documentId || '').trim(), tenantId, String(projectId || '').trim(), String(milestoneId)]
+      : [String(documentId || '').trim(), tenantId, String(projectId || '').trim()],
   });
   if (!r.rows.length) return null;
   const row = r.rows[0] as any;
