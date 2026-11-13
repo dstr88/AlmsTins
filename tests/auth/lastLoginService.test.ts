@@ -79,3 +79,13 @@ describe('the migration', () => {
 		expect(pg).toContain('last_login_country TEXT');
 	});
 });
+
+describe('the account menu', () => {
+	const layout = read('src/layouts/Layout.astro');
+	it('reads the product and country of the last sign-in on its own, and shows them after the time', () => {
+		expect(layout).toContain('SELECT last_login_service, last_login_country FROM auth_users WHERE id = ?');
+		expect(layout).toContain('serviceLabelForId(');
+		expect(layout).toContain('countryName(');
+		expect(layout).toContain("{lastLoginDisplay}{lastLoginPlace ? ` · ${lastLoginPlace}` : ''}");
+	});
+});

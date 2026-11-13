@@ -10,16 +10,7 @@ import { getAuthSession } from '@/lib/authSession';
 import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { serviceLabelForId } from '@/lib/signupService';
-
-// A two-letter country code as its English name; the code itself if the name is unknown.
-const countryName = (code: string | null | undefined): string => {
-	if (!code) return 'Unknown';
-	try {
-		return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) ?? code;
-	} catch {
-		return code;
-	}
-};
+import { countryName } from '@/lib/countryName';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
