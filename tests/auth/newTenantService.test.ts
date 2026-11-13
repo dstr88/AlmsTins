@@ -124,12 +124,13 @@ describe('where the destination is read from', () => {
 
 describe('the notice', () => {
 	it('names the service in the subject and the service and method in the body', () => {
-		const m = tenantAlertMessage({ userId: 'u-1', tenantId: 't-1', email: 'x@example.test', service: 'Verify', method: 'Google' });
-		expect(m.subject).toBe('New tenant created: Verify');
+		const m = tenantAlertMessage({ userId: 'u-1', tenantId: 't-1', email: 'x@example.test', service: 'Verify', method: 'Google', country: 'FR' });
+		expect(m.subject).toBe('New tenant created: Verify, France');
 		expect(m.text.split('\n')).toEqual([
 			'A new tenant was created.',
 			'Service: Verify',
 			'Sign-in: Google',
+			'Country: France',
 			'User: u-1',
 			'Email: x@example.test',
 			'Tenant: t-1',
@@ -143,14 +144,14 @@ describe('the notice', () => {
 		});
 		expect(mem.sent).toHaveLength(1);
 		expect(mem.sent[0].to).toBe('donnie@titaniumhut.com');
-		expect(mem.sent[0].subject).toBe('New tenant created: Agent Vault');
+		expect(mem.sent[0].subject).toBe('New tenant created: Agent Vault, Unknown');
 		expect(mem.sent[0].text).toContain('Sign-in: GitHub');
 		expect(mem.sent[0].text).toContain('Email: new.person@example.test');
 	});
 
 	it('outside a sign-in both read Unknown', async () => {
 		await ensureTenantForUser('u-new');
-		expect(mem.sent[0].subject).toBe('New tenant created: Unknown');
+		expect(mem.sent[0].subject).toBe('New tenant created: Unknown, Unknown');
 		expect(mem.sent[0].text).toContain('Sign-in: Unknown');
 	});
 

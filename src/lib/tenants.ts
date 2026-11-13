@@ -3,13 +3,15 @@ import { db } from './db';
 import { sendMail } from './email';
 import { ensureFreeSubscription } from './subscriptions';
 import { getSignInContext, methodLabel } from './signupService';
+import { countryName } from './countryName';
 
 const TENANT_ALERT_EMAIL = 'donnie@titaniumhut.com';
 
 /**
  * The owner's notice that an account got its first tenant. It names the service the sign-in was
  * headed for and how it signed in (src/lib/signupService.ts), so a spam signup can be told apart
- * at a glance. Outside a sign-in (onboarding) both read Unknown. Never throws: a failed notice
+ * at a glance, and the country the sign-in came from. Outside a sign-in (onboarding) these read
+ * Unknown. Never throws: a failed notice
  * must not fail a sign-in.
  */
 export function tenantAlertMessage(input: {
@@ -18,13 +20,16 @@ export function tenantAlertMessage(input: {
 	email: string | null;
 	service: string;
 	method: string;
+	country: string | null;
 }): { subject: string; text: string } {
+	const country = countryName(input.country);
 	return {
-		subject: `New tenant created: ${input.service}`,
+		subject: `New tenant created: ${input.service}, ${country}`,
 		text: [
 			'A new tenant was created.',
 			`Service: ${input.service}`,
 			`Sign-in: ${input.method}`,
+			`Country: ${country}`,
 			`User: ${input.userId}`,
 			`Email: ${input.email ?? 'unknown'}`,
 			`Tenant: ${input.tenantId}`,
@@ -51,6 +56,7 @@ async function sendTenantAlert(userId: string, tenantId: string) {
 		email,
 		service: ctx?.service.label ?? 'Unknown',
 		method: methodLabel(ctx?.provider),
+		country: ctx?.country ?? null,
 	});
 	try {
 		await sendMail({ to: TENANT_ALERT_EMAIL, subject: message.subject, text: message.text });
