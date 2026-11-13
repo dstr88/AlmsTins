@@ -87,5 +87,7 @@ describe('the account menu', () => {
 		expect(layout).toContain('serviceLabelForId(');
 		expect(layout).toContain('countryName(');
 		expect(layout).toContain("{lastLoginDisplay}{lastLoginPlace ? ` · ${lastLoginPlace}` : ''}");
+		// The template reads this at the top level, so the declaration must not sit inside the signed-in block.
+		expect(layout).toMatch(/^let lastLoginPlace: string \| null = null;$/m);
 	});
 });
