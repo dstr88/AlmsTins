@@ -100,7 +100,7 @@ const [
 	safeScalar('SELECT COUNT(*) FROM import_transactions'),
 	safeScalar('SELECT COUNT(*) FROM sui_transactions'),
 	safeScalar('SELECT COUNT(*) FROM transactions'),
-	safeQ(`SELECT u.email, u.name, u.last_login, u.last_login_service, u.last_login_country, MIN(tm.created_at) AS member_since
+	safeQ(`SELECT u.id, u.email, u.name, u.last_login, u.last_login_service, u.last_login_country, MIN(tm.created_at) AS member_since
 	   FROM auth_users u
 	   LEFT JOIN tenant_memberships tm ON tm.user_id = u.id
 	   GROUP BY u.id, u.email, u.name, u.last_login, u.last_login_service, u.last_login_country
@@ -191,6 +191,32 @@ const [petroVisitCount, petroAvgDuration, petroRecentVisits] = showPetroTins
 // The admin pages are English only.
 const fmt = (iso: string | null) => formatDateTime(iso, 'en');
 const fmtDate = (iso: string | null) => formatDate(iso, 'en');
+
+// Accounts that signed up and never came back: no sign-in more than an hour after the account was
+// made, and none of the records a person makes or adds (wallets, imports, documents, receivables,
+// Verify, Agent Vault, milestone desk) and no invite they accepted. The check runs on its own, so
+// a failure only drops the red outline; it is logged, never silent.
+const PERSON_RECORD_TABLES = [
+	'wallets', 'transactions', 'import_transactions', 'exchange_accounts',
+	'transaction_screenshots', 'petro_tins', 'verify_destinations', 'verify_agent_keys', 'verify_claimed_names',
+	'agent_tins', 'receivables', 'receivable_claims', 'receivable_attestations', 'receivable_documents',
+	'cairn_projects', 'cairn_documents',
+];
+const hasPersonRecords = PERSON_RECORD_TABLES
+	.map((t) => `EXISTS (SELECT 1 FROM ${t} x WHERE x.tenant_id IN (SELECT tm2.tenant_id FROM tenant_memberships tm2 WHERE tm2.user_id = u.id))`)
+	.join(' OR ');
+let abandonedIds = new Set<string>();
+try {
+	const abandonedRows = await q(`SELECT u.id FROM auth_users u
+		WHERE u.created_at IS NOT NULL
+		  AND (u.last_login IS NULL OR u.last_login::timestamp <= u.created_at::timestamp + interval '1 hour')
+		  AND NOT (${hasPersonRecords})
+		  AND NOT EXISTS (SELECT 1 FROM receivable_invites ri WHERE ri.accepted_by = u.id)
+		  AND NOT EXISTS (SELECT 1 FROM cairn_invites ci WHERE ci.accepted_by = u.id)`);
+	abandonedIds = new Set(abandonedRows.map((r: any) => String(r.id)));
+} catch (error) {
+	console.warn('[admin] abandoned-account check failed', error instanceof Error ? error.message : String(error));
+}
 ---
 
 <!doctype html>
@@ -817,6 +843,7 @@ const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 		<!-- Recent users -->
 		<div>
 			<div class="section-title">Recent users — last login</div>
+			<p style="font-size:0.78rem; opacity:0.65; margin:4px 0 8px;">A red outline marks an account that signed up, never signed in again, and has no wallets, imports, documents or other records.</p>
 			<div class="table-wrap">
 				<table class="data-table">
 					<thead>
@@ -835,7 +862,9 @@ const fmtDate = (iso: string | null) => formatDate(iso, 'en');
 								</td>
 								<td>{fmtDate(u.member_since)}</td>
 								<td>
-									{u.last_login ? fmt(u.last_login) : <span style="opacity:0.35">Never</span>}
+									<span style={abandonedIds.has(String(u.id)) ? 'border:1.5px solid #d33; border-radius:6px; padding:1px 5px;' : ''}>
+										{u.last_login ? fmt(u.last_login) : <span style="opacity:0.35">Never</span>}
+									</span>
 									{u.last_login && (
 										<span style="display:block; font-size:0.78rem; opacity:0.65;">
 											{serviceLabelForId(u.last_login_service)} · {countryName(u.last_login_country)}

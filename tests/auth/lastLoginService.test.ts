@@ -91,3 +91,14 @@ describe('the account menu', () => {
 		expect(layout).toMatch(/^let lastLoginPlace: string \| null = null;$/m);
 	});
 });
+
+describe('the abandoned-account outline', () => {
+	const admin = read('src/pages/admin/index.astro');
+	it('marks an account that never came back, with the records a person makes, and logs a failed check', () => {
+		expect(admin).toContain("'wallets', 'transactions', 'import_transactions'");
+		expect(admin).toContain("'receivables', 'receivable_claims', 'receivable_attestations', 'receivable_documents'");
+		expect(admin).toContain("u.last_login::timestamp <= u.created_at::timestamp + interval '1 hour'");
+		expect(admin).toContain("console.warn('[admin] abandoned-account check failed'");
+		expect(admin).toContain("border:1.5px solid #d33");
+	});
+});
