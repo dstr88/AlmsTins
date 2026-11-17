@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAddressLabels } from '@/i18n/components/addressLabels';
 import { addressNetwork } from '@/lib/addressNetwork';
@@ -6,10 +6,11 @@ import { AddressDetailsModal } from './AddressDetailsModal';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { LookalikePrompt, type LookalikeMatch } from '@/components/poisoning/LookalikePrompt';
-import { DangerZone, DRAG_DANGER, DRAG_LABEL } from '@/components/poisoning/DangerZone';
-import { getDangerZone } from '@/i18n/components/dangerZone';
-import { SOURCE_FROM_DANGER } from '@/lib/addressPoisoning';
-import type { DangerEntry } from '@/lib/dangerZone';
+import { getQuarantine } from '@/i18n/components/quarantine';
+import { SOURCE_RELEASED } from '@/lib/addressPoisoning';
+import type { QuarantineEntry } from '@/lib/quarantineEntry';
+import { emitQuarantine, onQuarantine, onReleased } from '@/components/poisoning/quarantineEvents';
+import '@/components/poisoning/quarantine.css';
 
 export type AddressLabel = {
 	id: string;
@@ -24,8 +25,8 @@ export type AddressLabel = {
 
 type Props = {
 	labels: AddressLabel[];
-	/** The Danger Zone (src/lib/dangerZone.ts), loaded with the page. */
-	danger?: DangerEntry[];
+	/** The quarantine (src/lib/quarantine.ts), loaded with the page: for the quiet link's count. */
+	quarantine?: QuarantineEntry[];
 };
 
 const NETWORK_COLORS: Record<string, string> = {
@@ -52,65 +53,38 @@ const inputStyle: React.CSSProperties = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function AddressLabels({ labels: initial, danger: initialDanger = [] }: Props) {
+export function AddressLabels({ labels: initial, quarantine: initialQuarantine = [] }: Props) {
 	const t = getAddressLabels(getClientLang());
-	const dzT = getDangerZone(getClientLang());
-	// The Danger Zone lives here too, so a move updates both lists at once.
-	const [danger,         setDanger]         = useState<DangerEntry[]>(initialDanger);
-	const [dzPending,      setDzPending]      = useState<DangerEntry | null>(null);
-	const [dzBusy,         setDzBusy]         = useState(false);
-	const [dzError,        setDzError]        = useState<string | null>(null);
-	const [bookDropActive, setBookDropActive] = useState(false);
-	const dangerRef = useRef<HTMLDivElement>(null);
+	const qT = getQuarantine(getClientLang());
+	// The quarantine itself lives behind each wallet's Quarantine button and on its own page; here
+	// it is only a quiet link, shown when something is in it, and a "To quarantine" button per row.
+	const [quarantine, setQuarantine] = useState<QuarantineEntry[]>(initialQuarantine);
+	useEffect(() => onQuarantine(setQuarantine), []);
+	// An address released from quarantine elsewhere on the page joins the book here.
+	useEffect(() => onReleased((row) => {
+		const r = row as unknown as AddressLabel;
+		setLabels(prev => [r, ...prev.filter(l => l.address !== r.address)]);
+	}), []);
 
-	// Open the "Are you sure?" prompt on a Danger Zone row (from its button, or a drop on the book).
-	function requestDangerMove(entry: DangerEntry) {
-		setDzError(null);
-		setDzPending(entry);
-		dangerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-	}
-
-	// Danger Zone → address book, after "Are you sure?" and a name (decision 5). Saved with the
-	// source SOURCE_FROM_DANGER, so it stays on record that the user overrode the warning.
-	async function moveFromDanger(entry: DangerEntry, name: string) {
-		if (!name) return;
-		setDzBusy(true);
-		setDzError(null);
-		try {
-			const res = await fetch('/api/address-labels', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address: entry.address, label: name, category: 'counterparty', fromDangerZone: true }),
-			});
-			const data = await res.json().catch(() => null);
-			if (!res.ok || !data) { setDzError(dzT.moveFailed); return; }
-			setLabels(prev => [data, ...prev.filter(l => l.address !== data.address)]);
-			setDanger(prev => prev.filter(d => d.address !== entry.address));
-			setDzPending(null);
-		} catch {
-			setDzError(dzT.moveFailed);
-		} finally {
-			setDzBusy(false);
-		}
-	}
-
-	// Address book → Danger Zone: no prompt. The server answers with the Danger Zone as it now stands.
-	async function sendToDanger(labelId: string) {
+	// Address book → quarantine: no prompt (moving toward safety needs none). The server answers
+	// with the quarantine as it now stands, which the wallet cards pick up too.
+	async function sendToQuarantine(labelId: string) {
 		setStatus(null);
 		try {
-			const res = await fetch('/api/address-danger', {
+			const res = await fetch('/api/address-quarantine', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ labelId }),
 			});
 			const data = await res.json().catch(() => null);
-			if (!res.ok || !data) { setStatus(dzT.sendFailed); return; }
+			if (!res.ok || !data) { setStatus(qT.quarantineFailed); return; }
 			setLabels(prev => prev.filter(l => l.id !== labelId));
-			if (Array.isArray(data.dangerZone)) setDanger(data.dangerZone);
+			if (Array.isArray(data.quarantine)) emitQuarantine(data.quarantine);
 		} catch {
-			setStatus(dzT.sendFailed);
+			setStatus(qT.quarantineFailed);
 		}
 	}
+
 	const [labels,       setLabels]       = useState<AddressLabel[]>(initial);
 	const [address,      setAddress]      = useState('');
 	const [labelText,    setLabelText]    = useState('');
@@ -412,20 +386,8 @@ export function AddressLabels({ labels: initial, danger: initialDanger = [] }: P
 				)}
 			</div>
 
-			{/* ── Labels list (also the drop target for a Danger Zone row) ─── */}
-			<div
-				className={bookDropActive ? 'address-book--drop' : undefined}
-				onDragOver={(e) => {
-					if (e.dataTransfer.types.includes(DRAG_DANGER)) { e.preventDefault(); setBookDropActive(true); }
-				}}
-				onDragLeave={() => setBookDropActive(false)}
-				onDrop={(e) => {
-					setBookDropActive(false);
-					const addr = e.dataTransfer.getData(DRAG_DANGER);
-					const entry = addr ? danger.find((d) => d.address === addr) : undefined;
-					if (entry) { e.preventDefault(); requestDangerMove(entry); }
-				}}
-			>
+			{/* ── Labels list ──────────────────────────────────────────────── */}
+			<div>
 			{labels.length === 0 ? (
 				<div style={{
 					padding: '2rem 1.5rem',
@@ -445,11 +407,6 @@ export function AddressLabels({ labels: initial, danger: initialDanger = [] }: P
 						return (
 							<div
 								key={l.id}
-								draggable
-								onDragStart={(ev) => {
-									ev.dataTransfer.setData(DRAG_LABEL, l.id);
-									ev.dataTransfer.effectAllowed = 'move';
-								}}
 								style={{
 									display: 'flex',
 									alignItems: 'center',
@@ -601,8 +558,8 @@ export function AddressLabels({ labels: initial, danger: initialDanger = [] }: P
 								</div>
 
 								{/* Source badge */}
-								{l.source === SOURCE_FROM_DANGER && (
-									<span className="address-book__moved-badge">{dzT.movedBadge}</span>
+								{l.source === SOURCE_RELEASED && (
+									<span className="q-released-badge">{qT.releasedBadge}</span>
 								)}
 								{l.source === 'auto' && (
 									<span style={{
@@ -618,18 +575,18 @@ export function AddressLabels({ labels: initial, danger: initialDanger = [] }: P
 									</span>
 								)}
 
-								{/* To the Danger Zone (no prompt: moving toward safety needs none) */}
+								{/* To quarantine (no prompt: moving toward safety needs none) */}
 								<button
 									type="button"
-									className="address-book__to-danger"
-									title={dzT.sendBtnTitle}
-									onClick={() => void sendToDanger(l.id)}
+									className="q-to-quarantine"
+									title={qT.toQuarantineTitle}
+									onClick={() => void sendToQuarantine(l.id)}
 								>
-									{dzT.sendBtn}
+									{qT.toQuarantineBtn}
 								</button>
 
 								{/* Remove */}
-								{(l.source === 'user' || l.source === SOURCE_FROM_DANGER) && (
+								{(l.source === 'user' || l.source === SOURCE_RELEASED) && (
 									<button
 										type="button"
 										onClick={() => handleDelete(l.id)}
@@ -656,19 +613,10 @@ export function AddressLabels({ labels: initial, danger: initialDanger = [] }: P
 			)}
 			</div>
 
-			{/* ── Danger Zone: flagged addresses, kept apart from the book ──── */}
-			<div ref={dangerRef}>
-				<DangerZone
-					entries={danger}
-					pending={dzPending}
-					busy={dzBusy}
-					error={dzError}
-					onRequestMove={requestDangerMove}
-					onKeep={() => { setDzPending(null); setDzError(null); }}
-					onMove={(entry, name) => void moveFromDanger(entry, name)}
-					onDropLabel={(id) => void sendToDanger(id)}
-				/>
-			</div>
+			{/* ── Quarantine: a quiet link, only when something is in it ────── */}
+			{quarantine.length > 0 && (
+				<a className="q-link" href="/dashboard/quarantine">{qT.link(quarantine.length)} →</a>
+			)}
 
 			{selected && <AddressDetailsModal label={selected} onClose={() => setSelected(null)} />}
 		</div>

@@ -180,6 +180,8 @@ const walletPayload = JSON.stringify(wallets);
 		poisonTagDustOnly: pw.tagDustOnly,
 		poisonTagLookalike: pw.tagLookalike,
 		poisonTagBoth: pw.tagBoth,
+		poisonQuarantined: pw.quarantined,
+		poisonTagQuarantined: pw.tagQuarantined,
 	} }}>window.__txI18n = i18n;</script>
 
 	<script>
@@ -418,19 +420,22 @@ const walletPayload = JSON.stringify(wallets);
 		// user's own text, so it only ever goes in as textContent / title.
 		function markPoison(cell, flag) {
 			if (!cell || !flag) return;
-			const red = flag.signal !== 'dust-only';
+			const skull = flag.signal === 'quarantined';
+			const red = !skull && flag.signal !== 'dust-only';
 			const label = flag.imitates || '';
 			const sentence =
-				flag.signal === 'both' && label ? _s('poisonBoth').replace('{label}', () => label)
+				skull ? _s('poisonQuarantined')
+				: flag.signal === 'both' && label ? _s('poisonBoth').replace('{label}', () => label)
 				: flag.signal === 'lookalike' && label ? _s('poisonLookalike').replace('{label}', () => label)
 				: _s('poisonDustOnly');
 			const tag = document.createElement('span');
 			tag.className = 'poison-tag';
-			tag.textContent = '⚠ ' + (flag.signal === 'both' ? _s('poisonTagBoth') : flag.signal === 'lookalike' ? _s('poisonTagLookalike') : _s('poisonTagDustOnly'));
+			tag.textContent = skull ? '☠ ' + _s('poisonTagQuarantined') : '⚠ ' + (flag.signal === 'both' ? _s('poisonTagBoth') : flag.signal === 'lookalike' ? _s('poisonTagLookalike') : _s('poisonTagDustOnly'));
 			tag.title = sentence;
 			tag.setAttribute('aria-label', sentence);
 			cell.classList.add('poison-cell');
 			if (red) cell.classList.add('poison-cell--red');
+			if (skull) cell.classList.add('poison-cell--skull');
 			cell.appendChild(tag);
 		}
 

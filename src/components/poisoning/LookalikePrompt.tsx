@@ -17,7 +17,7 @@ export interface LookalikeMatch {
 	label: string;
 }
 
-/** One address with the characters at `marks` highlighted. Shared with the Danger Zone prompt. */
+/** One address with the characters at `marks` highlighted. Shared with the quarantine release prompt. */
 export function DiffLine({ value, marks }: { value: string; marks: Set<number> }) {
 	return (
 		<code className="addr-diff__line">

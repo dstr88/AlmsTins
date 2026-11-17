@@ -762,7 +762,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          Las direcciones marcadas también se guardan aparte de tu Address Book, en la <strong>Zona de peligro</strong> de la página de Direcciones, con el motivo y la fecha en que apareció cada una. Para mover una a tu Address Book, usa <strong>Mover al Address Book</strong> o arrástrala allí. Se te preguntará si estás seguro, verás las diferencias y tendrás que ponerle un nombre; la entrada queda marcada como movida desde la Zona de peligro. Puedes enviar cualquier entrada de tu Address Book a la Zona de peligro en cualquier momento, sin preguntas.
+          Las direcciones marcadas también se guardan aparte de tu Address Book, en <strong>Cuarentena</strong>. Cada billetera de la página de Direcciones tiene un botón discreto de <strong>Cuarentena</strong>: queda gris cuando no hay nada, y muestra un número en rojo solo cuando una dirección se parece a una que guardaste. Abre la lista de esa billetera, con el motivo y la fecha en que apareció cada dirección, y un enlace a la lista de todas tus billeteras. Para devolver una a tu Address Book, usa <strong>Devolver al Address Book</strong>: se te preguntará si estás seguro, verás las diferencias y tendrás que ponerle un nombre, y la entrada queda marcada como salida de cuarentena. También puedes poner tú en cuarentena cualquier entrada de tu Address Book con <strong>A cuarentena</strong>, sin preguntas; esas direcciones llevan ☠ allí donde aparezcan en tu historial.
         </p>
 
         <p>

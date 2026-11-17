@@ -17,6 +17,7 @@
  */
 
 import { db } from './db';
+import { loadQuarantineMarks } from './quarantineMarks';
 import { loadHistoryRows, HistoryTooLargeError, type HistoryRow } from './historyRows';
 import { nativeSymbol } from './chains';
 import {
@@ -31,7 +32,11 @@ import {
 
 /** What a screen needs to draw a warning for one address. */
 export interface PoisonFlag {
-	signal: PoisonSignal;
+	/**
+	 * 'quarantined': the user quarantined this address themselves (src/lib/quarantine.ts). Their own
+	 * verdict wins over the automatic signals and is drawn with ☠.
+	 */
+	signal: PoisonSignal | 'quarantined';
 	/** The label of the saved address it imitates (signals B and C). */
 	imitates: string | null;
 }
@@ -60,6 +65,7 @@ export function transferFromHistoryRow(row: HistoryRow): PoisonTransfer | null {
 		tokenSymbol: row.asset || null,
 		valueUnknown: !!native && row.asset.toUpperCase() === native.toUpperCase(),
 		at: row.sortKey || null,
+		wallet: row.ref?.kind === 'wallet' ? row.ref.walletId : null,
 	};
 }
 
@@ -88,6 +94,7 @@ export function flagsFor(
 	transfers: readonly PoisonTransfer[],
 	book: readonly AddressBookEntry[],
 	ownWallets: readonly string[],
+	quarantined: readonly string[] = [],
 ): Map<string, PoisonFlag> {
 	const own = new Set(ownWallets.map((w) => sameAddressKey(w)).filter((k): k is string => !!k));
 	const wanted = new Set(
@@ -104,8 +111,13 @@ export function flagsFor(
 	const trusted = new Set(
 		book.filter((e) => isTrustedSource(e.source)).map((e) => sameAddressKey(e.address)).filter((k): k is string => !!k),
 	);
+	const byUser = new Set(quarantined.map((a) => sameAddressKey(a)).filter((k): k is string => !!k));
 	for (const key of wanted) {
 		const found = findings.get(key);
+		if (byUser.has(key) && !trusted.has(key)) {
+			out.set(key, { signal: 'quarantined', imitates: found?.imitates?.label ?? null });
+			continue;
+		}
 		if (found) {
 			out.set(key, { signal: found.signal, imitates: found.imitates?.label ?? null });
 			continue;
@@ -129,10 +141,11 @@ export async function loadPoisoningFlags(
 ): Promise<Map<string, PoisonFlag>> {
 	try {
 		if (!addresses.some((a) => sameAddressKey(a))) return new Map();
-		const [transfers, bookRes, walletRes] = await Promise.all([
+		const [transfers, bookRes, walletRes, marks] = await Promise.all([
 			accountTransfers(tenantId),
 			db.execute({ sql: 'SELECT address, label, source FROM address_labels WHERE tenant_id = ?', args: [tenantId] }),
 			db.execute({ sql: 'SELECT address FROM wallets WHERE tenant_id = ?', args: [tenantId] }),
+			loadQuarantineMarks(tenantId),
 		]);
 		const book: AddressBookEntry[] = (bookRes.rows as Record<string, unknown>[]).map((r) => ({
 			address: String(r.address ?? ''),
@@ -140,7 +153,7 @@ export async function loadPoisoningFlags(
 			source: r.source == null ? null : String(r.source),
 		}));
 		const wallets = (walletRes.rows as Record<string, unknown>[]).map((r) => String(r.address ?? ''));
-		return flagsFor(addresses, transfers ?? [], book, wallets);
+		return flagsFor(addresses, transfers ?? [], book, wallets, marks.map((m) => m.address));
 	} catch (err) {
 		console.error('[poisoningFlags]', err instanceof Error ? err.message : 'failed');
 		return new Map();

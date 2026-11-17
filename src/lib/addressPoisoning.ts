@@ -2,7 +2,7 @@
  * Address-poisoning signals: the rules only (plan: Obsidian claudePoisoningWarnings-plan.md,
  * phase 1; decisions taken by Donnie, Nov 16, 2026). Nothing here reads a database or draws a
  * screen. Later phases call these rules from the history rows, the transaction drawer, the
- * address book and the Danger Zone, so every place answers the same way.
+ * address book and quarantine, so every place answers the same way.
  *
  * Address poisoning: a scammer makes an address whose first and last few characters match one the
  * victim really pays, then sends the victim dust so the look-alike sits in their history, waiting
@@ -31,16 +31,16 @@ export const LOOKALIKE_HEAD = 4;
 /** Characters compared at the end of an address. */
 export const LOOKALIKE_TAIL = 4;
 
-/** The source of an entry the user moved out of the Danger Zone themselves (phase 4). */
-export const SOURCE_FROM_DANGER = 'user-override';
+/** The source of an entry the user released from quarantine themselves (phase 4). */
+export const SOURCE_RELEASED = 'user-override';
 
 /**
  * Address book sources the look-alike check trusts: only entries the user saved themselves
- * (decision 3a). The address book stores those as 'user', or SOURCE_FROM_DANGER when the user
- * moved the address out of the Danger Zone past the warning; 'auto' (the transfer matcher) and
+ * (decision 3a). The address book stores those as 'user', or SOURCE_RELEASED when the user
+ * released the address from quarantine past the warning; 'auto' (the transfer matcher) and
  * 'system' (imports) were never confirmed by the user, so they are not a reference.
  */
-const TRUSTED_SOURCES = new Set(['user', SOURCE_FROM_DANGER]);
+const TRUSTED_SOURCES = new Set(['user', SOURCE_RELEASED]);
 
 export function isTrustedSource(source: string | null | undefined): boolean {
 	return TRUSTED_SOURCES.has(String(source ?? '').trim().toLowerCase());
@@ -147,6 +147,8 @@ export interface PoisonTransfer {
 	valueUnknown?: boolean;
 	/** When it happened (ISO 8601), for "first seen". */
 	at?: string | null;
+	/** Which of the account's wallets it touched (the wallets row id), when known. */
+	wallet?: string | null;
 }
 
 /**
@@ -180,6 +182,8 @@ export interface PoisonFinding<E extends AddressBookEntry = AddressBookEntry> {
 	firstAt: string | null;
 	/** What it sent in, in US dollars, counting only priced transfers. */
 	usdIn: number;
+	/** The account's wallets (wallets row ids) it touched. */
+	wallets: string[];
 }
 
 /**
@@ -195,14 +199,15 @@ export function poisoningFindings<E extends AddressBookEntry>(
 	transfers: readonly PoisonTransfer[],
 	book: readonly E[],
 ): Map<string, PoisonFinding<E>> {
-	type Tally = { address: string; total: number; dustIn: number; firstAt: string | null; usdIn: number };
+	type Tally = { address: string; total: number; dustIn: number; firstAt: string | null; usdIn: number; wallets: Set<string> };
 	const byAddress = new Map<string, Tally>();
 
 	for (const t of transfers) {
 		const key = sameAddressKey(t.counterparty);
 		if (!key) continue;
-		const tally = byAddress.get(key) ?? { address: key, total: 0, dustIn: 0, firstAt: null, usdIn: 0 };
+		const tally = byAddress.get(key) ?? { address: key, total: 0, dustIn: 0, firstAt: null, usdIn: 0, wallets: new Set<string>() };
 		tally.total += 1;
+		if (t.wallet) tally.wallets.add(String(t.wallet));
 		const incoming = String(t.direction ?? '').toLowerCase() === 'in';
 		if (incoming && isDustTransfer(t)) tally.dustIn += 1;
 		if (incoming && t.usd !== null && t.usd !== undefined && Number.isFinite(Number(t.usd))) {
@@ -233,6 +238,7 @@ export function poisoningFindings<E extends AddressBookEntry>(
 			transfers: tally.total,
 			firstAt: tally.firstAt,
 			usdIn: tally.usdIn,
+			wallets: [...tally.wallets],
 		});
 	}
 	return findings;

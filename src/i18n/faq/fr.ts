@@ -764,7 +764,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          Les adresses signalées sont aussi tenues à l’écart de votre Address Book, dans la <strong>Zone de danger</strong> de la page Adresses, avec la raison et la date de leur première apparition. Pour en déplacer une vers votre Address Book, utilisez <strong>Déplacer vers l’Address Book</strong> ou faites-la glisser. On vous demandera si vous êtes sûr, les différences vous seront montrées et vous devrez lui donner un nom ; l’entrée est alors marquée comme sortie de la Zone de danger. Vous pouvez placer n’importe quelle entrée de votre Address Book dans la Zone de danger à tout moment, sans question.
+          Les adresses signalées sont aussi tenues à l’écart de votre Address Book, en <strong>Quarantaine</strong>. Chaque portefeuille de la page Adresses a un bouton discret <strong>Quarantaine</strong> : il reste gris quand il n’y a rien, et n’affiche un chiffre en rouge que lorsqu’une adresse ressemble à une adresse enregistrée. Il ouvre la liste de ce portefeuille, avec la raison et la date de première apparition de chaque adresse, et un lien vers la liste de tous vos portefeuilles. Pour en remettre une dans votre Address Book, utilisez <strong>Remettre dans l’Address Book</strong> : on vous demandera si vous êtes sûr, les différences vous seront montrées et vous devrez lui donner un nom, et l’entrée est marquée comme sortie de quarantaine. Vous pouvez aussi mettre vous-même en quarantaine n’importe quelle entrée de votre Address Book avec <strong>En quarantaine</strong>, sans question ; ces adresses portent ☠ partout où elles apparaissent dans votre historique.
         </p>
 
         <p>

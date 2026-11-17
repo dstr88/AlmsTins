@@ -1,0 +1,29 @@
+---
+// The account-wide Quarantine page (src/lib/quarantine.ts): every address the poisoning rules
+// flagged, or the user quarantined, across all wallets. Reached from a wallet's Quarantine modal
+// ("See all wallets") and from the quiet link under the address book; not in the menu.
+import Layout from '../../layouts/Layout.astro';
+import QuarantinePage from '../../components/poisoning/QuarantinePage';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getQuarantine } from '@/i18n/components/quarantine';
+import { loadQuarantine } from '../../lib/quarantine';
+import '../../components/poisoning/quarantine.css';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getQuarantine(lang);
+const entries = await loadQuarantine(tenantId);
+---
+
+<Layout title={t.pageTitle} noindex={true}>
+	<section class="q-page">
+		<a class="q-page__back" href="/dashboard/wallets">← {t.backToAddresses}</a>
+		<header>
+			<p class="q-page__eyebrow">{t.eyebrow}</p>
+			<h1 class="q-page__heading">{t.heading}</h1>
+			<p class="q-page__description">{t.description}</p>
+		</header>
+		<QuarantinePage client:load entries={entries} />
+	</section>
+</Layout>

@@ -4,8 +4,8 @@ import { requireTenantSession } from '../../lib/requireTenantSession';
 import { canonicalAddress } from '../../lib/wallets-service';
 import { normalizeLabelCategory } from '../../lib/addressLabelCategory';
 import { json } from '@/lib/http';
-import { saveLookalike, SOURCE_FROM_DANGER } from '@/lib/addressPoisoning';
-import { clearDangerMark } from '@/lib/dangerZone';
+import { saveLookalike, SOURCE_RELEASED } from '@/lib/addressPoisoning';
+import { clearQuarantineMark } from '@/lib/quarantine';
 
 export const prerender = false;
 
@@ -50,17 +50,17 @@ export const POST: APIRoute = async ({ request }) => {
 	// Normalise phone to null so COALESCE(phone_number, '') comparison is consistent
 	const phone = phoneNumber || null;
 
-	// Moved out of the Danger Zone (phase 4): the user already answered "Are you sure?" with the
+	// Released from quarantine (phase 4): the user already answered "Are you sure?" with the
 	// differences in front of them, so the look-alike question is not asked again. The entry is
 	// saved with its own source, so it stays on record that they overrode the warning.
-	const fromDangerZone = body.fromDangerZone === true;
-	const source = fromDangerZone ? SOURCE_FROM_DANGER : 'user';
+	const fromQuarantine = body.fromQuarantine === true;
+	const source = fromQuarantine ? SOURCE_RELEASED : 'user';
 
 	try {
 		// A new address that looks like one the user saved (same first 4 and last 4 characters,
 		// src/lib/addressPoisoning.ts) is not saved until the user confirms it: 409 with the entry it
 		// looks like, then the form asks "Did you mean …?" and resends with confirmLookalike: true.
-		if (body.confirmLookalike !== true && !fromDangerZone) {
+		if (body.confirmLookalike !== true && !fromQuarantine) {
 			const bookRes = await db.execute({
 				sql: 'SELECT address, label, source FROM address_labels WHERE tenant_id = ?',
 				args: [tenantId],
@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ request }) => {
 		// private labels, so it was removed (privacy policy v1.2, 2026-10-10).
 		// src/scripts/removeSharedLabelVotes.mjs deletes the old votes and shared labels.
 
-		if (fromDangerZone) await clearDangerMark(tenantId, address);
+		if (fromQuarantine) await clearQuarantineMark(tenantId, address);
 
 		const row = await db.execute({
 			sql: `SELECT id, address, label, source, category, chain, notes, phone_number, created_at FROM address_labels
