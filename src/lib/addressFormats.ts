@@ -125,3 +125,46 @@ export const BECH32_ADDRESS = bech32Pattern(...BECH32_HRPS.mainnet, ...BECH32_HR
  * for deciding how to fold a value's case, not whether it is a valid address.
  */
 export const BECH32_PREFIX = new RegExp(`^(?:${[...BECH32_HRPS.mainnet, ...BECH32_HRPS.test].join('|')})1`, 'i');
+
+// ── Finding an address in free text ──────────────────────────────────────────
+
+/** A legacy Bitcoin (1…, 3…) or Litecoin (L…, M…) base58 address. Case-sensitive. */
+const LEGACY_BASE58_ADDRESS = new RegExp(`^[13LM]${BASE58_CHAR}{25,34}$`);
+
+/** Only hex digits: a transaction hash or an internal id, never a base58 address. */
+const HEX_ONLY = /^[0-9a-fA-F]+$/;
+
+/**
+ * Whether a single word of free text is a wallet address (EVM, segwit, legacy Bitcoin or
+ * Litecoin, Solana), as opposed to a transaction hash, a Sui-length hex string or an exchange's
+ * internal id. Shape only; no checksum is verified.
+ *
+ * Deliberately excluded: 0x and 64 hex digits (an EVM transaction hash has that shape as well as a
+ * Sui address, and only the chain tells them apart), any string of hex digits alone (hashes and ids
+ * are; a base58 address almost never is), and a base58-looking string in one case only (a reference
+ * code; a base58 address mixes cases).
+ */
+export function isWalletAddressWord(word: string): boolean {
+	const w = String(word ?? '').trim();
+	if (!w) return false;
+	if (EVM_ADDRESS_ANY_PREFIX.test(w)) return true;
+	if (/^0[xX]/.test(w)) return false;
+	if (BECH32_ADDRESS.test(w.toLowerCase()) && (w === w.toLowerCase() || w === w.toUpperCase())) return true;
+	if (HEX_ONLY.test(w)) return false;
+	// A base58 address mixes upper and lower case; a reference code in one case only is not one.
+	if (!/[a-z]/.test(w) || !/[A-Z]/.test(w)) return false;
+	return LEGACY_BASE58_ADDRESS.test(w) || SOLANA_ADDRESS.test(w);
+}
+
+/**
+ * The first wallet address written in a free-text field (an exchange export's description), as
+ * written; null when there is none. A transaction hash or an internal id in the same text is
+ * skipped (isWalletAddressWord).
+ */
+export function findWalletAddressInText(text: string | null | undefined): string | null {
+	for (const word of String(text ?? '').match(/[A-Za-z0-9]{25,}/g) ?? []) {
+		if (isWalletAddressWord(word)) return word;
+	}
+	return null;
+}
+
