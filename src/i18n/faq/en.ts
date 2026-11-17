@@ -763,6 +763,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          When you are signed in, the free checker also warns if the address you check looks like one in your Address Book. The comparison happens in your browser; the check itself still sends only the address, never who you are.
+        </p>
+
+        <p>
           Flagged addresses are also kept apart from your Address Book, in <strong>Quarantine</strong>. Each wallet on the Addresses page has a quiet <strong>Quarantine</strong> button: it stays grey when nothing is there, and shows a red number only when an address looks like one you saved. It opens that wallet's list, with the reason and the date each address first appeared, and a link to the list for all your wallets. To release one into your Address Book, use <strong>Release to address book</strong>: you will be asked if you are sure, shown the differences, and asked to give it a name, and the entry is marked as released from quarantine. You can also quarantine any Address Book entry yourself with <strong>To quarantine</strong>, with no question asked; those addresses are marked with ☠ wherever they appear in your history. On the Bookkeeping page, Needs Attention sets aside anything that sent nothing, or less than $1, to a quarantined address, behind a <em>Show</em> line where each one is still marked; a real payment to a quarantined address is always listed.
         </p>
 

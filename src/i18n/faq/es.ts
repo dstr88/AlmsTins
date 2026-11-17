@@ -762,6 +762,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Con la sesión iniciada, el comprobador gratuito también avisa si la dirección que compruebas se parece a una de tu Address Book. La comparación se hace en tu navegador; la comprobación sigue enviando solo la dirección, nunca quién eres.
+        </p>
+
+        <p>
           Las direcciones marcadas también se guardan aparte de tu Address Book, en <strong>Cuarentena</strong>. Cada billetera de la página de Direcciones tiene un botón discreto de <strong>Cuarentena</strong>: queda gris cuando no hay nada, y muestra un número en rojo solo cuando una dirección se parece a una que guardaste. Abre la lista de esa billetera, con el motivo y la fecha en que apareció cada dirección, y un enlace a la lista de todas tus billeteras. Para devolver una a tu Address Book, usa <strong>Devolver al Address Book</strong>: se te preguntará si estás seguro, verás las diferencias y tendrás que ponerle un nombre, y la entrada queda marcada como salida de cuarentena. También puedes poner tú en cuarentena cualquier entrada de tu Address Book con <strong>A cuarentena</strong>, sin preguntas; esas direcciones llevan ☠ allí donde aparezcan en tu historial. En la página de Bookkeeping, «Requiere atención» aparta lo que envió nada, o menos de 1 $, a una dirección en cuarentena, tras una línea <em>Mostrar</em> donde cada elemento sigue marcado; un pago real a una dirección en cuarentena siempre aparece en la lista.
         </p>
 
