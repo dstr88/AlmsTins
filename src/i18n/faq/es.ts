@@ -746,6 +746,21 @@ export const items: FaqItem[] = [
           <strong>Tip:</strong> Cuantas más direcciones etiquetes, menos transacciones misteriosas tendrás. Empieza con las direcciones de depósito de tus exchanges — esas son la fuente más común de transferencias sin resolver.
         </p>
 
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Avisos de posible envenenamiento de direcciones</h2>
+
+        <p>
+          El envenenamiento de direcciones es un truco: alguien te envía una cantidad mínima desde una dirección que empieza y termina como una que usas de verdad, con la esperanza de que la copies de tu historial la próxima vez. En el panel de la transacción y en la página de Transacciones, Almstins marca dos patrones:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Ámbar:</strong> una dirección que solo te ha enviado cantidades mínimas (menos de 1 $, una transferencia de valor cero, un token de spam o un token sin precio) y a la que nunca has pagado.</li>
+          <li><strong>Rojo:</strong> una dirección cuyos primeros 4 y últimos 4 caracteres coinciden con una dirección que guardaste en tu Address Book, pero que es una dirección distinta. Si además solo te ha enviado cantidades mínimas, el panel no ofrece añadirla a tu Address Book.</li>
+        </ul>
+
+        <p>
+          Son avisos, no veredictos: un airdrop normal puede verse igual, y nada se oculta, se bloquea ni se borra. Solo las direcciones que guardaste tú mismo se usan para comparar, y una dirección que guardaste nunca se marca. El hábito más seguro es copiar una dirección de tu Address Book, no de tu historial.
+        </p>
+
         <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Tus etiquetas son privadas</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">

@@ -6,6 +6,8 @@ import { CopyButton } from '@/components/ui/CopyButton';
 import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { Drawer } from '@/components/ui/Drawer';
+import { PoisonWarning } from '@/components/poisoning/PoisonWarning';
+import type { PoisonFlag } from '@/lib/poisoningFlags';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,9 @@ interface HistoryEvent {
   wallet_address: string | null;
   from_label: string | null;
   to_label: string | null;
+  /** Address-poisoning flags for each side (src/lib/poisoningFlags.ts), or null. */
+  from_poison?: PoisonFlag | null;
+  to_poison?: PoisonFlag | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -606,9 +611,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             ) : (
                               <span style={{ fontSize: '0.73rem', color: 'var(--loss)', fontWeight: 600 }}>✗ Not in your address book</span>
                             )}
+                            <PoisonWarning flag={evt.to_poison} />
                             <FullAddress chain={chain} address={destAddr} />
-                            {/* Inline label form for unknown last-out destination */}
-                            {isLastOutEvt && !lastOutInBook && (
+                            {/* Inline label form for unknown last-out destination. Not offered for the
+                                classic poisoning pattern, so the bait can't be saved as trusted in one click. */}
+                            {isLastOutEvt && !lastOutInBook && evt.to_poison?.signal !== 'both' && (
                               <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
                                 <input
                                   type="text"
@@ -658,6 +665,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                         )}
 
                         {/* Source address (IN events) */}
+                        {evt.from_address && evt.direction === 'in' && (
+                          <PoisonWarning flag={evt.from_poison} />
+                        )}
                         {evt.from_address && evt.direction === 'in' && !evt.from_label && (
                           <FullAddress chain={chain} address={evt.from_address} />
                         )}

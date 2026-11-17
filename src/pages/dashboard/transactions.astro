@@ -1,15 +1,20 @@
 ---
 import '@/styles/dialog.css';
 import './transactions.css';
+import '@/components/poisoning/poisonWarning.css';
 import Layout from '../../layouts/Layout.astro';
 import { getAllActiveWallets } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { getLang } from '@/lib/i18n/locale';
 import { getTransactions } from '@/i18n/dashboard/transactions';
 import { INTL_LOCALE } from '@/lib/format';
+import { getPoisonWarning } from '@/i18n/components/poisonWarning';
 
 const lang = getLang(Astro.request);
 const t = getTransactions(lang);
+const pw = getPoisonWarning(lang);
+// The row script fills the user's label in with textContent, so the template keeps a marker.
+const POISON_LABEL = '{label}';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const wallets = await getAllActiveWallets(tenantId);
@@ -168,6 +173,13 @@ const walletPayload = JSON.stringify(wallets);
 		parsingN: t.parsing(2).replace('2', 'N'),
 		// The inline module below cannot import src/lib/format.ts; it formats dates with this locale.
 		dateLocale: INTL_LOCALE[lang],
+		// Address-poisoning warnings (src/i18n/components/poisonWarning.ts); {label} is filled in as text.
+		poisonDustOnly: pw.dustOnly,
+		poisonLookalike: pw.lookalike(POISON_LABEL),
+		poisonBoth: pw.both(POISON_LABEL),
+		poisonTagDustOnly: pw.tagDustOnly,
+		poisonTagLookalike: pw.tagLookalike,
+		poisonTagBoth: pw.tagBoth,
 	} }}>window.__txI18n = i18n;</script>
 
 	<script>
@@ -338,6 +350,9 @@ const walletPayload = JSON.stringify(wallets);
             </button>
           </td>
         `;
+				const cells = tr.querySelectorAll('td');
+				markPoison(cells[2], tx.from_poison);
+				markPoison(cells[3], tx.to_poison);
 				tableBody.appendChild(tr);
 			});
 			tableBody.querySelectorAll('button[data-save]').forEach((button) => {
@@ -396,6 +411,27 @@ const walletPayload = JSON.stringify(wallets);
 			} catch {
 				return input;
 			}
+		}
+
+		// An address-poisoning flag ({ signal, imitates } from /api/transactions/list, or null): an amber
+		// or red edge on the cell and a short tag whose tooltip is the full warning. The label is the
+		// user's own text, so it only ever goes in as textContent / title.
+		function markPoison(cell, flag) {
+			if (!cell || !flag) return;
+			const red = flag.signal !== 'dust-only';
+			const label = flag.imitates || '';
+			const sentence =
+				flag.signal === 'both' && label ? _s('poisonBoth').replace('{label}', () => label)
+				: flag.signal === 'lookalike' && label ? _s('poisonLookalike').replace('{label}', () => label)
+				: _s('poisonDustOnly');
+			const tag = document.createElement('span');
+			tag.className = 'poison-tag';
+			tag.textContent = '⚠ ' + (flag.signal === 'both' ? _s('poisonTagBoth') : flag.signal === 'lookalike' ? _s('poisonTagLookalike') : _s('poisonTagDustOnly'));
+			tag.title = sentence;
+			tag.setAttribute('aria-label', sentence);
+			cell.classList.add('poison-cell');
+			if (red) cell.classList.add('poison-cell--red');
+			cell.appendChild(tag);
 		}
 
 		// The shared shortener (src/lib/addressDisplay.ts, D4), published by the bundled script above;

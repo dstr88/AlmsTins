@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
+import { flagOf, loadPoisoningFlags } from '@/lib/poisoningFlags';
 
 export const prerender = false;
 
@@ -51,8 +52,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 			args,
 		});
 
+		// The address-poisoning flag for each side, or null (src/lib/poisoningFlags.ts).
+		const rows = result.rows as Record<string, unknown>[];
+		const str = (v: unknown) => (typeof v === 'string' ? v : null);
+		const flags = await loadPoisoningFlags(tenantId, rows.flatMap((r) => [str(r.from_address), str(r.to_address)]));
+		const transactions = rows.map((r) => ({
+			...r,
+			from_poison: flagOf(flags, str(r.from_address)),
+			to_poison: flagOf(flags, str(r.to_address)),
+		}));
+
 		return respond({
-			transactions: result.rows,
+			transactions,
 			limit,
 			offset,
 			count: result.rows.length,

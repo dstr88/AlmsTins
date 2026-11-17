@@ -4,12 +4,15 @@
  * Returns all lifecycle events for a given asset group, ordered oldest-first.
  * Joins wallet_transactions to include from/to addresses and chain,
  * and joins wallets to resolve the user's wallet label.
+ * Each event also carries from_poison / to_poison: the address-poisoning flag for that address,
+ * or null (src/lib/poisoningFlags.ts).
  */
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
 import { getCache, setCache } from '../../../lib/tursoCache';
+import { flagOf, loadPoisoningFlags } from '../../../lib/poisoningFlags';
 
 const CACHE_TTL = 5 * 60;
 const memCache = new Map<string, { data: unknown; expiresAt: number }>();
@@ -28,6 +31,22 @@ function toStrOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
+type HistoryEvent = Record<string, unknown> & { from_address?: unknown; to_address?: unknown };
+
+/**
+ * Adds from_poison / to_poison (src/lib/poisoningFlags.ts) to each event. Done after the cache,
+ * not stored in it, so a label the user just saved changes the warnings at once.
+ */
+async function withPoisonFlags(tenantId: string, events: HistoryEvent[]): Promise<HistoryEvent[]> {
+  const addresses = events.flatMap((e) => [e.from_address, e.to_address]).map((a) => (typeof a === 'string' ? a : null));
+  const flags = await loadPoisoningFlags(tenantId, addresses);
+  return events.map((e) => ({
+    ...e,
+    from_poison: flagOf(flags, typeof e.from_address === 'string' ? e.from_address : null),
+    to_poison: flagOf(flags, typeof e.to_address === 'string' ? e.to_address : null),
+  }));
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const session = await requireTenantSession(request);
@@ -43,7 +62,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
     const mem = memCache.get(memKey);
     if (mem && mem.expiresAt > Date.now()) {
-      return new Response(JSON.stringify(mem.data), {
+      return new Response(JSON.stringify(await withPoisonFlags(tenantId, mem.data as HistoryEvent[])), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -53,7 +72,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       const cached = await getCache<object[]>(tursoKey);
       if (cached) {
         memCache.set(memKey, { data: cached, expiresAt: Date.now() + CACHE_TTL * 1000 });
-        return new Response(JSON.stringify(cached), {
+        return new Response(JSON.stringify(await withPoisonFlags(tenantId, cached as HistoryEvent[])), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -132,7 +151,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     memCache.set(memKey, { data: events, expiresAt: Date.now() + CACHE_TTL * 1000 });
     void setCache(tursoKey, events, CACHE_TTL);
 
-    return new Response(JSON.stringify(events), {
+    return new Response(JSON.stringify(await withPoisonFlags(tenantId, events)), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
