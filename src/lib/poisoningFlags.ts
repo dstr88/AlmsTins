@@ -63,7 +63,8 @@ export function transferFromHistoryRow(row: HistoryRow): PoisonTransfer | null {
 	};
 }
 
-async function accountTransfers(tenantId: string): Promise<PoisonTransfer[] | null> {
+/** The account's transfers for the rules, cached a few minutes; null when the history is too large. */
+export async function accountTransfers(tenantId: string): Promise<PoisonTransfer[] | null> {
 	const cached = transferCache.get(tenantId);
 	if (cached && cached.expiresAt > Date.now()) return cached.transfers;
 	try {

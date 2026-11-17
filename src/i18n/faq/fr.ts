@@ -764,6 +764,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Les adresses signalées sont aussi tenues à l’écart de votre Address Book, dans la <strong>Zone de danger</strong> de la page Adresses, avec la raison et la date de leur première apparition. Pour en déplacer une vers votre Address Book, utilisez <strong>Déplacer vers l’Address Book</strong> ou faites-la glisser. On vous demandera si vous êtes sûr, les différences vous seront montrées et vous devrez lui donner un nom ; l’entrée est alors marquée comme sortie de la Zone de danger. Vous pouvez placer n’importe quelle entrée de votre Address Book dans la Zone de danger à tout moment, sans question.
+        </p>
+
+        <p>
           Ce sont des alertes, pas des verdicts : un airdrop ordinaire peut se présenter de la même façon, et rien n'est masqué, bloqué ni supprimé. Seules les adresses que vous avez enregistrées vous-même servent à la comparaison, et une adresse que vous avez enregistrée n'est jamais signalée. Le réflexe le plus sûr : copier une adresse depuis votre Address Book, pas depuis votre historique.
         </p>
 

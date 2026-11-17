@@ -11,6 +11,7 @@ import { getActivePlan } from '../../lib/subscriptions';
 import { canDownloadHistoryByWallet } from '../../lib/historyAccess';
 import { loadOwnerIndex, ownerForWalletAddress, type OwnerIndex } from '../../lib/walletIdentity';
 import { safeParseChains } from '../../lib/wallets-service';
+import { loadDangerZone } from '../../lib/dangerZone';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -45,6 +46,10 @@ const labelResult = await db.execute({
 	      WHERE tenant_id = ? ORDER BY created_at DESC`,
 	args: [tenantId],
 });
+
+// The Danger Zone: addresses the poisoning rules flagged, or the user sent there (src/lib/dangerZone.ts).
+// A failure shows an empty section, never an error page.
+const dangerZone = await loadDangerZone(tenantId);
 
 const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 	id:      String(row.id),
@@ -101,6 +106,6 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 			</p>
 		</div>
 
-		<AddressLabels client:load labels={addressLabels} />
+		<AddressLabels client:load labels={addressLabels} danger={dangerZone} />
 	</section>
 </Layout>

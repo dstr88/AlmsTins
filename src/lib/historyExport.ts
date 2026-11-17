@@ -92,7 +92,7 @@ export async function loadCounterpartyLabels(tenantId: string): Promise<Map<stri
 	const res = await db.execute({
 		sql: `SELECT al.address, al.label FROM address_labels al
 		      WHERE al.tenant_id = ?
-		      ORDER BY CASE WHEN al.source = 'user' THEN 0 ELSE 1 END, al.created_at DESC`,
+		      ORDER BY CASE WHEN al.source IN ('user', 'user-override') THEN 0 ELSE 1 END, al.created_at DESC`,
 		args: [tenantId],
 	});
 	const out = new Map<string, string>();

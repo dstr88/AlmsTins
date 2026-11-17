@@ -31,12 +31,16 @@ export const LOOKALIKE_HEAD = 4;
 /** Characters compared at the end of an address. */
 export const LOOKALIKE_TAIL = 4;
 
+/** The source of an entry the user moved out of the Danger Zone themselves (phase 4). */
+export const SOURCE_FROM_DANGER = 'user-override';
+
 /**
  * Address book sources the look-alike check trusts: only entries the user saved themselves
- * (decision 3a). The address book stores those as 'user'; 'auto' (the transfer matcher) and
+ * (decision 3a). The address book stores those as 'user', or SOURCE_FROM_DANGER when the user
+ * moved the address out of the Danger Zone past the warning; 'auto' (the transfer matcher) and
  * 'system' (imports) were never confirmed by the user, so they are not a reference.
  */
-const TRUSTED_SOURCES = new Set(['user']);
+const TRUSTED_SOURCES = new Set(['user', SOURCE_FROM_DANGER]);
 
 export function isTrustedSource(source: string | null | undefined): boolean {
 	return TRUSTED_SOURCES.has(String(source ?? '').trim().toLowerCase());

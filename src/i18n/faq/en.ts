@@ -763,6 +763,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Flagged addresses are also kept apart from your Address Book, in the <strong>Danger Zone</strong> on the Addresses page, with the reason and the date each one first appeared. To move one into your Address Book, use <strong>Move to address book</strong> or drag it there. You will be asked if you are sure, shown the differences, and asked to give it a name; the entry is then marked as moved from the Danger Zone. You can send any Address Book entry to the Danger Zone at any time, with no question asked.
+        </p>
+
+        <p>
           These are warnings, not verdicts: an ordinary airdrop can look the same, and nothing is hidden, blocked or deleted. Only addresses you saved yourself are used for the look-alike check, and an address you saved is never flagged. The safest habit is to copy an address from your Address Book, not from your history.
         </p>
 

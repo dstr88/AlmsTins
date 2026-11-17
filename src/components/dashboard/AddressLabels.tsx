@@ -6,6 +6,10 @@ import { AddressDetailsModal } from './AddressDetailsModal';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { LookalikePrompt, type LookalikeMatch } from '@/components/poisoning/LookalikePrompt';
+import { DangerZone, DRAG_DANGER, DRAG_LABEL } from '@/components/poisoning/DangerZone';
+import { getDangerZone } from '@/i18n/components/dangerZone';
+import { SOURCE_FROM_DANGER } from '@/lib/addressPoisoning';
+import type { DangerEntry } from '@/lib/dangerZone';
 
 export type AddressLabel = {
 	id: string;
@@ -20,6 +24,8 @@ export type AddressLabel = {
 
 type Props = {
 	labels: AddressLabel[];
+	/** The Danger Zone (src/lib/dangerZone.ts), loaded with the page. */
+	danger?: DangerEntry[];
 };
 
 const NETWORK_COLORS: Record<string, string> = {
@@ -46,8 +52,65 @@ const inputStyle: React.CSSProperties = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function AddressLabels({ labels: initial }: Props) {
+export function AddressLabels({ labels: initial, danger: initialDanger = [] }: Props) {
 	const t = getAddressLabels(getClientLang());
+	const dzT = getDangerZone(getClientLang());
+	// The Danger Zone lives here too, so a move updates both lists at once.
+	const [danger,         setDanger]         = useState<DangerEntry[]>(initialDanger);
+	const [dzPending,      setDzPending]      = useState<DangerEntry | null>(null);
+	const [dzBusy,         setDzBusy]         = useState(false);
+	const [dzError,        setDzError]        = useState<string | null>(null);
+	const [bookDropActive, setBookDropActive] = useState(false);
+	const dangerRef = useRef<HTMLDivElement>(null);
+
+	// Open the "Are you sure?" prompt on a Danger Zone row (from its button, or a drop on the book).
+	function requestDangerMove(entry: DangerEntry) {
+		setDzError(null);
+		setDzPending(entry);
+		dangerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	}
+
+	// Danger Zone → address book, after "Are you sure?" and a name (decision 5). Saved with the
+	// source SOURCE_FROM_DANGER, so it stays on record that the user overrode the warning.
+	async function moveFromDanger(entry: DangerEntry, name: string) {
+		if (!name) return;
+		setDzBusy(true);
+		setDzError(null);
+		try {
+			const res = await fetch('/api/address-labels', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ address: entry.address, label: name, category: 'counterparty', fromDangerZone: true }),
+			});
+			const data = await res.json().catch(() => null);
+			if (!res.ok || !data) { setDzError(dzT.moveFailed); return; }
+			setLabels(prev => [data, ...prev.filter(l => l.address !== data.address)]);
+			setDanger(prev => prev.filter(d => d.address !== entry.address));
+			setDzPending(null);
+		} catch {
+			setDzError(dzT.moveFailed);
+		} finally {
+			setDzBusy(false);
+		}
+	}
+
+	// Address book → Danger Zone: no prompt. The server answers with the Danger Zone as it now stands.
+	async function sendToDanger(labelId: string) {
+		setStatus(null);
+		try {
+			const res = await fetch('/api/address-danger', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ labelId }),
+			});
+			const data = await res.json().catch(() => null);
+			if (!res.ok || !data) { setStatus(dzT.sendFailed); return; }
+			setLabels(prev => prev.filter(l => l.id !== labelId));
+			if (Array.isArray(data.dangerZone)) setDanger(data.dangerZone);
+		} catch {
+			setStatus(dzT.sendFailed);
+		}
+	}
 	const [labels,       setLabels]       = useState<AddressLabel[]>(initial);
 	const [address,      setAddress]      = useState('');
 	const [labelText,    setLabelText]    = useState('');
@@ -349,7 +412,20 @@ export function AddressLabels({ labels: initial }: Props) {
 				)}
 			</div>
 
-			{/* ── Labels list ──────────────────────────────────────────────── */}
+			{/* ── Labels list (also the drop target for a Danger Zone row) ─── */}
+			<div
+				className={bookDropActive ? 'address-book--drop' : undefined}
+				onDragOver={(e) => {
+					if (e.dataTransfer.types.includes(DRAG_DANGER)) { e.preventDefault(); setBookDropActive(true); }
+				}}
+				onDragLeave={() => setBookDropActive(false)}
+				onDrop={(e) => {
+					setBookDropActive(false);
+					const addr = e.dataTransfer.getData(DRAG_DANGER);
+					const entry = addr ? danger.find((d) => d.address === addr) : undefined;
+					if (entry) { e.preventDefault(); requestDangerMove(entry); }
+				}}
+			>
 			{labels.length === 0 ? (
 				<div style={{
 					padding: '2rem 1.5rem',
@@ -369,6 +445,11 @@ export function AddressLabels({ labels: initial }: Props) {
 						return (
 							<div
 								key={l.id}
+								draggable
+								onDragStart={(ev) => {
+									ev.dataTransfer.setData(DRAG_LABEL, l.id);
+									ev.dataTransfer.effectAllowed = 'move';
+								}}
 								style={{
 									display: 'flex',
 									alignItems: 'center',
@@ -520,6 +601,9 @@ export function AddressLabels({ labels: initial }: Props) {
 								</div>
 
 								{/* Source badge */}
+								{l.source === SOURCE_FROM_DANGER && (
+									<span className="address-book__moved-badge">{dzT.movedBadge}</span>
+								)}
 								{l.source === 'auto' && (
 									<span style={{
 										fontSize: '0.65rem',
@@ -534,8 +618,18 @@ export function AddressLabels({ labels: initial }: Props) {
 									</span>
 								)}
 
+								{/* To the Danger Zone (no prompt: moving toward safety needs none) */}
+								<button
+									type="button"
+									className="address-book__to-danger"
+									title={dzT.sendBtnTitle}
+									onClick={() => void sendToDanger(l.id)}
+								>
+									{dzT.sendBtn}
+								</button>
+
 								{/* Remove */}
-								{l.source === 'user' && (
+								{(l.source === 'user' || l.source === SOURCE_FROM_DANGER) && (
 									<button
 										type="button"
 										onClick={() => handleDelete(l.id)}
@@ -560,6 +654,21 @@ export function AddressLabels({ labels: initial }: Props) {
 					})}
 				</div>
 			)}
+			</div>
+
+			{/* ── Danger Zone: flagged addresses, kept apart from the book ──── */}
+			<div ref={dangerRef}>
+				<DangerZone
+					entries={danger}
+					pending={dzPending}
+					busy={dzBusy}
+					error={dzError}
+					onRequestMove={requestDangerMove}
+					onKeep={() => { setDzPending(null); setDzError(null); }}
+					onMove={(entry, name) => void moveFromDanger(entry, name)}
+					onDropLabel={(id) => void sendToDanger(id)}
+				/>
+			</div>
 
 			{selected && <AddressDetailsModal label={selected} onClose={() => setSelected(null)} />}
 		</div>

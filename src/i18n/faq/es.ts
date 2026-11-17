@@ -762,6 +762,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Las direcciones marcadas también se guardan aparte de tu Address Book, en la <strong>Zona de peligro</strong> de la página de Direcciones, con el motivo y la fecha en que apareció cada una. Para mover una a tu Address Book, usa <strong>Mover al Address Book</strong> o arrástrala allí. Se te preguntará si estás seguro, verás las diferencias y tendrás que ponerle un nombre; la entrada queda marcada como movida desde la Zona de peligro. Puedes enviar cualquier entrada de tu Address Book a la Zona de peligro en cualquier momento, sin preguntas.
+        </p>
+
+        <p>
           Son avisos, no veredictos: un airdrop normal puede verse igual, y nada se oculta, se bloquea ni se borra. Solo las direcciones que guardaste tú mismo se usan para comparar, y una dirección que guardaste nunca se marca. El hábito más seguro es copiar una dirección de tu Address Book, no de tu historial.
         </p>
 
