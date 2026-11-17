@@ -1,0 +1,51 @@
+/* Address-poisoning warnings (src/lib/addressPoisoning.ts). Amber: only ever sent dust.
+   Red: a look-alike of an address the user saved, or both. Shared by the transaction drawer
+   and the Transactions page. */
+
+.poison-warning {
+	margin: 0.3rem 0 0.15rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--warning-border);
+	border-left-width: 4px;
+	border-radius: 6px;
+	background: var(--warning-bg);
+	color: var(--text-primary);
+	font-size: 0.75rem;
+	line-height: 1.45;
+}
+
+.poison-warning--red {
+	border-color: var(--loss-border);
+	background: var(--loss-bg);
+}
+
+.poison-warning__lead {
+	font-weight: 700;
+	color: var(--warning);
+}
+
+.poison-warning--red .poison-warning__lead {
+	color: var(--loss);
+}
+
+/* Transactions page: a bordered cell and a short tag under the address. */
+.poison-cell {
+	box-shadow: inset 4px 0 0 var(--warning);
+}
+
+.poison-cell--red {
+	box-shadow: inset 4px 0 0 var(--loss);
+}
+
+.poison-tag {
+	display: block;
+	margin-top: 0.2rem;
+	font-size: 0.7rem;
+	font-weight: 700;
+	color: var(--warning);
+	cursor: help;
+}
+
+.poison-cell--red .poison-tag {
+	color: var(--loss);
+}

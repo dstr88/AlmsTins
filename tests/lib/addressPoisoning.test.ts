@@ -147,6 +147,15 @@ describe('isDustTransfer', () => {
 		expect(isDustTransfer(dustIn(STRANGER, { usd: 500, tokenSymbol: 'USDT', tokenName: 'Claim at usdt-gift.xyz' }))).toBe(true);
 	});
 
+	it('is dust when the caller already knows the token is fake', () => {
+		expect(isDustTransfer(dustIn(STRANGER, { usd: 900, spam: true }))).toBe(true);
+	});
+
+	it('is not dust for a coin Almstins can value whose value was not recorded, unless it moved nothing', () => {
+		expect(isDustTransfer(dustIn(STRANGER, { amount: 2, usd: null, tokenSymbol: 'ETH', valueUnknown: true }))).toBe(false);
+		expect(isDustTransfer(dustIn(STRANGER, { amount: 0, usd: null, tokenSymbol: 'ETH', valueUnknown: true }))).toBe(true);
+	});
+
 	it('reads a negative value by its size', () => {
 		expect(isDustTransfer(dustIn(STRANGER, { usd: -0.5 }))).toBe(true);
 		expect(isDustTransfer(dustIn(STRANGER, { usd: -20 }))).toBe(false);

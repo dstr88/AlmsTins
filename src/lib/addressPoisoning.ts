@@ -130,6 +130,17 @@ export interface PoisonTransfer {
 	usd: number | null | undefined;
 	tokenSymbol?: string | null;
 	tokenName?: string | null;
+	/**
+	 * The caller already knows the token is fake, e.g. a known symbol (USDT) at a contract that is
+	 * not the real one (classifyContract in knownContracts.ts says 'scam').
+	 */
+	spam?: boolean;
+	/**
+	 * A coin Almstins can value (the chain's own coin, or a token at its known contract), but no
+	 * value was recorded for this transfer. Not the same as an unpriced token: it is not dust
+	 * unless it moved nothing.
+	 */
+	valueUnknown?: boolean;
 	/** When it happened (ISO 8601), for "first seen". */
 	at?: string | null;
 }
@@ -143,8 +154,9 @@ export interface PoisonTransfer {
 export function isDustTransfer(t: PoisonTransfer): boolean {
 	const amount = Number(t.amount);
 	if (!Number.isFinite(amount) || amount === 0) return true;
+	if (t.spam) return true;
 	if (t.tokenSymbol && isSpamToken(t.tokenSymbol, t.tokenName ?? null)) return true;
-	if (t.usd === null || t.usd === undefined) return true;
+	if (t.usd === null || t.usd === undefined) return !t.valueUnknown;
 	const usd = Number(t.usd);
 	if (!Number.isFinite(usd)) return true;
 	return Math.abs(usd) < DUST_USD;

@@ -747,6 +747,21 @@ export const items: FaqItem[] = [
           <strong>Tip:</strong> The more addresses you label, the fewer mystery transactions you will have. Start with your exchange deposit addresses — those are the most common source of unresolved transfers.
         </p>
 
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Warnings for possible address poisoning</h2>
+
+        <p>
+          Address poisoning is a trick: someone sends you a tiny amount from an address that starts and ends like one you really use, hoping you copy it from your history next time. In the transaction drawer and on the Transactions page, Almstins marks two patterns:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Amber:</strong> an address that has only ever sent you tiny amounts (under $1, a zero-value transfer, a spam token, or a token with no price) and that you have never paid.</li>
+          <li><strong>Red:</strong> an address whose first 4 and last 4 characters match an address you saved in your Address Book, but which is a different address. If it has also only ever sent you tiny amounts, the drawer does not offer to add it to your book.</li>
+        </ul>
+
+        <p>
+          These are warnings, not verdicts: an ordinary airdrop can look the same, and nothing is hidden, blocked or deleted. Only addresses you saved yourself are used for the look-alike check, and an address you saved is never flagged. The safest habit is to copy an address from your Address Book, not from your history.
+        </p>
+
         <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Your labels stay private</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">

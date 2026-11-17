@@ -748,6 +748,21 @@ export const items: FaqItem[] = [
           <strong>Conseil :</strong> Plus vous étiquetez d'adresses, moins vous aurez de transactions mystérieuses. Commencez par vos adresses de dépôt d'exchange — ce sont la source la plus fréquente de transferts non résolus.
         </p>
 
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Alertes d'empoisonnement d'adresse possible</h2>
+
+        <p>
+          L'empoisonnement d'adresse est une ruse : quelqu'un vous envoie un montant infime depuis une adresse qui commence et finit comme une adresse que vous utilisez vraiment, en espérant que vous la copiiez depuis votre historique la prochaine fois. Dans le volet de la transaction et sur la page Transactions, Almstins signale deux schémas :
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Orange :</strong> une adresse qui ne vous a jamais envoyé que des montants infimes (moins de 1 $, un transfert de valeur nulle, un jeton de spam ou un jeton sans prix) et que vous n'avez jamais payée.</li>
+          <li><strong>Rouge :</strong> une adresse dont les 4 premiers et les 4 derniers caractères correspondent à une adresse enregistrée dans votre Address Book, mais qui est une autre adresse. Si elle ne vous a aussi jamais envoyé que des montants infimes, le volet ne propose pas de l'ajouter à votre Address Book.</li>
+        </ul>
+
+        <p>
+          Ce sont des alertes, pas des verdicts : un airdrop ordinaire peut se présenter de la même façon, et rien n'est masqué, bloqué ni supprimé. Seules les adresses que vous avez enregistrées vous-même servent à la comparaison, et une adresse que vous avez enregistrée n'est jamais signalée. Le réflexe le plus sûr : copier une adresse depuis votre Address Book, pas depuis votre historique.
+        </p>
+
         <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Vos étiquettes restent privées</h2>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
