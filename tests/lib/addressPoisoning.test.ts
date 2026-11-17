@@ -6,6 +6,8 @@ import {
 	isLookalike,
 	isTrustedSource,
 	poisoningFindings,
+	saveLookalike,
+	differingPositions,
 	sameAddressKey,
 	type AddressBookEntry,
 	type PoisonTransfer,
@@ -232,5 +234,35 @@ describe('poisoningFindings', () => {
 	it('skips exchange account ids and missing counterparties', () => {
 		const found = poisoningFindings([dustIn('cex:coinbase:42'), dustIn('')], book);
 		expect(found.size).toBe(0);
+	});
+});
+
+describe('saveLookalike', () => {
+	it('questions a new address that looks like a saved one', () => {
+		expect(saveLookalike(POISON, book)?.label).toBe('Coinbase deposit');
+	});
+
+	it('does not question an address already in the book, in any case', () => {
+		expect(saveLookalike(COINBASE, book)).toBeNull();
+		expect(saveLookalike(COINBASE.toUpperCase().replace('0X', '0x'), book)).toBeNull();
+	});
+
+	it('does not question an address that looks only like an automatic entry', () => {
+		expect(saveLookalike(POISON, [{ address: COINBASE_LOWER, label: 'Matched', source: 'auto' }])).toBeNull();
+	});
+
+	it('does not question a stranger or something that is not an address', () => {
+		expect(saveLookalike(STRANGER, book)).toBeNull();
+		expect(saveLookalike('cex:coinbase:1', book)).toBeNull();
+	});
+});
+
+describe('differingPositions', () => {
+	it('marks only the characters that differ, ignoring case', () => {
+		expect([...differingPositions('0xAbCd1119f3e', '0xabcd7779F3E')]).toEqual([6, 7, 8]);
+	});
+
+	it('marks the extra characters of the longer address', () => {
+		expect([...differingPositions('abc', 'abcde')]).toEqual([3, 4]);
 	});
 });

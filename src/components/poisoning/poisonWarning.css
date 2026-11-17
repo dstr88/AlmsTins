@@ -49,3 +49,72 @@
 .poison-cell--red .poison-tag {
 	color: var(--loss);
 }
+
+/* "Did you mean …?" when saving a look-alike to the address book. */
+.lookalike-prompt__title {
+	margin: 0 0 0.25rem;
+	font-weight: 700;
+}
+
+.lookalike-prompt__text {
+	margin: 0 0 0.5rem;
+}
+
+.addr-diff {
+	display: grid;
+	gap: 0.15rem;
+	margin-bottom: 0.6rem;
+}
+
+.addr-diff__caption {
+	font-size: 0.7rem;
+	color: var(--text-muted);
+}
+
+.addr-diff__line {
+	font-family: monospace;
+	font-size: 0.78rem;
+	word-break: break-all;
+	color: var(--text-primary);
+}
+
+.addr-diff__mark {
+	background: var(--loss);
+	color: var(--surface-bg);
+	border-radius: 2px;
+	padding: 0 1px;
+}
+
+.lookalike-prompt__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.lookalike-prompt__cancel,
+.lookalike-prompt__anyway {
+	padding: 0.35rem 0.8rem;
+	border-radius: 6px;
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.lookalike-prompt__cancel {
+	border: 1px solid var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.lookalike-prompt__anyway {
+	border: 1px solid var(--loss-border);
+	background: transparent;
+	color: var(--loss);
+}
+
+.lookalike-prompt__cancel:disabled,
+.lookalike-prompt__anyway:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}

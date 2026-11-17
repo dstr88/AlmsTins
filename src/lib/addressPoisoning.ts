@@ -233,3 +233,29 @@ export function poisoningFindings<E extends AddressBookEntry>(
 	}
 	return findings;
 }
+
+// ── Saving to the address book (phase 3) ─────────────────────────────────────
+
+/**
+ * Before a new address goes into the address book: the trusted entry it looks like, or null.
+ * An address already in the book (the save only updates its label) is never questioned.
+ */
+export function saveLookalike<E extends AddressBookEntry>(address: string | null | undefined, book: readonly E[]): E | null {
+	const key = sameAddressKey(address);
+	if (!key) return null;
+	if (book.some((e) => sameAddressKey(e.address) === key)) return null;
+	return findLookalike(key, book);
+}
+
+/**
+ * For showing two addresses one above the other: which character positions differ (case ignored,
+ * as in isLookalike). Positions past the end of the shorter one count as different.
+ */
+export function differingPositions(a: string, b: string): Set<number> {
+	const out = new Set<number>();
+	const len = Math.max(a.length, b.length);
+	for (let i = 0; i < len; i++) {
+		if ((a[i] ?? '').toLowerCase() !== (b[i] ?? '').toLowerCase()) out.add(i);
+	}
+	return out;
+}

@@ -120,3 +120,16 @@ describe('poison warning copy', () => {
 		}
 	});
 });
+
+describe('look-alike save prompt copy', () => {
+	it('names the saved address and has every string in every language', () => {
+		for (const lang of ['en', 'es', 'fr'] as const) {
+			const t = getPoisonWarning(lang);
+			expect(t.didYouMean('Coinbase deposit')).toContain('Coinbase deposit');
+			expect(t.lookalikeExplain('Coinbase deposit')).toContain('Coinbase deposit');
+			expect(t.savedAs('Coinbase deposit')).toContain('Coinbase deposit');
+			for (const s of [t.youEntered, t.saveAnyway, t.cancel]) expect(s.length).toBeGreaterThan(0);
+			expect(t.lookalikeExplain('X')).not.toMatch(/—/);
+		}
+	});
+});

@@ -760,6 +760,10 @@ export const items: FaqItem[] = [
         </ul>
 
         <p>
+          Quand vous enregistrez une nouvelle adresse qui commence et finit comme une adresse déjà présente dans votre Address Book, Almstins demande d’abord <em>Vouliez-vous dire … ?</em> et affiche les deux adresses l’une au-dessus de l’autre, avec les caractères différents surlignés. Vous pouvez quand même l’enregistrer.
+        </p>
+
+        <p>
           Ce sont des alertes, pas des verdicts : un airdrop ordinaire peut se présenter de la même façon, et rien n'est masqué, bloqué ni supprimé. Seules les adresses que vous avez enregistrées vous-même servent à la comparaison, et une adresse que vous avez enregistrée n'est jamais signalée. Le réflexe le plus sûr : copier une adresse depuis votre Address Book, pas depuis votre historique.
         </p>
 

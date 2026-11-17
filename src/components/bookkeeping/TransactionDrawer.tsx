@@ -7,6 +7,7 @@ import { formatDate, formatDateTime, formatUsd } from '@/lib/format';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { Drawer } from '@/components/ui/Drawer';
 import { PoisonWarning } from '@/components/poisoning/PoisonWarning';
+import { LookalikePrompt, type LookalikeMatch } from '@/components/poisoning/LookalikePrompt';
 import type { PoisonFlag } from '@/lib/poisoningFlags';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -121,6 +122,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
   // Token trail — inline address label form
   const [trailLabelText, setTrailLabelText] = useState('');
   const [trailLabelSaving, setTrailLabelSaving] = useState(false);
+  // Set when the server answers that the address looks like a saved one: "Did you mean …?".
+  const [trailLookalike, setTrailLookalike] = useState<LookalikeMatch | null>(null);
   const [trailLabelSaved, setTrailLabelSaved] = useState(false);
 
   // Destination trace — "where did it go at Venmo?"
@@ -139,6 +142,31 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
   const [traceEvents, setTraceEvents] = useState<ImportEvent[]>([]);
   const [traceLoading, setTraceLoading] = useState(false);
   const [traceError, setTraceError] = useState<string | null>(null);
+
+  // "+ Add to book" for the last destination. A 409 with `lookalike` means it starts and ends like a
+  // saved address: ask "Did you mean …?" and save only when the user confirms (phase 3).
+  async function saveTrailLabel(address: string, chain: string | null, confirmLookalike: boolean) {
+    const label = trailLabelText.trim();
+    if (!label) return;
+    setTrailLabelSaving(true);
+    try {
+      const res = await fetch('/api/address-labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, label, chain, confirmLookalike }),
+      });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => null);
+        if (data?.lookalike) { setTrailLookalike(data.lookalike); return; }
+      }
+      if (res.ok) {
+        setTrailLookalike(null);
+        setTrailLabelSaved(true);
+      }
+    } finally {
+      setTrailLabelSaving(false);
+    }
+  }
 
   const handleTrace = useCallback(async (source: string) => {
     if (!item || !source.trim()) return;
@@ -220,6 +248,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       setTrailLabelText('');
       setTrailLabelSaving(false);
       setTrailLabelSaved(false);
+      setTrailLookalike(null);
       setTraceSource('');
       setTraceInput('');
       setTraceEvents([]);
@@ -633,20 +662,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                                 />
                                 <button
                                   disabled={!trailLabelText.trim() || trailLabelSaving}
-                                  onClick={async () => {
-                                    if (!trailLabelText.trim() || !lastOutDest) return;
-                                    setTrailLabelSaving(true);
-                                    try {
-                                      await fetch('/api/address-labels', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ address: lastOutDest, label: trailLabelText.trim(), chain: lastOutChain }),
-                                      });
-                                      setTrailLabelSaved(true);
-                                    } finally {
-                                      setTrailLabelSaving(false);
-                                    }
-                                  }}
+                                  onClick={() => { if (lastOutDest) void saveTrailLabel(lastOutDest, lastOutChain, false); }}
                                   style={{
                                     padding: '0.35rem 0.75rem', borderRadius: '6px',
                                     border: '1px solid var(--accent-dim)',
@@ -660,6 +676,15 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                                   {trailLabelSaving ? 'Saving…' : '+ Add to book'}
                                 </button>
                               </div>
+                            )}
+                            {isLastOutEvt && !lastOutInBook && trailLookalike && lastOutDest && (
+                              <LookalikePrompt
+                                entered={lastOutDest}
+                                match={trailLookalike}
+                                busy={trailLabelSaving}
+                                onCancel={() => setTrailLookalike(null)}
+                                onSaveAnyway={() => void saveTrailLabel(lastOutDest, lastOutChain, true)}
+                              />
                             )}
                           </div>
                         )}

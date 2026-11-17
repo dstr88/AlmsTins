@@ -758,6 +758,10 @@ export const items: FaqItem[] = [
         </ul>
 
         <p>
+          Cuando guardas una dirección nueva que empieza y termina como una que ya está en tu Address Book, Almstins pregunta primero <em>¿Querías decir …?</em> y muestra las dos direcciones una encima de otra, con los caracteres distintos resaltados. Puedes guardarla igualmente.
+        </p>
+
+        <p>
           Son avisos, no veredictos: un airdrop normal puede verse igual, y nada se oculta, se bloquea ni se borra. Solo las direcciones que guardaste tú mismo se usan para comparar, y una dirección que guardaste nunca se marca. El hábito más seguro es copiar una dirección de tu Address Book, no de tu historial.
         </p>
 

@@ -5,6 +5,7 @@ import { addressNetwork } from '@/lib/addressNetwork';
 import { AddressDetailsModal } from './AddressDetailsModal';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
+import { LookalikePrompt, type LookalikeMatch } from '@/components/poisoning/LookalikePrompt';
 
 export type AddressLabel = {
 	id: string;
@@ -58,6 +59,8 @@ export function AddressLabels({ labels: initial }: Props) {
 	const [phoneNumber,  setPhoneNumber]  = useState('');
 	const [scanning,     setScanning]     = useState(false);
 	const [scanResult,   setScanResult]   = useState<string | null>(null);
+	// Set when the server answers that the address looks like a saved one: "Did you mean …?".
+	const [lookalike,    setLookalike]    = useState<{ entered: string; match: LookalikeMatch } | null>(null);
 	const [selected,     setSelected]     = useState<AddressLabel | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,8 +111,10 @@ export function AddressLabels({ labels: initial }: Props) {
 		setScanning(false);
 	}
 
-	async function handleAdd() {
+	async function handleAdd(confirmLookalike = false) {
 		const addr = address.replace(/\s+/g, '');
+		// A confirmation only covers the exact address the prompt showed; an edited one is asked about again.
+		if (confirmLookalike && lookalike?.entered !== addr) confirmLookalike = false;
 		const lbl  = labelText.trim();
 		if (!addr) { setStatus(t.statusAddressRequired); return; }
 		if (!lbl)  { setStatus(t.statusLabelRequired);  return; }
@@ -120,10 +125,17 @@ export function AddressLabels({ labels: initial }: Props) {
 			const res  = await fetch('/api/address-labels', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null, phoneNumber: phoneNumber || null }),
+				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null, phoneNumber: phoneNumber || null, confirmLookalike }),
 			});
 			const data = await res.json();
+			if (res.status === 409 && data?.lookalike) {
+				setLookalike({ entered: addr, match: data.lookalike });
+				setStatus(null);
+				setSaving(false);
+				return;
+			}
 			if (!res.ok) { setStatus(data.message ?? t.statusSaveFailed); setSaving(false); return; }
+			setLookalike(null);
 
 			setLabels(prev => {
 				const existing = prev.findIndex(l => l.address === data.address);
@@ -299,7 +311,7 @@ export function AddressLabels({ labels: initial }: Props) {
 					/>
 					<button
 						type="button"
-						onClick={handleAdd}
+						onClick={() => handleAdd()}
 						disabled={saving}
 						style={{
 							padding: '0.45rem 1.2rem',
@@ -325,6 +337,15 @@ export function AddressLabels({ labels: initial }: Props) {
 					}}>
 						{status}
 					</p>
+				)}
+				{lookalike && (
+					<LookalikePrompt
+						entered={lookalike.entered}
+						match={lookalike.match}
+						busy={saving}
+						onCancel={() => setLookalike(null)}
+						onSaveAnyway={() => handleAdd(true)}
+					/>
 				)}
 			</div>
 
