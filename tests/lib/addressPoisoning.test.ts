@@ -195,6 +195,14 @@ describe('poisoningFindings', () => {
 		expect(found.has(sameAddressKey(STRANGER)!)).toBe(false);
 	});
 
+	it('is not cleared by a zero-value "send" to the address, which poisoners fake', () => {
+		const found = poisoningFindings(
+			[dustIn(POISON, { amount: 0, usd: 0 }), { counterparty: POISON, direction: 'out', amount: 0, usd: 0, tokenSymbol: 'USDT' }],
+			book,
+		);
+		expect(found.get(sameAddressKey(POISON)!)?.signal).toBe('both');
+	});
+
 	it('clears dust-only once the address has sent a real amount', () => {
 		const found = poisoningFindings([dustIn(STRANGER), dustIn(STRANGER, { amount: 40, usd: 40 })], book);
 		expect(found.has(sameAddressKey(STRANGER)!)).toBe(false);

@@ -168,6 +168,12 @@ export function isDustTransfer(t: PoisonTransfer): boolean {
 	return Math.abs(usd) < DUST_USD;
 }
 
+/** A transfer that moved nothing at all. */
+function isZeroValue(t: PoisonTransfer): boolean {
+	const amount = Number(t.amount);
+	return !Number.isFinite(amount) || amount === 0;
+}
+
 export type PoisonSignal = 'dust-only' | 'lookalike' | 'both';
 
 export interface PoisonFinding<E extends AddressBookEntry = AddressBookEntry> {
@@ -190,7 +196,8 @@ export interface PoisonFinding<E extends AddressBookEntry = AddressBookEntry> {
  * The poisoning signals for one wallet's transfers, by counterparty. A counterparty with no signal
  * is left out. The wallet's own address book is the reference for look-alikes.
  *
- * Signal A needs every transfer to be IN and dust: one payment the user sent to the address, or
+ * Signal A needs every transfer to be IN and dust (a zero-value outgoing transfer counts as
+ * nothing moved, since poisoners fake those too): one real payment the user sent to the address, or
  * one real amount from it, clears it. Signal B applies whichever way the money went, since a
  * payment sent to a look-alike is the loss the warning exists for. An address the user saved
  * themselves gets no signal.
@@ -210,6 +217,9 @@ export function poisoningFindings<E extends AddressBookEntry>(
 		if (t.wallet) tally.wallets.add(String(t.wallet));
 		const incoming = String(t.direction ?? '').toLowerCase() === 'in';
 		if (incoming && isDustTransfer(t)) tally.dustIn += 1;
+		// A zero-value "send" moved nothing: it is the fake outgoing transfer poisoners make appear
+		// in a victim's history, not a payment, so it does not clear signal A.
+		else if (!incoming && isZeroValue(t)) tally.dustIn += 1;
 		if (incoming && t.usd !== null && t.usd !== undefined && Number.isFinite(Number(t.usd))) {
 			tally.usdIn += Math.abs(Number(t.usd));
 		}
