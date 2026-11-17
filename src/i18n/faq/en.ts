@@ -759,6 +759,10 @@ export const items: FaqItem[] = [
         </ul>
 
         <p>
+          When you save a new address that starts and ends like one already in your Address Book, Almstins asks <em>Did you mean …?</em> first and shows the two addresses one above the other, with the different characters highlighted. You can still save it.
+        </p>
+
+        <p>
           These are warnings, not verdicts: an ordinary airdrop can look the same, and nothing is hidden, blocked or deleted. Only addresses you saved yourself are used for the look-alike check, and an address you saved is never flagged. The safest habit is to copy an address from your Address Book, not from your history.
         </p>
 

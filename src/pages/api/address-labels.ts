@@ -4,6 +4,7 @@ import { requireTenantSession } from '../../lib/requireTenantSession';
 import { canonicalAddress } from '../../lib/wallets-service';
 import { normalizeLabelCategory } from '../../lib/addressLabelCategory';
 import { json } from '@/lib/http';
+import { saveLookalike } from '@/lib/addressPoisoning';
 
 export const prerender = false;
 
@@ -49,6 +50,32 @@ export const POST: APIRoute = async ({ request }) => {
 	const phone = phoneNumber || null;
 
 	try {
+		// A new address that looks like one the user saved (same first 4 and last 4 characters,
+		// src/lib/addressPoisoning.ts) is not saved until the user confirms it: 409 with the entry it
+		// looks like, then the form asks "Did you mean …?" and resends with confirmLookalike: true.
+		if (body.confirmLookalike !== true) {
+			const bookRes = await db.execute({
+				sql: 'SELECT address, label, source FROM address_labels WHERE tenant_id = ?',
+				args: [tenantId],
+			});
+			const book = (bookRes.rows as Record<string, unknown>[]).map((r) => ({
+				address: String(r.address ?? ''),
+				label: String(r.label ?? ''),
+				source: r.source == null ? null : String(r.source),
+			}));
+			const imitates = saveLookalike(address, book);
+			if (imitates) {
+				return json(
+					{
+						error: true,
+						lookalike: { address: imitates.address, label: imitates.label },
+						message: 'This address looks like one in your address book.',
+					},
+					409,
+				);
+			}
+		}
+
 		// Unique key is (tenant_id, address, COALESCE(phone_number, ''))
 		// — same address + same phone = update; same address + different phone = new row.
 		// Matched case-insensitively so a label saved lowercased before base58 kept its case is

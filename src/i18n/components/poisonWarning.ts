@@ -19,6 +19,13 @@ export interface PoisonWarningLocale {
 	tagDustOnly: string;
 	tagLookalike: string;
 	tagBoth: string;
+	/** Saving an address that looks like a saved one (phase 3). */
+	didYouMean: (label: string) => string;
+	lookalikeExplain: (label: string) => string;
+	youEntered: string;
+	savedAs: (label: string) => string;
+	saveAnyway: string;
+	cancel: string;
 }
 
 const en: PoisonWarningLocale = {
@@ -31,6 +38,13 @@ const en: PoisonWarningLocale = {
 	tagDustOnly: 'Only sent you dust',
 	tagLookalike: 'Look-alike',
 	tagBoth: 'Possible poisoning',
+	didYouMean: (label) => `Did you mean ${label}?`,
+	lookalikeExplain: (label) =>
+		`This address starts and ends like ${label}, but the highlighted characters are different. Addresses like this are often used in address poisoning. Save it only if you are sure it is right.`,
+	youEntered: 'You entered',
+	savedAs: (label) => `Saved as ${label}`,
+	saveAnyway: 'Save it anyway',
+	cancel: 'Cancel',
 };
 
 const es: PoisonWarningLocale = {
@@ -43,6 +57,13 @@ const es: PoisonWarningLocale = {
 	tagDustOnly: 'Solo cantidades mínimas',
 	tagLookalike: 'Imitación',
 	tagBoth: 'Posible envenenamiento',
+	didYouMean: (label) => `¿Querías decir ${label}?`,
+	lookalikeExplain: (label) =>
+		`Esta dirección empieza y termina como ${label}, pero los caracteres resaltados son distintos. Direcciones así se usan a menudo en el envenenamiento de direcciones. Guárdala solo si estás seguro de que es correcta.`,
+	youEntered: 'Has introducido',
+	savedAs: (label) => `Guardada como ${label}`,
+	saveAnyway: 'Guardarla de todos modos',
+	cancel: 'Cancelar',
 };
 
 const fr: PoisonWarningLocale = {
@@ -55,6 +76,13 @@ const fr: PoisonWarningLocale = {
 	tagDustOnly: 'Montants infimes seulement',
 	tagLookalike: 'Imitation',
 	tagBoth: 'Empoisonnement possible',
+	didYouMean: (label) => `Vouliez-vous dire ${label} ?`,
+	lookalikeExplain: (label) =>
+		`Cette adresse commence et finit comme ${label}, mais les caractères surlignés sont différents. Des adresses de ce type servent souvent à l'empoisonnement d'adresse. Enregistrez-la seulement si vous êtes sûr qu'elle est correcte.`,
+	youEntered: 'Vous avez saisi',
+	savedAs: (label) => `Enregistrée sous ${label}`,
+	saveAnyway: 'L’enregistrer quand même',
+	cancel: 'Annuler',
 };
 
 const MAP: Record<Lang, PoisonWarningLocale> = { en, es, fr };
