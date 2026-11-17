@@ -13,6 +13,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { db } from './db';
+import { findWalletAddressInText } from './addressFormats';
+import { canonicalAddress } from './wallets-service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,11 +225,15 @@ ON CONFLICT DO NOTHING`,
 			}).catch(() => { /* non-fatal: label may already exist */ });
 		}
 
-		// Label any raw destination address found in the out description
+		// Label the destination address written in the out description, if there is one. Only a word
+		// with a wallet address's shape counts: a transaction hash or an exchange's internal id in the
+		// same text used to be saved as an "address" (addressFormats.ts findWalletAddressInText). It is
+		// stored in its canonical form (EVM and bech32 lowercased, base58 as written), the form every
+		// address_labels lookup uses.
 		if (outTx.description) {
-			const addrMatch = outTx.description.match(/\b([A-Za-z0-9]{25,})\b/);
-			if (addrMatch) {
-				const rawAddr = addrMatch[1];
+			const found = findWalletAddressInText(outTx.description);
+			if (found) {
+				const rawAddr = canonicalAddress(found);
 				await db.execute({
 					sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category)
 					      VALUES (?, ?, ?, ?, 'auto', ?)
