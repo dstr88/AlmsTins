@@ -54,7 +54,7 @@ const en: QuarantineLocale = {
 	buttonCount: (n) => `Quarantine · ${n}`,
 	buttonTitle: 'Addresses kept apart for this wallet: look-alikes of addresses you saved, senders of tiny amounts, and any you quarantined',
 	modalTitle: (wallet) => `Quarantine · ${wallet}`,
-	pageTitle: 'Quarantine',
+	pageTitle: 'Quarantine | Almstins',
 	eyebrow: 'Kept apart',
 	heading: 'Quarantine',
 	description:
@@ -99,7 +99,7 @@ const es: QuarantineLocale = {
 	buttonCount: (n) => `Cuarentena · ${n}`,
 	buttonTitle: 'Direcciones apartadas para esta billetera: imitaciones de direcciones que guardaste, remitentes de cantidades mínimas y las que pusiste en cuarentena',
 	modalTitle: (wallet) => `Cuarentena · ${wallet}`,
-	pageTitle: 'Cuarentena',
+	pageTitle: 'Cuarentena | Almstins',
 	eyebrow: 'Aparte',
 	heading: 'Cuarentena',
 	description:
@@ -144,7 +144,7 @@ const fr: QuarantineLocale = {
 	buttonCount: (n) => `Quarantaine · ${n}`,
 	buttonTitle: 'Adresses tenues à l’écart pour ce portefeuille : imitations d’adresses enregistrées, expéditeurs de montants infimes, et celles que vous avez mises en quarantaine',
 	modalTitle: (wallet) => `Quarantaine · ${wallet}`,
-	pageTitle: 'Quarantaine',
+	pageTitle: 'Quarantaine | Almstins',
 	eyebrow: 'À l’écart',
 	heading: 'Quarantaine',
 	description:
