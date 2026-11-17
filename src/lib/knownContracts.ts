@@ -138,6 +138,20 @@ export function classifyContract(
   return knownSet.has(addr) ? 'legitimate' : 'scam';
 }
 
+/** Every legitimate token contract in the table above, on any chain, lowercased. */
+const KNOWN_CONTRACT_ADDRESSES: ReadonlySet<string> = new Set(
+  Object.values(CONTRACTS).flatMap((chain) => Object.values(chain).flatMap((set) => [...set])),
+);
+
+/**
+ * True when `address` is one of the legitimate token contracts above, on any chain. Scam airdrops
+ * fake these as the sender of spam tokens, so the address-poisoning rules (src/lib/addressPoisoning.ts)
+ * do not treat them as dust senders.
+ */
+export function isKnownTokenContract(address: string | null | undefined): boolean {
+  return KNOWN_CONTRACT_ADDRESSES.has(String(address ?? '').trim().toLowerCase());
+}
+
 // Patterns that appear in spam/phishing airdrop token names but never in real ones.
 // Checked against the combined symbol+name string (lower-case).
 const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
