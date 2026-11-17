@@ -76,17 +76,17 @@ const en: VerifyCopy = {
   meta: {
     tagline: 'Verify your crypto receiving addresses before you trust them',
     description:
-      'Register the crypto addresses and payment QR your business publishes, prove they are yours — no wallet connection — then check any sign or invoice against them before you rely on it. Free to start: 2 wallets and 1 QR. Automatic monitoring and swap alerts are coming.',
+      'Register the crypto addresses and payment QR your business publishes, prove they are yours (no wallet connection), then check any sign or invoice against them before you rely on it. Free, always: 2 wallets and 1 QR. Almstins re-checks your domain proof, and any page you ask it to watch, every six hours and emails you if something changes.',
   },
   jsonld: {
     description:
-      'Register the payment destinations your business publishes, prove you control them, and verify any published address or QR on demand before you trust it. No wallet connection, no custody. Automatic monitoring and alerts are coming.',
+      'Register the payment destinations your business publishes, prove you control them, and verify any published address or QR on demand before you trust it. No wallet connection, no custody. Almstins re-checks your domain proof, and any page you ask it to watch, every six hours and emails you if something changes.',
     featureList: [
       'Register crypto receiving addresses',
       'Register a payment QR',
       'Prove ownership without a wallet connection',
       'Verify published destinations on demand',
-      'Automatic monitoring and email alerts (coming soon)',
+      'Ongoing checks of what you publish, with email alerts',
       'No custody — funds are never moved',
     ],
   },
@@ -95,9 +95,9 @@ const en: VerifyCopy = {
     tagline: 'Verify the addresses your customers pay',
   },
   hero: {
-    eyebrow: 'Early access · Free to start',
+    eyebrow: 'Free plan · No wallet connection',
     title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
-    sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 2 wallets and 1 QR.",
+    sub: "Register your receiving addresses and payment QR, prove they're yours (no wallet connection, ever), then verify any sign, invoice, or checkout against them before you rely on it. Free, always: 2 wallets and 1 QR.",
   },
   tools: {
     heading: 'The tools',
@@ -173,7 +173,7 @@ const en: VerifyCopy = {
       },
       {
         title: 'Verify before you trust',
-        body: "Before you rely on a published QR or address, scan or paste it and we'll tell you instantly whether it still matches what you registered. Automatic monitoring and swap alerts are on the way.",
+        body: "Before you rely on a published QR or address, scan or paste it and we'll tell you instantly whether it still matches what you registered. Almstins re-checks your domain proof, and any page you ask it to watch, every six hours and emails you if something changes.",
       },
     ],
   },
@@ -182,7 +182,7 @@ const en: VerifyCopy = {
     items: [
       'Register and verify 2 receiving addresses',
       'Register and verify 1 payment QR',
-      'Automatic monitoring and email alerts (coming soon)',
+      'Ongoing checks of what you publish, with email alerts',
       'No wallet connection, ever — we read public data you point us to',
       "Your data stays yours — we never learn who your customers are, and we can't move your funds",
     ],
@@ -207,7 +207,7 @@ const en: VerifyCopy = {
   },
   early: {
     heading: 'Early & honest',
-    body: "This is early. It's free while we learn what merchants actually need. If you take crypto — anywhere in the world — try it, then tell us what would make it genuinely useful. We're building this with you, not at you.",
+    body: "This is early, and we're still learning what merchants actually need. The Free plan stays free. If you take crypto, anywhere in the world, try it, then tell us what would make it genuinely useful. We're building this with you, not at you.",
   },
   finalCta: {
     heading: 'Check before money moves.',
@@ -222,7 +222,7 @@ const en: VerifyCopy = {
     steps: [
       'Create a free account and add the receiving addresses and payment QR you publish.',
       "Prove they're yours — for a wallet, send yourself a tiny amount or host a small file on your site; a payment QR is proven when you register it. No wallet connection, no keys, ever.",
-      'Verify them on demand before you rely on them — scan a sign and we confirm it still matches. Automatic monitoring is coming.',
+      'Verify them on demand before you rely on them: scan a sign and we confirm it still matches. Almstins re-checks your domain proof, and any page you ask it to watch, every six hours and emails you if something changes.',
     ],
     scaleLabel: 'Publishing many addresses?',
     scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once (by approval during early access): prove your domain, then host a read-only endpoint and issue us an API key. We pull your list so it can be verified — no adding addresses one by one. Live monitoring is on the way.',
@@ -248,17 +248,17 @@ const es: VerifyCopy = {
   meta: {
     tagline: 'Verifica tus direcciones de cobro antes de confiar en ellas',
     description:
-      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos — sin conectar la billetera — y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR. La supervisión automática y las alertas de sustitución llegan pronto.',
+      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos (sin conectar la billetera) y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis, siempre: 2 direcciones y 1 QR. Almstins vuelve a comprobar tu prueba de dominio, y cualquier página que le pidas vigilar, cada seis horas y te avisa por correo si algo cambia.',
   },
   jsonld: {
     description:
-      'Registra los destinos de pago que publica tu negocio, demuestra que los controlas y verifica cualquier dirección o QR publicado a demanda antes de confiar en él. Sin conexión de billetera, sin custodia. La supervisión automática y las alertas llegan pronto.',
+      'Registra los destinos de pago que publica tu negocio, demuestra que los controlas y verifica cualquier dirección o QR publicado a demanda antes de confiar en él. Sin conexión de billetera, sin custodia. Almstins vuelve a comprobar tu prueba de dominio, y cualquier página que le pidas vigilar, cada seis horas y te avisa por correo si algo cambia.',
     featureList: [
       'Registrar direcciones de recepción de cripto',
       'Registrar un QR de pago',
       'Demostrar la propiedad sin conectar la billetera',
       'Verificar los destinos publicados a demanda',
-      'Supervisión automática y alertas por correo (próximamente)',
+      'Comprobaciones continuas de lo que publicas, con alertas por correo',
       'Sin custodia — nunca se mueven los fondos',
     ],
   },
@@ -267,9 +267,9 @@ const es: VerifyCopy = {
     tagline: 'Verifica las direcciones donde te pagan tus clientes',
   },
   hero: {
-    eyebrow: 'Acceso anticipado · Gratis para empezar',
+    eyebrow: 'Plan gratis · Sin conectar billetera',
     title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
-    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR.',
+    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos (sin conectar nunca la billetera) y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis, siempre: 2 direcciones y 1 QR.',
   },
   tools: {
     heading: 'Las herramientas',
@@ -345,7 +345,7 @@ const es: VerifyCopy = {
       },
       {
         title: 'Verifica antes de confiar',
-        body: 'Antes de fiarte de un QR o una dirección publicados, escanéalos o pégalos y te diremos al instante si siguen coincidiendo con lo que registraste. La supervisión automática y las alertas de sustitución están en camino.',
+        body: 'Antes de fiarte de un QR o una dirección publicados, escanéalos o pégalos y te diremos al instante si siguen coincidiendo con lo que registraste. Almstins vuelve a comprobar tu prueba de dominio, y cualquier página que le pidas vigilar, cada seis horas y te avisa por correo si algo cambia.',
       },
     ],
   },
@@ -354,7 +354,7 @@ const es: VerifyCopy = {
     items: [
       'Registra y verifica 2 direcciones de recepción',
       'Registra y verifica 1 QR de pago',
-      'Supervisión automática y alertas por correo (próximamente)',
+      'Comprobaciones continuas de lo que publicas, con alertas por correo',
       'Sin conectar la billetera, nunca — leemos datos públicos que tú nos indicas',
       'Tus datos siguen siendo tuyos — nunca sabemos quiénes son tus clientes, y no podemos mover tus fondos',
     ],
@@ -379,7 +379,7 @@ const es: VerifyCopy = {
   },
   early: {
     heading: 'Temprano y honesto',
-    body: 'Esto es temprano. Es gratis mientras aprendemos lo que los comercios realmente necesitan. Si aceptas cripto — en cualquier parte del mundo — pruébalo y luego dinos qué lo haría genuinamente útil. Lo estamos construyendo contigo, no a costa tuya.',
+    body: 'Esto es temprano y seguimos aprendiendo lo que los comercios realmente necesitan. El plan gratis sigue siendo gratis. Si aceptas cripto, en cualquier parte del mundo, pruébalo y luego dinos qué lo haría genuinamente útil. Lo estamos construyendo contigo, no a costa tuya.',
   },
   finalCta: {
     heading: 'Comprueba antes de que el dinero se mueva.',
@@ -394,7 +394,7 @@ const es: VerifyCopy = {
     steps: [
       'Crea una cuenta gratis y añade las direcciones de cobro y el QR de pago que publicas.',
       'Demuestra que son tuyas — para una billetera, envíate un pequeño monto o aloja un pequeño archivo en tu sitio; un QR de pago queda demostrado al registrarlo. Sin conectar la wallet, sin claves, nunca.',
-      'Verifícalas a demanda antes de fiarte — escanea un letrero y confirmamos que sigue coincidiendo. La supervisión automática llega pronto.',
+      'Verifícalas a demanda antes de fiarte: escanea un letrero y confirmamos que sigue coincidiendo. Almstins vuelve a comprobar tu prueba de dominio, y cualquier página que le pidas vigilar, cada seis horas y te avisa por correo si algo cambia.',
     ],
     scaleLabel: '¿Publicas muchas direcciones?',
     scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez (con aprobación durante el acceso anticipado): verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista para que pueda verificarse — sin añadir direcciones una por una. La supervisión en vivo está en camino.',
@@ -420,17 +420,17 @@ const fr: VerifyCopy = {
   meta: {
     tagline: 'Vérifiez vos adresses de réception crypto avant de leur faire confiance',
     description:
-      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous — sans connexion de portefeuille — puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR. La surveillance automatique et les alertes de remplacement arrivent bientôt.',
+      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous (sans connexion de portefeuille), puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit, toujours : 2 adresses et 1 QR. Almstins revérifie votre preuve de domaine, et toute page que vous lui demandez de surveiller, toutes les six heures et vous prévient par e-mail si quelque chose change.',
   },
   jsonld: {
     description:
-      'Enregistrez les destinations de paiement que votre entreprise publie, prouvez que vous les contrôlez et vérifiez n\'importe quelle adresse ou QR publié à la demande avant de vous y fier. Sans connexion de portefeuille, sans garde des fonds. La surveillance automatique et les alertes arrivent bientôt.',
+      'Enregistrez les destinations de paiement que votre entreprise publie, prouvez que vous les contrôlez et vérifiez n\'importe quelle adresse ou QR publié à la demande avant de vous y fier. Sans connexion de portefeuille, sans garde des fonds. Almstins revérifie votre preuve de domaine, et toute page que vous lui demandez de surveiller, toutes les six heures et vous prévient par e-mail si quelque chose change.',
     featureList: [
       'Enregistrer des adresses de réception crypto',
       'Enregistrer un QR de paiement',
       'Prouver la propriété sans connexion de portefeuille',
       'Vérifier les destinations publiées à la demande',
-      'Surveillance automatique et alertes par e-mail (bientôt)',
+      'Vérifications continues de ce que vous publiez, avec alertes par e-mail',
       'Sans garde — les fonds ne sont jamais déplacés',
     ],
   },
@@ -439,9 +439,9 @@ const fr: VerifyCopy = {
     tagline: 'Vérifiez les adresses où vos clients vous paient',
   },
   hero: {
-    eyebrow: 'Accès anticipé · Gratuit pour commencer',
+    eyebrow: 'Plan gratuit · Sans connexion de portefeuille',
     title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
-    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR.",
+    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous, sans jamais connecter de portefeuille, puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit, toujours : 2 adresses et 1 QR.",
   },
   tools: {
     heading: 'Les outils',
@@ -517,7 +517,7 @@ const fr: VerifyCopy = {
       },
       {
         title: 'Vérifiez avant de faire confiance',
-        body: "Avant de vous fier à un QR ou une adresse publiés, scannez-les ou collez-les et nous vous dirons instantanément s'ils correspondent toujours à ce que vous avez enregistré. La surveillance automatique et les alertes de remplacement arrivent bientôt.",
+        body: "Avant de vous fier à un QR ou une adresse publiés, scannez-les ou collez-les et nous vous dirons instantanément s'ils correspondent toujours à ce que vous avez enregistré. Almstins revérifie votre preuve de domaine, et toute page que vous lui demandez de surveiller, toutes les six heures et vous prévient par e-mail si quelque chose change.",
       },
     ],
   },
@@ -526,7 +526,7 @@ const fr: VerifyCopy = {
     items: [
       'Enregistrez et vérifiez 2 adresses de réception',
       'Enregistrez et vérifiez 1 QR de paiement',
-      'Surveillance automatique et alertes par e-mail (bientôt)',
+      'Vérifications continues de ce que vous publiez, avec alertes par e-mail',
       'Sans connexion de portefeuille, jamais — nous lisons les données publiques que vous nous indiquez',
       'Vos données restent les vôtres — nous ne savons jamais qui sont vos clients, et nous ne pouvons pas déplacer vos fonds',
     ],
@@ -551,7 +551,7 @@ const fr: VerifyCopy = {
   },
   early: {
     heading: 'Tôt et honnête',
-    body: "C'est un début. C'est gratuit pendant que nous apprenons ce dont les commerçants ont réellement besoin. Si vous acceptez la crypto — partout dans le monde — essayez, puis dites-nous ce qui le rendrait vraiment utile. Nous le construisons avec vous, pas à vos dépens.",
+    body: "C'est un début, et nous apprenons encore ce dont les commerçants ont réellement besoin. Le plan gratuit reste gratuit. Si vous acceptez la crypto, partout dans le monde, essayez, puis dites-nous ce qui le rendrait vraiment utile. Nous le construisons avec vous, pas à vos dépens.",
   },
   finalCta: {
     heading: 'Vérifiez avant que l\'argent ne bouge.',
@@ -566,7 +566,7 @@ const fr: VerifyCopy = {
     steps: [
       'Créez un compte gratuit et ajoutez les adresses de réception et le QR de paiement que vous publiez.',
       'Prouvez qu’elles sont à vous — pour un portefeuille, envoyez-vous un petit montant ou hébergez un petit fichier sur votre site ; un QR de paiement est prouvé dès que vous l’enregistrez. Sans connexion de wallet, sans clés, jamais.',
-      'Vérifiez-les à la demande avant de vous y fier — scannez une pancarte et nous confirmons qu’elle correspond toujours. La surveillance automatique arrive bientôt.',
+      'Vérifiez-les à la demande avant de vous y fier: scannez une pancarte et nous confirmons qu’elle correspond toujours. Almstins revérifie votre preuve de domaine, et toute page que vous lui demandez de surveiller, toutes les six heures et vous prévient par e-mail si quelque chose change.',
     ],
     scaleLabel: 'Vous publiez de nombreuses adresses ?',
     scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup (sur approbation pendant l’accès anticipé) : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste pour qu’elle puisse être vérifiée — sans ajouter les adresses une par une. La surveillance en direct arrive bientôt.',
