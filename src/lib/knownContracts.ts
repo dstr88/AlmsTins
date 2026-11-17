@@ -162,6 +162,10 @@ const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
   /fli\.so/i,                                             // fli.so shortener
   /\.(com|xyz|site|top|vip|cab|lat|io|org|to)\b/i,       // phishing domain TLDs
   /\|/,                                                   // pipe characters — not used in real token symbols
+  // Words only spam airdrops use, as whole words (Nov 17, 2026: one shared rule; the pricing and
+  // Avalanche-holdings copies had their own lists). Not "reward" or "bonus": real staking and
+  // incentive tokens use them, and spam that does almost always carries a link caught above.
+  /\b(claim|airdrop|giveaway|voucher|visit|promo)s?\b/i,
 ];
 
 // Checked against the symbol alone. A real token's NAME is often three words once the

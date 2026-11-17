@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { isSpamToken } from './knownContracts';
 
 const MIN_VALUE_USD = 5;
 const PRICE_STALE_MS = 10 * 60 * 1000;
@@ -85,12 +86,6 @@ const toTrackedAssetRows = (rows: unknown): TrackedAssetRow[] => {
 	return out;
 };
 
-function isSpamToken(symbol: string | null, name: string | null) {
-	const sym = (symbol ?? '').trim().toLowerCase();
-	const nm = (name ?? '').trim().toLowerCase();
-	const haystack = `${sym} ${nm}`;
-	return /(claim|airdrop|reward|bonus|\.com|visit)/.test(haystack);
-}
 
 function toNumber(value: number | string | null | undefined) {
 	if (value === null || value === undefined) return 0;
@@ -152,7 +147,8 @@ export async function priceTrackedAssets(userId: string) {
 		const balance = toNumber(asset.balance);
 		const key = `${asset.chain_id}:${String(asset.contract_address ?? '').toLowerCase()}`;
 		const coinpaprikaId = mapping.get(key);
-		const spam = balance === 0 || isSpamToken(asset.token_symbol, asset.token_name);
+		// The one shared spam rule (knownContracts.ts), the same the rest of the app uses.
+		const spam = balance === 0 || isSpamToken(asset.token_symbol ?? '', asset.token_name);
 
 		if (!coinpaprikaId || spam) {
 			await db.execute({
