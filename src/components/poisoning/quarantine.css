@@ -215,3 +215,32 @@
 	font-size: 0.8rem;
 	color: var(--accent);
 }
+
+/* Bookkeeping Needs Attention: items with quarantined addresses, set aside behind "Show"
+   (src/lib/quarantineBooks.ts), each still marked. */
+.tin-quarantine {
+	margin-top: 0.6rem;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+}
+
+.tin-quarantine > summary {
+	cursor: pointer;
+}
+
+.tin-row.tin-row--q-amber {
+	box-shadow: inset 4px 0 0 var(--warning);
+}
+
+.tin-row.tin-row--q-red {
+	box-shadow: inset 4px 0 0 var(--loss);
+}
+
+.tin-row.tin-row--q-skull {
+	box-shadow: inset 4px 0 0 var(--text-primary);
+	outline: 1px solid var(--text-primary);
+}
+
+.tin-row__note--quarantine {
+	font-weight: 600;
+}

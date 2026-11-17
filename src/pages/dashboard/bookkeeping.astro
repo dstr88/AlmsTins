@@ -18,6 +18,11 @@ import { getHistoryExport } from '@/i18n/historyExport';
 import HistoryDownload from '../../components/dashboard/HistoryDownload.astro';
 import { canDownloadBookkeepingCsv, canDownloadHistoryByWallet } from '../../lib/historyAccess';
 import { formatDate, formatUsd } from '@/lib/format';
+import NeedsAttentionRow from '../../components/bookkeeping/NeedsAttentionRow.astro';
+import { loadPoisoningFlags } from '../../lib/poisoningFlags';
+import { loadCounterparties, splitQuarantinedDust } from '../../lib/quarantineBooks';
+import { getQuarantine } from '@/i18n/components/quarantine';
+import '../../components/poisoning/quarantine.css';
 
 const lang = getLang(Astro.request);
 const t = getBookkeeping(lang);
@@ -49,9 +54,17 @@ const bd      = await buildAnnualBreakdown(tenantId, selectedYear, 'fifo', undef
 // untouched — this only cleans the two display lists below + their count/total.
 const BOOKKEEPING_START = '2025-01-01';
 const notScam = (asset: string) => !isSpamToken(asset);
-const needsAttention = bd.needsAttention.filter(
+const needsAttentionAll = bd.needsAttention.filter(
   (i) => notScam(i.asset) && i.sellDate >= BOOKKEEPING_START,
 );
+// Quarantine (src/lib/quarantineBooks.ts): an item that moved nothing or dust to a quarantined
+// address is set aside behind a "Show" line, still marked. A real payment is never set aside.
+// Display only, like the spam filter above: tax math, CSVs and the Year Summary are untouched.
+const qT = getQuarantine(lang);
+const attentionCounterparties = await loadCounterparties(tenantId, needsAttentionAll.map((i) => i.sourceId));
+const attentionFlags = await loadPoisoningFlags(tenantId, [...attentionCounterparties.values()]);
+const { visible: needsAttention, hidden: needsAttentionHidden } =
+  splitQuarantinedDust(needsAttentionAll, attentionCounterparties, attentionFlags);
 const unsettledProceeds = needsAttention.reduce((s, i) => s + (i.proceedsUsd ?? 0), 0);
 const profile = await getJurisdictionProfile(tenantId);
 
@@ -60,7 +73,7 @@ const profile = await getJurisdictionProfile(tenantId);
 // global_address_labels so we can show a human name directly on the row.
 const attentionLabels = new Map<string, string>();
 {
-  const sourceIds = needsAttention.map(i => i.sourceId).filter(Boolean);
+  const sourceIds = needsAttentionAll.map(i => i.sourceId).filter(Boolean);
   if (sourceIds.length > 0) {
     const placeholders = sourceIds.map(() => '?').join(', ');
     try {
@@ -325,43 +338,38 @@ const syncRelative = !hasSync ? '' :
             <p class="tin-empty">{t.noOrphanedSales(selectedYear)}</p>
           ) : (
             <div class="tin-rows">
-              {needsAttention.map((item) => {
-                // 'other' class = unrecognised transfer pattern → most common scam signal
-                const isOther = item.transactionClass === 'other';
-                // Round number + unrecognised = strong scam indicator (e.g. exactly 1,000 USDC)
-                const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
-                const scamLikely = isOther && isRound;
-                const scamPossible = isOther && !isRound;
-                const counterpartyLabel = attentionLabels.get(item.sourceId) ?? null;
-                return (
-                  <div
-                    class={`tin-row tin-row--alert${scamLikely ? ' tin-row--scam' : ''}`}
-                    data-source-id={item.sourceId}
-                    data-group-id={item.groupId}
-                    data-tx-hash={item.txHash ?? ''}
-                    data-asset={item.asset}
-                    data-amount={String(item.amount)}
-                    data-sell-date={item.sellDate}
-                    data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
-                    data-tx-class={item.transactionClass}
-                    data-source-type={item.sourceType}
-                  >
-                    {(() => { const icon = sourceIcon(item.sourceType); return icon ? <img src={icon.url} alt={icon.alt} class="tin-row__source-icon" title={icon.alt} /> : null; })()}
-                    <span class="tin-row__asset">{item.asset}</span>
-                    {scamLikely && <span class="asset-badge asset-badge--scam">SCAM?</span>}
-                    {scamPossible && <span class="asset-badge asset-badge--verify">VERIFY</span>}
-                    <span class="tin-row__qty">{fQty(item.amount)}</span>
-                    <span class="tin-row__date">{fDate(item.sellDate)}</span>
-                    <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
-                    {counterpartyLabel
-                      ? <span class="tin-row__note tin-row__note--labeled">→ {counterpartyLabel}</span>
-                      : <span class="tin-row__note">{scamLikely ? t.noteUnrecognisedRound : scamPossible ? t.noteUnrecognisedTransfer : t.noteNoPurchase}</span>
-                    }
-                    <span class="tin-row__cta">{t.detailsCta}</span>
-                  </div>
-                );
-              })}
+              {needsAttention.map((item) => (
+                <NeedsAttentionRow
+                  item={item}
+                  t={t}
+                  counterpartyLabel={attentionLabels.get(item.sourceId) ?? null}
+                  icon={sourceIcon(item.sourceType)}
+                  fQty={fQty}
+                  fDate={fDate}
+                  fUsd={fUsd}
+                />
+              ))}
             </div>
+          )}
+          {needsAttentionHidden.length > 0 && (
+            <details class="tin-quarantine">
+              <summary>{qT.needsAttentionHidden(needsAttentionHidden.length)} · {qT.show}</summary>
+              <div class="tin-rows">
+                {needsAttentionHidden.map(({ item, flag }) => (
+                  <NeedsAttentionRow
+                    item={item}
+                    t={t}
+                    counterpartyLabel={attentionLabels.get(item.sourceId) ?? null}
+                    icon={sourceIcon(item.sourceType)}
+                    fQty={fQty}
+                    fDate={fDate}
+                    fUsd={fUsd}
+                    flag={flag}
+                    flagReason={qT.hiddenReason(flag.signal)}
+                  />
+                ))}
+              </div>
+            </details>
           )}
         </OrnateTin>
       </div>

@@ -43,6 +43,10 @@ export interface QuarantineLocale {
 	releaseFailed: string;
 	quarantineFailed: string;
 	backToAddresses: string;
+	/** Needs Attention: items with quarantined addresses, set aside behind "Show". */
+	needsAttentionHidden: (n: number) => string;
+	show: string;
+	hiddenReason: (signal: string) => string;
 }
 
 const en: QuarantineLocale = {
@@ -85,6 +89,9 @@ const en: QuarantineLocale = {
 	releaseFailed: 'Could not release the address. Try again.',
 	quarantineFailed: 'Could not quarantine the address. Try again.',
 	backToAddresses: 'Back to Addresses',
+	needsAttentionHidden: (n) => (n === 1 ? '1 item with a quarantined address is hidden' : `${n} items with quarantined addresses are hidden`),
+	show: 'Show',
+	hiddenReason: (signal) => (signal === 'quarantined' ? '☠ You quarantined this address' : signal === 'dust-only' ? '⚠ Address only ever sent you tiny amounts' : '⚠ Address looks like one you saved'),
 };
 
 const es: QuarantineLocale = {
@@ -127,6 +134,9 @@ const es: QuarantineLocale = {
 	releaseFailed: 'No se pudo devolver la dirección. Inténtalo de nuevo.',
 	quarantineFailed: 'No se pudo poner la dirección en cuarentena. Inténtalo de nuevo.',
 	backToAddresses: 'Volver a Direcciones',
+	needsAttentionHidden: (n) => (n === 1 ? '1 elemento con una dirección en cuarentena está oculto' : `${n} elementos con direcciones en cuarentena están ocultos`),
+	show: 'Mostrar',
+	hiddenReason: (signal) => (signal === 'quarantined' ? '☠ Pusiste esta dirección en cuarentena' : signal === 'dust-only' ? '⚠ La dirección solo te ha enviado cantidades mínimas' : '⚠ La dirección se parece a una que guardaste'),
 };
 
 const fr: QuarantineLocale = {
@@ -169,6 +179,9 @@ const fr: QuarantineLocale = {
 	releaseFailed: 'Impossible de remettre l’adresse. Réessayez.',
 	quarantineFailed: 'Impossible de mettre l’adresse en quarantaine. Réessayez.',
 	backToAddresses: 'Retour aux Adresses',
+	needsAttentionHidden: (n) => (n === 1 ? '1 élément avec une adresse en quarantaine est masqué' : `${n} éléments avec des adresses en quarantaine sont masqués`),
+	show: 'Afficher',
+	hiddenReason: (signal) => (signal === 'quarantined' ? '☠ Vous avez mis cette adresse en quarantaine' : signal === 'dust-only' ? '⚠ L’adresse ne vous a jamais envoyé que des montants infimes' : '⚠ L’adresse ressemble à une adresse enregistrée'),
 };
 
 const MAP: Record<Lang, QuarantineLocale> = { en, es, fr };

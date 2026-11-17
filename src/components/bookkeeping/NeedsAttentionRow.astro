@@ -1,0 +1,62 @@
+---
+// One Needs Attention row on the bookkeeping page. Moved out of bookkeeping.astro so the listed
+// rows and the rows set aside behind "Show" (quarantined addresses, src/lib/quarantineBooks.ts)
+// are drawn the same way. With `flag`, the row carries the quarantine mark: ☠ and a dark border
+// for an address the user quarantined, amber or red for the automatic signals.
+import type { UnsettledItem } from '../../lib/annualBreakdown';
+import type { PoisonFlag } from '../../lib/poisoningFlags';
+
+interface Props {
+	item: UnsettledItem;
+	t: {
+		noteUnrecognisedRound: string;
+		noteUnrecognisedTransfer: string;
+		noteNoPurchase: string;
+		detailsCta: string;
+	};
+	counterpartyLabel: string | null;
+	icon: { url: string; alt: string } | null;
+	fQty: (v: number) => string;
+	fDate: (iso: string | null) => string;
+	fUsd: (v: number | null) => string;
+	flag?: PoisonFlag | null;
+	flagReason?: string | null;
+}
+
+const { item, t, counterpartyLabel, icon, fQty, fDate, fUsd, flag = null, flagReason = null } = Astro.props;
+// 'other' class = unrecognised transfer pattern → most common scam signal
+const isOther = item.transactionClass === 'other';
+// Round number + unrecognised = strong scam indicator (e.g. exactly 1,000 USDC)
+const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
+const scamLikely = isOther && isRound;
+const scamPossible = isOther && !isRound;
+const mark = !flag ? '' : flag.signal === 'quarantined' ? ' tin-row--q-skull' : flag.signal === 'dust-only' ? ' tin-row--q-amber' : ' tin-row--q-red';
+---
+
+<div
+	class={`tin-row tin-row--alert${scamLikely ? ' tin-row--scam' : ''}${mark}`}
+	data-source-id={item.sourceId}
+	data-group-id={item.groupId}
+	data-tx-hash={item.txHash ?? ''}
+	data-asset={item.asset}
+	data-amount={String(item.amount)}
+	data-sell-date={item.sellDate}
+	data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
+	data-tx-class={item.transactionClass}
+	data-source-type={item.sourceType}
+>
+	{icon ? <img src={icon.url} alt={icon.alt} class="tin-row__source-icon" title={icon.alt} /> : null}
+	<span class="tin-row__asset">{item.asset}</span>
+	{scamLikely && <span class="asset-badge asset-badge--scam">SCAM?</span>}
+	{scamPossible && <span class="asset-badge asset-badge--verify">VERIFY</span>}
+	<span class="tin-row__qty">{fQty(item.amount)}</span>
+	<span class="tin-row__date">{fDate(item.sellDate)}</span>
+	<span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
+	{flagReason
+		? <span class="tin-row__note tin-row__note--quarantine">{flagReason}</span>
+		: counterpartyLabel
+			? <span class="tin-row__note tin-row__note--labeled">→ {counterpartyLabel}</span>
+			: <span class="tin-row__note">{scamLikely ? t.noteUnrecognisedRound : scamPossible ? t.noteUnrecognisedTransfer : t.noteNoPurchase}</span>
+	}
+	<span class="tin-row__cta">{t.detailsCta}</span>
+</div>
