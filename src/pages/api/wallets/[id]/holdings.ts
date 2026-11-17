@@ -10,6 +10,7 @@ import { getAllTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 import { sqlTimestamptz } from '@/lib/utcTimestamp';
 import { CHAINS } from '@/lib/chains';
+import { isSpamToken } from '@/lib/knownContracts';
 
 const POLYGON_CHAIN_ID: number = CHAINS.polygon.evmChainId;
 const ETHEREUM_CHAIN_ID: number = CHAINS.ethereum.evmChainId;
@@ -196,13 +197,19 @@ function normalizeAddress(address: string) {
 	return address.trim().toLowerCase();
 }
 
-function isSpamToken(symbol: string, name: string, decimals: number) {
+/**
+ * Token metadata too broken to list: no symbol or no name, or a symbol or name far longer than any
+ * real token's. Not a spam rule (that is the shared isSpamToken in knownContracts.ts); it is only
+ * applied here, where the explorer's metadata is read, because callers elsewhere know only a symbol.
+ */
+function isBrokenTokenMetadata(symbol: string, name: string): boolean {
 	if (!symbol || !name) return true;
-	if (symbol.length > 12 || name.length > 40) return true;
-	const haystack = `${symbol} ${name}`.toLowerCase();
-	if (/(claim|airdrop|reward|bonus|giveaway|visit|voucher|promo|http|https|scam)/.test(haystack)) return true;
-	if (decimals === 0 && /(claim|airdrop|reward|bonus)/.test(haystack)) return true;
-	return false;
+	return symbol.length > 12 || name.length > 40;
+}
+
+/** Whether a token is left out of this wallet's holdings: broken metadata, or the shared spam rule. */
+function isSkippedToken(symbol: string, name: string): boolean {
+	return isBrokenTokenMetadata(symbol, name) || isSpamToken(symbol, name);
 }
 
 function isDefiToken(symbol: string, name: string) {
@@ -361,7 +368,7 @@ async function fetchAlchemyTokenAggregates(
 			if (sampleDrops.badDecimals.length < 10) sampleDrops.badDecimals.push(contract);
 			continue;
 		}
-		if (isSpamToken(symbol, name, decimals)) {
+		if (isSkippedToken(symbol, name)) {
 			droppedSpam += 1;
 			if (sampleDrops.spam.length < 10) sampleDrops.spam.push(`${symbol}:${contract}`);
 			continue;
@@ -878,7 +885,7 @@ async function buildHoldingsPayload(
 			const decimals = Number(tx.tokenDecimal ?? 0);
 
 			if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
-			if (isSpamToken(symbol, name, decimals)) continue;
+			if (isSkippedToken(symbol, name)) continue;
 			if (isDefiToken(symbol, name)) continue;
 
 			const from = normalizeAddress(tx.from ?? '');
