@@ -764,6 +764,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Dans Almstins Agentics, quand un agent demande une adresse absente de sa liste mais qui ressemble à une adresse des listes de vos agents, la réponse est flagged et vous recevez un e-mail.
+        </p>
+
+        <p>
           Quand vous êtes connecté, le vérificateur gratuit signale aussi une adresse vérifiée qui ressemble à une adresse de votre Address Book. La comparaison se fait dans votre navigateur ; la vérification n’envoie toujours que l’adresse, jamais votre identité.
         </p>
 

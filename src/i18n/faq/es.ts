@@ -762,6 +762,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          En Almstins Agentics, cuando un agente pregunta por una dirección que no está en su lista pero se parece a una de las listas de tus agentes, la respuesta es flagged y recibes un correo.
+        </p>
+
+        <p>
           Con la sesión iniciada, el comprobador gratuito también avisa si la dirección que compruebas se parece a una de tu Address Book. La comparación se hace en tu navegador; la comprobación sigue enviando solo la dirección, nunca quién eres.
         </p>
 

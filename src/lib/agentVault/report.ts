@@ -67,6 +67,7 @@ export const ANSWER_BASES = [
   'registered_and_checked_before',
   'registered_first_check',
   'destination_disputed',
+  'lookalike_of_listed',
 ] as const satisfies readonly AnswerBasis[];
 // Compile-time: a basis added to checkLog.ts without a line here fails the build, so no check can
 // reach the report with a reason this file has not decided how to bucket.

@@ -42,7 +42,7 @@ export interface DigestEmailArgs {
 }
 
 /** What the check was answered, as the alert names it (src/lib/agentVault/alerts.ts AlertKind). */
-export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'disputed' | 'established' | 'unmatched';
+export type AlertEmailKind = 'mismatch' | 'flagged' | 'screening' | 'lookalike' | 'not_on_list' | 'pending' | 'unanchored' | 'unknown' | 'disputed' | 'established' | 'unmatched';
 
 export interface AlertEmailArgs {
   appBase: string;
@@ -53,6 +53,8 @@ export interface AlertEmailArgs {
   payments?: number;
   /** For an unmatched-payment email: whether an earlier one went for this address, so the count runs from it. */
   sinceLast?: boolean;
+  /** For an unmatched-payment email: the address looks like one on a list in the account (address poisoning). */
+  lookalike?: boolean;
 }
 
 /** For each answer: the word the subject names it by, and the sentence that says what happened. Never an address, a label or an amount. */
@@ -60,6 +62,7 @@ const ALERT_WORDS: Record<AlertEmailKind, { word: string; what: string }> = {
   mismatch: { word: 'Mismatch', what: 'One of your agents asked about an address, and a domain other than the one it expected vouches for that address.' },
   flagged: { word: 'Flagged', what: 'One of your agents asked about an address that is flagged in its registry.' },
   screening: { word: 'Flagged', what: 'One of your agents asked about an address, and the sanctions or security screening Almstins ran on it at that moment found something.' },
+  lookalike: { word: 'Flagged', what: "One of your agents asked about an address that is not on its list but looks like one that is: the same first 4 and last 4 characters, and different characters in between. That is the usual shape of address poisoning. The agent was answered flagged." },
   not_on_list: { word: 'Not on the list', what: 'One of your agents asked about an address that is not on its list.' },
   pending: { word: 'Pending', what: 'One of your agents asked about an address on its list whose checks have not finished.' },
   unanchored: { word: 'Unanchored', what: 'One of your agents asked about an address on its list for the first time. Someone proved control of the address, but no domain currently vouches for it.' },
@@ -146,15 +149,23 @@ export const en: AgentReportEmailLocale = {
     return { subject: `${digestLead(a)} · Agent report, ${when.subject}`, text: lines.join('\n') };
   },
 
-  alert: ({ appBase, kind, tinId, payments, sinceLast }) => {
+  alert: ({ appBase, kind, tinId, payments, sinceLast, lookalike }) => {
     const w = ALERT_WORDS[kind] ?? ALERT_WORDS.unknown;
     const established = kind === 'established';
     if (kind === 'unmatched') {
       return {
-        subject: 'Action needed: an agent paid an address it never asked about',
+        subject: lookalike
+          ? 'Action needed: an agent paid an address that looks like one on its list'
+          : 'Action needed: an agent paid an address it never asked about',
         text: [
           w.what,
           ``,
+          ...(lookalike
+            ? [
+                `That address looks like one on your agents' lists: the same first 4 and last 4 characters, and different characters in between. That is the usual shape of address poisoning.`,
+                ``,
+              ]
+            : []),
           unmatchedCountLine(payments ?? 1, sinceLast === true),
           ``,
           `A person should look at it. The payment has already gone out on the chain. Almstins flags and records. It does not hold or move funds and is never in the payment path.`,
