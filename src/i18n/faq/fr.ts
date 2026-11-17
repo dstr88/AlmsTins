@@ -755,7 +755,7 @@ export const items: FaqItem[] = [
         </p>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li><strong>Orange :</strong> une adresse qui ne vous a jamais envoyé que des montants infimes (moins de 1 $, un transfert de valeur nulle, un jeton de spam ou un jeton sans prix) et que vous n'avez jamais payée.</li>
+          <li><strong>Orange :</strong> une adresse qui ne vous a jamais envoyé que des montants infimes (moins de 1 $, un transfert de valeur nulle, un jeton de spam ou un jeton sans prix) et que vous n'avez jamais payée. Les contrats de jetons connus et les protocoles qu’Almstins étiquette (comme le pool Aave) ne comptent pas, car les airdrops frauduleux les font passer pour l’expéditeur.</li>
           <li><strong>Rouge :</strong> une adresse dont les 4 premiers et les 4 derniers caractères correspondent à une adresse enregistrée dans votre Address Book, mais qui est une autre adresse. Si elle ne vous a aussi jamais envoyé que des montants infimes, le volet ne propose pas de l'ajouter à votre Address Book.</li>
         </ul>
 

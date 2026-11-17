@@ -17,7 +17,7 @@
 
 import { db } from './db';
 import { canonicalAddress } from './wallets-service';
-import { accountTransfers } from './poisoningFlags';
+import { accountTransfers, almstinsLabeledAddresses } from './poisoningFlags';
 import { ensureQuarantineTable, loadQuarantineMarks } from './quarantineMarks';
 import { countsOnButton, type QuarantineEntry } from './quarantineEntry';
 
@@ -40,6 +40,7 @@ export function buildQuarantine(
 	book: readonly AddressBookEntry[],
 	ownWallets: readonly string[],
 	marks: readonly { address: string; createdAt: string }[],
+	notDustSenders: ReadonlySet<string> = new Set(),
 ): QuarantineEntry[] {
 	const own = new Set(ownWallets.map((w) => sameAddressKey(w)).filter((k): k is string => !!k));
 	const trusted = new Set(
@@ -47,7 +48,7 @@ export function buildQuarantine(
 	);
 	const out = new Map<string, QuarantineEntry>();
 
-	for (const [key, f] of poisoningFindings(transfers, book)) {
+	for (const [key, f] of poisoningFindings(transfers, book, { notDustSenders })) {
 		if (own.has(key)) continue;
 		out.set(key, {
 			address: key,
@@ -95,11 +96,12 @@ export function buildQuarantine(
 /** The account's quarantine. Never throws: on failure the screens show nothing. */
 export async function loadQuarantine(tenantId: string): Promise<QuarantineEntry[]> {
 	try {
-		const [transfers, bookRes, walletRes, marks] = await Promise.all([
+		const [transfers, bookRes, walletRes, marks, labeled] = await Promise.all([
 			accountTransfers(tenantId),
 			db.execute({ sql: 'SELECT address, label, source FROM address_labels WHERE tenant_id = ?', args: [tenantId] }),
 			db.execute({ sql: 'SELECT address FROM wallets WHERE tenant_id = ?', args: [tenantId] }),
 			loadQuarantineMarks(tenantId),
+			almstinsLabeledAddresses(),
 		]);
 		const rows = (r: { rows: unknown[] }) => r.rows as Record<string, unknown>[];
 		const book = rows(bookRes).map((r) => ({
@@ -107,7 +109,7 @@ export async function loadQuarantine(tenantId: string): Promise<QuarantineEntry[
 			label: String(r.label ?? ''),
 			source: r.source == null ? null : String(r.source),
 		}));
-		return buildQuarantine(transfers ?? [], book, rows(walletRes).map((r) => String(r.address ?? '')), marks);
+		return buildQuarantine(transfers ?? [], book, rows(walletRes).map((r) => String(r.address ?? '')), marks, labeled);
 	} catch (err) {
 		console.error('[quarantine]', err instanceof Error ? err.message : 'failed');
 		return [];

@@ -753,7 +753,7 @@ export const items: FaqItem[] = [
         </p>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li><strong>Ámbar:</strong> una dirección que solo te ha enviado cantidades mínimas (menos de 1 $, una transferencia de valor cero, un token de spam o un token sin precio) y a la que nunca has pagado.</li>
+          <li><strong>Ámbar:</strong> una dirección que solo te ha enviado cantidades mínimas (menos de 1 $, una transferencia de valor cero, un token de spam o un token sin precio) y a la que nunca has pagado. No cuentan los contratos de tokens conocidos ni los protocolos que Almstins etiqueta (como el pool de Aave), porque los airdrops de estafa los falsifican como remitente.</li>
           <li><strong>Rojo:</strong> una dirección cuyos primeros 4 y últimos 4 caracteres coinciden con una dirección que guardaste en tu Address Book, pero que es una dirección distinta. Si además solo te ha enviado cantidades mínimas, el panel no ofrece añadirla a tu Address Book.</li>
         </ul>
 

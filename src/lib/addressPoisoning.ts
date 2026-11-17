@@ -21,7 +21,7 @@
  */
 
 import { addressNetwork, type AddressNetwork } from './addressNetwork';
-import { isSpamToken } from './knownContracts';
+import { isKnownTokenContract, isSpamToken } from './knownContracts';
 
 /** A transfer worth less than this many US dollars at the time is dust (Donnie, Nov 16, 2026). */
 export const DUST_USD = 1;
@@ -200,11 +200,13 @@ export interface PoisonFinding<E extends AddressBookEntry = AddressBookEntry> {
  * nothing moved, since poisoners fake those too): one real payment the user sent to the address, or
  * one real amount from it, clears it. Signal B applies whichever way the money went, since a
  * payment sent to a look-alike is the loss the warning exists for. An address the user saved
- * themselves gets no signal.
+ * themselves gets no signal. Known token contracts, and the addresses in `opts.notDustSenders`
+ * (same-address form; the callers pass Almstins' own labeled addresses), never count as dust-only.
  */
 export function poisoningFindings<E extends AddressBookEntry>(
 	transfers: readonly PoisonTransfer[],
 	book: readonly E[],
+	opts: { notDustSenders?: ReadonlySet<string> } = {},
 ): Map<string, PoisonFinding<E>> {
 	type Tally = { address: string; total: number; dustIn: number; firstAt: string | null; usdIn: number; wallets: Set<string> };
 	const byAddress = new Map<string, Tally>();
@@ -238,7 +240,11 @@ export function poisoningFindings<E extends AddressBookEntry>(
 	const findings = new Map<string, PoisonFinding<E>>();
 	for (const [key, tally] of byAddress) {
 		if (trusted.has(key)) continue;
-		const dustOnly = tally.total > 0 && tally.dustIn === tally.total;
+		// A known token contract, or an address Almstins itself labels (the Aave pool, an exchange), is
+		// never a dust sender: scam airdrops fake the real token contract as the sender, and a
+		// zero-value call to a protocol reads as "nothing moved". Its look-alike check still applies.
+		const dustOnly =
+			tally.total > 0 && tally.dustIn === tally.total && !isKnownTokenContract(key) && !opts.notDustSenders?.has(key);
 		const imitates = findLookalike(key, book);
 		if (!dustOnly && !imitates) continue;
 		findings.set(key, {

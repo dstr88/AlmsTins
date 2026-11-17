@@ -754,7 +754,7 @@ export const items: FaqItem[] = [
         </p>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li><strong>Amber:</strong> an address that has only ever sent you tiny amounts (under $1, a zero-value transfer, a spam token, or a token with no price) and that you have never paid.</li>
+          <li><strong>Amber:</strong> an address that has only ever sent you tiny amounts (under $1, a zero-value transfer, a spam token, or a token with no price) and that you have never paid. Well-known token contracts and the protocols Almstins labels (such as the Aave pool) are not counted, since scam airdrops fake them as the sender.</li>
           <li><strong>Red:</strong> an address whose first 4 and last 4 characters match an address you saved in your Address Book, but which is a different address. If it has also only ever sent you tiny amounts, the drawer does not offer to add it to your book.</li>
         </ul>
 

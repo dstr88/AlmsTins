@@ -95,6 +95,7 @@ export function flagsFor(
 	book: readonly AddressBookEntry[],
 	ownWallets: readonly string[],
 	quarantined: readonly string[] = [],
+	notDustSenders: ReadonlySet<string> = new Set(),
 ): Map<string, PoisonFlag> {
 	const own = new Set(ownWallets.map((w) => sameAddressKey(w)).filter((k): k is string => !!k));
 	const wanted = new Set(
@@ -107,7 +108,7 @@ export function flagsFor(
 		const key = sameAddressKey(t.counterparty);
 		return !!key && wanted.has(key);
 	});
-	const findings = poisoningFindings(relevant, book);
+	const findings = poisoningFindings(relevant, book, { notDustSenders });
 	const trusted = new Set(
 		book.filter((e) => isTrustedSource(e.source)).map((e) => sameAddressKey(e.address)).filter((k): k is string => !!k),
 	);
@@ -141,11 +142,12 @@ export async function loadPoisoningFlags(
 ): Promise<Map<string, PoisonFlag>> {
 	try {
 		if (!addresses.some((a) => sameAddressKey(a))) return new Map();
-		const [transfers, bookRes, walletRes, marks] = await Promise.all([
+		const [transfers, bookRes, walletRes, marks, labeled] = await Promise.all([
 			accountTransfers(tenantId),
 			db.execute({ sql: 'SELECT address, label, source FROM address_labels WHERE tenant_id = ?', args: [tenantId] }),
 			db.execute({ sql: 'SELECT address FROM wallets WHERE tenant_id = ?', args: [tenantId] }),
 			loadQuarantineMarks(tenantId),
+			almstinsLabeledAddresses(),
 		]);
 		const book: AddressBookEntry[] = (bookRes.rows as Record<string, unknown>[]).map((r) => ({
 			address: String(r.address ?? ''),
@@ -153,10 +155,33 @@ export async function loadPoisoningFlags(
 			source: r.source == null ? null : String(r.source),
 		}));
 		const wallets = (walletRes.rows as Record<string, unknown>[]).map((r) => String(r.address ?? ''));
-		return flagsFor(addresses, transfers ?? [], book, wallets, marks.map((m) => m.address));
+		return flagsFor(addresses, transfers ?? [], book, wallets, marks.map((m) => m.address), labeled);
 	} catch (err) {
 		console.error('[poisoningFlags]', err instanceof Error ? err.message : 'failed');
 		return new Map();
+	}
+}
+
+const LABELED_CACHE_MS = 10 * 60 * 1000;
+let labeledCache: { set: ReadonlySet<string>; expiresAt: number } | null = null;
+
+/**
+ * The addresses Almstins itself labels for everyone (global_address_labels: the Aave pools, exchange
+ * hot wallets and other well-known contracts), in same-address form. They are never dust senders
+ * (src/lib/addressPoisoning.ts). Cached for a few minutes; an empty set when the table cannot be read.
+ */
+export async function almstinsLabeledAddresses(): Promise<ReadonlySet<string>> {
+	if (labeledCache && labeledCache.expiresAt > Date.now()) return labeledCache.set;
+	try {
+		const res = await db.execute({ sql: 'SELECT address FROM global_address_labels', args: [] });
+		const set = new Set(
+			(res.rows as Record<string, unknown>[]).map((r) => sameAddressKey(String(r.address ?? ''))).filter((k): k is string => !!k),
+		);
+		labeledCache = { set, expiresAt: Date.now() + LABELED_CACHE_MS };
+		return set;
+	} catch (err) {
+		console.error('[poisoningFlags] labels', err instanceof Error ? err.name : 'failed');
+		return new Set();
 	}
 }
 

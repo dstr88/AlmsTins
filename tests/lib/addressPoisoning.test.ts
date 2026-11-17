@@ -274,3 +274,29 @@ describe('differingPositions', () => {
 		expect([...differingPositions('abc', 'abcde')]).toEqual([3, 4]);
 	});
 });
+
+describe('known contracts are never dust senders (found on a live account, Nov 17, 2026)', () => {
+	// Real, public token contracts: scam airdrops fake them as the sender of spam tokens.
+	const USDC_ETH = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+	const USDT_POLYGON = '0xc2132d05d31c914a87c6611c10748aeb04b58e8f';
+	const AAVE_POOL = '0x794a61358d6845594f94dc1db02a252b5b4814ad';
+
+	it('does not call a known token contract dust-only', () => {
+		const found = poisoningFindings(
+			[dustIn(USDC_ETH, { amount: 0, usd: 0, tokenSymbol: 'ETH' }), dustIn(USDT_POLYGON, { tokenSymbol: 'Visit x.xyz to claim', usd: null })],
+			book,
+		);
+		expect(found.size).toBe(0);
+	});
+
+	it('does not call an address Almstins labels dust-only', () => {
+		const found = poisoningFindings([dustIn(AAVE_POOL, { amount: 0, usd: 0 })], book, { notDustSenders: new Set([AAVE_POOL]) });
+		expect(found.size).toBe(0);
+	});
+
+	it('still catches an ordinary spam sender, and still catches a look-alike', () => {
+		const found = poisoningFindings([dustIn(STRANGER), dustIn(POISON, { amount: 0 })], book, { notDustSenders: new Set([AAVE_POOL]) });
+		expect(found.get(sameAddressKey(STRANGER)!)?.signal).toBe('dust-only');
+		expect(found.get(sameAddressKey(POISON)!)?.signal).toBe('both');
+	});
+});
