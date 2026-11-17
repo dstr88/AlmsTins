@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletOverview } from '@/i18n/components/walletOverview';
 import { getOwnerLabel } from '@/i18n/components/ownerLabel';
@@ -6,6 +6,9 @@ import { EVM_ADDRESS, SUI_ADDRESS } from '@/lib/addressFormats';
 import { CHAINS, DEFAULT_WALLET_CHAINS, chainsForSymbol, normalizeChain } from '@/lib/chains';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
+import { QuarantineButton } from '@/components/poisoning/QuarantineButton';
+import { onQuarantine } from '@/components/poisoning/quarantineEvents';
+import type { QuarantineEntry } from '@/lib/quarantineEntry';
 
 // The same limit the server applies (src/lib/walletOwnerLabel.ts OWNER_LABEL_MAX).
 const OWNER_LABEL_MAX = 60;
@@ -22,6 +25,8 @@ export type WalletOverviewWallet = {
 
 type Props = {
 	wallets: WalletOverviewWallet[];
+	/** The quarantine (src/lib/quarantine.ts), for each card's Quarantine button. */
+	quarantine?: QuarantineEntry[];
 };
 
 type WalletState = WalletOverviewWallet[];
@@ -77,7 +82,10 @@ const inputStyle: React.CSSProperties = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function WalletOverview({ wallets: initialWallets }: Props) {
+export function WalletOverview({ wallets: initialWallets, quarantine: initialQuarantine = [] }: Props) {
+	// Kept in step with the address book's "To quarantine" and with releases (quarantineEvents.ts).
+	const [quarantine, setQuarantine] = useState<QuarantineEntry[]>(initialQuarantine);
+	useEffect(() => onQuarantine(setQuarantine), []);
 	const [wallets, setWallets]     = useState<WalletState>(initialWallets);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [draftLabel, setDraftLabel] = useState('');
@@ -391,6 +399,11 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 										</>
 									) : (
 										<>
+											<QuarantineButton
+												walletId={wallet.id}
+												walletName={wallet.label || shortenAddress(wallet.address)}
+												all={quarantine}
+											/>
 											<ActionBtn label={t.btnEdit} onClick={() => handleEditClick(wallet)} color={color.accent} />
 											<ActionBtn label={t.btnDelete} onClick={() => handleDelete(wallet)} color="var(--loss)" />
 										</>

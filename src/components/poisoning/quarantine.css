@@ -1,0 +1,217 @@
+/* Quarantine (src/components/poisoning/Quarantine*.tsx): the wallet button, its modal, the
+   account-wide page's list, and the address book's quiet link and buttons. */
+
+.q-button {
+	padding: 0.3rem 0.75rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 7px;
+	background: transparent;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+}
+
+.q-button--alert {
+	border-color: var(--loss-border);
+	color: var(--loss);
+}
+
+.q-modal {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.q-modal__title {
+	margin: 0;
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: var(--text-primary);
+}
+
+.q-modal__description {
+	margin: 0;
+	font-size: 0.78rem;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
+.q-modal__all {
+	align-self: flex-start;
+	font-size: 0.8rem;
+	color: var(--accent);
+}
+
+.q-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.q-list__empty {
+	margin: 0;
+	font-size: 0.82rem;
+	color: var(--text-muted);
+}
+
+.q-row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	padding: 0.7rem 0.85rem;
+	border: 1px solid var(--warning-border);
+	border-left: 4px solid var(--warning);
+	border-radius: 8px;
+	background: var(--surface-card);
+}
+
+.q-row--red {
+	border-color: var(--loss-border);
+	border-left-color: var(--loss);
+}
+
+.q-row--skull {
+	border-color: var(--text-primary);
+	border-left-color: var(--text-primary);
+}
+
+.q-row__address {
+	font-family: monospace;
+	font-size: 0.8rem;
+	word-break: break-all;
+	color: var(--text-primary);
+}
+
+.q-row__reason {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--warning);
+}
+
+.q-row--red .q-row__reason {
+	color: var(--loss);
+}
+
+.q-row--skull .q-row__reason {
+	color: var(--text-primary);
+}
+
+.q-row__meta {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+}
+
+.q-row__release {
+	align-self: flex-start;
+	margin-top: 0.2rem;
+	padding: 0.3rem 0.7rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 6px;
+	background: transparent;
+	color: var(--text-secondary);
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.q-prompt__name {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	margin-bottom: 0.6rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+.q-prompt__name input {
+	max-width: 320px;
+	padding: 0.35rem 0.6rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 6px;
+	background: var(--border-subtle);
+	color: var(--text-primary);
+	font: inherit;
+	font-size: 0.8rem;
+}
+
+.q-prompt__error {
+	margin: 0 0 0.5rem;
+	font-size: 0.75rem;
+	color: var(--loss);
+}
+
+/* Address book: the quiet link (shown only when something is in quarantine), the badge on a
+   released entry, and the "To quarantine" button. */
+.q-link {
+	align-self: flex-start;
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+
+.q-released-badge {
+	flex-shrink: 0;
+	padding: 0.1rem 0.4rem;
+	border: 1px solid var(--warning-border);
+	border-radius: 999px;
+	background: var(--warning-bg);
+	color: var(--warning);
+	font-size: 0.65rem;
+}
+
+.q-to-quarantine {
+	padding: 0.25rem 0.6rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 7px;
+	background: transparent;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+/* The account-wide page. */
+.q-page {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	max-width: 900px;
+	margin: 0 auto;
+	padding: 2.5rem 1.5rem 4rem;
+}
+
+.q-page__eyebrow {
+	margin: 0 0 0.15rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.q-page__heading {
+	margin: 0;
+	font-size: 1.55rem;
+	font-weight: 800;
+	color: var(--text-primary);
+}
+
+.q-page__description {
+	margin: 0.3rem 0 0;
+	max-width: 620px;
+	font-size: 0.82rem;
+	line-height: 1.55;
+	color: var(--text-secondary);
+}
+
+.q-page__back {
+	font-size: 0.8rem;
+	color: var(--accent);
+}

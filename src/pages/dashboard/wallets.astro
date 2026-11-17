@@ -11,6 +11,7 @@ import { getActivePlan } from '../../lib/subscriptions';
 import { canDownloadHistoryByWallet } from '../../lib/historyAccess';
 import { loadOwnerIndex, ownerForWalletAddress, type OwnerIndex } from '../../lib/walletIdentity';
 import { safeParseChains } from '../../lib/wallets-service';
+import { loadQuarantine } from '../../lib/quarantine';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -46,6 +47,10 @@ const labelResult = await db.execute({
 	args: [tenantId],
 });
 
+// Quarantine: addresses the poisoning rules flagged, or the user quarantined (src/lib/quarantine.ts).
+// Shown only behind each wallet's Quarantine button and a quiet link; a failure shows nothing.
+const quarantine = await loadQuarantine(tenantId);
+
 const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 	id:      String(row.id),
 	address: String(row.address),
@@ -68,7 +73,7 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 		flex-direction: column;
 		gap: 3rem;
 	">
-		<WalletOverview client:load wallets={wallets} />
+		<WalletOverview client:load wallets={wallets} quarantine={quarantine} />
 
 		<HistoryDownload lang={lang} canDownload={canDownloadHistory} />
 
@@ -101,6 +106,6 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 			</p>
 		</div>
 
-		<AddressLabels client:load labels={addressLabels} />
+		<AddressLabels client:load labels={addressLabels} quarantine={quarantine} />
 	</section>
 </Layout>

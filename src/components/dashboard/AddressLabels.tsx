@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getAddressLabels } from '@/i18n/components/addressLabels';
 import { addressNetwork } from '@/lib/addressNetwork';
@@ -6,6 +6,11 @@ import { AddressDetailsModal } from './AddressDetailsModal';
 import { shortenAddress } from '@/lib/addressDisplay';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { LookalikePrompt, type LookalikeMatch } from '@/components/poisoning/LookalikePrompt';
+import { getQuarantine } from '@/i18n/components/quarantine';
+import { SOURCE_RELEASED } from '@/lib/addressPoisoning';
+import type { QuarantineEntry } from '@/lib/quarantineEntry';
+import { emitQuarantine, onQuarantine, onReleased } from '@/components/poisoning/quarantineEvents';
+import '@/components/poisoning/quarantine.css';
 
 export type AddressLabel = {
 	id: string;
@@ -20,6 +25,8 @@ export type AddressLabel = {
 
 type Props = {
 	labels: AddressLabel[];
+	/** The quarantine (src/lib/quarantine.ts), loaded with the page: for the quiet link's count. */
+	quarantine?: QuarantineEntry[];
 };
 
 const NETWORK_COLORS: Record<string, string> = {
@@ -46,8 +53,38 @@ const inputStyle: React.CSSProperties = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function AddressLabels({ labels: initial }: Props) {
+export function AddressLabels({ labels: initial, quarantine: initialQuarantine = [] }: Props) {
 	const t = getAddressLabels(getClientLang());
+	const qT = getQuarantine(getClientLang());
+	// The quarantine itself lives behind each wallet's Quarantine button and on its own page; here
+	// it is only a quiet link, shown when something is in it, and a "To quarantine" button per row.
+	const [quarantine, setQuarantine] = useState<QuarantineEntry[]>(initialQuarantine);
+	useEffect(() => onQuarantine(setQuarantine), []);
+	// An address released from quarantine elsewhere on the page joins the book here.
+	useEffect(() => onReleased((row) => {
+		const r = row as unknown as AddressLabel;
+		setLabels(prev => [r, ...prev.filter(l => l.address !== r.address)]);
+	}), []);
+
+	// Address book → quarantine: no prompt (moving toward safety needs none). The server answers
+	// with the quarantine as it now stands, which the wallet cards pick up too.
+	async function sendToQuarantine(labelId: string) {
+		setStatus(null);
+		try {
+			const res = await fetch('/api/address-quarantine', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ labelId }),
+			});
+			const data = await res.json().catch(() => null);
+			if (!res.ok || !data) { setStatus(qT.quarantineFailed); return; }
+			setLabels(prev => prev.filter(l => l.id !== labelId));
+			if (Array.isArray(data.quarantine)) emitQuarantine(data.quarantine);
+		} catch {
+			setStatus(qT.quarantineFailed);
+		}
+	}
+
 	const [labels,       setLabels]       = useState<AddressLabel[]>(initial);
 	const [address,      setAddress]      = useState('');
 	const [labelText,    setLabelText]    = useState('');
@@ -350,6 +387,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			</div>
 
 			{/* ── Labels list ──────────────────────────────────────────────── */}
+			<div>
 			{labels.length === 0 ? (
 				<div style={{
 					padding: '2rem 1.5rem',
@@ -520,6 +558,9 @@ export function AddressLabels({ labels: initial }: Props) {
 								</div>
 
 								{/* Source badge */}
+								{l.source === SOURCE_RELEASED && (
+									<span className="q-released-badge">{qT.releasedBadge}</span>
+								)}
 								{l.source === 'auto' && (
 									<span style={{
 										fontSize: '0.65rem',
@@ -534,8 +575,18 @@ export function AddressLabels({ labels: initial }: Props) {
 									</span>
 								)}
 
+								{/* To quarantine (no prompt: moving toward safety needs none) */}
+								<button
+									type="button"
+									className="q-to-quarantine"
+									title={qT.toQuarantineTitle}
+									onClick={() => void sendToQuarantine(l.id)}
+								>
+									{qT.toQuarantineBtn}
+								</button>
+
 								{/* Remove */}
-								{l.source === 'user' && (
+								{(l.source === 'user' || l.source === SOURCE_RELEASED) && (
 									<button
 										type="button"
 										onClick={() => handleDelete(l.id)}
@@ -559,6 +610,12 @@ export function AddressLabels({ labels: initial }: Props) {
 						);
 					})}
 				</div>
+			)}
+			</div>
+
+			{/* ── Quarantine: a quiet link, only when something is in it ────── */}
+			{quarantine.length > 0 && (
+				<a className="q-link" href="/dashboard/quarantine">{qT.link(quarantine.length)} →</a>
 			)}
 
 			{selected && <AddressDetailsModal label={selected} onClose={() => setSelected(null)} />}

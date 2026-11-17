@@ -763,6 +763,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          Flagged addresses are also kept apart from your Address Book, in <strong>Quarantine</strong>. Each wallet on the Addresses page has a quiet <strong>Quarantine</strong> button: it stays grey when nothing is there, and shows a red number only when an address looks like one you saved. It opens that wallet's list, with the reason and the date each address first appeared, and a link to the list for all your wallets. To release one into your Address Book, use <strong>Release to address book</strong>: you will be asked if you are sure, shown the differences, and asked to give it a name, and the entry is marked as released from quarantine. You can also quarantine any Address Book entry yourself with <strong>To quarantine</strong>, with no question asked; those addresses are marked with ☠ wherever they appear in your history.
+        </p>
+
+        <p>
           These are warnings, not verdicts: an ordinary airdrop can look the same, and nothing is hidden, blocked or deleted. Only addresses you saved yourself are used for the look-alike check, and an address you saved is never flagged. The safest habit is to copy an address from your Address Book, not from your history.
         </p>
 

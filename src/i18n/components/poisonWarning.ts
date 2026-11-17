@@ -19,6 +19,9 @@ export interface PoisonWarningLocale {
 	tagDustOnly: string;
 	tagLookalike: string;
 	tagBoth: string;
+	/** The user quarantined this address themselves (shown with ☠). */
+	quarantined: string;
+	tagQuarantined: string;
 	/** Saving an address that looks like a saved one (phase 3). */
 	didYouMean: (label: string) => string;
 	lookalikeExplain: (label: string) => string;
@@ -38,6 +41,8 @@ const en: PoisonWarningLocale = {
 	tagDustOnly: 'Only sent you dust',
 	tagLookalike: 'Look-alike',
 	tagBoth: 'Possible poisoning',
+	quarantined: 'You quarantined this address yourself.',
+	tagQuarantined: 'Quarantined',
 	didYouMean: (label) => `Did you mean ${label}?`,
 	lookalikeExplain: (label) =>
 		`This address starts and ends like ${label}, but the highlighted characters are different. Addresses like this are often used in address poisoning. Save it only if you are sure it is right.`,
@@ -57,6 +62,8 @@ const es: PoisonWarningLocale = {
 	tagDustOnly: 'Solo cantidades mínimas',
 	tagLookalike: 'Imitación',
 	tagBoth: 'Posible envenenamiento',
+	quarantined: 'Pusiste tú esta dirección en cuarentena.',
+	tagQuarantined: 'En cuarentena',
 	didYouMean: (label) => `¿Querías decir ${label}?`,
 	lookalikeExplain: (label) =>
 		`Esta dirección empieza y termina como ${label}, pero los caracteres resaltados son distintos. Direcciones así se usan a menudo en el envenenamiento de direcciones. Guárdala solo si estás seguro de que es correcta.`,
@@ -76,6 +83,8 @@ const fr: PoisonWarningLocale = {
 	tagDustOnly: 'Montants infimes seulement',
 	tagLookalike: 'Imitation',
 	tagBoth: 'Empoisonnement possible',
+	quarantined: 'Vous avez mis cette adresse en quarantaine vous-même.',
+	tagQuarantined: 'En quarantaine',
 	didYouMean: (label) => `Vouliez-vous dire ${label} ?`,
 	lookalikeExplain: (label) =>
 		`Cette adresse commence et finit comme ${label}, mais les caractères surlignés sont différents. Des adresses de ce type servent souvent à l'empoisonnement d'adresse. Enregistrez-la seulement si vous êtes sûr qu'elle est correcte.`,
@@ -93,6 +102,7 @@ export function getPoisonWarning(lang: Lang): PoisonWarningLocale {
 
 /** The sentence for a flag. */
 export function poisonSentence(t: PoisonWarningLocale, signal: string, imitates: string | null): string {
+	if (signal === 'quarantined') return t.quarantined;
 	if (signal === 'both' && imitates) return t.both(imitates);
 	if (signal === 'lookalike' && imitates) return t.lookalike(imitates);
 	return t.dustOnly;
@@ -100,6 +110,7 @@ export function poisonSentence(t: PoisonWarningLocale, signal: string, imitates:
 
 /** The short tag for a flag. */
 export function poisonTag(t: PoisonWarningLocale, signal: string): string {
+	if (signal === 'quarantined') return t.tagQuarantined;
 	if (signal === 'both') return t.tagBoth;
 	if (signal === 'lookalike') return t.tagLookalike;
 	return t.tagDustOnly;

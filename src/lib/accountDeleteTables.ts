@@ -32,7 +32,7 @@ export const TENANT_TABLES = [
   'file_share_log', 'file_shares',
   // Notes, labels, settings and alerts
   'vault_notes', 'vault_error_alerts', 'reconciliation_notes', 'portfolio_reconciliation_assets',
-  'portfolio_reconciliation', 'address_labels', 'address_labels_new', 'global_address_label_votes',
+  'portfolio_reconciliation', 'address_quarantine', 'address_labels', 'address_labels_new', 'global_address_label_votes',
   'price_alerts', 'price_alert_preferences', 'monthly_digests', 'tenant_settings', 'user_settings', 'tenant_intake',
   'tenant_outbound_emails',
   // Community contributions, support, billing and the operator's activity log. The receivables

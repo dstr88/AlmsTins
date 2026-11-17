@@ -643,8 +643,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             <PoisonWarning flag={evt.to_poison} />
                             <FullAddress chain={chain} address={destAddr} />
                             {/* Inline label form for unknown last-out destination. Not offered for the
-                                classic poisoning pattern, so the bait can't be saved as trusted in one click. */}
-                            {isLastOutEvt && !lastOutInBook && evt.to_poison?.signal !== 'both' && (
+                                classic poisoning pattern or an address the user quarantined, so it can't be saved as trusted in one click. */}
+                            {isLastOutEvt && !lastOutInBook && evt.to_poison?.signal !== 'both' && evt.to_poison?.signal !== 'quarantined' && (
                               <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
                                 <input
                                   type="text"
