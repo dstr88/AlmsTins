@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { CheckerLookalike } from './poisoning/CheckerLookalike';
 import { decodeQrFromImageData } from '@/lib/qrScan';
 import type { WalletCheckResult } from '@/lib/walletChecker';
 import type { WalletActivity } from '@/lib/walletActivity';
@@ -539,9 +540,11 @@ export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStri
 interface Props {
   prefilledAddress?: string;
   c: CheckerStrings;
+  /** The page's language, for the signed-in look-alike warning. */
+  lang?: 'en' | 'es' | 'fr';
 }
 
-export default function WalletChecker({ prefilledAddress = '', c }: Props) {
+export default function WalletChecker({ prefilledAddress = '', c, lang = 'en' }: Props) {
   const [address, setAddress]     = useState(prefilledAddress);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -552,6 +555,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [verifiedPublisher, setVerifiedPublisher] = useState<PublicVerifyLookup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
+  // The address last checked, for the signed-in look-alike comparison (done in the browser).
+  const [checkedAddr, setCheckedAddr] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const didAutoCheck = useRef(false);
 
@@ -581,6 +586,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
     abortRef.current = new AbortController();
     const signal = abortRef.current.signal;
 
+    setCheckedAddr(addr);
     setLoading(true);
     setError(null);
     setResult(null);
@@ -881,6 +887,9 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           </p>
         )}
       </div>
+
+      {/* Signed in: does it look like an address in the user's own book? Compared in the browser. */}
+      {checkedAddr && <CheckerLookalike address={checkedAddr} lang={lang} />}
 
       {/* Results */}
       {result && (

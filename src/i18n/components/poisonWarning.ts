@@ -22,6 +22,9 @@ export interface PoisonWarningLocale {
 	/** The user quarantined this address themselves (shown with ☠). */
 	quarantined: string;
 	tagQuarantined: string;
+	/** The public checker, signed in: compared in the browser with the user's own address book. */
+	checkerLookalike: (label: string) => string;
+	checkerNote: string;
 	/** Saving an address that looks like a saved one (phase 3). */
 	didYouMean: (label: string) => string;
 	lookalikeExplain: (label: string) => string;
@@ -43,6 +46,9 @@ const en: PoisonWarningLocale = {
 	tagBoth: 'Possible poisoning',
 	quarantined: 'You quarantined this address yourself.',
 	tagQuarantined: 'Quarantined',
+	checkerLookalike: (label) =>
+		`Looks like ${label} in your address book, but it is a different address. Possible address poisoning: check every character before you send.`,
+	checkerNote: 'Compared in your browser with your own address book. Nothing about you was sent with the check.',
 	didYouMean: (label) => `Did you mean ${label}?`,
 	lookalikeExplain: (label) =>
 		`This address starts and ends like ${label}, but the highlighted characters are different. Addresses like this are often used in address poisoning. Save it only if you are sure it is right.`,
@@ -64,6 +70,9 @@ const es: PoisonWarningLocale = {
 	tagBoth: 'Posible envenenamiento',
 	quarantined: 'Pusiste tú esta dirección en cuarentena.',
 	tagQuarantined: 'En cuarentena',
+	checkerLookalike: (label) =>
+		`Se parece a ${label} de tu Address Book, pero es una dirección distinta. Posible envenenamiento de direcciones: revisa cada carácter antes de enviar.`,
+	checkerNote: 'Comparada en tu navegador con tu propio Address Book. No se envió nada sobre ti con la comprobación.',
 	didYouMean: (label) => `¿Querías decir ${label}?`,
 	lookalikeExplain: (label) =>
 		`Esta dirección empieza y termina como ${label}, pero los caracteres resaltados son distintos. Direcciones así se usan a menudo en el envenenamiento de direcciones. Guárdala solo si estás seguro de que es correcta.`,
@@ -85,6 +94,9 @@ const fr: PoisonWarningLocale = {
 	tagBoth: 'Empoisonnement possible',
 	quarantined: 'Vous avez mis cette adresse en quarantaine vous-même.',
 	tagQuarantined: 'En quarantaine',
+	checkerLookalike: (label) =>
+		`Ressemble à ${label} de votre Address Book, mais c'est une autre adresse. Possible empoisonnement d'adresse : vérifiez chaque caractère avant d'envoyer.`,
+	checkerNote: "Comparée dans votre navigateur avec votre propre Address Book. Rien vous concernant n'a été envoyé avec la vérification.",
 	didYouMean: (label) => `Vouliez-vous dire ${label} ?`,
 	lookalikeExplain: (label) =>
 		`Cette adresse commence et finit comme ${label}, mais les caractères surlignés sont différents. Des adresses de ce type servent souvent à l'empoisonnement d'adresse. Enregistrez-la seulement si vous êtes sûr qu'elle est correcte.`,

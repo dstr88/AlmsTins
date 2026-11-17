@@ -137,3 +137,14 @@
 .poison-cell--skull .poison-tag {
 	color: var(--text-primary);
 }
+
+/* The public checker, signed in: a look-alike of an address in the user's own book. */
+.checker-lookalike {
+	margin: 0 0 1.25rem;
+}
+
+.checker-lookalike__note {
+	margin: 0;
+	font-size: 0.7rem;
+	color: var(--text-muted);
+}
