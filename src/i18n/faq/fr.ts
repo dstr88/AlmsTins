@@ -102,7 +102,8 @@ export const items: FaqItem[] = [
     q: "Que prend en charge le projet actuellement ?",
     a: `<p><strong>Wallets en self-custody (données blockchain en direct)</strong></p>
         <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
-          <li>Chaînes EVM : Ethereum, Polygon, Avalanche, Arbitrum et autres</li>
+          <li>Chaînes EVM : Ethereum, Polygon, Avalanche et autres</li>
+          <li>Arbitrum : soldes uniquement, sans historique des transactions ni cost basis</li>
           <li>Sui (SUI) — soldes de wallet natifs et synchronisation des transactions</li>
           <li>Solana (SOL) — soldes de wallet natifs</li>
           <li>Bitcoin (BTC) et Litecoin (LTC) — suivi d'adresses</li>
@@ -730,6 +731,8 @@ export const items: FaqItem[] = [
           <li><strong>Saisie manuelle</strong> — tapez ou collez une adresse, donnez-lui un nom, choisissez une catégorie (Exchange, DeFi Protocol, Personal Wallet, Bridge, etc.) et optionnellement une chaîne. Appuyez sur Save.</li>
           <li><strong>📷 Scan Screenshot</strong> — certains exchanges (comme Crypto.com) ne vous laissent pas copier les adresses de wallet. Prenez une capture d'écran de l'adresse sur votre téléphone ou ordinateur, téléversez-la avec le bouton Scan Screenshot, et Claude Vision lit l'adresse depuis l'image et pré-remplit le formulaire pour vous automatiquement.</li>
         </ul>
+
+        <p>Almstins peut aussi étiqueter une adresse automatiquement lorsqu'elle correspond à un transfert entre vos propres comptes.</p>
 
         <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Comment cela se connecte aux transactions mystérieuses</h2>
 

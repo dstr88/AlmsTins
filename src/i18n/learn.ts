@@ -9,6 +9,13 @@
  * only for now; the shape is ready for es and fr.
  */
 
+import { VERIFY_PLANS } from '@/lib/verifyPlans';
+
+// Verify's plan sizes and prices come from the one file that sets them.
+const V_FREE = VERIFY_PLANS.free.limits;
+const V_BUSINESS = VERIFY_PLANS.business;
+const V_PRO = VERIFY_PLANS.pro;
+
 export interface LearnLink {
   readonly label: string;
   readonly href: string;
@@ -116,8 +123,8 @@ export const en: LearnCopy = {
         what: 'Paste or scan any wallet address or website and check it against independent risk sources before you send a thing. Each source’s answer is shown, and a result that could not see enough says so instead of reading clean.',
         points: [
           'Scam, phishing, honeypot and sanctions checks',
-          'Full scam checks on Ethereum, BNB Chain and Polygon; sanctions checks on Bitcoin, Litecoin, Solana, Tron and Sui',
-          'Sources include GoPlus, Chainalysis sanctions screening, honeypot.is and the OFAC list',
+          'Full scam checks on Ethereum, BNB Chain and Polygon; sanctions checks on Bitcoin, Litecoin, Solana and Tron',
+          'Sources include GoPlus, honeypot.is and the OFAC sanctions list',
           'Website checks against MetaMask, ScamSniffer, OpenPhish, Google Safe Browsing, VirusTotal and URLScan.io',
           'Red, yellow or green, with each source’s answer shown',
           'Scan a QR code with your phone camera; it is read on your device',
@@ -140,11 +147,12 @@ export const en: LearnCopy = {
         audience: 'Anyone with more than one wallet or exchange',
         what: 'Everything you own across wallets, exchanges and DeFi in one place, with cost basis, realized gains and a full tax breakdown. Read by public address; nothing to connect.',
         points: [
-          'Wallets on Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui and Rootstock',
+          'Wallets on Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui, Rootstock and XPR Network; Arbitrum balances',
           'Aave and Sovryn DeFi positions',
           'Exchange imports: Coinbase, Kraken, Gemini, Crypto.com, Robinhood, Exodus, Cash App and Venmo',
           'Cost basis and realized gains (FIFO), short and long term',
           'A research desk for your own transactions that are missing a purchase record or cost basis',
+          'Name the addresses you deal with, typed or read from a screenshot; each opens with its Verify status, your history with it and a QR code',
           'AI Triage to sort unresolved transactions (paid plans)',
           'Price and Aave health-factor email alerts',
           'Signed, tamper-evident Year Summary PDF anyone can verify (Unlimited plan)',
@@ -161,7 +169,7 @@ export const en: LearnCopy = {
         id: 'verify',
         name: 'Verify',
         tagline: 'Prove the payment addresses your business publishes are really yours.',
-        price: 'Free during early access',
+        price: `Free for ${V_FREE.address} wallets and ${V_FREE.qr} QR`,
         audience: 'Businesses, platforms and exchanges',
         what: 'A business registers the receiving addresses and payment links it publishes and proves they are really its own, so a customer can check a QR code or address before paying and spot one that was swapped or faked.',
         points: [
@@ -170,11 +178,11 @@ export const en: LearnCopy = {
           '“Scan before you pay” page: customers check any sign or QR, no account needed',
           'Printable QR code for tables, registers and invoices that customers scan to check the address',
           'Ongoing checks of what you publish, with email alerts to you',
-          'Only proven destinations are ever shown publicly',
+          'Only proven destinations are shown publicly; one claimed by two accounts reads as disputed',
           'Exchanges: let users confirm official deposit addresses before they send',
           'Developers and AI agents: a pre-send destination check API',
         ],
-        limit: 'Free early access: up to 3 destinations (2 wallet addresses and 1 payment link or QR). Verify proves control and publication, not that a business is honest.',
+        limit: `Free, always: ${V_FREE.address} wallet addresses and ${V_FREE.qr} payment link or QR. Business holds ${V_BUSINESS.limits.total} destinations and Pro ${V_PRO.limits.total}; ask by email. Verify proves control and publication, not that a business is honest.`,
         open: { label: 'Open Verify', href: '/verify' },
         learnMore: [
           { label: 'Verify sandbox: try a proof in the browser', href: '/artifacts/sandbox' },
@@ -199,6 +207,7 @@ export const en: LearnCopy = {
           'Email reminders to lender and business as a record goes stale',
           'Automatic warnings for look-alike invoices',
           'Milestones: a sealed schedule, inspector attestations with photos and a signed form, the funder’s payment record, and a signed close',
+          'Download links per party, for the whole project or one milestone; they expire',
           'Works for any invoice, crypto or not',
         ],
         limit: 'A voluntary record that helps lenders spot double financing. It shows what the parties themselves recorded, and it never moves money. Free holds one open contract at a time, a registered claim or a sealed project; Standard holds ten.',
@@ -214,11 +223,11 @@ export const en: LearnCopy = {
       },
       {
         id: 'agentics',
-        name: 'Agent Vault',
-        tagline: 'Your AI agents ask before they pay. Every answer and every transfer on record.',
+        name: 'Almstins Agentics',
+        tagline: 'Your AI agents ask before they pay. The Agent Vault keeps every answer and every transfer on record, with a daily signed report.',
         price: 'Free, 3 agents',
         audience: 'People who run AI agents that pay',
-        what: 'Register each agent, the wallets it pays from and the addresses it may pay. The agent asks before it sends, and the Vault keeps a dated record of every answer and every transfer, with a daily report you can download as a signed PDF.',
+        what: 'Register each agent, the wallets it pays from and the addresses it may pay. The agent asks before it sends, and the Agent Vault keeps a dated record of every answer and every transfer, with a daily report you can download as a signed PDF.',
         points: [
           'Pre-send check API: one request, no login; the answer is proven, mismatch, unanchored or unknown',
           'An outage is never a pass; the rule for the agent is proceed only on proven',
@@ -259,12 +268,12 @@ export const en: LearnCopy = {
     rows: [
       { plan: 'Wallet & Site Checker', price: '$0', body: 'Free checks, no login.' },
       { plan: 'Wallet Watcher', price: '$0 to $39/mo', body: 'Free up to 3 wallets. Starter $7, Pro $20, Unlimited $39 a month, or pay yearly.' },
-      { plan: 'Verify', price: '$0', body: 'Early access: up to 3 destinations. Exchanges and larger operations: let’s talk.' },
-      { plan: 'Agent Vault', price: '$0', body: '3 agents, 15 addresses, 5 wallets per agent, 5,000 recorded checks per agent per day. Paid plans come later.' },
+      { plan: 'Verify', price: `$0 to $${V_PRO.monthlyUsd}/mo`, body: `Free, always: ${V_FREE.address} wallets and ${V_FREE.qr} link or QR. Business $${V_BUSINESS.monthlyUsd} a month for ${V_BUSINESS.limits.total} destinations, Pro $${V_PRO.monthlyUsd} for ${V_PRO.limits.total}, or pay yearly; ask by email. Exchanges: let’s talk.` },
+      { plan: 'Agentics', price: '$0', body: '3 agents, 15 addresses, 5 wallets per agent, 5,000 recorded checks per agent per day. Paid plans come later.' },
       { plan: 'Receivables and milestone desks', price: '$0 or $95/mo', body: 'Free: one open contract at a time. Standard: ten, at $95 a month. Standard billing opens soon; until then, ask by email.' },
     ],
     link: { label: 'See the full pricing table', href: '/prices' },
-    note: 'Prices in US dollars, as of November 2026. Verify is in early access.',
+    note: 'Prices in US dollars, as of November 2026. Verify Business and Pro: ask by email.',
   },
 
   not: {
@@ -360,8 +369,8 @@ export const es: LearnCopy = {
         what: 'Pega o escanea cualquier dirección de billetera o sitio web y compruébalo contra fuentes de riesgo independientes antes de enviar nada. Se muestra la respuesta de cada fuente, y un resultado que no pudo ver lo suficiente lo dice en lugar de leerse limpio.',
         points: [
           'Comprobaciones de estafa, phishing, honeypot y sanciones',
-          'Comprobación completa de estafas en Ethereum, BNB Chain y Polygon; comprobación de sanciones en Bitcoin, Litecoin, Solana, Tron y Sui',
-          'Fuentes como GoPlus, el cribado de sanciones de Chainalysis, honeypot.is y la lista OFAC',
+          'Comprobación completa de estafas en Ethereum, BNB Chain y Polygon; comprobación de sanciones en Bitcoin, Litecoin, Solana y Tron',
+          'Fuentes como GoPlus, honeypot.is y la lista de sanciones OFAC',
           'Sitios web comprobados contra MetaMask, ScamSniffer, OpenPhish, Google Safe Browsing, VirusTotal y URLScan.io',
           'Rojo, amarillo o verde, con la respuesta de cada fuente a la vista',
           'Escanea un código QR con la cámara del teléfono; se lee en tu dispositivo',
@@ -384,11 +393,12 @@ export const es: LearnCopy = {
         audience: 'Cualquiera con más de una billetera o exchange',
         what: 'Todo lo que tienes en billeteras, exchanges y DeFi en un solo lugar, con costo base, ganancias realizadas y un desglose fiscal completo. Se lee por dirección pública; nada que conectar.',
         points: [
-          'Billeteras en Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui y Rootstock',
+          'Billeteras en Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui, Rootstock y XPR Network; saldos en Arbitrum',
           'Posiciones DeFi en Aave y Sovryn',
           'Importaciones de exchanges: Coinbase, Kraken, Gemini, Crypto.com, Robinhood, Exodus, Cash App y Venmo',
           'Costo base y ganancias realizadas (FIFO), a corto y largo plazo',
           'Una mesa de investigación para tus propias transacciones sin registro de compra o sin costo base',
+          'Pon nombre a las direcciones con las que tratas, escritas o leídas de una captura de pantalla; cada una se abre con su estado en Verify, tu historial con ella y un código QR',
           'AI Triage para ordenar las transacciones sin resolver (planes de pago)',
           'Alertas por correo de precio y del factor de salud de Aave',
           'PDF de resumen anual firmado, a prueba de alteraciones, que cualquiera puede verificar (plan Unlimited)',
@@ -405,7 +415,7 @@ export const es: LearnCopy = {
         id: 'verify',
         name: 'Verify',
         tagline: 'Demuestra que las direcciones de pago que publica tu negocio son realmente tuyas.',
-        price: 'Gratis en acceso anticipado',
+        price: `Gratis para ${V_FREE.address} billeteras y ${V_FREE.qr} QR`,
         audience: 'Negocios, plataformas y exchanges',
         what: 'Un negocio registra las direcciones de cobro y los enlaces de pago que publica y demuestra que son realmente suyos, para que un cliente pueda comprobar un código QR o una dirección antes de pagar y detectar uno sustituido o falsificado.',
         points: [
@@ -414,11 +424,11 @@ export const es: LearnCopy = {
           'Página “Escanea antes de pagar”: los clientes comprueban cualquier letrero o QR sin cuenta',
           'Código QR imprimible para mesas, cajas y facturas que los clientes escanean para comprobar la dirección',
           'Comprobaciones continuas de lo que publicas, con alertas por correo para ti',
-          'Solo los destinos probados se muestran en público',
+          'Solo los destinos probados se muestran en público; uno reclamado por dos cuentas aparece como en disputa',
           'Exchanges: deja que tus usuarios confirmen las direcciones de depósito oficiales antes de enviar',
           'Desarrolladores y agentes de IA: una API de comprobación de destino antes de enviar',
         ],
-        limit: 'Acceso anticipado gratis: hasta 3 destinos (2 direcciones de billetera y 1 enlace de pago o QR). Verify prueba el control y la publicación, no que un negocio sea honesto.',
+        limit: `Gratis, siempre: ${V_FREE.address} direcciones de billetera y ${V_FREE.qr} enlace de pago o QR. Business admite ${V_BUSINESS.limits.total} destinos y Pro ${V_PRO.limits.total}; pídelos por correo. Verify prueba el control y la publicación, no que un negocio sea honesto.`,
         open: { label: 'Abrir Verify', href: '/verify/es' },
         learnMore: [
           { label: 'Sandbox de Verify: prueba una demostración de control en el navegador', href: '/artifacts/sandbox' },
@@ -443,6 +453,7 @@ export const es: LearnCopy = {
           'Recordatorios por correo al prestamista y a la empresa cuando un registro se queda sin actualizar',
           'Avisos automáticos de facturas parecidas',
           'Hitos: un cronograma sellado, atestaciones del inspector con fotos y un formulario firmado, el registro de pago del financiador y un cierre firmado',
+          'Enlaces de descarga para cada parte, de todo el proyecto o de un hito; caducan',
           'Sirve para cualquier factura, cripto o no',
         ],
         limit: 'Un registro voluntario que ayuda a los prestamistas a detectar la doble financiación. Muestra lo que las propias partes registraron, y nunca mueve dinero. El plan gratis mantiene un contrato abierto a la vez, una reclamación registrada o un proyecto sellado; Standard mantiene diez.',
@@ -458,11 +469,11 @@ export const es: LearnCopy = {
       },
       {
         id: 'agentics',
-        name: 'Agent Vault',
-        tagline: 'Tus agentes de IA preguntan antes de pagar. Cada respuesta y cada transferencia quedan registradas.',
+        name: 'Almstins Agentics',
+        tagline: 'Tus agentes de IA preguntan antes de pagar. El Agent Vault registra cada respuesta y cada transferencia, con un informe diario firmado.',
         price: 'Gratis, 3 agentes',
         audience: 'Quienes operan agentes de IA que pagan',
-        what: 'Registra cada agente, las billeteras desde las que paga y las direcciones a las que puede pagar. El agente pregunta antes de enviar, y el Vault guarda un registro fechado de cada respuesta y cada transferencia, con un informe diario que puedes descargar como PDF firmado.',
+        what: 'Registra cada agente, las billeteras desde las que paga y las direcciones a las que puede pagar. El agente pregunta antes de enviar, y el Agent Vault guarda un registro fechado de cada respuesta y cada transferencia, con un informe diario que puedes descargar como PDF firmado.',
         points: [
           'API de comprobación antes de enviar: una petición, sin cuenta; la respuesta es probado, discrepancia, sin anclar o desconocido',
           'Una caída nunca es un visto bueno; la regla para el agente es seguir solo con probado',
@@ -503,12 +514,12 @@ export const es: LearnCopy = {
     rows: [
       { plan: 'Comprobador de billeteras y sitios', price: '$0', body: 'Comprobaciones gratis, sin cuenta.' },
       { plan: 'Wallet Watcher', price: '$0 a $39/mes', body: 'Gratis hasta 3 billeteras. Starter $7, Pro $20, Unlimited $39 al mes, o paga por año.' },
-      { plan: 'Verify', price: '$0', body: 'Acceso anticipado: hasta 3 destinos. Exchanges y operaciones mayores: hablemos.' },
-      { plan: 'Agent Vault', price: '$0', body: '3 agentes, 15 direcciones, 5 billeteras por agente, 5,000 comprobaciones registradas por agente al día. Los planes de pago llegarán más adelante.' },
+      { plan: 'Verify', price: `$0 a $${V_PRO.monthlyUsd}/mes`, body: `Gratis, siempre: ${V_FREE.address} billeteras y ${V_FREE.qr} enlace o QR. Business $${V_BUSINESS.monthlyUsd} al mes por ${V_BUSINESS.limits.total} destinos, Pro $${V_PRO.monthlyUsd} por ${V_PRO.limits.total}, o paga por año; pídelo por correo. Exchanges: hablemos.` },
+      { plan: 'Agentics', price: '$0', body: '3 agentes, 15 direcciones, 5 billeteras por agente, 5,000 comprobaciones registradas por agente al día. Los planes de pago llegarán más adelante.' },
       { plan: 'Mesas de cuentas por cobrar y de hitos', price: '$0 o $95/mes', body: 'Gratis: un contrato abierto a la vez. Standard: diez, por $95 al mes. La facturación de Standard abre pronto; hasta entonces, pídelo por correo.' },
     ],
     link: { label: 'Ver la tabla de precios completa', href: '/prices/es' },
-    note: 'Precios en dólares estadounidenses, a noviembre de 2026. Verify está en acceso anticipado.',
+    note: 'Precios en dólares estadounidenses, a noviembre de 2026. Verify Business y Pro: pídelos por correo.',
   },
 
   not: {
@@ -597,8 +608,8 @@ export const fr: LearnCopy = {
         what: 'Collez ou scannez n’importe quelle adresse de portefeuille ou site web et vérifiez-le auprès de sources de risque indépendantes avant d’envoyer quoi que ce soit. La réponse de chaque source est affichée, et un résultat qui n’a pas pu voir assez le dit au lieu de paraître net.',
         points: [
           'Vérifications d’arnaque, de phishing, de honeypot et de sanctions',
-          'Vérification complète des arnaques sur Ethereum, BNB Chain et Polygon ; vérification des sanctions sur Bitcoin, Litecoin, Solana, Tron et Sui',
-          'Des sources comme GoPlus, le filtrage des sanctions de Chainalysis, honeypot.is et la liste OFAC',
+          'Vérification complète des arnaques sur Ethereum, BNB Chain et Polygon ; vérification des sanctions sur Bitcoin, Litecoin, Solana et Tron',
+          'Des sources comme GoPlus, honeypot.is et la liste de sanctions OFAC',
           'Sites web vérifiés auprès de MetaMask, ScamSniffer, OpenPhish, Google Safe Browsing, VirusTotal et URLScan.io',
           'Rouge, jaune ou vert, avec la réponse de chaque source',
           'Scannez un code QR avec l’appareil photo du téléphone ; il est lu sur votre appareil',
@@ -621,11 +632,12 @@ export const fr: LearnCopy = {
         audience: 'Toute personne avec plus d’un portefeuille ou d’une plateforme',
         what: 'Tout ce que vous détenez sur vos portefeuilles, plateformes d’échange et DeFi en un seul endroit, avec le prix de revient, les gains réalisés et un détail fiscal complet. Lu par adresse publique ; rien à connecter.',
         points: [
-          'Portefeuilles sur Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui et Rootstock',
+          'Portefeuilles sur Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, Solana, Sui, Rootstock et XPR Network ; soldes sur Arbitrum',
           'Positions DeFi sur Aave et Sovryn',
           'Imports de plateformes : Coinbase, Kraken, Gemini, Crypto.com, Robinhood, Exodus, Cash App et Venmo',
           'Prix de revient et gains réalisés (FIFO), à court et à long terme',
           'Un bureau de recherche pour vos propres transactions sans justificatif d’achat ou sans prix de revient',
+          'Nommez les adresses avec lesquelles vous traitez, saisies ou lues sur une capture d’écran ; chacune s’ouvre avec son statut Verify, votre historique avec elle et un code QR',
           'AI Triage pour trier les transactions non résolues (forfaits payants)',
           'Alertes par e-mail sur les prix et sur le facteur de santé Aave',
           'PDF de synthèse annuelle signé, inviolable, que n’importe qui peut vérifier (forfait Unlimited)',
@@ -642,7 +654,7 @@ export const fr: LearnCopy = {
         id: 'verify',
         name: 'Verify',
         tagline: 'Prouvez que les adresses de paiement publiées par votre entreprise sont bien les vôtres.',
-        price: 'Gratuit en accès anticipé',
+        price: `Gratuit pour ${V_FREE.address} portefeuilles et ${V_FREE.qr} QR`,
         audience: 'Entreprises, plateformes et bourses d’échange',
         what: 'Une entreprise enregistre les adresses de réception et les liens de paiement qu’elle publie et prouve qu’ils sont bien les siens, pour qu’un client puisse vérifier un code QR ou une adresse avant de payer et repérer celui qui a été remplacé ou falsifié.',
         points: [
@@ -651,11 +663,11 @@ export const fr: LearnCopy = {
           'Page « Scannez avant de payer » : les clients vérifient n’importe quel affichage ou QR, sans compte',
           'Code QR imprimable pour les tables, les caisses et les factures, que les clients scannent pour vérifier l’adresse',
           'Vérifications continues de ce que vous publiez, avec des alertes par e-mail pour vous',
-          'Seules les destinations prouvées sont affichées en public',
+          'Seules les destinations prouvées sont affichées en public ; une destination revendiquée par deux comptes apparaît comme contestée',
           'Bourses d’échange : laissez vos utilisateurs confirmer les adresses de dépôt officielles avant d’envoyer',
           'Développeurs et agents IA : une API de vérification de destination avant envoi',
         ],
-        limit: 'Accès anticipé gratuit : jusqu’à 3 destinations (2 adresses de portefeuille et 1 lien de paiement ou QR). Verify prouve le contrôle et la publication, pas l’honnêteté d’une entreprise.',
+        limit: `Gratuit, toujours : ${V_FREE.address} adresses de portefeuille et ${V_FREE.qr} lien de paiement ou QR. Business contient ${V_BUSINESS.limits.total} destinations et Pro ${V_PRO.limits.total} ; demandez-les par e-mail. Verify prouve le contrôle et la publication, pas l’honnêteté d’une entreprise.`,
         open: { label: 'Ouvrir Verify', href: '/verify/fr' },
         learnMore: [
           { label: 'Bac à sable Verify : essayez une preuve dans le navigateur', href: '/artifacts/sandbox' },
@@ -680,6 +692,7 @@ export const fr: LearnCopy = {
           'Rappels par e-mail au prêteur et à l’entreprise quand un registre n’est plus mis à jour',
           'Avertissements automatiques pour les factures ressemblantes',
           'Jalons : un calendrier scellé, des attestations d’inspecteur avec photos et formulaire signé, le registre de paiement du financeur et une clôture signée',
+          'Liens de téléchargement par partie, pour tout le projet ou un seul jalon ; ils expirent',
           'Pour toute facture, crypto ou non',
         ],
         limit: 'Un registre volontaire qui aide les prêteurs à repérer le double financement. Il montre ce que les parties elles-mêmes ont enregistré, et il ne déplace jamais d’argent. Le forfait gratuit tient un contrat ouvert à la fois, une créance enregistrée ou un projet scellé ; Standard en tient dix.',
@@ -695,11 +708,11 @@ export const fr: LearnCopy = {
       },
       {
         id: 'agentics',
-        name: 'Agent Vault',
-        tagline: 'Vos agents IA demandent avant de payer. Chaque réponse et chaque transfert sont consignés.',
+        name: 'Almstins Agentics',
+        tagline: 'Vos agents IA demandent avant de payer. L’Agent Vault consigne chaque réponse et chaque transfert, avec un rapport quotidien signé.',
         price: 'Gratuit, 3 agents',
         audience: 'Ceux qui exploitent des agents IA qui paient',
-        what: 'Enregistrez chaque agent, les portefeuilles depuis lesquels il paie et les adresses qu’il peut payer. L’agent demande avant d’envoyer, et le Vault garde une trace datée de chaque réponse et de chaque transfert, avec un rapport quotidien téléchargeable en PDF signé.',
+        what: 'Enregistrez chaque agent, les portefeuilles depuis lesquels il paie et les adresses qu’il peut payer. L’agent demande avant d’envoyer, et l’Agent Vault garde une trace datée de chaque réponse et de chaque transfert, avec un rapport quotidien téléchargeable en PDF signé.',
         points: [
           'API de vérification avant envoi : une requête, sans compte ; la réponse est prouvé, discordance, non ancré ou inconnu',
           'Une panne n’est jamais un feu vert ; la règle pour l’agent est de ne poursuivre que sur prouvé',
@@ -740,12 +753,12 @@ export const fr: LearnCopy = {
     rows: [
       { plan: 'Vérificateur de portefeuilles et de sites', price: '$0', body: 'Vérifications gratuites, sans compte.' },
       { plan: 'Wallet Watcher', price: '$0 à $39/mois', body: 'Gratuit jusqu’à 3 portefeuilles. Starter $7, Pro $20, Unlimited $39 par mois, ou à l’année.' },
-      { plan: 'Verify', price: '$0', body: 'Accès anticipé : jusqu’à 3 destinations. Bourses d’échange et grandes opérations : parlons-en.' },
-      { plan: 'Agent Vault', price: '$0', body: '3 agents, 15 adresses, 5 portefeuilles par agent, 5 000 vérifications consignées par agent et par jour. Les forfaits payants viendront plus tard.' },
+      { plan: 'Verify', price: `$0 à $${V_PRO.monthlyUsd}/mois`, body: `Gratuit, toujours : ${V_FREE.address} portefeuilles et ${V_FREE.qr} lien ou QR. Business $${V_BUSINESS.monthlyUsd} par mois pour ${V_BUSINESS.limits.total} destinations, Pro $${V_PRO.monthlyUsd} pour ${V_PRO.limits.total}, ou à l’année ; demandez par e-mail. Bourses d’échange : parlons-en.` },
+      { plan: 'Agentics', price: '$0', body: '3 agents, 15 adresses, 5 portefeuilles par agent, 5 000 vérifications consignées par agent et par jour. Les forfaits payants viendront plus tard.' },
       { plan: 'Bureaux des créances et des jalons', price: '$0 ou $95/mois', body: 'Gratuit : un contrat ouvert à la fois. Standard : dix, pour $95 par mois. La facturation Standard ouvre bientôt ; d’ici là, demandez par e-mail.' },
     ],
     link: { label: 'Voir le tableau complet des tarifs', href: '/prices/fr' },
-    note: 'Prix en dollars américains, au mois de novembre 2026. Verify est en accès anticipé.',
+    note: 'Prix en dollars américains, au mois de novembre 2026. Verify Business et Pro : demandez par e-mail.',
   },
 
   not: {

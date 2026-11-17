@@ -8,10 +8,13 @@
  * Reflects what the app actually enforces: wallet plans Free 3 · Starter 8 · Pro 20 ·
  * Unlimited ∞ (live Stripe $7/$70 · $20/$200 · $39/$400); premium features (AI Triage,
  * receipts, price backfill) unlock at the first paid tier; Year-Summary PDF is Unlimited.
- * Verify is FREE / early access — 3 destinations, unlimited placements, no paid store tiers.
+ * Verify: Free (2 wallet addresses + 1 payment QR or link, always free), Business and Pro
+ * (sold by email, not online) and Exchanges (let's talk); placements are unlimited. Verify's
+ * names, prices and limits are read from src/lib/verifyPlans.ts.
  */
 import LoginLayout from '@/layouts/LoginLayout.astro';
 import type { PricesCopy } from '@/i18n/prices';
+import { VERIFY_PLANS } from '@/lib/verifyPlans';
 
 interface Props { t: PricesCopy }
 const { t } = Astro.props;
@@ -24,6 +27,21 @@ const langs = [
 
 const CONTACT = 'mailto:hello@almstins.com?subject=Almstins%20—%20more%20Verify%20destinations';
 const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
+
+// Verify's Free card and paid cards, with the numbers from verifyPlans.ts placed in the copy.
+const freeLimits = VERIFY_PLANS.free.limits;
+const verifyFreeItems = t.verify.storeFree.items.map((it) =>
+  it.replace('{address}', String(freeLimits.address)).replace('{qr}', String(freeLimits.qr)));
+const money = (usd: number) => t.verify.paid.money.replace('{n}', usd.toLocaleString(t.lang));
+const verifyPaid = (['business', 'pro'] as const).map((id) => {
+  const plan = VERIFY_PLANS[id];
+  return {
+    name: plan.name,
+    price: money(plan.monthlyUsd),
+    yearly: t.verify.paid.yearly.replace('{price}', money(plan.yearlyUsd)),
+    items: t.verify.paid.items.map((it) => it.replace('{n}', String(plan.limits.total))),
+  };
+});
 ---
 
 <LoginLayout title={t.meta.title} description={t.meta.description} lang={t.lang} noindex={false}>
@@ -87,7 +105,7 @@ const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
       ))}
     </div>
 
-    <!-- ─── VERIFY — early access ─────────────────────────── -->
+    <!-- ─── VERIFY: Free, Business, Pro, Exchanges ────────── -->
     <h2 class="pricing__group">{t.verify.heading} <span class="pricing__tag">{t.verify.tag}</span></h2>
     <p class="pricing__sub pricing__sub--lead">{t.verify.lead}</p>
     <div class="pricing__grid">
@@ -95,16 +113,21 @@ const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
         <h3 class="card__name">{t.verify.storeFree.name}</h3>
         <p class="card__price">{t.verify.storeFree.price} <span class="card__unit">{t.verify.storeFree.unit}</span></p>
         <ul class="card__list">
-          {t.verify.storeFree.items.map((it) => <li>{it}</li>)}
+          {verifyFreeItems.map((it) => <li>{it}</li>)}
         </ul>
         <a class="card__cta" href="/verify">{t.verify.storeFree.cta}</a>
       </article>
-      <article class="card">
-        <h3 class="card__name">{t.verify.needMore.name}</h3>
-        <p class="card__price">{t.verify.needMore.price}</p>
-        <p class="card__desc">{t.verify.needMore.desc}</p>
-        <a class="card__cta" href={CONTACT}>{t.verify.needMore.cta}</a>
-      </article>
+      {verifyPaid.map((plan) => (
+        <article class="card">
+          <h3 class="card__name">{plan.name}</h3>
+          <p class="card__price">{plan.price}<span class="card__unit">{t.verify.paid.unit}</span></p>
+          <p class="card__yearly">{plan.yearly}</p>
+          <ul class="card__list">
+            {plan.items.map((it) => <li>{it}</li>)}
+          </ul>
+          <a class="card__cta" href={CONTACT}>{t.verify.paid.cta}</a>
+        </article>
+      ))}
       <article class="card card--enterprise">
         <h3 class="card__name">{t.verify.exchanges.name}</h3>
         <p class="card__price">{t.verify.exchanges.price}</p>
