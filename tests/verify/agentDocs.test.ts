@@ -287,15 +287,16 @@ describe('/agentics/docs: your vault', () => {
     expect(soon).not.toContain('Sign in free at');
   });
 
-  it('explains every key of the block the code builds, and the sample shows all of them but reason', () => {
+  it('explains every key of the block the code builds, and the sample shows all of them but reason and lookalike', () => {
     const keys = vaultBlockKeys();
-    expect(keys).toEqual(['cleared', 'answer', 'registry', 'history', 'eventId', 'logged', 'screening', 'reason']);
+    expect(keys).toEqual(['cleared', 'answer', 'registry', 'history', 'eventId', 'logged', 'screening', 'reason', 'lookalike']);
     for (const key of keys) expect(docs, `${key} is not explained`).toContain(`['${key}', `);
     const sample = docs.match(/the vault field, on a call with a linked key[\s\S]*?<pre>\{`\{([\s\S]*?)\}`\}<\/pre>/);
     expect(sample, 'the vault sample was not found').not.toBeNull();
     // Top-level keys only: the screening object's own keys are explained under screening.
     const topLevel = sample![1].replace(/\{[^{}]*\}/g, '{}');
-    expect([...topLevel.matchAll(/"(\w+)":/g)].map((k) => k[1])).toEqual(keys.filter((k) => k !== 'reason'));
+    // reason and lookalike are present only in their own cases, so the everyday sample leaves them out.
+    expect([...topLevel.matchAll(/"(\w+)":/g)].map((k) => k[1])).toEqual(keys.filter((k) => k !== 'reason' && k !== 'lookalike'));
   });
 
   it('lists every answer and every registry word the ledger can hold, and the one reason', () => {

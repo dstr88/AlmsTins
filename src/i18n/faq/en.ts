@@ -763,6 +763,10 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
+          In Almstins Agentics, an agent that asks about an address that is not on its list, but looks like one on your agents' lists, is answered flagged, and you get an email about it.
+        </p>
+
+        <p>
           When you are signed in, the free checker also warns if the address you check looks like one in your Address Book. The comparison happens in your browser; the check itself still sends only the address, never who you are.
         </p>
 

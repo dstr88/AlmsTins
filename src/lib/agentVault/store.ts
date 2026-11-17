@@ -553,6 +553,19 @@ export async function listDestinationsByAddress(tenantId: string, tinId: string,
   return r.rows.map(destinationFrom);
 }
 
+/**
+ * Every live destination address in the account, on every agent's list, with its registry word: the
+ * reference for the look-alike check (./checkLog.ts). Addresses and statuses only.
+ */
+export async function listAccountDestinations(tenantId: string): Promise<Array<{ address: string; trustStatus: Destination['trustStatus'] }>> {
+  await ensureAgentVaultTables();
+  const r = await db.execute({
+    sql: `SELECT address, trust_status FROM agent_destinations WHERE tenant_id = ? AND deleted_at IS NULL`,
+    args: [tenantId],
+  });
+  return r.rows.map((row: any) => ({ address: String(row.address), trustStatus: statusFromStored(row.trust_status) }));
+}
+
 /** The live destinations of one tin among `ids`. An id that is not this tenant's, or not this tin's, simply is not returned. */
 export async function getDestinations(tenantId: string, tinId: string, ids: readonly string[]): Promise<Destination[]> {
   if (!ids.length) return [];

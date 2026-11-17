@@ -50,6 +50,8 @@ const ANSWER_OF: Record<Basis, VaultAnswer> = {
   domain_proof: 'proven',
   registered_and_checked_before: 'consistent-with-history',
   registered_first_check: 'unknown',
+  destination_disputed: 'unknown',
+  lookalike_of_listed: 'flagged',
 };
 
 const check = (address: string, basis: Basis | string | null, when: string, over: Partial<LedgerEvent> = {}): LedgerEvent => ({
@@ -119,11 +121,11 @@ describe('which bucket a check falls in', () => {
     for (const status of ['proven', 'mismatch', 'unanchored', 'unknown'] as const) {
       for (const registry of ['trusted', 'flagged', 'pending', 'none'] as const) {
         for (const checkedBefore of [true, false]) {
-          for (const screening of ['pass', 'fail', 'limited'] as const) for (const disputed of [false, true]) {
-            const d = deriveAnswer({ status, registry, checkedBefore, screening, disputed });
+          for (const screening of ['pass', 'fail', 'limited'] as const) for (const disputed of [false, true]) for (const lookalike of [false, true]) {
+            const d = deriveAnswer({ status, registry, checkedBefore, screening, disputed, lookalike });
             seen.add(d.basis);
             const bucket = classifyCheck({ answer: d.answer, detail: { basis: d.basis } });
-            const label = `${status}/${registry}/${checkedBefore}/${screening}/${disputed}`;
+            const label = `${status}/${registry}/${checkedBefore}/${screening}/${disputed}/${lookalike}`;
             if (d.answer === 'flagged') expect(bucket, label).toBe('issues');
             else if (d.answer === 'unknown' && d.cleared) expect(bucket, label).toBe('new');
             else if (d.answer === 'unknown') expect(bucket, label).toBe('not_confirmed');

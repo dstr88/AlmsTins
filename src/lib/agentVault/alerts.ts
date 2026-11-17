@@ -45,12 +45,14 @@ import { defaultAppBase, getAgentReportEmail } from '@/i18n/emails/agentReport';
 import { claimAlert, readAlertClaim, readSettings, releaseAlert } from './deliveryStore';
 import { countUnmatchedPayments } from './events';
 import { sendVaultMail } from './mailer';
+import { looksLikeListed } from './lookalike';
+import { listAccountDestinations } from './store';
 
 /**
  * What a check was answered, as the alert names it. One word for each case an operator tells apart;
  * `proven` is not among them (it never emails).
  */
-export const ALERT_KINDS = ['mismatch', 'flagged', 'screening', 'not_on_list', 'pending', 'unanchored', 'unknown', 'disputed', 'established', 'unmatched'] as const;
+export const ALERT_KINDS = ['mismatch', 'flagged', 'screening', 'lookalike', 'not_on_list', 'pending', 'unanchored', 'unknown', 'disputed', 'established', 'unmatched'] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
 /** One alert's worth of a check. */
@@ -79,6 +81,9 @@ export function alertKindOf(basis: string, status: string): AlertKind | null {
     case 'screening_flagged':
       // The check's own screening found something. The email says Flagged, and that it was the screening.
       return 'screening';
+    case 'lookalike_of_listed':
+      // Not on the list, but it looks like an address that is: the shape of address poisoning.
+      return 'lookalike';
     case 'not_in_registry':
       return 'not_on_list';
     case 'registry_pending':
@@ -113,6 +118,8 @@ export interface AlertDeps {
   now: () => Date;
   /** How many unmatched payments an unmatched-payment email covers (../events.ts countUnmatchedPayments); the real count when left out. */
   countUnmatched?: typeof countUnmatchedPayments;
+  /** Every live destination in the account (./store.ts listAccountDestinations): an unmatched payment to a look-alike says so. */
+  listListed?: typeof listAccountDestinations;
   recipient: (tenantId: string) => Promise<string | null>;
   send: (mail: { to: string; subject: string; text: string }) => Promise<void>;
   appBase: string;
@@ -148,6 +155,21 @@ async function unmatchedCount(info: CheckAlertInfo, previous: string | null, now
   return Math.max(1, n);
 }
 
+/**
+ * Whether an unmatched payment went to an address that looks like one on a list in the account (phase 5
+ * of the poisoning warnings): the payment the bait was set for. A failure to read the lists only leaves
+ * the line out; the email still goes.
+ */
+async function unmatchedLookalike(info: CheckAlertInfo, deps: AlertDeps): Promise<boolean> {
+  try {
+    const list = deps.listListed ?? listAccountDestinations;
+    return looksLikeListed(info.address, await list(info.tenantId));
+  } catch (err) {
+    logFailure('[agent-vault] unmatched look-alike not read', err);
+    return false;
+  }
+}
+
 /** Tells the operator about a check that was not answered proven, or an unmatched payment, unless it has been said this hour (or it is established and that email is off). Never throws. */
 export async function alertCheck(info: CheckAlertInfo, deps: AlertDeps = defaultAlertDeps()): Promise<AlertOutcome> {
   try {
@@ -163,7 +185,8 @@ export async function alertCheck(info: CheckAlertInfo, deps: AlertDeps = default
     if (!won) return 'rate_limited';
     try {
       const payments = info.kind === 'unmatched' ? await unmatchedCount(info, previous, now, deps) : undefined;
-      const mail = getAgentReportEmail('en').alert({ appBase: deps.appBase, kind: info.kind, tinId: info.tinId, payments, sinceLast: previous !== null });
+      const lookalike = info.kind === 'unmatched' ? await unmatchedLookalike(info, deps) : undefined;
+      const mail = getAgentReportEmail('en').alert({ appBase: deps.appBase, kind: info.kind, tinId: info.tinId, payments, sinceLast: previous !== null, lookalike });
       await deps.send({ to, subject: mail.subject, text: mail.text });
       return 'sent';
     } catch (err) {

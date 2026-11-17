@@ -588,6 +588,7 @@ describe('the Vault keeps to the bright lines', () => {
       'src/lib/agentVault/ledgerView.ts',
       'src/lib/agentVault/link.ts',
       'src/lib/agentVault/liveRead.ts',
+      'src/lib/agentVault/lookalike.ts',
       'src/lib/agentVault/mailer.ts',
       'src/lib/agentVault/money.ts',
       'src/lib/agentVault/moneySources.ts',

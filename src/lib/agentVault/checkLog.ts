@@ -55,7 +55,8 @@ import { alertKindOf, type CheckAlertInfo } from './alerts';
 import { FLAGGED_LOGGED_PAST_LIMIT, getLoggedChecksPerDay } from './entitlements';
 import { countCheckedSince, hasPriorCheck, insertCheckedEvent, limitMarkerSince, type LedgerEvent, type RegistryVerdict, type VaultAnswer } from './events';
 import { defaultScreeningDeps, screenForCheck, type CheckScreening, type ScreeningDeps } from './checkScreening';
-import { findLiveTinByKey, listDestinationsByAddress, recordTrust } from './store';
+import { findLiveTinByKey, listAccountDestinations, listDestinationsByAddress, recordTrust } from './store';
+import { looksLikeListed } from './lookalike';
 import type { TrustStatus } from './trustPolicy';
 
 /** The public check's own statuses (GET /api/verify/check), as it answers them. */
@@ -70,7 +71,8 @@ export type AnswerBasis =
   | 'domain_proof'
   | 'registered_and_checked_before'
   | 'registered_first_check'
-  | 'destination_disputed';
+  | 'destination_disputed'
+  | 'lookalike_of_listed';
 
 /** The registry's word for an address across the chains the owner may have listed it on: a flag wins, then trusted, then pending. */
 export function registryVerdict(rows: ReadonlyArray<{ trustStatus: TrustStatus }>): RegistryVerdict {
@@ -95,6 +97,8 @@ export interface DerivedAnswer {
  *   flagged in the registry          -> flagged (a flag is a ratchet; nothing else outranks it)
  *   the check's screening found something -> flagged (sanctions or a security flag, whatever the registry says)
  *   public status mismatch           -> flagged (proven by a different domain than the one expected)
+ *   not in the registry, but looks like an address on a list in the account
+ *                                    -> flagged (basis lookalike_of_listed; the block says lookalike: true)
  *   disputed destination             -> unknown, not cleared (two accounts stand behind it; the public
  *                                       answer carries reason disputed; the owner's list cannot clear it)
  *   not in the registry              -> unknown, not cleared
@@ -103,11 +107,13 @@ export interface DerivedAnswer {
  *   trusted and asked about before   -> consistent-with-history, cleared (sameness, never ownership)
  *   trusted, first check             -> unknown, cleared (the owner's say-so is the only support yet)
  */
-export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean; screening?: CheckScreening['result']; disputed?: boolean }): DerivedAnswer {
+export function deriveAnswer(input: { status: CheckStatus; registry: RegistryVerdict; checkedBefore: boolean; screening?: CheckScreening['result']; disputed?: boolean; lookalike?: boolean }): DerivedAnswer {
   const { status, registry, checkedBefore } = input;
   if (registry === 'flagged') return { answer: 'flagged', basis: 'registry_flagged', cleared: false, history: 'none' };
   if (input.screening === 'fail') return { answer: 'flagged', basis: 'screening_flagged', cleared: false, history: 'none' };
   if (status === 'mismatch') return { answer: 'flagged', basis: 'domain_mismatch', cleared: false, history: 'none' };
+  // Not on the list, but it looks like an address that is: the shape of address poisoning.
+  if (registry === 'none' && input.lookalike) return { answer: 'flagged', basis: 'lookalike_of_listed', cleared: false, history: 'none' };
   if (input.disputed) return { answer: 'unknown', basis: 'destination_disputed', cleared: false, history: 'none' };
   if (registry === 'none') return { answer: 'unknown', basis: 'not_in_registry', cleared: false, history: 'none' };
   if (registry === 'pending') return { answer: 'unknown', basis: 'registry_pending', cleared: false, history: 'none' };
@@ -219,6 +225,11 @@ export interface VaultBlock {
   screening: { result: CheckScreening['result']; checkedAt: string | null; cached: boolean } | null;
   /** Present only when the check was answered and deliberately not written: the agent's daily limit on recorded checks was reached. */
   reason?: 'log_limit';
+  /**
+   * Present, and true, only when the address is not on this agent's list but looks like an address on a
+   * list in the account (same first 4 and last 4 characters, a different address): the answer is flagged.
+   */
+  lookalike?: true;
 }
 
 const NO_ANSWER: VaultBlock = { cleared: null, answer: null, registry: null, history: null, eventId: null, logged: false, screening: null };
@@ -281,6 +292,7 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   let registry: RegistryVerdict;
   let rows: Awaited<ReturnType<typeof listDestinationsByAddress>>;
   let checkedBefore: boolean;
+  let lookalike = false;
   try {
     const owner = await keyTenant(input.keyId);
     if (!owner) return null;
@@ -291,6 +303,8 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
     address = eventAddress(input.value);
     rows = await listDestinationsByAddress(tenantId, tinId, address);
     registry = registryVerdict(rows);
+    // Only an address that is not on this agent's list is compared with the lists in the account.
+    if (registry === 'none') lookalike = looksLikeListed(address, await listAccountDestinations(tenantId));
     chain = rows[0]?.chain ?? null;
     checkedBefore = await hasPriorCheck(tenantId, tinId, address);
   } catch (err) {
@@ -301,7 +315,7 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
   // The screening, from the warm-address cache when it may answer. Never throws.
   const screeningDeps = deps.screening ?? defaultScreeningDeps;
   const screening = await screenForCheck(tenantId, address, input.now, screeningDeps);
-  derived = deriveAnswer({ status: input.status, registry, checkedBefore, screening: screening.result, disputed: input.disputed === true });
+  derived = deriveAnswer({ status: input.status, registry, checkedBefore, screening: screening.result, disputed: input.disputed === true, lookalike });
 
   // A fresh screening that found something flags a registered address on the spot, as a re-check would.
   // A failure here is logged and changes nothing about the answer, which is already flagged. The readout
@@ -334,6 +348,7 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
     registry,
     history: derived.history,
     screening: { result: screening.result, checkedAt: screening.checkedAt, cached: screening.cached },
+    ...(derived.basis === 'lookalike_of_listed' ? { lookalike: true as const } : {}),
   };
 
   // The daily limit on recorded checks. A failure to count it is not a reason to change the answer or to
@@ -395,6 +410,7 @@ export async function recordKeyedCheck(input: KeyedCheckInput, deps: KeyedCheckD
           cached: screening.cached,
           ...(screening.cached ? { servedAt: input.now.toISOString() } : {}),
         },
+        ...(derived.basis === 'lookalike_of_listed' ? { lookalike: true } : {}),
         ...(marksLimit && perDay !== null ? { limit: { reached: true, perDay } } : {}),
       },
       at: input.now.toISOString(),
