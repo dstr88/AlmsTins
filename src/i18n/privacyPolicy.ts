@@ -1,6 +1,7 @@
 // Privacy Policy — footer-modal content, all user-visible copy (EN · ES · FR).
 //
-// Operative Privacy Policy v1.4, effective 2026-11-06. v1.3 (2026-11-05, the owner's decision: ship now, with counsel's review
+// Operative Privacy Policy v1.5, effective 2026-11-17. v1.5 changes no text here: it keeps the policy on the User
+// Agreement's version and date (the Agreement's v1.5 rewrites B.5.4). Earlier: v1.4 effective 2026-11-06. v1.3 (2026-11-05, the owner's decision: ship now, with counsel's review
 // to follow; a change from that review ships as the next version) added Almstins Agentics, the Agent Vault: Sections 3.1, 3.2, 4,
 // 5, 10 and 11. v1.4 adds one use to the Agent Vault line of Section 3: the email at once about an unmatched payment.
 // tests/privacy/agenticsPolicyV13.test.ts fails if the three languages and the User Agreement disagree on the version or date.
@@ -33,7 +34,7 @@ export const en: PrivacyLocale = {
   ariaLabel: 'Privacy Policy',
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
-<p><strong>Effective Date:</strong> November 6, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.4<br/>
+<p><strong>Effective Date:</strong> November 17, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.5<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
@@ -213,7 +214,7 @@ export const es: PrivacyLocale = {
   ariaLabel: 'Política de Privacidad',
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
-<p><strong>Fecha de Vigencia:</strong> 6 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.4<br/>
+<p><strong>Fecha de Vigencia:</strong> 17 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.5<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
@@ -393,7 +394,7 @@ export const fr: PrivacyLocale = {
   ariaLabel: 'Politique de Confidentialité',
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
-<p><strong>Date d'entrée en vigueur :</strong> 6 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.4<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 17 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.5<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>
