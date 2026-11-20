@@ -9,7 +9,12 @@
  * Swapping the product name (e.g. "Almstins Guard") is a one-line change to BRAND.
  */
 
+import { VERIFY_PLANS } from '@/lib/verifyPlans';
+
 export type Lang = 'en' | 'es' | 'fr';
+
+/** The Free plan's sizes, read from the file that enforces them. */
+const FREE = VERIFY_PLANS.free.limits;
 
 /** Product name — brand-locked, never translated. Single source of truth. */
 export const BRAND = 'Almstins Verify';
@@ -89,6 +94,8 @@ export interface VerifyCopy {
     dnsDemo: { watchLabel: string; label: string; hint: string };
     scan: { badge: string; title: string; body: string; cta: string };
     login: { heading: string; body: string; button: string };
+    /** Under the Domain-verified tile's button: a pointer to the business page (its href comes from src/lib/verifyBusinessHref.ts). */
+    businessLine: { text: string; link: string };
   };
   problem: { heading: string; body: string[] };
   how: { heading: string; steps: Array<{ title: string; body: string }> };
@@ -107,7 +114,8 @@ export interface VerifyCopy {
     contractLabel: string;
     earlyNote: string; // developer-controlled; contains a mailto link → rendered with set:html
   };
-  faq: { heading: string; items: { q: string; a: string }[] };
+  /** businessLink: when set, the answer ends with a link, in this label, to the business page in the page's language. */
+  faq: { heading: string; items: { q: string; a: string; businessLink?: string }[] };
 }
 
 const en: VerifyCopy = {
@@ -190,6 +198,7 @@ const en: VerifyCopy = {
       },
     ],
     agentKeyLine: 'Already building? Mint your own key with one DNS record for 300 checks a minute.',
+    businessLine: { text: 'Invoicing in crypto, or running payments for a business?', link: 'Verify for business' },
     agentSigninBtn: 'Log in to get started',
     bannerLabels: ['Agent', 'Store owner', 'Small business'],
     agentDemo: { button: 'Watch a demo' },
@@ -233,7 +242,7 @@ const en: VerifyCopy = {
       },
       {
         title: "Prove they're yours",
-        body: 'For a wallet address, send yourself a tiny amount or host a small file on your site — never a wallet connection, never signing. For a payment link (like Stripe), registering it in your account is the proof. No keys. Ever.',
+        body: 'For a wallet address, send yourself a tiny amount or host a small file on your site — never a wallet connection, never signing. For a payment link (like Stripe), register it in your account; payers see it as verified once your account has proven your website’s domain. No keys. Ever.',
       },
       {
         title: 'Verify before you trust',
@@ -297,6 +306,7 @@ const en: VerifyCopy = {
     heading: 'FAQ',
     items: [
       { q: 'Which of the three tools is right for me?', a: "If you're building something that sends payments automatically, start with Agents. If you take crypto in one or two wallets and want to prove they're really yours, use Proven wallet. If you have several receiving addresses to prove at once, or you'd rather publish through your own domain, use Domain-verified." },
+      { q: 'I put a crypto address on my invoices. Where do I start?', a: `Verify for business walks through it: how to prove the address on your invoices, what a payer sees when they check it, and what payment systems and AI agents get from the check API. The Free plan covers ${FREE.address} wallet addresses and ${FREE.qr} payment link or QR.`, businessLink: 'Open Verify for business' },
       { q: 'Is this actually free?', a: 'Yes. The Free plan is always free: 2 wallets and 1 payment QR. The Business and Pro plans hold more destinations; ask by email at support@almstins.com.' },
       { q: 'Do I have to connect my wallet?', a: 'No, never. Proving a wallet is yours means sending yourself a tiny amount or hosting a small file on your own site — not connecting a wallet or signing anything. Verification never asks for signing permission and can’t move a coin.' },
       { q: 'What’s the difference between the tools above and "Scan before you pay"?', a: 'The three tools above are for publishers — proving that an address, QR, or domain you control is really yours. "Scan before you pay" is the free side for the other direction: checking an address, link, or QR someone else gave you, before you send them money. No login needed for that one.' },
@@ -389,6 +399,7 @@ const es: VerifyCopy = {
       },
     ],
     agentKeyLine: '¿Ya estás construyendo? Genera tu propia clave con un registro DNS para 300 consultas por minuto.',
+    businessLine: { text: '¿Facturas en cripto o llevas los pagos de una empresa?', link: 'Verify para empresas' },
     agentSigninBtn: 'Inicia sesión para empezar',
     bannerLabels: ['Agente', 'Comercio', 'Negocio pequeño'],
     agentDemo: { button: 'Ver una demo' },
@@ -432,7 +443,7 @@ const es: VerifyCopy = {
       },
       {
         title: 'Demuestra que son tuyas',
-        body: 'Para una dirección de billetera, envíate un pequeño monto o aloja un pequeño archivo en tu sitio — nunca conectas la billetera ni firmas nada. Para un enlace de pago (como Stripe), registrarlo en tu cuenta es la prueba. Sin claves. Nunca.',
+        body: 'Para una dirección de billetera, envíate un pequeño monto o aloja un pequeño archivo en tu sitio — nunca conectas la billetera ni firmas nada. Para un enlace de pago (como Stripe), regístralo en tu cuenta; quien paga lo ve como verificado cuando tu cuenta haya demostrado el dominio de tu sitio web. Sin claves. Nunca.',
       },
       {
         title: 'Verifica antes de confiar',
@@ -496,6 +507,7 @@ const es: VerifyCopy = {
     heading: 'Preguntas frecuentes',
     items: [
       { q: '¿Cuál de las tres herramientas es para mí?', a: '¿Estás construyendo algo que envía pagos automáticamente? Empieza con Agentes. ¿Recibes cripto en una o dos billeteras y quieres demostrar que son realmente tuyas? Usa Billetera probada. ¿Tienes varias direcciones de cobro que probar a la vez, o prefieres publicar a través de tu propio dominio? Usa Dominio verificado.' },
+      { q: 'Pongo una dirección cripto en mis facturas. ¿Por dónde empiezo?', a: `Verify para empresas lo explica paso a paso: cómo demostrar la dirección de tus facturas, qué ve quien paga cuando la comprueba y qué obtienen los sistemas de pago y los agentes de IA de la API de comprobación. El plan Free cubre ${FREE.address} direcciones de billetera y ${FREE.qr} enlace de pago o QR.`, businessLink: 'Abrir Verify para empresas' },
       { q: '¿Esto es realmente gratis?', a: 'Sí. El plan gratuito es siempre gratis: 2 billeteras y 1 QR de pago. Los planes Business y Pro admiten más destinos; pídelos por email a support@almstins.com.' },
       { q: '¿Tengo que conectar mi billetera?', a: 'No, nunca. Demostrar que una billetera es tuya significa enviarte un pequeño monto o alojar un pequeño archivo en tu propio sitio — no conectar una billetera ni firmar nada. La verificación nunca pide permiso de firma y no puede mover ni una moneda.' },
       { q: '¿Cuál es la diferencia entre las herramientas de arriba y "Escanea antes de pagar"?', a: 'Las tres herramientas de arriba son para quien publica — demostrar que una dirección, un QR o un dominio que controlas es realmente tuyo. "Escanea antes de pagar" es el lado gratuito para la otra dirección: comprobar una dirección, enlace o QR que alguien más te dio, antes de enviarle dinero. Ese no necesita cuenta.' },
@@ -588,6 +600,7 @@ const fr: VerifyCopy = {
       },
     ],
     agentKeyLine: 'Déjà en train de construire ? Créez votre propre clé avec un enregistrement DNS pour 300 vérifications par minute.',
+    businessLine: { text: 'Vous facturez en crypto, ou vous gérez les paiements d’une entreprise ?', link: 'Verify pour les entreprises' },
     agentSigninBtn: 'Connectez-vous pour commencer',
     bannerLabels: ['Agent', 'Commerce', 'Petite entreprise'],
     agentDemo: { button: 'Voir une démo' },
@@ -631,7 +644,7 @@ const fr: VerifyCopy = {
       },
       {
         title: "Prouvez qu'ils sont à vous",
-        body: 'Pour une adresse de portefeuille, envoyez-vous un petit montant ou hébergez un petit fichier sur votre site — jamais de connexion de portefeuille, jamais de signature. Pour un lien de paiement (comme Stripe), l’enregistrer dans votre compte est la preuve. Sans clés. Jamais.',
+        body: 'Pour une adresse de portefeuille, envoyez-vous un petit montant ou hébergez un petit fichier sur votre site — jamais de connexion de portefeuille, jamais de signature. Pour un lien de paiement (comme Stripe), enregistrez-le dans votre compte ; les payeurs le voient comme vérifié une fois que votre compte a prouvé le domaine de votre site web. Sans clés. Jamais.',
       },
       {
         title: 'Vérifiez avant de faire confiance',
@@ -695,6 +708,7 @@ const fr: VerifyCopy = {
     heading: 'FAQ',
     items: [
       { q: 'Quel outil, parmi les trois, est fait pour moi ?', a: 'Vous construisez quelque chose qui envoie des paiements automatiquement ? Commencez par Agents. Vous acceptez la crypto sur un ou deux portefeuilles et voulez prouver qu’ils sont bien à vous ? Utilisez Portefeuille prouvé. Vous avez plusieurs adresses de réception à prouver à la fois, ou préférez publier via votre propre domaine ? Utilisez Domaine vérifié.' },
+      { q: 'Je mets une adresse crypto sur mes factures. Par où commencer ?', a: `Verify pour les entreprises explique tout : comment prouver l’adresse de vos factures, ce que voit un payeur quand il la vérifie, et ce que les systèmes de paiement et les agents IA obtiennent de l’API de vérification. Le plan Free couvre ${FREE.address} adresses de portefeuille et ${FREE.qr} lien de paiement ou QR.`, businessLink: 'Ouvrir Verify pour les entreprises' },
       { q: 'Est-ce vraiment gratuit ?', a: 'Oui. Le forfait gratuit est toujours gratuit : 2 portefeuilles et 1 QR de paiement. Les forfaits Business et Pro contiennent davantage de destinations ; demandez-les par e-mail à support@almstins.com.' },
       { q: 'Dois-je connecter mon portefeuille ?', a: 'Non, jamais. Prouver qu’un portefeuille est le vôtre signifie vous envoyer un petit montant ou héberger un petit fichier sur votre propre site — pas connecter un portefeuille ni rien signer. La vérification ne demande jamais de permission de signature et ne peut déplacer aucune pièce.' },
       { q: 'Quelle est la différence entre les outils ci-dessus et « Scannez avant de payer » ?', a: 'Les trois outils ci-dessus s’adressent à celui qui publie — prouver qu’une adresse, un QR ou un domaine que vous contrôlez est bien à vous. « Scannez avant de payer » est le côté gratuit pour l’autre sens : vérifier une adresse, un lien ou un QR que quelqu’un d’autre vous a donné, avant de lui envoyer de l’argent. Celui-là ne demande aucun compte.' },

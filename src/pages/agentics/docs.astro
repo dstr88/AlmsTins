@@ -35,6 +35,7 @@ import ApiDocsLayout from '@/layouts/ApiDocsLayout.astro';
 import AnswerCards from '@/components/docs/AnswerCards.astro';
 import DocsFaq from '@/components/docs/DocsFaq.astro';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
+import { VERIFY_BUSINESS_HREF } from '@/lib/verifyBusinessHref';
 
 export const prerender = false;
 
@@ -602,6 +603,10 @@ def may_proceed(value, payee_domain, key=None, tries=3):
       no vendor's name on purpose: the format is meant to be boring, and anyone is free to serve
       or consume it. During early access, publishing a platform list is by approval: email
       <a href="mailto:support@almstins.com">support@almstins.com</a> to request access.
+    </p>
+    <p class="body">
+      To send a payee a plain explanation of all this, link them to
+      <a href={VERIFY_BUSINESS_HREF.en}>almstins.com/verify/business</a>.
     </p>
   </section>
 </ApiDocsLayout>

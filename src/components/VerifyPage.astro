@@ -4,6 +4,7 @@ import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
 import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
 import { VERIFY_SIGNIN_HREF } from '../lib/verifyCheckFirst';
+import { verifyBusinessHref } from '../lib/verifyBusinessHref';
 import VerifyCheckFirst from './verify/VerifyCheckFirst';
 
 interface Props {
@@ -22,6 +23,8 @@ const canonical = `https://almstins.com${here.href}`;
 // the tracker vault). Already signed in, it forwards straight to the dashboard.
 // The path is in src/lib/verifyCheckFirst.ts, shared with the "see what a payer sees" field.
 const LOGIN_HREF = VERIFY_SIGNIN_HREF;
+// The business page, in this page's language: for invoicing businesses, payments teams and agent builders.
+const BUSINESS_HREF = verifyBusinessHref(lang);
 
 // Language-neutral integration contract shown to exchanges (code, not translated).
 // The path is a deliberately UNBRANDED well-known URI — the standard must not carry
@@ -161,6 +164,7 @@ Authorization: Bearer <your-key>
           <span class="vtool__body">{t.tools.levels[2].body}</span>
           <span class="vtool__price">{t.tools.levels[2].price}</span>
           <a class="vtool__cta" href={LOGIN_HREF}>{t.tools.levels[2].cta} <span aria-hidden="true">→</span></a>
+          <p class="vtool__key-hint vtool__business">{t.tools.businessLine.text} <a href={BUSINESS_HREF}>{t.tools.businessLine.link} <span aria-hidden="true">→</span></a></p>
           <div class="vdemo">
             <button class="vdemo__btn" id="dns-demo-btn" type="button">{t.tools.dnsDemo.watchLabel}</button>
             <div class="vdemo__reveal" id="dns-demo-reveal" hidden>
@@ -274,7 +278,7 @@ Authorization: Bearer <your-key>
               <span>{item.q}</span>
               <span class="vfaq__chevron" aria-hidden="true">›</span>
             </summary>
-            <p class="vfaq__a">{item.a}</p>
+            <p class="vfaq__a">{item.a}{item.businessLink && <> <a class="vfaq__link" href={BUSINESS_HREF}>{item.businessLink} <span aria-hidden="true">→</span></a></>}</p>
           </details>
         ))}
       </div>
@@ -490,6 +494,8 @@ Authorization: Bearer <your-key>
   .vtool__key-hint {
     font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin: -0.1rem 0 0;
   }
+  .vtool__business a, .vfaq__link { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .vtool__business a:hover, .vfaq__link:hover { text-decoration: underline; }
 
   /* Per-tile demo: a small interactive or illustrative strip at the bottom of each
      card, distinct enough from the CTA link above it to not be mistaken for it. */

@@ -557,7 +557,7 @@ export const en: VerifyDashboardLocale = {
   howToStripeTitle: 'Add a Stripe payment link',
   howToStripeSteps: [
     'In Stripe, create a Payment Link (Product catalog → Payment links) and copy its URL — it looks like https://buy.stripe.com/…',
-    'Here, under Payment QR, paste that URL and Register it. Registering a link while signed in to your own account is the proof it’s yours — so it’s locked to your account the moment you save it (claimed once, no one else can list it), and customers see it as Verified once your domain is proven.',
+    'Here, under Payment QR, paste that URL and Register it. Registering a link while signed in locks it to your account the moment you save it (claimed once, no one else can list it), and customers see it as Verified once your domain is proven.',
     'You never log in to Stripe through us, and we never ask for keys. We never see your balance, payouts, customers, or payment rails — there is nothing connected to expose.',
     'Now a customer who scans that QR sees that it’s registered to your account: ✓ Verified with your verified domain once your domain is proven, or Registered with Almstins, with no name, until then. The label you type isn’t shown on the scan card. If a scammer swaps your sticker for a different link, their scan shows ⚠ Not a verified destination, a warning to hold off before paying.',
   ],
@@ -827,7 +827,7 @@ export const es: VerifyDashboardLocale = {
   howToStripeTitle: 'Agregar un enlace de pago de Stripe',
   howToStripeSteps: [
     'En Stripe, crea un Payment Link (Catálogo de productos → Payment links) y copia su URL — se ve como https://buy.stripe.com/…',
-    'Aquí, en QR de pago, pega esa URL y Regístrala. Registrar un enlace con tu sesión iniciada en tu propia cuenta es la prueba de que es tuyo — así que queda vinculado a tu cuenta en el momento en que lo guardas (reclamado una sola vez, nadie más puede listarlo), y tus clientes lo ven como Verificado cuando tu dominio quede demostrado.',
+    'Aquí, en QR de pago, pega esa URL y Regístrala. Al registrar un enlace con tu sesión iniciada, queda vinculado a tu cuenta en el momento en que lo guardas (reclamado una sola vez, nadie más puede listarlo), y tus clientes lo ven como Verificado cuando tu dominio quede demostrado.',
     'Nunca inicias sesión en Stripe a través de nosotros y nunca te pedimos claves. Nunca vemos tu saldo, tus pagos, tus clientes ni tus medios de cobro — no hay nada conectado que exponer.',
     'Ahora, un cliente que escanea ese QR ve que está registrado en tu cuenta: ✓ Verificado con tu dominio verificado cuando tu dominio quede demostrado, o Registrado en Almstins, sin nombre, hasta entonces. La etiqueta que escribes no se muestra en la tarjeta del escaneo. Si un estafador sustituye tu calcomanía por otro enlace, su escaneo muestra ⚠ Destino no verificado, una advertencia para esperar antes de pagar.',
   ],
@@ -1097,7 +1097,7 @@ export const fr: VerifyDashboardLocale = {
   howToStripeTitle: 'Ajouter un lien de paiement Stripe',
   howToStripeSteps: [
     'Dans Stripe, créez un Payment Link (Catalogue de produits → Payment links) et copiez son URL — elle ressemble à https://buy.stripe.com/…',
-    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. Enregistrer un lien en étant connecté à votre propre compte est la preuve qu’il est à vous — il est donc rattaché à votre compte dès que vous l’enregistrez (revendiqué une seule fois, personne d’autre ne peut le lister), et vos clients le voient comme Vérifié une fois votre domaine prouvé.',
+    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. Enregistrer un lien en étant connecté le rattache à votre compte dès que vous l’enregistrez (revendiqué une seule fois, personne d’autre ne peut le lister), et vos clients le voient comme Vérifié une fois votre domaine prouvé.',
     'Vous ne vous connectez jamais à Stripe via nous et nous ne demandons jamais de clés. Nous ne voyons jamais votre solde, vos versements, vos clients ni vos canaux de paiement — il n’y a rien de connecté à exposer.',
     'Désormais, un client qui scanne ce QR voit qu’il est enregistré sur votre compte : ✓ Vérifié avec votre domaine vérifié une fois votre domaine prouvé, ou Enregistré sur Almstins, sans nom, d’ici là. Le libellé que vous saisissez n’apparaît pas sur la carte du scan. Si un fraudeur remplace votre autocollant par un autre lien, son scan affiche ⚠ Destination non vérifiée, un avertissement pour attendre avant de payer.',
   ],

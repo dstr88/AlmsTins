@@ -25,13 +25,14 @@ import { VERIFY_PLANS, type VerifyPaidPlanId, type VerifyPlanId } from '@/lib/ve
 import { WELL_KNOWN_PATH } from '@/lib/verifyProof';
 import { testAmountSpec } from '@/lib/verifyTestAmount';
 import { verifyScanCopy, type ScanLang } from '@/i18n/verifyScan';
+import { VERIFY_BUSINESS_HREF } from '@/lib/verifyBusinessHref';
 import { verifyBusinessCopy, type CheckAnswer, type ProofStepCopy, type ReaderCopy, type VerifyBusinessCopy } from '@/i18n/verifyBusiness';
 
 /** The page's three routes, in the order the language switch lists them. */
 export const VERIFY_BUSINESS_LANGS: ReadonlyArray<{ code: Lang; href: string; label: string; aria: string }> = [
-  { code: 'en', href: '/verify/business', label: 'EN', aria: 'View in English' },
-  { code: 'es', href: '/verify/business/es', label: 'ES', aria: 'Ver en español' },
-  { code: 'fr', href: '/verify/business/fr', label: 'FR', aria: 'Voir en français' },
+  { code: 'en', href: VERIFY_BUSINESS_HREF.en, label: 'EN', aria: 'View in English' },
+  { code: 'es', href: VERIFY_BUSINESS_HREF.es, label: 'ES', aria: 'Ver en español' },
+  { code: 'fr', href: VERIFY_BUSINESS_HREF.fr, label: 'FR', aria: 'Voir en français' },
 ];
 
 /** The free scanner: check an address, a payment link or a QR with no account. */

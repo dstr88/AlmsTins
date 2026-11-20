@@ -10,6 +10,7 @@
  */
 
 import { VERIFY_PLANS } from '@/lib/verifyPlans';
+import { VERIFY_BUSINESS_HREF } from '@/lib/verifyBusinessHref';
 
 // Verify's plan sizes and prices come from the one file that sets them.
 const V_FREE = VERIFY_PLANS.free.limits;
@@ -189,6 +190,7 @@ export const en: LearnCopy = {
         limit: `Free, always: ${V_FREE.address} wallet addresses and ${V_FREE.qr} payment link or QR. Business holds ${V_BUSINESS.limits.total} destinations and Pro ${V_PRO.limits.total}; ask by email. Verify proves control and publication, not that a business is honest.`,
         open: { label: 'Open Verify', href: '/verify' },
         learnMore: [
+          { label: 'Verify for businesses that invoice', href: VERIFY_BUSINESS_HREF.en },
           { label: 'Verify sandbox: try a proof in the browser', href: '/artifacts/sandbox' },
           { label: 'The check API and its decision rule', href: '/agentics/docs' },
           { label: 'Verify, in Spanish and French', href: '/verify/es' },
@@ -440,6 +442,7 @@ export const es: LearnCopy = {
         limit: `Gratis, siempre: ${V_FREE.address} direcciones de billetera y ${V_FREE.qr} enlace de pago o QR. Business admite ${V_BUSINESS.limits.total} destinos y Pro ${V_PRO.limits.total}; pídelos por correo. Verify prueba el control y la publicación, no que un negocio sea honesto.`,
         open: { label: 'Abrir Verify', href: '/verify/es' },
         learnMore: [
+          { label: 'Verify para empresas que facturan', href: VERIFY_BUSINESS_HREF.es },
           { label: 'Sandbox de Verify: prueba una demostración de control en el navegador', href: '/artifacts/sandbox' },
           { label: 'La API de comprobación y su regla de decisión (en inglés)', href: '/agentics/docs' },
           { label: 'Verify en inglés', href: '/verify' },
@@ -684,6 +687,7 @@ export const fr: LearnCopy = {
         limit: `Gratuit, toujours : ${V_FREE.address} adresses de portefeuille et ${V_FREE.qr} lien de paiement ou QR. Business contient ${V_BUSINESS.limits.total} destinations et Pro ${V_PRO.limits.total} ; demandez-les par e-mail. Verify prouve le contrôle et la publication, pas l’honnêteté d’une entreprise.`,
         open: { label: 'Ouvrir Verify', href: '/verify/fr' },
         learnMore: [
+          { label: 'Verify pour les entreprises qui facturent', href: VERIFY_BUSINESS_HREF.fr },
           { label: 'Bac à sable Verify : essayez une preuve dans le navigateur', href: '/artifacts/sandbox' },
           { label: 'L’API de vérification et sa règle de décision (en anglais)', href: '/agentics/docs' },
           { label: 'Verify en anglais', href: '/verify' },

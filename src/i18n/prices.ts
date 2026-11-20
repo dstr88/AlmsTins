@@ -24,7 +24,8 @@ export interface PricesCopy {
   free: { heading: string; checker: FreeCard; tracking: FreeCard; verify: FreeCard };
   plans: { heading: string; sub: string; starter: PlanCard; pro: PlanCard; unlimited: PlanCard };
   // storeFree items may place the Free plan's limits: {address} wallet addresses, {qr} payment QRs.
-  verify: { heading: string; tag: string; lead: string; storeFree: StoreFreeCard; paid: VerifyPaidCopy; exchanges: TalkCard };
+  /** businessLink: under the Verify cards, the label of the link to the business page (href from src/lib/verifyBusinessHref.ts). */
+  verify: { heading: string; tag: string; lead: string; storeFree: StoreFreeCard; paid: VerifyPaidCopy; exchanges: TalkCard; businessLink: string };
   foot: string;
 }
 
@@ -59,6 +60,7 @@ export const en: PricesCopy = {
     storeFree: { name: 'Store · Free', price: '$0', unit: '· always', items: ['{address} wallet addresses and {qr} payment QR or link, e.g. your ETH and BTC addresses and your Stripe link', 'Unlimited placements, same QR on as many tables as you like', 'Best-effort checks + email alerts'], cta: 'Start free →' },
     paid: { money: '${n}', unit: '/mo', yearly: 'or {price}/year', items: ['{n} destinations, any mix of wallet addresses and payment QRs or links', 'Unlimited placements', 'Not sold online: ask by email'], cta: 'Ask by email →' },
     exchanges: { name: 'Exchanges', price: "Let's talk", desc: 'Connect your API so your users can verify your official deposit addresses before they send — your defense against deposit-address phishing. Annual license + setup.', cta: 'Book a call →' },
+    businessLink: 'Who Business and Pro are for',
   },
   foot: 'Read-only. No wallet connection, ever. We never hold your keys or move your funds.',
 };
@@ -94,6 +96,7 @@ export const es: PricesCopy = {
     storeFree: { name: 'Comercio · Gratis', price: '$0', unit: '· siempre', items: ['{address} direcciones de billetera y {qr} QR o enlace de pago, p. ej. tus direcciones de ETH y BTC y tu enlace de Stripe', 'Ubicaciones ilimitadas, el mismo QR en tantas mesas como quieras', 'Comprobaciones de mejor esfuerzo + alertas por correo'], cta: 'Empieza gratis →' },
     paid: { money: '${n}', unit: '/mes', yearly: 'o {price}/año', items: ['{n} destinos, en cualquier combinación de direcciones de billetera y QR o enlaces de pago', 'Ubicaciones ilimitadas', 'No se vende en línea: pídelo por correo'], cta: 'Pedir por correo →' },
     exchanges: { name: 'Exchanges', price: 'Hablemos', desc: 'Conecta tu API para que tus usuarios verifiquen tus direcciones de depósito oficiales antes de enviar — tu defensa contra el phishing de direcciones de depósito. Licencia anual + configuración.', cta: 'Agenda una llamada →' },
+    businessLink: 'Para quién son Business y Pro',
   },
   foot: 'Solo lectura. Sin conectar la billetera, nunca. Nunca tenemos tus claves ni movemos tus fondos.',
 };
@@ -129,6 +132,7 @@ export const fr: PricesCopy = {
     storeFree: { name: 'Commerçant · Gratuit', price: '0 $', unit: '· toujours', items: ['{address} adresses de portefeuille et {qr} QR ou lien de paiement, p. ex. vos adresses ETH et BTC et votre lien Stripe', 'Emplacements illimités, le même QR sur autant de tables que vous voulez', 'Vérifications au mieux + alertes par e-mail'], cta: 'Commencer gratuitement →' },
     paid: { money: '{n} $', unit: '/mois', yearly: 'ou {price}/an', items: ['{n} destinations, en combinant librement adresses de portefeuille et QR ou liens de paiement', 'Emplacements illimités', 'Pas de vente en ligne : demandez par e-mail'], cta: 'Demander par e-mail →' },
     exchanges: { name: 'Exchanges', price: 'Discutons-en', desc: "Connectez votre API pour que vos utilisateurs vérifient vos adresses de dépôt officielles avant d'envoyer — votre défense contre l'hameçonnage d'adresses de dépôt. Licence annuelle + installation.", cta: 'Réserver un appel →' },
+    businessLink: 'À qui s’adressent Business et Pro',
   },
   foot: 'En lecture seule. Sans connexion de portefeuille, jamais. Nous ne détenons jamais vos clés et ne déplaçons jamais vos fonds.',
 };
