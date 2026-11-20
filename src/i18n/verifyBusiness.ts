@@ -20,7 +20,9 @@
  *     prevents anything, and it calls nothing safe;
  *   - the limits are a section of the page, not small print;
  *   - no em dash, in any language; no statistics, customer numbers or real-world cases;
- *   - the scanner page renders in English today, so the Spanish and French copies say so.
+ *   - the scanner page renders in English today, so the Spanish and French copies say so;
+ *   - the French copy puts a non-breaking space (U+00A0) before : ; ? ! and inside « », so none of
+ *     those marks can wrap onto a line of its own. They look like plain spaces in an editor.
  */
 
 import type { Lang } from '@/lib/i18n/locale';
@@ -476,7 +478,7 @@ const es: VerifyBusinessCopy = {
 const fr: VerifyBusinessCopy = {
   lang: 'fr',
   meta: {
-    title: 'Almstins Verify pour les entreprises : prouvez l’adresse crypto de vos factures',
+    title: 'Almstins Verify pour les entreprises : prouvez l’adresse crypto de vos factures',
     description:
       'Une entreprise prouve les adresses crypto auxquelles elle demande d’être payée et les publie sur son propre site web. Les équipes paiements et les agents d’IA vérifient une adresse avant de payer. Le forfait gratuit comprend {address} adresses de portefeuille et {qr} QR ou lien de paiement.',
   },
@@ -500,7 +502,7 @@ const fr: VerifyBusinessCopy = {
         title: 'Une entreprise qui met une adresse crypto sur ses factures',
         body: 'Prouvez chaque adresse une fois, publiez-la sur votre propre site web et donnez à ceux qui vous paient un moyen de la vérifier.',
         action: 'Prouvez vos adresses',
-        note: 'Un compte gratuit : Google, GitHub ou un lien par e-mail.',
+        note: 'Un compte gratuit : Google, GitHub ou un lien par e-mail.',
       },
       {
         kicker: 'Vous payez des factures',
@@ -519,9 +521,9 @@ const fr: VerifyBusinessCopy = {
     ],
   },
   problem: {
-    heading: 'Le problème : une adresse remplacée a toujours l’air correcte',
+    heading: 'Le problème : une adresse remplacée a toujours l’air correcte',
     body: [
-      'Une facture arrive par e-mail avec une adresse crypto. Entre l’expéditeur et le payeur, cette adresse peut être remplacée : dans une boîte mail où quelqu’un d’autre est entré, dans un PDF modifié, sur une page web copiée. Le logo, le montant et le numéro de facture sont toujours corrects. Seule l’adresse a changé.',
+      'Une facture arrive par e-mail avec une adresse crypto. Entre l’expéditeur et le payeur, cette adresse peut être remplacée : dans une boîte mail où quelqu’un d’autre est entré, dans un PDF modifié, sur une page web copiée. Le logo, le montant et le numéro de facture sont toujours corrects. Seule l’adresse a changé.',
       'Un paiement en crypto ne peut pas être rappelé. Il n’y a pas de rétrofacturation, et aucune banque ne peut l’annuler. Une fois envoyé à la mauvaise adresse, le récupérer dépend de celui qui l’a reçu.',
       'La vérification doit donc avoir lieu avant le paiement, et s’appuyer sur autre chose que la facture elle-même.',
     ],
@@ -536,24 +538,24 @@ const fr: VerifyBusinessCopy = {
         title: 'Revendiquez l’adresse avec le test du satoshi (un auto-envoi)',
         body: 'Ajoutez l’adresse dans votre tableau de bord Verify. Almstins vous donne un petit montant exact. Depuis votre propre application de portefeuille, vous envoyez ce montant de l’adresse vers elle-même. Les fonds restent dans votre portefeuille. Il n’y a ni connexion de portefeuille ni signature.',
         cost: 'Les frais de réseau habituels pour une petite transaction. Almstins ne facture rien.',
-        earns: 'L’adresse apparaît comme « Contrôle confirmé » (Claimed) : un compte Almstins a montré qu’il contrôle cette adresse. Aucun nom d’entreprise n’est encore affiché.',
+        earns: 'L’adresse apparaît comme « Contrôle confirmé » (Claimed) : un compte Almstins a montré qu’il contrôle cette adresse. Aucun nom d’entreprise n’est encore affiché.',
       },
       {
         title: 'Publiez-la dans un petit fichier sur votre propre site web',
-        body: 'Almstins vous donne un petit fichier qui liste vos adresses. Vous le publiez sur votre site web à l’emplacement {path}. Le fichier porte un code émis pour votre compte : une copie sur un autre site web ne compte donc pas.',
+        body: 'Almstins vous donne un petit fichier qui liste vos adresses. Vous le publiez sur votre site web à l’emplacement {path}. Le fichier porte un code émis pour votre compte : une copie sur un autre site web ne compte donc pas.',
         cost: 'Rien de la part d’Almstins. Il vous faut un site web que vous contrôlez et un moyen d’y publier un fichier.',
-        earns: 'Une adresse revendiquée qui figure dans ce fichier apparaît comme « Vérifié » (Verified), avec votre domaine à côté. Si le fichier cesse de la lister, elle revient à « Contrôle confirmé ».',
+        earns: 'Une adresse revendiquée qui figure dans ce fichier apparaît comme « Vérifié » (Verified), avec votre domaine à côté. Si le fichier cesse de la lister, elle revient à « Contrôle confirmé ».',
       },
     ],
-    networks: 'Le test du satoshi fonctionne sur : {networks}.',
+    networks: 'Le test du satoshi fonctionne sur : {networks}.',
     more: [
       {
-        title: 'Plusieurs adresses ?',
+        title: 'Plusieurs adresses ?',
         body: 'Publiez-les sous la forme d’une seule liste chiffrée sur votre propre domaine. N’importe qui peut télécharger le fichier, et seul Almstins peut le lire.',
       },
       {
-        title: 'Impossible de publier un fichier ?',
-        body: 'Un enregistrement DNS prouve que vous contrôlez le domaine et y associe le nom de votre entreprise. Il ne porte aucune liste d’adresses : c’est donc le fichier ou la liste chiffrée qui donne « Vérifié ».',
+        title: 'Impossible de publier un fichier ?',
+        body: 'Un enregistrement DNS prouve que vous contrôlez le domaine et y associe le nom de votre entreprise. Il ne porte aucune liste d’adresses : c’est donc le fichier ou la liste chiffrée qui donne « Vérifié ».',
       },
       {
         title: 'Ensuite, Almstins continue de vérifier',
@@ -567,7 +569,7 @@ const fr: VerifyBusinessCopy = {
     lede: 'N’importe qui peut coller une adresse ou un lien de paiement, ou scanner un QR, dans le scanner gratuit. Aucun compte n’est nécessaire. Pour une adresse, le scanner affiche l’un de ces résultats. Pour l’instant, le scanner affiche le résultat en anglais.',
     results: {
       verified: 'Une entreprise a revendiqué l’adresse, et son propre site web la publie. La carte nomme ce site web.',
-      claimed: 'Un compte a montré qu’il contrôle l’adresse, mais aucun site web ne s’en porte garant pour le moment. Aucun nom n’est affiché. N’importe qui peut revendiquer une adresse qu’il contrôle : la carte demande donc au payeur de confirmer le destinataire par un autre moyen.',
+      claimed: 'Un compte a montré qu’il contrôle l’adresse, mais aucun site web ne s’en porte garant pour le moment. Aucun nom n’est affiché. N’importe qui peut revendiquer une adresse qu’il contrôle : la carte demande donc au payeur de confirmer le destinataire par un autre moyen.',
       unproven: 'Personne n’a prouvé cette adresse auprès d’Almstins. Cela ne dit rien contre l’adresse. Elle est seulement non prouvée.',
     },
     disputed: 'Si deux comptes se tiennent derrière la même adresse, le scanner ne nomme aucun des deux tant que l’un ne s’est pas retiré.',
@@ -579,7 +581,7 @@ const fr: VerifyBusinessCopy = {
   },
   agent: {
     heading: 'Ce que reçoit un agent d’IA ou un système de paiement',
-    lede: 'Avant de payer, votre agent ou votre système de paiement envoie une requête à la vérification avec deux éléments : l’adresse, et le domaine de l’entreprise qu’il entend payer. Il reçoit l’une de quatre réponses. La vérification est gratuite et ne demande aucun compte pour commencer.',
+    lede: 'Avant de payer, votre agent ou votre système de paiement envoie une requête à la vérification avec deux éléments : l’adresse, et le domaine de l’entreprise qu’il entend payer. Il reçoit l’une de quatre réponses. La vérification est gratuite et ne demande aucun compte pour commencer.',
     answers: {
       proven: {
         h: 'L’entreprise que vous attendiez publie cette adresse',
@@ -645,7 +647,7 @@ const fr: VerifyBusinessCopy = {
       money: '{n} $',
       unit: '/mois',
       yearly: 'ou {price}/an',
-      items: ['{n} destinations, en combinant librement adresses de portefeuille et QR ou liens de paiement', 'Pas de vente en ligne : demandez par e-mail'],
+      items: ['{n} destinations, en combinant librement adresses de portefeuille et QR ou liens de paiement', 'Pas de vente en ligne : demandez par e-mail'],
       cta: 'Demander par e-mail',
     },
     note: 'Une destination est une adresse de portefeuille, ou un QR ou lien de paiement. Pour passer à Business ou Pro, écrivez à {email}.',
@@ -654,7 +656,7 @@ const fr: VerifyBusinessCopy = {
   closing: {
     heading: 'Votre prochaine étape',
     body: 'Une action pour chaque lecteur.',
-    shop: 'Vous encaissez en boutique ? Voir Almstins Verify pour les commerçants',
+    shop: 'Vous encaissez en boutique ? Voir Almstins Verify pour les commerçants',
   },
 };
 

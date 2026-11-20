@@ -281,6 +281,15 @@ describe("the words keep to the product's rules", () => {
 		}
 	});
 
+	it('the French copy never lets a punctuation mark wrap alone: non-breaking spaces before : ; ? ! and inside the quote marks', () => {
+		for (const s of strings(copy('fr'))) {
+			expect(s.match(/ [:;?!»]|« /)?.[0] ?? null, s).toBeNull();
+		}
+		const all = strings(copy('fr')).join(' ');
+		expect(all).toContain('«\u00a0Vérifié\u00a0»');
+		expect(all).toContain('\u00a0:');
+	});
+
 	it('no new file holds an em dash', () => {
 		for (const f of NEW_FILES) expect(read(f), f).not.toContain('—');
 	});

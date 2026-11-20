@@ -36,7 +36,7 @@ body:has(.vb-page) { background: var(--surface-bg); }
   padding: .3rem .9rem; border-radius: 999px;
 }
 .vb-hero__title {
-  margin: 0; max-width: 20ch; font-size: clamp(2rem, 4vw + .7rem, 3.1rem); font-weight: 800;
+  margin: 0; max-width: 24ch; font-size: clamp(2rem, 4vw + .7rem, 3.1rem); font-weight: 800;
   line-height: 1.1; letter-spacing: -.02em; color: var(--text-primary);
 }
 .vb-hero__sub { margin: 0; max-width: 44rem; font-size: 1.08rem; line-height: 1.7; color: var(--text-secondary); }
