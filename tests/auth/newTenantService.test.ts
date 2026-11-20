@@ -23,6 +23,9 @@ vi.mock('@/lib/db', () => {
 		if (sql.startsWith('INSERT INTO tenants') || sql.startsWith('INSERT INTO tenant_memberships')) return { rows: [], rowsAffected: 1 };
 		if (sql.startsWith('UPDATE auth_users SET active_tenant_id')) return { rows: [], rowsAffected: 1 };
 		if (sql.startsWith('INSERT INTO subscriptions')) return { rows: [], rowsAffected: 1 };
+		// The product signed up for, saved with the first tenant (tests/auth/signupServiceSaved.test.ts).
+		if (sql.startsWith('SELECT column_name FROM information_schema.columns')) return { rows: [{ column_name: 'signup_service' }, { column_name: 'last_active_on' }], rowsAffected: 0 };
+		if (sql === 'UPDATE auth_users SET signup_service = ? WHERE id = ? AND signup_service IS NULL') return { rows: [], rowsAffected: 1 };
 		throw new Error(`unexpected SQL in test: ${sql}`);
 	};
 	return { db: { execute, batch: async () => { throw new Error('batch not expected'); } } };

@@ -220,8 +220,11 @@ const DATE_STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {
 export interface DateOptions {
 	/** Default `medium`. */
 	style?: DateStyle;
-	/** `UTC` for a stored calendar day or a file; default: the reader's own zone. */
-	timeZone?: 'UTC';
+	/**
+	 * `UTC` for a stored calendar day or a file; an IANA zone (`America/Chicago`) to show that
+	 * zone's time; default: the reader's own zone. A zone the runtime does not know is ignored.
+	 */
+	timeZone?: string;
 	/** What a missing value (null, undefined, '') shows. Default `—`. */
 	empty?: string;
 	/** What an unreadable value shows. Default: the text as given (or `empty` for a non-string). */
@@ -233,6 +236,8 @@ export interface DateTimeOptions extends DateOptions {
 	seconds?: boolean;
 	/** Two-digit hours (`03:04 PM`). Default false (`3:04 PM`). */
 	padHour?: boolean;
+	/** Name the zone after the time (`3:04 PM CST`), for a screen that must say whose time it is. Default false. */
+	zoneName?: boolean;
 }
 
 /** The app language a BCP 47 locale belongs to (`es-ES`, `es-419` → `es`); English otherwise. */
@@ -265,7 +270,13 @@ function dtf(lang: Lang, key: string, opts: Intl.DateTimeFormatOptions): Intl.Da
 	const k = `${lang}|${key}|${opts.timeZone ?? ''}`;
 	let f = dateFormats.get(k);
 	if (!f) {
-		f = new Intl.DateTimeFormat(INTL_LOCALE[lang] ?? INTL_LOCALE.en, opts);
+		const locale = INTL_LOCALE[lang] ?? INTL_LOCALE.en;
+		try {
+			f = new Intl.DateTimeFormat(locale, opts);
+		} catch {
+			// A time zone the runtime does not know: the reader's own zone, since nothing here throws.
+			f = new Intl.DateTimeFormat(locale, { ...opts, timeZone: undefined });
+		}
 		dateFormats.set(k, f);
 	}
 	return f;
@@ -278,9 +289,23 @@ function notADate(value: unknown, opts: DateOptions): string {
 }
 
 function timeParts(opts: DateTimeOptions): Intl.DateTimeFormatOptions {
-	return { hour: opts.padHour ? '2-digit' : 'numeric', minute: '2-digit', ...(opts.seconds ? { second: '2-digit' } : {}) };
+	return {
+		hour: opts.padHour ? '2-digit' : 'numeric',
+		minute: '2-digit',
+		...(opts.seconds ? { second: '2-digit' } : {}),
+		...(opts.zoneName ? { timeZoneName: 'short' } : {}),
+	};
 }
-const timeKey = (opts: DateTimeOptions) => `${opts.seconds ? 's' : ''}${opts.padHour ? 'p' : ''}`;
+const timeKey = (opts: DateTimeOptions) => `${opts.seconds ? 's' : ''}${opts.padHour ? 'p' : ''}${opts.zoneName ? 'z' : ''}`;
+
+/** The reader's own IANA time zone (`America/Chicago`), or '' when the runtime does not say. */
+export function localTimeZone(): string {
+	try {
+		return new Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+	} catch {
+		return '';
+	}
+}
 
 /** A day on a screen, in the user's language (D2): `Oct 25, 2026` / `25 oct 2026` / `25 oct. 2026`. */
 export function formatDate(value: unknown, lang: Lang, opts: DateOptions = {}): string {

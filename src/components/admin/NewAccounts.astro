@@ -1,0 +1,96 @@
+---
+/**
+ * NewAccounts.astro: the New accounts list on /admin.
+ *
+ * Every account, newest first by the time it was made, with the Accounts by country count above
+ * it. Each row leads with when the account signed up and the country its last sign-in came from,
+ * then the product it signed up for, how it signs in, its last sign-in, its last active day and
+ * a few evidence tags. A tag is evidence, never a verdict: nothing here says "bot" or "customer".
+ *
+ * Rendered on the server. Nothing new is stored for the tags; they are worked out when the page
+ * loads. A failure of one check behind the tags is said under the title and the list still shows.
+ *
+ * ── Files ───────────────────────────────────────────────────────────────────
+ * Words in adminAccounts.copy.ts, presentation in adminSection.css (shared) and NewAccounts.css,
+ * the query and every rule in src/lib/adminNewAccounts.ts. Times are AdminTime.astro.
+ */
+import { NEW_ACCOUNTS_LIMIT, listNewAccounts, type EvidenceTag, type NewAccountsView } from '@/lib/adminNewAccounts';
+import { adminUtcDayText } from '@/lib/adminTime';
+import { countryName } from '@/lib/countryName';
+import { methodLabel, serviceLabelForId } from '@/lib/signupService';
+import { VERIFY_PLANS } from '@/lib/verifyPlans';
+import AccountsByCountry from './AccountsByCountry.astro';
+import AdminTime from './AdminTime.astro';
+import { NEW_ACCOUNTS_COPY as copy } from './adminAccounts.copy';
+import './adminSection.css';
+import './NewAccounts.css';
+
+let view: NewAccountsView | null = null;
+try {
+	view = await listNewAccounts();
+} catch (error) {
+	console.warn('[admin] new accounts list failed', error instanceof Error ? error.message : String(error));
+}
+
+const free = VERIFY_PLANS.free.limits;
+const tagLabel = (tag: EvidenceTag): string =>
+	copy.tags[tag.id].label.replace('{plan}', tag.plan ? VERIFY_PLANS[tag.plan].name : '');
+const tagTitle = (tag: EvidenceTag): string =>
+	copy.tags[tag.id].title.replace('{a}', String(free.address)).replace('{q}', String(free.qr));
+---
+
+<AccountsByCountry />
+
+<section class="adm-section" id="new-accounts">
+	<h2 class="adm-title">{copy.title}</h2>
+	<p class="adm-note">{copy.intro.replace('{n}', String(NEW_ACCOUNTS_LIMIT))}</p>
+	{view === null && <p class="adm-note adm-note--warn">{copy.failed}</p>}
+	{view !== null && !view.recordsKnown && <p class="adm-note adm-note--warn">{copy.recordsUnknown}</p>}
+	{view !== null && !view.verifyKnown && <p class="adm-note adm-note--warn">{copy.verifyUnknown}</p>}
+
+	{view !== null && (
+		<div class="adm-table-wrap">
+			<table class="adm-table">
+				<thead>
+					<tr>
+						<th>{copy.colSignedUp}</th>
+						<th>{copy.colCountry}</th>
+						<th>{copy.colAccount}</th>
+						<th>{copy.colProduct}</th>
+						<th>{copy.colMethods}</th>
+						<th>{copy.colLastSignIn}</th>
+						<th>{copy.colLastActive}</th>
+						<th>{copy.colEvidence}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{view.rows.map((a) => (
+						<tr>
+							<td class="nacc__when"><AdminTime value={a.createdAt} empty={copy.noSignUpTime} /></td>
+							<td>{countryName(a.lastLoginCountry)}</td>
+							<td class="adm-email">{a.email ?? <span class="adm-muted">{copy.noEmail}</span>}</td>
+							<td>{serviceLabelForId(a.signupService)}</td>
+							<td>{a.methods.map((m) => methodLabel(m)).join(', ')}</td>
+							<td><AdminTime value={a.lastLogin} empty={copy.never} /></td>
+							<td>
+								{a.lastActiveDay
+									? <time class="admin-time" datetime={a.lastActiveDay}>{adminUtcDayText(a.lastActiveDay)}</time>
+									: <span class="admin-time admin-time--empty">{copy.never}</span>}
+							</td>
+							<td>
+								<ul class="nacc__tags">
+									{a.tags.map((tag) => (
+										<li class={`nacc__tag nacc__tag--${tag.id}`} title={tagTitle(tag)}>{tagLabel(tag)}</li>
+									))}
+								</ul>
+							</td>
+						</tr>
+					))}
+					{view.rows.length === 0 && (
+						<tr><td class="adm-empty-row" colspan="8">{copy.empty}</td></tr>
+					)}
+				</tbody>
+			</table>
+		</div>
+	)}
+</section>

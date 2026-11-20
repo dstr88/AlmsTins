@@ -25,6 +25,7 @@ import { cutSignInQuery, loginPathForLang } from '../lib/authErrorRedirect';
 import { getUserLang } from '../lib/i18n/userLang';
 import { PETRO_TINS_PUBLIC } from '../lib/petroTinsAccess';
 import { isDemoMutationAllowed } from './demoMutations';
+import { noteRequestActivity } from '../lib/accountActivity';
 
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
@@ -170,6 +171,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// (e.g. from an earlier "Try the demo") so a later expired session drops to
 		// /login, never silently back into demo mode.
 		const clearDemoCookie = Boolean(userId) && isDemoRequest(request);
+
+		// The last day this account was active (src/lib/accountActivity.ts): a signed-in page or
+		// API request, at most one write per account per day, never for a demo session. Not
+		// awaited, so the request never waits for it, and it never rejects. Started here, outside
+		// the tenant context below, so it takes the owner pool like the session lookup above.
+		void noteRequestActivity({ userId, pathname, demoSession: !userId && isDemoRequest(request) });
 
 			// Per-request RLS context: the Postgres web role is constrained to this
 			// tenant's rows via app.tenant_id (set transaction-locally by the db shim).

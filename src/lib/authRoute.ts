@@ -11,7 +11,8 @@
 import { db } from './db';
 import { ensureTenantForUser, resolveActiveTenantId } from './tenants';
 import { checkSessionCut } from './sessionGate';
-import { markProvenAddressVerified } from './authLinkGuard';
+import { fillProvenAddress, markProvenAddressVerified } from './authLinkGuard';
+import { stampSignIn } from './accountActivity';
 import { getAuthSessionState, withoutSessionCookies, type AuthSessionState } from './authSession';
 import { routeSignInError } from './authErrorRedirect';
 import { clientIpKey, createFixedWindowLimiter } from './rateLimit';
@@ -91,7 +92,8 @@ type JwtParams = { token: Record<string, any>; user?: Record<string, any> | null
  *   - First sign-in (user present): carry the user's fields, record how the session was
  *     minted (`via`, the provider id: the session gate needs it to tell a password session
  *     from a Google/GitHub one on the same account), mark a just-created row's address
- *     verified when the sign-in proved it, and resolve the tenant.
+ *     verified when the sign-in proved it, resolve the tenant, and record the sign-in
+ *     (src/lib/accountActivity.ts).
  *   - Refresh (GET /api/auth/session re-signs the token with a fresh iat): re-check the
  *     session gate first, or a cut session (unverified password, revoked, deleted user)
  *     could launder itself into a new token. null clears the cookie. Fail-open on a
@@ -106,8 +108,13 @@ export async function jwtCallback({ token, user, account }: JwtParams): Promise<
 		if (user.name) token.name = String(user.name);
 		if (user.image) token.picture = String(user.image);
 		token.via = String(account?.provider ?? '');
+		// An address this sign-in proved fills an account that has none, then is marked verified.
+		await fillProvenAddress(user.id, account);
 		await markProvenAddressVerified(user.id, account);
 		token.tenantId = await ensureTenantForUser(String(user.id));
+		// Every method reaches this line with the account row in place, a first Google or GitHub
+		// sign-in and every emailed link included, so this is where a sign-in is recorded.
+		await stampSignIn(String(user.id));
 	} else if (token.sub) {
 		if (await checkSessionCut(String(token.sub), token.iat, token.via)) {
 			return null;

@@ -14,7 +14,7 @@ import { authorizeCredentials } from '@/lib/credentialsAuth';
 import { guardSignIn } from '@/lib/authLinkGuard';
 import { routeSignInError } from '@/lib/authErrorRedirect';
 import { callbackHeaders, jwtCallback, rateLimitedRedirect } from '@/lib/authRoute';
-import { callbackUrlFromRequest, formCallbackUrl, getSignInContext, noteSignInProvider, runWithSignInContext } from '@/lib/signupService';
+import { callbackUrlFromRequest, formCallbackUrl, noteSignInProvider, runWithSignInContext } from '@/lib/signupService';
 import { getClientCountry } from '@/lib/analytics/ip';
 
 const providers = [];
@@ -215,6 +215,12 @@ ON CONFLICT DO NOTHING`,
 				}
 			}
 
+			// The sign-in itself (last_login, its product and country) is NOT recorded here. Auth.js
+			// runs this callback before the adapter creates a new account, and gives every emailed
+			// link a placeholder user, so the lookup below finds no row for a first Google or GitHub
+			// sign-in or for any emailed link. The jwt callback records it instead: every method
+			// reaches it with the account row in place (src/lib/authRoute.ts, stampSignIn). An
+			// address the provider proved is written from there too (authLinkGuard.fillProvenAddress).
 			if (user?.id) {
 				const userId = String(user.id);
 				try {
@@ -223,6 +229,7 @@ ON CONFLICT DO NOTHING`,
 						args: [userId],
 					});
 					if (!exists.rows.length) {
+						// Expected for a new account and for an emailed link (see above), not a fault.
 						console.warn('[auth][signIn] user missing in auth_users', {
 							userId,
 							hasEmail: Boolean(providerEmail),
@@ -250,54 +257,9 @@ ON CONFLICT DO NOTHING`,
 					});
 					throw error;
 				}
-				// The service and country of this sign-in, for the owner's list of last logins. Its own write,
-				// so a database that does not have the two columns yet still records last_login below.
-				try {
-					const ctx = getSignInContext();
-					await db.execute({
-						sql: `UPDATE auth_users SET last_login_service = ?, last_login_country = ? WHERE id = ?`,
-						args: [ctx?.service.id ?? null, ctx?.country ?? null, userId],
-					});
-				} catch (error) {
-					console.warn('[auth][signIn] last_login service/country update failed', {
-						userId,
-						error: error instanceof Error ? error.message : String(error),
-					});
-				}
-				// Stamp last_login and backfill email if the DB record has none.
-				// Uses the raw provider profile email which is available even when the
-				// adapter user object has a stale/empty email. The address is written only
-				// when this sign-in proved it (guard.addressProven): an account must never
-				// be keyed on an address nobody proved (see authLinkGuard).
 				// The provider's name is never written: we do not store names (privacy
 				// policy v1.2, 2026-10-10; src/scripts/clearStoredSignInNames.mjs clears
 				// the ones saved before).
-				try {
-					if (providerEmail) {
-						const provenEmail = guard.addressProven ? providerEmail.trim().toLowerCase() : null;
-						await db.execute({
-							sql: `UPDATE auth_users
-								SET last_login = ?,
-								    email = CASE WHEN (email IS NULL OR email = '') THEN COALESCE(?, email) ELSE email END
-								WHERE id = ?`,
-							args: [
-								new Date().toISOString(),
-								provenEmail,
-								userId,
-							],
-						});
-					} else {
-						await db.execute({
-							sql: `UPDATE auth_users SET last_login = ? WHERE id = ?`,
-							args: [new Date().toISOString(), userId],
-						});
-					}
-				} catch (error) {
-					console.warn('[auth][signIn] last_login/email update failed', {
-						userId,
-						error: error instanceof Error ? error.message : String(error),
-					});
-				}
 			}
 			return true;
 		},

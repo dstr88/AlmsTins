@@ -1,0 +1,40 @@
+---
+/**
+ * AdminTime.astro: one time on an admin page, shown in the viewer's own time zone.
+ *
+ * The server does not know the viewer's zone, so it writes a machine-readable <time> whose text
+ * is UTC and says so. adminTime.client.ts then rewrites the text in the viewer's zone, with the
+ * zone named. Before the script runs, or without it, the time still reads correctly.
+ *
+ * Props:
+ *   value  What the database holds: an ISO time, `YYYY-MM-DD HH:MM:SS` (UTC) or a Date.
+ *   mode   `datetime` (default) for a day and a time of day, `date` for the day alone.
+ *   empty  What a missing or unreadable value shows, for example "Never". Default: nothing.
+ *
+ * A stored UTC calendar day (last_active_on) is not a time and does not go through here:
+ * shifting it to another zone would show the wrong day. See adminUtcDayText in the same lib.
+ *
+ * ── Files ───────────────────────────────────────────────────────────────────
+ * The formatting rules are in src/lib/adminTime.ts, behavior in adminTime.client.ts,
+ * presentation in AdminTime.css.
+ */
+import { adminTimeIso, adminTimeUtcText, type AdminTimeMode } from '@/lib/adminTime';
+import './AdminTime.css';
+
+interface Props {
+	value: unknown;
+	mode?: AdminTimeMode;
+	empty?: string;
+}
+
+const { value, mode = 'datetime', empty = '' } = Astro.props;
+const iso = adminTimeIso(value);
+---
+
+{iso
+	? <time class="admin-time" datetime={iso} data-admin-time={mode}>{adminTimeUtcText(value, mode)}</time>
+	: empty && <span class="admin-time admin-time--empty">{empty}</span>}
+
+<script>
+	import './adminTime.client.ts';
+</script>

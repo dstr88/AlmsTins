@@ -1,0 +1,110 @@
+/* adminSection: the shared look of a server-rendered section on /admin.
+   One file for every section built as a component (New accounts, Verify steps), so the title,
+   the note, the stat cards and the table are styled once. Each component keeps what is its own
+   in its own stylesheet.
+
+   The /admin page's own styles are scoped to its markup, so this repeats its look (uppercase
+   section title, stat cards, bordered table card) by value, the way VerifyPlans.css does. */
+
+.adm-section { margin-bottom: 2rem; }
+
+.adm-title {
+	margin: 0 0 0.35rem;
+	font-size: 0.78rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: rgba(255,255,255,0.4);
+}
+.adm-note {
+	margin: 0 0 0.85rem;
+	max-width: 62rem;
+	font-size: 0.82rem;
+	line-height: 1.5;
+	color: rgba(255,255,255,0.45);
+}
+.adm-note--warn { color: #fcd34d; }
+
+/* Stat cards. */
+.adm-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+.adm-stat {
+	background: rgba(255,255,255,0.04);
+	border: 1px solid rgba(255,255,255,0.08);
+	border-radius: 12px;
+	padding: 1.1rem 1.25rem;
+}
+.adm-stat__label {
+	font-size: 0.72rem;
+	color: rgba(255,255,255,0.4);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	margin-bottom: 0.4rem;
+}
+.adm-stat__value {
+	font-size: 2rem;
+	font-weight: 700;
+	color: #f1f5f9;
+	line-height: 1;
+}
+.adm-stat__sub {
+	font-size: 0.72rem;
+	color: rgba(255,255,255,0.35);
+	margin-top: 0.35rem;
+}
+
+/* The table card. Scrolls sideways on a narrow screen instead of clipping a column. */
+.adm-table-wrap {
+	background: rgba(255,255,255,0.03);
+	border: 1px solid rgba(255,255,255,0.07);
+	border-radius: 12px;
+	overflow-x: auto;
+}
+.adm-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.82rem;
+}
+.adm-table th {
+	text-align: left;
+	padding: 0.5rem 0.75rem;
+	color: rgba(255,255,255,0.35);
+	font-weight: 500;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	border-bottom: 1px solid rgba(255,255,255,0.07);
+	white-space: nowrap;
+}
+.adm-table td {
+	padding: 0.6rem 0.75rem;
+	border-bottom: 1px solid rgba(255,255,255,0.05);
+	color: #cbd5e1;
+	vertical-align: top;
+}
+.adm-table tr:last-child td { border-bottom: none; }
+.adm-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+.adm-table .adm-num { text-align: right; font-variant-numeric: tabular-nums; }
+.adm-table .adm-zero { opacity: 0.3; }
+.adm-table .adm-empty-row { opacity: 0.35; text-align: center; padding: 1.5rem; }
+
+.adm-email { overflow-wrap: anywhere; }
+.adm-muted { color: rgba(255,255,255,0.4); }
+
+/* The Recent users list on the page itself. */
+/* An account that signed up and never came back (src/lib/personRecords.ts). */
+.adm-abandoned {
+	border: 1.5px solid #d33;
+	border-radius: 6px;
+	padding: 1px 5px;
+}
+/* The product and country under a last sign-in. */
+.adm-sub {
+	display: block;
+	font-size: 0.78rem;
+	opacity: 0.65;
+}

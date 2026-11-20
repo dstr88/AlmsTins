@@ -3,6 +3,7 @@ import { db } from './db';
 import { sendMail } from './email';
 import { ensureFreeSubscription } from './subscriptions';
 import { getSignInContext, methodLabel } from './signupService';
+import { saveSignupService } from './accountActivity';
 import { countryName } from './countryName';
 
 const TENANT_ALERT_EMAIL = 'donnie@titaniumhut.com';
@@ -263,6 +264,8 @@ ON CONFLICT DO NOTHING`,
 					// membership may already exist — non-fatal
 				}
 				if (await tryCasActiveTenant(siblingTenantId)) {
+					// This account row's first tenant: save the product it signed up for.
+					await saveSignupService(userId);
 					return siblingTenantId;
 				}
 				const afterConflict = await readActiveTenantWithRetry();
@@ -322,6 +325,8 @@ ON CONFLICT DO NOTHING`,
 	if (await tryCasActiveTenant(tenantId)) {
 		// Provision a free subscription row for every new tenant
 		await ensureFreeSubscription(tenantId).catch(() => { /* non-fatal */ });
+		// The account's first tenant: save the product it signed up for, once (accountActivity.ts).
+		await saveSignupService(userId);
 		await sendTenantAlert(userId, tenantId);
 		return tenantId;
 	}
@@ -340,6 +345,8 @@ ON CONFLICT DO NOTHING`,
 	if (await tryCasActiveTenant(tenantId)) {
 		// Provision a free subscription row for every new tenant
 		await ensureFreeSubscription(tenantId).catch(() => { /* non-fatal */ });
+		// The account's first tenant: save the product it signed up for, once (accountActivity.ts).
+		await saveSignupService(userId);
 		await sendTenantAlert(userId, tenantId);
 		return tenantId;
 	}

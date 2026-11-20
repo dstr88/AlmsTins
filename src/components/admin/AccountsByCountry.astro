@@ -1,0 +1,44 @@
+---
+/**
+ * AccountsByCountry.astro: how many accounts last signed in from each country, on /admin.
+ *
+ * It sits above the New accounts list. The owner reads it for tax planning: which governments
+ * a paying customer might bring with them. It counts where a sign-in came from, which is an
+ * early signal and not a billing country; the words under the title say so.
+ *
+ * Rendered on the server from one query. Nothing new is stored for it.
+ *
+ * ── Files ───────────────────────────────────────────────────────────────────
+ * Words in adminAccounts.copy.ts, presentation in adminSection.css (shared) and NewAccounts.css,
+ * the query in src/lib/adminNewAccounts.ts.
+ */
+import { countAccountsByCountry, type CountryCount } from '@/lib/adminNewAccounts';
+import { countryName } from '@/lib/countryName';
+import { ACCOUNTS_BY_COUNTRY_COPY as copy } from './adminAccounts.copy';
+import './adminSection.css';
+import './NewAccounts.css';
+
+let countries: CountryCount[] | null = null;
+try {
+	countries = await countAccountsByCountry();
+} catch (error) {
+	console.warn('[admin] accounts by country failed', error instanceof Error ? error.message : String(error));
+}
+---
+
+<section class="adm-section" id="accounts-by-country">
+	<h2 class="adm-title">{copy.title}</h2>
+	<p class="adm-note">{copy.intro}</p>
+	{countries === null && <p class="adm-note adm-note--warn">{copy.failed}</p>}
+	{countries !== null && countries.length === 0 && <p class="adm-note">{copy.empty}</p>}
+	{countries !== null && countries.length > 0 && (
+		<ul class="nacc-countries">
+			{countries.map((c) => (
+				<li class="nacc-country">
+					<span class="nacc-country__name">{countryName(c.country)}</span>
+					<span class="nacc-country__count">{c.accounts.toLocaleString('en-US')}</span>
+				</li>
+			))}
+		</ul>
+	)}
+</section>

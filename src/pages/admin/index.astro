@@ -6,9 +6,14 @@ import { getGA4Summary } from '@/lib/ga4';
 import { countUniqueChecksByKind, countUniqueChecksByKindAndCountry } from '@/lib/checkLog';
 import MailboxWindows from '@/components/admin/MailboxWindows.astro';
 import VerifyPlans from '@/components/admin/VerifyPlans.astro';
+import AdminTime from '@/components/admin/AdminTime.astro';
+import NewAccounts from '@/components/admin/NewAccounts.astro';
+import VerifySteps from '@/components/admin/VerifySteps.astro';
+import '@/components/admin/adminSection.css';
 import { getAuthSession } from '@/lib/authSession';
 import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { ADMIN_ZONE_NOTE_UTC } from '@/lib/adminTime';
+import { listAbandonedAccountIds } from '@/lib/personRecords';
 import { serviceLabelForId } from '@/lib/signupService';
 import { countryName } from '@/lib/countryName';
 
@@ -188,35 +193,13 @@ const [petroVisitCount, petroAvgDuration, petroRecentVisits] = showPetroTins
 	])
 	: ([0, 0, []] as [number, number, Record<string, any>[]]);
 
-// The admin pages are English only.
-const fmt = (iso: string | null) => formatDateTime(iso, 'en');
-const fmtDate = (iso: string | null) => formatDate(iso, 'en');
+// The admin pages are English only. Every time on this page goes through AdminTime.astro: the
+// server writes it in UTC and says so, and the browser rewrites it in the viewer's own zone.
 
-// Accounts that signed up and never came back: no sign-in more than an hour after the account was
-// made, and none of the records a person makes or adds (wallets, imports, documents, receivables,
-// Verify, Agent Vault, milestone desk) and no invite they accepted. The check runs on its own, so
-// a failure only drops the red outline; it is logged, never silent.
-const PERSON_RECORD_TABLES = [
-	'wallets', 'transactions', 'import_transactions', 'exchange_accounts',
-	'transaction_screenshots', 'petro_tins', 'verify_destinations', 'verify_agent_keys', 'verify_claimed_names',
-	'agent_tins', 'receivables', 'receivable_claims', 'receivable_attestations', 'receivable_documents',
-	'cairn_projects', 'cairn_documents',
-];
-const hasPersonRecords = PERSON_RECORD_TABLES
-	.map((t) => `EXISTS (SELECT 1 FROM ${t} x WHERE x.tenant_id IN (SELECT tm2.tenant_id FROM tenant_memberships tm2 WHERE tm2.user_id = u.id))`)
-	.join(' OR ');
-let abandonedIds = new Set<string>();
-try {
-	const abandonedRows = await q(`SELECT u.id FROM auth_users u
-		WHERE u.created_at IS NOT NULL
-		  AND (u.last_login IS NULL OR u.last_login::timestamp <= u.created_at::timestamp + interval '1 hour')
-		  AND NOT (${hasPersonRecords})
-		  AND NOT EXISTS (SELECT 1 FROM receivable_invites ri WHERE ri.accepted_by = u.id)
-		  AND NOT EXISTS (SELECT 1 FROM cairn_invites ci WHERE ci.accepted_by = u.id)`);
-	abandonedIds = new Set(abandonedRows.map((r: any) => String(r.id)));
-} catch (error) {
-	console.warn('[admin] abandoned-account check failed', error instanceof Error ? error.message : String(error));
-}
+// Accounts that signed up and never came back: the red outline on the Recent users list. The
+// rule, and the records it counts, are in src/lib/personRecords.ts. The check runs on its own,
+// so a failure only drops the outline; it is logged there, never silent.
+const abandonedIds = await listAbandonedAccountIds();
 ---
 
 <!doctype html>
@@ -506,7 +489,9 @@ try {
 		<span>·</span>
 		<span>{adminEmail}</span>
 		<span>·</span>
-		<span>{now.toUTCString()}</span>
+		<AdminTime value={now} />
+		<span>·</span>
+		<span class="admin-zone" data-admin-zone>{ADMIN_ZONE_NOTE_UTC}</span>
 	</div>
 </div>
 
@@ -514,6 +499,12 @@ try {
 
 	<!-- ── Mailbox (donnie@almstins.com) — first thing on the page ────── -->
 	<MailboxWindows adminEmail={adminEmail} adminUserId={adminUserId} />
+
+	<!-- ── Who signed up: accounts by country, then the newest accounts with evidence tags ── -->
+	<NewAccounts />
+
+	<!-- ── Where Verify sign-ups stop: addresses registered, claimed and verified ── -->
+	<VerifySteps />
 
 	<!-- ── Adoption ─────────────────────────────────────────────── -->
 	<div class="section">
@@ -581,7 +572,7 @@ try {
 									: <span style="opacity:0.3">0</span>
 								}
 							</td>
-							<td style="font-size:0.78rem; opacity:0.65;">{row.last_login ? fmt(String(row.last_login)) : '—'}</td>
+							<td style="font-size:0.78rem; opacity:0.65;"><AdminTime value={row.last_login} empty="—" /></td>
 						</tr>
 					))}
 					{adoptionRows.length === 0 && (
@@ -843,7 +834,7 @@ try {
 		<!-- Recent users -->
 		<div>
 			<div class="section-title">Recent users — last login</div>
-			<p style="font-size:0.78rem; opacity:0.65; margin:4px 0 8px;">A red outline marks an account that signed up, never signed in again, and has no wallets, imports, documents or other records.</p>
+			<p class="adm-note">A red outline marks an account that signed up, never came back on a later day, and has no wallets, imports, documents or other records.</p>
 			<div class="table-wrap">
 				<table class="data-table">
 					<thead>
@@ -860,13 +851,13 @@ try {
 									<span class={`dot ${u.last_login ? 'dot-green' : 'dot-gray'}`}></span>
 									{u.email ?? '—'}
 								</td>
-								<td>{fmtDate(u.member_since)}</td>
+								<td><AdminTime value={u.member_since} mode="date" empty="—" /></td>
 								<td>
-									<span style={abandonedIds.has(String(u.id)) ? 'border:1.5px solid #d33; border-radius:6px; padding:1px 5px;' : ''}>
-										{u.last_login ? fmt(u.last_login) : <span style="opacity:0.35">Never</span>}
+									<span class:list={[{ 'adm-abandoned': abandonedIds.has(String(u.id)) }]}>
+										<AdminTime value={u.last_login} empty="Never" />
 									</span>
 									{u.last_login && (
-										<span style="display:block; font-size:0.78rem; opacity:0.65;">
+										<span class="adm-sub">
 											{serviceLabelForId(u.last_login_service)} · {countryName(u.last_login_country)}
 										</span>
 									)}
@@ -960,7 +951,7 @@ try {
 						<tbody>
 							{(petroRecentVisits as any[]).map(row => (
 								<tr>
-									<td style="font-size:0.78rem">{fmt(String(row.visited_at))}</td>
+									<td style="font-size:0.78rem"><AdminTime value={row.visited_at} empty="—" /></td>
 									<td style="text-align:right; font-variant-numeric:tabular-nums">
 										{Math.floor(Number(row.duration_s) / 60)}m {Number(row.duration_s) % 60}s
 									</td>
@@ -994,7 +985,7 @@ try {
 					<div class="inbox-card" data-id={msg.id}>
 						<div class="inbox-card-head">
 							<span class="inbox-subject">{msg.subject}</span>
-							<span class="inbox-date">{formatDate(String(msg.created_at), 'en', { invalid: 'Invalid Date' })}</span>
+							<span class="inbox-date"><AdminTime value={msg.created_at} mode="date" empty="Invalid Date" /></span>
 						</div>
 						<p class="inbox-body">{msg.body}</p>
 						<div class="inbox-actions">

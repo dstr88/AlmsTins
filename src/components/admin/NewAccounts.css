@@ -1,0 +1,61 @@
+/* NewAccounts: presentation only, for the New accounts list and the Accounts by country count.
+   Markup lives in NewAccounts.astro and AccountsByCountry.astro, words in adminAccounts.copy.ts,
+   the rules in src/lib/adminNewAccounts.ts. The title, the note and the table are in
+   adminSection.css; this file holds only what is this list's own. */
+
+/* Accounts by country: one chip per country, most accounts first. */
+.nacc-countries {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.nacc-country {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid rgba(255,255,255,0.08);
+	background: rgba(255,255,255,0.04);
+	font-size: 0.82rem;
+	color: #cbd5e1;
+}
+.nacc-country__count {
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: #f1f5f9;
+}
+
+/* The sign-up time leads the row. */
+.nacc__when { color: #f1f5f9; }
+
+/* Evidence tags. One neutral family: a tag is evidence, so none of them is colored as good or
+   bad. The plan tag alone is tinted, because it is a fact about billing, not about the person. */
+.nacc__tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.nacc__tag {
+	display: inline-block;
+	padding: 0.15rem 0.5rem;
+	border-radius: 999px;
+	border: 1px solid rgba(255,255,255,0.1);
+	background: rgba(255,255,255,0.06);
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: rgba(255,255,255,0.7);
+	white-space: nowrap;
+	cursor: help;
+}
+.nacc__tag--verify-plan {
+	border-color: rgba(99,102,241,0.4);
+	background: rgba(99,102,241,0.15);
+	color: #c7d2fe;
+}

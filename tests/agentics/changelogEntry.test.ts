@@ -92,9 +92,27 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.5', () => 
     expect(article).toContain('<time class="entry-date">November 17, 2026</time>');
     const before = page.slice(0, page.lastIndexOf('<article', start));
     expect((before.match(/&& \(<>/g) ?? []).length).toBe((before.match(/<\/>\)\}/g) ?? []).length);
-    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('<strong>Effective Date:</strong> November 17, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.5');
     expect(article).toContain('section B.5.4: Almstins Verify has a Free plan, offered at no charge');
     expect(article).toContain("The Privacy Policy's wording is unchanged");
+    const text = article.replace(/<[^>]+>/g, ' ');
+    expect(text).not.toContain('—');
+    expect(text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|holds?|held)\b/i);
+  });
+});
+
+describe('the changelog entry for Privacy Policy and User Agreement 1.6', () => {
+  const start = page.indexOf('Privacy Policy version 1.6 and User Agreement version 1.6 are in effect.');
+  const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
+
+  it('is public, dated the day the documents carry, and names the one change', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(article).toContain('<time class="entry-date">November 19, 2026</time>');
+    // It is the newest entry, and it sits outside every flag-guarded block.
+    expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
+    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('<strong>Effective Date:</strong> November 19, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.6');
+    expect(article).toContain('the country and the Almstins product of your last sign-in, the product you signed up for, and the last day you used the Service while signed in (the day only)');
+    expect(article).toContain('it lists what our admin tools show about an account');
+    expect(article).toContain("The User Agreement's wording is unchanged");
     const text = article.replace(/<[^>]+>/g, ' ');
     expect(text).not.toContain('—');
     expect(text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|holds?|held)\b/i);
