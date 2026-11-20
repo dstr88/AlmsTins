@@ -15,6 +15,7 @@
 import LoginLayout from '@/layouts/LoginLayout.astro';
 import type { PricesCopy } from '@/i18n/prices';
 import { VERIFY_PLANS } from '@/lib/verifyPlans';
+import { verifyBusinessHref } from '@/lib/verifyBusinessHref';
 
 interface Props { t: PricesCopy }
 const { t } = Astro.props;
@@ -135,6 +136,7 @@ const verifyPaid = (['business', 'pro'] as const).map((id) => {
         <a class="card__cta" href={EXCHANGE}>{t.verify.exchanges.cta}</a>
       </article>
     </div>
+    <p class="pricing__more"><a href={verifyBusinessHref(t.lang)}>{t.verify.businessLink} <span aria-hidden="true">→</span></a></p>
 
     <p class="pricing__foot">{t.foot}</p>
   </section>
@@ -158,6 +160,9 @@ const verifyPaid = (['business', 'pro'] as const).map((id) => {
   .pricing__group { font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin: 2.25rem 0 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: .5rem; }
   .pricing__sub { color: var(--text-secondary); font-size: .9rem; line-height: 1.55; margin: -.4rem 0 1rem; max-width: 70ch; }
   .pricing__sub--lead { color: var(--text-primary); font-size: .95rem; }
+  .pricing__more { margin: .25rem 0 1rem; font-size: .9rem; }
+  .pricing__more a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .pricing__more a:hover { text-decoration: underline; }
   .pricing__tag { color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; }
   .pricing__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
   .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; }
