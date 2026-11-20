@@ -3,6 +3,8 @@ import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
 import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
+import { VERIFY_SIGNIN_HREF } from '../lib/verifyCheckFirst';
+import VerifyCheckFirst from './verify/VerifyCheckFirst';
 
 interface Props {
   lang: Lang;
@@ -18,7 +20,8 @@ const canonical = `https://almstins.com${here.href}`;
 // Every Verify level lives behind the Verify login. It is titled for Verify and
 // returns the merchant to their dashboard (the general /login would land them on
 // the tracker vault). Already signed in, it forwards straight to the dashboard.
-const LOGIN_HREF = '/verify/login?next=/dashboard/verify';
+// The path is in src/lib/verifyCheckFirst.ts, shared with the "see what a payer sees" field.
+const LOGIN_HREF = VERIFY_SIGNIN_HREF;
 
 // Language-neutral integration contract shown to exchanges (code, not translated).
 // The path is a deliberately UNBRANDED well-known URI — the standard must not carry
@@ -96,6 +99,11 @@ Authorization: Bearer <your-key>
         </div>
       </div>
     </header>
+
+    <!-- Section 1a — See what a payer sees (Verify first run, Part D): a business owner checks
+         the address they ask people to pay with the public scanner's own check, before being
+         asked to sign up. Its markup, words and styles are the component's own. -->
+    <VerifyCheckFirst client:load lang={lang} t={t.checkFirst} />
 
     <!-- Section 1b — The tools: three audiences, each with its own demo, the free scan, one login -->
     <section class="vsection vtools" aria-labelledby="vtools-h">

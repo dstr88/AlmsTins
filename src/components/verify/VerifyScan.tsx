@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { decodeQrFromImageData, decodeQrFromImageFile } from '../../lib/qrScan';
-import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, type PublicVerifyCard } from '../../lib/verifyPublicCard';
-import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } from '../../i18n/verifyScan';
-import { goplusRanForAddress, goplusRanForSite } from '../../lib/goplusCredit';
-import PoweredByGoPlus from '../PoweredByGoPlus';
+import { publicVerifyCard, safetyFlagged } from '../../lib/verifyPublicCard';
+import { runScanCheck, scanValueKind, type ScanLookup, type ScanSafety } from '../../lib/verifyScanCheck';
+import { verifyScanCopy, type ScanLang, type ScanNoun } from '../../i18n/verifyScan';
+import { ScanVerifyCard, SafetyCard, safetySentence } from './ScanResultCards';
 import './VerifyScan.css';
 import { findEvmAddress } from '@/lib/addressFormats';
 
@@ -16,9 +16,12 @@ import { findEvmAddress } from '@/lib/addressFormats';
  *  2. Safety — is the address itself flagged? (scam/OFAC/honeypot, via /api/wallet-check)
  * When the safety screen flags the value, the warning leads and the Verify fact follows
  * in a neutral style. Read-only: the scanned value is checked, never stored.
+ *
+ * The check itself is src/lib/verifyScanCheck.ts and the two result cards are
+ * ./ScanResultCards.tsx, shared with the public Verify page's "see what a payer sees" field.
  */
-type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; since: string | null; source: 'entity' | 'merchant' | null; domain: string | null; provingDomain: string | null; label: string | null };
-type Safety = 'idle' | 'checking' | 'clean' | 'caution' | 'danger' | 'unclear' | 'error';
+// The result cards moved to ./ScanResultCards.tsx; they are still exported from here.
+export { ScanVerifyCard, SafetyCard };
 
 /** Pull the value to check out of a decoded QR payload: keep a URL / EMV-PIX / UPI
  *  payload intact; otherwise extract a crypto address (maybe from an ethereum:/EIP-681 URI). */
@@ -30,113 +33,14 @@ function extractScanned(payload: string): string {
     : findEvmAddress(p) ?? p.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
 }
 
-/** Renders "text with an [[accountable domain]] in it" with the term explained on hover. */
-function withTip(text: string, tip: string) {
-  const parts = splitTip(text);
-  if (!parts) return text;
-  return (
-    <>
-      {parts.before}
-      <span title={tip} style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}>
-        {parts.term}
-      </span>
-      {parts.after}
-    </>
-  );
-}
-
-/**
- * The Verify card for a finished scan. `card` comes from publicVerifyCard(); null means no
- * Verify hit. It never receives the lookup's label, so it cannot print a freeform one.
- */
-export function ScanVerifyCard({ card, noun, t }: { card: PublicVerifyCard | null; noun: ScanNoun; t: VerifyScanCopy }) {
-  if (!card) {
-    return (
-      <div className="vs__card vs__card--warn">
-        <div className="vs__verdict">⚠ {t.notVerifiedTitle}</div>
-        <p className="vs__detail">{t.notVerifiedBody[noun]}</p>
-      </div>
-    );
-  }
-  if (card.level === 'disputed') {
-    // Two accounts stand behind the value (a platform's list and a merchant's proof, or two
-    // lists). Nothing vouches for it until one withdraws: no name, no domain, no date.
-    return (
-      <div className="vs__card vs__card--warn">
-        <div className="vs__verdict">◑ {t.disputedTitle[noun]}</div>
-        <p className="vs__detail">{t.disputedBody[noun]}</p>
-        {card.afterSafety && <p className="vs__detail vs__detail--spaced">{t.flaggedNote[noun]}</p>}
-      </div>
-    );
-  }
-  if (card.level === 'verified') {
-    // Green only when the safety screen did not flag the value; otherwise neutral.
-    return (
-      <div className={`vs__card${card.tone === 'positive' ? ' vs__card--ok' : ''}`}>
-        <div className="vs__verdict">{card.tone === 'positive' ? '✓ ' : ''}{t.verifiedTitle}</div>
-        <p className="vs__detail">
-          {`${publisherText(card.publisher, { listedBy: t.listedBy[noun], listedOn: t.listedOn[noun], viaBy: t.viaBy[noun], viaOn: t.viaOn[noun] }) ?? t.verifiedNoPublisher} ${t.verifiedSwap[noun]}`}
-        </p>
-        {card.afterSafety && <p className="vs__detail" style={{ marginTop: '0.35rem' }}>{t.flaggedNote[noun]}</p>}
-        {card.since && (
-          <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>{fillTemplate(t.verifiedSince, { date: card.since })}</p>
-        )}
-      </div>
-    );
-  }
-  const claimed = (
-    <>
-      <p className="vs__detail">{withTip(t.claimedBody[noun], t.accountableDomainTip)}</p>
-      {card.afterSafety && <p className="vs__detail" style={{ marginTop: '0.35rem' }}>{t.flaggedNote[noun]}</p>}
-      {card.since && (
-        <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>{fillTemplate(t.claimedSince, { date: card.since })}</p>
-      )}
-    </>
-  );
-  if (card.tone === 'caution') {
-    // Caution-tape frame — "proceed with awareness," not a solid danger box. No name.
-    return (
-      <div style={{ borderRadius: '14px', padding: '3px', marginBottom: '0.9rem', background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)' }}>
-        <div className="vs__card" style={{ margin: 0, borderRadius: '11px', border: 'none' }}>
-          <div className="vs__verdict">◑ {t.claimedTitle[noun]}</div>
-          {claimed}
-        </div>
-      </div>
-    );
-  }
-  // Claimed, and the safety screen flagged it: neutral card after the warning. No name.
-  return (
-    <div className="vs__card">
-      <div className="vs__verdict">{t.claimedTitle[noun]}</div>
-      {claimed}
-    </div>
-  );
-}
-
-/** The safety-screen card. A clean screen carries the "no flags is not safe" note, as on the checker. */
-export function SafetyCard({ safety, text, isUrl, goplus, t }: {
-  safety: Safety; text: string; isUrl: boolean; goplus: boolean; t: VerifyScanCopy;
-}) {
-  return (
-    <div className={`vs__card ${safety === 'clean' ? 'vs__card--ok' : safety === 'danger' ? 'vs__card--err' : 'vs__card--warn'}`}>
-      <div className="vs__verdict">{t.safetyTitle}</div>
-      <p className="vs__detail">{text}</p>
-      {safety === 'clean' && (
-        <p className="vs__detail" style={{ marginTop: '0.35rem' }}>{isUrl ? t.safetyCleanNote.link : t.safetyCleanNote.address}</p>
-      )}
-      {goplus && <PoweredByGoPlus label={t.poweredByGoPlus} />}
-    </div>
-  );
-}
-
 export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initialAddress?: string; lang?: ScanLang }) {
   const t = verifyScanCopy[lang] ?? verifyScanCopy.en;
   const [value, setValue] = useState(initialAddress);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [done, setDone] = useState(false);
-  const [lookup, setLookup] = useState<Lookup | null>(null);
-  const [safety, setSafety] = useState<Safety>('idle');
+  const [lookup, setLookup] = useState<ScanLookup | null>(null);
+  const [safety, setSafety] = useState<ScanSafety>('idle');
   // True when GoPlus answered for the safety screen (credited under the card; see lib/goplusCredit.ts).
   const [goplus, setGoplus] = useState(false);
   const [isUrl, setIsUrl] = useState(false);
@@ -225,50 +129,13 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
   async function check(override?: string) {
     const q = (override ?? value).trim();
     if (!q) return;
-    const url = /^https?:\/\//i.test(q);
-    // EMV/PIX TLV or a UPI intent URI — verification is by exact match; there is no
-    // phishing/sanctions list for these, so the MATCH is the safety (no extra screen).
-    const paymentQr = /^upi:\/\//i.test(q) || /^0002\d{2}/.test(q);
-    setIsUrl(url); setIsPaymentQr(paymentQr);
-    setBusy(true); setDone(false); setLookup(null); setSafety(paymentQr ? 'idle' : 'checking'); setGoplus(false);
-    try {
-      // Safety screen: a payment LINK → phishing/site checker; a crypto ADDRESS →
-      // scam/sanctions checker; a PIX/UPI QR → none (the match itself is the safety).
-      const safetyFetch = paymentQr
-        ? Promise.resolve(null)
-        : url
-          ? fetch(`/api/dapp-check?url=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)
-          : fetch('/api/wallet-check', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: q }),
-            }).then((r) => r.json()).catch(() => null);
-      const [lk, sf] = await Promise.all([
-        fetch(`/api/verify/lookup?address=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null),
-        safetyFetch,
-      ]);
-      setLookup(
-        lk && lk.ok
-          ? { verified: !!lk.verified, level: lk.level ?? null, since: lk.since ?? null, source: lk.source ?? null, domain: lk.domain ?? null, provingDomain: lk.provingDomain ?? null, label: lk.label ?? null }
-          : { verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null },
-      );
-      if (paymentQr) {
-        setSafety('idle'); // no safety card — the match is the safety
-      } else if (url) {
-        // dapp-check returns verdict: 'red' | 'yellow' | 'green'
-        const v = sf?.verdict;
-        setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
-        setGoplus(goplusRanForSite(sf));
-      } else if (sf && sf.ok && sf.result) {
-        // Community reports count as a caution flag, as on the wallet-checker.
-        const lvl = addressSafetyVerdict(sf.result.scamLevel, sf.result.chainabuseReports);
-        setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
-        setGoplus(goplusRanForAddress(sf.result));
-      } else setSafety('error');
-    } catch {
-      setLookup({ verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null });
-      setSafety(paymentQr ? 'idle' : 'error');
-    } finally {
-      setBusy(false); setDone(true);
-    }
+    const kind = scanValueKind(q);
+    setIsUrl(kind.isUrl); setIsPaymentQr(kind.isPaymentQr);
+    setBusy(true); setDone(false); setLookup(null); setSafety(kind.isPaymentQr ? 'idle' : 'checking'); setGoplus(false);
+    // The one check (src/lib/verifyScanCheck.ts): the Verify lookup and the safety screen.
+    const res = await runScanCheck(q);
+    setLookup(res.lookup); setSafety(res.safety); setGoplus(res.goplus);
+    setBusy(false); setDone(true);
   }
 
   // Auto-check when arriving from a QR deep-link (?address=…).
@@ -302,21 +169,13 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
   }
 
   const noun: ScanNoun = isUrl ? 'link' : isPaymentQr ? 'code' : 'address';
-  const safetyText: Record<Safety, string> = {
-    idle: '', checking: t.safetyChecking,
-    clean: isUrl ? t.safetyClean.link : t.safetyClean.address,
-    caution: t.safetyCaution[noun],
-    danger: t.safetyDanger[noun],
-    unclear: t.safetyUnclear[noun],
-    error: t.safetyError,
-  };
   // What the Verify card may say, and whether the safety warning leads (it does when flagged).
   const card = done && lookup ? publicVerifyCard(lookup, safety) : null;
 
   const verifyCard = done && lookup ? <ScanVerifyCard card={card} noun={noun} t={t} /> : null;
 
   const safetyCard = done && safety !== 'idle' ? (
-    <SafetyCard safety={safety} text={safetyText[safety]} isUrl={isUrl} goplus={goplus} t={t} />
+    <SafetyCard safety={safety} text={safetySentence(safety, noun, t)} isUrl={isUrl} goplus={goplus} t={t} />
   ) : null;
   // A flagged safety verdict always leads, whatever the Verify result.
   const safetyLeads = done && safetyFlagged(safety);

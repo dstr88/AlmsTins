@@ -35,6 +35,44 @@ export interface VerifyCopy {
     sub: string;
   };
   /**
+   * "See what a payer sees": the field near the top of the page
+   * (src/components/verify/VerifyCheckFirst.tsx, Verify first run Part D). A business owner pastes
+   * the address they ask people to pay and gets the public scanner's own answer; the result
+   * cards and their words are the scanner's (src/i18n/verifyScan.ts), not repeated here.
+   *
+   * Rules for this copy: no em dashes; Almstins warns and flags, and never says it stops,
+   * blocks or protects anything; an address nobody has proven is only unproven, so nothing here
+   * calls it anything worse. `unproven` and `proveHow` come per noun (address / payment link /
+   * payment code) because es/fr agree in gender with it, as in verifyScan.ts.
+   */
+  checkFirst: {
+    title: string;
+    /** The field's label, for a screen reader. */
+    fieldLabel: string;
+    placeholder: string;
+    button: string;
+    checking: string;
+    hint: string;
+    /** Above the scanner's result cards. */
+    resultLabel: string;
+    /** es/fr: the scan page itself still shows this result in English. Empty in English. */
+    scannerLangNote: string;
+    /** The lookup gave no answer (not a complete address, too many requests, a failed request). */
+    couldNotCheck: string;
+    /** Nobody has proven the value: the line above the one action. */
+    unproven: Record<'address' | 'link' | 'code', string>;
+    proveCta: string;
+    /** What proving takes and what a payer then sees. {claimed}, {verified} and {notVerified}
+     *  are the scanner's own result titles. */
+    proveHow: Record<'address' | 'link' | 'code', string>;
+    /** {addresses} and {qr} are the Free plan's limits (src/lib/verifyPlans.ts). */
+    freePlan: string;
+    /** Shown when the safety screen flagged the value. */
+    proveFlagged: string;
+    /** Where the checked value goes if the visitor presses the action (src/lib/carriedDestination.ts). */
+    carryNote: string;
+  };
+  /**
    * "The tools": the three priced levels (in order: proven wallet, domain-verified,
    * agents), the free customer scan, and the login invitation. Hrefs are
    * language-neutral and live in VerifyPage.astro, matched by position.
@@ -88,6 +126,7 @@ const en: VerifyCopy = {
       'Verify published destinations on demand',
       'Ongoing checks of what you publish, with email alerts',
       'No custody — funds are never moved',
+      'See what a payer sees for your own address before you sign up',
     ],
   },
   nav: {
@@ -98,6 +137,31 @@ const en: VerifyCopy = {
     eyebrow: 'Free plan · No wallet connection',
     title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
     sub: "Register your receiving addresses and payment QR, prove they're yours (no wallet connection, ever), then verify any sign, invoice, or checkout against them before you rely on it. Free, always: 2 wallets and 1 QR.",
+  },
+  checkFirst: {
+    title: 'Paste the address you ask people to pay. See what a payer sees today.',
+    fieldLabel: 'The wallet address or payment link you ask people to pay',
+    placeholder: 'Wallet address or payment link',
+    button: 'Check',
+    checking: 'Checking…',
+    hint: 'Free, with no account. This is the same check the public scanner runs for anyone who is about to pay you.',
+    resultLabel: 'What a payer sees today',
+    scannerLangNote: '',
+    couldNotCheck: 'Almstins could not check this. Make sure it is a complete wallet address or payment link, then try again.',
+    unproven: {
+      address: 'Nobody has proven this address with Almstins yet. If it is yours, you can change what a payer sees.',
+      link: 'Nobody has proven this link with Almstins yet. If it is yours, you can change what a payer sees.',
+      code: 'Nobody has proven this payment code with Almstins yet. If it is yours, you can change what a payer sees.',
+    },
+    proveCta: 'Prove it’s yours, free',
+    proveHow: {
+      address: 'After you sign in, you claim it with the satoshi test (a self-send): you pay only the normal network fee, with no wallet connection and no signature. A payer then sees “{claimed}”. List it in a small file on your own website and a payer sees “{verified}”, with your domain beside it.',
+      link: 'After you sign in, you register it. A payment link has no test of its own: a payer keeps seeing “{notVerified}” until your account has proven a website domain, and today that proof starts from a wallet address.',
+      code: 'After you sign in, you register it. A payment code has no test of its own: a payer keeps seeing “{notVerified}” until your account has proven a website domain, and today that proof starts from a wallet address.',
+    },
+    freePlan: 'The Free plan holds {addresses} wallet addresses and {qr} payment QR or link.',
+    proveFlagged: 'Proving it is yours does not remove the warning above.',
+    carryNote: 'If you continue, your browser keeps what you checked, in this tab only, so it is already filled in on your first screen after you sign in. It is not put in a link, and nothing is saved to an account until you register it.',
   },
   tools: {
     heading: 'The tools',
@@ -236,6 +300,7 @@ const en: VerifyCopy = {
       { q: 'Is this actually free?', a: 'Yes. The Free plan is always free: 2 wallets and 1 payment QR. The Business and Pro plans hold more destinations; ask by email at support@almstins.com.' },
       { q: 'Do I have to connect my wallet?', a: 'No, never. Proving a wallet is yours means sending yourself a tiny amount or hosting a small file on your own site — not connecting a wallet or signing anything. Verification never asks for signing permission and can’t move a coin.' },
       { q: 'What’s the difference between the tools above and "Scan before you pay"?', a: 'The three tools above are for publishers — proving that an address, QR, or domain you control is really yours. "Scan before you pay" is the free side for the other direction: checking an address, link, or QR someone else gave you, before you send them money. No login needed for that one.' },
+      { q: 'What does the box at the top of this page check?', a: 'It runs the same free check as "Scan before you pay", on the address or payment link you ask people to pay, so you see what a payer sees today. No login needed. If nobody has proven it with Almstins, you can sign in and prove it is yours. Your browser then keeps what you checked, in that tab only, so it is already filled in on your first screen after you sign in. It is not put in a link, and nothing is saved to an account until you register it.' },
       { q: 'Can Almstins see who my customers are?', a: 'No. You check your own published addresses, never the people who pay them, and nothing here links an address or a check to a customer’s identity. When anyone runs a check, we keep one-way hashes of the address or site checked and of their IP address, plus their country, so we can count checks. Like the rest of the site, these pages use Google Analytics.' },
       { q: 'What does "verified" actually mean here?', a: 'It means you proved control of that specific address, file, or DNS record — by a tiny self-send, or by publishing something only you could publish — not that Almstins is vouching for your business. It’s your own provable record, checkable by anyone you hand it to.' },
       { q: 'Can I change my addresses later?', a: 'Yes — add, prove, or remove addresses any time from your dashboard. A check always reflects what you have registered right now, not a cached list.' },
@@ -260,6 +325,7 @@ const es: VerifyCopy = {
       'Verificar los destinos publicados a demanda',
       'Comprobaciones continuas de lo que publicas, con alertas por correo',
       'Sin custodia — nunca se mueven los fondos',
+      'Mira lo que ve quien paga con tu propia dirección antes de registrarte',
     ],
   },
   nav: {
@@ -270,6 +336,31 @@ const es: VerifyCopy = {
     eyebrow: 'Plan gratis · Sin conectar billetera',
     title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
     sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos (sin conectar nunca la billetera) y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis, siempre: 2 direcciones y 1 QR.',
+  },
+  checkFirst: {
+    title: 'Pega la dirección a la que pides que te paguen. Mira lo que ve hoy quien paga.',
+    fieldLabel: 'La dirección de billetera o el enlace de pago al que pides que te paguen',
+    placeholder: 'Dirección de billetera o enlace de pago',
+    button: 'Comprobar',
+    checking: 'Comprobando…',
+    hint: 'Gratis y sin cuenta. Es la misma comprobación que hace el escáner público para cualquiera que esté por pagarte.',
+    resultLabel: 'Lo que ve hoy quien paga',
+    scannerLangNote: 'Por ahora, el escáner público muestra este mismo resultado en inglés.',
+    couldNotCheck: 'Almstins no pudo comprobar esto. Revisa que sea una dirección de billetera o un enlace de pago completo e inténtalo de nuevo.',
+    unproven: {
+      address: 'Nadie ha demostrado esta dirección con Almstins todavía. Si es tuya, puedes cambiar lo que ve quien paga.',
+      link: 'Nadie ha demostrado este enlace con Almstins todavía. Si es tuyo, puedes cambiar lo que ve quien paga.',
+      code: 'Nadie ha demostrado este código de pago con Almstins todavía. Si es tuyo, puedes cambiar lo que ve quien paga.',
+    },
+    proveCta: 'Demuestra que te pertenece, gratis',
+    proveHow: {
+      address: 'Después de iniciar sesión, la reclamas con la prueba del satoshi (un autoenvío): solo pagas la comisión normal de la red, sin conectar la billetera y sin firmar nada. Quien paga ve entonces «{claimed}». Inclúyela en un archivo pequeño de tu propio sitio web y quien paga ve «{verified}», con tu dominio al lado.',
+      link: 'Después de iniciar sesión, lo registras. Un enlace de pago no tiene una prueba propia: quien paga sigue viendo «{notVerified}» hasta que tu cuenta haya demostrado un dominio web, y hoy esa prueba empieza con una dirección de billetera.',
+      code: 'Después de iniciar sesión, lo registras. Un código de pago no tiene una prueba propia: quien paga sigue viendo «{notVerified}» hasta que tu cuenta haya demostrado un dominio web, y hoy esa prueba empieza con una dirección de billetera.',
+    },
+    freePlan: 'El plan gratuito incluye {addresses} direcciones de billetera y {qr} QR o enlace de pago.',
+    proveFlagged: 'Demostrar que te pertenece no quita la advertencia de arriba.',
+    carryNote: 'Si continúas, tu navegador conserva lo que comprobaste, solo en esta pestaña, para que ya esté escrito en tu primera pantalla después de iniciar sesión. No se pone en ningún enlace, y nada queda en una cuenta hasta que lo registres.',
   },
   tools: {
     heading: 'Las herramientas',
@@ -408,6 +499,7 @@ const es: VerifyCopy = {
       { q: '¿Esto es realmente gratis?', a: 'Sí. El plan gratuito es siempre gratis: 2 billeteras y 1 QR de pago. Los planes Business y Pro admiten más destinos; pídelos por email a support@almstins.com.' },
       { q: '¿Tengo que conectar mi billetera?', a: 'No, nunca. Demostrar que una billetera es tuya significa enviarte un pequeño monto o alojar un pequeño archivo en tu propio sitio — no conectar una billetera ni firmar nada. La verificación nunca pide permiso de firma y no puede mover ni una moneda.' },
       { q: '¿Cuál es la diferencia entre las herramientas de arriba y "Escanea antes de pagar"?', a: 'Las tres herramientas de arriba son para quien publica — demostrar que una dirección, un QR o un dominio que controlas es realmente tuyo. "Escanea antes de pagar" es el lado gratuito para la otra dirección: comprobar una dirección, enlace o QR que alguien más te dio, antes de enviarle dinero. Ese no necesita cuenta.' },
+      { q: '¿Qué comprueba el cuadro de la parte superior de esta página?', a: 'Hace la misma comprobación gratuita que "Escanea antes de pagar", con la dirección o el enlace de pago al que pides que te paguen, para que veas lo que ve hoy quien paga. Sin iniciar sesión. Si nadie lo ha demostrado con Almstins, puedes iniciar sesión y demostrar que te pertenece. Tu navegador conserva entonces lo que comprobaste, solo en esa pestaña, para que ya esté escrito en tu primera pantalla después de iniciar sesión. No se pone en ningún enlace, y nada queda en una cuenta hasta que lo registres.' },
       { q: '¿Puede Almstins ver quiénes son mis clientes?', a: 'No. Tú compruebas tus propias direcciones publicadas, nunca a las personas que te pagan, y nada aquí vincula una dirección o una comprobación con la identidad de un cliente. Cuando alguien hace una comprobación, guardamos hashes unidireccionales de la dirección o el sitio comprobado y de su dirección IP, más su país, para poder contar las comprobaciones. Como el resto del sitio, estas páginas usan Google Analytics.' },
       { q: '¿Qué significa realmente "verificado" aquí?', a: 'Significa que demostraste tener control sobre esa dirección, archivo o registro DNS específico — con un pequeño autoenvío, o publicando algo que solo tú podrías publicar — no que Almstins responde por tu negocio. Es tu propio registro comprobable, verificable por cualquiera a quien se lo muestres.' },
       { q: '¿Puedo cambiar mis direcciones más adelante?', a: 'Sí — agrega, prueba o quita direcciones cuando quieras desde tu panel. Una comprobación siempre refleja lo que tienes registrado en este momento, no una lista guardada.' },
@@ -432,6 +524,7 @@ const fr: VerifyCopy = {
       'Vérifier les destinations publiées à la demande',
       'Vérifications continues de ce que vous publiez, avec alertes par e-mail',
       'Sans garde — les fonds ne sont jamais déplacés',
+      'Voyez ce qu’un payeur voit pour votre propre adresse avant de vous inscrire',
     ],
   },
   nav: {
@@ -442,6 +535,31 @@ const fr: VerifyCopy = {
     eyebrow: 'Plan gratuit · Sans connexion de portefeuille',
     title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
     sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous, sans jamais connecter de portefeuille, puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit, toujours : 2 adresses et 1 QR.",
+  },
+  checkFirst: {
+    title: 'Collez l’adresse à laquelle vous demandez d’être payé. Voyez ce qu’un payeur voit aujourd’hui.',
+    fieldLabel: 'L’adresse de portefeuille ou le lien de paiement auquel vous demandez d’être payé',
+    placeholder: 'Adresse de portefeuille ou lien de paiement',
+    button: 'Vérifier',
+    checking: 'Vérification…',
+    hint: 'Gratuit et sans compte. C’est la même vérification que fait le scanner public pour toute personne qui s’apprête à vous payer.',
+    resultLabel: 'Ce qu’un payeur voit aujourd’hui',
+    scannerLangNote: 'Pour l’instant, le scanner public affiche ce même résultat en anglais.',
+    couldNotCheck: 'Almstins n’a pas pu vérifier ceci. Assurez-vous qu’il s’agit d’une adresse de portefeuille ou d’un lien de paiement complet, puis réessayez.',
+    unproven: {
+      address: 'Personne n’a encore prouvé cette adresse avec Almstins. Si elle est à vous, vous pouvez changer ce qu’un payeur voit.',
+      link: 'Personne n’a encore prouvé ce lien avec Almstins. S’il est à vous, vous pouvez changer ce qu’un payeur voit.',
+      code: 'Personne n’a encore prouvé ce code de paiement avec Almstins. S’il est à vous, vous pouvez changer ce qu’un payeur voit.',
+    },
+    proveCta: 'Prouvez que c’est à vous, gratuitement',
+    proveHow: {
+      address: 'Après votre connexion, vous la revendiquez avec le test du satoshi (un auto-envoi) : vous ne payez que les frais de réseau habituels, sans connexion de portefeuille et sans signature. Un payeur voit alors « {claimed} ». Listez-la dans un petit fichier sur votre propre site web et un payeur voit « {verified} », avec votre domaine à côté.',
+      link: 'Après votre connexion, vous l’enregistrez. Un lien de paiement n’a pas de test qui lui soit propre : un payeur continue de voir « {notVerified} » tant que votre compte n’a pas prouvé un domaine web, et aujourd’hui cette preuve commence par une adresse de portefeuille.',
+      code: 'Après votre connexion, vous l’enregistrez. Un code de paiement n’a pas de test qui lui soit propre : un payeur continue de voir « {notVerified} » tant que votre compte n’a pas prouvé un domaine web, et aujourd’hui cette preuve commence par une adresse de portefeuille.',
+    },
+    freePlan: 'Le forfait gratuit comprend {addresses} adresses de portefeuille et {qr} QR ou lien de paiement.',
+    proveFlagged: 'Prouver que c’est à vous ne retire pas l’avertissement ci-dessus.',
+    carryNote: 'Si vous continuez, votre navigateur conserve ce que vous avez vérifié, dans cet onglet uniquement, afin que ce soit déjà rempli sur votre premier écran après votre connexion. Ce n’est placé dans aucun lien, et rien n’est conservé dans un compte tant que vous ne l’avez pas enregistré.',
   },
   tools: {
     heading: 'Les outils',
@@ -580,6 +698,7 @@ const fr: VerifyCopy = {
       { q: 'Est-ce vraiment gratuit ?', a: 'Oui. Le forfait gratuit est toujours gratuit : 2 portefeuilles et 1 QR de paiement. Les forfaits Business et Pro contiennent davantage de destinations ; demandez-les par e-mail à support@almstins.com.' },
       { q: 'Dois-je connecter mon portefeuille ?', a: 'Non, jamais. Prouver qu’un portefeuille est le vôtre signifie vous envoyer un petit montant ou héberger un petit fichier sur votre propre site — pas connecter un portefeuille ni rien signer. La vérification ne demande jamais de permission de signature et ne peut déplacer aucune pièce.' },
       { q: 'Quelle est la différence entre les outils ci-dessus et « Scannez avant de payer » ?', a: 'Les trois outils ci-dessus s’adressent à celui qui publie — prouver qu’une adresse, un QR ou un domaine que vous contrôlez est bien à vous. « Scannez avant de payer » est le côté gratuit pour l’autre sens : vérifier une adresse, un lien ou un QR que quelqu’un d’autre vous a donné, avant de lui envoyer de l’argent. Celui-là ne demande aucun compte.' },
+      { q: 'Que vérifie le champ en haut de cette page ?', a: 'Il fait la même vérification gratuite que « Scannez avant de payer », sur l’adresse ou le lien de paiement auquel vous demandez d’être payé, pour que vous voyiez ce qu’un payeur voit aujourd’hui. Sans connexion. Si personne ne l’a prouvé avec Almstins, vous pouvez vous connecter et prouver que c’est à vous. Votre navigateur conserve alors ce que vous avez vérifié, dans cet onglet uniquement, afin que ce soit déjà rempli sur votre premier écran après votre connexion. Ce n’est placé dans aucun lien, et rien n’est conservé dans un compte tant que vous ne l’avez pas enregistré.' },
       { q: 'Almstins peut-il voir qui sont mes clients ?', a: 'Non. Vous vérifiez vos propres adresses publiées, jamais les personnes qui vous paient, et rien ici ne relie une adresse ou une vérification à l’identité d’un client. Quand quelqu’un lance une vérification, nous conservons des hachages à sens unique de l’adresse ou du site vérifié et de son adresse IP, plus son pays, afin de compter les vérifications. Comme le reste du site, ces pages utilisent Google Analytics.' },
       { q: 'Que signifie vraiment « vérifié » ici ?', a: 'Cela signifie que vous avez prouvé le contrôle de cette adresse, ce fichier ou cet enregistrement DNS précis — par un petit auto-envoi, ou en publiant quelque chose que vous seul pouviez publier — pas qu’Almstins se porte garant de votre entreprise. C’est votre propre preuve vérifiable, consultable par quiconque à qui vous la montrez.' },
       { q: 'Puis-je modifier mes adresses plus tard ?', a: 'Oui — ajoutez, prouvez ou retirez des adresses à tout moment depuis votre tableau de bord. Une vérification reflète toujours ce que vous avez enregistré à l’instant, pas une liste mise en cache.' },

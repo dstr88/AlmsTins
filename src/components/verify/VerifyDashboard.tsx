@@ -17,6 +17,7 @@ import type { EntityConflictView } from './conflictWords';
 import type { Lang } from '@/lib/i18n/locale';
 import { isVerifyFirstRun, proveGuideFor } from '@/lib/verifyFirstRun';
 import { registerDestination } from '@/lib/verifyRegister';
+import { takeCarriedDestination } from '@/lib/carriedDestination';
 import { VerifyFirstRun } from './FirstRunCard';
 import { FirstRunSteps } from './FirstRunSteps';
 import { ProveGuide, type ProveMethod } from './ProveGuide';
@@ -159,6 +160,15 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
   }
   useEffect(() => { void load(); }, []);
 
+  // What the visitor checked on the public Verify page before signing in (Verify first run,
+  // Part D; src/lib/carriedDestination.ts). Read once and removed from the browser in the same
+  // step, whoever the account is. Only the first-run card uses it.
+  const [carried, setCarried] = useState<string | null>(null);
+  useEffect(() => {
+    const checked = takeCarriedDestination();
+    if (checked) setCarried(checked);
+  }, []);
+
   // The one rule (src/lib/verifyFirstRun.ts), asked with the count the page was rendered with
   // until the list has loaded, then with the live one.
   const firstRun = isVerifyFirstRun({
@@ -178,7 +188,7 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
     <VerifyDashboardView
       t={t} isDemo={isDemo} entitiesApproved={entitiesApproved} firstRun={firstRun}
       destinations={destinations} limits={limits} planName={planName} loading={loading} error={error}
-      firstId={firstId} proveRequest={proveRequest}
+      firstId={firstId} proveRequest={proveRequest} carried={carried}
       onChange={load} onRegisteredFirst={registeredFirst}
       onStartProof={(method) => { if (firstId) setProveRequest({ id: firstId, method, n: Date.now() }); }}
     />
@@ -192,11 +202,13 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
  */
 export function VerifyDashboardView({
   t, isDemo = false, entitiesApproved = false, firstRun, destinations, limits, planName, loading, error,
-  firstId = null, proveRequest = null, onChange, onRegisteredFirst, onStartProof,
+  firstId = null, proveRequest = null, carried = null, onChange, onRegisteredFirst, onStartProof,
 }: {
   t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean; firstRun: boolean;
   destinations: Destination[]; limits: PlanLimits; planName: string; loading: boolean; error: string | null;
   firstId?: string | null; proveRequest?: ProveRequest | null;
+  /** What the visitor checked on the public Verify page before signing in; the first-run card starts with it. */
+  carried?: string | null;
   onChange: () => void; onRegisteredFirst: (destination: Destination) => void; onStartProof: (method: ProveMethod) => void;
 }) {
   const addresses = destinations.filter(d => d.kind === 'address');
@@ -212,7 +224,7 @@ export function VerifyDashboardView({
     return (
       <div className="vd">
         {error && <div className="vd__error">{error}</div>}
-        <VerifyFirstRun t={t} limitText={limitText} onRegistered={(d) => onRegisteredFirst(d as Destination)} />
+        <VerifyFirstRun t={t} limitText={limitText} carried={carried} onRegistered={(d) => onRegisteredFirst(d as Destination)} />
       </div>
     );
   }

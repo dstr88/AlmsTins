@@ -266,6 +266,9 @@ export interface VerifyDashboardLocale {
   firstOptionAddress: string; // "{chain} …"
   firstOptionQr: string;
   firstNote: string;
+  /** Under the first-run field when it was filled in from the public Verify page (Part D). */
+  carriedNote: string;
+  carriedClear: string;
   // Right after the first registration: how to prove it (src/lib/verifyFirstRun.ts proveGuideFor).
   // A wallet address has two ordered steps, each with what it costs and what it earns.
   guideAddressTitle: string;
@@ -519,6 +522,8 @@ export const en: VerifyDashboardLocale = {
   firstOptionAddress: '{chain} address',
   firstOptionQr: 'Payment link or QR',
   firstNote: 'Read-only. Almstins never asks you to connect a wallet, sign anything or move funds.',
+  carriedNote: 'Filled in from the Verify page, where you checked it. Your browser kept it in this tab only, and that copy is now removed.',
+  carriedClear: 'Clear',
   guideAddressTitle: 'Registered. Now prove this address is yours.',
   guideClaimTitle: 'Claim it with the satoshi test (a self-send)',
   guideClaimBody: 'From your own wallet app, send a tiny, exact amount from the address back to itself. The coins stay in your wallet. No wallet connection and no signature.',
@@ -787,6 +792,8 @@ export const es: VerifyDashboardLocale = {
   firstOptionAddress: 'Dirección de {chain}',
   firstOptionQr: 'Enlace o QR de pago',
   firstNote: 'Solo lectura. Almstins nunca te pide conectar una billetera, firmar nada ni mover fondos.',
+  carriedNote: 'Lo escribimos por ti: es lo que comprobaste en la página de Verify. Tu navegador lo conservó solo en esta pestaña, y esa copia ya se borró.',
+  carriedClear: 'Borrar',
   guideAddressTitle: 'Registrada. Ahora demuestra que esta dirección es tuya.',
   guideClaimTitle: 'Reclámala con la prueba del satoshi (un autoenvío)',
   guideClaimBody: 'Desde tu propia app de billetera, envía una cantidad pequeña y exacta desde la dirección a sí misma. Las monedas se quedan en tu billetera. Sin conectar la billetera y sin firmar nada.',
@@ -1055,6 +1062,8 @@ export const fr: VerifyDashboardLocale = {
   firstOptionAddress: 'Adresse {chain}',
   firstOptionQr: 'Lien ou QR de paiement',
   firstNote: 'Lecture seule. Almstins ne vous demande jamais de connecter un portefeuille, de signer quoi que ce soit ni de déplacer des fonds.',
+  carriedNote: 'Rempli pour vous : c’est ce que vous avez vérifié sur la page Verify. Votre navigateur ne l’a conservé que dans cet onglet, et cette copie est maintenant supprimée.',
+  carriedClear: 'Effacer',
   guideAddressTitle: 'Enregistrée. Prouvez maintenant que cette adresse est à vous.',
   guideClaimTitle: 'Revendiquez-la avec le test du satoshi (un auto-envoi)',
   guideClaimBody: 'Depuis votre propre application de portefeuille, envoyez un petit montant exact de l’adresse vers elle-même. Les fonds restent dans votre portefeuille. Sans connexion de portefeuille et sans signature.',
