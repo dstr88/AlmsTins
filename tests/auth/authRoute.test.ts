@@ -19,6 +19,7 @@ const mem = vi.hoisted(() => ({
 	users: new Map<string, Record<string, any>>(),
 	token: null as Record<string, any> | null,
 	verifiedUpdates: [] as any[][],
+	stamps: [] as string[],
 }));
 
 vi.mock('@auth/core/jwt', () => ({ getToken: async () => mem.token }));
@@ -31,7 +32,14 @@ vi.mock('@/lib/db', () => {
 		const sql = String(typeof stmt === 'string' ? stmt : stmt.sql).replace(/\s+/g, ' ').trim();
 		const args = (typeof stmt === 'string' ? [] : stmt.args) ?? [];
 		if (sql.startsWith('SELECT column_name FROM information_schema.columns')) {
-			return { rows: [{ column_name: 'sessions_valid_after' }, { column_name: 'alert_email' }], rowsAffected: 0 };
+			// Every lazily added column is already there, whichever module asks.
+			const asked = [...sql.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).filter((c) => c !== 'auth_users');
+			return { rows: asked.map((column_name) => ({ column_name })), rowsAffected: 0 };
+		}
+		// The sign-in stamp (src/lib/accountActivity.ts); tests/auth/signInRecorded.test.ts holds its behavior.
+		if (/^UPDATE auth_users SET (last_login_service = \?, last_login_country = \?|last_login = \?|last_active_on = \?) WHERE id = \?/.test(sql)) {
+			mem.stamps.push(sql);
+			return { rows: [], rowsAffected: 1 };
 		}
 		if (sql.startsWith('SELECT u.email_verified, u.sessions_valid_after, EXISTS (SELECT 1 FROM auth_credentials c')) {
 			const u = mem.users.get(String(args[0]));
@@ -49,6 +57,7 @@ vi.mock('@/lib/db', () => {
 import { parseAuthAction, callbackHeaders, rateLimitedRedirect, jwtCallback, __resetAuthRouteLimitsForTests } from '../../src/lib/authRoute';
 import { getAuthSessionState } from '../../src/lib/authSession';
 import { __resetSessionGateForTests } from '../../src/lib/sessionGate';
+import { __resetAccountActivityForTests } from '../../src/lib/accountActivity';
 // Auth.js's own parser, to prove we agree with it. It is internal (not in the package's
 // exports or its public types), so it is loaded by file path.
 type AuthJsParse = (pathname: string, base: string) => { action: string; providerId?: string };
@@ -69,7 +78,9 @@ beforeEach(() => {
 	mem.users.set('u-mixed', MIXED);
 	mem.token = null;
 	mem.verifiedUpdates = [];
+	mem.stamps = [];
 	__resetSessionGateForTests();
+	__resetAccountActivityForTests();
 	__resetAuthRouteLimitsForTests();
 	process.env.AUTH_SECRET = 'test-secret-at-least-16-chars';
 	delete process.env.AUTH_URL;
@@ -211,6 +222,14 @@ describe('jwtCallback', () => {
 		expect(pw).toMatchObject({ sub: 'u-verified', email: 'v@company.dev', via: 'credentials', tenantId: 'tenant-of-u-verified' });
 		const g = await jwtCallback({ token: {}, user: { id: 'u-google' }, account: { provider: 'google', type: 'oidc' } });
 		expect(g).toMatchObject({ via: 'google' });
+	});
+
+	it('first sign-in records the sign-in; a refresh records none', async () => {
+		await jwtCallback({ token: {}, user: { id: 'u-google' }, account: { provider: 'google', type: 'oidc' } });
+		expect(mem.stamps.some((sql) => sql.startsWith('UPDATE auth_users SET last_login = ?'))).toBe(true);
+		mem.stamps = [];
+		await jwtCallback({ token: { sub: 'u-mixed', iat: 100, via: 'github', email: 'm@company.dev' } });
+		expect(mem.stamps).toEqual([]);
 	});
 
 	it('refresh: a cut session returns null (Auth.js clears the cookie); an honored one is kept', async () => {

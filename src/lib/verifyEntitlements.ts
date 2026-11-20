@@ -107,6 +107,23 @@ export function isLiveVerifySubscription(row: { status?: unknown; paid_through?:
 }
 
 /**
+ * The plan an account's subscription row means today. Owner first (no row needed); then the
+ * account's own row, when it is live; no row, or a row that is not live, is Free. Pure: the one
+ * place that turns a row into a plan, for the limits below and for the owner's admin page
+ * (src/lib/adminNewAccounts.ts).
+ */
+export function verifyPlanNameFor(
+  tenantId: string,
+  row: { plan?: unknown; status?: unknown; paid_through?: unknown } | null | undefined,
+  today: string = todayUtc(),
+): VerifyPlanName {
+  if (isOwner(tenantId)) return 'unlimited';
+  if (!row) return 'free';
+  const plan = String(row.plan);
+  return isVerifyPaidPlan(plan) && isLiveVerifySubscription(row, today) ? plan : 'free';
+}
+
+/**
  * The plan an account is on. Owner first (no row needed); then the account's own row, when it is
  * live; no row, or a row that is not live, is Free.
  */
@@ -117,10 +134,8 @@ export async function getVerifyEntitlements(tenantId: string): Promise<VerifyEnt
     sql: `SELECT plan, status, paid_through FROM verify_subscriptions WHERE tenant_id = ? LIMIT 1`,
     args: [tenantId],
   });
-  const row = r.rows[0] as Record<string, unknown> | undefined;
-  if (!row) return FREE;
-  const plan = String(row.plan);
-  return isVerifyPaidPlan(plan) && isLiveVerifySubscription(row) ? PAID[plan] : FREE;
+  const plan = verifyPlanNameFor(tenantId, r.rows[0] as Record<string, unknown> | undefined);
+  return plan === 'unlimited' ? UNLIMITED : plan === 'free' ? FREE : PAID[plan];
 }
 
 /** The cap for one kind of destination, or null for no limit. */

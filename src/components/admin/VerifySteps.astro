@@ -1,0 +1,94 @@
+---
+/**
+ * VerifySteps.astro: the Verify steps table on /admin.
+ *
+ * For each account that signed up through Verify, or holds any Verify destination: how many
+ * wallet addresses it has registered, claimed and verified, with totals above. It is how the
+ * owner sees where Verify sign-ups stop.
+ *
+ * Rendered on the server. Nothing is stored for it: the counts are read from the destinations
+ * when the page loads, with the same rule for "Verified" that a payer's check uses.
+ *
+ * ── Files ───────────────────────────────────────────────────────────────────
+ * Words in adminAccounts.copy.ts, presentation in adminSection.css (shared) and VerifySteps.css,
+ * the queries and the step rule in src/lib/adminVerifySteps.ts. Times are AdminTime.astro.
+ */
+import { listVerifySteps, type VerifyStepsView } from '@/lib/adminVerifySteps';
+import { serviceLabelForId } from '@/lib/signupService';
+import AdminTime from './AdminTime.astro';
+import { VERIFY_STEPS_COPY as copy } from './adminAccounts.copy';
+import './adminSection.css';
+import './VerifySteps.css';
+
+let view: VerifyStepsView | null = null;
+try {
+	view = await listVerifySteps();
+} catch (error) {
+	console.warn('[admin] verify steps failed', error instanceof Error ? error.message : String(error));
+}
+
+const addresses = (n: number) => (n === 1 ? copy.statAddressesOne : copy.statAddresses.replace('{n}', n.toLocaleString('en-US')));
+const stats = view
+	? [
+		{ label: copy.statAccounts, value: view.totals.accounts, sub: copy.statAccountsSub },
+		{ label: copy.statRegistered, value: view.totals.registered, sub: addresses(view.totals.addresses.registered) },
+		{ label: copy.statClaimed, value: view.totals.claimed, sub: addresses(view.totals.addresses.claimed) },
+		{ label: copy.statVerified, value: view.totals.verified, sub: addresses(view.totals.addresses.verified) },
+	]
+	: [];
+---
+
+<section class="adm-section" id="verify-steps">
+	<h2 class="adm-title">{copy.title}</h2>
+	<p class="adm-note">{copy.intro}</p>
+	{view === null && <p class="adm-note adm-note--warn">{copy.failed}</p>}
+
+	{view !== null && (
+		<div class="adm-stats">
+			{stats.map((s) => (
+				<div class="adm-stat">
+					<div class="adm-stat__label">{s.label}</div>
+					<div class="adm-stat__value">{s.value.toLocaleString('en-US')}</div>
+					<div class="adm-stat__sub">{s.sub}</div>
+				</div>
+			))}
+		</div>
+	)}
+
+	{view !== null && view.totals.accounts > view.rows.length && (
+		<p class="adm-note">{copy.shown.replace('{n}', String(view.rows.length)).replace('{total}', String(view.totals.accounts))}</p>
+	)}
+
+	{view !== null && (
+		<div class="adm-table-wrap">
+			<table class="adm-table">
+				<thead>
+					<tr>
+						<th>{copy.colAccount}</th>
+						<th>{copy.colSignedUp}</th>
+						<th>{copy.colProduct}</th>
+						<th class="adm-num">{copy.colRegistered}</th>
+						<th class="adm-num">{copy.colClaimed}</th>
+						<th class="adm-num">{copy.colVerified}</th>
+						<th class="adm-num">{copy.colQrs}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{view.rows.map((row) => (
+						<tr>
+							<td class="adm-email">{row.email ?? <span class="adm-muted">{copy.noEmail}</span>}</td>
+							<td><AdminTime value={row.createdAt} empty={copy.noSignUpTime} /></td>
+							<td>{serviceLabelForId(row.signupService)}</td>
+							{[row.counts.registered, row.counts.claimed, row.counts.verified, row.counts.qrs].map((n) => (
+								<td class:list={['adm-num', 'vsteps__count', { 'adm-zero': n === 0 }]}>{n}</td>
+							))}
+						</tr>
+					))}
+					{view.rows.length === 0 && (
+						<tr><td class="adm-empty-row" colspan="7">{copy.empty}</td></tr>
+					)}
+				</tbody>
+			</table>
+		</div>
+	)}
+</section>

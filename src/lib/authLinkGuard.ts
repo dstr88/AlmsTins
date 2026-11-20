@@ -88,8 +88,8 @@ export type GuardDeps = { fetchImpl?: FetchLike; now?: () => number };
  * allow: true  -> continue. providerLinked: this provider account is already linked to a
  *                 user, so Auth.js signs in as that user and the caller must NOT link by
  *                 email. addressProven: this sign-in proved the address (the provider
- *                 verified it, or the magic link was redeemed); only then may the caller
- *                 write the address onto an account (the signIn callback's email backfill).
+ *                 verified it, or the magic link was redeemed); only then may the address
+ *                 be written onto an account (fillProvenAddress, from the jwt callback).
  * allow: false -> refuse; redirect (a same-origin path) when there is something to say.
  */
 export type GuardDecision =
@@ -329,6 +329,32 @@ export async function guardSignIn(params: SignInParams, deps: GuardDeps = {}): P
 		});
 	}
 	return ALLOW(linkedAny, true);
+}
+
+/**
+ * Give the signed-in user the address this sign-in's provider verified, when the account has
+ * none (accounts created before GitHub shared private emails). An address is written onto an
+ * account only here, and only one the provider proved in this very sign-in: an account must
+ * never be keyed on an address nobody proved. An account that already has an address keeps it.
+ *
+ * Call from the jwt callback's first-sign-in branch, before markProvenAddressVerified (which
+ * marks the address verified and then forgets the sign-in). Best-effort: a failure leaves the
+ * account without an address, and the next proven sign-in fills it.
+ */
+export async function fillProvenAddress(userId: unknown, account: unknown): Promise<void> {
+	if (!userId || !account || typeof account !== 'object') return;
+	const address = provenSignIns.get(account);
+	if (!address) return;
+	try {
+		await db.execute({
+			sql: `UPDATE auth_users SET email = ? WHERE id = ? AND (email IS NULL OR email = '')`,
+			args: [address, String(userId)],
+		});
+	} catch (err) {
+		console.warn('[authLinkGuard] could not fill in the proven address', {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
 }
 
 /**

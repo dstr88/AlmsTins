@@ -1,0 +1,12 @@
+/* AdminTime: presentation only.
+   Markup lives in AdminTime.astro, behavior in adminTime.client.ts, the formatting rules in
+   src/lib/adminTime.ts. */
+
+/* Tabular figures, so a column of times lines up. */
+.admin-time { font-variant-numeric: tabular-nums; }
+
+/* A missing time ("Never"). */
+.admin-time--empty { opacity: 0.35; }
+
+/* The line that names the zone the page's times are shown in. */
+.admin-zone { white-space: nowrap; }

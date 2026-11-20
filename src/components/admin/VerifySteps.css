@@ -1,0 +1,7 @@
+/* VerifySteps: presentation only, for the Verify steps table.
+   Markup lives in VerifySteps.astro, words in adminAccounts.copy.ts, the rules in
+   src/lib/adminVerifySteps.ts. The title, the note, the stat cards and the table are in
+   adminSection.css; this file holds only what is this table's own. */
+
+/* A step an account has reached stands out; a zero is dimmed by adminSection.css. */
+.vsteps__count { font-weight: 600; color: #f1f5f9; }

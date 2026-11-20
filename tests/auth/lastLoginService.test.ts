@@ -42,18 +42,22 @@ describe('the sign-in context carries the country', () => {
 
 describe('the sign-in stamp', () => {
 	const route = read('src/pages/api/auth/[...auth].ts');
+	// The stamp moved out of the route's signIn callback, which runs before a new account exists
+	// and never sees an emailed link's real account. tests/auth/signInRecorded.test.ts holds the
+	// behavior; this holds the two statements.
+	const stamp = read('src/lib/accountActivity.ts');
 
 	it('writes the product and country in its own statement', () => {
-		expect(route).toContain('UPDATE auth_users SET last_login_service = ?, last_login_country = ? WHERE id = ?');
-		expect(route).toContain('getSignInContext()');
+		expect(stamp).toContain('UPDATE auth_users SET last_login_service = ?, last_login_country = ? WHERE id = ?');
+		expect(stamp).toContain('getSignInContext()');
 	});
 
 	it('is separate from the last_login write, so a missing column does not stop last_login', () => {
-		const service = route.indexOf('last_login_service = ?');
-		const lastLoginOnly = route.indexOf('UPDATE auth_users SET last_login = ? WHERE id = ?');
+		const service = stamp.indexOf('last_login_service = ?');
+		const lastLoginOnly = stamp.indexOf('UPDATE auth_users SET last_login = ? WHERE id = ?');
 		expect(service).toBeGreaterThan(-1);
 		expect(lastLoginOnly).toBeGreaterThan(-1);
-		expect(route.slice(service, lastLoginOnly)).toContain('} catch (error) {');
+		expect(stamp.slice(service, lastLoginOnly)).toContain('} catch (error) {');
 	});
 
 	it('both sign-in handlers pass the request country into the context', () => {
@@ -93,12 +97,14 @@ describe('the account menu', () => {
 });
 
 describe('the abandoned-account outline', () => {
-	const admin = read('src/pages/admin/index.astro');
+	// The rule moved to src/lib/personRecords.ts (the New accounts list reads the same records);
+	// tests/admin/abandonedAccounts.test.ts holds it in full.
+	const rule = read('src/lib/personRecords.ts');
 	it('marks an account that never came back, with the records a person makes, and logs a failed check', () => {
-		expect(admin).toContain("'wallets', 'transactions', 'import_transactions'");
-		expect(admin).toContain("'receivables', 'receivable_claims', 'receivable_attestations', 'receivable_documents'");
-		expect(admin).toContain("u.last_login::timestamp <= u.created_at::timestamp + interval '1 hour'");
-		expect(admin).toContain("console.warn('[admin] abandoned-account check failed'");
-		expect(admin).toContain("border:1.5px solid #d33");
+		expect(rule).toContain("'wallets', 'transactions', 'import_transactions'");
+		expect(rule).toContain("'receivables', 'receivable_claims', 'receivable_attestations', 'receivable_documents'");
+		expect(rule).toContain("u.last_login::timestamp <= u.created_at::timestamp + interval '1 hour'");
+		expect(rule).toContain("console.warn('[admin] abandoned-account check failed'");
+		expect(read('src/components/admin/adminSection.css')).toContain('border: 1.5px solid #d33');
 	});
 });
