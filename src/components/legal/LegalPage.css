@@ -1,0 +1,9 @@
+/* LegalPage.css: presentation only. Markup lives in LegalPage.astro. */
+.legal-page { max-width: 48rem; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+.legal-page__top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.legal-page__home { font-weight: 700; font-size: 1rem; color: var(--text-primary); text-decoration: none; }
+.legal-page__home:hover { color: var(--accent); }
+.legal-page__langs { display: flex; gap: .25rem; }
+.legal-page__lang { font-size: .8rem; font-weight: 600; padding: .2rem .5rem; border-radius: 6px; color: var(--text-muted); text-decoration: none; }
+.legal-page__lang:hover { color: var(--text-primary); }
+.legal-page__lang[aria-current='true'] { color: var(--accent); background: var(--accent-soft); }

@@ -2,11 +2,11 @@
 // One line under a sign-in form, where a first sign-in creates the account:
 //   "By continuing, you agree to the User Agreement. The Privacy Policy explains what we keep and why."
 // The words are in src/i18n/loginPage.ts (signin.agreement, EN/ES/FR); the two addresses are in
-// src/lib/legalLinks.ts. variant "links" shows only the two links, for a page where no account is
+// src/lib/legalLinks.ts, in the same language as the line. variant "links" shows only the two links, for a page where no account is
 // created (the public scanner).
 import './SigninAgreement.css';
 import { en, es, fr, type LoginPageLocale } from '@/i18n/loginPage';
-import { PRIVACY_HREF, TERMS_HREF } from '@/lib/legalLinks';
+import { legalHref } from '@/lib/legalLinks';
 
 interface Props {
   lang?: LoginPageLocale['lang'];
@@ -16,9 +16,11 @@ const { lang = 'en', variant = 'line' } = Astro.props;
 const a = ({ en, es, fr } as Record<LoginPageLocale['lang'], LoginPageLocale>)[lang].signin.agreement;
 const [before, rest] = a.line.split('{terms}');
 const [middle, after] = rest.split('{privacy}');
+const termsHref = legalHref('terms', lang);
+const privacyHref = legalHref('privacy', lang);
 ---
 {variant === 'links' ? (
-  <p class="signin-agreement signin-agreement--links"><a href={TERMS_HREF}>{a.terms}</a> · <a href={PRIVACY_HREF}>{a.privacy}</a></p>
+  <p class="signin-agreement signin-agreement--links"><a href={termsHref}>{a.terms}</a> · <a href={privacyHref}>{a.privacy}</a></p>
 ) : (
-  <p class="signin-agreement">{before}<a href={TERMS_HREF}>{a.terms}</a>{middle}<a href={PRIVACY_HREF}>{a.privacy}</a>{after}</p>
+  <p class="signin-agreement">{before}<a href={termsHref}>{a.terms}</a>{middle}<a href={privacyHref}>{a.privacy}</a>{after}</p>
 )}

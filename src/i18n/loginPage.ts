@@ -379,7 +379,7 @@ export const fr: LoginPageLocale = {
     passwordLabel: 'Mot de passe',
     signInEmail: 'Se connecter par email',
     sendMagicLink: 'Envoyer un lien magique',
-    agreement: { line: 'En continuant, vous acceptez l’{terms}. La {privacy} explique ce que nous conservons et pourquoi.', terms: 'Accord d’utilisation', privacy: 'Politique de confidentialité' },
+    agreement: { line: 'En continuant, vous acceptez l’{terms}. La {privacy} explique ce que nous conservons et pourquoi.', terms: 'Accord d’utilisateur', privacy: 'Politique de confidentialité' },
   },
   hero: {
     wordmarkAriaLabel: 'Accueil Almstins',

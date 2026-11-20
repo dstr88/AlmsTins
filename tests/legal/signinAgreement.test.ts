@@ -37,12 +37,8 @@ describe('the User Agreement page', () => {
 		expect(sitemapFilter(`https://almstins.com${TERMS_HREF}/`)).toBe(true);
 	});
 
-	it('renders the same Agreement as the footer pop-up, with a title free of em dashes', () => {
-		const page = read('src/pages/terms.astro');
-		expect(page).toContain('import TermsOfService from "../components/terms-of-service.astro";');
-		expect(page).toContain('<TermsOfService variant="modal" lang="en" />');
-		expect(page).toMatch(/<Layout title="User Agreement \| Almstins">/);
-		expect(page).not.toMatch(/<style/);
+	it('is the shared legal page for the Agreement in English (tests/legal/legalPages.test.ts covers the rest)', () => {
+		expect(read('src/pages/terms.astro')).toContain('<LegalPage doc="terms" lang="en" />');
 	});
 });
 
@@ -65,10 +61,12 @@ describe('the agreement line', () => {
 		expect(en.signin.agreement.line).toBe('By continuing, you agree to the {terms}. The {privacy} explains what we keep and why.');
 	});
 
-	it('links the two public pages from one place', () => {
+	it('links the two public pages, in the line\'s own language, from one place', () => {
 		const c = read('src/components/SigninAgreement.astro');
-		expect(c).toContain('href={TERMS_HREF}');
-		expect(c).toContain('href={PRIVACY_HREF}');
+		expect(c).toContain("const termsHref = legalHref('terms', lang);");
+		expect(c).toContain("const privacyHref = legalHref('privacy', lang);");
+		expect(c).toContain('href={termsHref}');
+		expect(c).toContain('href={privacyHref}');
 		expect(c).toContain("import './SigninAgreement.css';");
 		expect(c).not.toMatch(/<style|style=/);
 	});
