@@ -3,7 +3,8 @@
  *
  * Hermetic: no Postgres, no network. It parses the small SQL subset the registry uses
  * (CREATE TABLE / CREATE INDEX / ALTER TABLE ADD COLUMN, INSERT [ON CONFLICT], UPDATE, DELETE,
- * and single-table or one-[LEFT] JOIN SELECTs with AND / OR / IS NULL / LIKE / IN (?, ...) and a
+ * and single-table or one-[LEFT] JOIN SELECTs with AND / OR / IS NULL / LIKE / IN (?, ...), a
+ * comparison on substr(col, <start>, <length>) (the drip engine's "day of a stored timestamp") and a
  * correlated EXISTS (SELECT 1 FROM t c WHERE ...) in WHERE and ON, select items that are columns,
  * COALESCE(a, b, ...) AS x or a parenthesized comparison or EXISTS ((a = ?) AS x,
  * (EXISTS (...)) AS x) or a correlated sum ((SELECT COALESCE(SUM(c.col), 0) FROM t c WHERE ...)
@@ -121,7 +122,12 @@ function tokenize(s: string): Tok[] {
 	return out;
 }
 
-type Operand = { kind: 'col'; name: string } | { kind: 'param'; index: number } | { kind: 'lit'; value: unknown };
+type Operand =
+	| { kind: 'col'; name: string }
+	| { kind: 'param'; index: number }
+	| { kind: 'lit'; value: unknown }
+	/** substr(<operand>, <start>, <length>), 1-based like Postgres; NULL in, NULL out. */
+	| { kind: 'substr'; of: Operand; start: number; length: number };
 type Expr =
 	| { kind: 'and' | 'or'; left: Expr; right: Expr }
 	| { kind: 'cmp'; op: string; left: Operand; right: Operand }
@@ -242,6 +248,17 @@ class ExprParser {
 			if (u === 'NULL') return { kind: 'lit', value: null };
 			if (u === 'TRUE') return { kind: 'lit', value: true };
 			if (u === 'FALSE') return { kind: 'lit', value: false };
+			if (u === 'SUBSTR' && this.toks[this.pos]?.v === '(') {
+				this.pos++;
+				const of = this.operand();
+				this.expect(',');
+				const start = this.toks[this.pos++];
+				this.expect(',');
+				const length = this.toks[this.pos++];
+				this.expect(')');
+				if (start?.t !== 'num' || length?.t !== 'num') throw new Error('fake db: substr takes a literal start and length');
+				return { kind: 'substr', of, start: Number(start.v), length: Number(length.v) };
+			}
 			return { kind: 'col', name: t.v };
 		}
 		throw new Error(`fake db: unsupported operand ${t.v}`);
@@ -250,7 +267,10 @@ class ExprParser {
 
 /** The columns an expression names, outside any EXISTS (see existsNodes). */
 function exprColumns(e: Expr, out: string[] = []): string[] {
-	const op = (o: Operand) => { if (o.kind === 'col') out.push(o.name); };
+	const op = (o: Operand) => {
+		if (o.kind === 'col') out.push(o.name);
+		else if (o.kind === 'substr') op(o.of);
+	};
 	switch (e.kind) {
 		case 'and': case 'or': exprColumns(e.left, out); exprColumns(e.right, out); break;
 		case 'not': exprColumns(e.inner, out); break;
@@ -305,7 +325,15 @@ function likeRegex(pattern: string): RegExp {
 }
 
 function evalExpr(e: Expr, get: (col: string) => unknown, args: unknown[], env?: Env): boolean {
-	const val = (o: Operand): unknown => (o.kind === 'col' ? get(o.name) : o.kind === 'param' ? args[o.index] : o.value);
+	const val = (o: Operand): unknown => {
+		if (o.kind === 'col') return get(o.name);
+		if (o.kind === 'param') return args[o.index];
+		if (o.kind === 'substr') {
+			const v = val(o.of);
+			return v == null ? null : String(v).slice(o.start - 1, o.start - 1 + o.length);
+		}
+		return o.value;
+	};
 	switch (e.kind) {
 		case 'and': return evalExpr(e.left, get, args, env) && evalExpr(e.right, get, args, env);
 		case 'or': return evalExpr(e.left, get, args, env) || evalExpr(e.right, get, args, env);
