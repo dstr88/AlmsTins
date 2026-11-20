@@ -1,0 +1,74 @@
+/* VerifyCheckFirst.css: presentation only.
+   The "see what a payer sees" field near the top of the public Verify page
+   (VerifyCheckFirst.tsx). The result cards inside it are the scanner's own
+   (ScanResultCards.css). Colors come from src/styles/tokens.css; the two buttons follow the
+   page's rounded-rect accent button. */
+
+.vcf {
+  margin: 0 0 3.25rem; padding: 1.6rem 1.5rem; border-radius: 18px;
+  background: var(--surface-card); border: 1px solid var(--border-bright);
+}
+.vcf__title {
+  margin: 0 0 1rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25;
+  font-size: clamp(1.25rem, 2.4vw, 1.6rem); color: var(--text-primary);
+}
+
+/* Text for a screen reader only (the field's label). */
+.vcf__sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+.vcf__row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.vcf__value {
+  flex: 1 1 16rem; min-width: 0; padding: 0.75rem 0.85rem; box-sizing: border-box;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 1rem;
+  background: var(--surface-bg); border: 1px solid var(--border-bright); border-radius: 10px;
+  color: var(--text-primary); outline: none;
+}
+.vcf__value:focus { border-color: var(--accent); }
+.vcf__value::placeholder { color: var(--text-muted); font-size: 0.92rem; }
+/* Empty, the field reads in the page's own font; a pasted address reads in the monospace above. */
+.vcf__value:placeholder-shown { font-family: inherit; text-overflow: ellipsis; }
+
+.vcf__btn, .vcf__prove {
+  font-family: inherit; font-weight: 700; cursor: pointer; text-decoration: none;
+  background: var(--accent); color: var(--surface-bg); border: 1px solid var(--accent);
+  transition: filter 0.15s ease;
+}
+.vcf__btn { font-size: 1rem; padding: 0.75rem 1.5rem; border-radius: 10px; }
+.vcf__btn:hover:not(:disabled), .vcf__prove:hover { filter: brightness(1.08); }
+.vcf__btn:disabled { opacity: 0.6; cursor: default; }
+
+.vcf__hint { margin: 0.7rem 0 0; font-size: 0.85rem; line-height: 1.55; color: var(--text-muted); }
+
+/* ── The answer ──────────────────────────────────────────────────────────────── */
+.vcf__result { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border-subtle); }
+.vcf__seen {
+  margin: 0 0 0.7rem; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--accent);
+}
+.vcf__could-not { margin: 0; font-size: 0.95rem; line-height: 1.55; color: var(--text-secondary); }
+.vcf__lang-note { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--text-muted); }
+
+/* ── The one action, for a value nobody has proven ───────────────────────────── */
+.vcf__next {
+  margin-top: 1.1rem; padding: 1.2rem 1.25rem; border-radius: 14px;
+  background: var(--accent-soft); border: 1px solid var(--accent-glow);
+}
+.vcf__next-lead { margin: 0 0 0.9rem; font-size: 1rem; font-weight: 600; line-height: 1.5; color: var(--text-primary); }
+.vcf__prove {
+  display: inline-block; font-size: 1rem; padding: 0.8rem 1.5rem; border-radius: 0.75rem;
+  box-shadow: 0 6px 22px var(--accent-glow);
+}
+.vcf__next-how { margin: 0.9rem 0 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); }
+.vcf__next-how + .vcf__next-how { margin-top: 0.45rem; }
+.vcf__next-carry { margin: 0.7rem 0 0; font-size: 0.82rem; line-height: 1.55; color: var(--text-muted); }
+
+/* A phone: the buttons take the full width. */
+@media (max-width: 480px) {
+  .vcf { padding: 1.3rem 1rem; }
+  .vcf__value { flex-basis: 100%; }
+  .vcf__btn, .vcf__prove { width: 100%; box-sizing: border-box; text-align: center; }
+  .vcf__next { padding: 1rem; }
+}

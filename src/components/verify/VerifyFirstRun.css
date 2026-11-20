@@ -64,6 +64,16 @@
 /* The dashboard's Register button, at the size of the one thing to do on this screen. */
 .vfr-card__btn { font-size: 1rem; padding: 0.75rem 1.5rem; border-radius: 10px; }
 
+/* The line under a field filled in from the public Verify page, with its Clear button (Part D). */
+.vfr-card__carried {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem;
+  margin: 0.7rem 0 0; font-size: 0.86rem; line-height: 1.5; color: var(--text-secondary);
+}
+.vfr-card__carried-clear {
+  font-family: inherit; font-size: 0.86rem; font-weight: 700; padding: 0; cursor: pointer;
+  background: none; border: none; color: var(--accent); text-decoration: underline;
+}
+
 .vfr-card__read { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.7rem; }
 .vfr-card__readout { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--text-primary); }
 .vfr-card__choice {

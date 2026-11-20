@@ -16,6 +16,8 @@
  * The credit shows wherever GoPlus-derived results reach a person:
  *   - the public wallet / site checker (/wallet-checker, /es, /fr)
  *   - the public scan page (/verify/scan)
+ *   - the "see what a payer sees" field on the public Verify page (/verify, /verify/es, /verify/fr),
+ *     which shows the scan page's own safety card
  *   - the safety screen in the Verify dashboard (/dashboard/verify)
  * It is shown next to a result only when GoPlus actually answered for that check, so it never
  * sits beside a result that did not come from GoPlus. The wording is a brand credit that mirrors

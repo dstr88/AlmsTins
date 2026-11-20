@@ -26,9 +26,9 @@ import { VAULT_CHAINS } from '../../src/lib/agentVault/addresses';
 const LANGS = ['en', 'es', 'fr'] as const;
 type Lang = (typeof LANGS)[number];
 
-/** The version both documents carry, and the day it took effect, as each language writes it (v1.7, Nov 19, 2026: the Verify welcome emails and personal notes; v1.6, Nov 19, 2026: what else is kept about an account and what the admin tools show; v1.5, Nov 17, 2026: Verify's Free plan and paid plans in B.5; v1.4, Nov 6, 2026: the unmatched-payment email). */
-const VERSION = '1.7';
-const EFFECTIVE: Record<Lang, string> = { en: 'November 19, 2026', es: '19 de noviembre de 2026', fr: '19 novembre 2026' };
+/** The version both documents carry, and the day it took effect, as each language writes it (v1.8, Nov 20, 2026: an address checked on the Verify page, kept in the browser; v1.7, Nov 19, 2026: the Verify welcome emails and personal notes; v1.6, Nov 19, 2026: what else is kept about an account and what the admin tools show; v1.5, Nov 17, 2026: Verify's Free plan and paid plans in B.5; v1.4, Nov 6, 2026: the unmatched-payment email). */
+const VERSION = '1.8';
+const EFFECTIVE: Record<Lang, string> = { en: 'November 20, 2026', es: '20 de noviembre de 2026', fr: '20 novembre 2026' };
 
 const policyBodies: Record<Lang, string> = { en: policy.en.body, es: policy.es.body, fr: policy.fr.body };
 const termsBodies: Record<Lang, string> = { en: terms.en.body, es: terms.es.body, fr: terms.fr.body };

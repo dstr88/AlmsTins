@@ -20,6 +20,12 @@ import './VerifyFirstRun.css';
  * select appears only when the field cannot settle it (a 0x address fits three networks). The
  * registration is the dashboard's own (src/lib/verifyRegister.ts), with the same refusals.
  *
+ * A visitor who checked their address on the public Verify page before signing in finds it
+ * already in the field (Verify first run, Part D). The dashboard hands it over as `carried`,
+ * read once from the browser and already removed from it (src/lib/carriedDestination.ts). It is
+ * ordinary text in the field: the card reads it like anything pasted, and registers nothing
+ * until the button is pressed.
+ *
  * Presentation only: the words are the dashboard locale's, the look is VerifyFirstRun.css, and
  * the button and the refusal line reuse the dashboard's own classes (VerifyDashboard.css).
  */
@@ -39,14 +45,16 @@ export function inputReadout(input: DestinationInput, t: VerifyDashboardLocale):
   }
 }
 
-export function FirstRunCard({ t, limitText, onRegistered }: {
+export function FirstRunCard({ t, limitText, onRegistered, carried = null }: {
   t: VerifyDashboardLocale;
   /** The plan-limit sentence for a kind (the dashboard words it for the account's plan). */
   limitText: (kind: 'address' | 'qr') => string;
   /** The destination the server stored, as POST /api/verify/destinations returned it. */
   onRegistered: (destination: unknown) => void;
+  /** What the visitor checked on the public Verify page before signing in, or null. */
+  carried?: string | null;
 }) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(carried ?? '');
   const [choice, setChoice] = useState<InputChoice>('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -95,6 +103,19 @@ export function FirstRunCard({ t, limitText, onRegistered }: {
             {busy ? t.addingBtn : t.registerBtn}
           </button>
         </div>
+        {/* Says where the text came from, for as long as the field still holds it untouched. */}
+        {carried && value === carried && (
+          <p className="vfr-card__carried">
+            <span>{t.carriedNote}</span>
+            <button
+              type="button"
+              className="vfr-card__carried-clear"
+              onClick={() => { setValue(''); setChoice(''); setErr(null); }}
+            >
+              {t.carriedClear}
+            </button>
+          </p>
+        )}
         {readout && (
           <div className="vfr-card__read">
             <p className="vfr-card__readout" role="status">{readout}</p>
@@ -122,16 +143,19 @@ export function FirstRunCard({ t, limitText, onRegistered }: {
 }
 
 /** The whole first-run screen: the product's name, the three steps, the card. */
-export function VerifyFirstRun({ t, limitText, onRegistered }: {
+export function VerifyFirstRun({ t, limitText, onRegistered, carried = null }: {
   t: VerifyDashboardLocale;
   limitText: (kind: 'address' | 'qr') => string;
   onRegistered: (destination: unknown) => void;
+  /** What the visitor checked on the public Verify page before signing in, or null. */
+  carried?: string | null;
 }) {
   return (
     <div className="vfr">
       <p className="vfr__kicker">{t.heroKicker}</p>
       <FirstRunSteps t={t} current="register" />
-      <FirstRunCard t={t} limitText={limitText} onRegistered={onRegistered} />
+      {/* Keyed on the carried text: it arrives just after the first paint, and the card starts over with it. */}
+      <FirstRunCard key={carried ?? ''} t={t} limitText={limitText} onRegistered={onRegistered} carried={carried} />
     </div>
   );
 }

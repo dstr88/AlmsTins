@@ -1,0 +1,26 @@
+/* ScanResultCards.css: presentation only.
+   The public scanner's two result cards (ScanResultCards.tsx), wherever they are shown:
+   /verify/scan and the "see what a payer sees" field on the public Verify page.
+   All colors via the design tokens in src/styles/tokens.css. */
+
+.vs__card { border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 0.9rem; border: 1px solid var(--border-subtle); background: var(--surface-card); }
+.vs__card--ok { background: var(--gain-bg); border-color: var(--gain-border); }
+.vs__card--warn { background: var(--accent-soft); border-color: var(--accent-glow); }
+.vs__card--err { background: var(--loss-bg); border-color: var(--loss-border); }
+.vs__verdict { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.25rem; color: var(--text-primary); }
+.vs__card--ok .vs__verdict { color: var(--gain); }
+.vs__card--err .vs__verdict { color: var(--loss); }
+.vs__detail { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.55; margin: 0; }
+.vs__detail--spaced { margin-top: 0.35rem; }
+/* "Claimed since" and "Verified since": quieter than the sentence above them. */
+.vs__detail--since { opacity: 0.75; }
+
+/* A term explained on hover (the Claimed card's "accountable domain"). */
+.vs__tip { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
+
+/* Caution-tape frame around a Claimed card: "proceed with awareness", not a solid danger box. */
+.vs__tape {
+  border-radius: 14px; padding: 3px; margin-bottom: 0.9rem;
+  background: repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px);
+}
+.vs__card--taped { margin: 0; border-radius: 11px; border: none; }

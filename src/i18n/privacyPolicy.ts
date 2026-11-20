@@ -1,10 +1,14 @@
 // Privacy Policy — footer-modal content, all user-visible copy (EN · ES · FR).
 //
-// Operative Privacy Policy v1.7, effective 2026-11-19. v1.7 describes the Verify welcome emails (Sections 4, 5 and 10): an
+// Operative Privacy Policy v1.8, effective 2026-11-20. v1.8 adds one item to Section 9 (what is kept in the browser): an
+// address or payment link a visitor checked in the field on the public Verify page, kept in that tab's session storage
+// when they press "Prove it's yours, free", so the first screen after sign-in can fill it in (src/lib/carriedDestination.ts;
+// Verify first run, Part D). It is never in a web address, keeping it sends nothing to our servers, and it is removed when read.
+// Earlier: v1.7, effective 2026-11-19, describes the Verify welcome emails (Sections 4, 5 and 10): an
 // account that signed up through Almstins Verify gets two emails about proving its first address, in place of the
 // getting-started series, until it registers a Destination (src/lib/onboardingDrip.ts, campaign verify-welcome); and it
 // says we may write to an account holder personally, who can ask us to stop.
-// Earlier: v1.6, effective 2026-11-19, says what else is kept about an account and what the admin
+// v1.6, effective 2026-11-19, says what else is kept about an account and what the admin
 // tools show (Sections 1 and 3.1): the country and product of the last sign-in, the product signed up for, and the last
 // day the account was active (src/lib/accountActivity.ts; the admin page's New accounts list and Verify steps table).
 // v1.5, effective 2026-11-17, changed no text here: it kept the policy on the User
@@ -42,7 +46,7 @@ export const en: PrivacyLocale = {
   ariaLabel: 'Privacy Policy',
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
-<p><strong>Effective Date:</strong> November 19, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.7<br/>
+<p><strong>Effective Date:</strong> November 20, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.8<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
@@ -163,6 +167,7 @@ export const en: PrivacyLocale = {
 <ul>
   <li><strong>Essential:</strong> your sign-in session and its security checks, and the demo session if you try the demo. The Service does not work without them.</li>
   <li><strong>Preferences:</strong> your language choice, and small settings such as text size or whether you have already seen a page's introduction, kept in your browser.</li>
+  <li><strong>An address you checked on the Verify page:</strong> if you check an address or payment link in the field on the Almstins Verify page and then press the button to prove it is yours, your browser keeps that address or link in its session storage, for that tab only, so the first screen after you sign in can fill it in. It is never put in a web address, and keeping it sends nothing to our servers; nothing is stored in an account until you register it there. Your browser removes it as soon as that first screen has read it, when you return to the Verify page or check something else there, and when you close the tab; a copy more than one hour old is thrown away without being used. The check in that field is a public check like any other: Sections 3.2, 5 and 10 say what our logs keep, what the answer shows, and which services receive the address or link.</li>
   <li><strong>Analytics:</strong> <strong>Google Analytics</strong> sets its own cookies to count visits, see which pages are used, and count a few named actions: signing up, signing out, adding a wallet (with the blockchain you chose), running the wallet checker, running the site checker (with its red, yellow, or green result), clicking a sign-up button on the checker page, and using the demo (starting it, leaving it, viewing its pages and year-end summary, or clicking its sign-up button). Our tag turns off Google signals and ad personalization. We also keep a small marker in your browser so we count a new account's sign-up only once. Section 10 says what Google Analytics receives.</li>
 </ul>
 <p>We do not use cookies for advertising. We do not currently show a cookie consent banner. To opt out of Google Analytics, block cookies for almstins.com in your browser, use a content blocker, or install Google's opt-out browser add-on. The Service works without analytics cookies.</p>
@@ -224,7 +229,7 @@ export const es: PrivacyLocale = {
   ariaLabel: 'Política de Privacidad',
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
-<p><strong>Fecha de Vigencia:</strong> 19 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.7<br/>
+<p><strong>Fecha de Vigencia:</strong> 20 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.8<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
@@ -345,6 +350,7 @@ export const es: PrivacyLocale = {
 <ul>
   <li><strong>Esenciales:</strong> su sesión iniciada y sus comprobaciones de seguridad, y la sesión de demostración si prueba la demo. El Servicio no funciona sin ellas.</li>
   <li><strong>Preferencias:</strong> el idioma que elige y pequeños ajustes, como el tamaño del texto o si ya vio la introducción de una página, guardados en su navegador.</li>
+  <li><strong>Una dirección que comprobó en la página de Verify:</strong> si comprueba una dirección o un enlace de pago en el campo de la página de Almstins Verify y luego pulsa el botón para demostrar que le pertenece, su navegador conserva esa dirección o ese enlace en su almacenamiento de sesión, solo para esa pestaña, para que la primera pantalla después de iniciar sesión pueda rellenarlo. Nunca se pone en una dirección web, y conservarlo no envía nada a nuestros servidores; nada se guarda en una cuenta hasta que usted lo registre allí. Su navegador lo elimina en cuanto esa primera pantalla lo ha leído, cuando usted vuelve a la página de Verify o comprueba otra cosa allí, y cuando cierra la pestaña; una copia de más de una hora se descarta sin usarse. La comprobación de ese campo es una comprobación pública como cualquier otra: las Secciones 3.2, 5 y 10 indican qué conservan nuestros registros, qué muestra la respuesta y qué servicios reciben la dirección o el enlace.</li>
   <li><strong>Analíticas:</strong> <strong>Google Analytics</strong> instala sus propias cookies para contar las visitas, ver qué páginas se usan y contar algunas acciones con nombre: registrarse, cerrar sesión, agregar una wallet (con la blockchain que eligió), usar el verificador de wallets, usar el verificador de sitios (con su resultado rojo, amarillo o verde), hacer clic en un botón de registro de la página del verificador y usar la demo (iniciarla, salir de ella, ver sus páginas y su resumen de fin de año, o hacer clic en su botón de registro). Nuestra etiqueta desactiva Google signals y la personalización de anuncios. También guardamos una pequeña marca en su navegador para contar el registro de una cuenta nueva una sola vez. La Sección 10 indica qué recibe Google Analytics.</li>
 </ul>
 <p>No utilizamos cookies con fines publicitarios. Actualmente no mostramos un aviso de consentimiento de cookies. Para excluirse de Google Analytics, bloquee las cookies de almstins.com en su navegador, use un bloqueador de contenido o instale el complemento de inhabilitación para navegadores de Google. El Servicio funciona sin las cookies de analíticas.</p>
@@ -406,7 +412,7 @@ export const fr: PrivacyLocale = {
   ariaLabel: 'Politique de Confidentialité',
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
-<p><strong>Date d'entrée en vigueur :</strong> 19 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.7<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 20 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.8<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>
@@ -527,6 +533,7 @@ export const fr: PrivacyLocale = {
 <ul>
   <li><strong>Essentiels :</strong> votre session de connexion et ses contrôles de sécurité, ainsi que la session de démonstration si vous essayez la démo. Le Service ne fonctionne pas sans eux.</li>
   <li><strong>Préférences :</strong> la langue que vous choisissez et de petits réglages, comme la taille du texte ou le fait d'avoir déjà vu l'introduction d'une page, conservés dans votre navigateur.</li>
+  <li><strong>Une adresse que vous avez vérifiée sur la page Verify :</strong> si vous vérifiez une adresse ou un lien de paiement dans le champ de la page Almstins Verify, puis appuyez sur le bouton pour prouver qu'il est à vous, votre navigateur conserve cette adresse ou ce lien dans son stockage de session, pour cet onglet uniquement, afin que le premier écran après votre connexion puisse le remplir. Il n'est jamais placé dans une adresse web, et le conserver n'envoie rien à nos serveurs ; rien n'est enregistré dans un compte tant que vous ne l'y avez pas enregistré. Votre navigateur le supprime dès que ce premier écran l'a lu, lorsque vous revenez sur la page Verify ou y vérifiez autre chose, et lorsque vous fermez l'onglet ; une copie de plus d'une heure est écartée sans être utilisée. La vérification effectuée dans ce champ est une vérification publique comme les autres : les Sections 3.2, 5 et 10 indiquent ce que conservent nos journaux, ce que montre la réponse et quels services reçoivent l'adresse ou le lien.</li>
   <li><strong>Analytique :</strong> <strong>Google Analytics</strong> dépose ses propres cookies pour compter les visites, voir quelles pages sont utilisées et compter quelques actions nommées : l'inscription, la déconnexion, l'ajout d'un wallet (avec la blockchain choisie), l'utilisation de l'outil de vérification de wallets, l'utilisation de l'outil de vérification de sites (avec son résultat rouge, jaune ou vert), un clic sur un bouton d'inscription de la page de vérification et l'utilisation de la démo (la lancer, la quitter, consulter ses pages et son récapitulatif de fin d'année, ou cliquer sur son bouton d'inscription). Notre balise désactive Google signals et la personnalisation des annonces. Nous conservons aussi un petit marqueur dans votre navigateur afin de ne compter qu'une seule fois l'inscription d'un nouveau compte. La Section 10 indique ce que reçoit Google Analytics.</li>
 </ul>
 <p>Nous n'utilisons pas de cookies à des fins publicitaires. Nous n'affichons pas actuellement de bandeau de consentement aux cookies. Pour refuser Google Analytics, bloquez les cookies d'almstins.com dans votre navigateur, utilisez un bloqueur de contenu ou installez le module complémentaire de désactivation de Google pour navigateurs. Le Service fonctionne sans les cookies d'analytique.</p>
