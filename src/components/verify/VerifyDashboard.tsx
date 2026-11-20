@@ -15,6 +15,11 @@ import { ListedPill } from './ListedPill';
 import { ConflictList } from './ConflictList';
 import type { EntityConflictView } from './conflictWords';
 import type { Lang } from '@/lib/i18n/locale';
+import { isVerifyFirstRun, proveGuideFor } from '@/lib/verifyFirstRun';
+import { registerDestination } from '@/lib/verifyRegister';
+import { VerifyFirstRun } from './FirstRunCard';
+import { FirstRunSteps } from './FirstRunSteps';
+import { ProveGuide, type ProveMethod } from './ProveGuide';
 
 type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
 interface Destination {
@@ -112,14 +117,26 @@ function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   return { kind: 'address', value: noScheme.split(/[?@\s]/)[0].trim() };
 }
 
-export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = false }: {
+/** A press of one of the guide's buttons: open this row's proof on that method. `n` tells two presses apart. */
+interface ProveRequest { id: string; method: ProveMethod; n: number }
+
+export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = false, initialDestinationCount = null, platformAccount = false }: {
   t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean;
+  /** How many destinations the account held when the page was rendered (null: not read), so the
+   *  first-run card is there from the first paint and not after the list loads. */
+  initialDestinationCount?: number | null;
+  /** Approved for platform lists, or already holding one: never first-run (verifyFirstRun.ts). */
+  platformAccount?: boolean;
 }) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [limits, setLimits] = useState<PlanLimits>(LIMITS);
   const [planName, setPlanName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The destination registered from the first-run card in this visit: the guide is about it.
+  const [firstId, setFirstId] = useState<string | null>(null);
+  const [proveRequest, setProveRequest] = useState<ProveRequest | null>(null);
 
   async function load() {
     setLoading(true);
@@ -128,6 +145,7 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
       const data = await res.json();
       if (data.ok) {
         setDestinations(data.destinations);
+        setLoaded(true);
         if (data.limits) setLimits({ address: data.limits.address ?? null, qr: data.limits.qr ?? null, total: data.limits.total ?? null });
         if (data.plan?.name) setPlanName(String(data.plan.name));
         setError(null);
@@ -141,6 +159,46 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
   }
   useEffect(() => { void load(); }, []);
 
+  // The one rule (src/lib/verifyFirstRun.ts), asked with the count the page was rendered with
+  // until the list has loaded, then with the live one.
+  const firstRun = isVerifyFirstRun({
+    isDemo, platformAccount, destinationCount: loaded ? destinations.length : initialDestinationCount,
+  });
+
+  // The first destination is on the list at once (the server's own row), then the list reloads
+  // for the plan and its limits.
+  function registeredFirst(destination: Destination) {
+    setDestinations([destination]);
+    setLoaded(true);
+    setFirstId(destination.id);
+    void load();
+  }
+
+  return (
+    <VerifyDashboardView
+      t={t} isDemo={isDemo} entitiesApproved={entitiesApproved} firstRun={firstRun}
+      destinations={destinations} limits={limits} planName={planName} loading={loading} error={error}
+      firstId={firstId} proveRequest={proveRequest}
+      onChange={load} onRegisteredFirst={registeredFirst}
+      onStartProof={(method) => { if (firstId) setProveRequest({ id: firstId, method, n: Date.now() }); }}
+    />
+  );
+}
+
+/**
+ * The dashboard for a given state: no fetching, no state of its own. First-run is the three steps
+ * and the one card, and nothing else. Otherwise it is the dashboard as it was, with the proving
+ * guide above it in the visit where the first destination was registered.
+ */
+export function VerifyDashboardView({
+  t, isDemo = false, entitiesApproved = false, firstRun, destinations, limits, planName, loading, error,
+  firstId = null, proveRequest = null, onChange, onRegisteredFirst, onStartProof,
+}: {
+  t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean; firstRun: boolean;
+  destinations: Destination[]; limits: PlanLimits; planName: string; loading: boolean; error: string | null;
+  firstId?: string | null; proveRequest?: ProveRequest | null;
+  onChange: () => void; onRegisteredFirst: (destination: Destination) => void; onStartProof: (method: ProveMethod) => void;
+}) {
   const addresses = destinations.filter(d => d.kind === 'address');
   const qrs = destinations.filter(d => d.kind === 'qr');
   // A plan that counts both kinds together closes both sections once the account holds its total.
@@ -150,8 +208,29 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
     ? t.planLimitReached.replace('{plan}', planName).replace('{n}', String(limits.total))
     : t.limitReached.replace('{n}', String(limits[kind] ?? LIMITS[kind]));
 
+  if (firstRun) {
+    return (
+      <div className="vd">
+        {error && <div className="vd__error">{error}</div>}
+        <VerifyFirstRun t={t} limitText={limitText} onRegistered={(d) => onRegisteredFirst(d as Destination)} />
+      </div>
+    );
+  }
+
+  const first = firstId ? destinations.find(d => d.id === firstId) ?? null : null;
+  const guide = first
+    ? proveGuideFor({ kind: first.kind, proofStatus: first.proofStatus, verified: isCurrentlyVerified(first) })
+    : null;
+
   return (
     <div className="vd">
+      {guide && first && (
+        <>
+          {guide.kind === 'address' && <FirstRunSteps t={t} current="prove" />}
+          <ProveGuide t={t} guide={guide} rail={first.rail} onStart={onStartProof} />
+        </>
+      )}
+
       {isDemo
         ? <div className="vd__demo-banner"><span>{t.demoBanner}</span></div>
         : <div className="vd__notice">{t.notice}</div>}
@@ -163,10 +242,10 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
 
       <DestSection title={t.addressesTitle} kind="address" limit={limits.address}
         full={planFull} limitText={limitText('address')}
-        items={addresses} loading={loading} onChange={load} t={t} isDemo={isDemo} />
+        items={addresses} loading={loading} onChange={onChange} t={t} isDemo={isDemo} proveRequest={proveRequest} />
       <DestSection title={t.qrTitle} kind="qr" limit={limits.qr}
         full={planFull} limitText={limitText('qr')}
-        items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
+        items={qrs} loading={loading} onChange={onChange} t={t} isDemo={isDemo} />
 
       {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} approved={entitiesApproved} />}
     </div>
@@ -483,9 +562,10 @@ function EntityCard({ e, t, onChange, approved }: {
   );
 }
 
-function DestSection({ title, kind, limit, full, limitText, items, loading, onChange, t, isDemo }: {
+function DestSection({ title, kind, limit, full, limitText, items, loading, onChange, t, isDemo, proveRequest = null }: {
   title: string; kind: 'address' | 'qr'; limit: number | null; full: boolean; limitText: string;
   items: Destination[]; loading: boolean; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean;
+  proveRequest?: ProveRequest | null;
 }) {
   // A null limit is a plan with no cap on this kind: the count stands alone, and the add form
   // closes only when the plan's total over both kinds is reached (`full`).
@@ -497,7 +577,10 @@ function DestSection({ title, kind, limit, full, limitText, items, loading, onCh
         <span className="vd-sec__count">{limit === null ? items.length : `${items.length} / ${limit}`}</span>
       </div>
       <div className="vd-list">
-        {items.map(d => <DestRow key={d.id} d={d} onChange={onChange} t={t} isDemo={isDemo} />)}
+        {items.map(d => (
+          <DestRow key={d.id} d={d} onChange={onChange} t={t} isDemo={isDemo}
+            proveRequest={proveRequest?.id === d.id ? proveRequest : null} />
+        ))}
         {!loading && items.length === 0 && (
           <div className="vd-empty">
             <div className="vd-empty__icon" aria-hidden="true">
@@ -580,9 +663,20 @@ function PaymentQr({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
   );
 }
 
-function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean }) {
+function DestRow({ d, onChange, t, isDemo, proveRequest = null }: {
+  d: Destination; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean;
+  /** The proving guide asked for this row's proof (Verify first run, Part C); null otherwise. */
+  proveRequest?: ProveRequest | null;
+}) {
   const [busy, setBusy] = useState(false);
   const [proving, setProving] = useState(false);
+  const wrap = useRef<HTMLDivElement | null>(null);
+  // A press in the proving guide opens this row's proof and brings it into view.
+  useEffect(() => {
+    if (!proveRequest) return;
+    setProving(true);
+    wrap.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [proveRequest?.n]);
   const [showBadge, setShowBadge] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [monitoring, setMonitoring] = useState(false);
@@ -613,7 +707,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
     } finally { setBusy(false); }
   }
   return (
-    <div className="vd-rowwrap">
+    <div className="vd-rowwrap" ref={wrap}>
       <div className="vd-row">
         <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
         {/* A receiving address, shown whole (D4): someone may send money to it. */}
@@ -675,7 +769,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
       {proving && canProve && (
         isDemo
           ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
-          : <ProvePanel d={d} t={t} mode={proveMode} onProven={() => { setProving(false); onChange(); }} />
+          : <ProvePanel d={d} t={t} mode={proveMode} requested={proveRequest} onProven={() => { setProving(false); onChange(); }} />
       )}
       {showPay && canPayQr && <PaymentQr d={d} t={t} />}
       {showBadge && canBadge && <QrBadge d={d} t={t} />}
@@ -1017,11 +1111,17 @@ function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardL
 //  - 'reprove': a claim made under the old self-send check. Only the satoshi test, taken again
 //               on this row (it keeps its claim and stays Claimed meanwhile); then 'anchor'.
 type ProveMode = 'prove' | 'anchor' | 'reprove';
-function ProvePanel({ d, t, onProven, mode = 'prove' }: {
+function ProvePanel({ d, t, onProven, mode = 'prove', requested = null }: {
   d: Destination; t: VerifyDashboardLocale; onProven: () => void; mode?: ProveMode;
+  /** The method the proving guide asked for (Verify first run, Part C); null otherwise. */
+  requested?: ProveRequest | null;
 }) {
   const domainOnly = mode === 'anchor';
-  const [method, setMethod] = useState<'selfsend' | 'domain'>(domainOnly ? 'domain' : 'selfsend');
+  const [method, setMethod] = useState<ProveMethod>(domainOnly ? 'domain' : (requested?.method ?? 'selfsend'));
+  // A later press in the guide switches the open panel to that method.
+  useEffect(() => {
+    if (requested && !domainOnly) setMethod(requested.method);
+  }, [requested?.n]);
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState<{ path: string; file: string } | null>(null);
   const [challenge, setChallenge] = useState('');
@@ -1146,28 +1246,14 @@ function AddForm({ kind, limitText, onChange, t }: { kind: 'address' | 'qr'; lim
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // The one registration call and its refusals (src/lib/verifyRegister.ts), shared with the first-run card.
   async function submit() {
     if (!value.trim()) return;
     setBusy(true); setErr(null);
-    try {
-      const res = await fetch('/api/verify/destinations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, rail, value: value.trim(), label: label.trim() || null }),
-      });
-      const data = await res.json();
-      if (data.ok) { setValue(''); setLabel(''); onChange(); }
-      else setErr(
-        data.error === 'limit_reached' ? limitText
-        : data.error === 'duplicate' ? t.addErrDuplicate
-        : data.error === 'invalid' ? t.addErrInvalid
-        : data.error === 'claimed_elsewhere' ? t.addErrClaimed
-        : data.error === 'name_taken' ? t.addErrNameTaken
-        : (data.message ?? t.addError),
-      );
-    } catch {
-      setErr(t.addError);
-    } finally { setBusy(false); }
+    const res = await registerDestination({ kind, rail, value: value.trim(), label: label.trim() || null }, t, limitText);
+    if (res.ok) { setValue(''); setLabel(''); onChange(); }
+    else setErr(res.text);
+    setBusy(false);
   }
 
   return (

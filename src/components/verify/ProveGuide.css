@@ -1,0 +1,58 @@
+/* ProveGuide.css: presentation only.
+   What the Verify dashboard shows right after the first registration (ProveGuide.tsx): the two
+   proving steps of a wallet address, or the two facts about a payment link. Colors come from
+   src/styles/tokens.css; the buttons are the dashboard's own (.vd-prove__verify, .vd-prove__get in
+   VerifyDashboard.css), sized up here. */
+
+.vpg {
+  margin: 1.1rem 0 1.75rem; padding: 1.25rem; border-radius: 16px;
+  background: var(--surface-card); border: 1px solid var(--accent-glow);
+}
+.vpg__title {
+  margin: 0 0 1rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25;
+  font-size: clamp(1.2rem, 1vw + 1rem, 1.5rem); color: var(--text-primary);
+}
+
+/* Two numbered steps: side by side where there is room, stacked on a phone. */
+.vpg__steps {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.vpg__step {
+  display: flex; flex-direction: column; padding: 0.95rem 1rem; border-radius: 12px;
+  background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+}
+.vpg__step--next { border-color: var(--accent-glow); }
+.vpg__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+.vpg__num {
+  flex: 0 0 auto; display: grid; place-items: center; width: 1.6rem; height: 1.6rem;
+  border-radius: 999px; border: 1px solid var(--border-bright);
+  font-size: 0.8rem; font-weight: 800; color: var(--text-secondary);
+}
+.vpg__step--next .vpg__num { background: var(--accent); border-color: var(--accent); color: var(--surface-bg); }
+.vpg__step--done .vpg__num { background: var(--gain-bg); border-color: var(--gain-border); color: var(--gain); }
+.vpg__name { flex: 1 1 12rem; margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.3; color: var(--text-primary); }
+.vpg__done {
+  font-size: 0.7rem; font-weight: 700; padding: 0.12rem 0.45rem; border-radius: 5px;
+  color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border);
+}
+.vpg__body { margin: 0.55rem 0 0; font-size: 0.92rem; line-height: 1.55; color: var(--text-secondary); }
+
+/* One line per step: what it costs, what it earns. */
+.vpg__terms { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.7rem 0 0.9rem; font-size: 0.9rem; line-height: 1.45; }
+.vpg__step--done .vpg__terms { margin-bottom: 0; }
+.vpg__cost { color: var(--text-primary); }
+.vpg__earns { color: var(--gain); font-weight: 700; }
+
+/* Pinned to the foot of its step, so the two buttons line up when the steps sit side by side. */
+.vpg__btn { align-self: flex-start; margin-top: auto; font-size: 0.9rem; padding: 0.6rem 1.1rem; }
+
+.vpg__note { margin: 0.9rem 0 0; font-size: 0.86rem; line-height: 1.55; color: var(--text-secondary); }
+
+/* A payment link or QR: two plain paragraphs, no steps. */
+.vpg--qr .vpg__body { max-width: 62ch; }
+
+@media (max-width: 640px) {
+  .vpg { padding: 1rem; }
+  .vpg__steps { grid-template-columns: minmax(0, 1fr); }
+}

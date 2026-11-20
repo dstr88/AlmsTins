@@ -1,0 +1,85 @@
+/* VerifyFirstRun.css: presentation only.
+   The first-run screen of the Verify dashboard (FirstRunSteps.tsx, FirstRunCard.tsx): the three
+   steps and the one card. Colors come from src/styles/tokens.css; the button and the refusal line
+   are the dashboard's own (.vd-add__btn, .vd-add__err in VerifyDashboard.css), sized up here. */
+
+/* The card takes the hero's place. The page renders no hero for a first-run account; this covers
+   the account that removes its last destination while the page is open. */
+.vd-page:has(.vfr) .hero-bleed { display: none; }
+
+/* Text for a screen reader only (the field's label, a finished step's "done"). */
+.vfr-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+.vfr { display: grid; gap: 1.1rem; padding-top: 1.25rem; }
+.vfr__kicker {
+  margin: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+/* ── The three steps ─────────────────────────────────────────────────────────── */
+.vfr-steps {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 0.6rem; grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.vfr-steps__step {
+  display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.75rem 0.8rem;
+  background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px;
+}
+.vfr-steps__step--current { background: var(--accent-soft); border-color: var(--accent-glow); }
+.vfr-steps__num {
+  flex: 0 0 auto; display: grid; place-items: center; width: 1.6rem; height: 1.6rem;
+  border-radius: 999px; border: 1px solid var(--border-bright);
+  font-size: 0.8rem; font-weight: 800; color: var(--text-secondary);
+}
+.vfr-steps__step--current .vfr-steps__num { background: var(--accent); border-color: var(--accent); color: var(--surface-bg); }
+.vfr-steps__step--done .vfr-steps__num { background: var(--gain-bg); border-color: var(--gain-border); color: var(--gain); }
+.vfr-steps__text { min-width: 0; }
+.vfr-steps__title { display: block; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
+.vfr-steps__body { display: block; margin-top: 0.15rem; font-size: 0.84rem; line-height: 1.45; color: var(--text-secondary); }
+
+/* ── The card ────────────────────────────────────────────────────────────────── */
+.vfr-card {
+  padding: 1.5rem 1.25rem; border-radius: 16px;
+  background: var(--surface-card); border: 1px solid var(--border-bright);
+}
+.vfr-card__title {
+  margin: 0 0 1rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2;
+  font-size: clamp(1.35rem, 1.5vw + 1rem, 1.8rem); color: var(--text-primary);
+}
+.vfr-card__row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.vfr-card__value {
+  flex: 1 1 260px; min-width: 0; padding: 0.75rem 0.85rem;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 1rem;
+  background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 10px;
+  color: var(--text-primary); outline: none;
+}
+.vfr-card__value:focus { border-color: var(--accent); }
+.vfr-card__value::placeholder { color: var(--text-muted); font-size: 0.9rem; }
+/* Empty, the field reads in the page's own font, so its placeholder fits a phone; a pasted
+   address reads in the monospace above. */
+.vfr-card__value:placeholder-shown { font-family: inherit; text-overflow: ellipsis; }
+/* The dashboard's Register button, at the size of the one thing to do on this screen. */
+.vfr-card__btn { font-size: 1rem; padding: 0.75rem 1.5rem; border-radius: 10px; }
+
+.vfr-card__read { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.7rem; }
+.vfr-card__readout { margin: 0; font-size: 0.92rem; line-height: 1.5; color: var(--text-primary); }
+.vfr-card__choice {
+  font-family: inherit; font-size: 1rem; padding: 0.5rem 0.65rem;
+  background: var(--surface-card-2); border: 1px solid var(--accent-glow); border-radius: 8px;
+  color: var(--text-primary); outline: none;
+}
+.vfr-card__choice:focus { border-color: var(--accent); }
+.vfr-card__err { margin: 0.7rem 0 0; font-size: 0.9rem; }
+
+.vfr-card__help { margin: 1rem 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--text-secondary); }
+.vfr-card__note { margin: 0.5rem 0 0; font-size: 0.82rem; line-height: 1.5; color: var(--text-muted); }
+
+/* A phone: the steps stack, and the button takes the full width under the field. */
+@media (max-width: 640px) {
+  .vfr-steps { grid-template-columns: minmax(0, 1fr); }
+  .vfr-card { padding: 1.25rem 1rem; }
+  .vfr-card__value, .vfr-card__btn, .vfr-card__choice { flex: 1 1 100%; width: 100%; box-sizing: border-box; }
+}

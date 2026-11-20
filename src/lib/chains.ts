@@ -257,6 +257,13 @@ export const VERIFY_ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoi
 /** The Verify address rails on EVM: one 0x address, the same key on each. */
 export const VERIFY_EVM_RAILS: ReadonlySet<string> = new Set(VERIFY_ADDRESS_RAILS.filter((c) => CHAINS[c].family === 'evm'));
 
+/**
+ * The Verify rails a "3…" script address fits, most likely first: Bitcoin, and the older form of
+ * a Litecoin one. The shape cannot tell them apart, so the first-run card asks
+ * (src/lib/verifyDestinationInput.ts).
+ */
+export const VERIFY_P2SH_RAILS = ['bitcoin', 'litecoin'] as const satisfies readonly ChainId[];
+
 /** The chains whose snapshot tokens count toward net worth (src/lib/networth.ts). */
 export const NETWORTH_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr'] as const satisfies readonly ChainId[];
 
