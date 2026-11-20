@@ -1,0 +1,40 @@
+---
+// A public legal page: /terms, /privacy and their /es and /fr versions. The public layout (the one
+// /learn, /prices and /changelog use, not the signed-in app's), a language switch, and the document
+// itself, rendered from the same source as its footer pop-up. Addresses: src/lib/legalLinks.ts.
+// Words around the document: src/i18n/legalPages.ts.
+import './LegalPage.css';
+import Layout from '@/layouts/LoginLayout.astro';
+import TermsOfService from '@/components/terms-of-service.astro';
+import PrivacyPolicy from '@/components/privacy-policy.astro';
+import { SUPPORTED_LANGS, type Lang } from '@/lib/i18n/locale';
+import { HOME_HREF, LEGAL_HREF, type LegalDoc } from '@/lib/legalLinks';
+import { legalPagesCopy } from '@/i18n/legalPages';
+
+interface Props {
+  doc: LegalDoc;
+  lang: Lang;
+}
+const { doc, lang } = Astro.props;
+const t = legalPagesCopy[lang];
+---
+<Layout title={t.docs[doc].title} description={t.docs[doc].description} lang={lang}>
+  <Fragment slot="head">
+    {SUPPORTED_LANGS.map((l) => (
+      <link rel="alternate" hreflang={l} href={`https://almstins.com${LEGAL_HREF[doc][l]}`} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href={`https://almstins.com${LEGAL_HREF[doc].en}`} />
+  </Fragment>
+  <div class="legal-page">
+    <div class="legal-page__top">
+    <a class="legal-page__home" href={HOME_HREF[lang]} aria-label={t.homeAria}>Almstins</a>
+    <nav class="legal-page__langs" aria-label={t.langAria}>
+      {SUPPORTED_LANGS.map((l) => (
+        <a class="legal-page__lang" href={LEGAL_HREF[doc][l]} hreflang={l} aria-label={t.langLinks[l].aria}
+           aria-current={l === lang ? 'true' : undefined}>{t.langLinks[l].label}</a>
+      ))}
+    </nav>
+    </div>
+    {doc === 'terms' ? <TermsOfService variant="modal" lang={lang} /> : <PrivacyPolicy variant="modal" lang={lang} />}
+  </div>
+</Layout>

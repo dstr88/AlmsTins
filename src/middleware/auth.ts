@@ -39,6 +39,11 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/privacy' ||
 		// User Agreement: public page, same source as the footer pop-up (src/lib/legalLinks.ts)
 		pathname === '/terms' ||
+		// ...and both in Spanish and French (src/lib/legalLinks.ts)
+		pathname === '/privacy/es' ||
+		pathname === '/privacy/fr' ||
+		pathname === '/terms/es' ||
+		pathname === '/terms/fr' ||
 		// Pricing — public marketing page (EN + /prices/es + /prices/fr)
 		pathname === '/prices' ||
 		pathname.startsWith('/prices/') ||
