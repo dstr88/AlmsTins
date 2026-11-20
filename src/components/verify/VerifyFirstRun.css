@@ -57,7 +57,10 @@
   color: var(--text-primary); outline: none;
 }
 .vfr-card__value:focus { border-color: var(--accent); }
-.vfr-card__value::placeholder { color: var(--text-muted); font-family: inherit; }
+.vfr-card__value::placeholder { color: var(--text-muted); font-size: 0.9rem; }
+/* Empty, the field reads in the page's own font, so its placeholder fits a phone; a pasted
+   address reads in the monospace above. */
+.vfr-card__value:placeholder-shown { font-family: inherit; text-overflow: ellipsis; }
 /* The dashboard's Register button, at the size of the one thing to do on this screen. */
 .vfr-card__btn { font-size: 1rem; padding: 0.75rem 1.5rem; border-radius: 10px; }
 
