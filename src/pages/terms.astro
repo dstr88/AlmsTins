@@ -1,0 +1,15 @@
+---
+// Public, crawlable User Agreement page (Nov 20, 2026). Renders the SAME source as the footer
+// "terms-of-service" pop-up (src/i18n/termsOfService.ts via terms-of-service.astro), so there is
+// exactly one Agreement. Public via isPublicPath in middleware/auth.ts; its address is TERMS_HREF
+// in src/lib/legalLinks.ts, which the sign-in pages link to.
+import Layout from "../layouts/Layout.astro";
+import TermsOfService from "../components/terms-of-service.astro";
+import "../styles/legalPage.css";
+---
+
+<Layout title="User Agreement | Almstins">
+  <main class="legal-page">
+    <TermsOfService variant="modal" lang="en" />
+  </main>
+</Layout>

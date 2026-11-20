@@ -27,6 +27,7 @@ import '@/styles/tokens.css';
 import { en as t } from '@/i18n/loginPage';
 import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
 import { verifyLoginMode, type VerifyLoginMode } from '@/lib/verifyLoginMode';
+import SigninAgreement from '@/components/SigninAgreement.astro';
 
 export const prerender = false;
 
@@ -236,6 +237,7 @@ const failedText = resolveLoginAlert(t, data).message || t.errors.generic;
           ? <a href="/verify/scan">Check an address without an account</a>
           : <a href="/verify/registry">Check a receivable without an account</a>}
       </p>
+      <SigninAgreement />
     </div>
 
     {isVerify ? (

@@ -34,6 +34,8 @@ export interface LoginPageLocale {
     passwordLabel: string;
     signInEmail: string;
     sendMagicLink: string;
+    /** Under the sign-in buttons: {terms} and {privacy} become links (src/components/SigninAgreement.astro). */
+    agreement: { line: string; terms: string; privacy: string };
   };
   hero: {
     wordmarkAriaLabel: string;
@@ -143,6 +145,7 @@ export const en: LoginPageLocale = {
     passwordLabel: 'Password',
     signInEmail: 'Sign in with email',
     sendMagicLink: 'Send magic link',
+    agreement: { line: 'By continuing, you agree to the {terms}. The {privacy} explains what we keep and why.', terms: 'User Agreement', privacy: 'Privacy Policy' },
   },
   hero: {
     wordmarkAriaLabel: 'Almstins home',
@@ -259,6 +262,7 @@ export const es: LoginPageLocale = {
     passwordLabel: 'Contraseña',
     signInEmail: 'Iniciar sesión con email',
     sendMagicLink: 'Enviar enlace mágico',
+    agreement: { line: 'Al continuar, aceptas el {terms}. La {privacy} explica qué guardamos y por qué.', terms: 'Acuerdo de Usuario', privacy: 'Política de Privacidad' },
   },
   hero: {
     wordmarkAriaLabel: 'Almstins inicio',
@@ -375,6 +379,7 @@ export const fr: LoginPageLocale = {
     passwordLabel: 'Mot de passe',
     signInEmail: 'Se connecter par email',
     sendMagicLink: 'Envoyer un lien magique',
+    agreement: { line: 'En continuant, vous acceptez l’{terms}. La {privacy} explique ce que nous conservons et pourquoi.', terms: 'Accord d’utilisation', privacy: 'Politique de confidentialité' },
   },
   hero: {
     wordmarkAriaLabel: 'Accueil Almstins',
