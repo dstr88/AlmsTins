@@ -20,6 +20,7 @@ import { en as login } from '@/i18n/loginPage';
 import { agenticsCopy } from '@/i18n/agentics';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
+import SigninAgreement from '@/components/SigninAgreement.astro';
 
 export const prerender = false;
 
@@ -196,6 +197,7 @@ const l = t.login;
         {l.foot}<br />
         <a href="/agentics/docs">{l.docsLink}</a>
       </p>
+      <SigninAgreement />
     </div>
 
     <div class="pills">

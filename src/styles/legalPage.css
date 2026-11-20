@@ -1,0 +1,6 @@
+/* legalPage.css: the column a public legal page (the User Agreement at /terms) sits in. */
+.legal-page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}

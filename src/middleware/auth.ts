@@ -37,6 +37,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/about/fr' ||
 		// Privacy Policy — public, crawlable canonical URL (same source as the footer modal)
 		pathname === '/privacy' ||
+		// User Agreement: public page, same source as the footer pop-up (src/lib/legalLinks.ts)
+		pathname === '/terms' ||
 		// Pricing — public marketing page (EN + /prices/es + /prices/fr)
 		pathname === '/prices' ||
 		pathname.startsWith('/prices/') ||

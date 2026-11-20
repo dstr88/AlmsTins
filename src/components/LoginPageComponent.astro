@@ -3,6 +3,7 @@ import '@/styles/dialog.css';
 import type { LoginPageLocale } from '../i18n/loginPage';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import LogoutButton from './LogoutButton.astro';
+import SigninAgreement from './SigninAgreement.astro';
 import Logo from '../assets/logo.jpeg';
 
 interface Props {
@@ -132,6 +133,7 @@ const isLockedOut = message === 'LOCKED_OUT';
               </form>
             </div>
           </div>
+          <SigninAgreement lang={t.lang} />
         </>
       )}
     </div>

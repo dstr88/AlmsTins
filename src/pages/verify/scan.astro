@@ -5,6 +5,7 @@ import Analytics from '@/components/Analytics.astro';
 // (isPublicPath), and a QR badge deep-links here with ?address=.
 import '@/styles/tokens.css';
 import VerifyScan from '@/components/verify/VerifyScan';
+import SigninAgreement from '@/components/SigninAgreement.astro';
 const initialAddress = Astro.url.searchParams.get('address') ?? '';
 ---
 <!doctype html>
@@ -25,5 +26,6 @@ const initialAddress = Astro.url.searchParams.get('address') ?? '';
 </head>
 <body>
   <VerifyScan client:load initialAddress={initialAddress} />
+  <SigninAgreement variant="links" />
 </body>
 </html>
