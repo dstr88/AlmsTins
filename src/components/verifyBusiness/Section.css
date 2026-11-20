@@ -1,0 +1,25 @@
+/* Section.css: presentation only. Markup lives in Section.astro.
+   Colors are design tokens (src/styles/tokens.css). The section spaces its own children with a
+   gap, so nothing inside it needs a margin. */
+
+.vb-section { display: flex; flex-direction: column; gap: 1.1rem; min-width: 0; }
+.vb-section__heading {
+  margin: 0; font-size: clamp(1.35rem, 2.4vw + .6rem, 1.8rem); font-weight: 800;
+  line-height: 1.2; letter-spacing: -.01em; color: var(--text-primary);
+}
+.vb-section__lede { margin: 0; max-width: 46rem; font-size: 1.02rem; line-height: 1.7; color: var(--text-secondary); }
+
+.vb-section--problem {
+  padding: 1.5rem 1.6rem; border-left: 3px solid var(--loss-border);
+  background: var(--loss-bg); border-radius: 0 14px 14px 0;
+}
+
+.vb-section--limits {
+  padding: 1.6rem 1.6rem 1.75rem; border: 1px solid var(--warning-border);
+  border-left: 3px solid var(--warning); background: var(--warning-bg); border-radius: 0 16px 16px 0;
+}
+.vb-section--limits .vb-section__lede { color: var(--text-primary); font-weight: 600; }
+
+@media (max-width: 30rem) {
+  .vb-section--problem, .vb-section--limits { padding: 1.2rem 1.1rem 1.3rem; }
+}

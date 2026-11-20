@@ -1,0 +1,24 @@
+/* PlanCards.css: presentation only. Markup lives in PlanCards.astro.
+   One column on a phone, three across from 52rem. The Free card carries the accent border: it is
+   the plan a visitor can start on today. */
+
+.vb-plans { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 52rem) { .vb-plans { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.vb-plans__card {
+  display: flex; flex-direction: column; min-width: 0; padding: 1.3rem 1.3rem 1.35rem; border-radius: 16px;
+  background: var(--surface-card); border: 1px solid var(--border-subtle);
+}
+.vb-plans__card--free { border-color: var(--accent-glow); }
+.vb-plans__name { margin: 0 0 .35rem; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); }
+.vb-plans__price { margin: 0; font-size: 1.75rem; font-weight: 700; line-height: 1.2; color: var(--text-primary); }
+.vb-plans__unit { margin-left: .35rem; font-size: .9rem; font-weight: 400; color: var(--text-secondary); }
+.vb-plans__yearly { margin: .2rem 0 0; font-size: .85rem; color: var(--text-secondary); }
+.vb-plans__items { list-style: none; margin: .9rem 0 1.1rem; padding: 0; display: flex; flex-direction: column; gap: .5rem; flex: 1; }
+.vb-plans__items li { position: relative; padding-left: 1.2rem; font-size: .92rem; line-height: 1.5; color: var(--text-secondary); }
+.vb-plans__items li::before {
+  content: ''; position: absolute; left: .1rem; top: .55em; width: .45rem; height: .45rem;
+  border-radius: 999px; background: var(--accent);
+}
+.vb-plans__cta { margin-top: auto; font-size: .95rem; font-weight: 700; color: var(--accent); text-decoration: none; }
+.vb-plans__cta:hover { text-decoration: underline; }

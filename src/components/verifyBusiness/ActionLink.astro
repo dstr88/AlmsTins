@@ -1,0 +1,13 @@
+---
+// ActionLink: one action on the business page, as a button-shaped link with an arrow. Markup
+// only; ActionLink.css holds the look. "primary" is the filled button, "ghost" the outlined one.
+import './ActionLink.css';
+
+interface Props {
+  href: string;
+  label: string;
+  kind?: 'primary' | 'ghost';
+}
+const { href, label, kind = 'primary' } = Astro.props;
+---
+<a class={`vb-action vb-action--${kind}`} href={href}>{label}<span class="vb-action__arrow" aria-hidden="true">→</span></a>

@@ -1,0 +1,22 @@
+---
+// TitledList: a list of short points, each a title and a sentence or two. Markup only;
+// TitledList.css holds the look. "notes" is the quiet three-across row under the proof steps;
+// "limits" is the full-size list the limits section uses, so the limits read as part of the
+// page and not as small print.
+import './TitledList.css';
+import type { TitledCopy } from '@/i18n/verifyBusiness';
+
+interface Props {
+  items: readonly TitledCopy[];
+  variant?: 'notes' | 'limits';
+}
+const { items, variant = 'notes' } = Astro.props;
+---
+<ul class={`vb-titled vb-titled--${variant}`}>
+  {items.map((item) => (
+    <li class="vb-titled__item">
+      <h3 class="vb-titled__title">{item.title}</h3>
+      <p class="vb-titled__body">{item.body}</p>
+    </li>
+  ))}
+</ul>

@@ -29,6 +29,10 @@ const PUBLIC_UNDER_PRODUCT_PREFIXES = new Set([
 	'/verify/',
 	'/verify/es/',
 	'/verify/fr/',
+	// Verify for a business that invoices in crypto, and for the teams and agents that pay it.
+	'/verify/business/',
+	'/verify/business/es/',
+	'/verify/business/fr/',
 	'/verify/seen-before/',
 	'/receivables/',
 ]);

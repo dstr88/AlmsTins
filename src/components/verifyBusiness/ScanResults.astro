@@ -1,0 +1,23 @@
+---
+// ScanResults: what a payer sees at the free scanner for an address, one card per result. Each
+// card carries the scanner's own title (src/i18n/verifyScan.ts), marked with the language the
+// scanner renders in, and this page's sentence on what it means. Markup only; ScanResults.css
+// holds the look. These are descriptions of the results, not live checks.
+import './ScanResults.css';
+import type { ScanResult } from '@/lib/verifyBusiness';
+
+interface Props {
+  results: readonly ScanResult[];
+  /** The language of the titles (the scanner's), for the lang attribute. */
+  titleLang: string;
+}
+const { results, titleLang } = Astro.props;
+---
+<ul class="vb-scan">
+  {results.map((result) => (
+    <li class={`vb-scan__card vb-scan__card--${result.tone}`}>
+      <h3 class="vb-scan__title" lang={titleLang}>{result.title}</h3>
+      <p class="vb-scan__body">{result.body}</p>
+    </li>
+  ))}
+</ul>

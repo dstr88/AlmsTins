@@ -1,0 +1,18 @@
+/* ScanResults.css: presentation only. Markup lives in ScanResults.astro.
+   The tone is a class picked from the result: green for Verified, amber for Claimed, neutral for
+   an address nobody has proven (unproven is not a warning, so it takes no warning color). */
+
+.vb-scan { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 52rem) { .vb-scan { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.vb-scan__card {
+  min-width: 0; padding: 1.15rem 1.2rem 1.25rem; border-radius: 16px;
+  background: var(--surface-card); border: 1px solid var(--border-subtle); border-top-width: 3px;
+}
+.vb-scan__card--good { border-top-color: var(--gain); }
+.vb-scan__card--warn { border-top-color: var(--warning); }
+.vb-scan__card--plain { border-top-color: var(--border-bright); }
+
+.vb-scan__title { margin: 0 0 .45rem; font-size: 1.02rem; font-weight: 800; line-height: 1.35; color: var(--text-primary); }
+.vb-scan__card--good .vb-scan__title { color: var(--gain); }
+.vb-scan__body { margin: 0; font-size: .92rem; line-height: 1.65; color: var(--text-secondary); }
