@@ -1,15 +1,16 @@
 /**
  * GET /api/cron/onboarding-drip — sends the email drip campaigns (hourly).
  *
- * For each campaign (onboarding, business): enroll newly-eligible users, then send each
- * enrolled/subscribed/unfinished user the NEXT email that's due (one per user per run,
+ * For each campaign (onboarding, business, verify-welcome): enroll newly-eligible users, then
+ * send each enrolled/subscribed/unfinished user the NEXT email that's due (one per user per run,
  * so a backlog catches up gently). Each campaign is isolated — one failing never blocks
- * the other. Every email carries an unsubscribe link + List-Unsubscribe header. Protected
+ * the other. Every email carries an unsubscribe link + List-Unsubscribe header, and a campaign
+ * that names its own reply mailbox (campaignReplyTo) sends with it. Protected
  * by CRON_SECRET. Safe no-op if RESEND_API_KEY isn't set or nobody is due.
  */
 import type { APIRoute } from 'astro';
 import {
-  CAMPAIGN_IDS, enrollForCampaign, getDueDrips, markStepSent, campaignLocale,
+  CAMPAIGN_IDS, enrollForCampaign, getDueDrips, markStepSent, campaignLocale, campaignReplyTo,
 } from '@/lib/onboardingDrip';
 import { renderDrip } from '@/i18n/emails/dripTemplate';
 import { sendCampaignEmail, campaignEmailAvailable } from '@/lib/campaignEmail';
@@ -53,7 +54,9 @@ export const GET: APIRoute = async ({ request }) => {
         const { subject, html, text } = renderDrip(
           campaignLocale(d.campaign, d.lang), d.nextStep, APP_BASE, unsubscribeUrl,
         );
-        const res = await sendCampaignEmail({ to: d.email, subject, html, text, unsubscribeUrl });
+        const res = await sendCampaignEmail({
+          to: d.email, subject, html, text, unsubscribeUrl, replyTo: campaignReplyTo(d.campaign),
+        });
         if (res.ok) {
           await markStepSent(d.campaign, d.userId, d.nextStep);
           sent++;

@@ -6,6 +6,11 @@
  *     rows have created_at NULL → never enrolled.
  *   • business   — a user who registered their first Verify destination (a merchant).
  *     Enrolled as the tenant OWNER, anchored to when they first registered.
+ *   • verify-welcome — an account that signed up through Almstins Verify
+ *     (auth_users.signup_service) and has not registered a destination yet. Two emails,
+ *     three days apart, anchored to the enrollment itself (the first run after the sign-up).
+ *     It ends the moment the account registers a destination, and `business` takes over.
+ *     These accounts are left out of `onboarding` while they have no wallet (verifyOnlyUser).
  *
  * A daily/hourly cron (/api/cron/onboarding-drip) enrolls + sends the next due email.
  * Global lifecycle table keyed by (campaign, user_id) — NOT tenant data, so it's
@@ -18,6 +23,10 @@ import { isLang, type Lang } from '@/lib/i18n/locale';
 import type { DripLocale } from '@/i18n/emails/dripTemplate';
 import { onboardingLocales } from '@/i18n/emails/onboarding';
 import { businessLocales } from '@/i18n/emails/business';
+import { verifyWelcomeLocales } from '@/i18n/emails/verifyWelcome';
+import { VERIFY_WELCOME_REPLY_TO } from '@/lib/campaignEmail';
+import { ensureAccountActivityColumns } from '@/lib/accountActivity';
+import type { SignupServiceId } from '@/lib/signupService';
 import { ensureReceivablesTables } from '@/lib/receivablesRegistry';
 import { ensureCairnTables } from '@/lib/cairnRegistry';
 import { ensureAgenticsSignupsTable } from '@/lib/agenticsSignup';
@@ -27,20 +36,33 @@ const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0,
 /** Launch date (YYYY-MM-DD). Only events on/after this enroll a user. Bump if needed. */
 export const CAMPAIGN_START_DATE = '2026-06-22';
 
-export type Campaign = 'onboarding' | 'business';
+export type Campaign = 'onboarding' | 'business' | 'verify-welcome';
 
 interface CampaignDef {
-  /** Day each step is due, measured from enrolled_at: step 1 now, then 2 / 5 / 10. */
+  /** Day each step is due, measured from enrolled_at: step 1 now, then 2 / 5 / 10 (or 3, for the two-email series). */
   cadence: number[];
   locales: Record<Lang, DripLocale>;
+  /** The mailbox a reply to this campaign's emails goes to. Absent: the sender's default (campaignEmail.ts). */
+  replyTo?: string;
 }
 
+/**
+ * The cron works through these in order. `verify-welcome` comes after `business` on purpose: an
+ * account that registered a destination since the last run is enrolled in `business` first, and
+ * the welcome series then sees that enrollment and sends nothing.
+ */
 export const CAMPAIGNS: Record<Campaign, CampaignDef> = {
   onboarding: { cadence: [0, 2, 5, 10], locales: onboardingLocales },
   business: { cadence: [0, 2, 5, 10], locales: businessLocales },
+  'verify-welcome': { cadence: [0, 3], locales: verifyWelcomeLocales, replyTo: VERIFY_WELCOME_REPLY_TO },
 };
 
 export const CAMPAIGN_IDS = Object.keys(CAMPAIGNS) as Campaign[];
+
+/** The mailbox replies to a campaign's emails go to, or undefined for the sender's default. */
+export function campaignReplyTo(campaign: Campaign): string | undefined {
+  return CAMPAIGNS[campaign].replyTo;
+}
 
 export function campaignLocale(campaign: Campaign, lang: Lang): DripLocale {
   const c = CAMPAIGNS[campaign];
@@ -136,11 +158,63 @@ export const agenticsOnlyUser = (userCol: string): string => `
       AND EXISTS (SELECT 1 FROM agentics_signups s WHERE s.tenant_id = tm.tenant_id)
   )`;
 
-/** The tables the exclusion filters read are created lazily; make sure they exist before the filters run. */
+/** The product a Verify sign-up carries in auth_users.signup_service (the ids of src/lib/signupService.ts). */
+const VERIFY_SIGNUP: SignupServiceId = 'verify';
+
+/**
+ * Verify-only accounts: the account signed up through Almstins Verify (auth_users.signup_service,
+ * written once when it gets its first tenant, src/lib/accountActivity.ts) and owns no tenant with a
+ * wallet. The onboarding campaign is about wallets and crypto taxes, the wrong message for them: they
+ * get the Verify welcome series, then the business series once they register a destination. So they
+ * are skipped at enrollment and again at send time, like Agentics-only accounts; one already part-way
+ * through the onboarding series gets no further email from it. An account that later adds a wallet is
+ * a tracker user and becomes eligible. An account with no signup_service (every account older than the
+ * column) is never Verify-only: nothing is guessed for it. `userCol` is a trusted column reference,
+ * never user input. The wallet subquery is scoped by the owned tenant.
+ */
+export const verifyOnlyUser = (userCol: string): string => `
+  EXISTS (
+    SELECT 1 FROM auth_users vu
+    WHERE vu.id = ${userCol} AND vu.signup_service = '${VERIFY_SIGNUP}'
+      AND NOT EXISTS (
+        SELECT 1 FROM tenant_memberships tm
+        WHERE tm.user_id = vu.id AND tm.role = 'owner'
+          AND EXISTS (SELECT 1 FROM wallets w WHERE w.tenant_id = tm.tenant_id)
+      )
+  )`;
+
+/**
+ * Whether the account has started with Verify: it owns a tenant with a registered destination, or it
+ * is already in the business series. The business series enrolls on the first destination and keeps
+ * going if that destination is later removed, so the second test makes the hand-over final: once
+ * `business` has an account, the welcome series never sends to it again. Applied at enrollment and
+ * again at send time, so the welcome series ends the moment a destination is registered. `userCol` is
+ * a trusted column reference, never user input. The destination subquery is scoped by the owned tenant.
+ */
+export const verifyStartedUser = (userCol: string): string => `(
+    EXISTS (
+      SELECT 1 FROM tenant_memberships tm
+      WHERE tm.user_id = ${userCol} AND tm.role = 'owner'
+        AND EXISTS (SELECT 1 FROM verify_destinations vd WHERE vd.tenant_id = tm.tenant_id)
+    )
+    OR EXISTS (SELECT 1 FROM campaign_drip b WHERE b.user_id = ${userCol} AND b.campaign = 'business')
+  )`;
+
+/**
+ * auth_users.signup_service is added lazily (accountActivity.ts); make sure it is there before a rule
+ * reads it. A failed ensure is not final: the migration may have added the column, and if it is truly
+ * missing the query that reads it throws and that campaign sends nothing this run.
+ */
+async function ensureSignupServiceColumn(): Promise<void> {
+  await ensureAccountActivityColumns().catch(() => {});
+}
+
+/** The tables the exclusion filters read are created lazily, and so is the sign-up product column; make sure they exist before the filters run. */
 async function ensureExclusionTables(): Promise<void> {
   await ensureReceivablesTables();
   await ensureCairnTables();
   await ensureAgenticsSignupsTable();
+  await ensureSignupServiceColumn();
 }
 
 /**
@@ -153,7 +227,7 @@ const reachableUser = (alias: string) => `(
     OR EXISTS (SELECT 1 FROM auth_accounts a WHERE a.user_id = ${alias}.id)
   )`;
 
-/** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only and Agentics-only accounts. */
+/** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only, Agentics-only and Verify-only accounts. */
 async function enrollOnboarding(): Promise<number> {
   await ensureExclusionTables();
   const res = await db.execute({
@@ -165,7 +239,8 @@ async function enrollOnboarding(): Promise<number> {
             AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'onboarding')
             AND ${reachableUser('au')}
             AND NOT ${financingOnlyUser('au.id')}
-            AND NOT ${agenticsOnlyUser('au.id')}`,
+            AND NOT ${agenticsOnlyUser('au.id')}
+            AND NOT ${verifyOnlyUser('au.id')}`,
     args: [CAMPAIGN_START_DATE],
   });
   return insertEnrollments('onboarding', res.rows as any[], (r) => String(r.created_at));
@@ -188,11 +263,44 @@ async function enrollBusiness(): Promise<number> {
   return insertEnrollments('business', res.rows as any[], (r) => String(r.first_registered));
 }
 
+/**
+ * Verify welcome: an account that signed up through Verify, since launch, and has not started with it
+ * (no destination, not in the business series). Same reachability rule as the other campaigns: an
+ * unverified password sign-up gets nothing until it verifies.
+ *
+ * Anchored to the enrollment itself, not to the sign-up. The cron runs hourly, so for a Google, GitHub
+ * or confirmed sign-up that is the day it signs up, and the second email follows three days later. An
+ * account that can only be written to later (it confirmed its address days after signing up, or it was
+ * already there when this series first ran) would otherwise be due both emails at once and get them
+ * an hour apart; anchored here, it gets the first then and the second three days after it.
+ *
+ * verify_destinations is the Verify registry's own table, created on its first use, as the business
+ * enrollment above assumes.
+ */
+async function enrollVerifyWelcome(): Promise<number> {
+  await ensureSignupServiceColumn();
+  const res = await db.execute({
+    sql: `SELECT au.id, au.email, au.lang
+          FROM auth_users au
+          WHERE au.email IS NOT NULL AND au.email <> ''
+            AND au.created_at IS NOT NULL
+            AND substr(au.created_at, 1, 10) >= ?
+            AND au.signup_service = '${VERIFY_SIGNUP}'
+            AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'verify-welcome')
+            AND ${reachableUser('au')}
+            AND NOT ${verifyStartedUser('au.id')}`,
+    args: [CAMPAIGN_START_DATE],
+  });
+  const enrolledAt = nowUtc();
+  return insertEnrollments('verify-welcome', res.rows as any[], () => enrolledAt);
+}
+
 export async function enrollForCampaign(campaign: Campaign): Promise<number> {
   await ensureDripTable();
   await ensureUserLangColumn();
   if (campaign === 'onboarding') return enrollOnboarding();
   if (campaign === 'business') return enrollBusiness();
+  if (campaign === 'verify-welcome') return enrollVerifyWelcome();
   return 0;
 }
 
@@ -200,22 +308,25 @@ export async function enrollForCampaign(campaign: Campaign): Promise<number> {
  * Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due, and
  * whose account still exists: a deleted account's enrollment never sends, even if its
  * campaign_drip row outlived the delete.
- * Onboarding also re-checks the financing-only and Agentics-only rules at send time: an account enrolled
- * at signup that has since turned out to be financing-only or Agentics-only gets no further tracker
- * emails. If that check errors, the whole call throws and the cron sends nothing this run (no email
- * beats a wrong one).
+ * Onboarding also re-checks the financing-only, Agentics-only and Verify-only rules at send time: an
+ * account enrolled at signup that has since turned out to be one of them gets no further tracker
+ * emails. The Verify welcome series re-checks whether the account has started with Verify: once it
+ * registers a destination, nothing more is sent from this series. If a check errors, the whole call
+ * throws and the cron sends nothing this run (no email beats a wrong one).
  */
 export async function getDueDrips(campaign: Campaign, limit = 200): Promise<DueDrip[]> {
   await ensureDripTable();
   const cadence = CAMPAIGNS[campaign].cadence;
   const skipFinancingOnly = campaign === 'onboarding';
   if (skipFinancingOnly) await ensureExclusionTables();
+  const stopOnceVerifyStarted = campaign === 'verify-welcome';
   const res = await db.execute({
     sql: `SELECT user_id, email, lang, enrolled_at, last_step, unsub_token
           FROM campaign_drip
           WHERE campaign = ? AND unsubscribed = 0 AND last_step < ?
             AND EXISTS (SELECT 1 FROM auth_users au WHERE au.id = campaign_drip.user_id)
-            ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')} AND NOT ${agenticsOnlyUser('campaign_drip.user_id')}` : ''}
+            ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')} AND NOT ${agenticsOnlyUser('campaign_drip.user_id')} AND NOT ${verifyOnlyUser('campaign_drip.user_id')}` : ''}
+            ${stopOnceVerifyStarted ? `AND NOT ${verifyStartedUser('campaign_drip.user_id')}` : ''}
           ORDER BY enrolled_at ASC
           LIMIT ?`,
     args: [campaign, cadence.length, limit],
