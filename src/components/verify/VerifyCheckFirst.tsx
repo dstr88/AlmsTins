@@ -102,8 +102,14 @@ export default function VerifyCheckFirst({ lang = 'en', t }: { lang?: ScanLang; 
   const run = useRef(0);
 
   // Coming back to this page drops anything carried from an earlier visit: the visitor did not
-  // go on to sign in with it.
-  useEffect(() => { clearCarriedDestination(); }, []);
+  // go on to sign in with it. A fresh load clears it here; the browser's back button can bring
+  // the page back without loading it again, and `pageshow` covers that.
+  useEffect(() => {
+    clearCarriedDestination();
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) clearCarriedDestination(); };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
 
   async function check() {
     // Read the field itself: text typed before this island loaded is in it, not yet in state.

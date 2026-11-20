@@ -122,19 +122,40 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.6', () => 
 describe('the changelog entry for Privacy Policy and User Agreement 1.7', () => {
   const start = page.indexOf('Privacy Policy version 1.7 and User Agreement version 1.7 are in effect.');
   const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
-  /** The day both documents carry (tests/privacy/agenticsPolicyV13.test.ts holds the six headers to it). */
-  const EFFECTIVE = 'November 19, 2026';
 
-  it('is public, dated the day the documents carry, and names the changes', () => {
+  it('is public, dated the day the documents carried, and names the changes', () => {
     expect(start).toBeGreaterThan(-1);
-    expect(article).toContain(`<time class="entry-date">${EFFECTIVE}</time>`);
-    // It is the newest entry, and it sits outside every flag-guarded block.
-    expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
-    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain(`<strong>Effective Date:</strong> ${EFFECTIVE} &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.7`);
+    expect(article).toContain('<time class="entry-date">November 19, 2026</time>');
+    // It sits outside every flag-guarded block: every `{FLAG && (<>` before it is closed before it starts.
+    const before = page.slice(0, page.lastIndexOf('<article', start));
+    expect((before.match(/&& \(<>/g) ?? []).length).toBe((before.match(/<\/>\)\}/g) ?? []).length);
     expect(article).toContain('The changes are in the Privacy Policy, sections 4, 5 and 10.');
     expect(article).toContain('If you signed up through Almstins Verify, we now send you two emails about proving your first address, one on the day you sign up and one three days later, in place of the getting-started series.');
     expect(article).toContain('They end as soon as you register your first Verify Destination, and you get the getting-started series only if you add a wallet.');
     expect(article).toContain('we may write to you personally, on occasion, about your account or to ask how the Service is working for you, and that you can ask us not to');
+    expect(article).toContain("The User Agreement's wording is unchanged");
+    const text = article.replace(/<[^>]+>/g, ' ');
+    expect(text).not.toContain('—');
+    expect(text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|holds?|held)\b/i);
+  });
+});
+
+describe('the changelog entry for Privacy Policy and User Agreement 1.8', () => {
+  const start = page.indexOf('Privacy Policy version 1.8 and User Agreement version 1.8 are in effect.');
+  const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
+  /** The day both documents carry (tests/privacy/agenticsPolicyV13.test.ts holds the six headers to it). */
+  const EFFECTIVE = 'November 20, 2026';
+
+  it('is public, dated the day the documents carry, and names the one change', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(article).toContain(`<time class="entry-date">${EFFECTIVE}</time>`);
+    // It is the newest entry, and it sits outside every flag-guarded block.
+    expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
+    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain(`<strong>Effective Date:</strong> ${EFFECTIVE} &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.8`);
+    expect(article).toContain('The change is in the Privacy Policy, section 9.');
+    expect(article).toContain('The Almstins Verify page now has a field where you can check the address or payment link you ask people to pay, with no account.');
+    expect(article).toContain('your browser keeps what you checked in its session storage, for that tab only, so the first screen after you sign in can fill it in');
+    expect(article).toContain('It is never put in a web address, keeping it sends nothing to our servers, and your browser removes it as soon as that first screen has read it.');
     expect(article).toContain("The User Agreement's wording is unchanged");
     const text = article.replace(/<[^>]+>/g, ' ');
     expect(text).not.toContain('—');

@@ -399,7 +399,10 @@ describe('what was checked is carried in the browser only', () => {
 
   it('coming back to the Verify page, or checking something else there, drops it', () => {
     const field = read('src/components/verify/VerifyCheckFirst.tsx');
-    expect(field).toContain('useEffect(() => { clearCarriedDestination(); }, []);');
+    const mount = field.slice(field.indexOf('useEffect(() => {'), field.indexOf('}, []);'));
+    expect(mount).toContain('clearCarriedDestination();');
+    expect(mount).toContain("if (e.persisted) clearCarriedDestination();");
+    expect(mount).toContain("window.addEventListener('pageshow', onShow);");
     const check = field.slice(field.indexOf('async function check()'), field.indexOf('return (', field.indexOf('async function check()')));
     expect(check.indexOf('clearCarriedDestination();')).toBeGreaterThan(-1);
     expect(check.indexOf('clearCarriedDestination();')).toBeLessThan(check.indexOf('await runScanCheck(q)'));
