@@ -1,0 +1,10 @@
+---
+// /verify/business: Almstins Verify for a business that puts a crypto address on its invoices,
+// and for the teams and agents that pay such invoices. Copy: src/i18n/verifyBusiness.ts.
+// Template: VerifyBusinessPage.astro. Rendered per request on purpose: a prerendered page would
+// skip the request-time middleware, including the sanctions geoblock.
+import VerifyBusinessPage from '@/components/verifyBusiness/VerifyBusinessPage.astro';
+
+export const prerender = false;
+---
+<VerifyBusinessPage lang="en" />

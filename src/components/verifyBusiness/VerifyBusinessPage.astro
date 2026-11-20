@@ -1,0 +1,131 @@
+---
+/*
+ * VerifyBusinessPage.astro: the template for /verify/business, the public page for a business
+ * that puts a crypto address on its invoices and for the teams and agents that pay such invoices.
+ * The shop-facing page stays at /verify (VerifyPage.astro); LinkedIn posts link here.
+ *
+ * One template, three languages. Words: src/i18n/verifyBusiness.ts. Routes, links and every
+ * number: src/lib/verifyBusiness.ts, whose verifyBusinessPage(lang) hands this file the page
+ * ready to render. Wrappers: src/pages/verify/business.astro, business/es.astro, business/fr.astro.
+ *
+ * Public and indexable: LoginLayout with noindex={false} and the page's canonical URL, plus an
+ * alternate link per language. The layout renders the one Analytics tag and the Footer. The
+ * path is public through isPublicPath (everything under /verify/) and the sitemap lists it by
+ * name (src/lib/seo/sitemapFilter.mjs).
+ *
+ * The page is sections built from components, each with its own stylesheet; there is no style
+ * block and no script here. The four answers reuse the docs kit's AnswerCards, the same cards
+ * /agentics/docs shows.
+ */
+import LoginLayout from '@/layouts/LoginLayout.astro';
+import VerifyLogo from '@/assets/verify-logo.svg?url';
+import AnswerCards from '@/components/docs/AnswerCards.astro';
+import Section from './Section.astro';
+import ActionLink from './ActionLink.astro';
+import Callout from './Callout.astro';
+import ReaderCards from './ReaderCards.astro';
+import ProofSteps from './ProofSteps.astro';
+import TitledList from './TitledList.astro';
+import ScanResults from './ScanResults.astro';
+import PlanCards from './PlanCards.astro';
+import './VerifyBusinessPage.css';
+import type { Lang } from '@/lib/i18n/locale';
+import { VERIFY_BUSINESS_LANGS, verifyBusinessPage } from '@/lib/verifyBusiness';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const page = verifyBusinessPage(lang);
+const { t, links } = page;
+---
+
+<LoginLayout title={t.meta.title} description={t.meta.description} lang={lang} noindex={false} canonical={page.canonical} favicon="/favicon-verify.png">
+  <Fragment slot="head">
+    {VERIFY_BUSINESS_LANGS.map((l) => <link rel="alternate" hreflang={l.code} href={`https://almstins.com${l.href}`} />)}
+    <link rel="alternate" hreflang="x-default" href="https://almstins.com/verify/business" />
+  </Fragment>
+
+  <header class="vb-top">
+    <a class="vb-top__brand" href={links.shop} aria-label={t.nav.brandAria}>
+      <span class="vb-top__wordmark">{t.nav.brand}</span>
+      <span class="vb-top__tagline">{t.nav.tagline}</span>
+    </a>
+    <nav class="vb-top__langs" aria-label={t.nav.langsAria}>
+      {VERIFY_BUSINESS_LANGS.map((l) => (
+        <a href={l.href} lang={l.code} hreflang={l.code} aria-label={l.aria} aria-current={l.code === lang ? 'true' : undefined}>{l.label}</a>
+      ))}
+    </nav>
+  </header>
+
+  <div class="vb-page">
+    <section class="vb-hero" aria-labelledby="vb-h1">
+      <div class="vb-hero__text">
+        <p class="vb-hero__eyebrow">{t.hero.eyebrow}</p>
+        <h1 class="vb-hero__title" id="vb-h1">{t.hero.h1}</h1>
+        <p class="vb-hero__sub">{t.hero.sub}</p>
+        <p class="vb-hero__stance">{t.hero.stance}</p>
+      </div>
+      <img class="vb-hero__mark" src={VerifyLogo} width="150" height="150" alt="" decoding="async" />
+    </section>
+
+    <!-- Who the page speaks to, in order, each with its one action. -->
+    <Section id="readers" heading={t.readers.heading}>
+      <ReaderCards items={page.readers} />
+    </Section>
+
+    <Section id="problem" heading={t.problem.heading} tone="problem">
+      {t.problem.body.map((p) => <p class="vb-text">{p}</p>)}
+    </Section>
+
+    <Section id="prove" heading={t.prove.heading} lede={t.prove.lede}>
+      <ProofSteps steps={page.steps} costLabel={t.prove.costLabel} earnsLabel={t.prove.earnsLabel} />
+      <TitledList items={t.prove.more} />
+      <div class="vb-actions">
+        <ActionLink href={links.signin} label={t.prove.cta} />
+      </div>
+    </Section>
+
+    <Section id="payer" heading={t.payer.heading} lede={t.payer.lede}>
+      <ScanResults results={page.scan.results} titleLang={page.scan.titleLang} />
+      <p class="vb-text vb-text--quiet">{t.payer.disputed}</p>
+      <Callout title={t.payer.screen.title} body={t.payer.screen.body} />
+      <div class="vb-actions">
+        <ActionLink href={links.scanner} label={t.payer.cta} />
+      </div>
+    </Section>
+
+    <Section id="agent" heading={t.agent.heading} lede={t.agent.lede}>
+      <div class="vb-answers">
+        <AnswerCards items={page.answers} />
+      </div>
+      <Callout title={t.agent.rule.title} body={t.agent.rule.body} tone="rule" />
+      <div class="vb-actions">
+        <ActionLink href={links.agentDocs} label={t.agent.cta} />
+        <ActionLink href={links.agentics} label={t.agent.more} kind="ghost" />
+      </div>
+    </Section>
+
+    <!-- The limits: a section of its own, at body size, before the plans. -->
+    <Section id="limits" heading={t.limits.heading} lede={t.limits.lede} tone="limits">
+      <TitledList items={t.limits.items} variant="limits" />
+    </Section>
+
+    <Section id="plans" heading={t.plans.heading} lede={t.plans.lede}>
+      <PlanCards plans={page.plans} />
+      <p class="vb-text vb-text--quiet">{t.plans.note} <a class="vb-link" href={links.prices}>{t.plans.pricesLink}</a></p>
+    </Section>
+
+    <Section id="next" heading={t.closing.heading} lede={t.closing.body}>
+      <ul class="vb-next">
+        {page.readers.map((reader) => (
+          <li class="vb-next__item">
+            <span class="vb-next__who">{reader.kicker}</span>
+            <ActionLink href={reader.href} label={reader.action} />
+          </li>
+        ))}
+      </ul>
+      <p class="vb-text vb-text--quiet"><a class="vb-link" href={links.shop}>{t.closing.shop}</a></p>
+    </Section>
+  </div>
+</LoginLayout>

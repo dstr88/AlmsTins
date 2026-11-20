@@ -1,0 +1,9 @@
+---
+// /verify/business in Spanish. Copy: src/i18n/verifyBusiness.ts (es). Template:
+// VerifyBusinessPage.astro. Rendered per request like the English page, so the request-time
+// middleware (the sanctions geoblock) runs.
+import VerifyBusinessPage from '@/components/verifyBusiness/VerifyBusinessPage.astro';
+
+export const prerender = false;
+---
+<VerifyBusinessPage lang="es" />

@@ -1,0 +1,24 @@
+---
+// ReaderCards: the three readers the business page speaks to, in the page's order (the business
+// that invoices, the team that pays, the agent operator), each with its one action. Markup only;
+// ReaderCards.css holds the look.
+import ActionLink from './ActionLink.astro';
+import './ReaderCards.css';
+import type { ReaderCard } from '@/lib/verifyBusiness';
+
+interface Props { items: readonly ReaderCard[] }
+const { items } = Astro.props;
+---
+<ul class="vb-readers">
+  {items.map((reader) => (
+    <li class="vb-readers__card">
+      <span class="vb-readers__kicker">{reader.kicker}</span>
+      <h3 class="vb-readers__title">{reader.title}</h3>
+      <p class="vb-readers__body">{reader.body}</p>
+      <div class="vb-readers__action">
+        <ActionLink href={reader.href} label={reader.action} />
+        <p class="vb-readers__note">{reader.note}</p>
+      </div>
+    </li>
+  ))}
+</ul>

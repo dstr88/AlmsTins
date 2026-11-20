@@ -1,0 +1,16 @@
+---
+// Callout: one boxed point with a title, set apart from the text around it. Markup only;
+// Callout.css holds the look. "rule" is the accent box the published agent rule sits in.
+import './Callout.css';
+
+interface Props {
+  title: string;
+  body: string;
+  tone?: 'plain' | 'rule';
+}
+const { title, body, tone = 'plain' } = Astro.props;
+---
+<div class={`vb-callout vb-callout--${tone}`}>
+  <h3 class="vb-callout__title">{title}</h3>
+  <p class="vb-callout__body">{body}</p>
+</div>

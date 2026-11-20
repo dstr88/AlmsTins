@@ -1,0 +1,23 @@
+---
+// PlanCards: the Verify plans, Free first, then the paid plans. Markup only; PlanCards.css holds
+// the look. The cards are built in src/lib/verifyBusiness.ts from src/lib/verifyPlans.ts, so the
+// names, prices and sizes here are the ones the product enforces.
+import './PlanCards.css';
+import type { PlanCard } from '@/lib/verifyBusiness';
+
+interface Props { plans: readonly PlanCard[] }
+const { plans } = Astro.props;
+---
+<ul class="vb-plans">
+  {plans.map((plan) => (
+    <li class={`vb-plans__card vb-plans__card--${plan.id}`}>
+      <h3 class="vb-plans__name">{plan.name}</h3>
+      <p class="vb-plans__price">{plan.price}<span class="vb-plans__unit">{plan.unit}</span></p>
+      {plan.yearly && <p class="vb-plans__yearly">{plan.yearly}</p>}
+      <ul class="vb-plans__items">
+        {plan.items.map((item) => <li>{item}</li>)}
+      </ul>
+      <a class="vb-plans__cta" href={plan.href}>{plan.cta}<span aria-hidden="true"> →</span></a>
+    </li>
+  ))}
+</ul>

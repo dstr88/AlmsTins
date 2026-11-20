@@ -1,0 +1,22 @@
+/* TitledList.css: presentation only. Markup lives in TitledList.astro. */
+
+.vb-titled { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+.vb-titled__item { min-width: 0; }
+.vb-titled__title { margin: 0 0 .3rem; font-weight: 800; line-height: 1.35; color: var(--text-primary); }
+.vb-titled__body { margin: 0; line-height: 1.65; color: var(--text-secondary); }
+
+/* Notes: three quiet cards in a row from 52rem. */
+@media (min-width: 52rem) { .vb-titled--notes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.vb-titled--notes .vb-titled__item {
+  padding: 1rem 1.1rem 1.1rem; border-radius: 14px;
+  background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+}
+.vb-titled--notes .vb-titled__title { font-size: .95rem; }
+.vb-titled--notes .vb-titled__body { font-size: .9rem; }
+
+/* Limits: body-size text, two across from 44rem, each point set off by a rule above it. */
+.vb-titled--limits { gap: 1.25rem 2rem; }
+@media (min-width: 44rem) { .vb-titled--limits { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.vb-titled--limits .vb-titled__item { padding-top: 1rem; border-top: 1px solid var(--warning-border); }
+.vb-titled--limits .vb-titled__title { font-size: 1.08rem; }
+.vb-titled--limits .vb-titled__body { font-size: 1rem; color: var(--text-primary); }

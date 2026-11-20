@@ -1,0 +1,21 @@
+---
+// Section: one titled section of the business page (/verify/business): a heading, an optional
+// opening line, then whatever the page puts inside. Markup only; Section.css holds the look.
+// `tone` picks the frame: "plain" (none), "problem" (the red rule the Verify page uses for its
+// problem section) or "limits" (the framed panel that keeps the limits from reading as small print).
+import './Section.css';
+
+interface Props {
+  /** The section's id; its heading gets `${id}-h`. */
+  id: string;
+  heading: string;
+  lede?: string;
+  tone?: 'plain' | 'problem' | 'limits';
+}
+const { id, heading, lede, tone = 'plain' } = Astro.props;
+---
+<section class={`vb-section vb-section--${tone}`} id={id} aria-labelledby={`${id}-h`}>
+  <h2 class="vb-section__heading" id={`${id}-h`}>{heading}</h2>
+  {lede && <p class="vb-section__lede">{lede}</p>}
+  <slot />
+</section>

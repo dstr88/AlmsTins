@@ -1,0 +1,35 @@
+---
+// ProofSteps: the steps a business takes to prove an address, each with what it costs and what
+// it earns. Markup only; ProofSteps.css holds the look. The step number is its place in the list.
+import './ProofSteps.css';
+import type { ProofStep } from '@/lib/verifyBusiness';
+
+interface Props {
+  steps: readonly ProofStep[];
+  costLabel: string;
+  earnsLabel: string;
+}
+const { steps, costLabel, earnsLabel } = Astro.props;
+---
+<ol class="vb-steps">
+  {steps.map((step, i) => (
+    <li class="vb-steps__step">
+      <span class="vb-steps__num" aria-hidden="true">{i + 1}</span>
+      <div class="vb-steps__main">
+        <h3 class="vb-steps__title">{step.title}</h3>
+        <p class="vb-steps__body">{step.body}</p>
+        <dl class="vb-steps__facts">
+          <div class="vb-steps__fact">
+            <dt>{costLabel}</dt>
+            <dd>{step.cost}</dd>
+          </div>
+          <div class="vb-steps__fact vb-steps__fact--earns">
+            <dt>{earnsLabel}</dt>
+            <dd>{step.earns}</dd>
+          </div>
+        </dl>
+        {step.note && <p class="vb-steps__note">{step.note}</p>}
+      </div>
+    </li>
+  ))}
+</ol>
