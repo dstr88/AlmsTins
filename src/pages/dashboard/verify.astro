@@ -3,6 +3,8 @@ import Layout from '../../layouts/Layout.astro';
 import VerifyDashboard from '../../components/verify/VerifyDashboard';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { canPublishEntities } from '@/lib/verifyEntityAccess';
+import { isVerifyFirstRun } from '@/lib/verifyFirstRun';
+import { loadVerifyFirstRunFacts } from '@/lib/verifyFirstRunFacts';
 import { getLang } from '@/lib/i18n/locale';
 import { getVerifyDashboard } from '@/i18n/dashboard/verify';
 import { getImage } from 'astro:assets';
@@ -17,6 +19,10 @@ const t = getVerifyDashboard(lang);
 // Platform lists are by approval during early access; the API enforces it, this only
 // decides whether the island shows the add/prove/connect controls.
 const entitiesApproved = !session.isDemo && canPublishEntities(session.tenantId);
+// First run (src/lib/verifyFirstRun.ts): an account with no destination yet meets one card in
+// place of the hero. The island asks the same rule again once its list has loaded.
+const firstRunFacts = await loadVerifyFirstRunFacts(session);
+const firstRun = isVerifyFirstRun(firstRunFacts);
 
 // Vault-style hero — portrait (mobile) / landscape (desktop), optimized to webp.
 const heroDesktop = await getImage({ src: heroDesktopImg, format: 'webp', width: 1376 });
@@ -32,7 +38,7 @@ const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 9
   demoSignupLabel={t.demoSignupCta}
 >
   <div class="vd-page">
-    <div class="hero-bleed">
+    {!firstRun && <div class="hero-bleed">
       <section class="vd-hero">
         <picture class="vd-hero__pic">
           <source media="(max-width: 767px)" srcset={heroMobile.src} width="928" height="1152" />
@@ -53,8 +59,15 @@ const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 9
           <p class="vd-hero__sub">{t.heroSub}</p>
         </div>
       </section>
-    </div>
-    <VerifyDashboard client:load t={t} isDemo={session.isDemo ?? false} entitiesApproved={entitiesApproved} />
+    </div>}
+    <VerifyDashboard
+      client:load
+      t={t}
+      isDemo={session.isDemo ?? false}
+      entitiesApproved={entitiesApproved}
+      initialDestinationCount={firstRunFacts.destinationCount}
+      platformAccount={firstRunFacts.platformAccount}
+    />
   </div>
 </Layout>
 

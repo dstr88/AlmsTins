@@ -238,6 +238,55 @@ export interface VerifyDashboardLocale {
   entConflictsShow: string;
   conflictWithMerchant: string;
   conflictWithPlatform: string;
+  // First run (Verify first run, Part C): an account with no destination yet meets three steps
+  // and one card in place of the hero and the empty panels (src/lib/verifyFirstRun.ts decides).
+  // Rules for these strings and the guide below (tests/verify/firstRunCopy.test.ts holds them):
+  // no em dash; nothing says Almstins stops, blocks or protects anything, or calls anything safe;
+  // the proof and the two marks are named by this file's own words (the satoshi test,
+  // statusClaimed, statusProven), so the screen cannot disagree with the badge on the row.
+  firstStepsAria: string;
+  firstStepRegister: string;
+  firstStepRegisterBody: string;
+  firstStepProve: string;
+  firstStepProveBody: string;
+  firstStepShare: string;
+  firstStepShareBody: string;
+  firstCardTitle: string;
+  firstFieldLabel: string;
+  firstFieldPlaceholder: string;
+  firstFieldHelp: string; // "… {chains} …"
+  // What the card says it read in the one field (src/lib/verifyDestinationInput.ts).
+  firstReadAddress: string; // "… {chain} …"
+  firstReadNetworks: string;
+  firstReadLink: string;
+  firstReadCode: string;
+  firstReadUnknown: string;
+  firstChooseNetwork: string;
+  firstChooseKind: string;
+  firstOptionAddress: string; // "{chain} …"
+  firstOptionQr: string;
+  firstNote: string;
+  // Right after the first registration: how to prove it (src/lib/verifyFirstRun.ts proveGuideFor).
+  // A wallet address has two ordered steps, each with what it costs and what it earns.
+  guideAddressTitle: string;
+  guideClaimTitle: string;
+  guideClaimBody: string;
+  guideClaimCost: string;
+  guideClaimEarns: string; // "… {status} …" (statusClaimed)
+  guideClaimBtn: string;
+  guideListTitle: string;
+  guideListBody: string;
+  guideListCost: string;
+  guideListEarns: string; // "… {status} …" (statusProven)
+  guideListBtn: string;
+  guideOrderNote: string; // "… {verified} … {claimed} … {lapsed} …"
+  guideStepDone: string;
+  // A payment link or QR has no proving step of its own. The payer's view is the public scanner's
+  // own title (src/i18n/verifyScan.ts), which renders in English today.
+  guideQrTitleLink: string;
+  guideQrTitleCode: string;
+  guideQrNow: string; // "… {tool} …" (verifyTitle)
+  guideQrPayer: string; // "… {prove} … {domain} …" (proveBtn, proveMethodDomain)
   // Demo mode (seeded sample vendor account) — banner + how-to guide.
   demoBanner: string;
   demoSignupCta: string;
@@ -449,17 +498,55 @@ export const en: VerifyDashboardLocale = {
   entConflictsShow: 'Show the entries',
   conflictWithMerchant: 'Proven by a merchant',
   conflictWithPlatform: 'Listed earlier by another platform',
+  firstStepsAria: 'The three steps',
+  firstStepRegister: 'Register',
+  firstStepRegisterBody: 'Add the address you ask people to pay.',
+  firstStepProve: 'Prove',
+  firstStepProveBody: 'Show it is yours. No wallet connection and no signature.',
+  firstStepShare: 'Share',
+  firstStepShareBody: 'Put its QR badge on your invoice, sign or checkout. Anyone can check it at the free scanner, with no account.',
+  firstCardTitle: 'Register the address you ask people to pay',
+  firstFieldLabel: 'Wallet address, payment link or QR text',
+  firstFieldPlaceholder: 'Paste a wallet address or a payment link',
+  firstFieldHelp: 'Verify takes wallet addresses on these networks: {chains}. If you publish a payment link or a QR instead, paste the link or the text the QR holds.',
+  firstReadAddress: 'Recognized as a {chain} address.',
+  firstReadNetworks: 'This address works on more than one network. Choose the one people pay you on.',
+  firstReadLink: 'Recognized as a payment link.',
+  firstReadCode: 'Recognized as a payment QR code.',
+  firstReadUnknown: 'We could not tell what this is. Choose what to register it as.',
+  firstChooseNetwork: 'Choose a network',
+  firstChooseKind: 'Choose one',
+  firstOptionAddress: '{chain} address',
+  firstOptionQr: 'Payment link or QR',
+  firstNote: 'Read-only. Almstins never asks you to connect a wallet, sign anything or move funds.',
+  guideAddressTitle: 'Registered. Now prove this address is yours.',
+  guideClaimTitle: 'Claim it with the satoshi test (a self-send)',
+  guideClaimBody: 'From your own wallet app, send a tiny, exact amount from the address back to itself. The coins stay in your wallet. No wallet connection and no signature.',
+  guideClaimCost: 'Costs: the normal network fee.',
+  guideClaimEarns: 'Earns: {status}.',
+  guideClaimBtn: 'Start the satoshi test',
+  guideListTitle: 'List it in a file on your own website',
+  guideListBody: 'Publish a small file that lists the address on a website you control. We give you the file.',
+  guideListCost: 'Costs: nothing from Almstins. You need a website you control.',
+  guideListEarns: 'Earns: {status}, with your domain shown beside the address.',
+  guideListBtn: 'Start the domain proof',
+  guideOrderNote: 'You can skip step 1: the file alone takes a registered address to {verified}. If the file later no longer lists it, an address that took the satoshi test goes back to {claimed}, and one that skipped it shows as {lapsed}.',
+  guideStepDone: 'Done',
+  guideQrTitleLink: 'Registered. This payment link is saved to your account.',
+  guideQrTitleCode: 'Registered. This payment QR code is saved to your account.',
+  guideQrNow: 'What you can do now: use “{tool}” below to check that a sign, invoice or checkout still carries it.',
+  guideQrPayer: 'What a payer sees: “Not a verified destination”, until this account has proven a website domain. Today that proof is offered on a wallet address: register one, choose {prove} on its row, then {domain}.',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
   demoBannerText: "You're in the vendor demo. Sign in to register and prove your own addresses.",
-  demoProveNote: 'In the live app, you prove this address by sending the tiny amount we show you, from that same wallet — we just watch the chain for it, so we never ask you to connect or sign anything. Once it lands, the address is Verified and locked to your account. Sign up free to prove your own.',
+  demoProveNote: 'In the live app, you prove this address by sending the tiny amount we show you, from that same wallet — we just watch the chain for it, so we never ask you to connect or sign anything. Once it lands, the address shows as Claimed and is locked to your account. Sign up free to prove your own.',
   howToHeading: 'How to register your own',
   howToWalletTitle: 'Add a wallet address',
   howToWalletSteps: [
     'Pick the chain — Bitcoin, Ethereum, Polygon, Avalanche, Solana, or Litecoin.',
     'Paste the receiving address your customers actually pay — the same one on your sign, invoice, or checkout — give it a label, and Register.',
     'Prove you control it: send the tiny amount we show you, from that wallet. We watch the public chain for it — we never ask you to connect a wallet or sign anything.',
-    'Once we see it, the address flips to Verified and is locked to your account — claimed once, so no one else can list it as theirs.',
+    'Once we see it, the address shows as Claimed and is locked to your account: claimed once, so no one else can list it as theirs.',
     'No keys to that address (a custodial or exchange deposit address)? It still lists under your account as Self-listed — a clearly lower tier than Verified.',
   ],
   howToStripeTitle: 'Add a Stripe payment link',
@@ -679,17 +766,55 @@ export const es: VerifyDashboardLocale = {
   entConflictsShow: 'Ver las entradas',
   conflictWithMerchant: 'Demostrada por un comercio',
   conflictWithPlatform: 'Listada antes por otra plataforma',
+  firstStepsAria: 'Los tres pasos',
+  firstStepRegister: 'Registrar',
+  firstStepRegisterBody: 'Agrega la dirección a la que pides que te paguen.',
+  firstStepProve: 'Demostrar',
+  firstStepProveBody: 'Muestra que es tuya. Sin conectar la billetera y sin firmar nada.',
+  firstStepShare: 'Compartir',
+  firstStepShareBody: 'Pon su código QR en tu factura, letrero o pantalla de pago. Cualquiera puede comprobarla en el escáner gratuito, sin cuenta.',
+  firstCardTitle: 'Registra la dirección a la que pides que te paguen',
+  firstFieldLabel: 'Dirección de billetera, enlace de pago o texto del QR',
+  firstFieldPlaceholder: 'Pega una dirección de billetera o un enlace de pago',
+  firstFieldHelp: 'Verify acepta direcciones de billetera en estas redes: {chains}. Si publicas un enlace de pago o un QR en su lugar, pega el enlace o el texto que contiene el QR.',
+  firstReadAddress: 'Reconocida como una dirección de {chain}.',
+  firstReadNetworks: 'Esta dirección sirve en más de una red. Elige la red en la que te pagan.',
+  firstReadLink: 'Reconocido como un enlace de pago.',
+  firstReadCode: 'Reconocido como un código QR de pago.',
+  firstReadUnknown: 'No pudimos saber qué es. Elige como qué registrarlo.',
+  firstChooseNetwork: 'Elige una red',
+  firstChooseKind: 'Elige una opción',
+  firstOptionAddress: 'Dirección de {chain}',
+  firstOptionQr: 'Enlace o QR de pago',
+  firstNote: 'Solo lectura. Almstins nunca te pide conectar una billetera, firmar nada ni mover fondos.',
+  guideAddressTitle: 'Registrada. Ahora demuestra que esta dirección es tuya.',
+  guideClaimTitle: 'Reclámala con la prueba del satoshi (un autoenvío)',
+  guideClaimBody: 'Desde tu propia app de billetera, envía una cantidad pequeña y exacta desde la dirección a sí misma. Las monedas se quedan en tu billetera. Sin conectar la billetera y sin firmar nada.',
+  guideClaimCost: 'Cuesta: la comisión normal de la red.',
+  guideClaimEarns: 'Obtienes: «{status}».',
+  guideClaimBtn: 'Empezar la prueba del satoshi',
+  guideListTitle: 'Inclúyela en un archivo de tu propio sitio web',
+  guideListBody: 'Publica un archivo pequeño que incluya la dirección en un sitio web que controles. Nosotros te damos el archivo.',
+  guideListCost: 'Cuesta: nada por parte de Almstins. Necesitas un sitio web que controles.',
+  guideListEarns: 'Obtienes: «{status}», con tu dominio junto a la dirección.',
+  guideListBtn: 'Empezar la prueba de dominio',
+  guideOrderNote: 'Puedes saltarte el paso 1: el archivo por sí solo lleva una dirección registrada a «{verified}». Si más adelante el archivo deja de incluirla, una dirección que hizo la prueba del satoshi vuelve a «{claimed}», y una que se la saltó aparece como «{lapsed}».',
+  guideStepDone: 'Hecho',
+  guideQrTitleLink: 'Registrado. Este enlace de pago quedó guardado en tu cuenta.',
+  guideQrTitleCode: 'Registrado. Este código QR de pago quedó guardado en tu cuenta.',
+  guideQrNow: 'Lo que puedes hacer ahora: usa «{tool}», más abajo, para comprobar que un letrero, una factura o una pantalla de pago sigue mostrándolo.',
+  guideQrPayer: 'Lo que ve quien paga: «Not a verified destination» (por ahora el escáner muestra el resultado en inglés), hasta que esta cuenta haya demostrado un dominio web. Hoy esa prueba se ofrece en una dirección de billetera: registra una, elige «{prove}» en su fila y luego «{domain}».',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
   demoBannerText: 'Estás en la demo para comercios. Inicia sesión para registrar y demostrar tus propias direcciones.',
-  demoProveNote: 'En la app real, demuestras esta dirección enviando el pequeño monto que te mostramos, desde esa misma billetera — solo observamos la cadena, así que nunca te pedimos conectar ni firmar nada. Cuando llega, la dirección queda Verificada y bloqueada a tu cuenta. Regístrate gratis para demostrar la tuya.',
+  demoProveNote: 'En la app real, demuestras esta dirección enviando el pequeño monto que te mostramos, desde esa misma billetera — solo observamos la cadena, así que nunca te pedimos conectar ni firmar nada. Cuando llega, la dirección aparece como «Control confirmado» y queda bloqueada a tu cuenta. Regístrate gratis para demostrar la tuya.',
   howToHeading: 'Cómo registrar los tuyos',
   howToWalletTitle: 'Agregar una dirección de billetera',
   howToWalletSteps: [
     'Elige la cadena — Bitcoin, Ethereum, Polygon, Avalanche, Solana o Litecoin.',
     'Pega la dirección de cobro que tus clientes realmente pagan — la misma de tu letrero, factura o checkout — ponle una etiqueta y Regístrala.',
     'Demuestra que la controlas: envía el pequeño monto que te mostramos, desde esa billetera. Observamos la cadena pública — nunca te pedimos conectar una billetera ni firmar nada.',
-    'En cuanto lo vemos, la dirección pasa a Verificada y queda bloqueada a tu cuenta — reclamada una sola vez, así nadie más puede listarla como suya.',
+    'En cuanto lo vemos, la dirección aparece como «Control confirmado» y queda bloqueada a tu cuenta: reclamada una sola vez, así nadie más puede listarla como suya.',
     '¿No tienes las llaves de esa dirección (es de custodia o de un exchange)? Igual aparece en tu cuenta como Autolistada — un nivel claramente menor que Verificada.',
   ],
   howToStripeTitle: 'Agregar un enlace de pago de Stripe',
@@ -909,17 +1034,55 @@ export const fr: VerifyDashboardLocale = {
   entConflictsShow: 'Voir les entrées',
   conflictWithMerchant: 'Prouvée par un commerçant',
   conflictWithPlatform: 'Listée plus tôt par une autre plateforme',
+  firstStepsAria: 'Les trois étapes',
+  firstStepRegister: 'Enregistrer',
+  firstStepRegisterBody: 'Ajoutez l’adresse à laquelle vous demandez d’être payé.',
+  firstStepProve: 'Prouver',
+  firstStepProveBody: 'Montrez qu’elle est à vous. Sans connexion de portefeuille et sans signature.',
+  firstStepShare: 'Partager',
+  firstStepShareBody: 'Mettez son badge QR sur votre facture, votre affiche ou votre page de paiement. N’importe qui peut la vérifier dans le scanner gratuit, sans compte.',
+  firstCardTitle: 'Enregistrez l’adresse à laquelle vous demandez d’être payé',
+  firstFieldLabel: 'Adresse de portefeuille, lien de paiement ou texte du QR',
+  firstFieldPlaceholder: 'Collez une adresse de portefeuille ou un lien de paiement',
+  firstFieldHelp: 'Verify accepte les adresses de portefeuille sur ces réseaux : {chains}. Si vous publiez plutôt un lien de paiement ou un QR, collez le lien ou le texte que contient le QR.',
+  firstReadAddress: 'Reconnue comme une adresse {chain}.',
+  firstReadNetworks: 'Cette adresse fonctionne sur plusieurs réseaux. Choisissez celui sur lequel on vous paie.',
+  firstReadLink: 'Reconnu comme un lien de paiement.',
+  firstReadCode: 'Reconnu comme un code QR de paiement.',
+  firstReadUnknown: 'Nous n’avons pas pu déterminer ce que c’est. Choisissez sous quelle forme l’enregistrer.',
+  firstChooseNetwork: 'Choisissez un réseau',
+  firstChooseKind: 'Choisissez une option',
+  firstOptionAddress: 'Adresse {chain}',
+  firstOptionQr: 'Lien ou QR de paiement',
+  firstNote: 'Lecture seule. Almstins ne vous demande jamais de connecter un portefeuille, de signer quoi que ce soit ni de déplacer des fonds.',
+  guideAddressTitle: 'Enregistrée. Prouvez maintenant que cette adresse est à vous.',
+  guideClaimTitle: 'Revendiquez-la avec le test du satoshi (un auto-envoi)',
+  guideClaimBody: 'Depuis votre propre application de portefeuille, envoyez un petit montant exact de l’adresse vers elle-même. Les fonds restent dans votre portefeuille. Sans connexion de portefeuille et sans signature.',
+  guideClaimCost: 'Coût : les frais de réseau habituels.',
+  guideClaimEarns: 'Résultat : « {status} ».',
+  guideClaimBtn: 'Commencer le test du satoshi',
+  guideListTitle: 'Listez-la dans un fichier sur votre propre site web',
+  guideListBody: 'Publiez un petit fichier qui liste l’adresse sur un site web que vous contrôlez. Nous vous fournissons le fichier.',
+  guideListCost: 'Coût : rien de la part d’Almstins. Il vous faut un site web que vous contrôlez.',
+  guideListEarns: 'Résultat : « {status} », avec votre domaine affiché à côté de l’adresse.',
+  guideListBtn: 'Commencer la preuve de domaine',
+  guideOrderNote: 'Vous pouvez sauter l’étape 1 : le fichier seul fait passer une adresse enregistrée à « {verified} ». Si le fichier ne la liste plus par la suite, une adresse qui a passé le test du satoshi revient à « {claimed} », et une adresse qui l’a sauté apparaît comme « {lapsed} ».',
+  guideStepDone: 'Fait',
+  guideQrTitleLink: 'Enregistré. Ce lien de paiement est conservé dans votre compte.',
+  guideQrTitleCode: 'Enregistré. Ce code QR de paiement est conservé dans votre compte.',
+  guideQrNow: 'Ce que vous pouvez faire maintenant : utilisez « {tool} », plus bas, pour vérifier qu’une affiche, une facture ou une page de paiement le porte toujours.',
+  guideQrPayer: 'Ce que voit un payeur : « Not a verified destination » (pour l’instant, le scanner affiche le résultat en anglais), tant que ce compte n’a pas prouvé un domaine web. Aujourd’hui, cette preuve est proposée sur une adresse de portefeuille : enregistrez-en une, choisissez « {prove} » sur sa ligne, puis « {domain} ».',
   demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
   demoSignupCta: 'Inscrivez-vous gratuitement →',
   demoBannerText: 'Vous êtes dans la démo commerçant. Connectez-vous pour enregistrer et prouver vos propres adresses.',
-  demoProveNote: 'Dans l’app réelle, vous prouvez cette adresse en envoyant le petit montant que nous indiquons, depuis ce même portefeuille — nous observons simplement la chaîne, donc nous ne vous demandons jamais de connecter ni de signer quoi que ce soit. Une fois reçu, l’adresse est Vérifiée et verrouillée à votre compte. Inscrivez-vous gratuitement pour prouver la vôtre.',
+  demoProveNote: 'Dans l’app réelle, vous prouvez cette adresse en envoyant le petit montant que nous indiquons, depuis ce même portefeuille — nous observons simplement la chaîne, donc nous ne vous demandons jamais de connecter ni de signer quoi que ce soit. Une fois reçu, l’adresse apparaît comme « Contrôle confirmé » et est verrouillée à votre compte. Inscrivez-vous gratuitement pour prouver la vôtre.',
   howToHeading: 'Comment enregistrer les vôtres',
   howToWalletTitle: 'Ajouter une adresse de portefeuille',
   howToWalletSteps: [
     'Choisissez la chaîne — Bitcoin, Ethereum, Polygon, Avalanche, Solana ou Litecoin.',
     'Collez l’adresse de réception que vos clients paient réellement — la même que sur votre panneau, facture ou page de paiement — donnez-lui un libellé, puis Enregistrez-la.',
     'Prouvez que vous la contrôlez : envoyez le petit montant que nous indiquons, depuis ce portefeuille. Nous observons la chaîne publique — nous ne vous demandons jamais de connecter un portefeuille ni de signer quoi que ce soit.',
-    'Dès que nous le voyons, l’adresse passe à Vérifiée et est verrouillée à votre compte — revendiquée une seule fois, donc personne d’autre ne peut la lister comme sienne.',
+    'Dès que nous le voyons, l’adresse apparaît comme « Contrôle confirmé » et est verrouillée à votre compte : revendiquée une seule fois, donc personne d’autre ne peut la lister comme sienne.',
     'Pas les clés de cette adresse (une adresse de dépôt en garde ou d’un exchange) ? Elle figure quand même sous votre compte comme Autodéclarée — un niveau clairement inférieur à Vérifiée.',
   ],
   howToStripeTitle: 'Ajouter un lien de paiement Stripe',
