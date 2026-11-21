@@ -163,7 +163,7 @@ const verifyPaid = (['business', 'pro'] as const).map((id) => {
   .pricing__more { margin: .25rem 0 1rem; font-size: .9rem; }
   .pricing__more a { color: var(--accent); font-weight: 600; text-decoration: none; }
   .pricing__more a:hover { text-decoration: underline; }
-  .pricing__tag { color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; }
+  .pricing__tag { color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; display: inline-block; white-space: nowrap; }
   .pricing__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
   .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; }
   .card--featured { border: 1px solid var(--accent); }

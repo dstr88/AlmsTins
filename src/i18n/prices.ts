@@ -33,7 +33,7 @@ export const en: PricesCopy = {
   lang: 'en',
   meta: {
     title: 'Almstins Pricing — Start Free, Pay for More Capacity',
-    description: 'Track your crypto across wallets, exchanges, and DeFi with cost basis and realized gains and losses, free for up to 3 wallets. Verify protects your published payment addresses, with a Free plan that stays free.',
+    description: 'Track your crypto across wallets, exchanges, and DeFi with cost basis and realized gains and losses, free for up to 3 wallets. Verify lets payers check your published payment addresses before they send, with a Free plan that stays free.',
   },
   nav: { login: 'Log in', signup: 'Sign up free' },
   hero: {
@@ -54,7 +54,7 @@ export const en: PricesCopy = {
     unlimited: { name: 'Unlimited', price: '$39', unit: '/mo', yearly: 'or $400/year', items: ['Unlimited wallets', 'Everything in Pro', 'Year Summary PDF for your records and your tax professional + white-glove onboarding'], cta: 'Choose Unlimited →' },
   },
   verify: {
-    heading: 'Verify — protect your payment destinations',
+    heading: 'Verify: let payers check your payment addresses before they send',
     tag: 'paid plans by email',
     lead: "Post your QR on every table and every register — print a hundred. Verify checks the address behind it, not the paper. Scan or paste any sign and we'll tell you instantly whether it still matches what you registered — with automatic swap alerts rolling out.",
     storeFree: { name: 'Store · Free', price: '$0', unit: '· always', items: ['{address} wallet addresses and {qr} payment QR or link, e.g. your ETH and BTC addresses and your Stripe link', 'Unlimited placements, same QR on as many tables as you like', 'Best-effort checks + email alerts'], cta: 'Start free →' },
@@ -69,7 +69,7 @@ export const es: PricesCopy = {
   lang: 'es',
   meta: {
     title: 'Precios de Almstins — Empieza gratis, paga por más capacidad',
-    description: 'Controla tu cripto en billeteras, exchanges y DeFi con costo base y ganancias y pérdidas realizadas, gratis hasta 3 billeteras. Verify protege las direcciones de pago que publicas, con un plan gratuito que sigue siendo gratis.',
+    description: 'Controla tu cripto en billeteras, exchanges y DeFi con costo base y ganancias y pérdidas realizadas, gratis hasta 3 billeteras. Verify permite que quien te paga compruebe las direcciones de pago que publicas antes de enviar, con un plan gratuito que sigue siendo gratis.',
   },
   nav: { login: 'Iniciar sesión', signup: 'Crear cuenta gratis' },
   hero: {
@@ -90,7 +90,7 @@ export const es: PricesCopy = {
     unlimited: { name: 'Unlimited', price: '$39', unit: '/mes', yearly: 'o $400/año', items: ['Billeteras ilimitadas', 'Todo lo de Pro', 'PDF de resumen anual para tus registros y tu profesional de impuestos + incorporación personalizada'], cta: 'Elegir Unlimited →' },
   },
   verify: {
-    heading: 'Verify — protege tus direcciones de pago',
+    heading: 'Verify: que quien te paga compruebe tus direcciones de pago antes de enviar',
     tag: 'planes de pago por correo',
     lead: 'Pon tu QR en cada mesa y cada caja — imprime cien. Verify comprueba la dirección que hay detrás, no el papel. Escanea o pega cualquier letrero y te diremos al instante si sigue coincidiendo con lo que registraste — con alertas automáticas de sustitución en camino.',
     storeFree: { name: 'Comercio · Gratis', price: '$0', unit: '· siempre', items: ['{address} direcciones de billetera y {qr} QR o enlace de pago, p. ej. tus direcciones de ETH y BTC y tu enlace de Stripe', 'Ubicaciones ilimitadas, el mismo QR en tantas mesas como quieras', 'Comprobaciones de mejor esfuerzo + alertas por correo'], cta: 'Empieza gratis →' },
@@ -105,7 +105,7 @@ export const fr: PricesCopy = {
   lang: 'fr',
   meta: {
     title: 'Tarifs Almstins — Commencez gratuitement, payez pour plus de capacité',
-    description: "Suivez votre crypto sur vos portefeuilles, exchanges et DeFi avec le coût de base et les plus-values et moins-values réalisées, gratuit jusqu'à 3 portefeuilles. Verify protège les adresses de paiement que vous publiez, avec un forfait gratuit qui reste gratuit.",
+    description: "Suivez votre crypto sur vos portefeuilles, exchanges et DeFi avec le coût de base et les plus-values et moins-values réalisées, gratuit jusqu'à 3 portefeuilles. Verify permet à ceux qui vous paient de vérifier les adresses de paiement que vous publiez avant d'envoyer, avec un forfait gratuit qui reste gratuit.",
   },
   nav: { login: 'Se connecter', signup: 'Créer un compte gratuit' },
   hero: {
@@ -126,7 +126,7 @@ export const fr: PricesCopy = {
     unlimited: { name: 'Unlimited', price: '39 $', unit: '/mois', yearly: 'ou 400 $/an', items: ['Portefeuilles illimités', 'Tout ce qui est dans Pro', 'PDF de récapitulatif annuel pour vos registres et votre professionnel fiscal + accompagnement personnalisé'], cta: 'Choisir Unlimited →' },
   },
   verify: {
-    heading: 'Verify — protégez vos adresses de paiement',
+    heading: 'Verify : vos payeurs vérifient vos adresses de paiement avant d’envoyer',
     tag: 'forfaits payants par e-mail',
     lead: "Affichez votre QR sur chaque table et chaque caisse — imprimez-en cent. Verify vérifie l'adresse qui se cache derrière, pas le papier. Scannez ou collez n'importe quel panneau et nous vous dirons aussitôt s'il correspond toujours à ce que vous avez enregistré — avec des alertes de remplacement automatiques qui arrivent.",
     storeFree: { name: 'Commerçant · Gratuit', price: '0 $', unit: '· toujours', items: ['{address} adresses de portefeuille et {qr} QR ou lien de paiement, p. ex. vos adresses ETH et BTC et votre lien Stripe', 'Emplacements illimités, le même QR sur autant de tables que vous voulez', 'Vérifications au mieux + alertes par e-mail'], cta: 'Commencer gratuitement →' },

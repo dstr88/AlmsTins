@@ -360,7 +360,7 @@ export const fr: LoginPageLocale = {
   },
   meta: {
     title: 'Almstins — Contrôlez, suivez et vérifiez votre crypto',
-    description: 'Vérifiez une adresse ou un site contre les arnaques, suivez votre portefeuille et votre prix de revient, et protégez vos QR codes de paiement. Lecture seule, sans connexion de portefeuille.',
+    description: 'Vérifiez une adresse ou un site contre les arnaques, suivez votre portefeuille et votre prix de revient, et vérifiez les QR codes que publie votre entreprise. Lecture seule, sans connexion de portefeuille.',
   },
   signin: {
     pillLabel: 'Connexion',
