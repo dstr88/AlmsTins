@@ -49,6 +49,8 @@ export interface AgenticsCopy {
   readonly landing: {
     readonly title: string;
     readonly description: string;
+    /** Alt text for the link-preview card (src/lib/ogCards.ts). */
+    readonly ogImageAlt: string;
     readonly eyebrow: string;
     readonly h1: string;
     readonly sub: string;
@@ -100,6 +102,7 @@ export const en: AgenticsCopy = {
     title: 'Almstins Agentics: check the address before your agent pays it',
     description:
       'Agentics verifies the address an AI agent is about to send to and keeps a dated record of what it answered. Read-only, no keys, never in the transaction path. Free accounts are open.',
+    ogImageAlt: 'Almstins Agentics: check the address before your agent pays it. almstins.com/agentics',
     eyebrow: 'Almstins Agentics',
     h1: 'Check the address before your agent pays it.',
     sub: 'Agentics verifies the destination an AI agent is about to send to, and keeps a dated record of what it answered. Read-only. No keys, no wallet connection, never in the transaction path.',

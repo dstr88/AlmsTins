@@ -29,6 +29,7 @@ import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { cleanSource, signupHref } from '@/lib/agenticsSource';
 import { hasAccount } from '@/lib/agenticsAccountEntry';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { OG_AGENTICS_CARD } from '@/lib/ogCards';
 
 export const prerender = false;
 
@@ -40,7 +41,8 @@ const session = await requireTenantSession(Astro.request).catch(() => null);
 const member = hasAccount(session);
 if (member) Astro.response.headers.set('Cache-Control', 'private, no-store');
 const canonical = 'https://almstins.com/agentics';
-const ogImage = 'https://almstins.com/og-default.png';
+// The link preview (LinkedIn, X): the Agentics card, not the site-wide wallet image.
+const ogImage = OG_AGENTICS_CARD;
 ---
 <!doctype html>
 <html lang="en">
@@ -54,10 +56,14 @@ const ogImage = 'https://almstins.com/og-default.png';
   <meta property="og:type" content="website" />
   <meta property="og:url" content={canonical} />
   <meta property="og:image" content={ogImage} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content={l.ogImageAlt} />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={l.title} />
   <meta name="twitter:description" content={l.description} />
   <meta name="twitter:image" content={ogImage} />
+  <meta name="twitter:image:alt" content={l.ogImageAlt} />
   <link rel="canonical" href={canonical} />
   <link rel="icon" href="/favicon.webp" />
   <link rel="icon" href="/favicon.ico" sizes="any" />
