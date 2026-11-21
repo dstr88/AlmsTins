@@ -31,7 +31,8 @@ export const LANGS: Array<{ code: Lang; href: string; label: string; aria: strin
 
 export interface VerifyCopy {
   /** Page <title> is composed in the component as `${BRAND} — ${meta.tagline}`. */
-  meta: { tagline: string; description: string };
+  /** ogImageAlt: alt text for this language's link-preview card (src/lib/ogCards.ts). */
+  meta: { tagline: string; description: string; ogImageAlt: string };
   jsonld: { description: string; featureList: string[] };
   nav: { brandAria: string; tagline: string };
   hero: {
@@ -121,6 +122,7 @@ export interface VerifyCopy {
 const en: VerifyCopy = {
   meta: {
     tagline: 'Verify your crypto receiving addresses before you trust them',
+    ogImageAlt: 'Almstins Verify: prove your receiving addresses. Payers check before they send. almstins.com/verify',
     description:
       'Register the crypto addresses and payment QR your business publishes, prove they are yours (no wallet connection), then check any sign or invoice against them before you rely on it. Free, always: 2 wallets and 1 QR. Almstins re-checks your domain proof, and any page you ask it to watch, every six hours and emails you if something changes.',
   },
@@ -322,6 +324,7 @@ const en: VerifyCopy = {
 const es: VerifyCopy = {
   meta: {
     tagline: 'Verifica tus direcciones de cobro antes de confiar en ellas',
+    ogImageAlt: 'Almstins Verify: demuestra tus direcciones de cobro. Quien te paga las comprueba antes de enviar. almstins.com/verify/es',
     description:
       'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos (sin conectar la billetera) y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis, siempre: 2 direcciones y 1 QR. Almstins vuelve a comprobar tu prueba de dominio, y cualquier página que le pidas vigilar, cada seis horas y te avisa por correo si algo cambia.',
   },
@@ -523,6 +526,7 @@ const es: VerifyCopy = {
 const fr: VerifyCopy = {
   meta: {
     tagline: 'Vérifiez vos adresses de réception crypto avant de leur faire confiance',
+    ogImageAlt: 'Almstins Verify : prouvez vos adresses de réception. Vos payeurs les vérifient avant d’envoyer. almstins.com/verify/fr',
     description:
       'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous (sans connexion de portefeuille), puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit, toujours : 2 adresses et 1 QR. Almstins revérifie votre preuve de domaine, et toute page que vous lui demandez de surveiller, toutes les six heures et vous prévient par e-mail si quelque chose change.',
   },

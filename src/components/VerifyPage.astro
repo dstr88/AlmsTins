@@ -5,6 +5,7 @@ import VerifyLogo from '../assets/verify-logo.svg?url';
 import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
 import { VERIFY_SIGNIN_HREF } from '../lib/verifyCheckFirst';
 import { verifyBusinessHref } from '../lib/verifyBusinessHref';
+import { OG_VERIFY_CARD } from '../lib/ogCards';
 import VerifyCheckFirst from './verify/VerifyCheckFirst';
 
 interface Props {
@@ -41,7 +42,7 @@ Authorization: Bearer <your-key>
 }`;
 ---
 
-<LoginLayout title={title} description={t.meta.description} noindex={false} lang={lang} canonical={canonical} favicon="/favicon-verify.png">
+<LoginLayout title={title} description={t.meta.description} noindex={false} lang={lang} canonical={canonical} favicon="/favicon-verify.png" image={OG_VERIFY_CARD[lang]} imageAlt={t.meta.ogImageAlt}>
 
   <!-- Per-language SEO alternates -->
   <Fragment slot="head">
