@@ -72,7 +72,8 @@ describe('the page as the server renders it', () => {
 
   it('says the two honest things: when a transfer shows, and what is read and when', () => {
     const t = textOf(page());
-    expect(t).toContain('about 1 minute on Avalanche, 3 on Ethereum and 10 on Polygon');
+    expect(t).toContain('about 1 minute on Avalanche, 3 on Ethereum, 5 on Base and 10 on Polygon');
+    expect(t).toContain('On Base, only token transfers (such as USDC) are read, not ETH.');
     // A check is in the list within seconds, but its CARD waits its turn behind the ones before it (three seconds each).
     expect(t).toContain('A check shows in the list within a few seconds of the agent asking, and gets its card in turn.');
     expect(t).toContain(copy.feed.readHint);
@@ -293,11 +294,11 @@ describe('the words', () => {
   });
 
   it('say the waits the watcher keeps before it records a transfer: the numbers are read from the code, so the two cannot drift', () => {
-    const lag = /CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = \{ ethereum: (\d+), polygon: (\d+), avalanche: (\d+) \}/.exec(read('src/lib/agentVault/watcher.ts'));
+    const lag = /CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = \{ ethereum: (\d+), polygon: (\d+), avalanche: (\d+), base: (\d+) \}/.exec(read('src/lib/agentVault/watcher.ts'));
     expect(lag, 'the watcher no longer has CONFIRMATION_LAG_S in this form').not.toBeNull();
     const minutes = (seconds: string) => Math.round(Number(seconds) / 60);
-    const [, ethereum, polygon, avalanche] = lag!;
-    expect(copy.feed.timing).toContain(`about ${minutes(avalanche)} minute on Avalanche, ${minutes(ethereum)} on Ethereum and ${minutes(polygon)} on Polygon`);
+    const [, ethereum, polygon, avalanche, base] = lag!;
+    expect(copy.feed.timing).toContain(`about ${minutes(avalanche)} minute on Avalanche, ${minutes(ethereum)} on Ethereum, ${minutes(base)} on Base and ${minutes(polygon)} on Polygon`);
     // And "about once a minute" is what the numbers add up to: a pause after a read, plus a read that takes at most twenty seconds.
     const pause = Number(/LIVE_READ_PAUSE_MS = ([\d_]+)/.exec(read('src/lib/agentVault/liveRead.ts'))![1].replace(/_/g, ''));
     const deadline = Number(/REFRESH_DEADLINE_MS = ([\d_]+)/.exec(read('src/lib/agentVault/vault.ts'))![1].replace(/_/g, ''));

@@ -2,7 +2,7 @@
 //
 // Operative Privacy Policy v1.9, effective 2026-11-24. v1.9 adds one sentence to Section 3 (Agent check records): every
 // check, with or without a key, adds one to a count per day (the date, whether a key was used and the answer), with
-// nothing about who asked or what was checked (src/lib/checkCounts.ts). The Agreement moves to v1.9 with it, unchanged.
+// nothing about who asked or what was checked (src/lib/checkCounts.ts). The Agreement moves to v1.9 with it, adding Base to the chains its B.9.7 names.
 // Earlier: v1.8, effective 2026-11-20, adds one item to Section 9 (what is kept in the browser): an
 // address or payment link a visitor checked in the field on the public Verify page, kept in that tab's session storage
 // when they press "Prove it's yours, free", so the first screen after sign-in can fill it in (src/lib/carriedDestination.ts;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanSymbol, normalizeTransfers, transferTime, NATIVE_SYMBOL, EXPLORER_ACTIONS } from '../../src/lib/agentVault/transfers';
+import { cleanSymbol, normalizeTransfers, transferTime, NATIVE_SYMBOL, EXPLORER_ACTIONS, explorerActionsFor } from '../../src/lib/agentVault/transfers';
 import { addr } from '../helpers/agentVault';
 import { internalRow, nativeRow, tokenRow, txHash, units, USDC_ETHEREUM, blockTime } from '../helpers/fakeExplorer';
 
@@ -43,7 +43,7 @@ describe('the chain\'s own coin (txlist)', () => {
   });
 
   it('names each chain\'s own coin', () => {
-    expect(NATIVE_SYMBOL).toEqual({ ethereum: 'ETH', polygon: 'POL', avalanche: 'AVAX' });
+    expect(NATIVE_SYMBOL).toEqual({ ethereum: 'ETH', polygon: 'POL', avalanche: 'AVAX', base: 'ETH' });
     for (const [chain, symbol] of Object.entries(NATIVE_SYMBOL)) {
       const { transfers } = normalizeTransfers(chain as 'ethereum', ME, 'txlist', [nativeRow({ hash: 3, block: 5, from: ME, to: THEM, value: units('1') })]);
       expect(transfers[0].asset).toBe(symbol);
@@ -218,4 +218,10 @@ describe('small helpers', () => {
   it('knows the three listings', () => {
     expect([...EXPLORER_ACTIONS]).toEqual(['txlist', 'txlistinternal', 'tokentx']);
   });
+
+  it('reads all three listings on the explorer chains, and token transfers only on Base', () => {
+    for (const chain of ['ethereum', 'polygon', 'avalanche'] as const) expect([...explorerActionsFor(chain)], chain).toEqual(['txlist', 'txlistinternal', 'tokentx']);
+    expect([...explorerActionsFor('base')]).toEqual(['tokentx']);
+  });
+
 });

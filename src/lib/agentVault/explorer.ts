@@ -2,8 +2,10 @@
  * The block explorer, as the watcher reads it: Etherscan's v2 API for Ethereum and Polygon,
  * Routescan's compatible one for Avalanche, through the shared client in src/lib/etherscan.ts
  * (one rate gate per API key for the whole process, a pause between calls, retries on a rate
- * limit). The watcher only sees the two small functions below, so tests give it a table of
- * transfers instead of a network.
+ * limit). Base has no free explorer API, so it is read from its public JSON-RPC (./baseRpc.ts),
+ * which answers the same two questions in the same shape, for token transfers only. The watcher
+ * only sees the two small functions below, so tests give it a table of transfers instead of a
+ * network.
  *
  * Both answer "I could not read it" with null, and that is a different thing from "there is
  * nothing there" (an empty list). Mixing the two up is how a watcher decides a quiet hour was
@@ -14,6 +16,7 @@
  */
 import { buildEtherscanV2Url, CHAIN_IDS, requestEtherscan } from '@/lib/etherscan';
 import type { VaultChain } from './addresses';
+import { baseRpcReader } from './baseRpc';
 import type { ExplorerAction } from './transfers';
 
 export interface ExplorerQuery {
@@ -65,6 +68,7 @@ const BLOCK_CACHE_LIMIT = 2_000;
 
 export const defaultExplorer: ExplorerDeps = {
   async blockAt(chain, atSec) {
+    if (chain === 'base') return baseRpcReader.blockAt(atSec);
     const key = `${chain}:${atSec}`;
     const cached = BLOCK_CACHE.get(key);
     if (cached !== undefined) return cached;
@@ -82,6 +86,8 @@ export const defaultExplorer: ExplorerDeps = {
   },
 
   async page(q) {
+    // Base's RPC has token transfer logs only: any other listing there cannot be read (null, never an empty list).
+    if (q.chain === 'base') return q.action === 'tokentx' ? baseRpcReader.tokenTransfers(q) : null;
     try {
       const url = buildEtherscanV2Url(CHAIN_IDS[q.chain], {
         module: 'account',

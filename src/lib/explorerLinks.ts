@@ -97,6 +97,7 @@ const EXPLORERS = new Map<ExplorerChain, ExplorerRule>([
   ['polygon', evm('polygon')],
   ['avalanche', evm('avalanche')],
   ['bsc', evm('bsc')],
+  ['base', evm('base')],
   ['bitcoin', rule('bitcoin', either(bech32('bc'), exact(BTC_LEGACY)), hexOr(HEX_64))],
   ['litecoin', rule('litecoin', either(bech32('ltc'), exact(LTC_LEGACY)), hexOr(HEX_64))],
   ['solana', rule('solana', exact(SOLANA_ADDRESS), exact(SOLANA_SIGNATURE))],

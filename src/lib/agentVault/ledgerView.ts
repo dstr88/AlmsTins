@@ -81,7 +81,7 @@ export interface LedgerRow {
 // A Record over each union, so a word added to the ledger without a line here fails the build.
 const ANSWERS: Record<VaultAnswer, true> = { proven: true, 'consistent-with-history': true, flagged: true, unknown: true };
 const REGISTRIES: Record<RegistryVerdict, true> = { trusted: true, flagged: true, pending: true, none: true };
-const CHAINS: Record<VaultChain, true> = { ethereum: true, polygon: true, avalanche: true };
+const CHAINS: Record<VaultChain, true> = { ethereum: true, polygon: true, avalanche: true, base: true };
 const KEY_STATES: Record<KeyState, true> = { active: true, pending: true, revoked: true, unknown: true };
 
 const has = (set: object, v: unknown): boolean => typeof v === 'string' && Object.prototype.hasOwnProperty.call(set, v);

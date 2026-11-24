@@ -217,7 +217,7 @@ describe('the open vault keeps the same wording rules', () => {
   it('says what a check needs to be recorded, that every transfer of the bot\'s own wallet is read and marked, and the daily number: no promise of "every check" or "every address"', () => {
     const step = enOpen.landing.steps[2].body;
     expect(step).toContain(`Each check your bot asks with its key becomes a dated entry on your bot’s page (up to ${FREE_CHECKS_PER_DAY.toLocaleString('en-US')} a day on the free plan).`);
-    expect(step).toContain('every transfer of your bot’s wallet, marks whether the other side was on your list');
+    expect(step).toContain('every transfer of your bot’s wallet, and Base for its token transfers, marks whether the other side was on your list');
     const welcome = enOpen.letter.paragraphs.join(' ');
     expect(welcome).toContain('link a key to it (you make a key by proving a domain)');
     expect(welcome).toContain('Each check your bot asks with its key appears on its page.');
@@ -226,7 +226,7 @@ describe('the open vault keeps the same wording rules', () => {
     const opened = opening.letter.paragraphs.join(' ');
     expect(opened).toContain('link a key to it (you make a key by proving a domain)');
     expect(opened).toContain('Each check it asks with the key becomes a dated entry');
-    expect(opened).toContain('every transfer of the bot’s wallet is read from Ethereum, Polygon and Avalanche, marked with whether the other side was on your list');
+    expect(opened).toContain('every transfer of the bot’s wallet is read from Ethereum, Polygon and Avalanche, and every token transfer from Base, marked with whether the other side was on your list');
     for (const [where, text] of ALL_OPEN) expect(text, where).not.toMatch(/\bevery check\b|\ball your addresses\b|\bwatches? (the )?(receiv|every)/i);
   });
 

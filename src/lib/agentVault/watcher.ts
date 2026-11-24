@@ -43,7 +43,7 @@ import { LINK_LOOKUP_LIMIT, LINK_TOLERANCE_MS, LINK_WINDOW_MS, linkTransactionTo
 import { fillPendingPrices } from './dailyPrices';
 import { defaultPricing, memoizePricing, priceTransfer, type PricingDeps } from './pricing';
 import { listDestinations, listWallets, type AgentWallet, type Destination, type Tin } from './store';
-import { EXPLORER_ACTIONS, normalizeTransfers, transferTime, type ExplorerAction, type Transfer } from './transfers';
+import { explorerActionsFor, normalizeTransfers, transferTime, type ExplorerAction, type Transfer } from './transfers';
 import { advanceWalletCursor, oldestPairCursor, readPairCursors, readWalletCursors } from './watchState';
 import { alertCheck, unmatchedAlertDue, type CheckAlertInfo } from './alerts';
 
@@ -52,8 +52,18 @@ export const PAGE_SIZE = 1000;
 export const MAX_PAGES = 10;
 /** A completed read starts the next one this far back, to catch a block the explorer indexed late. */
 export const CURSOR_OVERLAP_S = 60 * 60;
-/** How old a block must be before it is read, per chain, so a reorganization is unlikely to undo it. */
-export const CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = { ethereum: 180, polygon: 600, avalanche: 60 };
+/**
+ * How old a block must be before it is read, per chain, so a reorganization is unlikely to undo it.
+ * Base: its public RPC answers from the sequencer's newest blocks, which count as settled only once
+ * their batch is posted to Ethereum, normally within a few minutes; five minutes waits that out.
+ */
+export const CONFIRMATION_LAG_S: Readonly<Record<VaultChain, number>> = { ethereum: 180, polygon: 600, avalanche: 60, base: 300 };
+/**
+ * The longest stretch one read covers, per chain; no limit where unset. Base's RPC is read a few
+ * thousand blocks per call, so a wallet far behind catches up a stretch per read (three days, more
+ * than a day's pass adds) instead of a read too long to finish. A shortened read is `partial`.
+ */
+export const MAX_READ_SPAN_S: Readonly<Partial<Record<VaultChain, number>>> = { base: 3 * 24 * 60 * 60 };
 
 export interface WatchDeps {
   explorer: ExplorerDeps;
@@ -84,7 +94,7 @@ export interface PassOptions {
 
 export type WalletStatus =
   | 'complete' // every listing was read to the newest confirmed block
-  | 'partial' //  read part of the way (a page limit or the deadline)
+  | 'partial' //  read part of the way (a page limit, the deadline, or the chain's read span: MAX_READ_SPAN_S)
   | 'unavailable' // the explorer could not be read; nothing moved
   | 'failed' //   the ledger could not be written; nothing moved
   | 'idle'; //    nothing to read yet (a wallet registered moments ago, or one with no readable registration time)
@@ -257,9 +267,13 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
   const { tenantId, tin, wallet, deps } = ctx;
   const report = emptyReport(wallet, ctx.destinations);
   const nowMs = deps.now();
-  const horizonSec = Math.floor(nowMs / 1000) - CONFIRMATION_LAG_S[wallet.chain];
+  const confirmedSec = Math.floor(nowMs / 1000) - CONFIRMATION_LAG_S[wallet.chain];
   const fromSec = Math.floor(ctx.startMs / 1000);
-  if (fromSec >= horizonSec) return { ...report, status: 'idle', reason: 'too_new' };
+  if (fromSec >= confirmedSec) return { ...report, status: 'idle', reason: 'too_new' };
+  // A chain with a read span limit reads at most that far past the start; the rest is the next read's.
+  const span = MAX_READ_SPAN_S[wallet.chain];
+  const horizonSec = span !== undefined && confirmedSec - fromSec > span ? fromSec + span : confirmedSec;
+  const spanLimited = horizonSec < confirmedSec;
 
   const startBlock = await deps.explorer.blockAt(wallet.chain, fromSec);
   const endBlock = await ctx.horizonBlock(wallet.chain, horizonSec);
@@ -267,7 +281,7 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
   if (startBlock > endBlock) return { ...report, status: 'idle', reason: 'too_new' };
 
   const scans: ActionScan[] = [];
-  for (const action of EXPLORER_ACTIONS) {
+  for (const action of explorerActionsFor(wallet.chain)) {
     scans.push(await scanAction(deps, { chain: wallet.chain, action, address: wallet.address, startBlock, endBlock }, ctx.deadlineAt));
   }
 
@@ -386,7 +400,7 @@ async function watchWallet(ctx: WalletContext): Promise<WalletReport> {
   }
   await advanceWalletCursor(tenantId, tin.id, wallet.id, reached * 1000, ctx.walletCursors);
   const throughAt = new Date(reached * 1000).toISOString();
-  if (everyListingComplete) return { ...report, status: 'complete', throughAt };
+  if (everyListingComplete) return spanLimited ? { ...report, status: 'partial', reason: 'span_limit', throughAt } : { ...report, status: 'complete', throughAt };
   return { ...report, status: 'partial', reason: firstShortfall ?? 'page_limit', throughAt };
 }
 

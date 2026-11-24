@@ -4,9 +4,9 @@
  * network), so it is unit-tested directly.
  *
  * The normalized form is what the Vault stores and what "one live row per (tenant, tin, chain,
- * address)" compares, so two spellings of one wallet can never be two destinations. Slice 1
- * tracks the EVM chains the rest of the app already reads (Ethereum, Polygon, Avalanche); a new
- * chain is one entry in CHAIN_RULES. An address on any other chain is refused with a reason, never
+ * address)" compares, so two spellings of one wallet can never be two destinations. The Vault
+ * tracks four EVM chains (Ethereum, Polygon, Avalanche, Base); a new chain is one entry in
+ * CHAIN_RULES. An address on any other chain is refused with a reason, never
  * stored half-understood.
  */
 
@@ -16,13 +16,19 @@ import { CHAINS, VAULT_CHAINS } from '@/lib/chains';
 export { VAULT_CHAINS };
 export type VaultChain = (typeof VAULT_CHAINS)[number];
 
-/** What a pasted list or a client may call each chain. A Map, so a name like "constructor" is never a hit. */
-const CHAIN_NAMES = new Map<string, VaultChain>([
-  // Each chain's name and its coin's symbol: ethereum/eth, polygon/pol, avalanche/avax.
-  ...VAULT_CHAINS.flatMap((c): Array<[string, VaultChain]> => [[c, c], [CHAINS[c].native.symbol.toLowerCase(), c]]),
-  // Polygon's coin before the 2024 rename.
-  ['matic', 'polygon'],
-]);
+/**
+ * What a pasted list or a client may call each chain. A Map, so a name like "constructor" is never a hit.
+ * Each chain's name, and its coin's symbol: ethereum/eth, polygon/pol, avalanche/avax. A symbol two
+ * chains share stays with the first: Base's coin is ETH too, and "eth" still means Ethereum, so Base
+ * is called only by its name.
+ */
+const CHAIN_NAMES = new Map<string, VaultChain>(VAULT_CHAINS.map((c): [string, VaultChain] => [c, c]));
+for (const c of VAULT_CHAINS) {
+  const symbol = CHAINS[c].native.symbol.toLowerCase();
+  if (!CHAIN_NAMES.has(symbol)) CHAIN_NAMES.set(symbol, c);
+}
+// Polygon's coin before the 2024 rename.
+CHAIN_NAMES.set('matic', 'polygon');
 
 /** The canonical chain for a name (case and surrounding spaces ignored), or null if the Vault does not track it. */
 export function parseChain(raw: unknown): VaultChain | null {
@@ -44,6 +50,7 @@ const CHAIN_RULES: Record<VaultChain, ChainRule> = {
   ethereum: evm,
   polygon: evm,
   avalanche: evm,
+  base: evm,
 };
 
 /**

@@ -2,7 +2,7 @@
  * The facts about each blockchain Almstins reads, written once: its name, family, native coin,
  * EVM chain id, the other spellings stored rows use for it, and its block explorer. Below the
  * records are the named lists each feature uses. The lists differ on purpose (the Agent Vault
- * watches three chains, net worth reads eight); they live here, each with its name, so adding a
+ * watches four chains, net worth reads eight); they live here, each with its name, so adding a
  * chain is one record plus a deliberate choice per feature, never a hunt for copies.
  * tests/ci/chainFactsGuard.test.ts fails on a chain list or native coin map written anywhere else.
  *
@@ -83,7 +83,7 @@ export const CHAINS = {
 		native: { symbol: 'ETH', decimals: 18 },
 		evmChainId: 8453,
 		aliases: [],
-		explorer: null,
+		explorer: evmExplorer('BaseScan', 'basescan.org'),
 	},
 	arbitrum: {
 		name: 'Arbitrum',
@@ -248,8 +248,11 @@ export const WALLET_TX_CHAINS = ['ethereum', 'avalanche', 'polygon'] as const sa
 /** The EVM chains a wallet card lets its owner tick on or off (src/components/dashboard/WalletChainPicker.tsx). */
 export const WALLET_CARD_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];
 
-/** The chains the Agent Vault watches (src/lib/agentVault). */
-export const VAULT_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const satisfies readonly ChainId[];
+/**
+ * The chains the Agent Vault watches (src/lib/agentVault). Base is read through its public JSON-RPC,
+ * not an explorer API, and only for token transfers (src/lib/agentVault/baseRpc.ts).
+ */
+export const VAULT_CHAINS = ['ethereum', 'polygon', 'avalanche', 'base'] as const satisfies readonly ChainId[];
 
 /** The rails Verify offers for a receiving address. */
 export const VERIFY_ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const satisfies readonly ChainId[];

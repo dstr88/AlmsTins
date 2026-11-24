@@ -174,10 +174,10 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.9', () => 
     expect(article).toContain(`<time class="entry-date">${EFFECTIVE}</time>`);
     expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
     expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain(`<strong>Effective Date:</strong> ${EFFECTIVE} &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.9`);
-    expect(article).toContain('The change is in the Privacy Policy, section 3.');
+    expect(article).toContain('The changes are in the Privacy Policy, section 3, and the User Agreement, section B.9.7.');
     expect(article).toContain('keeps a count of its answers per day: the date, whether the call used a key, and the answer it gave');
     expect(article).toContain('Checks made without a key are still not recorded.');
-    expect(article).toContain("The User Agreement's wording is unchanged");
+    expect(article).toContain('It does not read ETH moving on Base.');
     const text = article.replace(/<[^>]+>/g, ' ');
     expect(text).not.toContain('—');
     expect(text).not.toMatch(/\b(stops?|stopped|blocks?|blocked|safe)\b/i);
