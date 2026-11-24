@@ -247,6 +247,8 @@ vi.mock('@/lib/db', () => ({
 
 const auth = vi.hoisted(() => ({ getAuthSession: vi.fn() }));
 vi.mock('@/lib/authSession', () => auth);
+// The check's per-day count (src/lib/checkCounts.ts) keeps nothing about an account, so it is not part of deletion.
+vi.mock('@/lib/checkCounts', () => ({ countCheck: async () => {} }));
 
 const gate = vi.hoisted(() => ({ invalidateUserAuthFacts: vi.fn() }));
 vi.mock('@/lib/sessionGate', async (importOriginal) => ({

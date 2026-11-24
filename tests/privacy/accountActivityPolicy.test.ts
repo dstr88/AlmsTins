@@ -5,7 +5,7 @@ import * as policy from '../../src/i18n/privacyPolicy';
 
 /**
  * Privacy Policy v1.6 says what else is kept about an account, and what the admin tools show,
- * in English, Spanish and French. (The policy has moved on to v1.8 since; that wording is unchanged.)
+ * in English, Spanish and French. (The policy has moved on to v1.9 since; that wording is unchanged.)
  *
  * Two things are newly kept (src/lib/accountActivity.ts): the product an account signed up for
  * and the last day it was active. The country and product of the last sign-in were already kept
@@ -138,10 +138,10 @@ describe('the sentence about the admin tools names what they show', () => {
 });
 
 describe('the three languages agree', () => {
-	it('each is version 1.8, the version in effect', () => {
-		expect(bodies.en).toContain('<strong>Version:</strong> 1.8');
-		expect(bodies.es).toContain('<strong>Versión:</strong> 1.8');
-		expect(bodies.fr).toContain('<strong>Version :</strong> 1.8');
+	it('each is version 1.9, the version in effect', () => {
+		expect(bodies.en).toContain('<strong>Version:</strong> 1.9');
+		expect(bodies.es).toContain('<strong>Versión:</strong> 1.9');
+		expect(bodies.fr).toContain('<strong>Version :</strong> 1.9');
 	});
 
 	it('none says a sign-in or an active day is "not recorded", and none describes a referring site', () => {

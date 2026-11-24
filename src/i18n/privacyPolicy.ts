@@ -1,6 +1,9 @@
 // Privacy Policy — footer-modal content, all user-visible copy (EN · ES · FR).
 //
-// Operative Privacy Policy v1.8, effective 2026-11-20. v1.8 adds one item to Section 9 (what is kept in the browser): an
+// Operative Privacy Policy v1.9, effective 2026-11-24. v1.9 adds one sentence to Section 3 (Agent check records): every
+// check, with or without a key, adds one to a count per day (the date, whether a key was used and the answer), with
+// nothing about who asked or what was checked (src/lib/checkCounts.ts). The Agreement moves to v1.9 with it, unchanged.
+// Earlier: v1.8, effective 2026-11-20, adds one item to Section 9 (what is kept in the browser): an
 // address or payment link a visitor checked in the field on the public Verify page, kept in that tab's session storage
 // when they press "Prove it's yours, free", so the first screen after sign-in can fill it in (src/lib/carriedDestination.ts;
 // Verify first run, Part D). It is never in a web address, keeping it sends nothing to our servers, and it is removed when read.
@@ -46,7 +49,7 @@ export const en: PrivacyLocale = {
   ariaLabel: 'Privacy Policy',
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
-<p><strong>Effective Date:</strong> November 20, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.8<br/>
+<p><strong>Effective Date:</strong> November 24, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.9<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
@@ -87,7 +90,7 @@ export const en: PrivacyLocale = {
   <li><strong>Usage data:</strong> pages visited, features used, session duration.</li>
   <li><strong>Device information:</strong> browser type, operating system, and IP address (the latter also used for sanctions/geo controls).</li>
   <li><strong>Log data:</strong> timestamps of actions, error logs, API calls.</li>
-  <li><strong>Agent check records:</strong> when an agent asks for a check with an API key that is linked to one of your agents, the Agent Vault records the address asked about, the time, the answer, which key asked, and a salted one-way hash of the caller's IP address (never the IP address itself). Checks made without a key, or with a key that is not linked to an agent, are not recorded (Section 5). On a plan with a daily limit, a check past the limit is answered and not recorded, except one that comes back flagged.</li>
+  <li><strong>Agent check records:</strong> when an agent asks for a check with an API key that is linked to one of your agents, the Agent Vault records the address asked about, the time, the answer, which key asked, and a salted one-way hash of the caller's IP address (never the IP address itself). Checks made without a key, or with a key that is not linked to an agent, are not recorded (Section 5). For every check, with or without a key, we keep only a count per day: the date, whether a key was used, and the answer given, with nothing about who asked or what was checked. On a plan with a daily limit, a check past the limit is answered and not recorded, except one that comes back flagged.</li>
   <li><strong>Analytics:</strong> Google Analytics records the pages you visit and the actions listed in Section 9 under a cookie ID for your browser. Our own logs of dashboard and sign-in page requests keep the page, your country, and salted one-way hashes of your IP address and browser details. Our logs of checks run on the public checkers keep your country and salted one-way hashes of your IP address and of the address or domain checked. See Sections 9 and 10.</li>
 </ul>
 
@@ -229,7 +232,7 @@ export const es: PrivacyLocale = {
   ariaLabel: 'Política de Privacidad',
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
-<p><strong>Fecha de Vigencia:</strong> 20 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.8<br/>
+<p><strong>Fecha de Vigencia:</strong> 24 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.9<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
@@ -270,7 +273,7 @@ export const es: PrivacyLocale = {
   <li><strong>Datos de uso:</strong> páginas visitadas, funciones utilizadas, duración de la sesión.</li>
   <li><strong>Información del dispositivo:</strong> tipo de navegador, sistema operativo y dirección IP (esta última también se utiliza para controles de sanciones y geolocalización).</li>
   <li><strong>Datos de registro:</strong> marcas de tiempo de acciones, registros de errores, llamadas a la API.</li>
-  <li><strong>Registros de verificaciones de agentes:</strong> cuando un agente solicita una verificación con una clave API vinculada a uno de sus agentes, el Agent Vault registra la dirección consultada, la hora, la respuesta, qué clave la solicitó y un hash unidireccional con sal de la dirección IP de quien llama (nunca la dirección IP en sí). Las verificaciones hechas sin clave, o con una clave que no está vinculada a un agente, no se registran (Sección 5). En un plan con límite diario, una verificación posterior al límite se responde y no se registra, salvo una que resulte "flagged".</li>
+  <li><strong>Registros de verificaciones de agentes:</strong> cuando un agente solicita una verificación con una clave API vinculada a uno de sus agentes, el Agent Vault registra la dirección consultada, la hora, la respuesta, qué clave la solicitó y un hash unidireccional con sal de la dirección IP de quien llama (nunca la dirección IP en sí). Las verificaciones hechas sin clave, o con una clave que no está vinculada a un agente, no se registran (Sección 5). De cada verificación, con o sin clave, solo guardamos un recuento por día: la fecha, si se usó una clave y la respuesta dada, sin nada sobre quién preguntó ni qué se verificó. En un plan con límite diario, una verificación posterior al límite se responde y no se registra, salvo una que resulte "flagged".</li>
   <li><strong>Analíticas:</strong> Google Analytics registra las páginas que visita y las acciones indicadas en la Sección 9 bajo un identificador de cookie de su navegador. Nuestros propios registros de las solicitudes a las páginas del panel y de inicio de sesión conservan la página, su país y hashes unidireccionales con sal de su dirección IP y de los datos de su navegador. Nuestros registros de las verificaciones realizadas en los verificadores públicos conservan su país y hashes unidireccionales con sal de su dirección IP y de la dirección o el dominio verificado. Véanse las Secciones 9 y 10.</li>
 </ul>
 
@@ -412,7 +415,7 @@ export const fr: PrivacyLocale = {
   ariaLabel: 'Politique de Confidentialité',
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
-<p><strong>Date d'entrée en vigueur :</strong> 20 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.8<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 24 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.9<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>
@@ -453,7 +456,7 @@ export const fr: PrivacyLocale = {
   <li><strong>Données d'utilisation :</strong> pages visitées, fonctionnalités utilisées, durée de la session.</li>
   <li><strong>Informations sur l'appareil :</strong> type de navigateur, système d'exploitation et adresse IP (cette dernière est également utilisée pour les contrôles de sanctions et de géolocalisation).</li>
   <li><strong>Données de journalisation :</strong> horodatages des actions, journaux d'erreurs, appels API.</li>
-  <li><strong>Registres des vérifications d'agents :</strong> lorsqu'un agent demande une vérification avec une clé API liée à l'un de vos agents, l'Agent Vault enregistre l'adresse interrogée, l'heure, la réponse, la clé qui l'a demandée et une empreinte à sens unique salée de l'adresse IP de l'appelant (jamais l'adresse IP elle-même). Les vérifications faites sans clé, ou avec une clé qui n'est pas liée à un agent, ne sont pas enregistrées (Section 5). Avec un plan à limite quotidienne, une vérification postérieure à la limite reçoit sa réponse et n'est pas enregistrée, sauf une qui revient « flagged ».</li>
+  <li><strong>Registres des vérifications d'agents :</strong> lorsqu'un agent demande une vérification avec une clé API liée à l'un de vos agents, l'Agent Vault enregistre l'adresse interrogée, l'heure, la réponse, la clé qui l'a demandée et une empreinte à sens unique salée de l'adresse IP de l'appelant (jamais l'adresse IP elle-même). Les vérifications faites sans clé, ou avec une clé qui n'est pas liée à un agent, ne sont pas enregistrées (Section 5). De chaque vérification, avec ou sans clé, nous ne gardons qu'un décompte par jour : la date, si une clé a été utilisée et la réponse donnée, sans rien sur qui a demandé ni sur ce qui a été vérifié. Avec un plan à limite quotidienne, une vérification postérieure à la limite reçoit sa réponse et n'est pas enregistrée, sauf une qui revient « flagged ».</li>
   <li><strong>Analytique :</strong> Google Analytics enregistre les pages que vous visitez et les actions indiquées à la Section 9 sous un identifiant de cookie propre à votre navigateur. Nos propres journaux des requêtes vers les pages du tableau de bord et de connexion conservent la page, votre pays et des empreintes à sens unique salées de votre adresse IP et des informations de votre navigateur. Nos journaux des vérifications effectuées sur les outils de vérification publics conservent votre pays et des empreintes à sens unique salées de votre adresse IP et de l'adresse ou du domaine vérifié. Voir les Sections 9 et 10.</li>
 </ul>
 

@@ -49,8 +49,8 @@ describe('the Agentics email line in the privacy policy', () => {
     expect(agentics.letter.why).toContain('only email we will send until your vault opens');
   });
 
-  it('is in version 1.8 (1.3 added Agentics, 1.4 the unmatched-payment email, 1.5 keeps step with the Agreement, 1.6 says what else is kept about an account, 1.7 describes the Verify welcome emails, 1.8 an address checked on the Verify page; the date is held by agenticsPolicyV13.test.ts)', () => {
-    for (const [lang, body] of Object.entries(bodies)) expect(body, lang).toMatch(/<strong>Vers(?:ion|ión) ?:?<\/strong> 1\.8/);
+  it('is in version 1.9 (1.3 added Agentics, 1.4 the unmatched-payment email, 1.5 keeps step with the Agreement, 1.6 says what else is kept about an account, 1.7 describes the Verify welcome emails, 1.8 an address checked on the Verify page, 1.9 the pre-send check counted per day; the date is held by agenticsPolicyV13.test.ts)', () => {
+    for (const [lang, body] of Object.entries(bodies)) expect(body, lang).toMatch(/<strong>Vers(?:ion|ión) ?:?<\/strong> 1\.9/);
   });
 });
 

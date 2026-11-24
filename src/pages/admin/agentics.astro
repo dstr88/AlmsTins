@@ -9,6 +9,7 @@ import Analytics from '@/components/Analytics.astro';
 import { requireAdminSession } from '@/lib/adminGuard';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { ACTIVE_DAYS, ACTIVITY_DAYS, loadAgenticsAnalytics } from '@/lib/agenticsAnalytics';
+import { CHECK_STATUSES, loadCheckCounts } from '@/lib/checkCounts';
 import { countOpeningWaiting, ensureAgenticsSignupsTable, OPENING_BATCH_DEFAULT } from '@/lib/agenticsSignup';
 import { db } from '@/lib/db';
 import { formatDateTime, formatNumber, formatUsd } from '@/lib/format';
@@ -37,6 +38,10 @@ const welcomed = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE w
 const told = await count(`SELECT COUNT(*) AS n FROM agentics_signups WHERE opened_notified_at IS NOT NULL`);
 const waiting = await countOpeningWaiting().catch(() => 0);
 const stats = await loadAgenticsAnalytics();
+// The public pre-send check, counted per day with nothing about the caller (src/lib/checkCounts.ts).
+const CHECK_DAYS = 14;
+const checks = await loadCheckCounts(CHECK_DAYS);
+const maxCheckDay = Math.max(1, ...checks.days.map((d) => d.anonymous + d.keyed));
 
 const int = { format: (n: number): string => formatNumber(n, 'en') };
 const usd = { format: (n: number): string => formatUsd(n, { cents: false }) };
@@ -162,6 +167,25 @@ const t = stats.totals;
 			</table>
 		</div>
 		<p class="small">Country is the one Cloudflare gave an account's visit, recorded from today on: accounts that have not opened Agentics since show a dash. "Last opened" moves at most once an hour. Checks and transactions count the whole ledger; "Last {ACTIVE_DAYS}d" counts both.</p>
+
+		<h2>The free check</h2>
+		<p>Answers from the public pre-send check (/api/verify/check) over the last {CHECK_DAYS} days, UTC, counted from Nov 2026. Only a daily total is kept: no address, no IP, no key, nothing about who asked.</p>
+		{checks.unavailable && <p class="notice notice--off">Could not read the check counts. They show as zero.</p>}
+		<div class="tiles wide" aria-label="Free check totals">
+			<div class="tile"><b>{int.format(checks.totals.anonymous)}</b><span>anonymous checks</span></div>
+			<div class="tile"><b>{int.format(checks.totals.keyed)}</b><span>checks with a key</span></div>
+			{CHECK_STATUSES.map((s) => <div class="tile"><b>{int.format(checks.totals.byStatus[s])}</b><span>answered {s}</span></div>)}
+		</div>
+		<section class="card wide" aria-label="Free checks per day">
+			<h3>Checks per day</h3>
+			<div class="bars">
+				{checks.days.map((d) => {
+					const n = d.anonymous + d.keyed;
+					return <div title={`${d.day}: ${int.format(d.anonymous)} anonymous, ${int.format(d.keyed)} keyed`}><i class={n ? '' : 'zero'} style={`height:${n ? Math.max(2, (n / maxCheckDay) * 100) : 1}%`} /></div>;
+				})}
+			</div>
+			<div class="axis">{checks.days.map((d, i) => <span>{i % 3 === 0 || i === checks.days.length - 1 ? d.day.slice(5) : ''}</span>)}</div>
+		</section>
 
 		<h2>When they are active</h2>
 		<p>Checks and transfers by agents over the last {ACTIVITY_DAYS} days, UTC. A check is timed when it was answered, a transfer by its block.</p>

@@ -49,6 +49,11 @@
  * (src/lib/agentVault/warmCache.ts); a screening hit flags the vault answer. Nothing above changes,
  * anonymous calls never get the field and are never screened or recorded, and a failure there never
  * changes the public answer.
+ *
+ * Every answer, anonymous or keyed, also adds one to a per-day total (src/lib/checkCounts.ts): the
+ * UTC day, anonymous or keyed, and the status. Nothing about the call is kept, no address, no
+ * payment link, no IP, no key. The answer never waits for the count, and a failed count changes
+ * nothing.
  */
 import type { APIRoute } from 'astro';
 import { clientIpKey, createFixedWindowLimiter } from '@/lib/rateLimit';
@@ -59,6 +64,7 @@ import { isEmvPayload } from '@/lib/paymentQr';
 import { authenticateAgentKey } from '@/lib/agentKeys';
 import type { VaultBlock } from '@/lib/agentVault/checkLog';
 import { json } from '@/lib/http';
+import { countCheck } from '@/lib/checkCounts';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -166,6 +172,9 @@ export const GET: APIRoute = async ({ request, url }) => {
   const label = anchored && provingDomain ? displayableName(hit?.label ?? null, provingDomain) : null;
 
   const checkedAt = new Date();
+
+  // One more on the day's total; nothing about this call is kept (src/lib/checkCounts.ts).
+  void countCheck({ caller: keyId ? 'keyed' : 'anonymous', status, now: checkedAt });
 
   // A keyed call whose key is linked to one of the owner's Agent Vault tins is also written to that
   // tin's ledger, and the answer gains one `vault` field. Everything else is unchanged, and a

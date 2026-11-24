@@ -429,7 +429,8 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       age the public check returned, the screening's result and when it was made (a reused one is marked
       cached, so the ledger shows how fresh it was), which key asked, and the caller's network address kept only as a salted
       one-way hash. Calls with no key, keys not linked to an agent, and payment links or QR values (which
-      carry no <code>vault</code> field) are never recorded. Rows are never edited or removed while your account
+      carry no <code>vault</code> field) are never recorded. Every call, with or without a key, only
+      adds one to a count per day (the date, whether a key was used, and the answer), with nothing about the call. Rows are never edited or removed while your account
       exists; deleting the account deletes them. On the Free plan an agent has 5,000 recorded checks per UTC
       day, plus room for up to 500 more that come back flagged. Past that a check is answered in full and not
       recorded, and the check that found the day full carries a mark, so the ledger, the report and the
