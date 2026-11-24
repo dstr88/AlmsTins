@@ -11,12 +11,18 @@ vi.mock('@/lib/etherscan', async () => ({
   requestEtherscan: etherscan.request,
 }));
 
+// Base is read from its RPC (./baseRpc.ts, tested on its own in baseRpc.test.ts); here only the routing.
+const baseRpc = vi.hoisted(() => ({ blockAt: vi.fn(), tokenTransfers: vi.fn() }));
+vi.mock('../../src/lib/agentVault/baseRpc', () => ({ baseRpcReader: baseRpc }));
+
 let explorer: typeof import('../../src/lib/agentVault/explorer');
 
 beforeEach(async () => {
   vi.resetModules();
   etherscan.build.mockReset().mockImplementation((chainId: number, params: Record<string, unknown>) => `https://explorer.test/${chainId}?${new URLSearchParams(params as Record<string, string>)}`);
   etherscan.request.mockReset();
+  baseRpc.blockAt.mockReset();
+  baseRpc.tokenTransfers.mockReset();
   explorer = await import('../../src/lib/agentVault/explorer');
 });
 
@@ -111,5 +117,34 @@ describe('the default explorer', () => {
     expect(await explorer.defaultExplorer.blockAt('ethereum', 1_790_000_003)).toBeNull();
     etherscan.request.mockRejectedValueOnce(new Error('boom'));
     expect(await explorer.defaultExplorer.blockAt('ethereum', 1_790_000_004)).toBeNull();
+  });
+});
+
+describe('Base goes to its RPC reader, never to Etherscan', () => {
+  const q = { chain: 'base' as const, action: 'tokentx' as const, address: `0x${'ab'.repeat(20)}`, startBlock: 100, endBlock: 200, page: 1, offset: 1000 };
+
+  it('token transfers and block lookups are the RPC reader\'s answers', async () => {
+    baseRpc.tokenTransfers.mockResolvedValue([{ hash: 'a' }]);
+    baseRpc.blockAt.mockResolvedValue(777);
+    expect(await explorer.defaultExplorer.page(q)).toEqual([{ hash: 'a' }]);
+    expect(baseRpc.tokenTransfers).toHaveBeenCalledWith(q);
+    expect(await explorer.defaultExplorer.blockAt('base', 1_790_000_005)).toBe(777);
+    expect(baseRpc.blockAt).toHaveBeenCalledWith(1_790_000_005);
+    expect(etherscan.build).not.toHaveBeenCalled();
+    expect(etherscan.request).not.toHaveBeenCalled();
+  });
+
+  it('the coin listings cannot be read on Base: null, never an empty list', async () => {
+    expect(await explorer.defaultExplorer.page({ ...q, action: 'txlist' })).toBeNull();
+    expect(await explorer.defaultExplorer.page({ ...q, action: 'txlistinternal' })).toBeNull();
+    expect(baseRpc.tokenTransfers).not.toHaveBeenCalled();
+    expect(etherscan.build).not.toHaveBeenCalled();
+  });
+
+  it('a reader that could not read is null here too', async () => {
+    baseRpc.tokenTransfers.mockResolvedValue(null);
+    baseRpc.blockAt.mockResolvedValue(null);
+    expect(await explorer.defaultExplorer.page(q)).toBeNull();
+    expect(await explorer.defaultExplorer.blockAt('base', 1)).toBeNull();
   });
 });

@@ -4,7 +4,7 @@
  *
  * Three listings carry a wallet's movements. `txlist` has the transactions that moved the chain's
  * own coin, `txlistinternal` the coin moved by contract calls (how a smart-contract wallet pays
- * out), and `tokentx` the token transfers. A row becomes a `Transfer` only when it is a real
+ * out), and `tokentx` the token transfers. On Base only `tokentx` is read (explorerActionsFor). A row becomes a `Transfer` only when it is a real
  * movement between the wallet and one other address:
  *
  *   - a transaction that failed moved nothing, and neither did a row of value zero (approvals and
@@ -39,6 +39,17 @@ import { EVM_ADDRESS_LOWER, EVM_TX_HASH_LOWER } from '@/lib/addressFormats';
 
 export type ExplorerAction = 'txlist' | 'txlistinternal' | 'tokentx';
 export const EXPLORER_ACTIONS: readonly ExplorerAction[] = ['txlist', 'txlistinternal', 'tokentx'];
+
+/**
+ * Base is read through its public JSON-RPC (./baseRpc.ts), which has token transfer logs but no
+ * account listings and no traces: only `tokentx` there. The chain's own coin moving on Base is not read.
+ */
+const TOKEN_TRANSFERS_ONLY: readonly ExplorerAction[] = ['tokentx'];
+
+/** The listings read for a wallet on `chain`: all three on an explorer-backed chain, token transfers only on Base. */
+export function explorerActionsFor(chain: VaultChain): readonly ExplorerAction[] {
+  return chain === 'base' ? TOKEN_TRANSFERS_ONLY : EXPLORER_ACTIONS;
+}
 
 /** The symbol of each chain's own coin (src/lib/chains.ts). */
 export const NATIVE_SYMBOL: Readonly<Record<VaultChain, string>> = Object.fromEntries(

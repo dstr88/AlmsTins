@@ -112,9 +112,9 @@ describe('Section 9 says what the browser keeps when you check an address on the
     expect(words).not.toMatch(/\b(safe|secure|protect|block|seguro|segura|proteg|bloque|sûr|sûre|protég|bloqu)\w*/i);
   });
 
-  it('each language is version 1.8, the version in effect', () => {
-    expect(bodies.en).toContain('<strong>Effective Date:</strong> November 20, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.8');
-    expect(bodies.es).toContain('<strong>Fecha de Vigencia:</strong> 20 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.8');
-    expect(bodies.fr).toContain("<strong>Date d'entrée en vigueur :</strong> 20 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.8");
+  it('each language is version 1.9, the version in effect (v1.9 leaves this item unchanged)', () => {
+    expect(bodies.en).toContain('<strong>Effective Date:</strong> November 24, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.9');
+    expect(bodies.es).toContain('<strong>Fecha de Vigencia:</strong> 24 de noviembre de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.9');
+    expect(bodies.fr).toContain("<strong>Date d'entrée en vigueur :</strong> 24 novembre 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.9");
   });
 });

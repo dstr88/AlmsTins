@@ -379,7 +379,7 @@ describe('/agentics/docs: your vault', () => {
   it('the FAQ answers what the vault records about the agent\'s own wallet, as the watcher does it (slice 8)', () => {
     const faq = docs.slice(docs.indexOf('const FAQ = ['), docs.indexOf('];', docs.indexOf('const FAQ = [')));
     expect(faq).toContain('Does the vault record a payment to an address I never registered?');
-    expect(faq).toContain("every direct transfer of your agent's own wallets on Ethereum, Polygon and Avalanche, in and out, with the transaction hash and the address on the other side");
+    expect(faq).toContain("every direct transfer of your agent's own wallets on Ethereum, Polygon and Avalanche, and every token transfer on Base, in and out, with the transaction hash and the address on the other side");
     expect(faq).toContain('What does unmatched mean on a transfer?');
     expect(faq).toContain('with no check about that address asked in the hour before');
     expect(faq).toContain('You get an email about an unmatched payment at once, at most one an hour for the same address; it says how many unmatched payments to that address it covers since the last such email, shows neither the address nor the amount, and links to the agent\'s page.');

@@ -82,13 +82,13 @@ const setTrust = (id: string, status: 'trusted' | 'flagged' | 'pending') => {
 async function makeTin(tenant = A, label = 'Agent', registeredAt = 0) {
   return store.insertTin(tenant, { label, agentKeyId: null, at: stored(registeredAt) });
 }
-async function makeWallet(tenant: string, tinId: string, address = WALLET, registeredAt = 0, chain: 'ethereum' | 'polygon' | 'avalanche' = 'ethereum') {
+async function makeWallet(tenant: string, tinId: string, address = WALLET, registeredAt = 0, chain: 'ethereum' | 'polygon' | 'avalanche' | 'base' = 'ethereum') {
   const r = await store.insertWallet(tenant, { tinId, chain, address, at: stored(registeredAt) });
   return r.wallet;
 }
 async function makeDestination(
   tenant: string, tinId: string, address: string, status: 'trusted' | 'flagged' | 'pending' = 'trusted', registeredAt = 1000,
-  chain: 'ethereum' | 'polygon' | 'avalanche' = 'ethereum',
+  chain: 'ethereum' | 'polygon' | 'avalanche' | 'base' = 'ethereum',
 ) {
   const r = await store.insertDestination(tenant, { tinId, chain, address, label: null, at: stored(registeredAt) });
   if (r.kind !== 'inserted') throw new Error('duplicate destination in a test');
@@ -660,8 +660,67 @@ describe('where the read left off: one cursor per wallet', () => {
     expect(Math.max(...explorer.pages().map((p) => p.endBlock))).toBe(20_000);
   });
 
-  it('each chain waits as long as it needs: Ethereum three minutes, Polygon ten, Avalanche one', async () => {
-    expect(watcher.CONFIRMATION_LAG_S).toEqual({ ethereum: 180, polygon: 600, avalanche: 60 });
+  it('each chain waits as long as it needs: Ethereum three minutes, Polygon ten, Avalanche one, Base five', async () => {
+    expect(watcher.CONFIRMATION_LAG_S).toEqual({ ethereum: 180, polygon: 600, avalanche: 60, base: 300 });
+  });
+
+  it('only Base limits how far one read goes', () => {
+    expect(watcher.MAX_READ_SPAN_S).toEqual({ base: 3 * 24 * 60 * 60 });
+  });
+});
+
+describe('a wallet on Base: token transfers only, a stretch at a time', () => {
+  const USDC_BASE = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+  const baseUsdc = (hash: number, block: number, from: string, to: string, amount: string) =>
+    tokenRow({ hash, block, from, to, value: units(amount, 6), contract: USDC_BASE, symbol: 'USDC', decimals: 6 });
+
+  it('reads the token listing and nothing else, matches Base destinations, and prices USDC on its known contract', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id, WALLET, 0, 'base');
+    await makeDestination(A, tin.id, D1, 'trusted', 1000, 'base');
+    await makeDestination(A, tin.id, D2, 'trusted', 1000, 'ethereum');
+    explorer.add('base', WALLET, 'tokentx', baseUsdc(1, 2000, WALLET, D1, '0.01'), baseUsdc(2, 2001, WALLET, D2, '0.02'), baseUsdc(3, 2002, D2, WALLET, '1'));
+    explorer.add('base', WALLET, 'txlist', nativeRow({ hash: 4, block: 2003, from: WALLET, to: D1, value: units('1') })); // never asked for
+    nowMs += 120 * 1000; // Base waits five minutes
+    const report = await watcher.runTinPass(A, tin, deps());
+    expect(new Set(explorer.pages().map((p) => p.action))).toEqual(new Set(['tokentx']));
+    expect(explorer.pages().every((p) => p.chain === 'base')).toBe(true);
+    expect(compact().map((e) => [e.dir, e.who, e.amount, e.asset, e.usd, e.reg])).toEqual([
+      ['out', D1, '0.01', 'USDC', 0.01, 'trusted'],
+      ['out', D2, '0.02', 'USDC', 0.02, 'none'], // registered on Ethereum only
+      ['in', D2, '1', 'USDC', 1, 'none'],
+    ]);
+    expect(report.wallets[0]).toMatchObject({ chain: 'base', status: 'complete', recorded: 3, unmatched: 1 });
+  });
+
+  it('a wallet far behind reads three days at a time, says partial, and catches up over the next reads', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id, WALLET, 0, 'base');
+    const span = 3 * 24 * 60 * 60;
+    const lateBlock = Math.ceil((span + 3600) / 12) + 10; // past the first stretch
+    explorer.add('base', WALLET, 'tokentx', baseUsdc(1, 100, WALLET, D1, '1'), baseUsdc(2, lateBlock, WALLET, D1, '2'));
+    nowMs = (blockTime(0) + 10 * 24 * 60 * 60) * 1000; // ten days after the registration
+
+    const first = await watcher.runTinPass(A, tin, deps());
+    expect(first.wallets[0]).toMatchObject({ status: 'partial', reason: 'span_limit', recorded: 1 });
+    expect(first.wallets[0].throughAt).toBe(new Date((blockTime(0) + span - 3600) * 1000).toISOString());
+    expect(Math.max(...explorer.pages().map((p) => p.endBlock))).toBe(blockAtOrBefore(blockTime(0) + span));
+
+    const second = await watcher.runTinPass(A, tin, deps());
+    expect(second.wallets[0]).toMatchObject({ status: 'partial', reason: 'span_limit', recorded: 1 });
+    await watcher.runTinPass(A, tin, deps());
+    const fourth = await watcher.runTinPass(A, tin, deps());
+    expect(fourth.wallets[0]).toMatchObject({ status: 'complete', reason: null });
+    expect(compact().map((e) => e.amount)).toEqual(['1', '2']);
+  });
+
+  it('an Ethereum wallet as far behind is read to the newest confirmed block in one go, as before', async () => {
+    const tin = await makeTin();
+    await makeWallet(A, tin.id, WALLET, 0, 'ethereum');
+    nowMs = (blockTime(0) + 10 * 24 * 60 * 60) * 1000;
+    const report = await watcher.runTinPass(A, tin, deps());
+    expect(report.wallets[0]).toMatchObject({ status: 'complete' });
+    expect(new Set(explorer.pages().map((p) => p.action))).toEqual(new Set(['txlist', 'txlistinternal', 'tokentx']));
   });
 });
 

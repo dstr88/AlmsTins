@@ -50,7 +50,7 @@ describe('chains: each feature list keeps the members it had', () => {
 		['EVM_DISCOVERY_CHAINS (wallets/[id]/tokens)', EVM_DISCOVERY_CHAINS, ['ethereum', 'polygon', 'arbitrum']],
 		['WALLET_TX_CHAINS (wallets/[id]/transactions)', WALLET_TX_CHAINS, ['ethereum', 'avalanche', 'polygon']],
 		['WALLET_CARD_EVM_CHAINS (WalletChainPicker)', WALLET_CARD_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum']],
-		['VAULT_CHAINS (agentVault)', VAULT_CHAINS, ['ethereum', 'polygon', 'avalanche']],
+		['VAULT_CHAINS (agentVault; Base added November 2026)', VAULT_CHAINS, ['ethereum', 'polygon', 'avalanche', 'base']],
 		['VERIFY_ADDRESS_RAILS (verifyRegistry, VerifyDashboard)', VERIFY_ADDRESS_RAILS, ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin']],
 		['NETWORTH_CHAINS (networth)', NETWORTH_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin', 'xpr']],
 		['TIN_BADGE_EVM_CHAINS (vault.astro)', TIN_BADGE_EVM_CHAINS, ['ethereum', 'polygon', 'avalanche', 'arbitrum']],
@@ -63,7 +63,7 @@ describe('chains: each feature list keeps the members it had', () => {
 		expect([...VERIFY_EVM_RAILS].sort()).toEqual(['avalanche', 'ethereum', 'polygon']);
 		expect([...CHAIN_IMPORT_SOURCES].sort()).toEqual(['avalanche_cchain', 'bitcoin', 'litecoin', 'solana', 'xpr']);
 		expect([...ON_CHAIN_IMPORT_SOURCES].sort()).toEqual(['bitcoin', 'litecoin', 'xpr']);
-		expect([...EXPLORER_CHAINS].sort()).toEqual(['avalanche', 'bitcoin', 'bsc', 'ethereum', 'litecoin', 'polygon', 'solana', 'sui', 'xpr']);
+		expect([...EXPLORER_CHAINS].sort()).toEqual(['avalanche', 'base', 'bitcoin', 'bsc', 'ethereum', 'litecoin', 'polygon', 'solana', 'sui', 'xpr']);
 	});
 });
 
@@ -114,8 +114,8 @@ describe('chains: native coins', () => {
 		}
 	});
 
-	it('the Agent Vault coins are unchanged', () => {
-		expect(VAULT_NATIVE_SYMBOL).toEqual({ ethereum: 'ETH', polygon: 'POL', avalanche: 'AVAX' });
+	it('the Agent Vault coins are unchanged, and Base\'s is ETH', () => {
+		expect(VAULT_NATIVE_SYMBOL).toEqual({ ethereum: 'ETH', polygon: 'POL', avalanche: 'AVAX', base: 'ETH' });
 	});
 });
 

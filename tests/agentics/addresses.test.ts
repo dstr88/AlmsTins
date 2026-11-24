@@ -16,8 +16,8 @@ import { addr, upper } from '../helpers/agentVault';
  */
 
 describe('parseChain', () => {
-  it('knows the three EVM chains by name, in any case', () => {
-    expect([...VAULT_CHAINS]).toEqual(['ethereum', 'polygon', 'avalanche']);
+  it('knows the four EVM chains by name, in any case', () => {
+    expect([...VAULT_CHAINS]).toEqual(['ethereum', 'polygon', 'avalanche', 'base']);
     for (const c of VAULT_CHAINS) expect(parseChain(c)).toBe(c);
     expect(parseChain(' Ethereum ')).toBe('ethereum');
     expect(parseChain('POLYGON')).toBe('polygon');
@@ -30,8 +30,15 @@ describe('parseChain', () => {
     expect(parseChain('avax')).toBe('avalanche');
   });
 
+  it('Base is called by its name only: its coin is ETH too, and "eth" stays Ethereum', () => {
+    expect(parseChain('base')).toBe('base');
+    expect(parseChain(' BASE ')).toBe('base');
+    expect(parseChain('eth')).toBe('ethereum');
+    expect(parseChain('ETH')).toBe('ethereum');
+  });
+
   it('says null for a chain the Vault does not track, and for anything that is not a name', () => {
-    for (const bad of ['bitcoin', 'solana', 'litecoin', 'base', '', ' ', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    for (const bad of ['bitcoin', 'solana', 'litecoin', 'arbitrum', '', ' ', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
       expect(parseChain(bad), bad).toBeNull();
     }
     for (const bad of [null, undefined, 1, {}, [], ['ethereum']]) expect(parseChain(bad)).toBeNull();
