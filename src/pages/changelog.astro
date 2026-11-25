@@ -31,6 +31,13 @@ const t = getChangelog(lang);
         <article class="entry">
           <time class="entry-date">November 25, 2026</time>
           <div class="entry-body">
+            <p>A new Wallet Watcher account now opens the Vault with a short welcome. It says what Almstins is for, shows the two ways to start (paste the public address of a wallet you hold yourself, or upload the CSV file your exchange lets you download) and offers a four-step tour of the page that ends with the cursor in the address field. The welcome shows only while the account has no wallet, exchange account or import, and either answer to it is kept in your browser only. In the demo, the sign-up button now reads "Start your own vault for free", and the note under the demo says the sample wallets stay in the demo: nothing from the demo carries over to a new account.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">November 25, 2026</time>
+          <div class="entry-body">
             <p>The Sync now button on the Bookkeeping page now tells you when a wallet could not be synced. It says how many wallets failed and on which chains, and it still rebuilds your cost basis with whatever did sync; before, it reloaded the page as if every wallet had synced. Wallets that hold only entries you added by hand are no longer sent to the block explorers, which can't read them and answered with an error on every sync. Solana and Sui saved the time of their last sync in a different format from the other chains, so the line at the top of Bookkeeping could say "never synced" right after a Solana sync, and the weekly sync could sync a wallet again before it was due. Every chain now saves that time the same way. When the weekly sync adds records to your account, it now rebuilds your cost basis too, so the numbers no longer wait for you to press Sync now.</p>
           </div>
         </article>

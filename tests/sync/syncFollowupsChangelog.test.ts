@@ -6,7 +6,7 @@ import path from 'node:path';
  * The changelog entry for the Wallet Watcher follow-ups: Sync now says which wallets and chains
  * failed (src/lib/sync/syncReport.ts), custom wallets are not sent to the explorers, one format for
  * the last sync time (src/lib/sync/syncRunAt.ts), and the weekly sync rebuilds the cost basis
- * (src/lib/lifecycleRebuild.ts). The newest entry, and it claims only what the code does.
+ * (src/lib/lifecycleRebuild.ts). It is public, and it claims only what the code does.
  */
 
 const page = readFileSync(path.resolve(__dirname, '../../src/pages/changelog.astro'), 'utf8');
@@ -15,10 +15,9 @@ const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</
 const text = article.replace(/<[^>]+>/g, ' ');
 
 describe('the changelog entry for the sync follow-ups', () => {
-  it('is public and the newest entry', () => {
+  it('is public and dated November 25, 2026', () => {
     expect(start).toBeGreaterThan(-1);
-    expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
-    expect(article).toMatch(/<time class="entry-date">[A-Z][a-z]+ \d{1,2}, 2026<\/time>/);
+    expect(article).toContain('<time class="entry-date">November 25, 2026</time>');
   });
 
   it('says what each change does, in plain words', () => {
