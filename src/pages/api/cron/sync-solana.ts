@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { syncSolanaAddress } from '@/lib/sync/syncSolanaTransactions';
 import type { Wallet } from '@/lib/wallets';
 import { json } from '@/lib/http';
+import { syncedSince } from '@/lib/sync/syncRunAt';
 
 export const prerender = false;
 
@@ -38,7 +39,8 @@ export const GET: APIRoute = async ({ request }) => {
 	const wallets = walletsResult.rows as Array<Record<string, unknown>>;
 	console.log(`[cron/sync-solana] Found ${wallets.length} Solana wallets`);
 
-	const staleThreshold = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
+	// Compared as times, not as text: last_run_at was once written in two formats (src/lib/sync/syncRunAt.ts).
+	const staleCutoffMs = Date.now() - 6 * 24 * 60 * 60 * 1000;
 
 	const results: Array<{ walletId: string; label: string; status: 'synced' | 'skipped' | 'failed'; inserted?: number; error?: string }> = [];
 
@@ -54,7 +56,7 @@ export const GET: APIRoute = async ({ request }) => {
 			args: [walletId, tenantId],
 		});
 		const lastRun = (lastRunResult.rows[0] as Record<string, unknown>)?.last_run_at as string | null;
-		if (lastRun && lastRun > staleThreshold) {
+		if (syncedSince(lastRun, staleCutoffMs)) {
 			results.push({ walletId, label, status: 'skipped' });
 			continue;
 		}

@@ -8,6 +8,7 @@ import type { SupportedChain } from '@/lib/constants';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
 import { fetchAndStoreAaveLiquidations } from '@/lib/sync/syncAaveLiquidations';
 import { WALLET_SYNC_EVM_CHAINS, normalizeChain } from '@/lib/chains';
+import { isEvmAddress } from '@/lib/addressFormats';
 
 const MAX_OFFSET = 100;
 const MAX_PAGES = 100;
@@ -42,6 +43,13 @@ export type WalletSyncStats = {
 	totalInserted: number;
 	totalSkipped: number;
 	chains: WalletSyncChainStats[];
+	/**
+	 * Set when the wallet was not read at all because its address is not an EVM address (a custom
+	 * wallet's `custom_…`, a Solana or Bitcoin address). Not a failure: there is nothing to read.
+	 */
+	skippedReason?: 'not_evm_address';
+	/** Set when the wallet failed before any chain was read. */
+	error?: string;
 };
 
 export type AllWalletSyncStats = {
@@ -296,6 +304,12 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 const EVM_CHAINS: ReadonlySet<string> = new Set(WALLET_SYNC_EVM_CHAINS);
 
 export async function syncWalletTransactions(tenantId: string, wallet: Wallet): Promise<WalletSyncStats> {
+	// The explorers read only 0x addresses. A custom wallet (`custom_…`, entries added by hand) or a
+	// Solana, Bitcoin or Sui address got "Invalid address format" back on every sync.
+	if (!isEvmAddress(wallet.address)) {
+		console.info(`[SYNC] skipping wallet ${wallet.id}: its address is not an EVM address`);
+		return { walletId: wallet.id, totalInserted: 0, totalSkipped: 0, chains: [], skippedReason: 'not_evm_address' };
+	}
 	const baseChains =
 		Array.isArray(wallet.chains) && wallet.chains.length ? wallet.chains : [...DEFAULT_ERC20_CHAINS];
 	const chainSet = new Set(baseChains.map((value) => value.toLowerCase()));
@@ -356,6 +370,13 @@ export async function syncAllWallets(tenantId: string): Promise<AllWalletSyncSta
 			totalSkipped += stats.totalSkipped;
 		} catch (error) {
 			console.error(`Failed syncing wallet ${wallet.id}`, error);
+			perWallet.push({
+				walletId: wallet.id,
+				totalInserted: 0,
+				totalSkipped: 0,
+				chains: [],
+				error: error instanceof Error ? error.message : 'sync_failed',
+			});
 		}
 	}
 

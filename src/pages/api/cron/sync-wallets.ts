@@ -3,7 +3,11 @@
  *
  * Called weekly by Render Cron (or any scheduler).
  * Syncs on-chain transactions for every active onchain wallet
- * across all tenants.
+ * across all tenants, then rebuilds the lifecycle (cost basis) of each
+ * account that got new rows, with the same rebuild the Bookkeeping page's
+ * Sync now button runs. A wallet whose address is not an EVM address (a
+ * custom wallet, a Solana or Bitcoin address) is skipped: the explorers
+ * cannot read it, and skipping it is not a failure.
  *
  * Protected by CRON_SECRET header — never exposes user sessions.
  */
@@ -14,6 +18,9 @@ import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { SYNC_CRON_FALLBACK_CHAINS } from '@/lib/chains';
 import { isXprWallet } from '@/lib/sync/syncXprAddress';
 import { json } from '@/lib/http';
+import { isEvmAddress } from '@/lib/addressFormats';
+import { ensureSyncRunAtFormat, latestSyncRunSql, syncedSince } from '@/lib/sync/syncRunAt';
+import { rebuildLifecycleAndCaches } from '@/lib/lifecycleRebuild';
 
 export const prerender = false;
 
@@ -32,6 +39,9 @@ export const GET: APIRoute = async ({ request }) => {
 	const startedAt = Date.now();
 	console.log('[cron/sync-wallets] Starting weekly wallet sync');
 
+	// last_run_at once held two formats; rewrite any ISO value left (src/lib/sync/syncRunAt.ts).
+	await ensureSyncRunAtFormat();
+
 	// ── Fetch all active onchain wallets across all tenants ─────────────────
 	const walletsResult = await db.execute(
 		`SELECT id, tenant_id, address, label, chains, is_default, created_at, wallet_type
@@ -44,16 +54,20 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log(`[cron/sync-wallets] Found ${wallets.length} onchain wallets`);
 
 	// ── Check which wallets are actually stale (last synced > 6 days ago) ──
-	const staleThreshold = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
+	// Compared as times, not as text: last_run_at was once written in two formats.
+	const staleCutoffMs = Date.now() - 6 * 24 * 60 * 60 * 1000;
 
 	const results: Array<{
 		walletId: string;
 		tenantId: string;
 		label: string;
 		skippedFresh: boolean;
+		skippedNotEvm?: boolean;
 		inserted?: number;
 		error?: string;
 	}> = [];
+	// Accounts that got new or changed rows: their lifecycle is rebuilt after the loop.
+	const tenantsWithNewRows = new Set<string>();
 
 	for (const row of wallets) {
 		const walletId = String(row.id ?? '');
@@ -63,16 +77,23 @@ export const GET: APIRoute = async ({ request }) => {
 		// XPR Network accounts have their own cron (sync-xpr); an account name means nothing to the EVM sync.
 		if (isXprWallet(row.chains)) continue;
 
+		// The explorers read only 0x addresses: a custom wallet (custom_…) or a Solana, Bitcoin or Sui
+		// address got "Invalid address format" back every week. Skipped, and not counted as a failure.
+		if (!isEvmAddress(row.address)) {
+			results.push({ walletId, tenantId, label, skippedFresh: false, skippedNotEvm: true });
+			continue;
+		}
+
 		// Check last sync time
 		const syncStateResult = await db.execute({
-			sql: `SELECT MAX(last_run_at) as last_run FROM wallet_sync_state
+			sql: `SELECT ${latestSyncRunSql()} as last_run FROM wallet_sync_state
 			      WHERE wallet_id = ? AND tenant_id = ?`,
 			args: [walletId, tenantId],
 		});
 		const lastRun = (syncStateResult.rows[0] as Record<string, unknown>)?.last_run as string | null;
 
 		// Skip if synced within last 6 days
-		if (lastRun && lastRun > staleThreshold) {
+		if (syncedSince(lastRun, staleCutoffMs)) {
 			console.log(`[cron/sync-wallets] Skipping ${label} — synced ${lastRun}`);
 			results.push({ walletId, tenantId, label, skippedFresh: true });
 			continue;
@@ -102,6 +123,7 @@ export const GET: APIRoute = async ({ request }) => {
 			const stats = await syncWalletTransactions(tenantId, wallet);
 			console.log(`[cron/sync-wallets] ${label} → inserted ${stats.totalInserted}, skipped ${stats.totalSkipped}`);
 			results.push({ walletId, tenantId, label, skippedFresh: false, inserted: stats.totalInserted });
+			if (stats.totalInserted > 0) tenantsWithNewRows.add(tenantId);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			console.error(`[cron/sync-wallets] Failed to sync ${label}:`, message);
@@ -112,12 +134,28 @@ export const GET: APIRoute = async ({ request }) => {
 		await new Promise((r) => setTimeout(r, 1000));
 	}
 
+	// ── Rebuild the lifecycle of each account that got new rows ─────────────
+	// The same rebuild as the Sync now button, so the cost basis catches up with the weekly sync
+	// instead of waiting for the customer to press it. One account failing does not stop the rest.
+	let rebuilt = 0;
+	let rebuildFailed = 0;
+	for (const tenantId of tenantsWithNewRows) {
+		try {
+			await rebuildLifecycleAndCaches(tenantId);
+			rebuilt += 1;
+		} catch (err) {
+			rebuildFailed += 1;
+			console.error(`[cron/sync-wallets] Lifecycle rebuild failed for tenant ${tenantId}:`, err instanceof Error ? err.message : String(err));
+		}
+	}
+
 	const elapsed = Date.now() - startedAt;
-	const synced = results.filter((r) => !r.skippedFresh && !r.error).length;
+	const synced = results.filter((r) => !r.skippedFresh && !r.skippedNotEvm && !r.error).length;
 	const skipped = results.filter((r) => r.skippedFresh).length;
+	const skippedNotEvm = results.filter((r) => r.skippedNotEvm).length;
 	const failed = results.filter((r) => r.error).length;
 
-	console.log(`[cron/sync-wallets] Done in ${elapsed}ms — synced: ${synced}, skipped fresh: ${skipped}, failed: ${failed}`);
+	console.log(`[cron/sync-wallets] Done in ${elapsed}ms — synced: ${synced}, skipped fresh: ${skipped}, skipped (not an EVM address): ${skippedNotEvm}, failed: ${failed}, lifecycles rebuilt: ${rebuilt}, rebuilds failed: ${rebuildFailed}`);
 
 	return json({
 		ok: true,
@@ -125,7 +163,10 @@ export const GET: APIRoute = async ({ request }) => {
 		total: wallets.length,
 		synced,
 		skipped_fresh: skipped,
+		skipped_not_evm: skippedNotEvm,
 		failed,
+		lifecycles_rebuilt: rebuilt,
+		lifecycle_rebuilds_failed: rebuildFailed,
 		results,
 	}, 200, { pretty: true });
 };

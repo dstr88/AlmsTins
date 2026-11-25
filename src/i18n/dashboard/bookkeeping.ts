@@ -41,6 +41,15 @@ export interface BookkeepingLocale {
   syncNow: string;
   syncingLabel: string;
   syncErrLabel: string;
+  // Shown under Sync now when some wallets or chains failed (src/lib/sync/syncReport.ts).
+  /** "1 wallet could not be synced{where}." */
+  syncFailedOne: string;
+  /** "{count} wallets could not be synced{where}." */
+  syncFailedMany: string;
+  /** " on {chains}": fills {where}; {chains} is a list such as "Ethereum and Avalanche". */
+  syncFailedWhere: string;
+  syncFailedRest: string;
+  syncFailedNone: string;
 
   // Needs Attention tin
   tinNeedsAttention: string;
@@ -128,6 +137,11 @@ export const en: BookkeepingLocale = {
   syncNow: 'Sync now',
   syncingLabel: 'Syncing… (up to a minute)',
   syncErrLabel: 'Sync failed — please try again.',
+  syncFailedOne: '1 wallet could not be synced{where}.',
+  syncFailedMany: '{count} wallets could not be synced{where}.',
+  syncFailedWhere: ' on {chains}',
+  syncFailedRest: 'The rest synced and cost basis was rebuilt. Reload the page to see the new records.',
+  syncFailedNone: 'Nothing was synced. Please try again later.',
 
   tinNeedsAttention: 'Needs Attention',
   countItems: (n) => `${n} items`,
@@ -209,6 +223,11 @@ export const es: BookkeepingLocale = {
   syncNow: "Sincronizar ahora",
   syncingLabel: "Sincronizando… (hasta un minuto)",
   syncErrLabel: "Error al sincronizar — inténtalo de nuevo.",
+  syncFailedOne: '1 billetera no se pudo sincronizar{where}.',
+  syncFailedMany: '{count} billeteras no se pudieron sincronizar{where}.',
+  syncFailedWhere: ' en {chains}',
+  syncFailedRest: 'El resto se sincronizó y el cost basis se recalculó. Recarga la página para ver los registros nuevos.',
+  syncFailedNone: 'No se sincronizó nada. Inténtalo de nuevo más tarde.',
 
   tinNeedsAttention: 'Requiere atención',
   countItems: (n) => `${n} elementos`,
@@ -290,6 +309,11 @@ export const fr: BookkeepingLocale = {
   syncNow: "Synchroniser",
   syncingLabel: "Synchronisation… (jusqu'à une minute)",
   syncErrLabel: "Échec de la synchronisation — veuillez réessayer.",
+  syncFailedOne: "1 portefeuille n'a pas pu être synchronisé{where}.",
+  syncFailedMany: "{count} portefeuilles n'ont pas pu être synchronisés{where}.",
+  syncFailedWhere: ' sur {chains}',
+  syncFailedRest: 'Le reste a été synchronisé et le cost basis a été recalculé. Rechargez la page pour voir les nouveaux enregistrements.',
+  syncFailedNone: "Rien n'a été synchronisé. Veuillez réessayer plus tard.",
 
   tinNeedsAttention: 'Nécessite attention',
   countItems: (n) => `${n} éléments`,

@@ -24,6 +24,7 @@ import { rebuildAssetLifecycles } from '@/lib/lifecycle';
 import { logActivity } from '@/lib/activityLog';
 import { insertImportBatch } from '@/lib/importRows';
 import { canonicalAddress } from '@/lib/wallets-service';
+import { syncRunAtNow } from '@/lib/sync/syncRunAt';
 import type { Wallet } from '@/lib/wallets';
 import type { WalletSyncStats } from '@/lib/sync/syncTransactions';
 
@@ -293,7 +294,8 @@ export async function syncSolanaAddress(
 		})),
 	});
 
-	// Save cursor (newest signature) + last_run_at — used for cron staleness.
+	// Save cursor (newest signature) + last_run_at — used for cron staleness. last_run_at is in the
+	// EVM sync's format (src/lib/sync/syncRunAt.ts): an ISO value here once read as "never synced".
 	const now = new Date().toISOString();
 	await db.execute({
 		sql: `INSERT INTO wallet_sync_state (wallet_id, chain, tenant_id, last_block_number, last_timestamp, last_run_at)
@@ -301,7 +303,7 @@ export async function syncSolanaAddress(
 		      ON CONFLICT(tenant_id, wallet_id, chain) DO UPDATE SET
 		        last_timestamp = excluded.last_timestamp,
 		        last_run_at    = excluded.last_run_at`,
-		args: [walletId, SOLANA_CHAIN, tenantId, newestSignature ?? now, now],
+		args: [walletId, SOLANA_CHAIN, tenantId, newestSignature ?? now, syncRunAtNow()],
 	});
 
 	return { inserted, skipped: normRows.length - inserted, txCount: sigs.length };

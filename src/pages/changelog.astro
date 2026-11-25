@@ -31,7 +31,14 @@ const t = getChangelog(lang);
         <article class="entry">
           <time class="entry-date">November 25, 2026</time>
           <div class="entry-body">
-            <p>Wallet Watcher now keeps each movement in a transaction on Ethereum, Polygon and Avalanche as its own record. Before, a swap kept only one of its two sides, so the coin you swapped away could be missing from your cost basis and gains, and the network fee could be lost with it. Two identical transfers in one transaction were kept as one, and a transfer between two of your own wallets was kept for only one of them. A swap now records the coin that left and the coin that arrived. The network fee of every transaction you sent is recorded, including approvals and transactions that failed. Coin that a contract sends back to your wallet, such as the ETH you receive when you swap USDC for ETH, is now recorded as well. This applies to transactions synced from now on; records synced before this change are not yet corrected.</p>
+            <p>The Sync now button on the Bookkeeping page now tells you when a wallet could not be synced. It says how many wallets failed and on which chains, and it still rebuilds your cost basis with whatever did sync; before, it reloaded the page as if every wallet had synced. Wallets that hold only entries you added by hand are no longer sent to the block explorers, which can't read them and answered with an error on every sync. Solana and Sui saved the time of their last sync in a different format from the other chains, so the line at the top of Bookkeeping could say "never synced" right after a Solana sync, and the weekly sync could sync a wallet again before it was due. Every chain now saves that time the same way. When the weekly sync adds records to your account, it now rebuilds your cost basis too, so the numbers no longer wait for you to press Sync now.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">November 25, 2026</time>
+          <div class="entry-body">
+            <p>Wallet Watcher now keeps each movement in a transaction on Ethereum, Polygon and Avalanche as its own record. Before, a swap kept only one of its two sides, so the coin you swapped away could be missing from your cost basis and gains, and the network fee could be lost with it. Two identical transfers in one transaction were kept as one, and a transfer between two of your own wallets was kept for only one of them. A swap now records the coin that left and the coin that arrived. The network fee of every transaction you sent is recorded, including approvals and transactions that failed. Coin that a contract sends back to your wallet, such as the ETH you receive when you swap USDC for ETH, is now recorded as well. Records synced before this change were read again on November 25, so they keep each movement as well.</p>
           </div>
         </article>
 

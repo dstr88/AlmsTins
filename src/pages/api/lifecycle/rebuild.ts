@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { rebuildAssetLifecycles } from '@/lib/lifecycle';
-import { setCache, deleteCachePrefix } from '@/lib/tursoCache';
+import { rebuildLifecycleAndCaches } from '@/lib/lifecycleRebuild';
 
 export const prerender = false;
 
@@ -14,15 +13,8 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// Always a whole rebuild. The Sync buttons on Year Summary and Annual Records still send a year;
 		// it is ignored, because a year-scoped rebuild left only that year's history behind.
-		await rebuildAssetLifecycles(tenantId);
-
-		// Mark lifecycle cache fresh
-		const cacheKey = `lifecycle:${tenantId}`;
-		await setCache(cacheKey, { refreshedAt: new Date().toISOString() }, 120);
-
-		// Bust portfolio performance cache (all versions) so the next page load
-		// reflects the freshly rebuilt lifecycle data rather than a stale snapshot.
-		await deleteCachePrefix(`t:${tenantId}:portfolio:performance:`);
+		// The weekly wallet sync runs the same rebuild (src/lib/lifecycleRebuild.ts).
+		await rebuildLifecycleAndCaches(tenantId);
 
 		return new Response(
 			JSON.stringify({ ok: true, ms: Date.now() - start }),
