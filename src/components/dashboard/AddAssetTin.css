@@ -255,22 +255,6 @@
 	font-style: italic;
 }
 
-.add-tin__required {
-	font-size: 0.65rem;
-	color: var(--accent);
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	margin-left: 0.25rem;
-}
-
-.add-tin__optional {
-	font-size: 0.65rem;
-	opacity: 0.5;
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	margin-left: 0.25rem;
-}
-
 /* Demo-only reset button — floats at top-right as a small ✕ icon */
 .add-tin__demo-clear-wrap {
 	position: absolute;

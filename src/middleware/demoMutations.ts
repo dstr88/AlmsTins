@@ -15,7 +15,7 @@
 type DemoMutation = { method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'; path: RegExp };
 
 export const DEMO_ALLOWED_MUTATIONS: readonly DemoMutation[] = [
-	{ method: 'POST', path: /^\/api\/wallets$/ }, // add an on-chain or custom wallet
+	{ method: 'POST', path: /^\/api\/wallets$/ }, // add an on-chain wallet (a custom one is refused by the route)
 	{ method: 'DELETE', path: /^\/api\/wallets\/[^/]+$/ }, // remove a wallet by id
 	{ method: 'POST', path: /^\/api\/wallets\/[^/]+\/sync$/ }, // sync a single wallet
 	{ method: 'POST', path: /^\/api\/wallets\/sync-all$/ }, // sync every wallet

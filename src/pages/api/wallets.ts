@@ -9,6 +9,8 @@ import { DEFAULT_WALLET_CHAINS, normalizeChain } from '@/lib/chains';
 import { normalizeXprAccountName } from '@/lib/addressFormats';
 import { xprAccountStatus } from '@/lib/xpr/account';
 import { XprUnavailableError } from '@/lib/xpr/client';
+import { getLang } from '@/lib/i18n/locale';
+import { getAccountErrors } from '@/i18n/apiErrors/account';
 
 export const prerender = false;
 
@@ -37,6 +39,17 @@ export const POST: APIRoute = async ({ request }) => {
 		const session = await requireTenantSession(request);
 		if (!session) return new Response('Unauthorized', { status: 401 });
 		const { tenantId, isDemo } = session;
+		const body = await request.json();
+
+		// New custom wallets (entries added by hand) are no longer offered: the Vault's Add Asset box
+		// has no Custom tab. Custom wallets made before then keep working and can still be deleted.
+		if (body?.walletType === 'custom') {
+			const t = getAccountErrors(getLang(request));
+			return new Response(
+				JSON.stringify({ error: true, code: 'CUSTOM_WALLETS_CLOSED', message: t.customWalletClosed }),
+				{ status: 400, headers: { 'Content-Type': 'application/json' } },
+			);
+		}
 
 		// ── Demo limit: 3 wallets max ─────────────────────────────────────
 		if (isDemo) {
@@ -71,34 +84,6 @@ export const POST: APIRoute = async ({ request }) => {
 				}),
 				{ status: 402, headers: { 'Content-Type': 'application/json' } },
 			);
-		}
-
-		const body = await request.json();
-		const walletType: 'onchain' | 'custom' =
-			body.walletType === 'custom' ? 'custom' : 'onchain';
-
-		if (walletType === 'custom') {
-			const label = typeof body.label === 'string' ? body.label.trim() : '';
-			if (!label) {
-				return responseWithError('A label is required for custom wallets.', 400);
-			}
-			// Address is optional for custom wallets — generate a stable placeholder if omitted.
-			const rawAddress = typeof body.address === 'string' ? body.address.trim() : '';
-			const address = sanitizeAddress(rawAddress) || `custom_${crypto.randomUUID().replace(/-/g, '')}`;
-			const chains = parseWalletChains(body.chains ?? []);
-
-			const inserted = await db.execute({
-				sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default, wallet_type)
-				      VALUES (?, ?, ?, ?, 0, 'custom')
-				      RETURNING id, address, label, chains, is_default, created_at, wallet_type`,
-				args: [tenantId, address, label, JSON.stringify(chains)],
-			});
-
-			const wallet = transformWalletRow(inserted.rows[0]);
-			return new Response(JSON.stringify(wallet), {
-				status: 201,
-				headers: { 'Content-Type': 'application/json' },
-			});
 		}
 
 		// Demo shortcut: keys "1", "2", "3" seed pre-configured mock wallets without

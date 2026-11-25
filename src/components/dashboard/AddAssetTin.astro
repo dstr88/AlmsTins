@@ -57,13 +57,6 @@ const t = getAddAssetTin(lang);
 			aria-selected="false"
 			data-add-tab="exchange"
 		>{t.tabExchange}</button>
-		<button
-			class="add-tin__tab"
-			type="button"
-			role="tab"
-			aria-selected="false"
-			data-add-tab="custom"
-		>{t.tabCustom}</button>
 	</div>
 
 	<!-- Wallet panel -->
@@ -152,39 +145,6 @@ const t = getAddAssetTin(lang);
 			{t.comingSoon}
 		</p>
 	</div>
-
-	<!-- Custom wallet panel -->
-	<div class="add-tin__panel is-hidden" data-add-panel="custom">
-		<p class="add-tin__hint">
-			{t.customHint}
-		</p>
-		<label class="add-tin__field">
-			<span class="add-tin__field-label">{t.fieldLabel} <span class="add-tin__required">{t.fieldLabelRequired}</span></span>
-			<input
-				class="add-tin__input"
-				type="text"
-				placeholder={t.customPlaceholderLabel}
-				data-custom-label
-				autocomplete="off"
-				maxlength="80"
-			/>
-		</label>
-		<label class="add-tin__field">
-			<span class="add-tin__field-label">{t.fieldAddress} <span class="add-tin__optional">{t.fieldAddressOptional}</span></span>
-			<input
-				class="add-tin__input"
-				type="text"
-				placeholder={t.customPlaceholderAddress}
-				data-custom-address
-				autocomplete="off"
-				spellcheck="false"
-			/>
-		</label>
-		<button class="add-tin__submit" type="button" data-custom-submit>
-			{t.btnSaveCustom}
-		</button>
-		<p class="add-tin__message" data-custom-message aria-live="polite"></p>
-	</div>
 </div>
 
 
@@ -196,10 +156,6 @@ const t = getAddAssetTin(lang);
 	unableToAddWallet:  t.unableToAddWallet,
 	syncingHistory:     t.syncingHistory,
 	walletAddedReloading: t.walletAddedReloading,
-	labelRequired:      t.labelRequired,
-	planLimitCustom:    t.planLimitCustom,
-	unableToSaveWallet: t.unableToSaveWallet,
-	savedReloading:     t.savedReloading,
 	chainHintEvm:       t.chainHintEvm,
 	chainHintEthereum:  t.chainHintEthereum,
 	chainHintBitcoin:   t.chainHintBitcoin,
@@ -433,64 +389,6 @@ const t = getAddAssetTin(lang);
 			});
 		}
 
-		// ── Custom wallet submit ──────────────────────────────────────────
-		var customLabelInput   = tin.querySelector('[data-custom-label]');
-		var customAddressInput = tin.querySelector('[data-custom-address]');
-		var customSubmitBtn    = tin.querySelector('[data-custom-submit]');
-		var customMessageEl    = tin.querySelector('[data-custom-message]');
-
-		function setCustomMessage(text, isUpgrade) {
-			if (!customMessageEl) return;
-			customMessageEl.textContent = text;
-			customMessageEl.classList.toggle('add-tin__limit-msg', !!isUpgrade);
-		}
-
-		if (customSubmitBtn) {
-			customSubmitBtn.addEventListener('click', function () {
-				var label = customLabelInput ? customLabelInput.value.trim() : '';
-				if (!label) { setCustomMessage(I.labelRequired || 'A label is required.'); return; }
-				customSubmitBtn.disabled = true;
-				setCustomMessage(I.saving || 'Saving\u2026');
-				var addr = customAddressInput ? customAddressInput.value.trim() : '';
-				var body = { walletType: 'custom', label: label };
-				if (addr) body.address = addr;
-				fetch('/api/wallets', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(body),
-				}).then(function (res) {
-					return res.json().catch(function () { return {}; }).then(function (payload) {
-						if (res.status === 402) {
-							setCustomMessage(payload.message || I.planLimitCustom || 'Plan limit reached. Upgrade to add more tins.', true);
-							customSubmitBtn.disabled = false;
-							return;
-						}
-						if (!res.ok) throw new Error(payload.message || payload.error || I.unableToSaveWallet || 'Unable to save wallet.');
-						if (customLabelInput) customLabelInput.value = '';
-						if (customAddressInput) customAddressInput.value = '';
-						if (typeof window.gtag === 'function') {
-							window.gtag('event', 'wallet_added', {
-								event_category: isDemo ? 'demo' : 'onboarding',
-								event_label: 'custom',
-							});
-						}
-						setCustomMessage(I.savedReloading || 'Saved \u2014 reloading\u2026');
-						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
-						window.location.reload();
-					});
-				}).catch(function (err) {
-					setCustomMessage(err.message || I.unableToSaveWallet || 'Unable to save wallet.');
-					customSubmitBtn.disabled = false;
-				});
-			});
-		}
-
-		if (customLabelInput) {
-			customLabelInput.addEventListener('keydown', function (e) {
-				if (e.key === 'Enter' && customSubmitBtn) customSubmitBtn.click();
-			});
-		}
-
 		// ── Exchange shortcuts ────────────────────────────────────────────
 		tin.querySelectorAll('[data-add-exchange]').forEach(function (item) {
 			function activate() {
@@ -584,7 +482,7 @@ const t = getAddAssetTin(lang);
 
 		// Wipe demo data when the visitor truly navigates away.
 		// sessionStorage key 'demo-reloading' is set before any intentional reload
-		// (wallet add, custom save, Delete All). If it exists we're just refreshing —
+		// (wallet add, Delete All). If it exists we're just refreshing —
 		// remove it and skip the beacon so the new wallet survives the reload.
 		window.addEventListener('beforeunload', function () {
 			try {
