@@ -166,7 +166,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			sql: `SELECT
 					chain,
 					LOWER(to_address) AS address,
-					COUNT(*) AS tx_count,
+					COUNT(DISTINCT hash) AS tx_count, -- transactions, not rows: one can hold several movements
 					MAX(timestamp) AS last_seen,
 					SUM(CASE WHEN CAST(value AS double precision) > 0 THEN CAST(value AS double precision) ELSE 0 END) AS total_value
 				FROM transactions

@@ -389,6 +389,9 @@ for (const row of rows) {
 				};
 			}).filter(Boolean);
 
+			// A transaction can show several rows (each movement, and a fee-only row when it sent no
+			// coin): its trade result is shown once, on the first row that sent something of value.
+			const lossShownFor = new Set(); // trades (one per hash) whose result is already shown
 			entries.forEach((entry) => {
 				const usdEl = entry.el.querySelector('[data-role="usd"]');
 				if (usdEl) {
@@ -409,7 +412,9 @@ for (const row of rows) {
 				const lossEl = entry.el.querySelector('[data-role="loss"]');
 				if (lossEl && entry.hash) {
 					const trade = trades.get(entry.hash);
-					if (trade && trade.outUsd > 0 && trade.inUsd > 0 && entry.direction === 'out') {
+					const firstValueOut = !!entry && entry.usd > 0 && !lossShownFor.has(trade);
+					if (trade && trade.outUsd > 0 && trade.inUsd > 0 && entry.direction === 'out' && firstValueOut) {
+						lossShownFor.add(trade);
 						const lossValue = trade.outUsd + trade.feeUsd - trade.inUsd;
 						lossEl.textContent = lossValue > 0 ? formatUsd(lossValue) : '—';
 						entry.el.dataset.tradeOutUsd = String(trade.outUsd);

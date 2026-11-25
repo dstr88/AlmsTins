@@ -234,6 +234,7 @@ export async function getYearEndSummary(
 			      FROM transactions
 			      WHERE tenant_id = ?
 			        AND (usd_value IS NULL OR usd_value <= 0)
+			        AND COALESCE(value, '') <> '0'
 			        AND timestamp BETWEEN ? AND ?`,
 			args: [tenantId, from, to],
 		});

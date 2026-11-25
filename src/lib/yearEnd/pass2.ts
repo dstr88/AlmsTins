@@ -55,6 +55,11 @@ function toAnyTx(row: RawImportTx): AnyTx | null {
 function onchainDirection(row: RawOnchainTx, walletAddresses: Set<string>): 'in' | 'out' | null {
 	const from = (row.from_address ?? '').toLowerCase();
 	const to = (row.to_address ?? '').toLowerCase();
+	// A row belongs to the wallet that synced it: between two of the customer's own wallets, the
+	// sender's row is the out and the receiver's row the in, not both out.
+	const own = (row.wallet_address ?? '').toLowerCase();
+	if (own && from === own) return 'out';
+	if (own && to === own) return 'in';
 	if (walletAddresses.has(from)) return 'out';
 	if (walletAddresses.has(to)) return 'in';
 	return null;
@@ -212,6 +217,8 @@ export function detectLoans(
 	for (const row of onchainRows) {
 		const key = `onchain:${row.id}`;
 		if (alreadyClassified.has(key)) continue;
+		// A fee-only row (value zero) moved nothing to or from the protocol: Pass 3 records it as a fee.
+		if (String(row.value ?? '').trim() === '0') continue;
 
 		const from = (row.from_address ?? '').toLowerCase();
 		const to = (row.to_address ?? '').toLowerCase();

@@ -187,7 +187,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	});
 
 	const onchainResult = await db.execute({
-		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address, contract_address
+		sql: `SELECT id, wallet_id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address, contract_address
 			FROM transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -495,7 +495,11 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 
 	// ── End rebasing interest detection ──────────────────────────────────────
 
-	const onchainEvents = onchainResult.rows.map((row: any) => {
+	// A row of value zero moved nothing: the fee-only row of a transaction that sent no coin (an
+	// approval, a token-only call, a failed transaction; src/lib/sync/evmSyncRows.ts). It stays in its
+	// transaction's group above, where the classifier reads the call it records, but is no event.
+	const movedSomething = (row: any) => String(row.value ?? '').trim() !== '0';
+	const onchainEvents = onchainResult.rows.filter(movedSomething).map((row: any) => {
 		const classifyRow = normaliseOnchainRow(row);
 		const hash = row.hash ? String(row.hash) : null;
 		const group  = hash ? (txHashToClassifyRows.get(hash)  ?? [classifyRow]) : [classifyRow];
@@ -516,6 +520,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 			transaction_class: classifyOnchainTxWithContext(classifyRow, group, events),
 			contract_address: row.contract_address ? String(row.contract_address).toLowerCase() : null,
 			chain:        row.chain ? String(row.chain) : null,
+			wallet_id:    row.wallet_id ? String(row.wallet_id) : null,
 		};
 	});
 	const transformMs = Date.now() - transformStart;
@@ -527,15 +532,23 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	const linkedPairs = new Map<string, { linked: boolean; confidence: number }>();
 	const linkedSources = new Map<string, number>();
 	const onchainBySymbol = new Map<string, typeof onchainEvents>();
-	const onchainByHash = new Map<string, typeof onchainEvents[number]>();
+	// A transaction can hold several rows (one per movement), so the rows are kept per hash and a
+	// withdrawal is matched to the leg that brought the same asset in.
+	const onchainByHash = new Map<string, Array<typeof onchainEvents[number]>>();
 	for (const evt of onchainEvents) {
 		const list = onchainBySymbol.get(evt.asset_symbol) ?? [];
 		list.push(evt);
 		onchainBySymbol.set(evt.asset_symbol, list);
 		if (evt.tx_hash) {
-			onchainByHash.set(evt.tx_hash, evt);
+			const legs = onchainByHash.get(evt.tx_hash) ?? [];
+			legs.push(evt);
+			onchainByHash.set(evt.tx_hash, legs);
 		}
 	}
+	const arrivalLeg = (hash: string, asset: string) => {
+		const legs = onchainByHash.get(hash) ?? [];
+		return legs.find((l) => l.asset_symbol === asset && l.direction === 'in') ?? legs.find((l) => l.asset_symbol === asset) ?? legs[0];
+	};
 	// Classes that should never be transfer-linked (they aren't exchange withdrawals)
 	const SKIP_TRANSFER_LINK = new Set<string>([
 		'liability_increase', 'liability_repayment', 'liability_liquidation',
@@ -546,7 +559,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		if (SKIP_TRANSFER_LINK.has(evt.transaction_class)) continue;
 		if (evt.direction !== 'out' || evt.amount === null) continue;
 		if (evt.tx_hash) {
-			const match = onchainByHash.get(evt.tx_hash);
+			const match = arrivalLeg(evt.tx_hash, evt.asset_symbol);
 			if (match) {
 				linkedPairs.set(`${evt.source_id}:${match.source_id}`, { linked: true, confidence: 1 });
 				linkedSources.set(evt.source_id, 1);
@@ -562,6 +575,21 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 			linkedPairs.set(`${evt.source_id}:${arrival.source_id}`, { linked: true, confidence: 0.9 });
 			linkedSources.set(evt.source_id, 0.9);
 			linkedSources.set(arrival.source_id, 0.9);
+		}
+	}
+
+	// A transfer between two of the customer's own wallets is a row on each wallet: the same hash,
+	// asset and amount, out of one and into the other. It moved nothing out of the customer's hands,
+	// so both sides are linked, as an exchange withdrawal and its arrival are.
+	for (const legs of onchainByHash.values()) {
+		for (const out of legs) {
+			if (out.direction !== 'out' || out.amount === null || linkedSources.has(out.source_id)) continue;
+			const into = legs.find((l) =>
+				l.direction === 'in' && l.asset_symbol === out.asset_symbol && l.amount === out.amount &&
+				l.wallet_id !== null && l.wallet_id !== out.wallet_id && !linkedSources.has(l.source_id));
+			if (!into) continue;
+			linkedSources.set(out.source_id, 1);
+			linkedSources.set(into.source_id, 1);
 		}
 	}
 
