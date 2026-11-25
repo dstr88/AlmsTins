@@ -562,15 +562,16 @@ export async function getWalletInteractions(
 	const normalizedAddress = walletAddress.toLowerCase();
 	const result = await db.execute({
 		sql: `WITH interactions AS (
-        SELECT LOWER(to_address) AS address, timestamp
+        SELECT LOWER(to_address) AS address, timestamp, hash
         FROM transactions
         WHERE wallet_id = ? AND tenant_id = ? AND to_address IS NOT NULL AND LOWER(to_address) != ?
         UNION ALL
-        SELECT LOWER(from_address) AS address, timestamp
+        SELECT LOWER(from_address) AS address, timestamp, hash
         FROM transactions
         WHERE wallet_id = ? AND tenant_id = ? AND from_address IS NOT NULL AND LOWER(from_address) != ?
       )
-      SELECT address, COUNT(*) AS count, MAX(timestamp) AS "lastSeen"
+      -- transactions, not rows: one transaction can hold several movements with the same address
+      SELECT address, COUNT(DISTINCT hash) AS count, MAX(timestamp) AS "lastSeen"
       FROM interactions
       GROUP BY address
       ORDER BY "lastSeen" DESC, count DESC

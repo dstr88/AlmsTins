@@ -1,17 +1,9 @@
 import type { SupportedChain } from './constants';
 import { CHAIN_IDS, SNOWTRACE_BASE_URL, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
-import { AAVE_POOL_ADDRESSES } from '@/lib/chains';
 
-// Aave V3 Pool contract addresses (all lowercase) for Aave call detection: AAVE_POOL_ADDRESSES
-// from src/lib/chains.ts.
-
-// Aave V3 function 4-byte selectors → action label
-const AAVE_SELECTORS = new Map<string, string>([
-	['0x617ba037', 'supply'],
-	['0xa415bcad', 'borrow'],
-	['0x573ade81', 'repay'],
-	['0x69328dec', 'withdraw'],
-]);
+// The explorer calls behind Wallet Watcher's EVM sync. The rows they return are read by
+// src/lib/sync/evmSyncRows.ts (Aave call detection included), through the reader Agentics shares
+// (src/lib/evmTransfers.ts).
 
 type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon' | 'arbitrum'>;
 
@@ -115,65 +107,4 @@ function buildSnowtraceUrl(params: ScanParams): string {
 		}
 	}
 	return `${SNOWTRACE_BASE_URL}?${query.toString()}`;
-}
-
-function isEtherscanChain(chain: ScanChain): chain is EtherscanChain {
-	return chain === 'ethereum' || chain === 'polygon';
-}
-
-export function normalizeScanResults(nativeTxs: ScanTx[], tokenTxs: ScanTx[], chain: string, wallet: { id: string; address: string }) {
-	const transactions = new Map<string, any>();
-
-	nativeTxs.forEach((tx) => {
-		const key = `${tx.hash}-${chain}`;
-		const toLower = tx.to?.toLowerCase() ?? '';
-		const selector = tx.input?.slice(0, 10)?.toLowerCase() ?? '';
-		const aaveAction = AAVE_POOL_ADDRESSES.has(toLower) ? AAVE_SELECTORS.get(selector) : undefined;
-		const txType = aaveAction
-			? `aave_${aaveAction}`
-			: toLower === wallet.address.toLowerCase()
-				? 'incoming'
-				: 'outgoing';
-		const metadata: Record<string, any> = aaveAction
-			? { source: 'aave', aaveAction }
-			: { source: 'scan_native' };
-		transactions.set(key, {
-			walletId: wallet.id,
-			hash: tx.hash,
-			chain,
-			blockNumber: Number(tx.blockNumber),
-			timestamp: new Date(Number(tx.timeStamp) * 1000),
-			from: tx.from,
-			to: tx.to,
-			value: tx.value,
-			tokenSymbol: 'native',
-			tokenDecimals: 18,
-			txType,
-			status: tx.isError === '1' ? 'failed' : 'confirmed',
-			feePaid: tx.gasUsed && tx.gasPrice ? (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString() : null,
-			metadata,
-		});
-	});
-
-	tokenTxs.forEach((tx) => {
-		const key = `${tx.hash}-${chain}-${tx.tokenSymbol}`;
-		transactions.set(key, {
-			walletId: wallet.id,
-			hash: tx.hash,
-			chain,
-			blockNumber: Number(tx.blockNumber),
-			timestamp: new Date(Number(tx.timeStamp) * 1000),
-			from: tx.from,
-			to: tx.to,
-			value: tx.value,
-			tokenSymbol: tx.tokenSymbol,
-			tokenDecimals: tx.tokenDecimal ? Number(tx.tokenDecimal) : undefined,
-			contractAddress: tx.contractAddress ? tx.contractAddress.toLowerCase() : undefined,
-			txType: tx.to?.toLowerCase() === wallet.address ? 'token_in' : 'token_out',
-			status: 'confirmed',
-			metadata: { tokenName: tx.tokenName, source: 'scan_token' },
-		});
-	});
-
-	return Array.from(transactions.values());
 }

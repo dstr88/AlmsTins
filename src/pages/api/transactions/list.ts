@@ -44,7 +44,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       FROM transactions t
       LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
       WHERE ${clauses.join(' AND ')}
-      ORDER BY t.timestamp DESC
+      ORDER BY t.timestamp DESC, t.id
       LIMIT ${limit} OFFSET ${offset}`;
 
 		const result = await db.execute({

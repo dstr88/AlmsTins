@@ -113,8 +113,12 @@ export function classifyFeesPass3(
 		const key = `onchain:${row.id}`;
 		if (alreadyClassified.has(key)) continue;
 
-		// Transactions where value is purely a gas/fee payment (value=0, non-token)
-		if (row.tx_type === 'fee' || row.tx_type === 'gas') {
+		// Transactions where value is purely a gas/fee payment (value=0, non-token): typed as a fee,
+		// or the fee-only row the EVM sync keeps for a transaction the wallet sent that moved no coin
+		// (an approval, a token-only call, a failed transaction; src/lib/sync/evmSyncRows.ts).
+		const feeOnly = String(row.value ?? '').trim() === '0' && row.token_symbol === 'native'
+			&& !!row.wallet_address && (row.from_address ?? '').toLowerCase() === row.wallet_address.toLowerCase();
+		if (row.tx_type === 'fee' || row.tx_type === 'gas' || feeOnly) {
 			results.push({
 				sourceType: 'onchain',
 				sourceId: row.id,

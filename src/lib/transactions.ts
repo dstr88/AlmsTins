@@ -1,8 +1,14 @@
 import { db } from './db';
+import { ensureTransactionLegs, TRANSACTION_CONFLICT_KEY } from './transactionLegs';
 
 export type NewTransaction = {
 	walletId: string;
 	hash: string;
+	/**
+	 * Which movement of the transaction this row is (src/lib/transactionLegs.ts). The EVM sync names
+	 * one per movement (src/lib/sync/evmSyncRows.ts); a writer with one row per hash leaves it empty.
+	 */
+	leg?: string;
 	chain: string;
 	blockNumber?: number;
 	timestamp: Date;
@@ -61,14 +67,21 @@ export type SmartFlags = {
 	riskTags: string[];
 };
 
+/**
+ * Saves rows, each keyed by account, hash, chain, wallet and leg: a row read again updates itself,
+ * and another movement of the same transaction is a row of its own. Throws, writing nothing, when
+ * the leg column and key cannot be ensured.
+ */
 export async function bulkUpsertTransactions(tenantId: string, txs: NewTransaction[]) {
 	if (!txs.length) return [];
+	if (!(await ensureTransactionLegs())) {
+		throw new Error('transactions: the leg column and key are not in place; nothing was saved');
+	}
 	const statements = txs.map((tx) => ({
 		sql: `INSERT INTO transactions
-      (tenant_id, wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, contract_address, tx_type, status, fee_paid, metadata_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(tenant_id, hash, chain) DO UPDATE SET
-        wallet_id = excluded.wallet_id,
+      (tenant_id, wallet_id, hash, leg, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, contract_address, tx_type, status, fee_paid, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT${TRANSACTION_CONFLICT_KEY} DO UPDATE SET
         block_number = excluded.block_number,
         timestamp = excluded.timestamp,
         from_address = excluded.from_address,
@@ -86,6 +99,7 @@ export async function bulkUpsertTransactions(tenantId: string, txs: NewTransacti
 			tenantId,
 			tx.walletId,
 			tx.hash,
+			tx.leg ?? '',
 			tx.chain,
 			tx.blockNumber ?? null,
 			tx.timestamp.toISOString(),
@@ -106,6 +120,16 @@ export async function bulkUpsertTransactions(tenantId: string, txs: NewTransacti
 	return results.map((result) => result.rows[0]);
 }
 
+/**
+ * The wallet's rows: those that move to or from its address, and, where a transaction has a row
+ * synced by this wallet, only those (a transfer between two of the customer's wallets is a row on
+ * each; the other wallet's row is its own). Args: address, address, wallet id, wallet id.
+ */
+const OWN_ROWS = `(LOWER(t.from_address) = ? OR LOWER(t.to_address) = ?)
+      AND (t.wallet_id = ? OR NOT EXISTS (
+        SELECT 1 FROM transactions o
+        WHERE o.tenant_id = t.tenant_id AND o.hash = t.hash AND o.chain = t.chain AND o.wallet_id = ?))`;
+
 export async function getTransactionsForWallet(tenantId: string, walletId: string, options: TransactionFilter = {}) {
 	const walletResult = await db.execute({
 		sql: 'SELECT id, address, chain FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
@@ -120,8 +144,8 @@ export async function getTransactionsForWallet(tenantId: string, walletId: strin
 	}
 	const rawAddress = wallet.address;
 	const address = typeof rawAddress === 'string' ? rawAddress.toLowerCase() : String(rawAddress).toLowerCase();
-	const clauses = ['(LOWER(t.from_address) = ? OR LOWER(t.to_address) = ?)'];
-	const args: any[] = [address, address];
+	const clauses = [OWN_ROWS];
+	const args: any[] = [address, address, walletId, walletId];
 
 	if (options.chain) {
 		clauses.push('t.chain = ?');
@@ -144,7 +168,7 @@ export async function getTransactionsForWallet(tenantId: string, walletId: strin
     LEFT JOIN transaction_annotations a
       ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
     WHERE t.tenant_id = ? AND ${clauses.join(' AND ')}
-    ORDER BY t.timestamp DESC
+    ORDER BY t.timestamp DESC, t.id
     LIMIT ${limit} OFFSET ${offset}`;
 
 	const result = await db.execute({ sql: query, args: [tenantId, ...args] });
@@ -171,8 +195,8 @@ export async function getTransactionsForWalletDashboard(
 	const normalizedAddress = typeof rawAddress === 'string' ? rawAddress.toLowerCase() : String(rawAddress).toLowerCase();
 	const myWalletAddresses = [normalizedAddress];
 
-	const clauses = ['(LOWER(t.from_address) = ? OR LOWER(t.to_address) = ?)'];
-	const params: any[] = [normalizedAddress, normalizedAddress];
+	const clauses = [OWN_ROWS];
+	const params: any[] = [normalizedAddress, normalizedAddress, walletId, walletId];
 
 	if (opts.fromDate) {
 		clauses.push('t.timestamp >= ?');
@@ -190,7 +214,7 @@ export async function getTransactionsForWalletDashboard(
 		FROM transactions t
 		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
 		WHERE t.tenant_id = ? AND ${clauses.join(' AND ')}
-		ORDER BY t.timestamp DESC
+		ORDER BY t.timestamp DESC, t.id
 		LIMIT ${limit} OFFSET ${offset}`;
 
 	const result = await db.execute({ sql: query, args: [tenantId, ...params] });

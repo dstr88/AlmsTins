@@ -93,7 +93,7 @@ export const GET: APIRoute = async ({ request, url }) => {
                t.from_address      AS from_address,
                t.to_address        AS to_address,
                t.chain             AS chain,
-               -- Wallet label: match a wallet address of the user to either side
+               -- Wallet label: the wallet that synced the row (one row per wallet and movement)
                w.label             AS wallet_label,
                w.address           AS wallet_address,
                -- Resolved labels: personal first, fall back to global
@@ -106,10 +106,7 @@ export const GET: APIRoute = async ({ request, url }) => {
                AND e.source_type NOT IN ('import')
              LEFT JOIN wallets w
                ON w.tenant_id = e.tenant_id
-               AND (
-                 LOWER(w.address) = LOWER(t.from_address)
-                 OR LOWER(w.address) = LOWER(t.to_address)
-               )
+               AND w.id = t.wallet_id
              -- Personal label for from_address
              LEFT JOIN address_labels pal_from
                ON pal_from.tenant_id = e.tenant_id

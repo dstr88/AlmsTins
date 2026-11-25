@@ -75,15 +75,22 @@ export async function runDuplicateSweep(tenantId: string): Promise<DedupStats> {
 		      WHERE it.tenant_id = ?
 		        AND it.tx_hash IS NOT NULL
 		        AND it.is_duplicate != -1
-		        AND t.is_duplicate  != -1`,
+		        AND t.is_duplicate  != -1
+		        AND COALESCE(t.value, '') <> '0'`,
 		args: [tenantId],
 	});
 
+	// A transaction can have several onchain rows (one per movement, src/lib/sync/evmSyncRows.ts);
+	// a fee-only row (value zero) is never the copy of an import. One match per import: the first.
 	type HashMatch = { importId: string; onchainId: string };
-	const hashMatches: HashMatch[] = (hashMatchRows.rows as DbRow[]).map((r) => ({
-		importId:  str(r.import_id),
-		onchainId: str(r.onchain_id),
-	}));
+	const hashMatches: HashMatch[] = [];
+	const matchedImports = new Set<string>();
+	for (const r of hashMatchRows.rows as DbRow[]) {
+		const importId = str(r.import_id);
+		if (matchedImports.has(importId)) continue;
+		matchedImports.add(importId);
+		hashMatches.push({ importId, onchainId: str(r.onchain_id) });
+	}
 
 	// Build a set of import IDs already handled by strategy 1 so strategies 2/3
 	// can record their own matches without double-updating (both are fine, but

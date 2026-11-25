@@ -211,6 +211,8 @@ export async function priceMissingTransactionsForTenant(
                 usd_value IS NULL OR usd_value <= 0
                 OR usd_unit_price IS NULL OR usd_unit_price <= 0
               )
+              -- a row of value zero (the fee-only row of a transaction) has nothing to price
+              AND COALESCE(value, '') <> '0'
             ORDER BY timestamp DESC
             LIMIT ?`,
       args: [tenantId, limit],

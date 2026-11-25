@@ -246,7 +246,7 @@ try {
 			FROM transactions t
 			LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
 			WHERE t.tenant_id = ? AND (t.is_duplicate IS NULL OR t.is_duplicate = 0 OR t.is_duplicate = -1) ${rowsWalletClause}
-			ORDER BY timestamp_utc DESC
+			ORDER BY timestamp_utc DESC, id
 			LIMIT ? OFFSET ?`,
 		args: [...rowsArgs, rowsLimit, rowsOffset],
 	});
