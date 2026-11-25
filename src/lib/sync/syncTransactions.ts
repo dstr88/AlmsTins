@@ -1,15 +1,9 @@
 import { db } from '@/lib/db';
 import type { Wallet } from '@/lib/wallets';
 import { getAllActiveWallets } from '@/lib/wallets';
-import { bulkUpsertTransactions, type NewTransaction } from '@/lib/transactions';
-import {
-	buildScanUrl,
-	fetchAccountData,
-	fetchEthereumScan,
-	normalizeScanResults,
-	type ScanChain,
-	type ScanTx,
-} from '@/lib/scanSync';
+import { bulkUpsertTransactions } from '@/lib/transactions';
+import { buildScanUrl, fetchAccountData, fetchEthereumScan, type ScanChain } from '@/lib/scanSync';
+import { walletSyncRows, type WalletSyncEvmChain } from '@/lib/sync/evmSyncRows';
 import type { SupportedChain } from '@/lib/constants';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
 import { fetchAndStoreAaveLiquidations } from '@/lib/sync/syncAaveLiquidations';
@@ -32,6 +26,8 @@ export type WalletSyncChainStats = {
 	chain: string;
 	fetched: number;
 	fetchedNative: number;
+	/** Rows of the internal-transactions listing (coin a contract moved), on EVM chains. */
+	fetchedInternal?: number;
 	fetchedToken: number;
 	inserted: number;
 	skipped: number;
@@ -107,101 +103,110 @@ export async function updateLastSyncedCursorForWallet(
 	});
 }
 
+type ListingAction = 'txlist' | 'txlistinternal' | 'tokentx';
+const LISTINGS: readonly ListingAction[] = ['txlist', 'txlistinternal', 'tokentx'];
+
 /**
- * Fetches transactions newer than the provided marker for a wallet + chain, handling pagination.
+ * One listing's rows from an explorer answer. "No transactions found" (and a call skipped for a
+ * missing API key) is an empty listing; anything else that is not a list of rows (NOTOK, a rate
+ * limit) throws, so the cursor never moves past rows that were not read.
  */
-export async function fetchTransactionsSince(wallet: Wallet, chain: ScanChain, marker: WalletSyncCursor) {
-	const aggregated: NewTransaction[] = [];
-	let highestBlock = marker.block ?? 0;
-	let highestTimestamp: string | null = marker.timestamp ?? null;
-	const seenKeys = new Set<string>();
-	const startTimestampMs = marker.timestamp ? new Date(marker.timestamp).getTime() : null;
-	let fetchedNative = 0;
-	let fetchedToken = 0;
-	const address = wallet.address?.trim?.() || wallet.address;
-	console.log('[SYNC] cursor', {
-		walletId: wallet.id,
-		chain,
-		address,
-		startBlock: Math.max(0, marker.block ?? 0) + 1,
-		endBlock: 9999999999,
-		lastBlock: marker.block ?? 0,
-		lastTimestamp: marker.timestamp ?? null,
-	});
+export function listingRows(payload: unknown, chain: string, action: ListingAction): Array<Record<string, unknown>> {
+	const p = (payload && typeof payload === 'object' ? payload : {}) as { status?: unknown; message?: unknown; result?: unknown };
+	if (Array.isArray(p.result)) return p.result as Array<Record<string, unknown>>;
+	const message = String(p.message ?? '');
+	const result = typeof p.result === 'string' ? p.result : '';
+	if (/no transactions found/i.test(message) || /no transactions found/i.test(result) || message === 'skipped') return [];
+	throw new Error(`Scan API error (${chain} ${action}): ${message || 'unknown'}${result ? `: ${result.slice(0, 120)}` : ''}`);
+}
 
+type ListingRead = { action: ListingAction; rows: Array<Record<string, unknown>>; complete: boolean };
+
+/** Reads one listing from `startBlock` on, oldest first, page by page until a short page or the page limit. */
+async function readListing(chain: ScanChain, address: string, action: ListingAction, startBlock: number): Promise<ListingRead> {
+	const rows: Array<Record<string, unknown>> = [];
 	for (let page = 1; page <= MAX_PAGES; page++) {
-		const commonParams = {
-			module: 'account',
-			address,
-			startblock: Math.max(0, marker.block ?? 0) + 1,
-			endblock: 9999999999,
-			page,
-			offset: MAX_OFFSET,
-			sort: 'asc' as const,
+		const task: SyncTask = {
+			provider: chain === 'avalanche' ? 'snowtrace' : 'etherscan',
+			chain,
+			params: { module: 'account', action, address, startblock: startBlock, endblock: 9999999999, page, offset: MAX_OFFSET, sort: 'asc' },
 		};
+		const pageRows = await readPage(task, chain, action);
+		rows.push(...pageRows);
+		if (pageRows.length < MAX_OFFSET) return { action, rows, complete: true };
+	}
+	return { action, rows, complete: false };
+}
 
-		const tasks: SyncTask[] = [
-			{ provider: chain === 'avalanche' ? 'snowtrace' : 'etherscan', chain, params: { ...commonParams, action: 'txlist' } },
-			{ provider: chain === 'avalanche' ? 'snowtrace' : 'etherscan', chain, params: { ...commonParams, action: 'tokentx' } },
-		];
-
-		const [nativeResp, tokenResp] = await executeTasksSequential(tasks);
-
-		const nativeTxs = Array.isArray(nativeResp.result) ? (nativeResp.result as ScanTx[]) : [];
-		const tokenTxs = Array.isArray(tokenResp.result) ? (tokenResp.result as ScanTx[]) : [];
-		fetchedNative += nativeTxs.length;
-		fetchedToken += tokenTxs.length;
-
-		if (!nativeTxs.length && !tokenTxs.length) {
-			break;
-		}
-
-		const normalized = normalizeScanResults(nativeTxs, tokenTxs, chain, wallet);
-		let pageOldestBlock = Number.MAX_SAFE_INTEGER;
-		let pageOldestTimestamp: number | null = null;
-
-		normalized.sort((a, b) => {
-			const blockDiff = (a.blockNumber ?? 0) - (b.blockNumber ?? 0);
-			if (blockDiff !== 0) return blockDiff;
-			return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-		});
-
-		for (const tx of normalized) {
-			const blockNum = tx.blockNumber ?? 0;
-			pageOldestBlock = Math.min(pageOldestBlock, blockNum);
-			const txTimestampMs = new Date(tx.timestamp).getTime();
-			pageOldestTimestamp = pageOldestTimestamp === null ? txTimestampMs : Math.min(pageOldestTimestamp, txTimestampMs);
-
-			if (blockNum <= marker.block) continue;
-			if (startTimestampMs && txTimestampMs <= startTimestampMs) continue;
-
-			const key = `${tx.hash}-${tx.chain}-${tx.tokenSymbol ?? 'native'}`;
-			if (seenKeys.has(key)) continue;
-			seenKeys.add(key);
-
-			aggregated.push(tx);
-			highestBlock = Math.max(highestBlock, blockNum);
-			if (!highestTimestamp || txTimestampMs > new Date(highestTimestamp).getTime()) {
-				highestTimestamp = new Date(tx.timestamp).toISOString();
-			}
-		}
-
-		const nativeFullPage = nativeTxs.length === MAX_OFFSET;
-		const tokenFullPage = tokenTxs.length === MAX_OFFSET;
-		if (!nativeFullPage && !tokenFullPage) {
-			// Neither endpoint returned a full page of results, so we likely exhausted the range.
-			break;
-		}
-
-		if (pageOldestBlock <= marker.block) {
-			break;
-		}
-		if (startTimestampMs && pageOldestTimestamp !== null && pageOldestTimestamp <= startTimestampMs) {
-			break;
+/** One page of a listing, tried again after a pause when the explorer answers with a rate limit. */
+async function readPage(task: SyncTask, chain: ScanChain, action: ListingAction) {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return listingRows(await executeTask(task), chain, action);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (!/rate limit/i.test(message) || attempt >= RATE_LIMIT_RETRIES) throw error;
+			await sleep(RATE_LIMIT_BACKOFFS[attempt] ?? 3200);
 		}
 	}
+}
 
-	return { txs: aggregated, highestBlock, highestTimestamp, fetchedNative, fetchedToken };
+/**
+ * The blocks every listing was read through. A listing that hit the page limit may have cut its
+ * last block short, so only the blocks before that one are kept (from every listing, so a
+ * transaction's rows are read whole: its legs are named by counting identical rows in it). The
+ * next sync starts from the first block not kept. Null when every listing was read to the end.
+ */
+export function readThroughBlock(reads: readonly ListingRead[]): number | null {
+	let through: number | null = null;
+	for (const r of reads) {
+		if (r.complete || !r.rows.length) continue;
+		const last = Math.max(...r.rows.map((row) => Number(row.blockNumber) || 0));
+		through = through === null ? last - 1 : Math.min(through, last - 1);
+	}
+	return through;
+}
+
+/**
+ * Fetches the wallet's rows on `chain` newer than the cursor: all three listings (coin,
+ * internal, tokens), each read whole, turned into one row per movement by walletSyncRows.
+ */
+export async function fetchTransactionsSince(wallet: Wallet, chain: ScanChain, marker: WalletSyncCursor) {
+	const address = (wallet.address?.trim?.() || wallet.address).toLowerCase();
+	const startBlock = Math.max(0, marker.block ?? 0) + 1;
+	console.log('[SYNC] cursor', { walletId: wallet.id, chain, startBlock, lastBlock: marker.block ?? 0 });
+
+	const reads: ListingRead[] = [];
+	for (const action of LISTINGS) reads.push(await readListing(chain, address, action, startBlock));
+
+	let through = readThroughBlock(reads);
+	if (through !== null && through < startBlock) {
+		// One block holds more rows than a listing can page through: keep what was read rather than stall.
+		console.warn('[SYNC] a block fills a listing past its page limit; keeping the rows read', { walletId: wallet.id, chain });
+		through = null;
+	}
+	const keep = (rows: Array<Record<string, unknown>>) => (through === null ? rows : rows.filter((r) => Number(r.blockNumber) <= through!));
+	const [txlist, txlistinternal, tokentx] = reads.map((r) => keep(r.rows));
+
+	const { rows, unreadable } = walletSyncRows(chain as WalletSyncEvmChain, { id: wallet.id, address }, { txlist, txlistinternal, tokentx });
+	if (unreadable) console.warn('[SYNC] listing rows that could not be read were left out', { walletId: wallet.id, chain, unreadable });
+
+	let highestBlock = marker.block ?? 0;
+	let highestTimestamp: string | null = marker.timestamp ?? null;
+	for (const tx of rows) {
+		highestBlock = Math.max(highestBlock, tx.blockNumber ?? 0);
+		if (!highestTimestamp || tx.timestamp.getTime() > new Date(highestTimestamp).getTime()) highestTimestamp = tx.timestamp.toISOString();
+	}
+	if (through !== null) highestBlock = Math.max(highestBlock, through);
+
+	return {
+		txs: rows,
+		highestBlock,
+		highestTimestamp,
+		fetchedNative: txlist.length,
+		fetchedInternal: txlistinternal.length,
+		fetchedToken: tokentx.length,
+	};
 }
 
 /**
@@ -227,7 +232,7 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 	}
 
 	const marker = await getLastSyncedCursorForWallet(tenantId, wallet.id, normalizedChain);
-	const { txs, highestBlock, highestTimestamp, fetchedNative, fetchedToken } = await fetchTransactionsSince(
+	const { txs, highestBlock, highestTimestamp, fetchedNative, fetchedInternal, fetchedToken } = await fetchTransactionsSince(
 		wallet,
 		normalizedChain,
 		marker,
@@ -275,6 +280,7 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 		chain: normalizedChain,
 		fetched: txs.length,
 		fetchedNative,
+		fetchedInternal,
 		fetchedToken,
 		inserted,
 		skipped,
@@ -413,14 +419,6 @@ type SyncTask = {
 	chain: ScanChain;
 	params: Record<string, string | number>;
 };
-
-async function executeTasksSequential(tasks: SyncTask[]) {
-	const results = [];
-	for (const task of tasks) {
-		results.push(await executeTask(task));
-	}
-	return results;
-}
 
 async function executeTask(task: SyncTask) {
 	if (task.provider === 'etherscan') {

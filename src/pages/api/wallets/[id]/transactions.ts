@@ -4,6 +4,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { buildEtherscanV2Url, requestEtherscan, CHAIN_IDS } from '@/lib/etherscan';
 import { WALLET_TX_CHAINS } from '@/lib/chains';
+import { ensureTransactionLegs, TRANSACTION_CONFLICT_KEY } from '@/lib/transactionLegs';
 
 export const prerender = false;
 
@@ -103,6 +104,9 @@ export const POST: APIRoute = async ({ request, params }) => {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 
 		const body = await request.json();
+		if (!(await ensureTransactionLegs())) {
+			return respond({ error: true, message: 'Unable to save transaction. Please try again.' }, 503);
+		}
 		const path: 'hash' | 'manual' = body.path === 'hash' ? 'hash' : 'manual';
 
 		// Shared fields
@@ -131,12 +135,13 @@ export const POST: APIRoute = async ({ request, params }) => {
 				usdValue,
 			});
 
+			// The entry is its own row (leg 'custom'), beside any rows the sync reads for the same
+			// transaction; adding it again for the same wallet updates it.
 			const result = await db.execute({
 				sql: `INSERT INTO transactions
-					(tenant_id, wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, tx_type, metadata_json)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-					ON CONFLICT(tenant_id, hash, chain) DO UPDATE SET
-						wallet_id = excluded.wallet_id,
+					(tenant_id, wallet_id, hash, leg, chain, block_number, timestamp, from_address, to_address, value, token_symbol, tx_type, metadata_json)
+					VALUES (?, ?, ?, 'custom', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					ON CONFLICT${TRANSACTION_CONFLICT_KEY} DO UPDATE SET
 						tx_type = excluded.tx_type,
 						metadata_json = excluded.metadata_json
 					RETURNING *`,
@@ -185,8 +190,8 @@ export const POST: APIRoute = async ({ request, params }) => {
 
 		const result = await db.execute({
 			sql: `INSERT INTO transactions
-				(tenant_id, wallet_id, hash, chain, timestamp, token_symbol, tx_type, metadata_json)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				(tenant_id, wallet_id, hash, leg, chain, timestamp, token_symbol, tx_type, metadata_json)
+				VALUES (?, ?, ?, 'manual', ?, ?, ?, ?, ?)
 				RETURNING *`,
 			args: [tenantId, walletId, syntheticHash, chain, timestamp, symbol, kind || null, metadata],
 		});
