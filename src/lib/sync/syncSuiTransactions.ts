@@ -10,6 +10,7 @@ import {
 import type { Wallet } from '@/lib/wallets';
 import { fillCounterparties, suiCounterpartyUpdate } from '@/lib/counterpartyColumn';
 import { canonicalAddress } from '@/lib/wallets-service';
+import { syncRunAtNow } from '@/lib/sync/syncRunAt';
 
 const SUI_CHAIN = 'sui';
 
@@ -199,7 +200,7 @@ ON CONFLICT DO NOTHING`,
 	// Only the transactions fetched this run: rows behind the saved cursor keep NULL.
 	await fillCounterparties(counterparties);
 
-	// Save sync state
+	// Save sync state. last_run_at is in the EVM sync's format (src/lib/sync/syncRunAt.ts).
 	const now = new Date().toISOString();
 	await db.execute({
 		sql: `INSERT INTO wallet_sync_state
@@ -213,7 +214,7 @@ ON CONFLICT DO NOTHING`,
 			SUI_CHAIN,
 			tenantId,
 			nextCursor ?? now,   // store nextCursor (or now if fully synced)
-			now,
+			syncRunAtNow(),
 		],
 	});
 

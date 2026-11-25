@@ -26,6 +26,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { json } from '@/lib/http';
+import { latestSyncRunSql, syncedSince } from '@/lib/sync/syncRunAt';
 
 export const prerender = false;
 
@@ -113,7 +114,7 @@ export const GET: APIRoute = async ({ request }) => {
 			// 2. Wallets — all onchain wallets + their latest sync time
 			db.execute({
 				sql: `SELECT w.id, w.label, w.address,
-				             MAX(s.last_run_at) AS last_sync
+				             ${latestSyncRunSql('s.last_run_at')} AS last_sync
 				      FROM wallets w
 				      LEFT JOIN wallet_sync_state s ON s.wallet_id = w.id AND s.tenant_id = w.tenant_id
 				      WHERE w.tenant_id = ?
@@ -203,8 +204,8 @@ export const GET: APIRoute = async ({ request }) => {
 		const walletRows  = walletsResult.rows as DbRow[];
 		const totalWallets = walletRows.length;
 		const staleWallets = walletRows.filter(w => {
-			const lastSync = w.last_sync ? String(w.last_sync) : null;
-			return !lastSync || lastSync < staleISO;
+			// Read as a time, not compared as text: last_run_at was once written in two formats.
+			return !syncedSince(w.last_sync, Date.parse(staleISO));
 		});
 		const freshCount  = totalWallets - staleWallets.length;
 		const walletScore = totalWallets === 0 ? PILLAR_MAX    // no wallets → N/A, don't penalise

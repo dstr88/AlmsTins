@@ -156,7 +156,7 @@ describe('syncSolanaAddress', () => {
 		expect(insertColumns(raw[0].sql)!.columns).toEqual(expect.arrayContaining(['import_batch_id', 'row_json']));
 		expect(inserts('import_transactions')).toHaveLength(2);
 		const cursor = state.calls.find((c) => /INSERT INTO wallet_sync_state/i.test(c.sql));
-		expect(cursor?.args).toEqual(['w-sol', 'solana', TENANT, 'sig-send', expect.any(String)]);
+		expect(cursor?.args).toEqual(['w-sol', 'solana', TENANT, 'sig-send', expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)]);
 	});
 
 	it('scopes every statement it sends by the tenant', async () => {

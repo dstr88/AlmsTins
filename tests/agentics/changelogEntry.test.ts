@@ -172,8 +172,10 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.9', () => 
   it('is public, dated the day the documents carry, and names the one change', () => {
     expect(start).toBeGreaterThan(-1);
     expect(article).toContain(`<time class="entry-date">${EFFECTIVE}</time>`);
-    // The newest entry is now Wallet Watcher's of November 25 (tests/sync/transactionLegsChangelog.test.ts); this one is next.
-    expect(page.indexOf('<article', page.indexOf('<article') + 1)).toBe(page.lastIndexOf('<article', start));
+    // Wallet Watcher's two entries of November 25 come first (tests/sync/syncFollowupsChangelog.test.ts,
+    // tests/sync/transactionLegsChangelog.test.ts); this one is next, right after the transaction legs one.
+    const legs = page.indexOf('Wallet Watcher now keeps each movement in a transaction');
+    expect(page.indexOf('<article', legs)).toBe(page.lastIndexOf('<article', start));
     expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain(`<strong>Effective Date:</strong> ${EFFECTIVE} &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.9`);
     expect(article).toContain('The changes are in the Privacy Policy, section 3, and the User Agreement, section B.9.7.');
     expect(article).toContain('keeps a count of its answers per day: the date, whether the call used a key, and the answer it gave');

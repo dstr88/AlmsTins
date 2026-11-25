@@ -1,0 +1,13 @@
+-- wallet_sync_state.last_run_at holds one format: YYYY-MM-DD HH:MM:SS, UTC, as the EVM sync writes it.
+-- Until Nov 2026 the Solana and Sui syncs wrote ISO (2026-11-23T15:29:41.762Z). As text the ISO value
+-- sorts above an EVM one from later the same day, so the Bookkeeping strip read it, failed to parse it
+-- and said "never synced", and the weekly jobs' 6-day check compared mixed formats. Those syncs now
+-- write the one format (src/lib/sync/syncRunAt.ts); this rewrites the ISO values already stored: the
+-- first 19 characters, with the T read as a space. Only rows still in ISO are touched. Safe to run
+-- more than once.
+--
+-- Also run lazily at runtime, once per process (ensureSyncRunAtFormat in src/lib/sync/syncRunAt.ts,
+-- from the weekly wallet sync, src/pages/api/cron/sync-wallets.ts). tests/sync/syncRunAt.test.ts keeps this
+-- file and the code identical. The readers accept either format, so a value this has not reached yet
+-- still reads right.
+UPDATE wallet_sync_state SET last_run_at = replace(substr(CAST(last_run_at AS TEXT), 1, 19), 'T', ' ') WHERE CAST(last_run_at AS TEXT) LIKE '____-__-__T%';

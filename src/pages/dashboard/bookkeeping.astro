@@ -22,6 +22,7 @@ import NeedsAttentionRow from '../../components/bookkeeping/NeedsAttentionRow.as
 import { loadPoisoningFlags } from '../../lib/poisoningFlags';
 import { loadCounterparties, splitQuarantinedDust } from '../../lib/quarantineBooks';
 import { getQuarantine } from '@/i18n/components/quarantine';
+import { latestSyncRunSql, parseSyncRunAt } from '@/lib/sync/syncRunAt';
 import '../../components/poisoning/quarantine.css';
 
 const lang = getLang(Astro.request);
@@ -185,12 +186,13 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 // Reads wallet_sync_state.last_run_at — stamped after the EVM ledger is pulled
 // (sync-wallets cron OR the in-app sync). If it's old, the bookkeeping data is
 // behind, which is otherwise silent. Thresholds: ok ≤8d, warn ≤30d, else stale.
+// The value is read in either format it was ever written in (src/lib/sync/syncRunAt.ts):
+// an ISO value from the Solana sync once showed "never synced".
 const syncFreshRow = await db.execute({
-  sql: `SELECT MAX(last_run_at) AS last FROM wallet_sync_state WHERE tenant_id = ?`,
+  sql: `SELECT ${latestSyncRunSql()} AS last FROM wallet_sync_state WHERE tenant_id = ?`,
   args: [tenantId],
 });
-const lastSyncRaw = syncFreshRow.rows[0]?.last as string | null;
-const lastSyncMs  = lastSyncRaw ? Date.parse(String(lastSyncRaw).replace(' ', 'T') + 'Z') : NaN;
+const lastSyncMs  = parseSyncRunAt(syncFreshRow.rows[0]?.last);
 const hasSync     = Number.isFinite(lastSyncMs);
 const syncAgeDays = hasSync ? (Date.now() - lastSyncMs) / 86_400_000 : Infinity;
 const syncLevel: 'ok' | 'warn' | 'stale' | 'never' =
@@ -261,6 +263,7 @@ const syncRelative = !hasSync ? '' :
         <span class="sync-strip__note">{t.syncStaleNote}</span>
       )}
       <button type="button" class="sync-strip__btn" id="bk-sync-now">{t.syncNow}</button>
+      <span class="sync-strip__note" id="bk-sync-result" role="status" hidden></span>
     </div>
 
     <style>
@@ -274,26 +277,52 @@ const syncRelative = !hasSync ? '' :
       .sync-strip--stale, .sync-strip--never { border-color: var(--loss-border); background: var(--loss-bg); color: var(--loss); }
     </style>
 
-    <script is:inline define:vars={{ bkSyncI18n: { syncing: t.syncingLabel, err: t.syncErrLabel } }}>window.__bkSyncI18n = bkSyncI18n;</script>
+    <script is:inline define:vars={{ bkSyncI18n: {
+      lang,
+      syncing: t.syncingLabel,
+      err: t.syncErrLabel,
+      syncFailedOne: t.syncFailedOne,
+      syncFailedMany: t.syncFailedMany,
+      syncFailedWhere: t.syncFailedWhere,
+      syncFailedRest: t.syncFailedRest,
+      syncFailedNone: t.syncFailedNone,
+    } }}>window.__bkSyncI18n = bkSyncI18n;</script>
     <script>
+      import { syncFailures, syncFailureMessage } from '@/lib/sync/syncReport';
       (() => {
         const btn = document.getElementById('bk-sync-now');
+        const result = document.getElementById('bk-sync-result');
         if (!btn) return;
         const I = (window as any).__bkSyncI18n || {};
         const original = btn.textContent;
         btn.addEventListener('click', async () => {
           (btn as HTMLButtonElement).disabled = true;
           btn.textContent = I.syncing ?? 'Syncing…';
+          if (result) result.hidden = true;
           try {
-            // 1. Pull the on-chain ledger (Etherscan/Snowtrace) into `transactions`.
+            // 1. Pull the on-chain ledger (Etherscan/Snowtrace) into `transactions`. The answer lists
+            //    every wallet and chain; one that failed is in it with ok: false.
             const sync = await fetch('/api/wallets/sync-all', { method: 'POST' });
             if (!sync.ok) throw new Error('sync ' + sync.status);
+            const failures = syncFailures(await sync.json().catch(() => null));
             // 2. Rebuild the lifecycle so the freshly-fetched txns — including Aave
             //    repays/deposits — get classified into the events bookkeeping reads.
             //    Without this, sync-all fetches the repay but never surfaces it.
+            //    It runs even when some chains failed, for whatever did sync.
             const rebuild = await fetch('/api/lifecycle/rebuild', { method: 'POST' });
             if (!rebuild.ok) throw new Error('rebuild ' + rebuild.status);
-            location.reload();
+            const message = syncFailureMessage(failures, I, I.lang ?? 'en');
+            if (!message) {
+              location.reload();
+              return;
+            }
+            // Some failed: say so and stay on the page, so the message is not lost to a reload.
+            (btn as HTMLButtonElement).disabled = false;
+            btn.textContent = original;
+            if (result) {
+              result.textContent = message;
+              result.hidden = false;
+            }
           } catch {
             (btn as HTMLButtonElement).disabled = false;
             btn.textContent = I.err ?? 'Sync failed — please try again.';

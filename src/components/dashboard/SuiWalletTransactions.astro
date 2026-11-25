@@ -7,6 +7,7 @@ import walletOut from '@/assets/walletOut.webp';
 import { getLang } from '@/lib/i18n/locale';
 import { getSuiWalletTransactions } from '@/i18n/components/suiWalletTransactions';
 import { formatDate, toLang } from '@/lib/format';
+import { latestSyncRunSql } from '@/lib/sync/syncRunAt';
 import { shortenAddress } from '@/lib/addressDisplay';
 
 type Props = {
@@ -35,7 +36,7 @@ const t = getSuiWalletTransactions(lang);
 
 // Last sync timestamp
 const syncResult = await db.execute({
-	sql: `SELECT MAX(last_run_at) as last_synced FROM wallet_sync_state
+	sql: `SELECT ${latestSyncRunSql()} as last_synced FROM wallet_sync_state
 	      WHERE wallet_id = ? AND chain = 'sui' AND tenant_id = ?`,
 	args: [walletId, tenantId],
 });

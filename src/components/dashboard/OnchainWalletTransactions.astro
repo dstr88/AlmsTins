@@ -12,6 +12,7 @@ import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
 import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
 import { formatDate } from '@/lib/format';
+import { latestSyncRunSql } from '@/lib/sync/syncRunAt';
 
 type Props = {
 	walletId: string;
@@ -82,7 +83,7 @@ const walletResult = await db.execute({
 
 // Last sync timestamp — most recent run across all chains for this wallet
 const syncResult = await db.execute({
-	sql: `SELECT MAX(last_run_at) as last_synced, MAX(last_timestamp) as data_through
+	sql: `SELECT ${latestSyncRunSql()} as last_synced, MAX(last_timestamp) as data_through
 	      FROM wallet_sync_state WHERE wallet_id = ?`,
 	args: [walletId],
 });
