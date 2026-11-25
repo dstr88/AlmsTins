@@ -29,6 +29,13 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">November 25, 2026</time>
+          <div class="entry-body">
+            <p>Wallet Watcher now keeps each movement in a transaction on Ethereum, Polygon and Avalanche as its own record. Before, a swap kept only one of its two sides, so the coin you swapped away could be missing from your cost basis and gains, and the network fee could be lost with it. Two identical transfers in one transaction were kept as one, and a transfer between two of your own wallets was kept for only one of them. A swap now records the coin that left and the coin that arrived. The network fee of every transaction you sent is recorded, including approvals and transactions that failed. Coin that a contract sends back to your wallet, such as the ETH you receive when you swap USDC for ETH, is now recorded as well. This applies to transactions synced from now on; records synced before this change are not yet corrected.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">November 24, 2026</time>
           <div class="entry-body">
             <p>Privacy Policy version 1.9 and User Agreement version 1.9 are in effect. The changes are in the Privacy Policy, section 3, and the User Agreement, section B.9.7. The Agentics pre-send check now keeps a count of its answers per day: the date, whether the call used a key, and the answer it gave. Nothing about a call is kept: not the address or link that was checked, not who asked, not their network address. Checks made without a key are still not recorded. Agentics now also reads Base: the agent's page records every token transfer of an agent's wallet on Base, such as USDC, in and out. It does not read ETH moving on Base. The User Agreement's section B.9.7 now names Base among the chains the Record covers, on Base for token transfers only.</p>
