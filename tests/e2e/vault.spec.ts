@@ -28,7 +28,6 @@ test.describe('Vault page', () => {
 		await expect(tin.locator('[data-add-tab="wallet"]')).toHaveClass(/is-active/);
 		await expect(tin.locator('[data-add-panel="wallet"]')).toBeVisible();
 		await expect(tin.locator('[data-add-panel="exchange"]')).toBeHidden();
-		await expect(tin.locator('[data-add-panel="custom"]')).toBeHidden();
 	});
 
 	// ── Tab switching ──────────────────────────────────────────────────────
@@ -43,13 +42,11 @@ test.describe('Vault page', () => {
 		await expect(tin.locator('[data-add-panel="wallet"]')).toBeHidden();
 	});
 
-	test('Custom tab switches panel', async ({ page }) => {
+	test('there is no Custom tab: new custom wallets can no longer be added', async ({ page }) => {
 		const tin = page.locator('.add-tin');
-		await tin.locator('[data-add-tab="custom"]').click();
-
-		await expect(tin.locator('[data-add-panel="custom"]')).toBeVisible();
-		await expect(tin.locator('[data-add-tab="custom"]')).toHaveClass(/is-active/);
-		await expect(tin.locator('[data-add-panel="wallet"]')).toBeHidden();
+		await expect(tin.locator('[data-add-tab]')).toHaveCount(2);
+		await expect(tin.locator('[data-add-tab="custom"]')).toHaveCount(0);
+		await expect(tin.locator('[data-add-panel="custom"]')).toHaveCount(0);
 	});
 
 	test('tabs can switch back and forth', async ({ page }) => {
@@ -90,15 +87,5 @@ test.describe('Vault page', () => {
 		await expect(
 			page.locator('[data-exchange-add][data-exchange-source="exodus"]'),
 		).toBeVisible();
-	});
-
-	// ── Custom wallet panel ────────────────────────────────────────────────
-
-	test('Custom panel has label input and save button', async ({ page }) => {
-		const tin = page.locator('.add-tin');
-		await tin.locator('[data-add-tab="custom"]').click();
-
-		await expect(tin.locator('[data-custom-label]')).toBeVisible();
-		await expect(tin.locator('[data-custom-submit]')).toBeVisible();
 	});
 });

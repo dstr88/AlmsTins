@@ -38,6 +38,13 @@ const t = getChangelog(lang);
         <article class="entry">
           <time class="entry-date">November 25, 2026</time>
           <div class="entry-body">
+            <p>The Add Asset box on the Vault no longer has a Custom tab, so new custom wallets (wallets that hold only transactions you enter by hand) can no longer be added. A custom wallet you already have works as before: it stays in the Custom Wallets section of the Vault, you can still add entries to it, and you can delete it when you no longer need it.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">November 25, 2026</time>
+          <div class="entry-body">
             <p>The Sync now button on the Bookkeeping page now tells you when a wallet could not be synced. It says how many wallets failed and on which chains, and it still rebuilds your cost basis with whatever did sync; before, it reloaded the page as if every wallet had synced. Wallets that hold only entries you added by hand are no longer sent to the block explorers, which can't read them and answered with an error on every sync. Solana and Sui saved the time of their last sync in a different format from the other chains, so the line at the top of Bookkeeping could say "never synced" right after a Solana sync, and the weekly sync could sync a wallet again before it was due. Every chain now saves that time the same way. When the weekly sync adds records to your account, it now rebuilds your cost basis too, so the numbers no longer wait for you to press Sync now.</p>
           </div>
         </article>

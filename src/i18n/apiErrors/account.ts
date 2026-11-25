@@ -31,6 +31,10 @@ export interface AccountErrorsLocale {
   // wallets/value/sync-all — catch-all fallback shown when sync throws
   /** "Wallet value sync failed" */
   valueSyncFailed: string;
+
+  // wallets — POST refuses a new custom wallet (the Vault no longer offers them)
+  /** "New custom wallets can no longer be added. ..." */
+  customWalletClosed: string;
 }
 
 const en: AccountErrorsLocale = {
@@ -41,6 +45,7 @@ const en: AccountErrorsLocale = {
   unverified:          'Verify your email address before setting an alert email',
   thresholdRange:      'Threshold must be between 0 and 100',
   valueSyncFailed:     'Wallet value sync failed',
+  customWalletClosed:  'New custom wallets can no longer be added. Custom wallets you already have still work, and you can delete them from the Vault.',
 };
 
 const es: AccountErrorsLocale = {
@@ -51,6 +56,7 @@ const es: AccountErrorsLocale = {
   unverified:          "Verifica tu correo electrónico antes de configurar un correo de alertas",
   thresholdRange:      "El umbral debe estar entre 0 y 100",
   valueSyncFailed:     "Error al sincronizar el valor de la cartera",
+  customWalletClosed:  "Ya no se pueden agregar wallets personalizadas nuevas. Las que ya tienes siguen funcionando y puedes eliminarlas desde la Bóveda.",
 };
 
 const fr: AccountErrorsLocale = {
@@ -61,6 +67,7 @@ const fr: AccountErrorsLocale = {
   unverified:          "Vérifiez votre adresse e-mail avant de définir un e-mail d'alerte",
   thresholdRange:      "Le seuil doit être compris entre 0 et 100",
   valueSyncFailed:     "Échec de la synchronisation de la valeur du portefeuille",
+  customWalletClosed:  "Il n'est plus possible d'ajouter de nouveaux wallets personnalisés. Ceux que vous avez déjà fonctionnent toujours et vous pouvez les supprimer depuis le Coffre.",
 };
 
 const MAP: Record<Lang, AccountErrorsLocale> = { en, es, fr };

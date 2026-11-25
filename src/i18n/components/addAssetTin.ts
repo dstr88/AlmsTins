@@ -24,7 +24,6 @@ export interface AddAssetTinLocale {
   // Tab labels
   tabWallet: string;
   tabExchange: string;
-  tabCustom: string;
 
   // Wallet panel
   fieldChain: string;
@@ -37,15 +36,6 @@ export interface AddAssetTinLocale {
   krakenExportHint: string;
   comingSoon: string;
 
-  // Custom wallet panel
-  customHint: string;
-  fieldLabel: string;
-  fieldLabelRequired: string;
-  fieldAddressOptional: string;
-  customPlaceholderLabel: string;
-  customPlaceholderAddress: string;
-  btnSaveCustom: string;
-
   // Client script — wallet submit
   enterAddressFirst: string;
   saving: string;
@@ -54,12 +44,6 @@ export interface AddAssetTinLocale {
   unableToAddWallet: string;
   syncingHistory: string;
   walletAddedReloading: string;
-
-  // Client script — custom wallet submit
-  labelRequired: string;
-  planLimitCustom: string;
-  unableToSaveWallet: string;
-  savedReloading: string;
 
   // Chain hints (auto-detect)
   chainHintEvm: string;
@@ -83,7 +67,6 @@ export const en: AddAssetTinLocale = {
 
   tabWallet: 'Wallet',
   tabExchange: 'Exchange',
-  tabCustom: 'Custom',
 
   fieldChain: 'Chain',
   fieldAddress: 'Address',
@@ -96,15 +79,6 @@ export const en: AddAssetTinLocale = {
     'Kraken users: export from Account → History → Ledgers — not the Trades export.',
   comingSoon: 'More chains & exchanges coming soon.',
 
-  customHint:
-    'Label a wallet you manage manually — hardware wallet, cold storage, or any source without an importer. Address is optional; add it if you want the system to match existing transactions to this wallet.',
-  fieldLabel: 'Label',
-  fieldLabelRequired: 'required',
-  fieldAddressOptional: 'optional',
-  customPlaceholderLabel: 'e.g. My Ledger, Paper Wallet BTC…',
-  customPlaceholderAddress: '0x… or leave blank',
-  btnSaveCustom: 'Save Custom Wallet',
-
   enterAddressFirst: 'Enter a wallet address first.',
   saving: 'Saving…',
   planLimitWallet: 'Plan limit reached. Upgrade to add more tins.',
@@ -112,11 +86,6 @@ export const en: AddAssetTinLocale = {
   unableToAddWallet: 'Unable to add wallet.',
   syncingHistory: 'Syncing wallet history…',
   walletAddedReloading: 'Wallet added — reloading…',
-
-  labelRequired: 'A label is required.',
-  planLimitCustom: 'Plan limit reached. Upgrade to add more tins.',
-  unableToSaveWallet: 'Unable to save wallet.',
-  savedReloading: 'Saved — reloading…',
 
   chainHintEvm:
     'EVM addresses (0x…) are tracked across Ethereum, Polygon, Avalanche & Arbitrum automatically.',
@@ -140,7 +109,6 @@ export const es: AddAssetTinLocale = {
 
   tabWallet: "Wallet",
   tabExchange: "Exchange",
-  tabCustom: "Personalizado",
 
   fieldChain: "Red",
   fieldAddress: "Dirección",
@@ -153,15 +121,6 @@ export const es: AddAssetTinLocale = {
     "Usuarios de Kraken: exporta desde Cuenta → Historial → Libros contables — no desde la exportación de operaciones.",
   comingSoon: "Pronto habrá más redes y exchanges.",
 
-  customHint:
-    "Etiqueta una wallet que gestionas manualmente — hardware wallet, almacenamiento en frío o cualquier fuente sin importador. La dirección es opcional; agrégala si quieres que el sistema vincule las transacciones existentes a esta wallet.",
-  fieldLabel: "Etiqueta",
-  fieldLabelRequired: "obligatorio",
-  fieldAddressOptional: "opcional",
-  customPlaceholderLabel: "Ej: Mi Ledger, Paper Wallet BTC…",
-  customPlaceholderAddress: "0x… o dejar en blanco",
-  btnSaveCustom: "Guardar wallet personalizada",
-
   enterAddressFirst: "Ingresa primero una dirección de wallet.",
   saving: "Guardando…",
   planLimitWallet: "Limite del plan alcanzado. Actualiza para agregar mas Tins.",
@@ -169,11 +128,6 @@ export const es: AddAssetTinLocale = {
   unableToAddWallet: "No se pudo agregar la wallet.",
   syncingHistory: "Sincronizando historial de la wallet…",
   walletAddedReloading: "Wallet agregada — recargando…",
-
-  labelRequired: "Se requiere una etiqueta.",
-  planLimitCustom: "Limite del plan alcanzado. Actualiza para agregar mas Tins.",
-  unableToSaveWallet: "No se pudo guardar la wallet.",
-  savedReloading: "Guardado — recargando…",
 
   chainHintEvm:
     "Las direcciones EVM (0x…) se rastrean en Ethereum, Polygon, Avalanche y Arbitrum automaticamente.",
@@ -197,7 +151,6 @@ export const fr: AddAssetTinLocale = {
 
   tabWallet: "Wallet",
   tabExchange: "Exchange",
-  tabCustom: "Personnalise",
 
   fieldChain: "Reseau",
   fieldAddress: "Adresse",
@@ -210,15 +163,6 @@ export const fr: AddAssetTinLocale = {
     "Utilisateurs Kraken : exportez depuis Compte → Historique → Grands livres — pas depuis l'export des transactions.",
   comingSoon: "D'autres reseaux et exchanges bientot disponibles.",
 
-  customHint:
-    "Etiquetez un wallet que vous gerez manuellement — hardware wallet, stockage a froid ou toute source sans importateur. L'adresse est facultative ; ajoutez-la si vous souhaitez que le systeme associe les transactions existantes a ce wallet.",
-  fieldLabel: "Libelle",
-  fieldLabelRequired: "obligatoire",
-  fieldAddressOptional: "facultatif",
-  customPlaceholderLabel: "Ex : Mon Ledger, Paper Wallet BTC…",
-  customPlaceholderAddress: "0x… ou laisser vide",
-  btnSaveCustom: "Enregistrer le wallet personnalise",
-
   enterAddressFirst: "Saisissez d'abord une adresse de wallet.",
   saving: "Enregistrement…",
   planLimitWallet: "Limite du plan atteinte. Passez a un forfait superieur pour ajouter plus de Tins.",
@@ -226,11 +170,6 @@ export const fr: AddAssetTinLocale = {
   unableToAddWallet: "Impossible d'ajouter le wallet.",
   syncingHistory: "Synchronisation de l'historique du wallet…",
   walletAddedReloading: "Wallet ajoute — rechargement…",
-
-  labelRequired: "Un libelle est obligatoire.",
-  planLimitCustom: "Limite du plan atteinte. Passez a un forfait superieur pour ajouter plus de Tins.",
-  unableToSaveWallet: "Impossible d'enregistrer le wallet.",
-  savedReloading: "Enregistre — rechargement…",
 
   chainHintEvm:
     "Les adresses EVM (0x…) sont suivies sur Ethereum, Polygon, Avalanche et Arbitrum automatiquement.",
