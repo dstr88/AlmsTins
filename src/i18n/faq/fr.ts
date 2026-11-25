@@ -24,6 +24,17 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-getting-started",
+    q: "Je viens de m'inscrire. Par où commencer ?",
+    a: `<p>
+          Tant que votre compte ne contient rien, le coffre s'ouvre sur un court message de bienvenue. Il montre les deux façons de commencer : collez l'adresse publique d'un wallet que vous détenez vous-même dans le champ Ajouter un actif, et Almstins trouve sur quelle chaîne il se trouve ; ou importez le fichier CSV que votre exchange vous permet de télécharger, depuis Coinbase, Kraken ou l'un des autres exchanges listés sur la page.
+        </p>
+
+        <p>
+          Le message propose aussi une visite de la page en quatre étapes : le champ Ajouter un actif, la zone où déposer un CSV, les cartes des exchanges et la tuile Portefeuille. La visite se termine avec le curseur dans le champ de l'adresse. Quel que soit votre choix, le message reste fermé dans ce navigateur, et seul votre navigateur garde ce choix. Il ne s'affiche plus du tout dès que vous avez ajouté votre premier wallet ou votre premier CSV.
+        </p>`,
+  },
+  {
     id: "faq-exchanges",
     q: "Qu'en est-il des exchanges",
     a: `<p>

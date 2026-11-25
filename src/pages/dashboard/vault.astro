@@ -22,6 +22,9 @@ import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tenantHasTaxAccess } from '@/lib/taxAuth';
 import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
+import VaultWelcome from '@/components/dashboard/VaultWelcome.astro';
+import { isVaultFirstRun } from '@/lib/vaultFirstRun';
+import { loadVaultFirstRunFacts } from '@/lib/vaultFirstRunFacts';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getVault } from '@/i18n/dashboard/vault';
@@ -60,6 +63,11 @@ console.log('[vault] total ms', Date.now() - pageStart);
 
 const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
 const customWallets  = walletsSorted.filter((w) => w.walletType === 'custom');
+
+// An account with nothing in it yet meets the welcome card and its tour (src/lib/vaultFirstRun.ts).
+const vaultFirstRun = isVaultFirstRun(
+	await loadVaultFirstRunFacts({ tenantId, isDemo: tenant.isDemo === true, walletCount: wallets.length }),
+);
 
 // ── Monthly digest pill ────────────────────────────────────────────────────────
 let digestCount = 0;
@@ -169,6 +177,8 @@ const getChainBadge = (chains: string[]): string => {
 		)}
 
 		{isDemo && <DemoTutorial />}
+
+		{vaultFirstRun && <VaultWelcome />}
 
 		<section class="bk-grid">
 			<SalmonTin label={t.notepad} class="tile tile--r1c1">

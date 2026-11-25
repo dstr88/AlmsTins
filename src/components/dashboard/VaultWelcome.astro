@@ -1,0 +1,53 @@
+---
+/**
+ * VaultWelcome: the welcome card and the four-step tour an empty Vault shows.
+ *
+ * Who sees it is decided by src/lib/vaultFirstRun.ts; the Vault page renders this component only
+ * when that rule says so. Markup lives here, presentation in VaultWelcome.css, behaviour in
+ * vaultWelcome.client.ts, copy in src/i18n/components/vaultWelcome.ts.
+ *
+ * The card's wrapper takes the Vault's page gutter (a direct child of .vault-page), so the card lines
+ * up with the tiles. It is rendered hidden and the client script shows it, unless this browser has already
+ * answered it ("Yes, show me" or "Not now"), so a returning browser never sees it flash.
+ *
+ * The tour runs on the shared tour engine (src/components/TourEngine.astro), the same one the
+ * demo tutorial and the Portfolio, Research and Year-End tours use, with its own steps: the demo's
+ * steps are written around sample wallets an empty account does not have.
+ */
+import './VaultWelcome.css';
+import TourEngine from '../TourEngine.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getVaultWelcome } from '@/i18n/components/vaultWelcome';
+import { VAULT_ADDRESS_FIELD, VAULT_TOUR_SELECTORS, VAULT_WELCOME_SEEN_KEY } from '@/lib/vaultFirstRun';
+
+const lang = getLang(Astro.request);
+const t = getVaultWelcome(lang);
+
+// Everything the client script needs, in one attribute (Astro escapes it).
+const config = JSON.stringify({
+	tourId: 'vault-start',
+	seenKey: VAULT_WELCOME_SEEN_KEY,
+	addressField: VAULT_ADDRESS_FIELD,
+	steps: t.steps.map((step, i) => ({ selector: VAULT_TOUR_SELECTORS[i], title: step.title, body: step.body })),
+	labels: t.labels,
+});
+---
+
+<div class="vault-welcome-wrap" id="vault-welcome" data-vault-welcome={config} hidden>
+	<section class="vault-welcome" aria-label={t.regionLabel}>
+		<h2 class="vault-welcome__title">{t.title}</h2>
+		{t.paragraphs.map((text) => <p class="vault-welcome__text">{text}</p>)}
+		<p class="vault-welcome__question">{t.tourQuestion}</p>
+		<div class="vault-welcome__actions">
+			<button type="button" class="vault-welcome__btn vault-welcome__btn--primary" data-vault-welcome-yes>{t.yes}</button>
+			<button type="button" class="vault-welcome__btn" data-vault-welcome-no>{t.notNow}</button>
+		</div>
+	</section>
+</div>
+
+<TourEngine tourId="vault-start" lang={lang} trigger="none" />
+
+<script>
+	import { initVaultWelcome } from './vaultWelcome.client';
+	initVaultWelcome();
+</script>

@@ -48,8 +48,8 @@ export const en: VaultLocale = {
   heroSubtitle: 'TradFi + DeFi vault overview',
   demoBanner: (have) =>
     `You're exploring a live sample vault — ${have} of 3 wallets.` +
-    (have < 3 ? ` Add up to ${3 - have} more, or make it yours.` : ' Make it yours.'),
-  saveCta: 'Save my vault — sign up free →',
+    (have < 3 ? ` Add up to ${3 - have} more, or start your own.` : ' Start your own.'),
+  saveCta: 'Start your own vault for free →',
   dividerExchanges: 'Centralized Exchanges',
   dividerOnchain: 'On-Chain Wallets',
   dividerCustom: 'Custom Wallets',
@@ -64,9 +64,9 @@ export const en: VaultLocale = {
   renameWallet: 'Rename wallet',
   rename: 'Rename',
   copyAddress: 'Copy address',
-  keepRecords: 'Keep these records.',
+  keepRecords: 'Keep your own records.',
   keepRecordsSub:
-    'Your reconciled vault — every holding, cost basis, and gain — saved to your account. No credit card.',
+    'Sign up free, add your own wallets and exchange CSVs, and Almstins keeps every holding, cost basis and gain in your account. The sample wallets stay in the demo. No credit card.',
 };
 
 export const es: VaultLocale = {
@@ -77,8 +77,8 @@ export const es: VaultLocale = {
   heroSubtitle: 'Resumen de la bóveda TradFi + DeFi',
   demoBanner: (have) =>
     `Estás explorando una bóveda de muestra en vivo — ${have} de 3 wallets.` +
-    (have < 3 ? ` Añade hasta ${3 - have} más, o hazla tuya.` : ' Hazla tuya.'),
-  saveCta: 'Guardar mi bóveda — regístrate gratis →',
+    (have < 3 ? ` Añade hasta ${3 - have} más, o crea la tuya.` : ' Crea la tuya.'),
+  saveCta: 'Crea tu propia bóveda gratis →',
   dividerExchanges: 'Exchanges centralizados',
   dividerOnchain: 'Wallets on-chain',
   dividerCustom: 'Wallets personalizadas',
@@ -93,9 +93,9 @@ export const es: VaultLocale = {
   renameWallet: 'Renombrar wallet',
   rename: 'Renombrar',
   copyAddress: 'Copiar dirección',
-  keepRecords: 'Conserva estos registros.',
+  keepRecords: 'Lleva tus propios registros.',
   keepRecordsSub:
-    'Tu bóveda conciliada — cada tenencia, base de coste y ganancia — guardada en tu cuenta. Sin tarjeta de crédito.',
+    'Regístrate gratis, agrega tus propias wallets y CSV de exchanges, y Almstins guarda cada tenencia, base de coste y ganancia en tu cuenta. Las wallets de muestra se quedan en la demo. Sin tarjeta de crédito.',
 };
 
 export const fr: VaultLocale = {
@@ -106,8 +106,8 @@ export const fr: VaultLocale = {
   heroSubtitle: 'Aperçu du coffre TradFi + DeFi',
   demoBanner: (have) =>
     `Vous explorez un coffre d'exemple en direct — ${have} wallets sur 3.` +
-    (have < 3 ? ` Ajoutez-en jusqu'à ${3 - have} de plus, ou faites-le vôtre.` : ' Faites-le vôtre.'),
-  saveCta: 'Enregistrer mon coffre — inscription gratuite →',
+    (have < 3 ? ` Ajoutez-en jusqu'à ${3 - have} de plus, ou créez le vôtre.` : ' Créez le vôtre.'),
+  saveCta: 'Créez votre propre coffre gratuitement →',
   dividerExchanges: 'Exchanges centralisés',
   dividerOnchain: 'Wallets on-chain',
   dividerCustom: 'Wallets personnalisés',
@@ -122,9 +122,9 @@ export const fr: VaultLocale = {
   renameWallet: 'Renommer le wallet',
   rename: 'Renommer',
   copyAddress: "Copier l'adresse",
-  keepRecords: 'Conservez ces enregistrements.',
+  keepRecords: 'Tenez vos propres registres.',
   keepRecordsSub:
-    'Votre coffre rapproché — chaque avoir, coût de base et gain — enregistré sur votre compte. Sans carte bancaire.',
+    "Inscrivez-vous gratuitement, ajoutez vos propres wallets et CSV d'exchanges, et Almstins conserve chaque avoir, coût de base et gain dans votre compte. Les wallets d'exemple restent dans la démo. Sans carte bancaire.",
 };
 
 const MAP: Record<Lang, VaultLocale> = { en, es, fr };

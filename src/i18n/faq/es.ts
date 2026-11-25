@@ -24,6 +24,17 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-getting-started",
+    q: "Acabo de registrarme. ¿Por dónde empiezo?",
+    a: `<p>
+          Cuando tu cuenta todavía no tiene nada, la bóveda se abre con una breve bienvenida. Muestra las dos formas de empezar: pega la dirección pública de una wallet que controlas tú mismo en el campo Agregar activo, y Almstins detecta en qué cadena está; o sube el archivo CSV que tu exchange te permite descargar, de Coinbase, Kraken o cualquiera de los otros exchanges que aparecen en la página.
+        </p>
+
+        <p>
+          La bienvenida también ofrece un recorrido de cuatro pasos por la página: el campo Agregar activo, la zona donde sueltas un CSV, las tarjetas de los exchanges y el mosaico Portafolio. El recorrido termina con el cursor en el campo de la dirección. Elijas lo que elijas, la bienvenida queda cerrada en ese navegador, y solo tu navegador guarda esa elección. Deja de aparecer del todo en cuanto agregas tu primera wallet o tu primer CSV.
+        </p>`,
+  },
+  {
     id: "faq-exchanges",
     q: "Qué hay de los exchanges",
     a: `<p>

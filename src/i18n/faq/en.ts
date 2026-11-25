@@ -26,6 +26,17 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-getting-started",
+    q: "I just signed up. Where do I start?",
+    a: `<p>
+          When your account has nothing in it yet, the Vault opens with a short welcome. It shows the two ways to start: paste the public address of a wallet you hold yourself into the Add Asset field, and Almstins works out which chain it's on; or upload the CSV file your exchange lets you download, from Coinbase, Kraken or any of the other exchanges listed on the page.
+        </p>
+
+        <p>
+          The welcome also offers a four-step tour of the page: the Add Asset field, the area where you drop a CSV, the exchange cards and the Portfolio tile. The tour ends with the cursor in the address field. Whichever you choose, the welcome stays closed in that browser, and only your browser keeps that choice. It stops showing for good once you've added your first wallet or CSV.
+        </p>`,
+  },
+  {
     id: "faq-exchanges",
     q: "What about exchanges",
     a: `<p>

@@ -1,0 +1,82 @@
+/* VaultWelcome: the welcome card an empty Vault shows (VaultWelcome.astro). Shared tokens only. */
+
+/* The wrapper is a direct child of .vault-page, which gives it the page gutter. */
+.vault-welcome {
+	padding: 1.25rem 1.5rem;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-glow);
+	border-radius: 12px;
+	color: var(--text-primary);
+	max-width: 52rem;
+}
+
+/* The card is rendered hidden; the client script shows it. Keep [hidden] winning over layout. */
+.vault-welcome-wrap[hidden] {
+	display: none;
+}
+
+.vault-welcome__title {
+	margin: 0 0 0.6rem;
+	font-size: 1.2rem;
+	line-height: 1.35;
+	color: var(--accent);
+}
+
+.vault-welcome__text {
+	margin: 0 0 0.75rem;
+	font-size: 0.95rem;
+	line-height: 1.6;
+	color: var(--text-secondary);
+}
+
+.vault-welcome__question {
+	margin: 1rem 0 0.75rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.vault-welcome__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+}
+
+.vault-welcome__btn {
+	font: inherit;
+	font-size: 0.88rem;
+	font-weight: 600;
+	padding: 0.45rem 1rem;
+	border-radius: 8px;
+	border: 1px solid var(--border-bright);
+	background: transparent;
+	color: var(--text-primary);
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.vault-welcome__btn:hover {
+	background: var(--surface-hover);
+}
+
+.vault-welcome__btn:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.vault-welcome__btn--primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--surface-bg);
+}
+
+.vault-welcome__btn--primary:hover {
+	background: var(--accent-dim);
+	border-color: var(--accent-dim);
+}
+
+@media (max-width: 719px) {
+	.vault-welcome {
+		padding: 1rem 1.1rem;
+	}
+}
