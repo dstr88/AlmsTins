@@ -1,0 +1,19 @@
+---
+// TransportDocCheck: on an opened record whose transport document answer is a number, a lender
+// types the number they hold and gets a yes or no. Markup only; transportDocCheck.client.ts mounts
+// it (shown only for a record with a number) and the page's entry module feeds it the record.
+import './TransportDocCheck.css';
+import { TRANSPORT_DOC_CHECK_BUTTON, TRANSPORT_DOC_CHECK_LABEL, TRANSPORT_DOC_NUMBER_PLACEHOLDER } from '@/lib/receivables/copy/transportDoc';
+import { TRANSPORT_DOC_NUMBER_MAX } from '@/lib/receivables/transportDoc';
+
+interface Props { id: string }
+const { id } = Astro.props;
+---
+<div class="tdc" data-rcv-root="transport-doc-check" hidden>
+	<label class="tdc__label" for={`${id}-number`}>{TRANSPORT_DOC_CHECK_LABEL}</label>
+	<div class="tdc__row">
+		<input id={`${id}-number`} type="text" data-tdc-number placeholder={TRANSPORT_DOC_NUMBER_PLACEHOLDER} autocomplete="off" maxlength={TRANSPORT_DOC_NUMBER_MAX} />
+		<button type="button" class="btn" data-tdc-go>{TRANSPORT_DOC_CHECK_BUTTON}</button>
+	</div>
+	<p class="tdc__out" data-tdc-out role="status" aria-live="polite"></p>
+</div>

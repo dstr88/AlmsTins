@@ -92,10 +92,14 @@ import {
   type NoticeCode,
 } from '@/lib/receivables/acknowledgments';
 import { clampCurrency, fingerprintTuples, type FingerprintInput } from '@/lib/receivables/fingerprintNormalize';
+import { normalizeTransportDoc, readStoredTransportDoc, transportDocAnswerOf, transportDocNumberOf, type StoredTransportDoc, type TransportDocAnswer } from '@/lib/receivables/transportDoc';
+import { checkTransportDocNumber, commitTransportDocNumber, openOwnerCopy, sealOwnerCopy } from '@/lib/receivables/server/transportDocCommit';
+import { TRANSPORT_DOC_UNAVAILABLE } from '@/lib/receivables/copy/transportDoc';
 import { computeFingerprints, fingerprintKid, type Fingerprints } from '@/lib/receivables/server/fingerprint';
 import {
   claimRaisesDuplicate,
   publicDuplicateCheck,
+  sameShipmentOnly,
   stateOnly,
   summarizeTwins,
   unavailableCheck,
@@ -112,11 +116,15 @@ import {
   DUPLICATE_DETAIL_MATCH,
   DUPLICATE_DETAIL_NO_REFERENCE,
   DUPLICATE_DETAIL_PASS,
+  DUPLICATE_DETAIL_PASS_WITH_SHIPMENT,
   DUPLICATE_DETAIL_REFERENCE_ONLY,
+  DUPLICATE_DETAIL_SAME_SHIPMENT,
+  DUPLICATE_DETAIL_SHIPMENT_NOT_KNOWN,
   DUPLICATE_DETAIL_UNAVAILABLE,
   ID_COLLISION_MESSAGE,
   POSSIBLE_DUPLICATE_MESSAGE,
   POSSIBLE_MATCH_MESSAGE,
+  POSSIBLE_SAME_SHIPMENT_MESSAGE,
   UNKNOWN_ACKNOWLEDGMENT_MESSAGE,
 } from '@/lib/receivables/copy/duplicate';
 import { runWithoutDbContext } from '@/lib/dbContext';
@@ -168,11 +176,19 @@ export interface ReceivableInput {
  * it is the only identifier here that the supplier does not control. Since S3 the duplicate
  * check's strong key is built from it (src/lib/receivables/fingerprintNormalize.ts), and since
  * S4 all three create forms ask for it (BuyerRefField).
+ *
+ * `transportDoc` is the answer to the transport document question every create form asks
+ * (TransportDocField): the number with its type, "none" or "not_known"
+ * (src/lib/receivables/transportDoc.ts). Only a number builds the duplicate check's shipment key.
+ * A record made before the question existed has no answer.
  */
 export interface ReceivableDetails {
   invoiceDate?: string | null;
   deliveryDate?: string | null;
   buyerRef?: string | null;
+  /** A form's answer on the way in; a stored record holds the StoredTransportDoc form (a keyed
+   *  commitment in place of the number), which is what gets signed. */
+  transportDoc?: TransportDocAnswer | StoredTransportDoc | null;
   goods?: string | null;
   paymentInstructions?: string | null;
   extra?: Array<{ label: string; value: string }>;
@@ -726,7 +742,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   }
   if (!fingerprintColumnsReady) {
     try {
-      await db.execute({ sql: `SELECT fingerprint_ref, fingerprint_inv, fingerprint_kid FROM receivables LIMIT 0`, args: [] });
+      await db.execute({ sql: `SELECT fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner FROM receivables LIMIT 0`, args: [] });
       fingerprintColumnsReady = true;
     } catch { /* not there yet: the duplicate check reads unavailable until a later ensure adds them */ }
   }
@@ -787,6 +803,9 @@ export type CreateReceivableResult =
       duplicateCheck: DuplicateCheck; ownMatches?: OwnMatch[];
     }
   | { ok: false; error: 'invalid'; message: string }
+  /** A transport document number was given but cannot be kept as a keyed hash right now (no key,
+   *  no encryption key, or the columns are not confirmed). Nothing was written. */
+  | { ok: false; error: 'transport_doc_unavailable'; message: string }
   /** The exact details are on record under another account. duplicateCheck covers the submitted
    *  details, that record included, so the second filer learns whether it is recorded as financed. */
   | { ok: false; error: 'id_collision'; message: string; duplicateCheck: DuplicateCheck; ownMatches?: OwnMatch[] };
@@ -813,6 +832,8 @@ function normalizeDetails(d?: ReceivableDetails | null): ReceivableDetails | nul
   if (isYmd(d.deliveryDate)) out.deliveryDate = d.deliveryDate!;
   const buyerRef = clampStr(d.buyerRef ?? '', 80);
   if (buyerRef) out.buyerRef = buyerRef;
+  const transportDoc = normalizeTransportDoc(d.transportDoc);
+  if (transportDoc) out.transportDoc = transportDoc;
   const goods = clampStr(d.goods ?? '', 500);
   if (goods) out.goods = goods;
   const pay = clampStr(d.paymentInstructions ?? '', 300);
@@ -861,19 +882,22 @@ function clampReceivableInput(input: ReceivableInput): ClampedReceivable {
 function fingerprintInputOf(f: ClampedReceivable): FingerprintInput {
   return {
     recordType: 'invoice', supplier: f.supplier, buyer: f.buyer, invoiceNo: f.invoiceNo,
-    buyerRef: f.details?.buyerRef ?? null, face: f.face, currency: f.currency, isTest: f.isTest,
+    buyerRef: f.details?.buyerRef ?? null, transportDocNumber: transportDocNumberOf(f.details),
+    face: f.face, currency: f.currency, isTest: f.isTest,
   };
 }
 
 /** The fingerprint fields of a stored row, recomputed from the row itself (never its stored hashes). */
 function fingerprintInputFromRow(row: {
   supplier: unknown; buyer: unknown; invoice_no: unknown; face: unknown; currency: unknown;
-  details_json: unknown; is_test: unknown;
+  details_json: unknown; is_test: unknown; transport_doc_owner?: unknown;
 }): FingerprintInput {
   return {
     recordType: 'invoice',
     supplier: String(row.supplier ?? ''), buyer: String(row.buyer ?? ''), invoiceNo: String(row.invoice_no ?? ''),
     buyerRef: parseDetails(row.details_json)?.buyerRef ?? null,
+    // The number lives only in the owner's encrypted copy (details hold a commitment).
+    transportDocNumber: openOwnerCopy(row.transport_doc_owner),
     face: Number(row.face), currency: String(row.currency ?? ''),
     isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
   };
@@ -894,6 +918,23 @@ export async function createReceivable(
   }
   if (!Number.isFinite(face) || face <= 0) {
     return { ok: false, error: 'invalid', message: 'Face value must be a positive number.' };
+  }
+
+  // The transport document number never goes into the record readable: the signed details get a
+  // keyed commitment in its place (server/transportDocCommit.ts), and the owner keeps an encrypted
+  // copy. Fail closed: without the key, the encryption key or the confirmed columns, a number
+  // answer is refused rather than stored in the clear or dropped.
+  let docNumber: string | null = null;
+  let ownerCopy: string | null = null;
+  const submittedDoc = details?.transportDoc ? normalizeTransportDoc(details.transportDoc) : null;
+  if (details && submittedDoc?.answer === 'number') {
+    const commitment = fingerprintColumnsReady
+      ? commitTransportDocNumber({ supplier, buyer, invoiceNo, face, currency, isTest }, submittedDoc.number)
+      : null;
+    ownerCopy = commitment ? sealOwnerCopy(submittedDoc.number) : null;
+    if (!commitment || !ownerCopy) return { ok: false, error: 'transport_doc_unavailable', message: TRANSPORT_DOC_UNAVAILABLE };
+    docNumber = submittedDoc.number;
+    details.transportDoc = { answer: 'number', type: submittedDoc.type, commitment };
   }
 
   const receivable: Record<string, unknown> =
@@ -921,7 +962,7 @@ export async function createReceivable(
   // Duplicate check (S3): the fingerprints are computed from these fields and stored with the row
   // (NULL without a key, and not at all until the fingerprint columns are confirmed). The manifest
   // and the ID never change for them.
-  const fpInput = fingerprintInputOf(fields);
+  const fpInput: FingerprintInput = { ...fingerprintInputOf(fields), transportDocNumber: docNumber };
   const withDeleted = deletedAtReady;
   const withFp = fingerprintColumnsReady;
   const existing = await db.execute({
@@ -955,13 +996,13 @@ export async function createReceivable(
     const fp = withFp ? computeFingerprints(fpInput) : null;
     await db.execute({
       sql: `INSERT INTO receivables
-              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, is_test, manifest_json, signature_json, digest${withFp ? ', fingerprint_ref, fingerprint_inv, fingerprint_kid' : ''})
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${withFp ? ', ?, ?, ?' : ''})`,
+              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, is_test, manifest_json, signature_json, digest${withFp ? ', fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner' : ''})
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${withFp ? ', ?, ?, ?, ?, ?' : ''})`,
       args: [
         id, tenantId, supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod,
         details ? JSON.stringify(details) : null, isTest,
         JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
-        ...(withFp ? [fp?.ref ?? null, fp?.inv ?? null, fp?.kid ?? null] : []),
+        ...(withFp ? [fp?.ref ?? null, fp?.inv ?? null, fp?.doc ?? null, fp?.kid ?? null, ownerCopy] : []),
       ],
     });
   }
@@ -987,7 +1028,7 @@ export interface PrecheckFields {
   invoiceNo?: string | null;
   face: number;
   currency: string;
-  details?: { buyerRef?: string | null } | null;
+  details?: { buyerRef?: string | null; transportDoc?: unknown } | null;
   isTest?: boolean;
 }
 
@@ -1007,11 +1048,14 @@ export async function previewDuplicateCheck(fields: PrecheckFields, viewerTenant
   const clamped = clampReceivableInput({
     supplier: String(fields.supplier ?? ''), buyer: String(fields.buyer ?? ''), invoiceNo: String(fields.invoiceNo ?? ''),
     face: Number(fields.face), currency: String(fields.currency ?? ''),
-    details: fields.details?.buyerRef != null ? { buyerRef: String(fields.details.buyerRef) } : null,
+    details: fields.details ? {
+      ...(fields.details.buyerRef != null ? { buyerRef: String(fields.details.buyerRef) } : {}),
+      ...(fields.details.transportDoc != null ? { transportDoc: normalizeTransportDoc(fields.details.transportDoc) } : {}),
+    } : null,
     isTest: fields.isTest === true,
   });
-  if (!clamped.buyer || !String(fields.currency ?? '').trim() || !(clamped.invoiceNo || clamped.details?.buyerRef)) {
-    return { ok: false, error: 'invalid', message: 'A debtor, a currency, and an invoice number or a debtor reference are required.' };
+  if (!clamped.buyer || !String(fields.currency ?? '').trim() || !(clamped.invoiceNo || clamped.details?.buyerRef || transportDocNumberOf(clamped.details))) {
+    return { ok: false, error: 'invalid', message: 'A debtor, a currency, and an invoice number, a debtor reference or a transport document number are required.' };
   }
   if (!Number.isFinite(clamped.face) || clamped.face <= 0) {
     return { ok: false, error: 'invalid', message: 'Face value must be a positive number.' };
@@ -1354,11 +1398,12 @@ async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId
   const branchArgs: string[] = [];
   if (fp.ref) { branches.push('r.fingerprint_ref = ?'); branchArgs.push(fp.ref); }
   if (fp.inv) { branches.push('r.fingerprint_inv = ?'); branchArgs.push(fp.inv); }
+  if (fp.doc) { branches.push('r.fingerprint_doc = ?'); branchArgs.push(fp.doc); }
   if (!branches.length) return [];
   const withDeleted = deletedAtReady;
   // Every tenant's rows, on the owner pool (see above).
   const r = await runWithoutDbContext(() => db.execute({
-    sql: `SELECT r.id, r.tenant_id, r.invoice_no, r.fingerprint_ref, r.fingerprint_inv, r.settled_at${withDeleted ? ', r.deleted_at' : ''}, r.due_date,
+    sql: `SELECT r.id, r.tenant_id, r.invoice_no, r.fingerprint_ref, r.fingerprint_inv, r.fingerprint_doc, r.settled_at${withDeleted ? ', r.deleted_at' : ''}, r.due_date,
                  (${ENCUMBRANCE_SQL}) AS encumbered
           FROM receivables r
           WHERE r.fingerprint_kid = ? AND r.is_test = ?${excludeId !== null ? ' AND r.id <> ?' : ''} AND (${branches.join(' OR ')})
@@ -1374,6 +1419,7 @@ async function findFingerprintTwins(fp: Fingerprints, isTest: boolean, excludeId
     // Which key matched is read here, by comparing strings, so the select list takes no parameters.
     matchedRef: fp.ref !== null && row.fingerprint_ref === fp.ref,
     matchedInv: fp.inv !== null && row.fingerprint_inv === fp.inv,
+    matchedDoc: fp.doc !== null && row.fingerprint_doc === fp.doc,
     encumbered: truthy(row.encumbered),
     settled: row.settled_at != null,
     withdrawn: withDeleted && row.deleted_at != null,
@@ -1413,7 +1459,7 @@ async function duplicateCheckFor(input: FingerprintInput, excludeId: string | nu
   const unavailable: DuplicateResult = { check: unavailableCheck(hasDebtorReference), ownMatches: [], twinIds: [] };
   if (!fingerprintColumnsReady) return unavailable;
   const fp = computeFingerprints(input);
-  if (!fp || (!fp.ref && !fp.inv)) return unavailable;
+  if (!fp || (!fp.ref && !fp.inv && !fp.doc)) return unavailable;
   try {
     if (!(await coverageOk(fp.kid))) return unavailable;
     const twins = await findFingerprintTwins(fp, input.isTest, excludeId, now);
@@ -1426,8 +1472,17 @@ async function duplicateCheckFor(input: FingerprintInput, excludeId: string | nu
 }
 
 /** A stored row's duplicate check, from its own fields, itself left out. */
-function duplicateCheckForRow(row: ReceivableRow, viewerTenantId?: string | null, now: Date = new Date()): Promise<DuplicateResult> {
-  return duplicateCheckFor(fingerprintInputFromRow(row), row.id, viewerTenantId, now);
+async function duplicateCheckForRow(row: ReceivableRow, viewerTenantId?: string | null, now: Date = new Date()): Promise<DuplicateResult> {
+  // The shipment key needs the number, which only the owner's encrypted copy holds. Read here, for
+  // this comparison only; it never joins the row the rest of the module passes around.
+  let owner: unknown = null;
+  if (fingerprintColumnsReady && transportDocAnswerOf(parseDetails(row.details_json)) === 'number') {
+    try {
+      const r = await db.execute({ sql: `SELECT transport_doc_owner FROM receivables WHERE id = ? LIMIT 1`, args: [row.id] });
+      owner = (r.rows[0] as any)?.transport_doc_owner ?? null;
+    } catch { /* compared without the shipment key */ }
+  }
+  return duplicateCheckFor(fingerprintInputFromRow({ ...row, transport_doc_owner: owner }), row.id, viewerTenantId, now);
 }
 
 /** Store the current fingerprints on a row whose kid is not the current one. Non-fatal: the
@@ -1437,9 +1492,9 @@ async function refreshFingerprints(id: string, tenantId: string, input: Fingerpr
   if (!fp || storedKid === fp.kid) return;
   try {
     await db.execute({
-      sql: `UPDATE receivables SET fingerprint_ref = ?, fingerprint_inv = ?, fingerprint_kid = ?
+      sql: `UPDATE receivables SET fingerprint_ref = ?, fingerprint_inv = ?, fingerprint_doc = ?, fingerprint_kid = ?
             WHERE id = ? AND tenant_id = ? AND (fingerprint_kid IS NULL OR fingerprint_kid <> ?)`,
-      args: [fp.ref, fp.inv, fp.kid, id, tenantId, fp.kid],
+      args: [fp.ref, fp.inv, fp.doc, fp.kid, id, tenantId, fp.kid],
     });
   } catch { /* non-fatal */ }
 }
@@ -1494,7 +1549,7 @@ async function runFingerprintBackfill(): Promise<FingerprintBackfillResult> {
     let cursor = '';
     for (;;) {
       const batch = await db.execute({
-        sql: `SELECT id, supplier, buyer, invoice_no, face, currency, details_json, is_test FROM receivables
+        sql: `SELECT id, supplier, buyer, invoice_no, face, currency, details_json, is_test, transport_doc_owner FROM receivables
               WHERE (fingerprint_kid IS NULL OR fingerprint_kid <> ?) AND id > ?
               ORDER BY id LIMIT ${BACKFILL_BATCH}`,
         args: [kid, cursor],
@@ -1507,9 +1562,9 @@ async function runFingerprintBackfill(): Promise<FingerprintBackfillResult> {
         if (!fp || fp.kid !== kid) { skipped++; continue; }
         try {
           const w = await db.execute({
-            sql: `UPDATE receivables SET fingerprint_ref = ?, fingerprint_inv = ?, fingerprint_kid = ?
+            sql: `UPDATE receivables SET fingerprint_ref = ?, fingerprint_inv = ?, fingerprint_doc = ?, fingerprint_kid = ?
                   WHERE id = ? AND (fingerprint_kid IS NULL OR fingerprint_kid <> ?)`,
-            args: [fp.ref, fp.inv, fp.kid, cursor, fp.kid],
+            args: [fp.ref, fp.inv, fp.doc, fp.kid, cursor, fp.kid],
           });
           if (w.rowsAffected) updated++;
         } catch {
@@ -1699,8 +1754,10 @@ export async function addClaim(
   ]);
   const duplicateOutstanding = outstanding.includes('possible_duplicate');
   if (duplicateOutstanding && input.acceptsWarnings === true) {
+    // A shipment-only match never says "financed": its own message, the same for financed or not.
+    const verifiedMessage = sameShipmentOnly(dup.check) ? POSSIBLE_SAME_SHIPMENT_MESSAGE : POSSIBLE_DUPLICATE_MESSAGE;
     return verifiedViewer
-      ? { ok: false, error: 'possible_duplicate', message: POSSIBLE_DUPLICATE_MESSAGE, warnings: ['possible_duplicate'], duplicateCheck: dup.check }
+      ? { ok: false, error: 'possible_duplicate', message: verifiedMessage, warnings: ['possible_duplicate'], duplicateCheck: dup.check }
       : { ok: false, error: 'possible_duplicate', message: POSSIBLE_MATCH_MESSAGE, warnings: ['possible_duplicate'], duplicateCheck: stateOnly(dup.check) };
   }
   const notices: NoticeCode[] = [
@@ -1748,6 +1805,49 @@ export async function addClaim(
  */
 export async function getReceivableStatus(receivableId: string, now: Date = new Date()): Promise<ReceivableStatus | null> {
   return (await readReceivableStatus(receivableId, now))?.status ?? null;
+}
+
+/**
+ * The record owner's own copy of the transport document number, decrypted, or null: for anyone
+ * but the owner, for a record with no number, or on any error. The only path that ever returns the
+ * number, and only to the tenant that recorded it.
+ */
+export async function ownTransportDocNumber(receivableId: string, tenantId: string | null | undefined): Promise<string | null> {
+  if (!tenantId || !fingerprintColumnsReady) return null;
+  try {
+    const r = await db.execute({
+      sql: `SELECT transport_doc_owner FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      args: [String(receivableId), String(tenantId)],
+    });
+    return openOwnerCopy((r.rows[0] as any)?.transport_doc_owner);
+  } catch {
+    return null;
+  }
+}
+
+export type TransportDocCheckResult =
+  | { ok: true; match: boolean }
+  | { ok: false; error: 'not_found' | 'no_number' | 'invalid' | 'unavailable' };
+
+/**
+ * Whether a transport document number someone holds is the one committed in a record: a yes or a
+ * no, never the number. "no_number" when the record's answer is not a number (or it predates the
+ * question); "unavailable" when the commitment's key is neither current nor retired. Withdrawn
+ * records answer too, like the public check.
+ */
+export async function checkReceivableTransportDoc(receivableId: string, number: unknown): Promise<TransportDocCheckResult> {
+  await ensureReceivablesTables();
+  const typed = String(number ?? '').trim();
+  if (!typed || typed.length > 60) return { ok: false, error: 'invalid' };
+  const rcv = await getReceivableRow(String(receivableId || '').trim(), { includeDeleted: true });
+  if (!rcv) return { ok: false, error: 'not_found' };
+  const stored = readStoredTransportDoc(parseDetails(rcv.details_json)?.transportDoc);
+  if (!stored || stored.answer !== 'number') return { ok: false, error: 'no_number' };
+  const match = checkTransportDocNumber(
+    { supplier: rcv.supplier, buyer: rcv.buyer, invoiceNo: rcv.invoice_no, face: rcv.face, currency: rcv.currency, isTest: rcv.is_test },
+    stored.commitment, typed,
+  );
+  return match === null ? { ok: false, error: 'unavailable' } : { ok: true, match };
 }
 
 /** The public status, plus the full duplicate check for this module's own tiered answers (Verify
@@ -1935,16 +2035,20 @@ export type ReverifyResult =
  * whether the match is recorded as financed and when it matched on the debtor's reference alone;
  * otherwise a match reads only as a match.
  */
-function duplicateReverifyCheck(dup: DuplicateCheck, detailed: boolean): ReverifyCheck {
+function duplicateReverifyCheck(dup: DuplicateCheck, detailed: boolean, details?: ReceivableDetails | null): ReverifyCheck {
   const row = (state: ReverifyState, detail: string): ReverifyCheck => ({ key: 'duplicate', label: DUPLICATE_CHECK_LABEL, state, detail });
   if (dup.state === 'unavailable') return row('warn', DUPLICATE_DETAIL_UNAVAILABLE);
   if (dup.state === 'possible_duplicate') {
     if (!detailed) return row('warn', DUPLICATE_DETAIL_ANY_MATCH);
+    // A shipment carries several genuine invoices: its own line, with no financed clause.
+    if (dup.basis === 'same_shipment') return row('warn', DUPLICATE_DETAIL_SAME_SHIPMENT);
     const lead = dup.encumbered ? DUPLICATE_DETAIL_FINANCED : DUPLICATE_DETAIL_MATCH;
     return row('warn', dup.basis === 'debtor_reference_only' ? `${lead} ${DUPLICATE_DETAIL_REFERENCE_ONLY}` : lead);
   }
   if (!dup.hasDebtorReference) return row('warn', DUPLICATE_DETAIL_NO_REFERENCE);
-  return row('pass', DUPLICATE_DETAIL_PASS);
+  // The transport document was not known at intake, so the shipment could not be compared.
+  if (transportDocAnswerOf(details) === 'not_known') return row('warn', DUPLICATE_DETAIL_SHIPMENT_NOT_KNOWN);
+  return row('pass', transportDocAnswerOf(details) === 'number' ? DUPLICATE_DETAIL_PASS_WITH_SHIPMENT : DUPLICATE_DETAIL_PASS);
 }
 
 /**
@@ -2032,8 +2136,8 @@ export async function reverifyReceivable(
   // 2b. Duplicate check (S3) — does another record at Almstins match this invoice? Recomputed now
   //    from the record's own fields (see duplicateReverifyCheck). The plain row goes into the
   //    stored re-verification; a verified caller's answer carries the detailed one.
-  const storedDuplicate = duplicateReverifyCheck(read.duplicate, false);
-  const answeredDuplicate = duplicateReverifyCheck(read.duplicate, opts.verifiedViewer === true);
+  const storedDuplicate = duplicateReverifyCheck(read.duplicate, false, status.details);
+  const answeredDuplicate = duplicateReverifyCheck(read.duplicate, opts.verifiedViewer === true, status.details);
   checks.push(storedDuplicate);
 
   // 3. Debtor acknowledgment — a buyer attestation is what turns one firm's word into a debt the
@@ -2789,6 +2893,11 @@ export interface ReceivableSummary {
   /** Whether another record at Almstins matches this one (S3), recorded as financed or not; null
    *  while the duplicate check is unavailable. Never says which record or whose. */
   possibleDuplicate: boolean | null;
+  /** True when every match is on the shipment key alone (the same transport document for the same
+   *  debtor and client, any amount): the book's quieter "same shipment" tag. Null while the check
+   *  is unavailable. The list route sends it only to a verified account (it tells which details
+   *  matched), and any other account sees possibleDuplicate alone. */
+  sameShipment: boolean | null;
 }
 
 /** The receivables this tenant created, PLUS any receivable someone else created that this
@@ -2853,6 +2962,7 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
       withdrawnAt: withDeleted && row.deleted_at != null ? String(row.deleted_at) : null,
       relation: mine ? 'owner' as const : 'claimant' as const,
       possibleDuplicate: matched ? matched.has(String(row.id)) : null,
+      sameShipment: matched ? matched.get(String(row.id)) === false : null,
     };
   });
 }
@@ -2863,21 +2973,23 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
  * owner pool (see "Duplicate check" above), keyed by IDs the tenant's own listing already returned,
  * so it can never list or reveal a row the tenant could not see. Null, so every flag reads null
  * (unavailable), while the duplicate check cannot answer (no key, unconfirmed columns, rows still
- * waiting for the backfill) and on any error.
+ * waiting for the backfill) and on any error. Each matched ID maps to whether it matched on the
+ * debtor reference or the invoice key (true) or on the shipment key alone (false).
  */
-async function matchedReceivableIds(ids: string[]): Promise<Set<string> | null> {
+async function matchedReceivableIds(ids: string[]): Promise<Map<string, boolean> | null> {
   const kid = fingerprintColumnsReady ? fingerprintKid() : null;
   if (!kid) return null;
   try {
     if (!(await coverageOk(kid))) return null;
-    if (!ids.length) return new Set();
+    if (!ids.length) return new Map();
     const r = await runWithoutDbContext(() => db.execute({
-      sql: `SELECT r.id FROM receivables r
+      sql: `SELECT r.id, (EXISTS (SELECT 1 FROM receivables s WHERE s.id <> r.id AND s.fingerprint_kid = ? AND (s.fingerprint_ref = r.fingerprint_ref OR s.fingerprint_inv = r.fingerprint_inv))) AS strong
+            FROM receivables r
             WHERE r.id IN (${ids.map(() => '?').join(', ')})
-              AND EXISTS (SELECT 1 FROM receivables t WHERE t.id <> r.id AND t.fingerprint_kid = ? AND (t.fingerprint_ref = r.fingerprint_ref OR t.fingerprint_inv = r.fingerprint_inv))`,
-      args: [...ids, kid],
+              AND EXISTS (SELECT 1 FROM receivables t WHERE t.id <> r.id AND t.fingerprint_kid = ? AND (t.fingerprint_ref = r.fingerprint_ref OR t.fingerprint_inv = r.fingerprint_inv OR t.fingerprint_doc = r.fingerprint_doc))`,
+      args: [kid, ...ids, kid],
     }));
-    return new Set((r.rows as any[]).map((row) => String(row.id)));
+    return new Map((r.rows as any[]).map((row) => [String(row.id), truthy(row.strong)]));
   } catch (e) {
     console.error('[receivables] duplicate flags unavailable:', e instanceof Error ? e.message : 'unknown error');
     return null;

@@ -11,9 +11,15 @@
  * full answer plus ownMatches, its own matching records; any other account gets { state } only.
  * The same tiering applies to the 409 id_collision. Creation is never refused because of a match.
  * Limits: 120 creates an hour per account and 300 an hour per client address (429, Retry-After).
+ *
+ * The transport document question is required (details.transportDoc): the number with its type,
+ * "none" or "not_known". A create without a valid answer is refused (400 transport_doc_required)
+ * before anything is written, so every path records the same question.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { normalizeTransportDoc } from '@/lib/receivables/transportDoc';
+import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
 import { createReceivable, listReceivables, deleteReceivable } from '@/lib/receivablesRegistry';
 import { stateOnly, type DuplicateCheck } from '@/lib/receivables/duplicateCheck';
 import { isVerifiedViewer } from '@/lib/receivables/server/viewerTier';
@@ -45,7 +51,10 @@ export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: true, receivables: [] });
   const receivables = await listReceivables(session.tenantId);
-  return json({ ok: true, receivables });
+  // sameShipment says which details matched, so only a verified account gets it; any other account
+  // sees possibleDuplicate alone, the same tier as the rest of the duplicate check.
+  if (await isVerifiedViewer(request)) return json({ ok: true, receivables });
+  return json({ ok: true, receivables: receivables.map(({ sameShipment: _s, ...row }) => row) });
 };
 
 export const POST: APIRoute = async ({ request }) => {
@@ -60,6 +69,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }
+  if (!normalizeTransportDoc(body?.details?.transportDoc)) {
+    return json({ ok: false, error: 'transport_doc_required', message: TRANSPORT_DOC_REQUIRED }, 400);
+  }
 
   const result = await createReceivable(session.tenantId, {
     supplier: String(body.supplier ?? ''),
@@ -80,6 +92,7 @@ export const POST: APIRoute = async ({ request }) => {
   // restored: true. Another tenant's identical record answers id_collision even once withdrawn.
   if (result.ok) return json(tiered(result, await isVerifiedViewer(request)));
   if (result.error === 'id_collision') return json(tiered(result, await isVerifiedViewer(request)), 409);
+  if (result.error === 'transport_doc_unavailable') return json(result, 503);
   return json(result, 400);
 };
 

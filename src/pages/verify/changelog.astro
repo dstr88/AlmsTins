@@ -20,6 +20,16 @@ interface Entry { kind: Kind; what: string; why?: string }
 
 const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
   {
+    date: '2026-11-27',
+    label: 'Friday',
+    entries: [
+      { kind: 'new', what: 'The duplicate check now compares the shipment too: the same transport document for the same buyer and client, at any amount.',
+        why: 'A client could reissue an invoice against the same bill of lading with a new number and a slightly different amount, and neither earlier comparison would catch it, because both need the same amount. The new comparison uses the buyer, your client and the transport document number (a bill of lading or eBL, an air waybill or a CMR note), with no amount, so a reissued or split invoice against the same shipment still shows up. One shipment often carries several genuine invoices, so this match has its own title, "Same shipment seen before", never says whether the other record is financed, and tells you what to ask: which invoices the buyer has for this shipment, and whether it has been told to pay any of them to someone else. It shows while you type, after you save, in Verify now and when you register a claim, where a verified account is asked about every same-shipment match. In "Your book" it is a quieter "same shipment" tag. Typing differences in the number still match ("B/L No. MAEU 0123-456" and "maeu0123456"). Accounts that are not verified, and the public check by ID, see the same plain "another record matches" they see for any match.' },
+      { kind: 'new', what: 'Every new receivable answers the transport document question.',
+        why: 'On the desk, the registry page and the Client Portal, the form asks for the transport document and will not save until it has an answer: the number with its type, "No transport document" (services, or goods that did not ship), or "Not known yet" (the papers are not in hand). A blank could mean any of those; an answer says which, and it is signed into the record. On the Client Portal it is the client’s own answer. Only a number is compared. The record keeps the number only as a keyed hash (HMAC-SHA256 under a key only the server holds), never as readable text: whoever recorded it sees their own copy, and anyone else holding the ID sees that a number was recorded, and its type. On the desk, a lender who holds a number can check it against the record and gets a yes or no. Verify now says when the shipment could not be compared because it was not known yet. A number cannot be added to a record later yet.' },
+    ],
+  },
+  {
     date: '2026-10-16',
     label: 'Friday',
     entries: [

@@ -42,9 +42,12 @@ describe('desk', () => {
 		const src = desk();
 		const fold = /<details class="more">[\s\S]*?<\/details>/.exec(src)?.[0] ?? '';
 		expect(fold).not.toContain('n-ref');
-		expect(src).toMatch(/<\/select>\n\s*<\/label>\n\s*<BuyerRefField variant="desk" id="n-ref" \/>\n\s*<\/div>\n\s*\n\s*<details class="more">/);
-		expect(src).toContain("buyerRef: val('n-ref') || null,");
+		// The transport document question follows it, still in the main grid.
+		expect(src).toMatch(/<\/select>\n\s*<\/label>\n\s*<BuyerRefField variant="desk" id="n-ref" \/>\n\s*<TransportDocField variant="desk" id="n-tdoc" \/>\n\s*<\/div>\n\s*\n\s*<details class="more">/);
+		expect(fold).not.toContain('TransportDocField');
+		expect(src).toContain("buyerRef: val('n-ref') || null,\n              transportDoc,");
 		expect(src).toContain("['n-sup','n-buy','n-inv','n-face','n-ref',");
+		expect(src).toContain("clearTransportDoc(document.getElementById('n-intake') ?? document);");
 	});
 
 	it('the create flag sits outside the intake and the record step, so dimming them never hides or disables it', () => {
@@ -77,8 +80,8 @@ describe('registry', () => {
 	});
 
 	it('the debtor reference follows the invoice row, and the create sends it', () => {
-		expect(registry()).toMatch(/data-rcv-field="currency-other"[^\n]*\n\s*<\/div>\n\s*<\/div>\n\s*<BuyerRefField variant="registry" id="c-buyerref" \/>/);
-		expect(registry()).toContain("details: { buyerRef: val('c-buyerref') || null },");
+		expect(registry()).toMatch(/data-rcv-field="currency-other"[^\n]*\n\s*<\/div>\n\s*<\/div>\n\s*<BuyerRefField variant="registry" id="c-buyerref" \/>\n\s*<TransportDocField variant="registry" id="c-tdoc" \/>/);
+		expect(registry()).toContain("details: { buyerRef: val('c-buyerref') || null, transportDoc },");
 	});
 
 	it('the create flag sits right above the create button', () => {
@@ -108,8 +111,8 @@ describe('client portal', () => {
 	});
 
 	it('the debtor reference follows the invoice number, and the create sends it', () => {
-		expect(client()).toMatch(/id="f-inv"[^\n]*\n\s*<BuyerRefField variant="client" id="f-ref" \/>/);
-		expect(client()).toContain("dueDate: val('f-due') || null, details: { buyerRef: val('f-ref') || null },");
+		expect(client()).toMatch(/id="f-inv"[^\n]*\n\s*<BuyerRefField variant="client" id="f-ref" \/>\n\s*<TransportDocField variant="client" id="f-tdoc" \/>/);
+		expect(client()).toContain("dueDate: val('f-due') || null, details: { buyerRef: val('f-ref') || null, transportDoc },");
 	});
 
 	it('the create flag sits above the record button; the record flag under the facts', () => {

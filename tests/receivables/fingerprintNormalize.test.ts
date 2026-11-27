@@ -7,6 +7,8 @@ import {
 	faceMinor,
 	fingerprintTuples,
 	hasDebtorReference,
+	hasTransportDocument,
+	normDocRef,
 	normInvoiceNo,
 	normParty,
 	normRef,
@@ -16,7 +18,7 @@ import {
 /**
  * src/lib/receivables/fingerprintNormalize.ts: the canonical text the duplicate check hashes (S3).
  * The plan's pins, the edges, and golden vectors. A golden vector failing means the normalizer's
- * output changed: bump the scheme in server/fingerprint.ts (fp1 to fp2) so every stored
+ * output changed: bump the scheme in server/fingerprint.ts (fp2 to fp3) so every stored
  * fingerprint is recomputed, then update the vectors here.
  */
 
@@ -125,6 +127,7 @@ describe('fingerprintTuples', () => {
 		expect(fingerprintTuples(base)).toEqual({
 			ref: 'v1|invoice|ref|r|bigco|123|USD|100000',
 			inv: 'v1|invoice|inv|r|bigco|acmesupplies|42|USD|100000',
+			doc: null,
 		});
 		expect(fingerprintTuples({ ...base, buyerRef: null }).ref).toBeNull();
 		expect(fingerprintTuples({ ...base, buyerRef: '  ' }).ref).toBeNull();
@@ -192,18 +195,93 @@ describe('fingerprintTuples', () => {
 		expect(t.inv!.split('|')).toHaveLength(9);
 	});
 
-	it('golden vectors (fp1)', () => {
+	// fp2 added the shipment key; the ref and inv texts are the same as under fp1.
+	it('golden vectors (fp2)', () => {
 		expect(fingerprintTuples({
 			recordType: 'invoice', supplier: 'The Acme Co.', buyer: 'Société Générale S.A.', invoiceNo: 'Invoice No. 7',
 			face: 12.5, currency: 'ngn', isTest: true,
-		})).toEqual({ ref: null, inv: 'v1|invoice|inv|t|sociétégénérale|acme|7|NGN|1250' });
+		})).toEqual({ ref: null, inv: 'v1|invoice|inv|t|sociétégénérale|acme|7|NGN|1250', doc: null });
 		expect(fingerprintTuples({
 			recordType: 'invoice', supplier: 'Kano Grains & Co. Ltd', buyer: 'The Lagos Mills PLC', invoiceNo: 'INV/2026/000318',
 			buyerRef: 'PO No. 004417', face: 1234.5, currency: 'NGN', isTest: false,
 		})).toEqual({
 			ref: 'v1|invoice|ref|r|lagosmills|4417|NGN|123450',
 			inv: 'v1|invoice|inv|r|lagosmills|kanograins|2026000318|NGN|123450',
+			doc: null,
 		});
+		expect(fingerprintTuples({
+			recordType: 'invoice', supplier: 'Kano Grains & Co. Ltd', buyer: 'The Lagos Mills PLC', invoiceNo: 'INV/2026/000318',
+			buyerRef: 'PO No. 004417', transportDocNumber: 'B/L No. MAEU 0123-456', face: 1234.5, currency: 'NGN', isTest: false,
+		})).toEqual({
+			ref: 'v1|invoice|ref|r|lagosmills|4417|NGN|123450',
+			inv: 'v1|invoice|inv|r|lagosmills|kanograins|2026000318|NGN|123450',
+			doc: 'v1|invoice|doc|r|lagosmills|kanograins|MAEU0123456',
+		});
+	});
+});
+
+describe('normDocRef', () => {
+	it('a label followed by a separator comes off; the typed spacing does not matter', () => {
+		expect(normDocRef('B/L No. MAEU 0123-456')).toBe('MAEU0123456');
+		expect(normDocRef('maeu0123456')).toBe('MAEU0123456');
+		expect(normDocRef('Bill of Lading: MAEU-0123456')).toBe('MAEU0123456');
+		expect(normDocRef('CMR 778812')).toBe('778812');
+	});
+
+	it('keeps zeros and carrier letters', () => {
+		expect(normDocRef('BL12345')).toBe('BL12345');
+		expect(normDocRef('AWB 020-12345675')).toBe('02012345675');
+		expect(normDocRef('020-12345675')).toBe('02012345675');
+		expect(normDocRef('00042')).toBe('00042');
+	});
+
+	it('a label alone is kept as typed; nothing usable is empty', () => {
+		expect(normDocRef('AWB')).toBe('AWB');
+		expect(normDocRef('')).toBe('');
+		expect(normDocRef(' -/# ')).toBe('');
+		expect(normDocRef(null)).toBe('');
+	});
+});
+
+describe('the shipment key (doc)', () => {
+	const withDoc: FingerprintInput = { ...base, transportDocNumber: 'B/L MAEU 0123456' };
+
+	it('is debtor + supplier + document number, with no amount, currency or invoice number', () => {
+		const doc = fingerprintTuples(withDoc).doc;
+		expect(doc).toBe('v1|invoice|doc|r|bigco|acmesupplies|MAEU0123456');
+		for (const changed of [{ face: 999 }, { currency: 'NGN' }, { invoiceNo: 'INV-0099' }, { buyerRef: null }]) {
+			expect(fingerprintTuples({ ...withDoc, ...changed }).doc).toBe(doc);
+		}
+		expect(hasTransportDocument(withDoc)).toBe(true);
+	});
+
+	it('a test record and a real record never give the same text', () => {
+		const real = fingerprintTuples(withDoc).doc!;
+		const test = fingerprintTuples({ ...withDoc, isTest: true }).doc!;
+		expect(test).not.toBe(real);
+		expect(test.split('|')[3]).toBe('t');
+	});
+
+	it('is null without a debtor, a supplier or a usable number', () => {
+		expect(fingerprintTuples({ ...withDoc, buyer: '' }).doc).toBeNull();
+		expect(fingerprintTuples({ ...withDoc, supplier: '' }).doc).toBeNull();
+		for (const n of [undefined, null, '', '  ', '-/-']) {
+			expect(fingerprintTuples({ ...withDoc, transportDocNumber: n }).doc).toBeNull();
+			expect(hasTransportDocument({ ...withDoc, transportDocNumber: n })).toBe(false);
+		}
+	});
+
+	it('a different debtor, supplier or number does not match', () => {
+		const doc = fingerprintTuples(withDoc).doc;
+		for (const changed of [{ buyer: 'Bigco Holdings Plc' }, { supplier: 'Acme Trading Ltd' }, { transportDocNumber: 'MAEU0123457' }]) {
+			expect(fingerprintTuples({ ...withDoc, ...changed }).doc).not.toBe(doc);
+		}
+	});
+});
+
+describe('fingerprintTuples: the separators', () => {
+	it('the doc field is letters and digits too', () => {
+		expect(fingerprintTuples({ ...base, transportDocNumber: '1|2' }).doc!.split('|')).toHaveLength(7);
 	});
 });
 

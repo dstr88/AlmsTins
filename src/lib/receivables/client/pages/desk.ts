@@ -30,11 +30,12 @@ import { mountNoticeInbox } from '@/components/receivables/NoticeInbox/noticeInb
 import { mountPlanLine } from '@/components/receivables/PlanLine/planLine.client';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
+import { mountTransportDocCheck } from '@/components/receivables/TransportDocCheck/transportDocCheck.client';
 import { mountSeenBeforeForm } from '@/components/receivables/SeenBeforeForm/seenBeforeForm.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
-import { markDeskBook, markDeskBookDuplicates } from '@/lib/receivables/client/withdrawnRows';
+import { markDeskBook, markDeskBookDuplicates, markDeskBookSameShipment } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
-import { bookDuplicateIds } from '@/lib/receivables/duplicateView';
+import { bookDuplicateIds, bookSameShipmentIds } from '@/lib/receivables/duplicateView';
 
 const claimPrompt = document.querySelector<HTMLElement>('[data-rcv-root="ack-claim"]');
 let shownId: string | null | undefined;
@@ -82,12 +83,20 @@ if (recordFlagRoot) {
 	onRecordLoaded((rcv) => flag.update(rcv, 'record'));
 }
 
+// A number someone holds, checked against the opened record's keyed hash: yes or no.
+const docCheckRoot = document.querySelector<HTMLElement>('[data-rcv-root="transport-doc-check"]');
+if (docCheckRoot) {
+	const check = mountTransportDocCheck(docCheckRoot);
+	onRecordLoaded((rcv) => check.update(rcv as any));
+}
+
 const book = document.querySelector<HTMLElement>('[data-rcv-root="book"]');
 if (book) {
 	let withdrawn: ReadonlySet<string> = new Set();
 	let duplicates: ReadonlySet<string> = new Set();
-	const mark = () => { markDeskBook(book, withdrawn); markDeskBookDuplicates(book, duplicates); };
-	onBookLoaded((rows) => { withdrawn = bookWithdrawnIds(rows); duplicates = bookDuplicateIds(rows); mark(); });
+	let sameShipment: ReadonlySet<string> = new Set();
+	const mark = () => { markDeskBook(book, withdrawn); markDeskBookDuplicates(book, duplicates); markDeskBookSameShipment(book, sameShipment); };
+	onBookLoaded((rows) => { withdrawn = bookWithdrawnIds(rows); duplicates = bookDuplicateIds(rows); sameShipment = bookSameShipmentIds(rows); mark(); });
 	new MutationObserver(mark).observe(book, { childList: true });
 }
 

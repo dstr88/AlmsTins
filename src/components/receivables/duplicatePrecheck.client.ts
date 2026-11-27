@@ -31,6 +31,8 @@ export interface PrecheckFields {
 	face: string;
 	currency: string;
 	buyerRef: string;
+	/** The transport document number, only when "It has a number" is picked; '' otherwise. */
+	transportDocNumber?: string;
 	isTest: boolean;
 }
 
@@ -41,7 +43,7 @@ export interface PrecheckBody {
 	face: number;
 	currency: string;
 	isTest: boolean;
-	details?: { buyerRef: string };
+	details?: { buyerRef?: string; transportDoc?: { answer: 'number'; type: 'other'; number: string } };
 }
 
 /** The route's answer (200), as sent: the full answer for a verified account, the state alone otherwise. */
@@ -54,19 +56,25 @@ const positive = (face: string) => { const n = Number(face); return face !== '' 
 
 /**
  * Whether the fields can be compared: a debtor, a positive amount, a currency, and either the
- * client with the invoice number (the invoice key) or the debtor's reference (the reference key).
- * The invoice key needs the client too, so an invoice number alone is not asked about.
+ * client with the invoice number (the invoice key), the debtor's reference (the reference key), or
+ * the client with a transport document number (the shipment key). The invoice and shipment keys
+ * need the client too, so an invoice or document number alone is not asked about.
  */
 export function precheckReady(f: PrecheckFields): boolean {
-	return !!f.buyer && positive(f.face) && !!f.currency && ((!!f.supplier && !!f.invoiceNo) || !!f.buyerRef);
+	const doc = !!f.transportDocNumber;
+	return !!f.buyer && positive(f.face) && !!f.currency && ((!!f.supplier && (!!f.invoiceNo || doc)) || !!f.buyerRef);
 }
 
-/** The request body. details is sent only with a reference, the way the create sends it. */
+/** The request body. details is sent only with a reference or a document number. The type never
+ *  enters the shipment key, so the precheck sends it as "other". */
 export function precheckBody(f: PrecheckFields): PrecheckBody {
 	const body: PrecheckBody = {
 		supplier: f.supplier, buyer: f.buyer, invoiceNo: f.invoiceNo, face: Number(f.face), currency: f.currency, isTest: f.isTest,
 	};
-	if (f.buyerRef) body.details = { buyerRef: f.buyerRef };
+	const details: NonNullable<PrecheckBody['details']> = {};
+	if (f.buyerRef) details.buyerRef = f.buyerRef;
+	if (f.transportDocNumber) details.transportDoc = { answer: 'number', type: 'other', number: f.transportDocNumber };
+	if (Object.keys(details).length) body.details = details;
 	return body;
 }
 
@@ -84,9 +92,11 @@ export function readPrecheckFields(root: ParentNode): PrecheckFields {
 	const v = (name: string) => (el(name)?.value ?? '').trim();
 	const currency = v('currency') === '__other' ? v('currency-other') : v('currency');
 	const test = el('test-mode') as HTMLInputElement | null;
+	const doc = root.querySelector<HTMLInputElement>('[data-rcv-field="transportDocAnswer"]:checked')?.value === 'number'
+		? v('transportDocNumber') : '';
 	return {
 		supplier: v('supplier'), buyer: v('buyer'), invoiceNo: v('invoiceNo'), face: v('face'),
-		currency, buyerRef: v('buyerRef'), isTest: test?.checked === true,
+		currency, buyerRef: v('buyerRef'), transportDocNumber: doc, isTest: test?.checked === true,
 	};
 }
 

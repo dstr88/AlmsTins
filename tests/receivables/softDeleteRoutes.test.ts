@@ -134,7 +134,11 @@ describe('DELETE /api/verify/receivables withdraws', () => {
 });
 
 describe('POST /api/verify/receivables restores the same tenant\'s record', () => {
-	const INPUT = { supplier: 'Acme Supplies Ltd', buyer: 'Bigco Plc', invoiceNo: 'INV-7', face: 2500, currency: 'USD', isTest: true };
+	// The create route requires an answer to the transport document question.
+	const INPUT = {
+		supplier: 'Acme Supplies Ltd', buyer: 'Bigco Plc', invoiceNo: 'INV-7', face: 2500, currency: 'USD', isTest: true,
+		details: { transportDoc: { answer: 'none' } },
+	};
 
 	it('200 with restored: true; another tenant gets 409 id_collision even after the withdrawal', async () => {
 		as(OWNER);

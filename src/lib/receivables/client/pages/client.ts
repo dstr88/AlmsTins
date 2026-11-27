@@ -21,8 +21,8 @@ import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
-import { markClientMineDuplicates } from '@/lib/receivables/client/withdrawnRows';
-import { bookDuplicateIds } from '@/lib/receivables/duplicateView';
+import { markClientMineDuplicates, markClientMineSameShipment } from '@/lib/receivables/client/withdrawnRows';
+import { bookDuplicateIds, bookSameShipmentIds } from '@/lib/receivables/duplicateView';
 
 const withdrawnRecord = document.querySelector<HTMLElement>('[data-rcv-root="withdrawn-record"]');
 if (withdrawnRecord) {
@@ -49,4 +49,4 @@ if (recordFlagRoot) {
 }
 
 const mine = document.querySelector<HTMLElement>('[data-rcv-root="mine"]');
-if (mine) onBookLoaded((rows) => markClientMineDuplicates(mine, bookDuplicateIds(rows)));
+if (mine) onBookLoaded((rows) => { markClientMineDuplicates(mine, bookDuplicateIds(rows)); markClientMineSameShipment(mine, bookSameShipmentIds(rows)); });

@@ -52,7 +52,7 @@ export function mountDuplicateFlag(root: HTMLElement, opts: DuplicateFlagOptions
 		if (!panel) return;
 		panel.classList.toggle('dupf__panel--caution', view.tone === 'caution');
 		panel.classList.toggle('dupf__panel--muted', view.tone === 'muted');
-		if (pill) pill.innerHTML = statusPillHtml(view.tone === 'caution' ? { kind: 'tag', tag: 'possible_duplicate' } : null);
+		if (pill) pill.innerHTML = statusPillHtml(view.tone === 'caution' ? { kind: 'tag', tag: view.tag } : null);
 		if (pill) pill.hidden = view.tone !== 'caution';
 		body?.replaceChildren(...view.lines.map((line) => {
 			const p = document.createElement('p');

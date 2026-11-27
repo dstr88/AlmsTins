@@ -20,6 +20,7 @@ import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
+import TransportDocField from '@/components/receivables/TransportDocField/TransportDocField.astro';
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
 <!doctype html>
@@ -243,6 +244,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
       </div>
       <BuyerRefField variant="registry" id="c-buyerref" />
+      <TransportDocField variant="registry" id="c-tdoc" />
       <div class="grid3">
         <div class="field"><label for="c-terms">Terms</label>
           <select id="c-terms">
@@ -378,6 +380,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { freshnessLineHtml } from '@/components/receivables/AgingPill/freshnessLine';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
     import { copyText } from '@/lib/receivables/client/copyText';
+    import { readTransportDoc } from '@/components/receivables/TransportDocField/transportDocField.client';
+    import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
+    import { pickOther } from '@/lib/receivables/client/formFields';
     import { WITHDRAW_BUTTON_TITLE, WITHDRAW_CONFIRM } from '@/lib/receivables/copy/withdrawn';
     import { formatMoney } from '@/lib/receivables/client/money';
     const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -714,25 +719,22 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     }
     wireOther('c-currency', 'c-currency-other');
     wireOther('c-terms', 'c-terms-other');
-    // Resolve a select that may be set to "__other" → its companion text value.
-    const pick = (selId: string, otherId: string) => {
-      const v = val(selId);
-      return v === '__other' ? val(otherId) : v;
-    };
 
     $('c-btn').addEventListener('click', async () => {
       const out = $('c-out'); const btn = $('c-btn') as HTMLButtonElement;
       const supplier = val('c-supplier'), buyer = val('c-buyer'), invoiceNo = val('c-invoice');
-      const face = Number(val('c-face')), currency = pick('c-currency', 'c-currency-other') || 'NGN';
+      const face = Number(val('c-face')), currency = pickOther('c-currency', 'c-currency-other') || 'NGN';
       if (!supplier || !buyer || !invoiceNo || !(face > 0)) {
         show(out, `<div class="note note-loss">Supplier, buyer, invoice #, and a positive face value are required.</div>`);
         return;
       }
+      const transportDoc = readTransportDoc(document.querySelector('[data-rcv-root="create-form"]') ?? document);
+      if (!transportDoc) { show(out, `<div class="note note-loss">${esc(TRANSPORT_DOC_REQUIRED)}</div>`); return; }
       btn.disabled = true;
       const j = await authedPost('/api/verify/receivables', {
         supplier, buyer, invoiceNo, face, currency,
-        terms: pick('c-terms', 'c-terms-other') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
-        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null, details: { buyerRef: val('c-buyerref') || null },
+        terms: pickOther('c-terms', 'c-terms-other') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
+        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null, details: { buyerRef: val('c-buyerref') || null, transportDoc },
       }, out);
       btn.disabled = false;
       if (!j) return;

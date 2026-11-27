@@ -22,7 +22,11 @@ export type DuplicateBasis =
 	/** The supplier, its invoice number, the debtor, amount and currency. */
 	| 'invoice_number'
 	/** The debtor, its own reference, amount and currency only: it may be another installment under one order. */
-	| 'debtor_reference_only';
+	| 'debtor_reference_only'
+	/** The debtor, the supplier and the transport document number only, at any amount: the same
+	 *  shipment, which often carries several genuine invoices (part deliveries, split billing, a
+	 *  provisional and a final invoice). Weakest, so any other basis outranks it. */
+	| 'same_shipment';
 
 export type DuplicateState = 'unavailable' | 'no_match' | 'possible_duplicate';
 
@@ -45,6 +49,8 @@ export interface TwinRow {
 	invoiceNo: string;
 	matchedRef: boolean;
 	matchedInv: boolean;
+	/** The shipment key matched (fingerprint_doc). Optional so a row read without it is no match. */
+	matchedDoc?: boolean;
 	/** An active claim stands against it (ENCUMBRANCE_SQL). */
 	encumbered: boolean;
 	settled: boolean;
@@ -53,12 +59,13 @@ export interface TwinRow {
 
 export const OWN_MATCHES_MAX = 10;
 
-const BASIS_RANK: Record<DuplicateBasis, number> = { invoice_and_reference: 3, invoice_number: 2, debtor_reference_only: 1 };
+const BASIS_RANK: Record<DuplicateBasis, number> = { invoice_and_reference: 3, invoice_number: 2, debtor_reference_only: 1, same_shipment: 0 };
 
 function basisOf(t: TwinRow): DuplicateBasis | null {
 	if (t.matchedRef && t.matchedInv) return 'invoice_and_reference';
 	if (t.matchedInv) return 'invoice_number';
 	if (t.matchedRef) return 'debtor_reference_only';
+	if (t.matchedDoc) return 'same_shipment';
 	return null;
 }
 
@@ -72,15 +79,20 @@ export function summarizeTwins(
 	opts: { viewerTenantId?: string | null; hasDebtorReference: boolean },
 ): { check: DuplicateCheck; ownMatches: OwnMatch[] } {
 	let basis: DuplicateBasis | null = null;
-	let encumbered = false;
-	let anySettled = false;
+	// Financed and settled are read from the rows that matched on the debtor reference or the
+	// invoice key, and from shipment-only rows only when nothing stronger matched: a financed record
+	// that shares only the shipment must never make a stronger match read "recorded as financed".
+	const strong = { encumbered: false, anySettled: false };
+	const shipment = { encumbered: false, anySettled: false };
 	for (const t of rows) {
 		const b = basisOf(t);
 		if (!b) continue;
 		if (!basis || BASIS_RANK[b] > BASIS_RANK[basis]) basis = b;
-		encumbered ||= t.encumbered;
-		anySettled ||= t.settled;
+		const into = b === 'same_shipment' ? shipment : strong;
+		into.encumbered ||= t.encumbered;
+		into.anySettled ||= t.settled;
 	}
+	const { encumbered, anySettled } = basis === 'same_shipment' ? shipment : strong;
 	const viewer = opts.viewerTenantId ?? null;
 	const ownMatches: OwnMatch[] = viewer === null ? [] : rows
 		.filter((t) => basisOf(t) !== null && t.tenantId === viewer)
@@ -118,11 +130,18 @@ export function financedDuplicate(check: DuplicateCheck): boolean {
 	return check.state === 'possible_duplicate' && check.encumbered;
 }
 
+/** True when the strongest match is the shipment key alone. */
+export function sameShipmentOnly(check: DuplicateCheck): boolean {
+	return check.state === 'possible_duplicate' && check.basis === 'same_shipment';
+}
+
 /**
- * Whether a claim raises possible_duplicate. For a verified account, only a match recorded as
- * financed. For any other account, any match: raising it only for a financed match would tell that
- * account, by the warning alone, what its tier withholds (whether the match is financed).
+ * Whether a claim raises possible_duplicate. For a verified account, a match recorded as financed,
+ * and every shipment-only match, financed or not: its warning leaves out whether the other record
+ * is financed (a shipment often carries several genuine invoices), so asking only when it is would
+ * say it anyway. For any other account, any match: raising it only for a financed match would tell
+ * that account, by the warning alone, what its tier withholds (whether the match is financed).
  */
 export function claimRaisesDuplicate(check: DuplicateCheck, verifiedViewer: boolean): boolean {
-	return verifiedViewer ? financedDuplicate(check) : check.state === 'possible_duplicate';
+	return verifiedViewer ? financedDuplicate(check) || sameShipmentOnly(check) : check.state === 'possible_duplicate';
 }

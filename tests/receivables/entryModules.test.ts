@@ -30,9 +30,9 @@ vi.mock('../../src/components/receivables/AckPrompt/ackPrompt.client', () => ({
 vi.mock('../../src/lib/receivables/client/withdrawnRows', () => {
 	const mark = (name: string) => (_root: unknown, ids: ReadonlySet<string>) => { rec.log.push(`${name}:${[...ids].sort().join(',')}`); };
 	return {
-		markDeskBook: mark('desk-withdrawn'), markDeskBookDuplicates: mark('desk-dup'),
-		markRegistryMine: mark('registry-withdrawn'), markRegistryMineDuplicates: mark('registry-dup'),
-		markClientMineDuplicates: mark('client-dup'),
+		markDeskBook: mark('desk-withdrawn'), markDeskBookDuplicates: mark('desk-dup'), markDeskBookSameShipment: mark('desk-ship'),
+		markRegistryMine: mark('registry-withdrawn'), markRegistryMineDuplicates: mark('registry-dup'), markRegistryMineSameShipment: mark('registry-ship'),
+		markClientMineDuplicates: mark('client-dup'), markClientMineSameShipment: mark('client-ship'),
 	};
 });
 vi.mock('../../src/components/receivables/duplicatePrecheck.client', async (importOriginal) => {
@@ -226,7 +226,7 @@ describe('desk: the opened record and "Your book"', () => {
 		expect(rec.log.filter((l) => l === 'closeAck')).toHaveLength(1);
 	});
 
-	it('the book is marked on load, and both tags are put back after each redraw', async () => {
+	it('the book is marked on load, and every tag is put back after each redraw', async () => {
 		await load('desk');
 		const book = roots.book;
 		const watch = observers.filter((o) => o.target === book);
@@ -234,11 +234,12 @@ describe('desk: the opened record and "Your book"', () => {
 		expect(watch[0].opts).toEqual({ childList: true });
 		bridge.emitBookLoaded([
 			{ id: 'w1', withdrawn: true }, { id: 'd1', possibleDuplicate: true }, { id: 'n1', possibleDuplicate: null }, { id: 'x1' },
+			{ id: 's1', possibleDuplicate: true, sameShipment: true },
 		] as never);
-		expect(rec.log).toEqual(['desk-withdrawn:w1', 'desk-dup:d1']);
+		expect(rec.log).toEqual(['desk-withdrawn:w1', 'desk-dup:d1', 'desk-ship:s1']);
 		rec.log = [];
 		changed(book); // the inline renderBook redrew the table (a search or a filter)
-		expect(rec.log).toEqual(['desk-withdrawn:w1', 'desk-dup:d1']);
+		expect(rec.log).toEqual(['desk-withdrawn:w1', 'desk-dup:d1', 'desk-ship:s1']);
 	});
 });
 
@@ -277,16 +278,16 @@ describe('registry and Client Portal: the create form, the record and the list',
 		});
 	}
 
-	it('registry: "Your receivables" tags withdrawn and possible-duplicate rows on each load', async () => {
+	it('registry: "Your receivables" tags withdrawn, possible-duplicate and same-shipment rows on each load', async () => {
 		await load('registry');
-		bridge.emitBookLoaded([{ id: 'w1', withdrawn: true }, { id: 'd1', possibleDuplicate: true }] as never);
-		expect(rec.log).toEqual(['registry-withdrawn:w1', 'registry-dup:d1']);
+		bridge.emitBookLoaded([{ id: 'w1', withdrawn: true }, { id: 'd1', possibleDuplicate: true }, { id: 's1', possibleDuplicate: true, sameShipment: true }] as never);
+		expect(rec.log).toEqual(['registry-withdrawn:w1', 'registry-dup:d1', 'registry-ship:s1']);
 	});
 
-	it('client: "Your receivables" tags possible-duplicate rows on each load', async () => {
+	it('client: "Your receivables" tags possible-duplicate and same-shipment rows on each load', async () => {
 		await load('client');
-		bridge.emitBookLoaded([{ id: 'd1', possibleDuplicate: true }, { id: 'n1' }] as never);
-		expect(rec.log).toEqual(['client-dup:d1']);
+		bridge.emitBookLoaded([{ id: 'd1', possibleDuplicate: true }, { id: 'n1' }, { id: 's1', possibleDuplicate: true, sameShipment: true }] as never);
+		expect(rec.log).toEqual(['client-dup:d1', 'client-ship:s1']);
 	});
 
 	it('neither page watches the DOM (their lists announce every redraw)', async () => {

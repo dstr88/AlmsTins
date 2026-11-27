@@ -57,14 +57,17 @@ describe('the key', () => {
 });
 
 describe('computeFingerprints', () => {
-	it('is HMAC-SHA256 of each tuple, hex, with the kid fp1- plus 12 hex of the key hash', () => {
+	// fp2: the scheme that added the shipment key (fingerprint_doc).
+	it('is HMAC-SHA256 of each tuple, hex, with the kid fp2- plus 12 hex of the key hash', () => {
 		const key = randomBytes(32);
 		vi.stubEnv('RECEIVABLES_FINGERPRINT_KEY', key.toString('hex'));
 		const t = fingerprintTuples(INPUT);
-		const kid = `fp1-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+		const kid = `fp2-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
 		expect(fingerprintKid()).toBe(kid);
-		expect(kid).toMatch(/^fp1-[0-9a-f]{12}$/);
-		expect(computeFingerprints(INPUT)).toEqual({ ref: hmac(key, t.ref!), inv: hmac(key, t.inv!), kid });
+		expect(kid).toMatch(/^fp2-[0-9a-f]{12}$/);
+		expect(computeFingerprints(INPUT)).toEqual({ ref: hmac(key, t.ref!), inv: hmac(key, t.inv!), doc: null, kid });
+		const withDoc = { ...INPUT, transportDocNumber: 'MAEU 0123456' };
+		expect(computeFingerprints(withDoc)!.doc).toBe(hmac(key, fingerprintTuples(withDoc).doc!));
 	});
 
 	it('no debtor reference: ref is null and inv is still there', () => {

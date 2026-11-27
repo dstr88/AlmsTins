@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { randomBytes } from 'node:crypto';
+import { sealOwnerCopy } from '../../src/lib/receivables/server/transportDocCommit';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 
 /**
@@ -68,8 +69,8 @@ function seedRows(n: number, over: (i: number) => Record<string, unknown> = () =
 	}
 }
 
-const backfillSelects = () => fake.statements(/^SELECT id, supplier, buyer, invoice_no, face, currency, details_json, is_test FROM receivables WHERE/);
-const backfillUpdates = () => fake.statements(/^UPDATE receivables SET fingerprint_ref = \?, fingerprint_inv = \?, fingerprint_kid = \? WHERE id = \?/);
+const backfillSelects = () => fake.statements(/^SELECT id, supplier, buyer, invoice_no, face, currency, details_json, is_test, transport_doc_owner FROM receivables WHERE/);
+const backfillUpdates = () => fake.statements(/^UPDATE receivables SET fingerprint_ref = \?, fingerprint_inv = \?, fingerprint_doc = \?, fingerprint_kid = \? WHERE id = \?/);
 
 let logs: { level: string; args: unknown[] }[];
 beforeEach(async () => {
@@ -91,15 +92,38 @@ describe('startFingerprintBackfill', () => {
 		expect(backfillSelects()).toHaveLength(3);
 		expect(backfillSelects().map((s) => s.args[1])).toEqual(['', id(200), id(400)]);
 		expect(backfillUpdates()).toHaveLength(450);
-		const kid = backfillUpdates()[0].args[2];
+		const kid = backfillUpdates()[0].args[3];
 		for (const row of fake.rows('receivables')) {
 			expect(row.fingerprint_kid).toBe(kid);
 			expect(row.fingerprint_inv).toMatch(/^[0-9a-f]{64}$/);
 			expect(row.updated_at).toBe('2026-09-02 10:00:00');
 		}
 		expect(fake.rows('receivables').filter((x) => x.fingerprint_ref).length).toBe(150);
+		// No row here answered the transport document question with a number.
+		expect(fake.rows('receivables').filter((x) => x.fingerprint_doc).length).toBe(0);
 		expect(fake.dataBatches()).toEqual([]);
 		expect(await reg.fingerprintCoverageOk()).toBe(true);
+	});
+
+	// The stored details hold a commitment, never the number: the backfill reads the number from
+	// the owner's encrypted copy (transport_doc_owner).
+	it('fills the shipment key from the owner copy of a transport document number, and only from a number', async () => {
+		vi.stubEnv('VERIFY_ENTITY_SECRET', randomBytes(32).toString('hex'));
+		const commitment = { kid: 'tdc1-000000000000', mac: 'f'.repeat(64) };
+		const answers = [
+			{ answer: 'number', type: 'bill_of_lading', commitment },
+			{ answer: 'none' },
+			{ answer: 'not_known' },
+		];
+		seedRows(3, (i) => ({
+			details_json: JSON.stringify({ transportDoc: answers[i - 1] }),
+			transport_doc_owner: i === 1 ? sealOwnerCopy('MAEU 0123456') : null,
+		}));
+		await reg.startFingerprintBackfill();
+		const [withNumber, none, notKnown] = fake.rows('receivables');
+		expect(withNumber.fingerprint_doc).toMatch(/^[0-9a-f]{64}$/);
+		expect(none.fingerprint_doc ?? null).toBeNull();
+		expect(notKnown.fingerprint_doc ?? null).toBeNull();
 	});
 
 	it('includes withdrawn rows', async () => {
@@ -110,7 +134,7 @@ describe('startFingerprintBackfill', () => {
 
 	it('skips a row that fails, moves past it, and reports partial; the next run heals it', async () => {
 		let failing = true;
-		await load({ failDml: (sql, args) => failing && /^UPDATE receivables SET fingerprint_ref/.test(sql) && args[3] === id(7) });
+		await load({ failDml: (sql, args) => failing && /^UPDATE receivables SET fingerprint_ref/.test(sql) && args[4] === id(7) });
 		seedRows(250);
 		const r = await reg.startFingerprintBackfill();
 		expect(r).toMatchObject({ state: 'partial', updated: 249, skipped: 1 });

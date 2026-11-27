@@ -33,6 +33,7 @@ const COMPONENT_ROOTS: Record<string, RegExp> = {
 	'seen-before': /<SeenBeforeForm\b[^>]*\/>/,
 	'needs-update': /<NoticeInbox\b[^>]*\/>/,
 	'plan': /<PlanLine\b[^>]*\/>/,
+	'transport-doc-check': /<TransportDocCheck\b[^>]*\/>/,
 };
 
 describe('entry-module roots appear exactly once in their host', () => {
