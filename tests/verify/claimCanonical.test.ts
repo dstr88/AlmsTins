@@ -1062,6 +1062,23 @@ describe('segwit letter case: BC1Q… and bc1q… are one wallet', () => {
     expect(call.sql).toMatch(/ORDER BY proven_at ASC, id ASC$/);
   });
 
+  it('an EVM wallet proven on Ethereum answers Verified when an agent pays it on Base', async () => {
+    // One key controls a 0x address on every EVM chain, and the lookup takes no chain: the
+    // question an agent asks before paying on Base (Agentics reads Base since v1.9) is the
+    // same question, so the business's domain proof answers it.
+    store.rows = [row({
+      id: 'shop', tenant_id: 'merchant', rail: 'ethereum', value: LOWER, proof_status: 'proven',
+      proof_method: 'well_known', proven_at: NOW, ...anchored('merchant.example'),
+    })];
+    for (const q of [CHECKSUM, LOWER]) {
+      expect(await lookupVerifiedAddress(q), q).toMatchObject({
+        source: 'merchant', level: 'verified', domain: 'merchant.example', chain: 'ethereum',
+      });
+    }
+    const call = store.calls.filter((c) => c.sql.includes('(value = ? OR lower(value) = ?)')).at(-1)!;
+    expect(call.sql).not.toMatch(/\brail\b\s*=/);
+  });
+
   it('two accounts holding one wallet (proven before the guard saw case) never read Verified', async () => {
     // The earlier holder answers, in a fixed order, and nothing lifts it: whose domain stands
     // behind the wallet is exactly what can't be told.

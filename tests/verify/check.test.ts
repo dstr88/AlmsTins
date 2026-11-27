@@ -191,3 +191,13 @@ describe('unchanged behavior (regression guard)', () => {
     expect(body.status).toBeUndefined(); // an error body, not a status payload
   });
 });
+
+describe('a payment on Base', () => {
+  it('an address proven on Ethereum reads proven: the check takes no chain, and a chain parameter changes nothing', async () => {
+    entities.address.mockResolvedValue(hit());
+    for (const params of [{ value: ADDR }, { value: ADDR, chain: 'base' }, { value: ADDR, chain: 'base', expect: 'acme.com' }]) {
+      expect((await call(params)).body, JSON.stringify(params)).toMatchObject({ status: 'proven', domain: 'acme.com' });
+    }
+    expect(entities.address.mock.calls.every(([v]) => v === ADDR)).toBe(true);
+  });
+});
