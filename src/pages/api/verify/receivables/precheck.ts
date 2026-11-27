@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request }) => {
       invoiceNo: str(body.invoiceNo),
       face: Number(body.face),
       currency: str(body.currency),
-      details: details ? { buyerRef: str(details.buyerRef) } : null,
+      details: details ? { buyerRef: str(details.buyerRef), transportDoc: details.transportDoc } : null,
       isTest: body.isTest === true,
     }, session.tenantId);
     if (!result.ok) return publicJson(result, 400);

@@ -53,17 +53,24 @@ export const ADD_RECEIVABLE_DELETED_AT = 'ALTER TABLE receivables ADD COLUMN IF 
  * The duplicate check's fingerprints (S3): keyed hashes of the record's canonical form (see
  * src/lib/receivables/fingerprintNormalize.ts and server/fingerprint.ts), never the plaintext.
  * fingerprint_ref is the strong key (debtor + the debtor's own reference + amount), fingerprint_inv
- * the fallback (debtor + supplier + invoice number + amount), fingerprint_kid the key and scheme that
+ * the fallback (debtor + supplier + invoice number + amount), fingerprint_doc the shipment key
+ * (debtor + supplier + transport document number, no amount), fingerprint_kid the key and scheme that
  * made them. NULL until computed: a create writes them, and the backfill fills older rows and any
  * row whose kid is not the current one. Nullable with no default, so each add changes the catalog
- * only and rewrites no rows. Confirmed on their own (the registry's fingerprintColumnsReady: all three
- * adds succeeded, or a read of the three did), so another add that fails never makes the duplicate
+ * only and rewrites no rows. Confirmed on their own (the registry's fingerprintColumnsReady: all five
+ * adds below succeeded, or a read of the five did), so another add that fails never makes the duplicate
  * check read as clear.
  */
 export const ADD_FINGERPRINT_REF = 'ALTER TABLE receivables ADD COLUMN IF NOT EXISTS fingerprint_ref TEXT';
 export const ADD_FINGERPRINT_INV = 'ALTER TABLE receivables ADD COLUMN IF NOT EXISTS fingerprint_inv TEXT';
 export const ADD_FINGERPRINT_KID = 'ALTER TABLE receivables ADD COLUMN IF NOT EXISTS fingerprint_kid TEXT';
-export const FINGERPRINT_COLUMN_ADDS: readonly string[] = [ADD_FINGERPRINT_REF, ADD_FINGERPRINT_INV, ADD_FINGERPRINT_KID];
+export const ADD_FINGERPRINT_DOC = 'ALTER TABLE receivables ADD COLUMN IF NOT EXISTS fingerprint_doc TEXT';
+/** The owner's private copy of the transport document number, encrypted (AES-256-GCM,
+ *  verifyCrypto.ts); never in details_json or the manifest, which hold a keyed commitment only.
+ *  Read only for the record's owner, and by the backfill to recompute fingerprint_doc. Confirmed
+ *  with the fingerprint columns, so a create never writes a number it cannot also keep private. */
+export const ADD_TRANSPORT_DOC_OWNER = 'ALTER TABLE receivables ADD COLUMN IF NOT EXISTS transport_doc_owner TEXT';
+export const FINGERPRINT_COLUMN_ADDS: readonly string[] = [ADD_FINGERPRINT_REF, ADD_FINGERPRINT_INV, ADD_FINGERPRINT_KID, ADD_FINGERPRINT_DOC, ADD_TRANSPORT_DOC_OWNER];
 
 /** New column adds, in order. They run after the registry's original column list. */
 export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
@@ -91,9 +98,10 @@ export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
  */
 export const CREATE_FP_REF_IDX = 'CREATE INDEX IF NOT EXISTS receivables_fp_ref ON receivables (fingerprint_ref) WHERE fingerprint_ref IS NOT NULL';
 export const CREATE_FP_INV_IDX = 'CREATE INDEX IF NOT EXISTS receivables_fp_inv ON receivables (fingerprint_inv) WHERE fingerprint_inv IS NOT NULL';
+export const CREATE_FP_DOC_IDX = 'CREATE INDEX IF NOT EXISTS receivables_fp_doc ON receivables (fingerprint_doc) WHERE fingerprint_doc IS NOT NULL';
 
 /** New indexes on added columns, in order. They run after every column add. */
-export const RECEIVABLE_INDEX_CREATES: readonly string[] = [CREATE_FP_REF_IDX, CREATE_FP_INV_IDX];
+export const RECEIVABLE_INDEX_CREATES: readonly string[] = [CREATE_FP_REF_IDX, CREATE_FP_INV_IDX, CREATE_FP_DOC_IDX];
 
 /**
  * Run before each column add and each index above, in the same transaction (one db.batch, which

@@ -15,10 +15,10 @@ import {
 	TAG_CLAIMED_ONLY, TAG_CLAIMED_ONLY_TITLE, TAG_TEST,
 } from '@/lib/receivables/copy/statusPill';
 import { TAG_WITHDRAWN, TAG_WITHDRAWN_TITLE } from '@/lib/receivables/copy/withdrawn';
-import { TAG_POSSIBLE_DUPLICATE, TAG_POSSIBLE_DUPLICATE_TITLE } from '@/lib/receivables/copy/duplicate';
+import { TAG_POSSIBLE_DUPLICATE, TAG_POSSIBLE_DUPLICATE_TITLE, TAG_SAME_SHIPMENT, TAG_SAME_SHIPMENT_TITLE } from '@/lib/receivables/copy/duplicate';
 import { recordIsPossibleDuplicate, type DuplicateRowView } from '@/lib/receivables/duplicateView';
 
-export type TagPill = 'test' | 'claimed_only' | 'withdrawn' | 'possible_duplicate';
+export type TagPill = 'test' | 'claimed_only' | 'withdrawn' | 'possible_duplicate' | 'same_shipment';
 export type StatusPillView = { kind: 'record'; state: RagState } | { kind: 'tag'; tag: TagPill };
 
 const RECORD: Readonly<Record<RagState, string>> = {
@@ -30,6 +30,7 @@ const TAGS: Readonly<Record<TagPill, { label: string; title?: string }>> = {
 	claimed_only: { label: TAG_CLAIMED_ONLY, title: TAG_CLAIMED_ONLY_TITLE },
 	withdrawn: { label: TAG_WITHDRAWN, title: TAG_WITHDRAWN_TITLE },
 	possible_duplicate: { label: TAG_POSSIBLE_DUPLICATE, title: TAG_POSSIBLE_DUPLICATE_TITLE },
+	same_shipment: { label: TAG_SAME_SHIPMENT, title: TAG_SAME_SHIPMENT_TITLE },
 };
 
 export function recordPill(rcv: RagInput): StatusPillView {

@@ -626,7 +626,7 @@ describe('possible duplicate (S4)', () => {
 		const { host } = makeHost();
 		await submitClaim(options('desk', post, host));
 		expect(asks).toHaveLength(1);
-		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_FINANCED, signedLine] }]);
+		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_FINANCED, signedLine], title: dupCopy.DUPLICATE_FLAG_TITLE }]);
 		expect(log.slice(-2)).toEqual(['clear', 'ask:possible_duplicate']);
 		expect(host.afterNotOk).not.toHaveBeenCalled();
 		expect(host.afterSaved).not.toHaveBeenCalled();
@@ -645,7 +645,16 @@ describe('possible duplicate (S4)', () => {
 		const { post } = poster({ status: 409, body: { ok: false, error: 'possible_duplicate' } });
 		const { host } = makeHost();
 		await submitClaim(options('desk', post, host));
-		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_ANY_MATCH, signedLine] }]);
+		expect(asks[0].warnings).toEqual([{ code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_ANY_MATCH, signedLine], title: dupCopy.DUPLICATE_FLAG_TITLE }]);
+	});
+
+	it('a shipment-only answer asks under the shipment title, with the shipment line', async () => {
+		const { post } = poster(DUP({ ...FULL, basis: 'same_shipment' }));
+		const { host } = makeHost();
+		await submitClaim(options('desk', post, host));
+		expect(asks[0].warnings).toEqual([{
+			code: 'possible_duplicate', lines: [dupCopy.DUPLICATE_DETAIL_SAME_SHIPMENT, signedLine], title: dupCopy.SHIPMENT_FLAG_TITLE,
+		}]);
 	});
 
 	it('"Record my claim anyway" resubmits acknowledging it; the note says it is signed if the match still stood', async () => {

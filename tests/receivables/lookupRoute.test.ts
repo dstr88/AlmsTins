@@ -12,10 +12,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const reg = vi.hoisted(() => ({
 	status: vi.fn<(id: string) => Promise<any>>(),
+	own: vi.fn<(id: string, tenant: string | null | undefined) => Promise<string | null>>(),
+	session: null as null | { tenantId: string },
 }));
 vi.mock('@/lib/receivablesRegistry', () => ({
 	getReceivableStatus: (id: string) => reg.status(id),
+	ownTransportDocNumber: (id: string, tenant: string | null | undefined) => reg.own(id, tenant),
 }));
+// The owner's own copy of a transport document number (session read, never required).
+vi.mock('@/lib/requireTenantSession', () => ({ requireTenantSession: async () => reg.session }));
 // S3: a lookup nudges the fingerprint backfill. Replaced here; this suite pins the route's contract.
 const kicks = vi.hoisted(() => ({ n: 0 }));
 vi.mock('@/lib/receivables/server/fingerprintBackfill', () => ({
@@ -43,6 +48,39 @@ const call = async (id: string | null, ip = nextIp()) => {
 
 beforeEach(() => {
 	reg.status.mockReset().mockResolvedValue(null);
+	reg.own.mockReset().mockResolvedValue(null);
+	reg.session = null;
+});
+
+describe('lookup: the transport document number', () => {
+	const COMMIT = { answer: 'number', type: 'bill_of_lading', commitment: { kid: 'tdc1-abcdefabcdef', mac: 'c'.repeat(64) } };
+	const withDoc = (transportDoc: unknown) => ({ id: ID, details: { buyerRef: 'PO-1', transportDoc } });
+
+	it('anyone but the owner gets the commitment only, never a transportDocNumber', async () => {
+		reg.status.mockResolvedValue(withDoc(COMMIT));
+		const { body } = await call(ID);
+		expect(body.receivable.details.transportDoc).toEqual(COMMIT);
+		expect(body.receivable).not.toHaveProperty('transportDocNumber');
+		expect(reg.own).toHaveBeenCalledWith(ID, undefined);
+	});
+
+	it('the owner also gets their own copy', async () => {
+		reg.session = { tenantId: 'owner-tenant' };
+		reg.own.mockResolvedValue('MAEU 0123-456');
+		reg.status.mockResolvedValue(withDoc(COMMIT));
+		const { body } = await call(ID);
+		expect(body.receivable.transportDocNumber).toBe('MAEU 0123-456');
+		expect(reg.own).toHaveBeenCalledWith(ID, 'owner-tenant');
+	});
+
+	it('"none" and "not known yet" carry no number, so the owner copy is never read', async () => {
+		for (const answer of ['none', 'not_known']) {
+			reg.status.mockResolvedValue(withDoc({ answer }));
+			const { body } = await call(ID);
+			expect(body.receivable.details.transportDoc).toEqual({ answer });
+		}
+		expect(reg.own).not.toHaveBeenCalled();
+	});
 });
 
 describe('lookup: error bodies are pinned', () => {

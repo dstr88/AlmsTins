@@ -19,6 +19,7 @@ import {
 	CLIENT_MATCH, CLIENT_RECORD_MATCH, CLAIM_DUPLICATE_SIGNED, DUPLICATE_DETAIL_ANY_MATCH, DUPLICATE_DETAIL_FINANCED,
 	DUPLICATE_DETAIL_MATCH, DUPLICATE_DETAIL_NO_REFERENCE, DUPLICATE_DETAIL_REFERENCE_ONLY,
 	DUPLICATE_DETAIL_UNAVAILABLE, PRECHECK_FINANCED, PRECHECK_PROCEED,
+	CLIENT_SAME_SHIPMENT, DUPLICATE_DETAIL_SAME_SHIPMENT, DUPLICATE_FLAG_TITLE, SHIPMENT_FLAG_TITLE,
 } from './copy/duplicate';
 
 /** Where the answer is shown:
@@ -37,14 +38,17 @@ export interface DuplicateAnswer {
 }
 
 export interface DuplicateFlagView {
-	/** caution: a possible duplicate, headed by the "possible duplicate" tag; muted: the check
-	 *  could not compare it fully (no tag). */
+	/** caution: a possible duplicate, headed by its tag; muted: the check could not compare it
+	 *  fully (no tag). */
 	tone: 'caution' | 'muted';
+	/** The tag a caution opens with: "same shipment" when a verified account's answer matched on
+	 *  the shipment key alone, "possible duplicate" otherwise. */
+	tag: 'possible_duplicate' | 'same_shipment';
 	lines: string[];
 	ownMatches: OwnMatch[];
 }
 
-const BASES: readonly DuplicateBasis[] = ['invoice_and_reference', 'invoice_number', 'debtor_reference_only'];
+const BASES: readonly DuplicateBasis[] = ['invoice_and_reference', 'invoice_number', 'debtor_reference_only', 'same_shipment'];
 const STATES = ['unavailable', 'no_match', 'possible_duplicate'] as const;
 type State = (typeof STATES)[number];
 
@@ -89,6 +93,8 @@ function readOwnMatches(raw: unknown): OwnMatch[] {
 /** The match line for a lender (desk, registry): financed or not only when the answer says so. */
 function matchLine(c: ReadCheck, phase: DuplicatePhase): string {
 	if (phase === 'record' || !c.detail) return DUPLICATE_DETAIL_ANY_MATCH;
+	// A shipment carries several genuine invoices: never "financed", whatever the answer says.
+	if (c.detail.basis === 'same_shipment') return DUPLICATE_DETAIL_SAME_SHIPMENT;
 	const lead = c.detail.encumbered ? (phase === 'precheck' ? PRECHECK_FINANCED : DUPLICATE_DETAIL_FINANCED) : DUPLICATE_DETAIL_MATCH;
 	return c.detail.basis === 'debtor_reference_only' ? `${lead} ${DUPLICATE_DETAIL_REFERENCE_ONLY}` : lead;
 }
@@ -106,16 +112,24 @@ export function duplicateFlagView(answer: DuplicateAnswer | null | undefined, ph
 	const c = readCheck(answer?.duplicateCheck);
 	if (!c) return null;
 	if (c.state === 'possible_duplicate') {
-		const lines = [variant !== 'client' ? matchLine(c, phase) : phase === 'precheck' ? CLIENT_MATCH : CLIENT_RECORD_MATCH];
+		const shipment = phase !== 'record' && c.detail?.basis === 'same_shipment';
+		const clientLine = shipment ? CLIENT_SAME_SHIPMENT : phase === 'precheck' ? CLIENT_MATCH : CLIENT_RECORD_MATCH;
+		const lines = [variant !== 'client' ? matchLine(c, phase) : clientLine];
 		if (phase === 'precheck') lines.push(PRECHECK_PROCEED);
 		if (phase === 'claim') lines.push(CLAIM_DUPLICATE_SIGNED);
 		const ownMatches = phase === 'precheck' || phase === 'created' ? readOwnMatches(answer?.ownMatches) : [];
-		return { tone: 'caution', lines, ownMatches };
+		return { tone: 'caution', tag: shipment ? 'same_shipment' : 'possible_duplicate', lines, ownMatches };
 	}
 	if (phase !== 'created') return null;
-	if (c.state === 'unavailable') return { tone: 'muted', lines: [DUPLICATE_DETAIL_UNAVAILABLE], ownMatches: [] };
-	if (c.hasDebtorReference === false) return { tone: 'muted', lines: [DUPLICATE_DETAIL_NO_REFERENCE], ownMatches: [] };
+	if (c.state === 'unavailable') return { tone: 'muted', tag: 'possible_duplicate', lines: [DUPLICATE_DETAIL_UNAVAILABLE], ownMatches: [] };
+	if (c.hasDebtorReference === false) return { tone: 'muted', tag: 'possible_duplicate', lines: [DUPLICATE_DETAIL_NO_REFERENCE], ownMatches: [] };
 	return null;
+}
+
+/** The claim prompt's title for a 409 possible_duplicate answer. */
+export function claimDuplicateTitle(duplicateCheck: unknown): string {
+	const c = readCheck(duplicateCheck);
+	return c?.detail?.basis === 'same_shipment' ? SHIPMENT_FLAG_TITLE : DUPLICATE_FLAG_TITLE;
 }
 
 /** The claim prompt's lines for a 409 possible_duplicate answer. Never empty. */
@@ -128,6 +142,7 @@ export function claimDuplicateLines(duplicateCheck: unknown): string[] {
 export interface DuplicateRowView {
 	id?: unknown;
 	possibleDuplicate?: unknown;
+	sameShipment?: unknown;
 	duplicateCheck?: unknown;
 }
 
@@ -135,7 +150,15 @@ export interface DuplicateRowView {
  *  check could not answer, and that row gets no tag. */
 export function bookDuplicateIds(rows: ReadonlyArray<DuplicateRowView> | null | undefined): Set<string> {
 	const ids = new Set<string>();
-	for (const r of rows ?? []) if (r?.possibleDuplicate === true && typeof r.id === 'string') ids.add(r.id);
+	for (const r of rows ?? []) if (r?.possibleDuplicate === true && r.sameShipment !== true && typeof r.id === 'string') ids.add(r.id);
+	return ids;
+}
+
+/** The IDs of the book rows whose only matches are on the shipment key: the quieter "same
+ *  shipment" tag in place of "possible duplicate". Only a verified account's listing carries it. */
+export function bookSameShipmentIds(rows: ReadonlyArray<DuplicateRowView> | null | undefined): Set<string> {
+	const ids = new Set<string>();
+	for (const r of rows ?? []) if (r?.possibleDuplicate === true && r.sameShipment === true && typeof r.id === 'string') ids.add(r.id);
 	return ids;
 }
 

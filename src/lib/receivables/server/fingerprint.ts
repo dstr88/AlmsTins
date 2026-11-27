@@ -1,15 +1,16 @@
 /**
  * The keyed hash behind the duplicate check (S3): HMAC-SHA256 of fingerprintNormalize.ts's tuples
  * under RECEIVABLES_FINGERPRINT_KEY. Only these hashes are stored (receivables.fingerprint_ref,
- * fingerprint_inv); the plaintext tuples are never stored, logged or returned. Without the key a
+ * fingerprint_inv, fingerprint_doc); the plaintext tuples are never stored, logged or returned. Without the key a
  * stored hash cannot be tested against a guessed invoice, so the columns are not an oracle.
  *
  * The key is 32 random bytes, as 64 hex characters or base64, parsed the way verifyCrypto.ts
  * parses VERIFY_ENTITY_SECRET. Missing or malformed: every function here answers null, the
  * duplicate check reads "unavailable", and nothing is ever refused because of it.
  *
- * kid ("fp1-" + 12 hex of the key's SHA-256) is stored beside each row's hashes. "fp1" is the
- * scheme: a change to the normalizer's output must bump it to "fp2". Either a new key or a new
+ * kid ("fp2-" + 12 hex of the key's SHA-256) is stored beside each row's hashes. "fp2" is the
+ * scheme: a change to the normalizer's output must bump it ("fp1" to "fp2" added the shipment key,
+ * fingerprint_doc, so every row stored under fp1 is recomputed by the backfill). Either a new key or a new
  * scheme gives a new kid, which marks every stored row stale until the backfill recomputes it.
  *
  * (A later slice keys token references with the same key under its own domain prefix,
@@ -20,13 +21,15 @@
 import { createHash, createHmac } from 'node:crypto';
 import { fingerprintTuples, type FingerprintInput } from '@/lib/receivables/fingerprintNormalize';
 
-const KID_SCHEME = 'fp1';
+const KID_SCHEME = 'fp2';
 
 export interface Fingerprints {
 	/** HMAC of the strong key (debtor + debtor reference + currency + face), or null without a reference. */
 	ref: string | null;
 	/** HMAC of the fallback key (debtor + supplier + invoice number + currency + face), or null. */
 	inv: string | null;
+	/** HMAC of the shipment key (debtor + supplier + transport document number), or null without a number. */
+	doc: string | null;
 	/** Which key and scheme made them. */
 	kid: string;
 }
@@ -65,7 +68,7 @@ export function computeFingerprints(input: FingerprintInput): Fingerprints | nul
 		if (!key) return null;
 		const tuples = fingerprintTuples(input);
 		const mac = (text: string | null) => (text === null ? null : createHmac('sha256', key).update(text, 'utf8').digest('hex'));
-		return { ref: mac(tuples.ref), inv: mac(tuples.inv), kid: kidOf(key) };
+		return { ref: mac(tuples.ref), inv: mac(tuples.inv), doc: mac(tuples.doc), kid: kidOf(key) };
 	} catch {
 		return null;
 	}

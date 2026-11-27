@@ -45,7 +45,7 @@ import {
 	CLAIM_DUPLICATE_NOT_RECORDED, CLAIM_DUPLICATE_STILL, CLAIM_NOTICE_ACKNOWLEDGED, CLAIM_NOTICE_POSSIBLE_DUPLICATE,
 	CLAIM_NOTICE_UNAVAILABLE,
 } from '@/lib/receivables/copy/duplicate';
-import { claimDuplicateLines } from '@/lib/receivables/duplicateView';
+import { claimDuplicateLines, claimDuplicateTitle } from '@/lib/receivables/duplicateView';
 import type { AckCode } from '@/lib/receivables/acknowledgments';
 
 const CLAIM_URL = '/api/verify/receivables/claim';
@@ -184,7 +184,7 @@ export async function submitClaim(o: SubmitClaimOptions, acks: ClaimAcks = {}): 
 				return;
 			}
 			host.clear();
-			void askToAcknowledge(root, [{ code: 'possible_duplicate', lines: claimDuplicateLines(j.duplicateCheck) }], {
+			void askToAcknowledge(root, [{ code: 'possible_duplicate', lines: claimDuplicateLines(j.duplicateCheck), title: claimDuplicateTitle(j.duplicateCheck) }], {
 				onDismiss: () => host.note('info', [txt(CLAIM_DUPLICATE_NOT_RECORDED)]),
 			}).then((codes) => {
 				if (codes === null || !codes.includes('possible_duplicate')) return;

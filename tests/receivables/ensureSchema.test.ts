@@ -5,10 +5,13 @@ import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/rece
 import { randomBytes } from 'node:crypto';
 import {
 	ADD_ATTESTATION_SOURCE,
+	ADD_FINGERPRINT_DOC,
 	ADD_FINGERPRINT_INV,
 	ADD_FINGERPRINT_KID,
 	ADD_FINGERPRINT_REF,
 	ADD_RECEIVABLE_DELETED_AT,
+	ADD_TRANSPORT_DOC_OWNER,
+	CREATE_FP_DOC_IDX,
 	CREATE_FP_INV_IDX,
 	CREATE_FP_REF_IDX,
 	DDL_LOCK_TIMEOUT,
@@ -73,15 +76,17 @@ describe('schema.ts', () => {
 		for (const sql of RECEIVABLE_COLUMN_ADDS) expect(sql).toMatch(/^ALTER TABLE \w+ ADD COLUMN IF NOT EXISTS \w+ /);
 	});
 
-	it('S3: three nullable fingerprint columns with no default, and two partial indexes', () => {
-		expect(FINGERPRINT_COLUMN_ADDS).toEqual([ADD_FINGERPRINT_REF, ADD_FINGERPRINT_INV, ADD_FINGERPRINT_KID]);
+	// S3 made ref, inv and kid; the shipment key (fingerprint_doc) is the fourth, and the owner's
+	// encrypted copy of the transport document number (transport_doc_owner) is confirmed with them.
+	it('S3: five nullable fingerprint columns with no default, and three partial indexes', () => {
+		expect(FINGERPRINT_COLUMN_ADDS).toEqual([ADD_FINGERPRINT_REF, ADD_FINGERPRINT_INV, ADD_FINGERPRINT_KID, ADD_FINGERPRINT_DOC, ADD_TRANSPORT_DOC_OWNER]);
 		for (const sql of FINGERPRINT_COLUMN_ADDS) {
 			expect(RECEIVABLE_COLUMN_ADDS).toContain(sql);
-			expect(sql).toMatch(/^ALTER TABLE receivables ADD COLUMN IF NOT EXISTS fingerprint_(ref|inv|kid) TEXT$/);
+			expect(sql).toMatch(/^ALTER TABLE receivables ADD COLUMN IF NOT EXISTS (fingerprint_(ref|inv|kid|doc)|transport_doc_owner) TEXT$/);
 		}
-		expect(RECEIVABLE_INDEX_CREATES).toEqual([CREATE_FP_REF_IDX, CREATE_FP_INV_IDX]);
+		expect(RECEIVABLE_INDEX_CREATES).toEqual([CREATE_FP_REF_IDX, CREATE_FP_INV_IDX, CREATE_FP_DOC_IDX]);
 		for (const sql of RECEIVABLE_INDEX_CREATES) {
-			expect(sql).toMatch(/^CREATE INDEX IF NOT EXISTS receivables_fp_(ref|inv) ON receivables \(fingerprint_(ref|inv)\) WHERE fingerprint_\2 IS NOT NULL$/);
+			expect(sql).toMatch(/^CREATE INDEX IF NOT EXISTS receivables_fp_(ref|inv|doc) ON receivables \(fingerprint_(ref|inv|doc)\) WHERE fingerprint_\2 IS NOT NULL$/);
 		}
 	});
 });
@@ -215,13 +220,34 @@ describe('S3: the fingerprint columns have their own readiness', () => {
 		expect(created).toMatchObject({ ok: true, duplicateCheck: { state: 'unavailable' } });
 		expect(fake.columns.get('receivables')?.has('fingerprint_kid')).toBe(false);
 		// No write or read named a fingerprint column the process has not confirmed.
-		expect(fake.statements(/fingerprint_kid/).filter((x) => !/^(ALTER|SELECT fingerprint_ref, fingerprint_inv, fingerprint_kid FROM receivables LIMIT 0)/.test(x.sql))).toEqual([]);
+		expect(fake.statements(/fingerprint_kid/).filter((x) => !/^(ALTER|SELECT fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner FROM receivables LIMIT 0)/.test(x.sql))).toEqual([]);
 		expect((await reg.getReceivableStatus(RID))?.duplicateCheck).toEqual({ state: 'unavailable', hasDebtorReference: false });
 		expect(await reg.deleteReceivable(OWNER, RID)).toMatchObject({ ok: true });
 		// The other S0a/S0b columns were added; their readers degrade on columnsEnsured as before.
 		expect(fake.columns.get('receivable_attestations')?.has('source')).toBe(true);
 		expect(await reg.acceptDiligence(LENDER, (created as { id: string }).id, { financier: 'Lender Co', method: 'phone' })).toMatchObject({ ok: true });
 		expect((await reg.startFingerprintBackfill()).state).toBe('failed');
+	});
+
+	it('a failed shipment-key ALTER leaves the check unavailable too, and nothing writes fingerprint_doc', async () => {
+		await load({ failDdl: (sql) => sql === ADD_FINGERPRINT_DOC });
+		const created = await reg.createReceivable(OWNER, { ...INPUT, details: { transportDoc: { answer: 'none' } } });
+		expect(created).toMatchObject({ ok: true, duplicateCheck: { state: 'unavailable' } });
+		expect(fake.columns.get('receivables')?.has('fingerprint_doc')).toBe(false);
+		// Only DDL and the readiness probe name it (the index is tried, fails and gates nothing).
+		expect(fake.statements(/fingerprint_doc/).filter((x) => !/^(ALTER|CREATE INDEX|SELECT fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner FROM receivables LIMIT 0)/.test(x.sql))).toEqual([]);
+	});
+
+	it('a failed owner-copy ALTER: the check is unavailable and a transport document number is refused, never stored', async () => {
+		vi.stubEnv('VERIFY_ENTITY_SECRET', randomBytes(32).toString('hex'));
+		await load({ failDdl: (sql) => sql === ADD_TRANSPORT_DOC_OWNER });
+		expect(await reg.createReceivable(OWNER, { ...INPUT, details: { transportDoc: { answer: 'none' } } }))
+			.toMatchObject({ ok: true, duplicateCheck: { state: 'unavailable' } });
+		const n = fake.rows('receivables').length;
+		const withNumber = await reg.createReceivable(OWNER, { ...INPUT, invoiceNo: 'INV-8', details: { transportDoc: { answer: 'number', type: 'bill_of_lading', number: 'MAEU 0123456' } } });
+		expect(withNumber).toMatchObject({ ok: false, error: 'transport_doc_unavailable' });
+		expect(fake.rows('receivables')).toHaveLength(n);
+		expect(JSON.stringify(fake.log)).not.toContain('MAEU');
 	});
 
 	it('an unrelated failed ALTER never makes the check read clear or unavailable on its own', async () => {
@@ -245,7 +271,7 @@ describe('S3: the fingerprint columns have their own readiness', () => {
 			},
 		});
 		await reg.ensureReceivablesTables();
-		expect(fake.statements(/^SELECT fingerprint_ref, fingerprint_inv, fingerprint_kid FROM receivables LIMIT 0$/)).toHaveLength(1);
+		expect(fake.statements(/^SELECT fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner FROM receivables LIMIT 0$/)).toHaveLength(1);
 		const first = await reg.createReceivable(OWNER, INPUT);
 		expect(first).toMatchObject({ ok: true, duplicateCheck: { state: 'no_match' } });
 	});

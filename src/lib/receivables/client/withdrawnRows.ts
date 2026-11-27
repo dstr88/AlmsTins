@@ -4,7 +4,9 @@
  *
  *   - withdrawn (S2): a record its owner withdrew. Only a claimant ever sees such a row: an owner's
  *     own withdrawn records are not listed to the owner (listReceivables).
- *   - possible duplicate (S4): another record at Almstins matches the row (possibleDuplicate).
+ *   - possible duplicate (S4): another record at Almstins matches the row (possibleDuplicate);
+ *   - same shipment: the row's only matches are on the shipment key (sameShipment, sent to a
+ *     verified account only), in place of "possible duplicate".
  *
  * The page entry modules call these after each redraw, with the IDs from bookWithdrawnIds
  * (src/lib/receivables/withdrawn.ts) and bookDuplicateIds (src/lib/receivables/duplicateView.ts).
@@ -17,6 +19,7 @@ import { statusPillHtml, type TagPill } from '@/components/receivables/StatusPil
 interface RowTag { tag: TagPill; marker: string }
 const WITHDRAWN: RowTag = { tag: 'withdrawn', marker: 'rcvWithdrawn' };
 const DUPLICATE: RowTag = { tag: 'possible_duplicate', marker: 'rcvDup' };
+const SAME_SHIPMENT: RowTag = { tag: 'same_shipment', marker: 'rcvShip' };
 
 /** data-rcv-withdrawn, data-rcv-dup: the attribute a dataset key is written as. */
 const markerAttr = (marker: string) => `[data-${marker.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}]`;
@@ -66,18 +69,23 @@ export function markDeskBook(root: ParentNode, ids: ReadonlySet<string>): void {
 export function markDeskBookDuplicates(root: ParentNode, ids: ReadonlySet<string>): void { markDesk(root, ids, DUPLICATE); }
 export function markRegistryMine(root: ParentNode, ids: ReadonlySet<string>): void { markRegistry(root, ids, WITHDRAWN); }
 export function markRegistryMineDuplicates(root: ParentNode, ids: ReadonlySet<string>): void { markRegistry(root, ids, DUPLICATE); }
+export function markDeskBookSameShipment(root: ParentNode, ids: ReadonlySet<string>): void { markDesk(root, ids, SAME_SHIPMENT); }
+export function markRegistryMineSameShipment(root: ParentNode, ids: ReadonlySet<string>): void { markRegistry(root, ids, SAME_SHIPMENT); }
 
 /**
  * Client Portal "Your receivables": each row is a .mine__row whose Track button carries the ID in
  * data-track; the tag goes after the row's text (the button's previous sibling), beside its test
  * tag when it has one.
  */
-export function markClientMineDuplicates(root: ParentNode, ids: ReadonlySet<string>): void {
+export function markClientMineDuplicates(root: ParentNode, ids: ReadonlySet<string>): void { markClient(root, ids, DUPLICATE); }
+export function markClientMineSameShipment(root: ParentNode, ids: ReadonlySet<string>): void { markClient(root, ids, SAME_SHIPMENT); }
+
+function markClient(root: ParentNode, ids: ReadonlySet<string>, t: RowTag): void {
 	if (!ids.size) return;
 	for (const btn of Array.from(root.querySelectorAll<HTMLElement>('[data-track]'))) {
 		const id = btn.dataset.track;
 		const text = btn.previousElementSibling as HTMLElement | null;
 		if (!id || !ids.has(id) || !text) continue;
-		addTag(text, DUPLICATE);
+		addTag(text, t);
 	}
 }

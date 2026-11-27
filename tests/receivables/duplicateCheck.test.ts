@@ -3,7 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { createReceivablesDbFake, type ReceivablesDbFake } from '../helpers/receivablesDbFake';
 import {
 	OWN_MATCHES_MAX,
+	claimRaisesDuplicate,
 	financedDuplicate,
+	sameShipmentOnly,
 	stateOnly,
 	summarizeTwins,
 	type TwinRow,
@@ -36,6 +38,49 @@ describe('summarizeTwins (pure)', () => {
 		expect(summarizeTwins([ref], { hasDebtorReference: true }).check).toMatchObject({ state: 'possible_duplicate', basis: 'debtor_reference_only' });
 		expect(summarizeTwins([ref, inv], { hasDebtorReference: true }).check).toMatchObject({ basis: 'invoice_number' });
 		expect(summarizeTwins([inv, both, ref], { hasDebtorReference: true }).check).toMatchObject({ basis: 'invoice_and_reference' });
+	});
+
+	it('the shipment key alone is same_shipment, ranked below every other basis', () => {
+		const doc = twin({ matchedInv: false, matchedDoc: true });
+		const ref = twin({ matchedRef: true, matchedInv: false });
+		const inv = twin({ matchedInv: true });
+		const both = twin({ matchedRef: true, matchedInv: true });
+		const shipment = summarizeTwins([doc], { hasDebtorReference: false }).check;
+		expect(shipment).toMatchObject({ state: 'possible_duplicate', basis: 'same_shipment' });
+		expect(sameShipmentOnly(shipment)).toBe(true);
+		for (const [stronger, basis] of [[ref, 'debtor_reference_only'], [inv, 'invoice_number'], [both, 'invoice_and_reference']] as const) {
+			const check = summarizeTwins([doc, stronger, doc], { hasDebtorReference: true }).check;
+			expect(check).toMatchObject({ basis });
+			expect(sameShipmentOnly(check)).toBe(false);
+		}
+		// A row that also matched on the shipment keeps its stronger basis.
+		expect(summarizeTwins([twin({ matchedInv: true, matchedDoc: true })], { hasDebtorReference: false }).check).toMatchObject({ basis: 'invoice_number' });
+		// matchedDoc is optional: a row read without it, or with false, is no match.
+		expect(summarizeTwins([twin({ matchedInv: false }), twin({ matchedInv: false, matchedDoc: false })], { hasDebtorReference: false }).check.state).toBe('no_match');
+	});
+
+	it('a shipment-only row never lends its financed or settled flags to a stronger basis', () => {
+		const financedShipment = twin({ id: 's', matchedInv: false, matchedDoc: true, encumbered: true, settled: true });
+		const invoice = twin({ id: 'i', matchedInv: true });
+		expect(summarizeTwins([financedShipment, invoice], { hasDebtorReference: false }).check).toEqual({
+			state: 'possible_duplicate', basis: 'invoice_number', encumbered: false, anySettled: false, hasDebtorReference: false,
+		});
+		// A row that matched on the invoice key and the shipment counts as an invoice match.
+		expect(summarizeTwins([twin({ matchedInv: true, matchedDoc: true, encumbered: true }), invoice], { hasDebtorReference: false }).check)
+			.toMatchObject({ basis: 'invoice_number', encumbered: true });
+		// When the shipment is the strongest basis, its own rows' flags are the answer.
+		expect(summarizeTwins([financedShipment], { hasDebtorReference: false }).check)
+			.toMatchObject({ basis: 'same_shipment', encumbered: true, anySettled: true });
+	});
+
+	it('a verified claim asks on every shipment-only match, financed or not', () => {
+		const unfinanced = summarizeTwins([twin({ matchedInv: false, matchedDoc: true })], { hasDebtorReference: false }).check;
+		const financed = summarizeTwins([twin({ matchedInv: false, matchedDoc: true, encumbered: true })], { hasDebtorReference: false }).check;
+		expect(claimRaisesDuplicate(unfinanced, true)).toBe(true);
+		expect(claimRaisesDuplicate(financed, true)).toBe(true);
+		expect(claimRaisesDuplicate(unfinanced, false)).toBe(true);
+		// The stronger bases keep the financed-only rule for a verified account.
+		expect(claimRaisesDuplicate(summarizeTwins([twin({})], { hasDebtorReference: false }).check, true)).toBe(false);
 	});
 
 	it('financed and settled are any-of, and never depend on the viewer', () => {
@@ -121,7 +166,9 @@ describe('createReceivable: the duplicate check', () => {
 		const row = fake.rows('receivables')[0];
 		expect(row.fingerprint_ref).toMatch(/^[0-9a-f]{64}$/);
 		expect(row.fingerprint_inv).toMatch(/^[0-9a-f]{64}$/);
-		expect(row.fingerprint_kid).toMatch(/^fp1-[0-9a-f]{12}$/);
+		expect(row.fingerprint_kid).toMatch(/^fp2-[0-9a-f]{12}$/);
+		// No transport document number was recorded, so there is no shipment key.
+		expect(row.fingerprint_doc ?? null).toBeNull();
 		expect(JSON.stringify(row)).not.toMatch(/bigco\|/i);
 	});
 
@@ -372,6 +419,23 @@ describe('the book', () => {
 		vi.stubEnv('RECEIVABLES_FINGERPRINT_KEY', '');
 		expect((await reg.listReceivables(OWNER)).every((r) => r.possibleDuplicate === null)).toBe(true);
 	});
+
+	it('sameShipment is true only when the transport document is the only key that matched', async () => {
+		// A number answer is kept as a commitment plus the owner's encrypted copy, which needs this key.
+		vi.stubEnv('VERIFY_ENTITY_SECRET', randomBytes(32).toString('hex'));
+		const bl = (number: string) => ({ transportDoc: { answer: 'number', type: 'bill_of_lading', number } });
+		const part1 = await create(OWNER, { ...INVOICE, details: bl('MAEU 0123456') });
+		const part2 = await create(OWNER, { ...INVOICE, invoiceNo: 'INV-0043', face: 250, details: bl('maeu0123456') });
+		const lone = await create(OWNER, { ...INVOICE, invoiceNo: 'INV-0099', details: bl('MAEU 9999999') });
+		const twinInv = await create(OWNER, { ...INVOICE, invoiceNo: 'INV-0099', details: { transportDoc: { answer: 'none' } } });
+		const byId = Object.fromEntries((await reg.listReceivables(OWNER)).map((r) => [r.id, r]));
+		expect(byId[part1.id]).toMatchObject({ possibleDuplicate: true, sameShipment: true });
+		expect(byId[part2.id]).toMatchObject({ possibleDuplicate: true, sameShipment: true });
+		// A match on the invoice key is not shipment-only, whatever the transport documents say.
+		expect(byId[lone.id]).toMatchObject({ possibleDuplicate: true, sameShipment: false });
+		expect(byId[twinInv.id]).toMatchObject({ possibleDuplicate: true, sameShipment: false });
+		expect(part2.duplicateCheck).toMatchObject({ state: 'possible_duplicate', basis: 'same_shipment' });
+	});
 });
 
 describe('no foreign detail reaches any answer', () => {
@@ -473,6 +537,9 @@ describe('the claim warning and the earlier financier\'s book', () => {
 	});
 });
 
+/** The book's flag query (matchedReceivableIds): its IDs, and whether each matched on a stronger key. */
+const BOOK_FLAGS = /^SELECT r\.id, \(EXISTS \(SELECT 1 FROM receivables s [\s\S]*\) AS strong\s+FROM receivables r\s+WHERE r\.id IN \(/;
+
 describe('the cross-tenant reads run on the owner pool', () => {
 	it('the coverage count, the twin query and the book\'s flags run outside the request\'s tenant context', async () => {
 		const dbContext = await import('../../src/lib/dbContext');
@@ -493,10 +560,10 @@ describe('the cross-tenant reads run on the owner pool', () => {
 		const cross = [
 			...ran(/^SELECT COUNT\(\*\) AS n FROM receivables WHERE fingerprint_kid IS NULL/),
 			...ran(/^SELECT r\.id, r\.tenant_id, r\.invoice_no, r\.fingerprint_ref/),
-			...ran(/^SELECT r\.id FROM receivables r WHERE r\.id IN \(/),
+			...ran(BOOK_FLAGS),
 		];
 		expect(ran(/^SELECT r\.id, r\.tenant_id, r\.invoice_no, r\.fingerprint_ref/).length).toBeGreaterThan(0);
-		expect(ran(/^SELECT r\.id FROM receivables r WHERE r\.id IN \(/)).toHaveLength(1);
+		expect(ran(BOOK_FLAGS)).toHaveLength(1);
 		expect(cross.every((c) => c.ctx === undefined)).toBe(true);
 		// The request's own reads keep its context.
 		expect(ran(/^INSERT INTO receivables /).every((c) => c.ctx === ctx)).toBe(true);
@@ -505,12 +572,12 @@ describe('the cross-tenant reads run on the owner pool', () => {
 
 	it('the book\'s flags read null, never false, when their query fails', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
-		await load({ failDml: (sql) => /^SELECT r\.id FROM receivables r WHERE r\.id IN \(/.test(sql) });
+		await load({ failDml: (sql) => BOOK_FLAGS.test(sql) });
 		await create(OWNER, INVOICE);
 		await create(OWNER, { ...INVOICE, invoiceNo: 'INV 42' });
 		const book = await reg.listReceivables(OWNER);
 		expect(book).toHaveLength(2);
-		expect(book.every((r) => r.possibleDuplicate === null)).toBe(true);
+		expect(book.every((r) => r.possibleDuplicate === null && r.sameShipment === null)).toBe(true);
 	});
 });
 

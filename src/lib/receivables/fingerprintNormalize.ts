@@ -2,12 +2,16 @@
  * The canonical form of a receivable for the duplicate check (S3): the text a keyed hash is
  * taken of, so two records of the same debt match even when they were typed differently.
  *
- * Two keys, each built only when its fields are there:
+ * Three keys, each built only when its fields are there:
  *   - strong ("ref"): debtor + the debtor's own reference (PO or contract number) + currency +
  *     face. The reference is the one identifier the supplier does not control;
- *   - fallback ("inv"): debtor + supplier + invoice number + currency + face.
+ *   - fallback ("inv"): debtor + supplier + invoice number + currency + face;
+ *   - shipment ("doc"): debtor + supplier + transport document number (a bill of lading or eBL,
+ *     an air waybill, a CMR note). No amount, currency or invoice number, on purpose: a split,
+ *     reissued, or provisional-then-final invoice against the same shipment still matches. Built
+ *     only from a real number: "no transport document" and "not known yet" never enter it.
  * Exact match only, after the normalization below. Cosmetic differences match ("ACME Ltd" and
- * "Acme Limited", "INV-0042" and "inv 42"); different amounts or currencies never do.
+ * "Acme Limited", "INV-0042" and "inv 42"); different amounts or currencies never do on ref/inv.
  *
  * Every tuple starts with the scheme, the record type, the key kind and t/r (a test record or a
  * real one), so a test record never matches a real one and record types never collide. Only the
@@ -36,6 +40,8 @@ export interface InvoiceFingerprintInput {
 	invoiceNo: string;
 	/** The debtor's own reference (details.buyerRef), when recorded. */
 	buyerRef?: string | null;
+	/** The transport document number (details.transportDoc, answer "number"), when recorded. */
+	transportDocNumber?: string | null;
 	face: number;
 	currency: string;
 	isTest: boolean;
@@ -47,6 +53,7 @@ export type FingerprintInput = InvoiceFingerprintInput;
 export interface FingerprintTuples {
 	ref: string | null;
 	inv: string | null;
+	doc: string | null;
 }
 
 // The create path's clamps (createReceivable in src/lib/receivablesRegistry.ts), repeated so the
@@ -134,6 +141,40 @@ export function normRef(raw: unknown): string {
 /** An invoice number, the same way as a reference. */
 export const normInvoiceNo = normRef;
 
+/** Labels a transport document number may start with, longest first (letters only, as kept). */
+const DOC_LABELS = [
+	'BILLOFLADINGNO', 'BILLOFLADING', 'MAWBNO', 'HAWBNO', 'AWBNO', 'BOLNO', 'EBLNO', 'CMRNO', 'BLNO',
+	'MAWB', 'HAWB', 'AWB', 'BOL', 'EBL', 'CMR', 'BL', 'NO',
+] as const;
+
+/**
+ * A transport document number: NFKC, uppercase, letters and numbers only. Unlike normRef, zeros
+ * are kept (an air waybill's airline prefix can start with one) and a label is taken off the front
+ * only when the typed text has a separator right after it and something is left, so "B/L No.
+ * MAEU 0123-456" and "maeu0123456" are the same, while "BL12345" keeps its letters (a carrier's
+ * code can start with them). Empty when nothing is left.
+ */
+export function normDocRef(raw: unknown): string {
+	const text = String(raw ?? '').normalize('NFKC').toUpperCase();
+	// Each kept character, and whether a separator came right after it in the typed text.
+	const kept: string[] = [];
+	const sepAfter: boolean[] = [];
+	for (let i = 0; i < text.length;) {
+		const ch = String.fromCodePoint(text.codePointAt(i)!);
+		i += ch.length;
+		if (!/^[\p{L}\p{N}\p{M}]$/u.test(ch)) { if (kept.length) sepAfter[kept.length - 1] = true; continue; }
+		kept.push(ch);
+		sepAfter.push(false);
+	}
+	const out = kept.join('');
+	for (const label of DOC_LABELS) {
+		if (!out.startsWith(label) || out.length === label.length) continue;
+		// A label ends at a separator: "B/L 123" is a label, "BL123" is a number.
+		if (sepAfter[label.length - 1]) return out.slice(label.length);
+	}
+	return out;
+}
+
 /** Face value in minor units as text: 1000 is "100000", 12.5 is "1250". */
 export function faceMinor(face: unknown): string {
 	return Number(face).toFixed(2).replace(/[^0-9A-Za-z]/g, '');
@@ -146,13 +187,20 @@ export function fingerprintTuples(input: FingerprintInput): FingerprintTuples {
 	const supplier = normParty(clamp(input.supplier, 160));
 	const invoiceNo = normInvoiceNo(clamp(input.invoiceNo, 80));
 	const ref = normRef(clamp(input.buyerRef ?? '', 80));
+	const doc = normDocRef(clamp(input.transportDocNumber ?? '', 60));
 	const currency = clampCurrency(input.currency).replace(NOT_WORD, '');
 	const face = faceMinor(input.face);
 	const head = [FINGERPRINT_SCHEME, input.recordType];
 	return {
 		ref: debtor && ref ? [...head, 'ref', t, debtor, ref, currency, face].join('|') : null,
 		inv: debtor && supplier && invoiceNo ? [...head, 'inv', t, debtor, supplier, invoiceNo, currency, face].join('|') : null,
+		doc: debtor && supplier && doc ? [...head, 'doc', t, debtor, supplier, doc].join('|') : null,
 	};
+}
+
+/** Whether the record carries a transport document number the shipment key can compare on. */
+export function hasTransportDocument(input: FingerprintInput): boolean {
+	return fingerprintTuples(input).doc !== null;
 }
 
 /** Whether the record carries a debtor reference the strong key can compare on. */

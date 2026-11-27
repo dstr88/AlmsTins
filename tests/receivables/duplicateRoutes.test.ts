@@ -53,6 +53,8 @@ async function load() {
 
 beforeEach(async () => {
 	vi.stubEnv('RECEIVABLES_FINGERPRINT_KEY', randomBytes(32).toString('hex'));
+	// The owner's private copy of a transport document number is encrypted under this key.
+	vi.stubEnv('VERIFY_ENTITY_SECRET', randomBytes(32).toString('hex'));
 	vi.stubEnv('ALMSTINS_SIGNING_KEY', '');
 	mem.session = { tenantId: OWNER, isDemo: false };
 	mem.verified = true;
@@ -67,7 +69,12 @@ const as = (tenantId: string | null, isDemo = false) => { mem.session = tenantId
 async function call(route: string, method: string, opts: { body?: unknown; raw?: string; headers?: Record<string, string>; query?: string } = {}) {
 	const mod: any = await import(`../../src/pages/api/verify/receivables/${route}.ts`);
 	const url = new URL(`${BASE}${route === 'index' ? '' : `/${route}`}${opts.query ?? ''}`);
-	const body = opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body));
+	// The create requires the transport document answer; these suites are about the duplicate check,
+	// so a create body without one says "none" (which never enters a fingerprint). The requirement
+	// itself is pinned in its own describe at the end of this file.
+	const withAnswer = (b: any) => (route === 'index' && method === 'POST' && b && typeof b === 'object' && !b.details?.transportDoc
+		? { ...b, details: { ...(b.details ?? {}), transportDoc: { answer: 'none' } } } : b);
+	const body = opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(withAnswer(opts.body)));
 	const request = new Request(url, {
 		method,
 		headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip, ...(opts.headers ?? {}) },
@@ -474,5 +481,155 @@ describe('GET /receivables (the book)', () => {
 		as(OWNER);
 		const r = await call('index', 'GET');
 		expect(r.body.receivables).toEqual([expect.objectContaining({ id: mine.id, relation: 'owner', possibleDuplicate: true })]);
+	});
+});
+
+// The transport document question and the shipment key.
+describe('the transport document answer and the shipment key', () => {
+	const DOC = (number: string) => ({ answer: 'number', type: 'bill_of_lading', number });
+	const raw = async (tenant: string, body: Record<string, unknown>) => {
+		as(tenant);
+		const mod: any = await import('../../src/pages/api/verify/receivables/index.ts');
+		const url = new URL(BASE);
+		const request = new Request(url, { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify(body) });
+		const res: Response = await mod.POST({ request, url, clientAddress: ip });
+		return { status: res.status, body: await res.json() };
+	};
+
+	it('a create with no answer, an unknown answer, or "It has a number" with no number is refused, and nothing is written', async () => {
+		for (const details of [undefined, {}, { transportDoc: { answer: 'maybe' } }, { transportDoc: { answer: 'number', type: 'bill_of_lading', number: '  ' } }, { transportDoc: { answer: 'number', type: 'ship', number: 'X1' } }]) {
+			const r = await raw(OWNER, { ...INVOICE, ...(details ? { details } : {}) });
+			expect(r.status).toBe(400);
+			expect(r.body).toEqual({
+				ok: false, error: 'transport_doc_required',
+				message: 'Answer the transport document question: give its number, or say there is none or that it is not known yet.',
+			});
+		}
+		expect(fake.rows('receivables')).toHaveLength(0);
+	});
+
+	it('"none" and "not known yet" are signed into the details as given', async () => {
+		for (const [i, transportDoc] of [{ answer: 'none' }, { answer: 'not_known' }].entries()) {
+			const r = await raw(OWNER, { ...INVOICE, invoiceNo: `INV-${i}`, details: { transportDoc } });
+			expect(r.status).toBe(200);
+			const row = fake.rows('receivables').find((x) => x.id === r.body.id)!;
+			expect(JSON.parse(row.details_json).transportDoc).toEqual(transportDoc);
+			expect(JSON.parse(row.manifest_json).receivable.details.transportDoc).toEqual(transportDoc);
+			expect(row.transport_doc_owner ?? null).toBeNull();
+		}
+	});
+
+	it('a number is signed only as a keyed commitment; the readable number is nowhere but the owner\'s encrypted copy', async () => {
+		const r = await raw(OWNER, { ...INVOICE, details: { transportDoc: DOC('MAEU 0123-456') } });
+		expect(r.status).toBe(200);
+		const row = fake.rows('receivables').find((x) => x.id === r.body.id)!;
+		const stored = JSON.parse(row.manifest_json).receivable.details.transportDoc;
+		expect(stored).toEqual({ answer: 'number', type: 'bill_of_lading', commitment: { kid: expect.stringMatching(/^tdc1-[0-9a-f]{12}$/), mac: expect.stringMatching(/^[0-9a-f]{64}$/) } });
+		expect(JSON.parse(row.details_json).transportDoc).toEqual(stored);
+		for (const v of [row.details_json, row.manifest_json, row.transport_doc_owner, row.fingerprint_doc]) {
+			expect(String(v)).not.toMatch(/MAEU|0123456|0123-456/);
+		}
+		expect(row.transport_doc_owner).toMatch(/^v1:/);
+	});
+
+	it('two invoices on one shipment carry different commitments, so their details alone never show the shared shipment', async () => {
+		const a = await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('MAEU0123456') } });
+		const b = await createAs(OWNER, { ...INVOICE, invoiceNo: 'INV-0099', details: { transportDoc: DOC('MAEU0123456') } });
+		const mac = (id: string) => JSON.parse(fake.rows('receivables').find((x) => x.id === id)!.details_json).transportDoc.commitment.mac;
+		expect(mac(a.id)).not.toBe(mac(b.id));
+	});
+
+	it('without the encryption key a number is refused (503) and nothing is written; "not known yet" still records', async () => {
+		vi.stubEnv('VERIFY_ENTITY_SECRET', '');
+		const r = await raw(OWNER, { ...INVOICE, details: { transportDoc: DOC('MAEU0123456') } });
+		expect(r.status).toBe(503);
+		expect(r.body).toEqual({ ok: false, error: 'transport_doc_unavailable', message: 'The transport document number cannot be recorded right now. Pick “Not known yet”, or try again later.' });
+		expect(fake.rows('receivables')).toHaveLength(0);
+		expect((await raw(OWNER, { ...INVOICE, details: { transportDoc: { answer: 'not_known' } } })).status).toBe(200);
+	});
+
+	it('the lookup gives the owner their own copy and nobody else the number', async () => {
+		const r = await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('B/L MAEU 0123-456') } });
+		as(OWNER);
+		const own = await call('lookup', 'GET', { query: `?id=${r.id}` });
+		expect(own.body.receivable.transportDocNumber).toBe('B/L MAEU 0123-456');
+		for (const viewer of [RIVAL, null]) {
+			as(viewer);
+			const other = await call('lookup', 'GET', { query: `?id=${r.id}` });
+			expect(other.body.receivable).not.toHaveProperty('transportDocNumber');
+			expect(JSON.stringify(other.body)).not.toMatch(/MAEU|0123456/);
+		}
+	});
+
+	it('another lender checks a number it holds and gets only a yes or no, with typing differences matching', async () => {
+		const r = await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('B/L No. MAEU 0123-456') } });
+		const none = await createAs(OWNER, { ...INVOICE, invoiceNo: 'INV-7', details: { transportDoc: { answer: 'none' } } });
+		as(LENDER);
+		const yes = await call('transport-doc-check', 'POST', { body: { receivableId: r.id, number: 'maeu0123456' } });
+		expect(yes.status).toBe(200);
+		expect(yes.body).toEqual({ ok: true, match: true });
+		const no = await call('transport-doc-check', 'POST', { body: { receivableId: r.id, number: 'MAEU0123457' } });
+		expect(no.body).toEqual({ ok: true, match: false });
+		expect((await call('transport-doc-check', 'POST', { body: { receivableId: none.id, number: 'X1' } })).status).toBe(409);
+		expect((await call('transport-doc-check', 'POST', { body: { receivableId: 'ab'.repeat(32), number: 'X1' } })).status).toBe(404);
+		as(null);
+		expect((await call('transport-doc-check', 'POST', { body: { receivableId: r.id, number: 'maeu0123456' } })).status).toBe(401);
+	});
+
+	it('a commitment made under a retired key is still checkable once the key is listed as retired', async () => {
+		const oldKey = process.env.RECEIVABLES_FINGERPRINT_KEY!;
+		const r = await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('MAEU0123456') } });
+		vi.stubEnv('RECEIVABLES_FINGERPRINT_KEY', randomBytes(32).toString('hex'));
+		as(LENDER);
+		expect((await call('transport-doc-check', 'POST', { body: { receivableId: r.id, number: 'MAEU0123456' } })).status).toBe(503);
+		vi.stubEnv('RECEIVABLES_FINGERPRINT_RETIRED_KEYS', oldKey);
+		expect((await call('transport-doc-check', 'POST', { body: { receivableId: r.id, number: 'MAEU0123456' } })).body).toEqual({ ok: true, match: true });
+	});
+
+	it('a reissued invoice against the same bill of lading matches on the shipment alone, at another amount and number', async () => {
+		await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('B/L No. MAEU 0123-456') } });
+		const second = await createAs(RIVAL, { ...INVOICE, invoiceNo: 'INV-0099', face: 1250, details: { transportDoc: DOC('maeu0123456') } });
+		expect(second.duplicateCheck).toEqual({ state: 'possible_duplicate', basis: 'same_shipment', encumbered: false, anySettled: false, hasDebtorReference: false });
+	});
+
+	it('"none" and "not known yet" never match each other', async () => {
+		await createAs(OWNER, { ...INVOICE, details: { transportDoc: { answer: 'none' } } });
+		const a = await createAs(RIVAL, { ...INVOICE, invoiceNo: 'INV-0099', details: { transportDoc: { answer: 'none' } } });
+		const b = await createAs(RIVAL, { ...INVOICE, invoiceNo: 'INV-0100', details: { transportDoc: { answer: 'not_known' } } });
+		expect(a.duplicateCheck.state).toBe('no_match');
+		expect(b.duplicateCheck.state).toBe('no_match');
+	});
+
+	it('a verified claim on a shipment-only match is asked about, financed or not, with words that never say financed', async () => {
+		await createAs(OWNER, { ...INVOICE, details: { transportDoc: DOC('MAEU0123456') } });
+		const second = await createAs(RIVAL, { ...INVOICE, invoiceNo: 'INV-0099', face: 1250, details: { transportDoc: DOC('MAEU0123456') } });
+		as(LENDER);
+		const r = await call('claim', 'POST', { body: { receivableId: second.id, financier: 'Lender Co', amount: 100, acceptsWarnings: true } });
+		expect(r.status).toBe(409);
+		expect(r.body.error).toBe('possible_duplicate');
+		expect(r.body.duplicateCheck.basis).toBe('same_shipment');
+		expect(r.body.message).toContain('ask the buyer who owes this invoice which invoices it has for this shipment');
+		expect(r.body.message).not.toMatch(/financed|duplicate check|recorded as/i);
+	});
+
+	it('the book tags a shipment-only match "same shipment" for a verified account, and sends the flag to no other', async () => {
+		await createAs(RIVAL, { ...INVOICE, details: { transportDoc: DOC('MAEU0123456') } });
+		const mine = await createAs(OWNER, { ...INVOICE, invoiceNo: 'INV-0099', face: 1250, details: { transportDoc: DOC('MAEU0123456') } });
+		as(OWNER);
+		const verified = await call('index', 'GET');
+		const row = verified.body.receivables.find((x: any) => x.id === mine.id);
+		expect(row).toMatchObject({ possibleDuplicate: true, sameShipment: true });
+		mem.verified = false;
+		const plain = await call('index', 'GET');
+		const prow = plain.body.receivables.find((x: any) => x.id === mine.id);
+		expect(prow.possibleDuplicate).toBe(true);
+		expect(prow).not.toHaveProperty('sameShipment');
+	});
+
+	it('Verify now says when the shipment could not be compared because it was not known yet', async () => {
+		const r = await createAs(OWNER, { ...INVOICE, details: { buyerRef: 'PO-77', transportDoc: { answer: 'not_known' } } });
+		const v = await call('reverify', 'POST', { body: { receivableId: r.id } });
+		const row = v.body.checks.find((c: any) => c.key === 'duplicate');
+		expect(row).toMatchObject({ state: 'warn', detail: 'The transport document was not known when this receivable was recorded, so the check could not compare the shipment.' });
 	});
 });

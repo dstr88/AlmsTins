@@ -17,6 +17,7 @@ import '@/components/receivables/fragments.css';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
+import TransportDocField from '@/components/receivables/TransportDocField/TransportDocField.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import AccountMenu from '@/components/verify/AccountMenu.astro';
@@ -164,6 +165,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <label>Debtor (owes you)<input id="f-buy" data-rcv-field="buyer" placeholder="Their company" autocomplete="off" /></label>
         <label>Invoice number<input id="f-inv" data-rcv-field="invoiceNo" placeholder="INV-2093" autocomplete="off" /></label>
         <BuyerRefField variant="client" id="f-ref" />
+        <TransportDocField variant="client" id="f-tdoc" />
         <label>Face value<input id="f-face" data-rcv-field="face" type="number" step="0.01" min="0" placeholder="50000000" /></label>
         <label>Currency
           <select id="f-ccy" data-rcv-field="currency">
@@ -256,6 +258,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
   <script>
     import { formatMoney } from '@/lib/receivables/client/money';
     import * as hostBridge from '@/lib/receivables/client/hostBridge';
+    import { readTransportDoc } from '@/components/receivables/TransportDocField/transportDocField.client';
+    import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
     import { anchorAfterWrite } from '@/lib/receivables/client/anchorAfterWrite';
     import { copyText } from '@/lib/receivables/client/copyText';
@@ -279,6 +283,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const face = Number(val('f-face'));
       if (!supplier || !buyer || !invoiceNo) { show(out, 'Your company, the debtor, and the invoice number are all required.', 'note-loss'); return; }
       if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
+      const transportDoc = readTransportDoc(document.getElementById('rec-card') ?? document);
+      if (!transportDoc) { show(out, esc(TRANSPORT_DOC_REQUIRED), 'note-loss'); return; }
       show(out, 'Signing and recording…');
       try {
         const r = await fetch('/api/verify/receivables', {
@@ -287,7 +293,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             supplier, buyer, invoiceNo, face,
             currency: val('f-ccy') || 'NGN',
             terms: val('f-terms') || null,
-            dueDate: val('f-due') || null, details: { buyerRef: val('f-ref') || null },
+            dueDate: val('f-due') || null, details: { buyerRef: val('f-ref') || null, transportDoc },
             isTest: (document.getElementById('f-test') as HTMLInputElement)?.checked === true,
           }),
         });

@@ -25,6 +25,11 @@ describe('precheckReady', () => {
 		expect(precheckReady({ ...FIELDS, supplier: '', invoiceNo: '', buyerRef: 'PO-7' })).toBe(true);
 	});
 
+	it('a transport document number with the client is enough in place of the invoice number', () => {
+		expect(precheckReady({ ...FIELDS, invoiceNo: '', transportDocNumber: 'MAEU 0123456' })).toBe(true);
+		expect(precheckReady({ ...FIELDS, supplier: '', invoiceNo: '', transportDocNumber: 'MAEU 0123456' })).toBe(false);
+	});
+
 	it('the invoice number needs the client (the invoice key compares both)', () => {
 		expect(precheckReady({ ...FIELDS, supplier: '' })).toBe(false);
 		expect(precheckReady({ ...FIELDS, invoiceNo: '' })).toBe(false);
@@ -42,6 +47,13 @@ describe('precheckBody', () => {
 		expect(precheckBody(FIELDS)).toEqual({ supplier: 'Lagos Foods Ltd', buyer: 'MegaRetail PLC', invoiceNo: 'INV-42', face: 1000, currency: 'NGN', isTest: false });
 	});
 
+	it('details.transportDoc only with a number, sent as type "other"', () => {
+		expect(precheckBody({ ...FIELDS, transportDocNumber: 'MAEU 0123456' }).details).toEqual({
+			transportDoc: { answer: 'number', type: 'other', number: 'MAEU 0123456' },
+		});
+		expect(precheckBody({ ...FIELDS, transportDocNumber: '' })).not.toHaveProperty('details');
+	});
+
 	it('details.buyerRef only when a reference is filled; isTest carried', () => {
 		expect(precheckBody({ ...FIELDS, buyerRef: 'PO-7', isTest: true })).toEqual({
 			supplier: 'Lagos Foods Ltd', buyer: 'MegaRetail PLC', invoiceNo: 'INV-42', face: 1000, currency: 'NGN', isTest: true, details: { buyerRef: 'PO-7' },
@@ -52,8 +64,9 @@ describe('precheckBody', () => {
 describe('readPrecheckFields', () => {
 	const form = (vals: Record<string, { value?: string; checked?: boolean }>) => ({
 		querySelector: (sel: string) => {
-			const m = /^\[data-rcv-field="([\w-]+)"\]$/.exec(sel);
-			return m && vals[m[1]] ? vals[m[1]] : null;
+			const m = /^\[data-rcv-field="([\w-]+)"\](:checked)?$/.exec(sel);
+			const hit = m && vals[m[1]] ? vals[m[1]] : null;
+			return hit && m![2] && !hit.checked ? null : hit;
 		},
 	}) as unknown as ParentNode;
 
@@ -61,12 +74,19 @@ describe('readPrecheckFields', () => {
 		expect(readPrecheckFields(form({
 			supplier: { value: ' Lagos Foods ' }, buyer: { value: 'Mega' }, invoiceNo: { value: 'INV-1' }, face: { value: ' 50 ' },
 			currency: { value: 'USD' }, buyerRef: { value: ' PO-9 ' }, 'test-mode': { checked: true },
-		}))).toEqual({ supplier: 'Lagos Foods', buyer: 'Mega', invoiceNo: 'INV-1', face: '50', currency: 'USD', buyerRef: 'PO-9', isTest: true });
+		}))).toEqual({ supplier: 'Lagos Foods', buyer: 'Mega', invoiceNo: 'INV-1', face: '50', currency: 'USD', buyerRef: 'PO-9', transportDocNumber: '', isTest: true });
+	});
+
+	it('the transport document number only while "It has a number" is picked', () => {
+		const number = { transportDocNumber: { value: ' MAEU 0123456 ' } };
+		expect(readPrecheckFields(form({ ...number, transportDocAnswer: { value: 'number', checked: true } })).transportDocNumber).toBe('MAEU 0123456');
+		expect(readPrecheckFields(form({ ...number, transportDocAnswer: { value: 'none', checked: true } })).transportDocNumber).toBe('');
+		expect(readPrecheckFields(form({ ...number, transportDocAnswer: { value: 'number', checked: false } })).transportDocNumber).toBe('');
 	});
 
 	it('"__other" reads the free-text currency; a missing field reads empty; no test field is real', () => {
 		expect(readPrecheckFields(form({ currency: { value: '__other' }, 'currency-other': { value: ' xof ' } }))).toEqual({
-			supplier: '', buyer: '', invoiceNo: '', face: '', currency: 'xof', buyerRef: '', isTest: false,
+			supplier: '', buyer: '', invoiceNo: '', face: '', currency: 'xof', buyerRef: '', transportDocNumber: '', isTest: false,
 		});
 	});
 });

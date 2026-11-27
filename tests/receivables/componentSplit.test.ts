@@ -215,13 +215,20 @@ describe('host pages', () => {
 			for (const tag of S4_TAGS[h]) expect(s.split(tag).length - 1, tag).toBe(1);
 			expect((s.match(/<DuplicateFlag\b/g) ?? []).length).toBe(2);
 			expect((s.match(/<BuyerRefField\b/g) ?? []).length).toBe(1);
+			// The transport document question, once, right after the debtor reference.
+			expect((s.match(/<TransportDocField\b/g) ?? []).length).toBe(1);
+			expect(s).toMatch(/<BuyerRefField [^\n]*\/>\n\s*<TransportDocField variant="\w+" id="[\w-]+" \/>/);
 		});
 		it(`${h}: the create form is one root, and its fields are marked for the live check (S4)`, () => {
 			const s = src();
-			expect(s.split('data-rcv-root="create-form"').length - 1).toBe(1);
+			// Counted in the markup: an inline script may select the root by the same attribute.
+			const markup = s.replace(/<script>[\s\S]*?<\/script>/g, '');
+			expect(markup.split('data-rcv-root="create-form"').length - 1).toBe(1);
 			for (const f of ['supplier', 'buyer', 'invoiceNo', 'face', 'currency']) expect(s.split(`data-rcv-field="${f}"`).length - 1, f).toBe(1);
 			// The debtor reference is marked inside BuyerRefField, never on the host.
 			expect(s).not.toContain('data-rcv-field="buyerRef"');
+			// So are the transport document fields, inside TransportDocField.
+			expect(s).not.toMatch(/data-rcv-field="transportDoc/);
 		});
 		it(`${h}: imports fragments.css once in frontmatter`, () => {
 			expect(frontmatter(src()).match(/^import '@\/components\/receivables\/fragments\.css';$/gm)).toHaveLength(1);

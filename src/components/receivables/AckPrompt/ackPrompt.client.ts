@@ -26,7 +26,7 @@ export type AckWarning =
 	| { code: 'diligence_required' }
 	| { code: 'exceeds_headroom'; available: string; requested: string; claimed: string }
 	/** S4: another record at Almstins matches; `lines` from duplicateView (claimDuplicateLines). */
-	| { code: 'possible_duplicate'; lines: readonly string[] };
+	| { code: 'possible_duplicate'; lines: readonly string[]; title?: string };
 
 export interface AskOptions {
 	/** Called after "Not now" has closed the prompt (the ask has answered null). */
@@ -77,6 +77,9 @@ export function askToAcknowledge(root: HTMLElement, warnings: readonly AckWarnin
 	}
 	if (w.code === 'possible_duplicate') {
 		body.querySelectorAll<HTMLElement>('[data-ack-slot="duplicate-body"]').forEach((el) => { el.textContent = w.lines.join(' '); });
+		// A shipment-only match has its own title ("Same shipment seen before.").
+		const title = w.title;
+		if (title) body.querySelectorAll<HTMLElement>('[data-ack-title]').forEach((el) => { el.textContent = title; });
 	}
 	root.hidden = false;
 	body.querySelector<HTMLElement>('[data-ack-title]')?.focus();

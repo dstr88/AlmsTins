@@ -101,4 +101,31 @@ export const TAG_POSSIBLE_DUPLICATE_TITLE = 'Another record at Almstins matches 
 
 /** The desk's "Before you advance": what the duplicate check does not prove. */
 export const NOT_PROVEN_DUPLICATE_TITLE = 'That the invoice is not a duplicate';
-export const NOT_PROVEN_DUPLICATE_DETAIL = 'The duplicate check compares this invoice with other records at Almstins: the same debtor and debtor’s reference, or the same debtor, client and invoice number, at the same amount and currency. Small differences in typing still match. A different amount or currency, or a debtor named differently, does not match. A client named differently, or a different invoice number, matches only through the same debtor reference. Records kept outside Almstins are not compared.';
+export const NOT_PROVEN_DUPLICATE_DETAIL = 'The duplicate check compares this invoice with other records at Almstins: the same buyer and the buyer’s own reference, or the same buyer, client and invoice number, at the same amount and currency; or the same buyer, client and transport document, at any amount. Small differences in typing still match. A different amount or currency does not match, except on the transport document. A buyer named differently does not match at all. A client named differently, or a different invoice number, matches only through the same buyer reference. Records kept outside Almstins are not compared, so no match means only that no record here matched.';
+
+// ── The shipment key: the same transport document for the same buyer and client, any amount ──
+// One shipment often carries several genuine invoices, so these lines never say "duplicate" or
+// "financed": they send the lender to the buyer who owes the invoice, with two plain questions.
+
+/** The flag's title, the claim prompt's title and Verify now's line lead for a shipment-only match. */
+export const SHIPMENT_FLAG_TITLE = 'Same shipment seen before.';
+
+/** A lender (desk, registry), any phase, a verified account: the match is on the shipment key alone. */
+export const DUPLICATE_DETAIL_SAME_SHIPMENT = 'Another record at Almstins cites the same transport document for this buyer and client. One shipment can carry several genuine invoices, such as part deliveries or a provisional and a final invoice. Before you advance, ask the buyer who owes this invoice which invoices it has for this shipment, and whether it has been told to pay any of them to someone else.';
+
+/** Client Portal, a verified account: the match is on the shipment key alone. */
+export const CLIENT_SAME_SHIPMENT = 'Another record at Almstins cites the same transport document for this buyer. If it is another invoice for the same shipment, such as a part delivery, your financier may ask the buyer about it.';
+
+/** Verify now, pass, when a transport document number is recorded too. */
+export const DUPLICATE_DETAIL_PASS_WITH_SHIPMENT = 'No other record at Almstins matches this invoice, on the buyer’s own reference, the invoice number or the transport document.';
+
+/** Verify now, warn: the transport document was "not known yet" when the receivable was recorded. */
+export const DUPLICATE_DETAIL_SHIPMENT_NOT_KNOWN = 'The transport document was not known when this receivable was recorded, so the check could not compare the shipment.';
+
+/** The book tag beside a row whose only matches are on the shipment key (a verified account). */
+export const TAG_SAME_SHIPMENT = 'same shipment';
+export const TAG_SAME_SHIPMENT_TITLE = 'Another record at Almstins cites the same transport document for this buyer and client.';
+
+/** The 409 possible_duplicate answer to a claim from a verified caller when the match is on the
+ *  shipment key alone, financed or not. */
+export const POSSIBLE_SAME_SHIPMENT_MESSAGE = 'Another record at Almstins cites the same transport document for this buyer and client. Before you advance, ask the buyer who owes this invoice which invoices it has for this shipment, and whether it has been told to pay any of them to someone else. To record your claim anyway, send it again acknowledging possible_duplicate.';

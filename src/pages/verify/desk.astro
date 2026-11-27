@@ -20,6 +20,8 @@ import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
+import TransportDocField from '@/components/receivables/TransportDocField/TransportDocField.astro';
+import TransportDocCheck from '@/components/receivables/TransportDocCheck/TransportDocCheck.astro';
 import NoticeInbox from '@/components/receivables/NoticeInbox/NoticeInbox.astro';
 import PlanLine from '@/components/receivables/PlanLine/PlanLine.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
@@ -581,6 +583,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
           </select>
         </label>
         <BuyerRefField variant="desk" id="n-ref" />
+        <TransportDocField variant="desk" id="n-tdoc" />
       </div>
 
       <details class="more">
@@ -726,6 +729,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <h2>The record</h2>
         <p class="hint">What the parties have put their name to.</p>
         <div id="facts" class="facts"></div>
+        <TransportDocCheck id="rv-tdc" />
         <div id="evidence" class="evidence"></div>
       </div>
 
@@ -865,6 +869,10 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     import { formatMoney } from '@/lib/receivables/client/money';
     import * as hostBridge from '@/lib/receivables/client/hostBridge';
     import { submitClaim, type ClaimInput, type NoteTone } from '@/components/receivables/claimFlow.client';
+    import { readTransportDoc, clearTransportDoc } from '@/components/receivables/TransportDocField/transportDocField.client';
+    import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
+    import { transportDocFact } from '@/lib/receivables/transportDocView';
+    import { readExtras } from '@/lib/receivables/client/formFields';
     import { CLAIM_COPY_DESK, CLAIM_CHECK_FIRST, CLAIM_NEED_FIRM, CLAIM_NEED_AMOUNT } from '@/lib/receivables/copy/claim';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
     import { anchorChecklist, anchorEvidence } from '@/lib/receivables/anchorView';
@@ -969,6 +977,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       document.getElementById('facts')!.innerHTML =
         f('Client', r.supplier) + f('Debtor', r.buyer) + f('Invoice', r.invoiceNo) +
         (det.buyerRef ? f("Debtor's ref", det.buyerRef) : '') +
+        ((t) => f(t.label, t.value))(transportDocFact(det, r.transportDocNumber)) +
         (det.invoiceDate ? f('Invoiced', det.invoiceDate) : '') +
         (det.deliveryDate ? f('Delivered', det.deliveryDate) : '') +
         f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
@@ -1372,13 +1381,6 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       l.focus();
     }
 
-    function readExtras(): Array<{ label: string; value: string }> {
-      return Array.from(document.querySelectorAll('#n-extra .xrow')).map((r) => {
-        const [l, v] = Array.from(r.querySelectorAll('input')) as HTMLInputElement[];
-        return { label: (l?.value ?? '').trim(), value: (v?.value ?? '').trim() };
-      }).filter((e) => e.label && e.value);
-    }
-
     async function createDeal() {
       const out = $('n-out') as unknown as HTMLElement;
       const supplier = val('n-sup'), buyer = val('n-buy'), invoiceNo = val('n-inv');
@@ -1387,6 +1389,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         show(out, 'Client, debtor and invoice number are all needed.', 'note-loss'); return;
       }
       if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
+      const transportDoc = readTransportDoc(document.getElementById('n-intake') ?? document);
+      if (!transportDoc) { show(out, esc(TRANSPORT_DOC_REQUIRED), 'note-loss'); return; }
 
       show(out, 'Signing and recording…');
       try {
@@ -1402,9 +1406,10 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
               invoiceDate: val('n-idate') || null,
               deliveryDate: val('n-ddate') || null,
               buyerRef: val('n-ref') || null,
+              transportDoc,
               goods: val('n-goods') || null,
               paymentInstructions: val('n-pay') || null,
-              extra: readExtras(),
+              extra: readExtras(document.getElementById('n-extra')),
             },
           }),
         });
@@ -1522,6 +1527,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 
       ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail','n-crid']
         .forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+      clearTransportDoc(document.getElementById('n-intake') ?? document);
       const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
       chosenFiles = []; renderFileList();
       hide($('n-out') as unknown as HTMLElement);

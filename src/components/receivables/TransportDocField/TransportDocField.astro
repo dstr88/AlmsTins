@@ -1,0 +1,50 @@
+---
+// TransportDocField: the transport document question on a create form. Markup only: the page reads
+// the answer with readTransportDoc (transportDocField.client.ts) and sends it as
+// details.transportDoc, and the live duplicate check reads it the same way.
+//
+// Three answers, none picked in advance: the number with its type, "No transport document", or
+// "Not known yet". The type and number show only once "It has a number" is picked (CSS :has, no
+// script). The page refuses to save until one is picked. `id` prefixes every control's page ID;
+// `variant` sets each page's own field markup, like BuyerRefField. On the Client Portal a line says
+// the answer is the client's own.
+import './TransportDocField.css';
+import {
+	TRANSPORT_DOC_ANSWER_NONE, TRANSPORT_DOC_ANSWER_NOT_KNOWN, TRANSPORT_DOC_ANSWER_NUMBER, TRANSPORT_DOC_CLIENT_NOTE,
+	TRANSPORT_DOC_HINT, TRANSPORT_DOC_LEGEND, TRANSPORT_DOC_NUMBER_LABEL, TRANSPORT_DOC_NUMBER_PLACEHOLDER,
+	TRANSPORT_DOC_TYPE_LABEL, TRANSPORT_DOC_TYPE_NAMES,
+} from '@/lib/receivables/copy/transportDoc';
+import { TRANSPORT_DOC_NUMBER_MAX, TRANSPORT_DOC_TYPES } from '@/lib/receivables/transportDoc';
+
+interface Props { id: string; variant: 'desk' | 'registry' | 'client' }
+const { id, variant } = Astro.props;
+const hintId = `${id}-hint`;
+const answers = [
+	{ value: 'number', label: TRANSPORT_DOC_ANSWER_NUMBER },
+	{ value: 'none', label: TRANSPORT_DOC_ANSWER_NONE },
+	{ value: 'not_known', label: TRANSPORT_DOC_ANSWER_NOT_KNOWN },
+];
+---
+<fieldset class={`tdf tdf--${variant}`} data-rcv-transport-doc aria-describedby={hintId}>
+	<legend class="tdf__legend">{TRANSPORT_DOC_LEGEND}</legend>
+	<p class="tdf__hint" id={hintId}>{TRANSPORT_DOC_HINT}</p>
+	<div class="tdf__answers">
+		{answers.map((a) => (
+			<label class="tdf__answer">
+				<input type="radio" name={`${id}-answer`} id={`${id}-${a.value}`} value={a.value} data-rcv-field="transportDocAnswer" required />
+				<span>{a.label}</span>
+			</label>
+		))}
+	</div>
+	<div class="tdf__number">
+		<label class="tdf__sub" for={`${id}-type`}>{TRANSPORT_DOC_TYPE_LABEL}
+			<select id={`${id}-type`} data-rcv-field="transportDocType">
+				{TRANSPORT_DOC_TYPES.map((t) => <option value={t}>{TRANSPORT_DOC_TYPE_NAMES[t]}</option>)}
+			</select>
+		</label>
+		<label class="tdf__sub" for={`${id}-number`}>{TRANSPORT_DOC_NUMBER_LABEL}
+			<input id={`${id}-number`} type="text" data-rcv-field="transportDocNumber" placeholder={TRANSPORT_DOC_NUMBER_PLACEHOLDER} autocomplete="off" maxlength={TRANSPORT_DOC_NUMBER_MAX} />
+		</label>
+	</div>
+	{variant === 'client' && <p class="tdf__hint">{TRANSPORT_DOC_CLIENT_NOTE}</p>}
+</fieldset>

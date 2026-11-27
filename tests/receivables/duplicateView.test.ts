@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-	bookDuplicateIds, claimDuplicateLines, duplicateFlagView, recordIsPossibleDuplicate,
+	bookDuplicateIds, bookSameShipmentIds, claimDuplicateLines, claimDuplicateTitle, duplicateFlagView, recordIsPossibleDuplicate,
 	type DuplicatePhase, type DuplicateVariant,
 } from '../../src/lib/receivables/duplicateView';
 import * as copy from '../../src/lib/receivables/copy/duplicate';
@@ -26,7 +26,7 @@ const publicTier = (state: string, hasDebtorReference: boolean) => ({ duplicateC
 describe('a possible duplicate', () => {
 	it('verified, recorded as financed: the Addendum A line while typing, the financed line after', () => {
 		expect(duplicateFlagView(full(), 'precheck')).toEqual({
-			tone: 'caution', lines: [copy.PRECHECK_FINANCED, copy.PRECHECK_PROCEED], ownMatches: [],
+			tone: 'caution', tag: 'possible_duplicate', lines: [copy.PRECHECK_FINANCED, copy.PRECHECK_PROCEED], ownMatches: [],
 		});
 		expect(copy.PRECHECK_FINANCED).toBe('This invoice may already be financed. Check with the debtor before you advance.');
 		expect(duplicateFlagView(full(), 'created')?.lines).toEqual([copy.DUPLICATE_DETAIL_FINANCED]);
@@ -106,6 +106,50 @@ describe('own matches', () => {
 	});
 });
 
+describe('a shipment-only match (same_shipment)', () => {
+	const shipment = (over: Record<string, unknown> = {}) => full({ basis: 'same_shipment', ...over });
+
+	it('verified: the "same shipment" tag and the shipment line, never the financed line, even when financed', () => {
+		for (const encumbered of [true, false]) {
+			expect(duplicateFlagView(shipment({ encumbered }), 'precheck')).toEqual({
+				tone: 'caution', tag: 'same_shipment', lines: [copy.DUPLICATE_DETAIL_SAME_SHIPMENT, copy.PRECHECK_PROCEED], ownMatches: [],
+			});
+			expect(duplicateFlagView(shipment({ encumbered }), 'created')?.lines).toEqual([copy.DUPLICATE_DETAIL_SAME_SHIPMENT]);
+			expect(duplicateFlagView(shipment({ encumbered }), 'claim')?.lines).toEqual([copy.DUPLICATE_DETAIL_SAME_SHIPMENT, copy.CLAIM_DUPLICATE_SIGNED]);
+		}
+	});
+
+	it('the client portal reads its own shipment line', () => {
+		for (const phase of ['precheck', 'created'] as const) {
+			const v = duplicateFlagView(shipment(), phase, 'client')!;
+			expect(v.tag).toBe('same_shipment');
+			expect(v.lines[0]).toBe(copy.CLIENT_SAME_SHIPMENT);
+		}
+	});
+
+	it('the record view keeps the plain tag and line, so the public lookup says no more than the state', () => {
+		for (const variant of VARIANTS) {
+			expect(duplicateFlagView(shipment(), 'record', variant)).toMatchObject({ tag: 'possible_duplicate' });
+		}
+		expect(duplicateFlagView(shipment(), 'record')?.lines).toEqual([copy.DUPLICATE_DETAIL_ANY_MATCH]);
+	});
+
+	it('every other basis, and the state alone, keep the "possible duplicate" tag', () => {
+		for (const basis of ['invoice_and_reference', 'invoice_number', 'debtor_reference_only']) {
+			for (const phase of PHASES) expect(duplicateFlagView(full({ basis }), phase)?.tag).toBe('possible_duplicate');
+		}
+		for (const phase of PHASES) expect(duplicateFlagView(stateOnly('possible_duplicate'), phase)?.tag).toBe('possible_duplicate');
+	});
+
+	it('claimDuplicateTitle: the shipment title only for a shipment-only answer', () => {
+		expect(claimDuplicateTitle(shipment().duplicateCheck)).toBe(copy.SHIPMENT_FLAG_TITLE);
+		for (const dc of [full().duplicateCheck, { state: 'possible_duplicate' }, undefined, null, 'x']) {
+			expect(claimDuplicateTitle(dc), JSON.stringify(dc)).toBe(copy.DUPLICATE_FLAG_TITLE);
+		}
+		expect(copy.DUPLICATE_FLAG_TITLE).toBe('Possible duplicate.');
+	});
+});
+
 describe('anything that is not a possible duplicate', () => {
 	it('while typing, on the record and at claim time: nothing, whatever the state', () => {
 		for (const phase of ['precheck', 'record', 'claim'] as const) {
@@ -116,10 +160,11 @@ describe('anything that is not a possible duplicate', () => {
 	});
 
 	it('just after saving: a muted note when the check could not run, or when no debtor reference was recorded', () => {
-		expect(duplicateFlagView(publicTier('unavailable', true), 'created')).toEqual({ tone: 'muted', lines: [copy.DUPLICATE_DETAIL_UNAVAILABLE], ownMatches: [] });
+		// A muted note shows no tag (the flag renders a pill only for a caution), whatever tag it carries.
+		expect(duplicateFlagView(publicTier('unavailable', true), 'created')).toEqual({ tone: 'muted', tag: 'possible_duplicate', lines: [copy.DUPLICATE_DETAIL_UNAVAILABLE], ownMatches: [] });
 		expect(duplicateFlagView(stateOnly('unavailable'), 'created')?.lines).toEqual([copy.DUPLICATE_DETAIL_UNAVAILABLE]);
 		expect(duplicateFlagView(full({ state: 'no_match', basis: null, encumbered: false, hasDebtorReference: false }), 'created')).toEqual({
-			tone: 'muted', lines: [copy.DUPLICATE_DETAIL_NO_REFERENCE], ownMatches: [],
+			tone: 'muted', tag: 'possible_duplicate', lines: [copy.DUPLICATE_DETAIL_NO_REFERENCE], ownMatches: [],
 		});
 	});
 
@@ -155,6 +200,17 @@ describe('book and record helpers', () => {
 		expect(bookDuplicateIds(null).size).toBe(0);
 	});
 
+	it('bookSameShipmentIds: a shipment-only row gets the "same shipment" tag in place of "possible duplicate"', () => {
+		const rows = [
+			{ id: 'a', possibleDuplicate: true, sameShipment: true }, { id: 'b', possibleDuplicate: true, sameShipment: false },
+			{ id: 'c', possibleDuplicate: true, sameShipment: null }, { id: 'd', possibleDuplicate: false, sameShipment: true },
+			{ id: 'e', possibleDuplicate: null, sameShipment: null },
+		];
+		expect([...bookSameShipmentIds(rows)]).toEqual(['a']);
+		expect([...bookDuplicateIds(rows)]).toEqual(['b', 'c']);
+		expect(bookSameShipmentIds(undefined).size).toBe(0);
+	});
+
 	it('recordIsPossibleDuplicate reads the lookup state', () => {
 		expect(recordIsPossibleDuplicate(publicTier('possible_duplicate', true))).toBe(true);
 		expect(recordIsPossibleDuplicate(publicTier('no_match', true))).toBe(false);
@@ -165,7 +221,7 @@ describe('book and record helpers', () => {
 describe('wording', () => {
 	it('every line any view can show is free of em dashes and accusations, and never says "blocked"', () => {
 		const answers = [
-			full(), full({ encumbered: false }), full({ basis: 'debtor_reference_only' }), stateOnly('possible_duplicate'),
+			full(), full({ encumbered: false }), full({ basis: 'debtor_reference_only' }), full({ basis: 'same_shipment' }), stateOnly('possible_duplicate'),
 			publicTier('unavailable', false), full({ state: 'no_match', basis: null, encumbered: false, hasDebtorReference: false }),
 		];
 		for (const a of answers) for (const phase of PHASES) for (const variant of VARIANTS) {
