@@ -40,19 +40,23 @@ export interface AnchorSpecEntry {
    *  limited then). The other kinds are stamped through /api/verify/receivables/anchor, and
    *  diligence acceptances (kind attestation) also when they are recorded. */
   readonly cronStamps: boolean;
+  /** The column that names the receivable this record belongs to: `id` on the receivables
+   *  table itself (the receivable and its settlement), `receivable_id` everywhere else. The
+   *  owner's list of proof files on one receivable (listOwnProofRecords) reads it. */
+  readonly receivableColumn: 'id' | 'receivable_id';
 }
 
 export const ANCHOR_SPEC = {
-  receivable: { table: 'receivables', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  claim: { table: 'receivable_claims', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  attestation: { table: 'receivable_attestations', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false },
-  reverification: { table: 'receivable_reverifications', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
-  claim_discharge: { table: 'receivable_claims', digestColumn: 'discharge_digest', anchorColumn: 'discharge_anchor_json', manifestColumn: 'discharge_json', signatureColumn: 'discharge_signature_json', writtenAtColumn: 'discharge_recorded_at', addedColumns: true, cronStamps: true },
-  settlement: { table: 'receivables', digestColumn: 'settlement_digest', anchorColumn: 'settlement_anchor_json', manifestColumn: 'settlement_json', signatureColumn: 'settlement_signature_json', writtenAtColumn: 'settlement_recorded_at', addedColumns: true, cronStamps: true },
+  receivable: { table: 'receivables', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false, receivableColumn: 'id' },
+  claim: { table: 'receivable_claims', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false, receivableColumn: 'receivable_id' },
+  attestation: { table: 'receivable_attestations', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: false, receivableColumn: 'receivable_id' },
+  reverification: { table: 'receivable_reverifications', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true, receivableColumn: 'receivable_id' },
+  claim_discharge: { table: 'receivable_claims', digestColumn: 'discharge_digest', anchorColumn: 'discharge_anchor_json', manifestColumn: 'discharge_json', signatureColumn: 'discharge_signature_json', writtenAtColumn: 'discharge_recorded_at', addedColumns: true, cronStamps: true, receivableColumn: 'receivable_id' },
+  settlement: { table: 'receivables', digestColumn: 'settlement_digest', anchorColumn: 'settlement_anchor_json', manifestColumn: 'settlement_json', signatureColumn: 'settlement_signature_json', writtenAtColumn: 'settlement_recorded_at', addedColumns: true, cronStamps: true, receivableColumn: 'id' },
   // Aging A1: a claim's extended/unpaid status events (receivable_status_events is created with
   // the base ensure, so no added-columns gate). Stamped in-request by the extend/unpaid routes
   // (anchorNow); the cron retries a stamp that failed or was rate limited then.
-  status_event: { table: 'receivable_status_events', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
+  status_event: { table: 'receivable_status_events', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true, receivableColumn: 'receivable_id' },
 } as const satisfies Record<string, AnchorSpecEntry>;
 
 export type AnchorRecordKind = keyof typeof ANCHOR_SPEC;

@@ -13,11 +13,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const reg = vi.hoisted(() => ({
 	status: vi.fn<(id: string) => Promise<any>>(),
 	own: vi.fn<(id: string, tenant: string | null | undefined) => Promise<string | null>>(),
+	proofs: vi.fn<(id: string, tenant: string | null | undefined) => Promise<Array<{ kind: string; id: string }>>>(),
 	session: null as null | { tenantId: string },
 }));
 vi.mock('@/lib/receivablesRegistry', () => ({
 	getReceivableStatus: (id: string) => reg.status(id),
 	ownTransportDocNumber: (id: string, tenant: string | null | undefined) => reg.own(id, tenant),
+	listOwnProofRecords: (id: string, tenant: string | null | undefined) => reg.proofs(id, tenant),
 }));
 // The owner's own copy of a transport document number (session read, never required).
 vi.mock('@/lib/requireTenantSession', () => ({ requireTenantSession: async () => reg.session }));
@@ -49,6 +51,7 @@ const call = async (id: string | null, ip = nextIp()) => {
 beforeEach(() => {
 	reg.status.mockReset().mockResolvedValue(null);
 	reg.own.mockReset().mockResolvedValue(null);
+	reg.proofs.mockReset().mockResolvedValue([]);
 	reg.session = null;
 });
 
@@ -80,6 +83,36 @@ describe('lookup: the transport document number', () => {
 			expect(body.receivable.details.transportDoc).toEqual({ answer });
 		}
 		expect(reg.own).not.toHaveBeenCalled();
+	});
+});
+
+describe('lookup: the owner\'s proof files', () => {
+	const MINE = [{ kind: 'receivable', id: ID }, { kind: 'claim', id: 'cd'.repeat(32) }];
+
+	it('a signed-in account gets the records it owns that have a proof file', async () => {
+		reg.session = { tenantId: 'owner-tenant' };
+		reg.status.mockResolvedValue({ id: ID, details: null });
+		reg.proofs.mockResolvedValue(MINE);
+		const { body } = await call(ID);
+		expect(body.receivable.proofFiles).toEqual(MINE);
+		expect(reg.proofs).toHaveBeenCalledWith(ID, 'owner-tenant');
+	});
+
+	it('nobody signed in, or an account that owns nothing here, gets no proofFiles key at all', async () => {
+		reg.status.mockResolvedValue({ id: ID, details: null });
+		expect((await call(ID)).body.receivable).not.toHaveProperty('proofFiles');
+		expect(reg.proofs).toHaveBeenCalledWith(ID, undefined);
+		reg.session = { tenantId: 'other-tenant' };
+		expect((await call(ID)).body.receivable).not.toHaveProperty('proofFiles');
+	});
+
+	it('a failed ownership read still answers the public status, without proofFiles', async () => {
+		reg.session = { tenantId: 'owner-tenant' };
+		reg.status.mockResolvedValue({ id: ID, details: null });
+		reg.proofs.mockRejectedValue(new Error('db down'));
+		const { res, body } = await call(ID);
+		expect(res.status).toBe(200);
+		expect(body.receivable).toEqual({ id: ID, details: null });
 	});
 });
 

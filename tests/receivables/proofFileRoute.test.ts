@@ -118,3 +118,70 @@ describe('GET /api/verify/receivables/proof-file', () => {
 		expect((await get(`kind=receivable&id=${r.id}`)).body.anchor).toBeNull();
 	});
 });
+
+describe('listOwnProofRecords: what the lookup offers for download', () => {
+	const LENDER = 'tenant-lender';
+	function seedClaim(receivableId: string, id: string, tenantId: string, over: Record<string, unknown> = {}) {
+		return fake.seed('receivable_claims', {
+			id, receivable_id: receivableId, tenant_id: tenantId, financier: 'Example Lender', amount: 400, currency: 'USD',
+			claim_date: '2026-09-02', status: 'active', manifest_json: '{}', signature_json: null,
+			digest: 'e'.repeat(64), anchor_json: null, discharged_at: null, discharge_json: null,
+			discharge_digest: null, discharge_reason: null, affirmed_at: null, affirmed_by: null,
+			created_at: '2026-09-02 10:00:00',
+			...over,
+		});
+	}
+
+	it('the owner of a receivable gets it and its settlement, never a lender\'s claim', async () => {
+		const r = await created();
+		seedClaim(r.id, 'claim-lender', LENDER);
+		expect(await reg.settleReceivable(OWNER, r.id)).toMatchObject({ ok: true });
+		expect(await reg.listOwnProofRecords(r.id, OWNER)).toEqual([
+			{ kind: 'receivable', id: r.id },
+			{ kind: 'settlement', id: r.id },
+		]);
+	});
+
+	it('a lender gets its own claim and the claim\'s release, never the receivable', async () => {
+		const r = await created();
+		seedClaim(r.id, 'claim-lender', LENDER, { discharge_json: '{}', discharge_digest: 'a'.repeat(64), discharged_at: '2026-09-09', status: 'discharged' });
+		seedClaim(r.id, 'claim-someone-else', 'tenant-third');
+		expect(await reg.listOwnProofRecords(r.id, LENDER)).toEqual([
+			{ kind: 'claim', id: 'claim-lender' },
+			{ kind: 'claim_discharge', id: 'claim-lender' },
+		]);
+	});
+
+	it('leaves out records with nothing signed to hand out, and records on another receivable', async () => {
+		const r = await created();
+		const other = await reg.createReceivable(OWNER, { ...INVOICE, invoiceNo: 'TEST-0043' } as any);
+		if (!other.ok) throw new Error('second receivable');
+		seedClaim(other.id, 'claim-elsewhere', LENDER);
+		expect(await reg.listOwnProofRecords(r.id, LENDER)).toEqual([]);
+		// Never settled: no settlement manifest, so no settlement row.
+		expect((await reg.listOwnProofRecords(r.id, OWNER)).map((x) => x.kind)).toEqual(['receivable']);
+	});
+
+	it('nothing for no tenant, and every read is scoped by tenant_id', async () => {
+		const r = await created();
+		expect(await reg.listOwnProofRecords(r.id, null)).toEqual([]);
+		const before = fake.log.length;
+		await reg.listOwnProofRecords(r.id, OWNER);
+		const reads = fake.log.slice(before).filter((s) => /^SELECT id FROM/.test(s.sql));
+		expect(reads.length).toBeGreaterThanOrEqual(5);
+		for (const s of reads) {
+			expect(s.sql).toMatch(/AND tenant_id = \? AND/);
+			expect(s.args).toEqual([r.id, OWNER]);
+		}
+	});
+
+	it('every record it lists for the owner downloads', async () => {
+		const r = await created();
+		await reg.settleReceivable(OWNER, r.id);
+		for (const { kind, id } of await reg.listOwnProofRecords(r.id, OWNER)) {
+			const { status, body } = await get(`kind=${kind}&id=${id}`);
+			expect(status).toBe(200);
+			expect(body.kind).toBe(kind);
+		}
+	});
+});

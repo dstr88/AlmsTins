@@ -10,6 +10,7 @@ import Analytics from '@/components/Analytics.astro';
 // nobody should need an account to read the manual.
 import '@/styles/tokens.css';
 import { TERMS } from '@/lib/verifyTerms';
+import { PROOF_FILE_HOW_TO_URL } from '@/lib/receivables/proofFileView';
 
 export const prerender = false;
 
@@ -75,6 +76,7 @@ const LIMITS = [
   ['An unconfirmed claim still consumes headroom.', 'So a lender could register an advance he never made and block others until somebody notices. The desk shows you which claims are unconfirmed.'],
   ['The duplicate check compares records at Almstins only.', 'It warns you when another record has the same buyer and the buyer’s own reference, or the same buyer, client and invoice number, at the same amount and currency, or the same buyer, client and transport document, at any amount, while you enter the invoice and again before you register a claim. A different amount or currency does not match, except on the transport document. A buyer named differently does not match at all. A client named differently, or a different invoice number, matches only through the same buyer reference or transport document. A match on the transport document alone reads “Same shipment seen before”: one shipment can carry several genuine invoices, so ask the buyer who owes this invoice which invoices it has for this shipment, and whether it has been told to pay any of them to someone else. Records kept outside Almstins are not compared, so no match means only that no record here matched. The decision stays yours.'],
   ['The registry only sees claims registered in it.', 'A prior undisclosed assignment, or a floating charge over all receivables, is invisible here.'],
+  ['A proof file shows what Almstins signed, and when.', 'Not that the facts in it are true, that the debt is owed or paid, or who is behind any party named in it. The file says so itself.'],
   ['A Bitcoin anchor proves a record existed by a given block.', 'That is an upper bound on its age. Legal priority is set by law, filing and notice; the anchor is evidence in that contest, not the thing that decides it.'],
   ['That only the person you sent it to opened the link.', 'The link is the permission. It can be answered once and expires in seven days, but a forwarded message lets whoever receives it read the record and the paperwork, and answer first. Send it the way you would send anything else you would not want passed on.'],
 ];
@@ -271,6 +273,17 @@ const LIMITS = [
       {EVIDENCE.map(([t, d, k]) => (
         <div class={`ev ${k}`}><div class="dot"></div><div><b>{t}</b><span>{d}</span></div></div>
       ))}
+      <p class="body" id="proof-files">
+        <strong>Proof files.</strong> Under the claims, the record lists each signed record your
+        account made on it, with a Download proof file link: the receivable, if you recorded it;
+        your claim, with its release and any extension or unpaid mark; each Verify now you ran; and
+        any statement recorded under your account. The file holds the signed record, the Almstins
+        signature with the public key that made it, and the Bitcoin timestamp. Anyone you give it to
+        can check it with the free open-source script and the public key log, using nothing from
+        almstins.com, so you can show how and when you made your claim without relying on Almstins.
+        Only your own records get a link, and another financier on the same receivable sees none for
+        yours. <a href={PROOF_FILE_HOW_TO_URL} target="_blank" rel="noopener noreferrer">How to check a proof file</a>
+      </p>
     </section>
 
     <section id="paperwork">
