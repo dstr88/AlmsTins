@@ -559,6 +559,21 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-password-signin-failed",
+    q: "Mi inicio de sesión con contraseña falló. ¿Qué hago?",
+    a: `<p>
+          El formulario de contraseña solo funciona con una cuenta creada con contraseña en la página de registro. Si sueles iniciar sesión con Google, GitHub o un enlace por email, puede que tu cuenta no tenga contraseña, y el formulario rechazará cualquiera que escribas. Inicia sesión como lo haces siempre.
+        </p>
+
+        <p>
+          El mensaje es el mismo si el email no tiene cuenta, si la cuenta no tiene contraseña o si la contraseña es incorrecta. Es a propósito: así nadie puede averiguar cómo inicia sesión una dirección concreta.
+        </p>
+
+        <p>
+          ¿Nuevo en Almstins y quieres usar una contraseña? <a href="/signup/es">Crea una cuenta</a> y abre el enlace de verificación que te enviamos por email antes de iniciar sesión.
+        </p>`,
+  },
+  {
     id: "faq-research-page",
     q: "¿Qué es la página de Research?",
     a: `<p>

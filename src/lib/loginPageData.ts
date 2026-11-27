@@ -16,8 +16,25 @@ export interface LoginPageData {
 export interface LoginAlert {
   /** Error text; 'LOCKED_OUT' is a sentinel the component renders as its own panel. */
   message: string;
+  /** Shown right after the message when a password was refused (see passwordSignupLink). */
+  signupLink: SignupLink | null;
   notice: string;
   hasAlert: boolean;
+}
+
+export interface SignupLink {
+  label: string;
+  href: string;
+}
+
+/** A password sign-in refused with no more specific code: wrong password, unknown address, or no password on the account. */
+function isPasswordFailure(error: string | null, code: string | null): boolean {
+  return error === 'CredentialsSignin' && (!code || code === 'credentials');
+}
+
+/** The "Create an account" link that follows the password-failure message, or null for any other error. */
+export function passwordSignupLink(t: LoginPageLocale, error: string | null, code: string | null): SignupLink | null {
+  return isPasswordFailure(error, code) ? { label: t.errors.createAccount, href: t.errors.signupHref } : null;
 }
 
 /**
@@ -33,6 +50,7 @@ export function signInErrorMessage(t: LoginPageLocale, error: string | null, cod
     credentialsCode === 'rate_limited'     ? t.errors.rateLimited :
     error === 'rate_limited'               ? t.errors.rateLimited :
     error === 'provider_unverified'        ? t.errors.providerUnverified :
+    isPasswordFailure(error, code)         ? t.errors.passwordFailed :
     null
   );
 }
@@ -57,7 +75,8 @@ export function resolveLoginAlert(
     data.verified === 'failed'  ? t.notices.verifiedFailed : '';
 
   const hasAlert = error === 'missing' || (!!message && message !== 'LOCKED_OUT') || !!notice;
-  return { message, notice, hasAlert };
+  const signupLink = message === 'LOCKED_OUT' ? null : passwordSignupLink(t, error, code);
+  return { message, signupLink, notice, hasAlert };
 }
 
 export async function getLoginPageData(request: Request, url: URL): Promise<LoginPageData> {

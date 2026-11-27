@@ -82,10 +82,10 @@ describe('resolveLoginAlert', () => {
 		expect(fr.errors.emailUnverified).not.toBe(en.errors.emailUnverified);
 	});
 
-	it('explains rate limiting, and keeps the generic message for a plain wrong password', () => {
+	it('explains rate limiting, and gives a plain wrong password its own password message', () => {
 		expect(resolveLoginAlert(en, { ...base, error: 'CredentialsSignin', code: 'rate_limited' }).message).toBe(en.errors.rateLimited);
 		expect(resolveLoginAlert(en, { ...base, error: 'rate_limited' }).message).toBe(en.errors.rateLimited);
-		expect(resolveLoginAlert(en, { ...base, error: 'CredentialsSignin', code: 'credentials' }).message).toBe(en.errors.generic);
+		expect(resolveLoginAlert(en, { ...base, error: 'CredentialsSignin', code: 'credentials' }).message).toBe(en.errors.passwordFailed);
 		// A code only means something on a CredentialsSignin error.
 		expect(resolveLoginAlert(en, { ...base, error: 'AccessDenied', code: 'email_unverified' }).message).toBe(en.errors.generic);
 	});
@@ -94,9 +94,9 @@ describe('resolveLoginAlert', () => {
 		expect(resolveLoginAlert(en, { ...base, error: 'OAuthAccountNotLinked' }).message).toBe('LOCKED_OUT');
 		expect(resolveLoginAlert(en, { ...base, error: 'OAuthAccountNotLinked' }).hasAlert).toBe(false);
 		expect(resolveLoginAlert(en, { ...base, error: 'Configuration' }).message).toBe(en.errors.configuration);
-		expect(resolveLoginAlert(en, { ...base, error: 'missing' })).toEqual({ message: '', notice: '', hasAlert: true });
+		expect(resolveLoginAlert(en, { ...base, error: 'missing' })).toEqual({ message: '', signupLink: null, notice: '', hasAlert: true });
 		expect(resolveLoginAlert(en, { ...base, verified: 'success' }).notice).toBe(en.notices.verifiedSuccess);
-		expect(resolveLoginAlert(en, base)).toEqual({ message: '', notice: '', hasAlert: false });
+		expect(resolveLoginAlert(en, base)).toEqual({ message: '', signupLink: null, notice: '', hasAlert: false });
 	});
 });
 
@@ -124,7 +124,7 @@ describe('the verified-email codes', () => {
 	});
 
 	it('signInErrorMessage is null for anything it does not own (pages fall back to their generic text)', () => {
-		expect(signInErrorMessage(en, 'CredentialsSignin', 'credentials')).toBeNull();
+		expect(signInErrorMessage(en, 'CredentialsSignin', 'credentials')).toBe(en.errors.passwordFailed);
 		expect(signInErrorMessage(en, 'AccessDenied', 'use_provider')).toBeNull();
 		expect(signInErrorMessage(en, null, null)).toBeNull();
 	});
@@ -158,5 +158,40 @@ describe('withoutSessionCookies', () => {
 		].join('; ');
 		expect(withoutSessionCookies(header)).toBe('almstins-lang=es; __Host-authjs.csrf-token=csrf; __Secure-authjs.callback-url=cb');
 		expect(withoutSessionCookies('authjs.session-token=x')).toBe('');
+	});
+});
+
+describe('a refused password with no specific code (wrong password, unknown address, no password)', () => {
+	const cases: [string, string | null][] = [['CredentialsSignin', 'credentials'], ['CredentialsSignin', null]];
+
+	it('shows one password message in each language, with a sign-up link in that language', () => {
+		for (const [error, code] of cases) {
+			for (const [t, href] of [[en, '/signup'], [es, '/signup/es'], [fr, '/signup/fr']] as const) {
+				const alert = resolveLoginAlert(t, { error, code, signup: null, verified: null });
+				expect(alert.message).toBe(t.errors.passwordFailed);
+				expect(alert.message).not.toBe(t.errors.generic);
+				expect(alert.signupLink).toEqual({ label: t.errors.createAccount, href });
+				expect(signInErrorMessage(t, error, code)).toBe(t.errors.passwordFailed);
+			}
+		}
+	});
+
+	it('names every other way in and never says which case it was', () => {
+		expect(en.errors.passwordFailed).toContain('Google, GitHub or an emailed link');
+		for (const t of [en, es, fr]) {
+			expect(t.errors.passwordFailed).not.toMatch(/no account|not found|wrong password|incorrect|no existe|incorrecta|introuvable|incorrect/i);
+			expect(t.errors.passwordFailed).not.toContain('—');
+		}
+	});
+
+	it('keeps the specific messages, and gives no sign-up link to anything else', () => {
+		const at = (error: string | null, code: string | null) => resolveLoginAlert(en, { error, code, signup: null, verified: null });
+		expect(at('CredentialsSignin', 'email_unverified').message).toBe(en.errors.emailUnverified);
+		expect(at('CredentialsSignin', 'use_provider').message).toBe(en.errors.useProvider);
+		expect(at('CredentialsSignin', 'rate_limited').message).toBe(en.errors.rateLimited);
+		for (const [error, code] of [['CredentialsSignin', 'email_unverified'], ['CredentialsSignin', 'use_provider'], ['OAuthCallbackError', null], ['OAuthAccountNotLinked', null], [null, null]] as const) {
+			expect(at(error, code).signupLink, `${error}/${code}`).toBeNull();
+		}
+		expect(at('OAuthCallbackError', null).message).toBe(en.errors.generic);
 	});
 });

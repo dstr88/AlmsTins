@@ -26,6 +26,7 @@ import Analytics from '@/components/Analytics.astro';
 import '@/styles/tokens.css';
 import { en as t } from '@/i18n/loginPage';
 import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
+import SignupPrompt from '@/components/auth/SignupPrompt.astro';
 import { verifyLoginMode, type VerifyLoginMode } from '@/lib/verifyLoginMode';
 import SigninAgreement from '@/components/SigninAgreement.astro';
 
@@ -73,7 +74,8 @@ const pageTitle = isVerify ? 'Log in — Almstins Verify' : `${roleTitle} — Al
 const { csrfToken, error } = data;
 const failed = !!error;
 // English-only page; the strings come from the shared login locale.
-const failedText = resolveLoginAlert(t, data).message || t.errors.generic;
+const failedAlert = resolveLoginAlert(t, data);
+const failedText = failedAlert.message || t.errors.generic;
 ---
 <!doctype html>
 <html lang="en">
@@ -182,7 +184,7 @@ const failedText = resolveLoginAlert(t, data).message || t.errors.generic;
     </div>
 
     <div class="card">
-      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? t.errors.generic : failedText}</p>}
+      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? t.errors.generic : failedText}<SignupPrompt link={failedAlert.signupLink} /></p>}
 
       <form method="POST" action="/api/auth/signin/google">
         <input type="hidden" name="callbackUrl" value={callbackUrl} />
