@@ -109,7 +109,7 @@ describe('the welcome copy', () => {
 	it('the English card is the wording Donnie approved on Nov 25, 2026', () => {
 		expect(en.title).toBe('Thanks so much for trying Almstins.');
 		expect(en.paragraphs).toEqual([
-			"Our goal is to give you the tools to track your crypto: what you own, what you paid for it and what you've sold. Almstins reads public data only, so there's nothing to connect.",
+			"Our goal is to give you the tools to track your crypto: what you paid for it, what you own, a disposal cost and where you sent it. Almstins reads public data only, so there's nothing to connect.",
 			"To get started, paste the public address of a wallet you hold yourself into the Add field, and Almstins will work out which chain it's on. If your crypto is on an exchange, upload the CSV file the exchange lets you download, from Coinbase, Kraken or any of the others listed below.",
 		]);
 		expect(en.tourQuestion).toBe('Want a quick tour of this page first?');

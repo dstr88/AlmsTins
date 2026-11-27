@@ -2,7 +2,7 @@
 //
 // Rendered by src/components/dashboard/VaultWelcome.astro for an account the first-run rule
 // (src/lib/vaultFirstRun.ts) says has nothing in it yet. The English card text is Donnie's,
-// approved Nov 25, 2026; change it only on his word.
+// approved Nov 25, 2026, and its goal line revised by him Nov 27, 2026; change it only on his word.
 //
 // Crypto jargon stays English, as in the demo tour: wallet, CSV, exchange, Sync. ES/FR are
 // first-pass and have not been read by a native speaker. ES/FR string values use double quotes
@@ -48,7 +48,7 @@ export const en: VaultWelcomeLocale = {
   regionLabel: 'Welcome to Almstins',
   title: 'Thanks so much for trying Almstins.',
   paragraphs: [
-    "Our goal is to give you the tools to track your crypto: what you own, what you paid for it and what you've sold. Almstins reads public data only, so there's nothing to connect.",
+    "Our goal is to give you the tools to track your crypto: what you paid for it, what you own, a disposal cost and where you sent it. Almstins reads public data only, so there's nothing to connect.",
     "To get started, paste the public address of a wallet you hold yourself into the Add field, and Almstins will work out which chain it's on. If your crypto is on an exchange, upload the CSV file the exchange lets you download, from Coinbase, Kraken or any of the others listed below.",
   ],
   tourQuestion: 'Want a quick tour of this page first?',
@@ -82,7 +82,7 @@ export const es: VaultWelcomeLocale = {
   regionLabel: "Bienvenido a Almstins",
   title: "Muchas gracias por probar Almstins.",
   paragraphs: [
-    "Nuestro objetivo es darte las herramientas para llevar el control de tus criptomonedas: lo que tienes, lo que pagaste por ellas y lo que has vendido. Almstins solo lee datos públicos, así que no hay nada que conectar.",
+    "Nuestro objetivo es darte las herramientas para llevar el control de tus criptomonedas: lo que pagaste por ellas, lo que tienes, el costo al venderlas o gastarlas (comisiones y ganancia o pérdida) y a dónde las enviaste. Almstins solo lee datos públicos, así que no hay nada que conectar.",
     "Para empezar, pega la dirección pública de una wallet que controlas tú mismo en el campo Agregar activo, y Almstins detectará en qué cadena está. Si tus criptomonedas están en un exchange, sube el archivo CSV que el exchange te permite descargar, de Coinbase, Kraken o cualquiera de los otros que aparecen abajo.",
   ],
   tourQuestion: "¿Quieres primero un recorrido rápido por esta página?",
@@ -116,7 +116,7 @@ export const fr: VaultWelcomeLocale = {
   regionLabel: "Bienvenue sur Almstins",
   title: "Merci beaucoup d'essayer Almstins.",
   paragraphs: [
-    "Notre objectif est de vous donner les outils pour suivre vos cryptos : ce que vous possédez, ce que vous les avez payées et ce que vous avez vendu. Almstins ne lit que des données publiques, il n'y a donc rien à connecter.",
+    "Notre objectif est de vous donner les outils pour suivre vos cryptos : ce que vous les avez payées, ce que vous possédez, le coût de cession (frais et plus-value ou moins-value) et où vous les avez envoyées. Almstins ne lit que des données publiques, il n'y a donc rien à connecter.",
     "Pour commencer, collez l'adresse publique d'un wallet que vous détenez vous-même dans le champ Ajouter un actif, et Almstins trouvera sur quelle chaîne il se trouve. Si vos cryptos sont sur un exchange, importez le fichier CSV que l'exchange vous permet de télécharger, depuis Coinbase, Kraken ou l'un des autres listés plus bas.",
   ],
   tourQuestion: "Voulez-vous d'abord une visite rapide de cette page ?",
