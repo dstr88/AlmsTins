@@ -1,0 +1,11 @@
+---
+// The "Create an account" link that follows a refused password sign-in on every sign-in page
+// (resolveLoginAlert / passwordSignupLink in src/lib/loginPageData.ts). Renders nothing without a link.
+import type { SignupLink } from '@/lib/loginPageData';
+
+interface Props {
+  link: SignupLink | null;
+}
+const { link } = Astro.props;
+---
+{link && <> <a class="signup-prompt" href={link.href}>{link.label}</a></>}

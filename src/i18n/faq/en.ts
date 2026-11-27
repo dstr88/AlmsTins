@@ -560,6 +560,21 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-password-signin-failed",
+    q: "My password sign-in failed. What now?",
+    a: `<p>
+          The password form only works for an account created on the sign-up page with a password. If you usually sign in with Google, GitHub or an emailed link, your account may have no password at all, and the form will refuse any password you type. Sign in the way you normally do instead.
+        </p>
+
+        <p>
+          The message is the same whether the address has no account, the account has no password, or the password is wrong. That is on purpose: it keeps anyone from finding out how a given address signs in.
+        </p>
+
+        <p>
+          New to Almstins and want to use a password? <a href="/signup">Create an account</a>, then open the verification link we email you before you sign in.
+        </p>`,
+  },
+  {
     id: "faq-research-page",
     q: "What is the Research page?",
     a: `<p>

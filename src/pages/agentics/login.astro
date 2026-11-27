@@ -20,6 +20,7 @@ import { en as login } from '@/i18n/loginPage';
 import { agenticsCopy } from '@/i18n/agentics';
 import { AGENTICS_VAULT_PUBLIC } from '@/lib/agenticsAccess';
 import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
+import SignupPrompt from '@/components/auth/SignupPrompt.astro';
 import SigninAgreement from '@/components/SigninAgreement.astro';
 
 export const prerender = false;
@@ -33,7 +34,8 @@ if (data.isLoggedIn) return Astro.redirect(callbackUrl, 302);
 
 const { csrfToken, error } = data;
 const failed = !!error;
-const failedText = resolveLoginAlert(login, data).message || login.errors.generic;
+const failedAlert = resolveLoginAlert(login, data);
+const failedText = failedAlert.message || login.errors.generic;
 const t = agenticsCopy(AGENTICS_VAULT_PUBLIC);
 const l = t.login;
 ---
@@ -144,7 +146,7 @@ const l = t.login;
     </div>
 
     <div class="card">
-      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? login.errors.generic : failedText}</p>}
+      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? login.errors.generic : failedText}<SignupPrompt link={failedAlert.signupLink} /></p>}
 
       <form method="POST" action="/api/auth/signin/google">
         <input type="hidden" name="callbackUrl" value={callbackUrl} />

@@ -212,9 +212,8 @@ describe('the changelog entry', () => {
 	const article = page.slice(page.lastIndexOf('<article', start), page.indexOf('</article>', start));
 	const text = article.replace(/<[^>]+>/g, ' ');
 
-	it('is public and the newest entry', () => {
+	it('is public and dated (newer entries may follow it)', () => {
 		expect(start).toBeGreaterThan(-1);
-		expect(page.indexOf('<article')).toBe(page.lastIndexOf('<article', start));
 		expect(article).toMatch(/<time class="entry-date">[A-Z][a-z]+ \d{1,2}, 2026<\/time>/);
 	});
 

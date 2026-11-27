@@ -561,6 +561,21 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-password-signin-failed",
+    q: "Ma connexion par mot de passe a échoué. Que faire ?",
+    a: `<p>
+          Le formulaire de mot de passe ne fonctionne que pour un compte créé avec un mot de passe sur la page d'inscription. Si vous vous connectez d'habitude avec Google, GitHub ou un lien envoyé par email, votre compte n'a peut-être aucun mot de passe, et le formulaire refusera tout mot de passe saisi. Connectez-vous comme d'habitude.
+        </p>
+
+        <p>
+          Le message est le même si l'adresse n'a pas de compte, si le compte n'a pas de mot de passe ou si le mot de passe est faux. C'est voulu : personne ne peut ainsi savoir comment une adresse donnée se connecte.
+        </p>
+
+        <p>
+          Nouveau sur Almstins et vous voulez un mot de passe ? <a href="/signup/fr">Créez un compte</a>, puis ouvrez le lien de vérification que nous vous envoyons par email avant de vous connecter.
+        </p>`,
+  },
+  {
     id: "faq-research-page",
     q: "Qu'est-ce que la page Research ?",
     a: `<p>

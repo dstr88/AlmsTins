@@ -87,6 +87,12 @@ export interface LoginPageLocale {
   errors: {
     configuration: string;
     generic: string;
+    /** A refused password with no other code (?error=CredentialsSignin&code=credentials): wrong password,
+     *  unknown address, or an account with no password. One text for all three, so it says nothing
+     *  about the address. Followed by a link to sign-up (createAccount, signupHref). */
+    passwordFailed: string;
+    createAccount: string;
+    signupHref: string;  // language-aware: /signup · /signup/es · /signup/fr
     /** Password was right, the address was never verified; a new link was sent, rate-limited (?error=CredentialsSignin&code=email_unverified). */
     emailUnverified: string;
     /** Password was right, the address was never verified, and the account signs in with Google/GitHub (?code=use_provider). */
@@ -209,6 +215,9 @@ export const en: LoginPageLocale = {
   errors: {
     configuration: 'Sign-in is temporarily unavailable. Please try again in a moment.',
     generic: 'Sign-in failed. Please try again.',
+    passwordFailed: "That email and password don't match a password account. If you usually sign in with Google, GitHub or an emailed link, use that instead. New to Almstins?",
+    createAccount: 'Create an account',
+    signupHref: '/signup',
     emailUnverified: "Your email address isn't verified yet. We've sent a verification link to your inbox (check spam too; we send at most one every 15 minutes). Open it, then sign in with your password.",
     useProvider: 'This account signs in with Google or GitHub. Use that button to sign in.',
     verifyRequired: "Please verify your email address to keep using your account. Sign in with your password and we'll email you a new verification link.",
@@ -326,6 +335,9 @@ export const es: LoginPageLocale = {
   errors: {
     configuration: 'El inicio de sesión no está disponible temporalmente. Por favor intenta de nuevo.',
     generic: 'Error al iniciar sesión. Por favor intenta de nuevo.',
+    passwordFailed: 'Ese email y esa contraseña no coinciden con ninguna cuenta con contraseña. Si sueles iniciar sesión con Google, GitHub o un enlace por email, usa esa opción. ¿Nuevo en Almstins?',
+    createAccount: 'Crea una cuenta',
+    signupHref: '/signup/es',
     emailUnverified: 'Tu correo electrónico aún no está verificado. Te enviamos un enlace de verificación (revisa también el spam; enviamos como máximo uno cada 15 minutos). Ábrelo y luego inicia sesión con tu contraseña.',
     useProvider: 'Esta cuenta inicia sesión con Google o GitHub. Usa ese botón para iniciar sesión.',
     verifyRequired: 'Verifica tu correo electrónico para seguir usando tu cuenta. Inicia sesión con tu contraseña y te enviaremos un nuevo enlace de verificación.',
@@ -443,6 +455,9 @@ export const fr: LoginPageLocale = {
   errors: {
     configuration: 'La connexion n\'est temporairement pas disponible. Veuillez réessayer dans un moment.',
     generic: 'La connexion a échoué. Veuillez réessayer.',
+    passwordFailed: "Cet email et ce mot de passe ne correspondent à aucun compte avec mot de passe. Si vous vous connectez d'habitude avec Google, GitHub ou un lien envoyé par email, utilisez-le. Nouveau sur Almstins ?",
+    createAccount: 'Créez un compte',
+    signupHref: '/signup/fr',
     emailUnverified: "Votre adresse e-mail n'est pas encore vérifiée. Nous vous avons envoyé un lien de vérification (consultez aussi les spams ; nous en envoyons au plus un toutes les 15 minutes). Ouvrez-le, puis connectez-vous avec votre mot de passe.",
     useProvider: 'Ce compte se connecte avec Google ou GitHub. Utilisez ce bouton pour vous connecter.',
     verifyRequired: 'Veuillez vérifier votre adresse e-mail pour continuer à utiliser votre compte. Connectez-vous avec votre mot de passe et nous vous enverrons un nouveau lien de vérification.',

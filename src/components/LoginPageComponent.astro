@@ -4,6 +4,8 @@ import type { LoginPageLocale } from '../i18n/loginPage';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import LogoutButton from './LogoutButton.astro';
 import SigninAgreement from './SigninAgreement.astro';
+import SignupPrompt from './auth/SignupPrompt.astro';
+import type { SignupLink } from '../lib/loginPageData';
 import Logo from '../assets/logo.jpeg';
 
 interface Props {
@@ -11,6 +13,7 @@ interface Props {
   safeCallbackUrl: string;
   csrfToken: string;
   message: string;      // localized error string, "" or "LOCKED_OUT"
+  signupLink?: SignupLink | null;  // "Create an account" after a refused password
   notice: string;       // localized notice string or ""
   hasAlert: boolean;
   isLoggedIn: boolean;
@@ -18,7 +21,7 @@ interface Props {
   canonical?: string;
 }
 
-const { t, safeCallbackUrl, csrfToken, message, notice, hasAlert, isLoggedIn, canonical } = Astro.props;
+const { t, safeCallbackUrl, csrfToken, message, signupLink = null, notice, hasAlert, isLoggedIn, canonical } = Astro.props;
 const isLockedOut = message === 'LOCKED_OUT';
 ---
 
@@ -58,7 +61,7 @@ const isLockedOut = message === 'LOCKED_OUT';
             <p class="dropdown-info-sub">{t.signin.noSignupSub}</p>
           </div>
           {message && !isLockedOut && (
-            <p class="dropdown-notice">{message}</p>
+            <p class="dropdown-notice">{message}<SignupPrompt link={signupLink} /></p>
           )}
           {notice && <p class="dropdown-notice dropdown-notice--success">{notice}</p>}
 

@@ -6,13 +6,14 @@ import { getLoginPageData, resolveLoginAlert } from '../lib/loginPageData';
 const data = await getLoginPageData(Astro.request, Astro.url);
 const t = es;
 
-const { message, notice, hasAlert } = resolveLoginAlert(t, data);
+const { message, signupLink, notice, hasAlert } = resolveLoginAlert(t, data);
 ---
 <LoginPageComponent
   t={t}
   safeCallbackUrl={data.safeCallbackUrl}
   csrfToken={data.csrfToken}
   message={message}
+  signupLink={signupLink}
   notice={notice}
   hasAlert={hasAlert}
   isLoggedIn={data.isLoggedIn}
