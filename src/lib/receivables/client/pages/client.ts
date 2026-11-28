@@ -19,6 +19,7 @@
  */
 import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/client/hostBridge';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
+import { mountProofDownloads } from '@/components/receivables/ProofDownloads/proofDownloads.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
 import { markClientMineDuplicates, markClientMineSameShipment } from '@/lib/receivables/client/withdrawnRows';
@@ -50,3 +51,10 @@ if (recordFlagRoot) {
 
 const mine = document.querySelector<HTMLElement>('[data-rcv-root="mine"]');
 if (mine) onBookLoaded((rows) => { markClientMineDuplicates(mine, bookDuplicateIds(rows)); markClientMineSameShipment(mine, bookSameShipmentIds(rows)); });
+
+// Record downloads: "Your signed records" under "Claimed against it", for the record being
+// tracked. Only this account's own records are listed (the route filters by tenant): a receivable
+// the client recorded here, and its settlement. Answers given by emailed link are filed under the
+// financier who asked and are downloaded from that link instead (C1, Option 1).
+const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
+if (proofDownloads) mountProofDownloads(proofDownloads);
