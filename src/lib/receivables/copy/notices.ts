@@ -18,6 +18,18 @@
  *     because the record still reads "due, in grace" then.
  */
 
+// ── Template versions (email statement, approved 2026-11-28) ─────────────────
+//
+// Each send writes the version of the template it used to its log row, so a statement of the
+// emails about a claim can name the exact wording from git without keeping any email's text.
+// Bump a version whenever the email wording it covers changes; tests/receivables/
+// emailTemplateVersions.test.ts fails until the version and its pin move together.
+
+/** The aging notices (day 9, 15, 20, the lapse warning, the lapse, the plan lock). */
+export const NOTICE_TEMPLATE_VERSION = 'notices/1';
+/** The client emails when the lender acts on a claim (repaid, extended, unpaid, settled). */
+export const ACTION_TEMPLATE_VERSION = 'client-actions/1';
+
 // ── Subjects: generic on purpose, nothing a lock screen could leak ─────────────
 
 export const NOTICE_SUBJECT_LENDER = 'Your financing desk: a record needs your update';

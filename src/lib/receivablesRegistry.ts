@@ -74,13 +74,16 @@ import {
   FRESHNESS_DETAIL_PAST_DUE_UNDATED,
 } from '@/lib/receivables/copy/aging';
 import { fillCopy } from '@/lib/receivables/fillCopy';
+import { NOTICE_TEMPLATE_VERSION } from '@/lib/receivables/copy/notices';
 import {
   ADD_RECEIVABLE_DELETED_AT,
   CREATE_STATUS_EVENTS_CLAIM_IDX,
   CREATE_STATUS_EVENTS_LAPSED_IDX,
   CREATE_STATUS_EVENTS_RCV_IDX,
+  CREATE_EMAIL_STATEMENTS_IDX,
   CREATE_UPDATE_REQUESTS_RCV_IDX,
   DDL_LOCK_TIMEOUT,
+  EMAIL_TEMPLATE_COLUMN_ADDS,
   FINGERPRINT_COLUMN_ADDS,
   INVITE_ANSWER_COLUMN_ADDS,
   RECEIVABLE_COLUMN_ADDS,
@@ -628,6 +631,10 @@ let fingerprintColumnsReady = false;
 // flag, like the two above: until both exist, answers are not bound to their link and the link
 // offers no download, so a failed ALTER elsewhere never makes a read fail open or throw.
 let inviteAnswerReady = false;
+// The template_version columns on the four email logs (email statement). Their own sticky flag:
+// until all four exist, sends write their log rows the old way and statements read every version
+// as not recorded, so a failed ALTER elsewhere never makes a send or a statement fail.
+let emailTemplateReady = false;
 // After a failed column add: the earliest time the whole (idempotent) ensure runs again.
 let columnsRetryAt = 0;
 // After a failed index (every column add succeeded): the earliest time the indexes alone run
@@ -639,6 +646,13 @@ const COLUMN_RETRY_MS = 60_000;
 /** Whether every runtime column add has been applied in this process. */
 export function receivableColumnsEnsured(): boolean {
   return columnsEnsured;
+}
+
+/** Whether the email logs' template_version columns exist in this process (email statement): the
+ *  senders outside this module (update requests, client action notices) and the statement reader
+ *  check it. Valid only after ensureReceivablesTables() was awaited. */
+export function receivableEmailTemplateReady(): boolean {
+  return emailTemplateReady;
 }
 
 /** Whether receivables.deleted_at is known to exist in this process: soft delete's own sticky flag,
@@ -717,6 +731,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   await db.execute({ sql: CREATE_STATUS_EVENTS_CLAIM_IDX, args: [] });
   await db.execute({ sql: CREATE_STATUS_EVENTS_LAPSED_IDX, args: [] });
   await db.execute({ sql: CREATE_UPDATE_REQUESTS_RCV_IDX, args: [] });
+  await db.execute({ sql: CREATE_EMAIL_STATEMENTS_IDX, args: [] });
   // Each column add runs under DDL_LOCK_TIMEOUT (see schema.ts). The first add that waits out the
   // timeout ends the list for this run: every later add would queue behind the same lock for
   // another three seconds while holding up that table's reads. The skipped adds are retried a
@@ -725,12 +740,14 @@ async function runEnsureReceivablesTables(): Promise<void> {
   let locked = false;
   let fingerprintAdds = 0;
   let inviteAnswerAdds = 0;
+  let emailTemplateAdds = 0;
   for (const sql of [...ENSURE_SETTLEMENT_COLS, ...RECEIVABLE_COLUMN_ADDS]) {
     try {
       await ddlUnderLockTimeout(sql);
       if (sql === ADD_RECEIVABLE_DELETED_AT) deletedAtReady = true;
       if (FINGERPRINT_COLUMN_ADDS.includes(sql)) fingerprintAdds++;
       if (INVITE_ANSWER_COLUMN_ADDS.includes(sql)) inviteAnswerAdds++;
+      if (EMAIL_TEMPLATE_COLUMN_ADDS.includes(sql)) emailTemplateAdds++;
     } catch (e) {
       allColumns = false;
       console.error('[receivables] column not applied:', e);
@@ -739,6 +756,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   }
   if (fingerprintAdds === FINGERPRINT_COLUMN_ADDS.length) fingerprintColumnsReady = true;
   if (inviteAnswerAdds === INVITE_ANSWER_COLUMN_ADDS.length) inviteAnswerReady = true;
+  if (emailTemplateAdds === EMAIL_TEMPLATE_COLUMN_ADDS.length) emailTemplateReady = true;
   // Indexes on added columns (S3's partial fingerprint indexes), each on its own and after every
   // column add, so no read runs before them. A failure is logged and retried on its own clock; it
   // gates nothing, because a missing index makes the twin query slower, never wrong. Skipped while
@@ -763,6 +781,15 @@ async function runEnsureReceivablesTables(): Promise<void> {
       await db.execute({ sql: `SELECT answer_kind, answer_id FROM receivable_invites LIMIT 0`, args: [] });
       inviteAnswerReady = true;
     } catch { /* not there yet: answers are not bound to their link, and links offer no download */ }
+  }
+  if (!emailTemplateReady) {
+    try {
+      await db.execute({ sql: `SELECT template_version FROM receivable_notice_log LIMIT 0`, args: [] });
+      await db.execute({ sql: `SELECT template_version FROM receivable_client_action_notices LIMIT 0`, args: [] });
+      await db.execute({ sql: `SELECT template_version FROM receivable_update_requests LIMIT 0`, args: [] });
+      await db.execute({ sql: `SELECT template_version FROM receivable_update_request_digests LIMIT 0`, args: [] });
+      emailTemplateReady = true;
+    } catch { /* not there yet: sends log without a version, and statements say it was not recorded */ }
   }
   columnsEnsured = allColumns;
   columnsRetryAt = allColumns ? 0 : Date.now() + COLUMN_RETRY_MS;
@@ -2809,12 +2836,21 @@ export async function recordNoticeSent(
   role: NoticeRole,
   now: Date = new Date(),
 ): Promise<void> {
-  await db.execute({
-    sql: `INSERT INTO receivable_notice_log (claim_id, notice, recipient_role, sent_at)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT (claim_id, notice, recipient_role) DO NOTHING`,
-    args: [claimId, notice, role, now.toISOString().replace('T', ' ').slice(0, 19)],
-  });
+  const sentAt = now.toISOString().replace('T', ' ').slice(0, 19);
+  // The template version the email used (email statement), once the column exists.
+  await db.execute(emailTemplateReady
+    ? {
+        sql: `INSERT INTO receivable_notice_log (claim_id, notice, recipient_role, sent_at, template_version)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT (claim_id, notice, recipient_role) DO NOTHING`,
+        args: [claimId, notice, role, sentAt, NOTICE_TEMPLATE_VERSION],
+      }
+    : {
+        sql: `INSERT INTO receivable_notice_log (claim_id, notice, recipient_role, sent_at)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT (claim_id, notice, recipient_role) DO NOTHING`,
+        args: [claimId, notice, role, sentAt],
+      });
 }
 
 /**
@@ -3320,6 +3356,8 @@ export interface OwnProofRecord {
 
 /** How many "Verify now" checks the list carries, newest first: each press writes one. */
 const OWN_PROOF_REVERIFICATIONS = 20;
+/** How many of the account's own email statements the list carries, newest first. */
+const OWN_PROOF_EMAIL_STATEMENTS = 10;
 
 /**
  * Every signed record THIS tenant holds on one receivable, the ones proof-file will hand it.
@@ -3386,7 +3424,60 @@ export async function listOwnProofRecords(tenantId: string, receivableId: string
     out.push({ kind: 'reverification', id: String(v.id), at: str(v.created_at), detail: { verdict: str(v.verdict) } });
   }
 
+  // Email statements this account made (email statement): each download makes one, so the list
+  // carries the newest OWN_PROOF_EMAIL_STATEMENTS. The claim's financier and amount name it; the
+  // claim is one the viewer may see (its own as lender, any on its receivable as client).
+  const statements = await db.execute({
+    sql: `SELECT id, claim_id, as_of, created_at FROM receivable_email_statements
+           WHERE receivable_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT ${OWN_PROOF_EMAIL_STATEMENTS}`,
+    args: [rid, tenantId],
+  });
+  if (statements.rows.length) {
+    const ids = [...new Set((statements.rows as any[]).map((x) => String(x.claim_id)))];
+    const named = await db.execute({
+      sql: `SELECT id, financier, amount, currency FROM receivable_claims WHERE receivable_id = ? AND id IN (${ids.map(() => '?').join(', ')})`,
+      args: [rid, ...ids],
+    });
+    const byId = new Map((named.rows as any[]).map((c) => [String(c.id), c]));
+    for (const st of (statements.rows as any[]).reverse()) {
+      const c = byId.get(String(st.claim_id));
+      out.push({
+        kind: 'email_statement', id: String(st.id), at: str(st.created_at),
+        detail: {
+          financier: str(c?.financier), amount: c ? Number(c.amount) : null, currency: str(c?.currency),
+          asOf: str(st.as_of),
+        },
+      });
+    }
+  }
+
   return out;
+}
+
+/**
+ * Store one signed email statement (email statement, approved 2026-11-28) under the account that
+ * asked for it. The manifest is built by server/emailStatementStore.ts from the email logs (roles,
+ * dates, types and template versions only); here it is signed with the Almstins key, its digest
+ * taken over the same canonical bytes, and the row written. Returns the record's id and digest.
+ * The caller has already checked the viewer may see the claim.
+ */
+export async function recordEmailStatement(
+  tenantId: string,
+  st: { receivableId: string; claimId: string; viewerRole: 'lender' | 'client'; asOf: string; manifest: Record<string, unknown> },
+): Promise<{ id: string; digest: string; signed: boolean }> {
+  await ensureReceivablesTables();
+  const { signature, digest } = sign(st.manifest);
+  const id = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO receivable_email_statements
+            (id, tenant_id, receivable_id, claim_id, viewer_role, as_of, manifest_json, signature_json, digest, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id, tenantId, st.receivableId, st.claimId, st.viewerRole, st.asOf,
+      JSON.stringify(st.manifest), signature ? JSON.stringify(signature) : null, digest, st.asOf,
+    ],
+  });
+  return { id, digest, signed: !!signature };
 }
 
 /**

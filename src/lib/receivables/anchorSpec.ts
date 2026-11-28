@@ -53,6 +53,10 @@ export const ANCHOR_SPEC = {
   // the base ensure, so no added-columns gate). Stamped in-request by the extend/unpaid routes
   // (anchorNow); the cron retries a stamp that failed or was rate limited then.
   status_event: { table: 'receivable_status_events', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
+  // Email statement (approved 2026-11-28): a signed statement of the emails sent about one claim,
+  // made when its lender or the receivable's client downloads it, under that viewer's account.
+  // Stamped in-request by the download (anchorNow); the cron retries a stamp that failed then.
+  email_statement: { table: 'receivable_email_statements', digestColumn: 'digest', anchorColumn: 'anchor_json', manifestColumn: 'manifest_json', signatureColumn: 'signature_json', writtenAtColumn: 'created_at', addedColumns: false, cronStamps: true },
 } as const satisfies Record<string, AnchorSpecEntry>;
 
 export type AnchorRecordKind = keyof typeof ANCHOR_SPEC;

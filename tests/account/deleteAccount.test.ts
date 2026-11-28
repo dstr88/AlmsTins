@@ -287,8 +287,8 @@ const VERIFY_TABLES = [
   'verified_entities',
   'verified_address_mirror',
 ];
-/** The two tenant-only receivable steps. */
-const RECEIVABLE_TABLES = ['receivable_invites', 'receivable_seen', 'cairn_invites', 'cairn_share_links'];
+/** The tenant-only receivable steps. */
+const RECEIVABLE_TABLES = ['receivable_invites', 'receivable_seen', 'receivable_email_statements', 'cairn_invites', 'cairn_share_links'];
 const ALL_STEP_TABLES = [...VERIFY_TABLES, ...RECEIVABLE_TABLES];
 
 function seedTenant(tenant: string, user: string, tag: string, wallet: string, mirror: string, key: string): void {
@@ -332,6 +332,7 @@ function seedTenant(tenant: string, user: string, tag: string, wallet: string, m
   add('receivable_invites', { token: `answered-${tag}`, from_tenant: tenant, accepted_at: '2026-09-02 00:00:00', revoked_at: null });
   add('receivable_invites', { token: `revoked-${tag}`, from_tenant: tenant, accepted_at: null, revoked_at: '2026-09-03 00:00:00' });
   add('receivable_seen', { tenant_id: tenant, receivable_id: `r-${tag}`, seen_at: '2026-09-04 00:00:00' });
+  add('receivable_email_statements', { id: `es-${tag}`, tenant_id: tenant, receivable_id: `r-${tag}`, claim_id: `c-${tag}`, created_at: '2026-09-05 00:00:00' });
   // Milestone desk: the same three request states.
   add('cairn_invites', { token: `ms-open-${tag}`, from_tenant: tenant, accepted_at: null, revoked_at: null });
   add('cairn_invites', { token: `ms-answered-${tag}`, from_tenant: tenant, accepted_at: '2026-09-02 00:00:00', revoked_at: null });
@@ -508,6 +509,8 @@ describe('POST /api/account/delete: Verify data', () => {
 
     expect(rowsOf('receivable_seen', A)).toEqual([]);
     expect(rowsOf('receivable_seen', B)).toHaveLength(1);
+    expect(rowsOf('receivable_email_statements', A)).toEqual([]);
+    expect(rowsOf('receivable_email_statements', B)).toHaveLength(1);
   });
 
   it('deletes the user\'s drip-campaign enrollments and nobody else\'s', async () => {

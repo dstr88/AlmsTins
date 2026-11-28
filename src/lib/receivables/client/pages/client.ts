@@ -57,6 +57,8 @@ if (mine) onBookLoaded((rows) => { markClientMineDuplicates(mine, bookDuplicateI
 // tracked. Only this account's own records are listed (the route filters by tenant): a receivable
 // the client recorded here, and its settlement. Answers given by emailed link are filed under the
 // financier who asked and are downloaded from that link instead (C1, Option 1).
+// The same card carries "Emails about each claim" (email statement): every claim on a record
+// this account is the client of, with its summary lines and a signed download.
 const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
 if (proofDownloads) mountProofDownloads(proofDownloads);
 

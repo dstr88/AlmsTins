@@ -45,6 +45,10 @@ export const UR_ERR_DEMO = 'The demo is read-only, so it sends no requests.';
 export const UR_ERR_FAILED = 'The request did not go through. Try again.';
 export const UR_ERR_NOTE = 'The note can be at most 280 characters.';
 
+/** The version of the lender's request emails below, written to each log row on send (email
+ *  statement). Bump it whenever their wording changes; emailTemplateVersions.test.ts pins it. */
+export const UR_TEMPLATE_VERSION = 'update-requests/1';
+
 // ── The lender's emails (account mail, generic subjects, a link to his desk only) ─────────
 
 export const UR_SUBJECT_CLIENT = 'Your financing desk: your client asked for an update';

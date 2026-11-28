@@ -21,7 +21,8 @@ import { db } from '@/lib/db';
 import { runWithoutDbContext } from '@/lib/dbContext';
 import { sendMail } from '@/lib/email';
 import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
-import { clientNoticeTarget, ensureReceivablesTables, noticeOptoutFor } from '@/lib/receivablesRegistry';
+import { clientNoticeTarget, ensureReceivablesTables, noticeOptoutFor, receivableEmailTemplateReady } from '@/lib/receivablesRegistry';
+import { ACTION_TEMPLATE_VERSION } from '@/lib/receivables/copy/notices';
 import {
 	buildClientActionEmail,
 	clientActionKey,
@@ -87,8 +88,12 @@ export async function queueClientActionNotice(
 }
 
 async function finish(key: string, field: 'sent' | 'skipped', value: string, now: Date): Promise<void> {
+	// A sent row also records the template version the email used (email statement), once the
+	// column exists.
 	await db.execute(field === 'sent'
-		? { sql: `UPDATE receivable_client_action_notices SET sent_at = ? WHERE event_key = ? AND sent_at IS NULL`, args: [stamp(now), key] }
+		? receivableEmailTemplateReady()
+			? { sql: `UPDATE receivable_client_action_notices SET sent_at = ?, template_version = ? WHERE event_key = ? AND sent_at IS NULL`, args: [stamp(now), ACTION_TEMPLATE_VERSION, key] }
+			: { sql: `UPDATE receivable_client_action_notices SET sent_at = ? WHERE event_key = ? AND sent_at IS NULL`, args: [stamp(now), key] }
 		: { sql: `UPDATE receivable_client_action_notices SET skipped = ? WHERE event_key = ? AND sent_at IS NULL`, args: [value, key] });
 }
 

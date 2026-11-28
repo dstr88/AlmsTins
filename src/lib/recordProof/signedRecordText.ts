@@ -33,6 +33,7 @@ const KIND_LABEL: Record<string, string> = {
   claim_discharge: 'Claim released',
   settlement: 'Settlement',
   status_event: 'Status update',
+  email_statement: 'Statement of emails about a claim',
 };
 
 /** The record's kind in words, or its own tag for a kind this code does not know. */

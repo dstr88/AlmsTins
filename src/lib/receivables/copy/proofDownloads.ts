@@ -19,6 +19,7 @@ export const PROOF_LABEL = {
 	dispute: 'Dispute from {party} ({label})',
 	status_event: 'Status update: {event}',
 	reverification: 'Verify now check: {verdict}',
+	email_statement: 'Email statement: {financier}, {amount}, as of {date}',
 } as const;
 
 /** Who gave an answer, by the role it was filed under. */

@@ -50,6 +50,12 @@ export function proofRowLabel(row: ProofRow): string {
 			});
 		case 'status_event': return fillCopy(PROOF_LABEL.status_event, { event: PROOF_STATUS_EVENT[s(d.event)] ?? s(d.event, 'update') });
 		case 'reverification': return fillCopy(PROOF_LABEL.reverification, { verdict: s(d.verdict, 'done') });
+		case 'email_statement':
+			return fillCopy(PROOF_LABEL.email_statement, {
+				financier: s(d.financier, 'financier'),
+				amount: typeof d.amount === 'number' && Number.isFinite(d.amount) ? formatMoney(d.amount, s(d.currency, '')) : '',
+				date: s(d.asOf).slice(0, 10),
+			}).replace(/, , /, ', ');
 		default: return row.kind;
 	}
 }

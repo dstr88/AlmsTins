@@ -83,6 +83,22 @@ export const ADD_INVITE_ANSWER_KIND = 'ALTER TABLE receivable_invites ADD COLUMN
 export const ADD_INVITE_ANSWER_ID = 'ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS answer_id TEXT';
 export const INVITE_ANSWER_COLUMN_ADDS: readonly string[] = [ADD_INVITE_ANSWER_KIND, ADD_INVITE_ANSWER_ID];
 
+/**
+ * The template version each email used (email statement, approved 2026-11-28): written by the send
+ * to its own log row, so a statement of the emails about a claim names the wording without keeping
+ * the text. NULL on rows sent before these columns existed; a statement says "template version not
+ * recorded" for those rather than guessing. Confirmed on their own (the registry's
+ * emailTemplateReady: all four adds below succeeded, or a read of the four did); until then sends
+ * write the old way and statements read every version as not recorded.
+ */
+export const ADD_NOTICE_LOG_TEMPLATE = 'ALTER TABLE receivable_notice_log ADD COLUMN IF NOT EXISTS template_version TEXT';
+export const ADD_CLIENT_ACTION_TEMPLATE = 'ALTER TABLE receivable_client_action_notices ADD COLUMN IF NOT EXISTS template_version TEXT';
+export const ADD_UPDATE_REQUEST_TEMPLATE = 'ALTER TABLE receivable_update_requests ADD COLUMN IF NOT EXISTS template_version TEXT';
+export const ADD_UPDATE_DIGEST_TEMPLATE = 'ALTER TABLE receivable_update_request_digests ADD COLUMN IF NOT EXISTS template_version TEXT';
+export const EMAIL_TEMPLATE_COLUMN_ADDS: readonly string[] = [
+  ADD_NOTICE_LOG_TEMPLATE, ADD_CLIENT_ACTION_TEMPLATE, ADD_UPDATE_REQUEST_TEMPLATE, ADD_UPDATE_DIGEST_TEMPLATE,
+];
+
 export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
   ADD_ATTESTATION_SOURCE,
   ADD_DISCHARGE_SIGNATURE,
@@ -94,6 +110,7 @@ export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
   ADD_RECEIVABLE_DELETED_AT,
   ...FINGERPRINT_COLUMN_ADDS,
   ...INVITE_ANSWER_COLUMN_ADDS,
+  ...EMAIL_TEMPLATE_COLUMN_ADDS,
 ];
 
 /**
@@ -312,6 +329,63 @@ export const CREATE_UPDATE_REQUEST_DIGESTS = `
   )
 `;
 
+/**
+ * receivable_update_summary_claims (email statement): which claims each lender's daily summary of
+ * anonymous update requests covered, one row per (claim, day) the summary went out. The digest row
+ * above is per lender per day and an anonymous request row's emailed_at is cleared by a repeat
+ * click, so neither alone can say later which summaries mentioned a claim; this can. Bookkeeping
+ * only: ids, the day, when it was sent and the template version. No address, no requester.
+ */
+export const CREATE_UPDATE_SUMMARY_CLAIMS = `
+  CREATE TABLE IF NOT EXISTS receivable_update_summary_claims (
+    claim_id         TEXT NOT NULL,
+    day              TEXT NOT NULL,
+    lender_tenant_id TEXT NOT NULL,
+    sent_at          TEXT NOT NULL,
+    template_version TEXT,
+    PRIMARY KEY (claim_id, day)
+  )
+`;
+
+/**
+ * receivable_email_statements (email statement, approved 2026-11-28): a signed statement of the
+ * emails Almstins sent about one claim, as of the moment it was made (record kind
+ * email_statement in anchorSpec). Made when the claim's lender or the receivable's client
+ * downloads it; tenant_id is that viewer's account, so the proof-file route hands it back to
+ * them alone. The manifest names roles, dates, email types and template versions only: no
+ * address, no email text, no note and no requester.
+ */
+export const CREATE_EMAIL_STATEMENTS = `
+  CREATE TABLE IF NOT EXISTS receivable_email_statements (
+    id             TEXT NOT NULL PRIMARY KEY,
+    tenant_id      TEXT NOT NULL,
+    receivable_id  TEXT NOT NULL,
+    claim_id       TEXT NOT NULL,
+    viewer_role    TEXT NOT NULL,
+    as_of          TEXT NOT NULL,
+    manifest_json  TEXT NOT NULL,
+    signature_json TEXT,
+    digest         TEXT NOT NULL,
+    anchor_json    TEXT,
+    created_at     TEXT NOT NULL
+  )
+`;
+export const CREATE_EMAIL_STATEMENTS_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_email_statements_rcv ON receivable_email_statements (receivable_id, tenant_id)`;
+
+/**
+ * receivable_email_log_epochs (email statement): from when each email log holds emails, so every
+ * statement can say where its history starts. Written once per log, the first time a statement is
+ * made: the earliest send that log holds then, or that moment when it holds none (so no email of
+ * that kind was logged before it). Global bookkeeping, one row per log name, no tenant data.
+ */
+export const CREATE_EMAIL_LOG_EPOCHS = `
+  CREATE TABLE IF NOT EXISTS receivable_email_log_epochs (
+    log   TEXT NOT NULL PRIMARY KEY,
+    since TEXT NOT NULL
+  )
+`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
 export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_ANCHOR_ATTEMPTS,
@@ -322,4 +396,7 @@ export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_CLIENT_ACTION_NOTICES,
   CREATE_UPDATE_REQUESTS,
   CREATE_UPDATE_REQUEST_DIGESTS,
+  CREATE_UPDATE_SUMMARY_CLAIMS,
+  CREATE_EMAIL_STATEMENTS,
+  CREATE_EMAIL_LOG_EPOCHS,
 ];
