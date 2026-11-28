@@ -1,0 +1,20 @@
+---
+// UpdateRequest: "Ask the lender to update" for the record on screen (Part A). Markup only:
+// updateRequest.client.ts (mounted by the host page's entry module) follows the record through
+// hostBridge, reads GET /api/verify/receivables/update-request, and draws one row per claim with
+// the public "update requested" line, the caller's own dated requests, and the button where the
+// caller may ask. Hidden when no record is open or there is nothing to show.
+import './UpdateRequest.css';
+import { UR_TITLE } from '@/lib/receivables/copy/updateRequests';
+
+interface Props {
+	/** The host's own card classes, so the card itself hides when there is nothing to show. */
+	class?: string;
+}
+const { class: hostClass = '' } = Astro.props;
+---
+<section class:list={['upd-req', hostClass]} data-rcv-root="update-request" hidden>
+	<h3 class="upd-req__title">{UR_TITLE}</h3>
+	<p class="upd-req__lede" data-upd-lede></p>
+	<ul class="upd-req__list" data-upd-list></ul>
+</section>

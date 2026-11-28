@@ -25,6 +25,7 @@ import TransportDocCheck from '@/components/receivables/TransportDocCheck/Transp
 import NoticeInbox from '@/components/receivables/NoticeInbox/NoticeInbox.astro';
 import PlanLine from '@/components/receivables/PlanLine/PlanLine.astro';
 import ProofDownloads from '@/components/receivables/ProofDownloads/ProofDownloads.astro';
+import UpdateRequest from '@/components/receivables/UpdateRequest/UpdateRequest.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -740,6 +741,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <div id="claims"></div>
       </div>
 
+      <UpdateRequest class="card upd-req--spaced" />
       <ProofDownloads class="card proof-dl--spaced" />
 
       <div class="card" style="margin-top:1.15rem" id="card-paper">

@@ -79,6 +79,7 @@ import {
   CREATE_STATUS_EVENTS_CLAIM_IDX,
   CREATE_STATUS_EVENTS_LAPSED_IDX,
   CREATE_STATUS_EVENTS_RCV_IDX,
+  CREATE_UPDATE_REQUESTS_RCV_IDX,
   DDL_LOCK_TIMEOUT,
   FINGERPRINT_COLUMN_ADDS,
   INVITE_ANSWER_COLUMN_ADDS,
@@ -715,6 +716,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
   await db.execute({ sql: CREATE_STATUS_EVENTS_RCV_IDX, args: [] });
   await db.execute({ sql: CREATE_STATUS_EVENTS_CLAIM_IDX, args: [] });
   await db.execute({ sql: CREATE_STATUS_EVENTS_LAPSED_IDX, args: [] });
+  await db.execute({ sql: CREATE_UPDATE_REQUESTS_RCV_IDX, args: [] });
   // Each column add runs under DDL_LOCK_TIMEOUT (see schema.ts). The first add that waits out the
   // timeout ends the list for this run: every later add would queue behind the same lock for
   // another three seconds while holding up that table's reads. The skipped adds are retried a

@@ -17,6 +17,7 @@ import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import AckPrompt from '@/components/receivables/AckPrompt/AckPrompt.astro';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
+import UpdateRequest from '@/components/receivables/UpdateRequest/UpdateRequest.astro';
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import SeenBeforeForm from '@/components/receivables/SeenBeforeForm/SeenBeforeForm.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
@@ -200,6 +201,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <WithdrawnNote variant="registry" />
       <DuplicateFlag variant="registry" name="record" />
       <div class="out" id="q-out"></div>
+      <UpdateRequest class="upd-req--spaced" />
     </section>
 
     <!-- 1b. SEEN BEFORE? (authed check by invoice details; no receivable ID needed) -->

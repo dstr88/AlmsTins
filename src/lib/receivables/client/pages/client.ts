@@ -24,6 +24,7 @@ import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/dupli
 import { readPrecheckFields, wirePrecheck } from '@/components/receivables/duplicatePrecheck.client';
 import { markClientMineDuplicates, markClientMineSameShipment } from '@/lib/receivables/client/withdrawnRows';
 import { bookDuplicateIds, bookSameShipmentIds } from '@/lib/receivables/duplicateView';
+import { mountUpdateRequest } from '@/components/receivables/UpdateRequest/updateRequest.client';
 
 const withdrawnRecord = document.querySelector<HTMLElement>('[data-rcv-root="withdrawn-record"]');
 if (withdrawnRecord) {
@@ -58,3 +59,6 @@ if (mine) onBookLoaded((rows) => { markClientMineDuplicates(mine, bookDuplicateI
 // financier who asked and are downloaded from that link instead (C1, Option 1).
 const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
 if (proofDownloads) mountProofDownloads(proofDownloads);
+
+const updateRequest = document.querySelector<HTMLElement>('[data-rcv-root="update-request"]');
+if (updateRequest) mountUpdateRequest(updateRequest);
