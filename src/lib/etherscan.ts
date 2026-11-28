@@ -597,6 +597,164 @@ export async function getTxByHash({
   }
 }
 
+/** One event log as the explorer's logs API returns it (hex strings throughout). */
+export type ExplorerLog = {
+  address: string;
+  topics: string[];
+  data: string;
+  blockNumber: string;
+  timeStamp: string;
+  transactionHash: string;
+  logIndex: string;
+};
+
+/** The most logs the explorer returns per page. */
+export const LOGS_PAGE_SIZE = 1000;
+
+/**
+ * One page of event logs filtered by topics (module=logs, action=getLogs), from `fromBlock` (default 0)
+ * to `toBlock` (default the newest).
+ * `topics` are topic0..topic3; a null leaves that position open, and every given topic must match
+ * (topicX_Y_opr=and). `address` limits the logs to one contract. Returns [] when the explorer says
+ * there are none, and throws when the API key is missing or the explorer fails, so a caller can say
+ * the chain could not be read instead of reporting nothing found.
+ */
+export async function getLogsPage({
+  chainId,
+  topics,
+  address,
+  page = 1,
+  fromBlock = 0,
+  toBlock = 'latest',
+  requestId,
+}: {
+  chainId: number;
+  topics: Array<string | null>;
+  address?: string;
+  page?: number;
+  fromBlock?: number;
+  toBlock?: number | 'latest';
+  requestId?: string;
+}): Promise<ExplorerLog[]> {
+  const provider = providerForChain(chainId);
+  const params: Record<string, string | number> = {
+    module: 'logs',
+    action: 'getLogs',
+    fromBlock,
+    toBlock,
+    page,
+    offset: LOGS_PAGE_SIZE,
+  };
+  if (address) params.address = normalizeAddress(address);
+  const given = topics.map((t, i) => (t ? i : -1)).filter((i) => i >= 0);
+  for (const i of given) params[`topic${i}`] = String(topics[i]).toLowerCase();
+  for (let a = 0; a < given.length; a++) {
+    for (let b = a + 1; b < given.length; b++) params[`topic${given[a]}_${given[b]}_opr`] = 'and';
+  }
+  const url = buildUrl(chainId, params);
+  if (!url) throw new Error(`${provider} API key not set`);
+  const payload = await fetchJsonWithRetries(url, { provider, requestId });
+  return readResultArray<ExplorerLog>(payload, provider);
+}
+
+/** True for the explorer's answer that a logs query covered too many blocks (Routescan: "Timeout reached, please use a narrower block range"; Etherscan: "Query Timeout occured"). */
+export function isLogsRangeTooWide(err: unknown): boolean {
+  if (err instanceof RateGateTimeout) return false; // our own queue was full: a narrower range won't help
+  const m = err instanceof Error ? err.message : String(err ?? '');
+  return /narrower block range|timeout|smaller result dataset|block range/i.test(m);
+}
+
+/** The newest block number, through the explorer's proxy (eth_blockNumber). */
+export async function getLatestBlockNumber({ chainId, requestId }: { chainId: number; requestId?: string }): Promise<number> {
+  const provider = providerForChain(chainId);
+  const url = buildUrl(chainId, { module: 'proxy', action: 'eth_blockNumber' });
+  if (!url) throw new Error(`${provider} API key not set`);
+  const payload = await fetchJsonWithRetries(url, { provider, requestId, attempts: 2, cacheTtlMs: 5_000 });
+  const n = typeof payload?.result === 'string' ? parseInt(payload.result, 16) : NaN;
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${provider} eth_blockNumber missing result`);
+  return n;
+}
+
+/**
+ * A read-only contract call through the explorer's proxy (module=proxy, action=eth_call) at the newest
+ * block. Returns the raw hex result. Used for Avalanche, which Alchemy does not serve here.
+ */
+export async function ethCall({
+  chainId,
+  to,
+  data,
+  requestId,
+}: {
+  chainId: number;
+  to: string;
+  data: string;
+  requestId?: string;
+}): Promise<string> {
+  const provider = providerForChain(chainId);
+  const url = buildUrl(chainId, { module: 'proxy', action: 'eth_call', to: normalizeAddress(to), data, tag: 'latest' });
+  if (!url) throw new Error(`${provider} API key not set`);
+  // Spaced by the shared gate (explorerGates.ts: Routescan 2 a second), not the 1.2 s default, so a list of calls isn't slower than the key allows.
+  const payload = await fetchJsonWithRetries(url, { provider, requestId, attempts: 2, minIntervalMs: 450 });
+  if (payload?.error) throw new Error(`${provider} eth_call error`);
+  const result = payload?.result;
+  if (typeof result !== 'string' || !result.startsWith('0x')) throw new Error(`${provider} eth_call missing result`);
+  return result;
+}
+
+/**
+ * The time of the newest transaction the explorer lists for an address (normal and internal
+ * transactions, newest first, one each), as Unix seconds. Null when it lists none.
+ */
+export async function getLatestTxTimestamp({
+  chainId,
+  address,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  requestId?: string;
+}): Promise<number | null> {
+  const provider = providerForChain(chainId);
+  let newest: number | null = null;
+  for (const action of ['txlist', 'txlistinternal']) {
+    const url = buildUrl(chainId, {
+      module: 'account',
+      action,
+      address: normalizeAddress(address),
+      startblock: 0,
+      endblock: 99999999,
+      page: 1,
+      offset: 1,
+      sort: 'desc',
+    });
+    if (!url) throw new Error(`${provider} API key not set`);
+    const payload = await fetchJsonWithRetries(url, { provider, requestId });
+    const rows = readResultArray<{ timeStamp?: string }>(payload, provider);
+    const ts = Number(rows[0]?.timeStamp ?? NaN);
+    if (Number.isFinite(ts) && ts > 0 && (newest === null || ts > newest)) newest = ts;
+  }
+  return newest;
+}
+
+/** The contract name the explorer has for verified source code at this address, or null. */
+export async function getVerifiedContractName({
+  chainId,
+  address,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  requestId?: string;
+}): Promise<string | null> {
+  const provider = providerForChain(chainId);
+  const url = buildUrl(chainId, { module: 'contract', action: 'getsourcecode', address: normalizeAddress(address) });
+  if (!url) return null;
+  const payload = await fetchJsonWithRetries(url, { provider, requestId, cacheTtlMs: 60_000 });
+  const first = Array.isArray(payload?.result) ? payload.result[0] : null;
+  const name = typeof first?.ContractName === 'string' ? first.ContractName.trim() : '';
+  return name || null;
+}
+
 /**
  * Optional: clear internal caches (useful in tests/dev)
  */

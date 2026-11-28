@@ -19,6 +19,8 @@
  *   - the "see what a payer sees" field on the public Verify page (/verify, /verify/es, /verify/fr),
  *     which shows the scan page's own safety card
  *   - the safety screen in the Verify dashboard (/dashboard/verify)
+ *   - the standing approvals list on the Wallets page (/dashboard/wallets), whose "flagged by the
+ *     wallet checker's sources" reason reads GoPlus for each spender (src/lib/approvals/spenders.ts)
  * It is shown next to a result only when GoPlus actually answered for that check, so it never
  * sits beside a result that did not come from GoPlus. The wording is a brand credit that mirrors
  * the license, so it is the same in every language (the i18n files carry it as-is).

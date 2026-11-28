@@ -41,6 +41,47 @@ export async function alchemyRpc(chain: AlchemyChain, body: AlchemyRpcBody) {
 	return payload?.result;
 }
 
+/** The most calls sent in one JSON-RPC batch request (Alchemy advises keeping batches small). */
+export const ALCHEMY_BATCH_MAX = 50;
+
+/**
+ * Several read-only eth_call requests at the newest block, sent as JSON-RPC batches of up to
+ * ALCHEMY_BATCH_MAX. Each answer is its own: the hex result, or null when that one call failed
+ * (a reverted call, a contract without the function). A failure of the whole request throws.
+ */
+export async function alchemyEthCallBatch(
+	chain: AlchemyChain,
+	calls: Array<{ to: string; data: string }>,
+): Promise<Array<string | null>> {
+	const apiKey = process.env.ALCHEMY_API_KEY;
+	if (!apiKey) throw new Error('Missing ALCHEMY_API_KEY');
+	const url = `${ALCHEMY_BASE_URL[chain]}/${apiKey}`;
+	const out: Array<string | null> = new Array(calls.length).fill(null);
+	for (let start = 0; start < calls.length; start += ALCHEMY_BATCH_MAX) {
+		const slice = calls.slice(start, start + ALCHEMY_BATCH_MAX);
+		const body = slice.map((c, i) => ({
+			jsonrpc: '2.0' as const,
+			id: start + i,
+			method: 'eth_call',
+			params: [{ to: c.to, data: c.data }, 'latest'],
+		}));
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		if (!response.ok) throw new Error(`Alchemy HTTP ${response.status}`);
+		const payload = await response.json();
+		if (!Array.isArray(payload)) throw new Error('Alchemy batch: not an array');
+		for (const item of payload) {
+			const id = Number(item?.id);
+			if (!Number.isInteger(id) || id < start || id >= start + slice.length) continue;
+			out[id] = !item?.error && typeof item?.result === 'string' ? item.result : null;
+		}
+	}
+	return out;
+}
+
 /**
  * One page of a wallet's ERC-20 balances. Alchemy returns at most 100 per page and a pageKey
  * when there are more; a wallet full of spam airdrops runs to several pages, so a caller that

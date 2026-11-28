@@ -1035,6 +1035,42 @@ export function isCompromisedAddress(address: string): boolean {
   return isCompromisedEntity(KNOWN_ADDRESSES.get(address.toLowerCase()) ?? null);
 }
 
+/** What the checker's sources say about a contract that holds an approval (src/lib/approvals/flags.ts). */
+export interface SpenderCheck {
+  /** The checker flags with a hit, in the order WalletCheckResult['flags'] lists them. */
+  hits: Array<keyof WalletCheckResult['flags']>;
+  /** False when GoPlus or the OFAC mirror could not answer: "no hit" then means "not fully checked". */
+  complete: boolean;
+  /** GoPlus answered completely, so the result is credited to it (src/lib/goplusCredit.ts). */
+  goplus: boolean;
+}
+
+/**
+ * The scam and sanctions part of checkWallet() for one EVM contract, without the holdings, ENS,
+ * honeypot and activity lookups a full check makes: GoPlus's address flags, the local OFAC SDN
+ * mirror and the curated compromised list. Used for the spender of every standing approval, so
+ * a list of thirty approvals costs thirty of these, not thirty full checks.
+ */
+export async function checkSpenderAddress(address: string): Promise<SpenderCheck> {
+  const a = canonicalAddress(address);
+  const [goplus, ofac] = await Promise.all([
+    fetchGoPlusFlags(a).catch(() => ({ flags: {}, errors: ['GoPlus unavailable'] })),
+    lookupSanctionedAddress(a).catch(() => null),
+  ]);
+  const flags: WalletCheckResult['flags'] = {
+    blacklisted: false, phishing: false, honeypotRelated: false, stealingAttack: false,
+    darkwebTransactions: false, cybercrime: false, moneyLaundering: false, financialCrime: false,
+    blackmail: false, mixer: false, sanctioned: false,
+    ...(goplus.flags ?? {}),
+  };
+  if (ofac === true) flags.sanctioned = true;
+  if (isCompromisedAddress(a)) flags.blacklisted = true;
+  if (isMixerAddress(a)) flags.mixer = true;
+  const hits = (Object.keys(flags) as Array<keyof typeof flags>).filter((k) => flags[k]);
+  const goplusRan = (goplus.errors ?? []).length === 0;
+  return { hits, complete: goplusRan && ofac !== null, goplus: goplusRan };
+}
+
 // ─── ENS reverse lookup ───────────────────────────────────────────────────────
 // Uses ENS ReverseRecords contract via Alchemy eth_call — no extra API key needed.
 // Contract 0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C · getNames(address[])
