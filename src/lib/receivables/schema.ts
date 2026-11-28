@@ -73,6 +73,16 @@ export const ADD_TRANSPORT_DOC_OWNER = 'ALTER TABLE receivables ADD COLUMN IF NO
 export const FINGERPRINT_COLUMN_ADDS: readonly string[] = [ADD_FINGERPRINT_REF, ADD_FINGERPRINT_INV, ADD_FINGERPRINT_KID, ADD_FINGERPRINT_DOC, ADD_TRANSPORT_DOC_OWNER];
 
 /** New column adds, in order. They run after the registry's original column list. */
+/**
+ * Which record an emailed request's answer created (receivables downloads, Part B). Set when the
+ * answer is written, so the same link can later hand the person who answered their own record and
+ * the receivable it is about, read-only, until six months after the due date. answer_kind is the
+ * record kind (anchorSpec) and answer_id its id. Links answered before this existed have neither.
+ */
+export const ADD_INVITE_ANSWER_KIND = 'ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS answer_kind TEXT';
+export const ADD_INVITE_ANSWER_ID = 'ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS answer_id TEXT';
+export const INVITE_ANSWER_COLUMN_ADDS: readonly string[] = [ADD_INVITE_ANSWER_KIND, ADD_INVITE_ANSWER_ID];
+
 export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
   ADD_ATTESTATION_SOURCE,
   ADD_DISCHARGE_SIGNATURE,
@@ -83,6 +93,7 @@ export const RECEIVABLE_COLUMN_ADDS: readonly string[] = [
   ADD_SETTLEMENT_RECORDED_AT,
   ADD_RECEIVABLE_DELETED_AT,
   ...FINGERPRINT_COLUMN_ADDS,
+  ...INVITE_ANSWER_COLUMN_ADDS,
 ];
 
 /**

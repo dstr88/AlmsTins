@@ -13,7 +13,8 @@ import { formatMoney } from '@/lib/format';
 //   3. It says plainly that a lender will advance money on the answer.
 //   4. Disagreeing is exactly as easy as agreeing.
 import '@/styles/tokens.css';
-import { readConfirmRequest, pathForToken } from '@/lib/receivablesRegistry';
+import { readConfirmRequest, pathForToken, readAnswerProofByToken } from '@/lib/receivablesRegistry';
+import AnswerDownloads from '@/components/receivables/AnswerDownloads/AnswerDownloads.astro';
 import { WITHDRAWN_LINK_NOTE } from '@/lib/receivables/copy/withdrawn';
 
 export const prerender = false;
@@ -21,6 +22,12 @@ export const prerender = false;
 // Accept both spellings: links have been handed out with ?token= and ?t=.
 const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readConfirmRequest(token) : { ok: false as const, error: 'not_found' };
+
+// Already answered: the person who answered can still download their answer and the receivable
+// it is about, read-only, until six months after the due date. Right after answering, the page
+// reloads with ?answered=1; a link with nothing to hand out goes on to the thank-you page.
+const answered = (!req.ok && req.error === 'used' && token) ? await readAnswerProofByToken(token) : null;
+if (Astro.url.searchParams.get('answered') === '1' && !answered?.ok) return Astro.redirect('/verify/thanks');
 
 // A live token that belongs on another page. The reader did not choose this URL, so send
 // them on instead of stopping them.
@@ -128,7 +135,9 @@ const ERRORS: Record<string, string> = {
       <h1>Is this paperwork from your office, and is it accurate?</h1>
     </div>
 
-    {!req.ok && (
+    {answered && <AnswerDownloads token={token} read={answered} />}
+
+    {!req.ok && !answered?.ok && (
       <div class="note note-loss show">
         {elsewhere ? 'This link is for a different step.' : (ERRORS[req.error] ?? ERRORS.not_found)}
         {elsewhere && (
@@ -288,7 +297,12 @@ const ERRORS: Record<string, string> = {
           return;
         }
         // Answered: on to a plain thank-you with the three tools, not a dead note.
-        window.location.href = '/verify/thanks';
+        {
+          // Back to this page: it now shows the answer's downloads (or goes on to the thank-you page).
+          const next = new URL(window.location.href);
+          next.searchParams.set('answered', '1');
+          window.location.replace(next.toString());
+        }
       } catch {
         box.className = 'note note-loss show';
         box.textContent = 'Could not reach the registry. Please try again.';

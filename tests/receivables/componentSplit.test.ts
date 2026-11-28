@@ -83,7 +83,7 @@ const S4_TAGS: Record<ReceivablesHost, readonly string[]> = {
 	client: ['<DuplicateFlag variant="client" name="create" />', '<DuplicateFlag variant="client" name="record" />', '<BuyerRefField variant="client" id="f-ref" />'],
 };
 /** Components with no behavior of their own: markup and CSS only, no .client.ts. */
-const MARKUP_ONLY = new Set(['BuyerRefField']);
+const MARKUP_ONLY = new Set(['BuyerRefField', 'AnswerDownloads']);
 const ACK_ROOTS: Record<ReceivablesHost, string | null> = {
 	desk: '<AckPrompt variant="desk" name="claim" returnFocus="c-go" />', registry: '<AckPrompt variant="registry" name="claim" returnFocus="k-btn" />', client: null,
 };

@@ -1,0 +1,35 @@
+---
+// AnswerDownloads: on an emailed request that has been answered, the person who answered gets
+// their own answer and the receivable it is about as proof files, until six months after the due
+// date (readAnswerProofByToken). Markup only, server-rendered from the page's own read. The links
+// carry the same token the page was opened with, so they work only while the link reads.
+import './AnswerDownloads.css';
+import { fillCopy } from '@/lib/receivables/fillCopy';
+import {
+	ANSWERED_CLOSED, ANSWERED_DONE, ANSWERED_LEDE, ANSWERED_TITLE, ANSWERED_UNTIL,
+	DOWNLOAD_ANSWER, DOWNLOAD_RECEIVABLE,
+} from '@/lib/receivables/copy/answerDownloads';
+import type { AnswerProofRead } from '@/lib/receivablesRegistry';
+
+interface Props {
+	token: string;
+	read: AnswerProofRead;
+}
+const { token, read } = Astro.props;
+const href = (which: 'answer' | 'receivable') =>
+	`/api/verify/receivables/answer-proof?t=${encodeURIComponent(token)}&which=${which}`;
+---
+{read.ok ? (
+	<section class="answer-dl">
+		<h2 class="answer-dl__title">{ANSWERED_TITLE}</h2>
+		<p class="answer-dl__lede">{ANSWERED_LEDE}</p>
+		<div class="answer-dl__links">
+			<a class="answer-dl__link" href={href('answer')} download>{DOWNLOAD_ANSWER}</a>
+			{read.receivable && <a class="answer-dl__link" href={href('receivable')} download>{DOWNLOAD_RECEIVABLE}</a>}
+		</div>
+		<p class="answer-dl__note">{fillCopy(ANSWERED_UNTIL, { date: read.readUntil })}</p>
+		<a class="answer-dl__done" href="/verify/thanks">{ANSWERED_DONE}</a>
+	</section>
+) : read.error === 'closed' && read.readUntil ? (
+	<p class="answer-dl__closed">{fillCopy(ANSWERED_CLOSED, { date: read.readUntil })}</p>
+) : null}

@@ -174,6 +174,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Reading an offer with its token. The handler still requires a session for the
 		// financier's own listing; only the ?t= branch is reachable without one.
 		pathname === '/api/verify/receivables/offer' ||
+		// The answer-link download: an answered request hands the person who answered their own
+		// record and the receivable, by its ?t= token, with no account. Token-only route.
+		pathname === '/api/verify/receivables/answer-proof' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Receivables aging-notice opt-out — same reasoning: the client being emailed may hold

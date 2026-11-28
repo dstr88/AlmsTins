@@ -23,6 +23,8 @@ const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
     date: '2026-11-28',
     label: 'Saturday',
     entries: [
+      { kind: 'new', what: 'The person who answers a request link can download their answer and the receivable it is about.',
+        why: 'The debtor and the client answer by emailed link, with no account, and their answers are filed under the financier who asked. Until today they had no copy of what they had put their name to. Now the answer page shows Download your answer and Download the receivable once they reply, and opening the same link later shows them again. Each file carries its Almstins signature and Bitcoin timestamp and checks at almstins.com/verify-record. The link stays readable until six months after the receivable’s due date, or after a later date the financier extends it to; with no due date, six months after the link stopped taking answers. It can never answer twice. Links answered before today have no download.' },
       { kind: 'new', what: 'The Client Portal lists your signed records on a receivable you track, with a Download link for each.',
         why: 'A client who records a receivable on the Client Portal owns that record and its settlement, so the same "Your signed records" list the desk has now sits under "Claimed against it". It shows only what your own account holds; a financier’s claims are theirs.' },
       { kind: 'new', what: 'The desk lists your signed records on each receivable, with a Download link for each.',

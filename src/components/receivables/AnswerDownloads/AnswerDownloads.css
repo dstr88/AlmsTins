@@ -1,0 +1,21 @@
+/* AnswerDownloads — presentation only. A card on the answer pages once the request is answered.
+   The answer pages do not load fragments.css, so the tones come in here. */
+@import '../ui/tones.css';
+
+.answer-dl {
+	display: flex; flex-direction: column; gap: .65rem;
+	background: var(--rcv-gain-bg); border: 1px solid var(--rcv-gain-border); border-left: 3px solid var(--rcv-gain);
+	border-radius: 10px; padding: 1rem 1.1rem;
+}
+.answer-dl__title { margin: 0; font-size: 1.05rem; color: var(--text-primary); }
+.answer-dl__lede { margin: 0; font-size: .92rem; line-height: 1.6; color: var(--text-secondary); }
+.answer-dl__links { display: flex; flex-wrap: wrap; gap: .6rem; }
+.answer-dl__link {
+	display: inline-block; padding: .55rem .95rem; border-radius: 8px; font-weight: 700; font-size: .9rem;
+	background: var(--accent); color: var(--surface-bg); text-decoration: none;
+}
+.answer-dl__link:hover { background: var(--accent-dim); }
+.answer-dl__note { margin: 0; font-size: .82rem; color: var(--text-muted); }
+.answer-dl__done { align-self: flex-start; font-size: .88rem; font-weight: 600; color: var(--accent); text-decoration: none; }
+.answer-dl__done:hover { text-decoration: underline; }
+.answer-dl__closed { margin: 0; font-size: .9rem; color: var(--text-secondary); }
