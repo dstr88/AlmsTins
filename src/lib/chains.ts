@@ -249,6 +249,14 @@ export const WALLET_TX_CHAINS = ['ethereum', 'avalanche', 'polygon'] as const sa
 export const WALLET_CARD_EVM_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];
 
 /**
+ * The chains the Wallets page reads standing approvals on (src/lib/approvals), in the order the list shows
+ * them. Every EVM wallet is checked on all four, whatever chains its card has ticked: an approval given on a
+ * chain the user forgot to tick is the kind most worth seeing.
+ */
+export const APPROVAL_CHAINS = ['ethereum', 'polygon', 'avalanche', 'arbitrum'] as const satisfies readonly ChainId[];
+export type ApprovalChain = (typeof APPROVAL_CHAINS)[number];
+
+/**
  * The chains the Agent Vault watches (src/lib/agentVault). Base is read through its public JSON-RPC,
  * not an explorer API, and only for token transfers (src/lib/agentVault/baseRpc.ts).
  */

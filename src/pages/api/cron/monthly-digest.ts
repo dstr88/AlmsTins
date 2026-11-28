@@ -25,6 +25,9 @@ import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { currentCoinSymbol } from '@/lib/chains';
 import { json } from '@/lib/http';
+import { isEvmAddress } from '@/lib/addressFormats';
+import { flaggedApprovalItems, APPROVAL_DIGEST_REASON } from '@/lib/approvals/digest';
+import { readCachedApprovals, runApprovalsCheck } from '@/lib/approvals/cache';
 
 export const prerender = false;
 
@@ -38,7 +41,13 @@ const REASON_LABELS: Record<string, string> = {
 	airdrop_unpriced:    'Unpriced airdrop',
 	possible_loan:       'Possible loan transaction',
 	qty_mismatch:        'Token quantity mismatch',
+	[APPROVAL_DIGEST_REASON]: 'Standing approval flagged',
 };
+
+/** EVM wallets per account whose approvals the check-up reads. */
+const APPROVAL_WALLETS_PER_TENANT = 10;
+/** Time the whole run spends starting approval checks; later accounts skip them (logged as a count). */
+const APPROVALS_BUDGET_MS = 8 * 60_000;
 
 /** Round to 8 decimal places to avoid IEEE-754 false mismatches. */
 const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
@@ -85,12 +94,14 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log(`[cron/monthly-digest] Processing ${tenantIds.length} tenants`);
 
 	const results: Array<{ tenantId: string; itemCount: number; error?: string }> = [];
+	const runStarted = Date.now();
+	let approvalSkips = 0;
 
 	for (const tenantId of tenantIds) {
 		try {
 			// ── Build wallet address set (own addresses = not suspicious) ────────
 			const walletsRes = await db.execute({
-				sql:  `SELECT address FROM wallets WHERE tenant_id = ? AND (wallet_type = 'onchain' OR wallet_type IS NULL)`,
+				sql:  `SELECT id, address FROM wallets WHERE tenant_id = ? AND (wallet_type = 'onchain' OR wallet_type IS NULL)`,
 				args: [tenantId],
 			});
 			const ownAddresses = new Set(
@@ -147,7 +158,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 			// ── Build item list ──────────────────────────────────────────────────
 			type DigestItem = {
-				sourceType:   'onchain' | 'import' | 'reconciliation';
+				sourceType:   'onchain' | 'import' | 'reconciliation' | 'approval';
 				sourceId:     string;
 				reason:       string;
 				description:  string;
@@ -348,6 +359,45 @@ export const GET: APIRoute = async ({ request }) => {
 				console.error(`[cron/monthly-digest] Recon check failed for ${tenantId}:`, reconErr);
 			}
 
+			// ── Standing approvals flagged "Revoke first" (src/lib/approvals) ────
+			// New since the last check-up: an approval already listed in an earlier month's digest is not
+			// listed again. Read from public chain data through the same 30-minute cache the Wallets page
+			// uses; nothing new is stored. A failure here never blocks the rest of the digest.
+			try {
+				const evmWallets = (walletsRes.rows as Array<Record<string, unknown>>)
+					.map((r) => ({ id: String(r.id ?? ''), address: String(r.address ?? '').trim() }))
+					.filter((w) => w.id && isEvmAddress(w.address))
+					.slice(0, APPROVAL_WALLETS_PER_TENANT);
+				if (evmWallets.length > 0 && Date.now() - runStarted > APPROVALS_BUDGET_MS) {
+					approvalSkips += 1;
+				} else if (evmWallets.length > 0) {
+					const earlierRes = await db.execute({
+						sql:  `SELECT items_json FROM monthly_digests WHERE tenant_id = ? AND year_month < ?`,
+						args: [tenantId, yearMonth],
+					});
+					const alreadyListed = new Set<string>();
+					for (const row of earlierRes.rows as Array<Record<string, unknown>>) {
+						try {
+							const earlier = JSON.parse(String(row.items_json ?? '[]'));
+							if (!Array.isArray(earlier)) continue;
+							for (const it of earlier) {
+								if (it?.reason === APPROVAL_DIGEST_REASON && typeof it.sourceId === 'string') alreadyListed.add(it.sourceId);
+							}
+						} catch { /* an unreadable old digest lists nothing */ }
+					}
+					for (const w of evmWallets) {
+						const report = (await readCachedApprovals(tenantId, w.id)) ?? (await runApprovalsCheck(tenantId, w.id, w.address));
+						for (const item of flaggedApprovalItems(report, w.id)) {
+							if (alreadyListed.has(item.sourceId)) continue;
+							alreadyListed.add(item.sourceId);
+							items.push(item);
+						}
+					}
+				}
+			} catch (approvalErr) {
+				console.error(`[cron/monthly-digest] Approvals check failed for ${tenantId}:`, approvalErr instanceof Error ? approvalErr.message.slice(0, 160) : 'unknown');
+			}
+
 			// ── Upsert digest row ────────────────────────────────────────────────
 			await db.execute({
 				sql: `INSERT INTO monthly_digests (id, tenant_id, year_month, item_count, items_json, computed_at, dismissed_at)
@@ -375,5 +425,6 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 	}
 
-	return json({ ok: true, yearMonth, tenants: results.length, results }, 200, { pretty: true });
+	if (approvalSkips > 0) console.warn(`[cron/monthly-digest] approvals skipped for ${approvalSkips} account(s): time budget spent`);
+	return json({ ok: true, yearMonth, tenants: results.length, approvalSkips, results }, 200, { pretty: true });
 };

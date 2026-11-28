@@ -1,0 +1,377 @@
+/* Standing approvals (src/components/dashboard/WalletApprovals.tsx): the Approvals section on an
+   Ethereum-family wallet card, its list in the shared Modal, and the "How it works" tab.
+   Design tokens only. Nothing is drawn in the gain colour: no approval is shown as fine. */
+
+.wa {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	padding: 0.6rem 0.7rem;
+	border: 1px solid var(--border-subtle);
+	border-radius: 8px;
+	background: var(--surface-card-2);
+}
+
+.wa__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.35rem 0.6rem;
+}
+
+.wa__title {
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.wa__summary {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	font-size: 0.78rem;
+	color: var(--text-secondary);
+}
+
+.wa__alert {
+	padding: 0 0.45rem;
+	border: 1px solid var(--loss-border);
+	border-radius: 999px;
+	background: var(--loss-bg);
+	color: var(--loss);
+	font-weight: 700;
+}
+
+.wa__unknown {
+	color: var(--text-muted);
+}
+
+.wa__hint,
+.wa__error {
+	margin: 0;
+	font-size: 0.75rem;
+	line-height: 1.45;
+	color: var(--text-muted);
+}
+
+.wa__error {
+	color: var(--loss);
+}
+
+.wa__actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.4rem;
+}
+
+.wa__button {
+	padding: 0.3rem 0.75rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 7px;
+	background: transparent;
+	color: var(--text-secondary);
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+}
+
+.wa__button:hover:not(:disabled) {
+	background: var(--surface-hover);
+}
+
+.wa__button:disabled {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.wa__button--primary {
+	border-color: var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+
+.wa__button--primary:hover:not(:disabled) {
+	background: var(--accent-glow);
+}
+
+/* ── Modal ─────────────────────────────────────────────────────────── */
+
+.wa-modal {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+}
+
+.wa-modal__title {
+	margin: 0;
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: var(--text-primary);
+	overflow-wrap: anywhere;
+}
+
+.wa-modal__footer {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.wa-tabs {
+	display: flex;
+	gap: 0.25rem;
+	border-bottom: 1px solid var(--border-subtle);
+}
+
+.wa-tabs__tab {
+	padding: 0.45rem 0.8rem;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	background: transparent;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: 0.85rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.wa-tabs__tab--active {
+	border-bottom-color: var(--accent);
+	color: var(--text-primary);
+}
+
+/* ── List ──────────────────────────────────────────────────────────── */
+
+.wa-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.wa-list__lead {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	line-height: 1.5;
+	color: var(--text-primary);
+}
+
+.wa-list__asof,
+.wa-list__cancel,
+.wa-list__chain-note,
+.wa-group__note {
+	margin: 0;
+	font-size: 0.8rem;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
+.wa-list__pending {
+	margin: 0;
+	padding: 0.5rem 0.7rem;
+	border-left: 3px solid var(--accent-dim);
+	background: var(--surface-card-2);
+	font-size: 0.8rem;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
+.wa-list__chain-note {
+	padding: 0.5rem 0.7rem;
+	border-left: 3px solid var(--loss-border);
+	background: var(--surface-card-2);
+}
+
+.wa-list__empty {
+	margin: 0;
+	padding: 1rem;
+	border: 1px dashed var(--border-bright);
+	border-radius: 10px;
+	font-size: 0.88rem;
+	color: var(--text-secondary);
+	text-align: center;
+}
+
+.wa-list a,
+.wa-item a {
+	color: var(--accent);
+}
+
+.wa-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.wa-group__title {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0.4rem 0 0;
+	font-size: 0.9rem;
+	font-weight: 800;
+	color: var(--text-primary);
+}
+
+.wa-group--revoke_first .wa-group__title {
+	color: var(--loss);
+}
+
+.wa-group__count {
+	padding: 0 0.45rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 999px;
+	font-size: 0.72rem;
+	color: var(--text-secondary);
+}
+
+.wa-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.wa-item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding: 0.8rem 0.9rem;
+	border: 1px solid var(--border-subtle);
+	border-left: 3px solid var(--border-bright);
+	border-radius: 10px;
+	background: var(--surface-card-2);
+}
+
+.wa-item--revoke_first {
+	border-left-color: var(--loss);
+}
+
+.wa-item__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.6rem;
+}
+
+.wa-item__spender {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.wa-item__label,
+.wa-item__facts dt {
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.wa-item__name {
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	overflow-wrap: anywhere;
+}
+
+.wa-item__address {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 0.74rem;
+	color: var(--text-muted);
+}
+
+.wa-item__chain {
+	flex: none;
+	padding: 0.15rem 0.5rem;
+	border: 1px solid var(--border-bright);
+	border-radius: 999px;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+.wa-item__facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+	gap: 0.55rem 1rem;
+	margin: 0;
+}
+
+.wa-item__facts > div {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.wa-item__facts dd {
+	margin: 0;
+	font-size: 0.85rem;
+	line-height: 1.45;
+	color: var(--text-secondary);
+	overflow-wrap: anywhere;
+}
+
+.wa-item__why,
+.wa-item__cancel {
+	grid-column: 1 / -1;
+}
+
+.wa-item--revoke_first .wa-item__why dd {
+	color: var(--text-primary);
+}
+
+.wa-item__reasons {
+	margin: 0;
+	padding-left: 1.1rem;
+}
+
+.wa-item__sub {
+	display: block;
+	font-size: 0.75rem;
+	color: var(--text-muted);
+}
+
+/* ── How it works ──────────────────────────────────────────────────── */
+
+.wa-how {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+}
+
+.wa-how__item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.wa-how__title {
+	margin: 0;
+	font-size: 0.92rem;
+	font-weight: 700;
+	color: var(--text-primary);
+}
+
+.wa-how__body {
+	margin: 0;
+	font-size: 0.86rem;
+	line-height: 1.6;
+	color: var(--text-secondary);
+}

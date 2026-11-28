@@ -9,6 +9,7 @@ import { CopyButton } from '@/components/ui/CopyButton';
 import { QuarantineButton } from '@/components/poisoning/QuarantineButton';
 import { onQuarantine } from '@/components/poisoning/quarantineEvents';
 import type { QuarantineEntry } from '@/lib/quarantineEntry';
+import { WalletApprovals } from './WalletApprovals';
 
 // The same limit the server applies (src/lib/walletOwnerLabel.ts OWNER_LABEL_MAX).
 const OWNER_LABEL_MAX = 60;
@@ -376,6 +377,11 @@ export function WalletOverview({ wallets: initialWallets, quarantine: initialQua
 									</span>
 									<CopyButton value={wallet.address} variant="icon" />
 								</div>
+
+								{/* Standing approvals: Ethereum, Polygon, Avalanche and Arbitrum, read by address (WalletApprovals.tsx). */}
+								{chain.label === 'EVM' && !isEditing && (
+									<WalletApprovals walletId={wallet.id} walletName={wallet.label || shortenAddress(wallet.address)} />
+								)}
 
 								{/* Shown (owner only) while this wallet has no lot identification: LotIdentificationPrompt fills and reveals it. */}
 								<a data-li-link href="/dashboard/yearEnd/identifications" style={{ display: 'none', fontSize: '0.78rem' }} />
