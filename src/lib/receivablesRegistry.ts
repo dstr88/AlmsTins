@@ -81,6 +81,7 @@ import {
   CREATE_STATUS_EVENTS_RCV_IDX,
   DDL_LOCK_TIMEOUT,
   FINGERPRINT_COLUMN_ADDS,
+  INVITE_ANSWER_COLUMN_ADDS,
   RECEIVABLE_COLUMN_ADDS,
   RECEIVABLE_INDEX_CREATES,
   RECEIVABLE_TABLE_CREATES,
@@ -136,6 +137,8 @@ import {
   isAnchorKind,
   type AnchorRecordKind,
 } from '@/lib/receivables/anchorSpec';
+
+import { answerReadWindow, todayUtc, type AnswerWindowBasis } from '@/lib/receivables/answerWindow';
 
 /** Timestamp matching the columns' to_char(now() … 'YYYY-MM-DD HH24:MI:SS') default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -620,6 +623,10 @@ let deletedAtReady = false;
 // checks this, never columnsEnsured, and without it the check reads "unavailable", so a failed
 // ALTER anywhere (on this table or another) can never make a duplicate read as clear. Sticky.
 let fingerprintColumnsReady = false;
+// receivable_invites.answer_kind / answer_id (receivables downloads, Part B). Their own sticky
+// flag, like the two above: until both exist, answers are not bound to their link and the link
+// offers no download, so a failed ALTER elsewhere never makes a read fail open or throw.
+let inviteAnswerReady = false;
 // After a failed column add: the earliest time the whole (idempotent) ensure runs again.
 let columnsRetryAt = 0;
 // After a failed index (every column add succeeded): the earliest time the indexes alone run
@@ -715,11 +722,13 @@ async function runEnsureReceivablesTables(): Promise<void> {
   let allColumns = true;
   let locked = false;
   let fingerprintAdds = 0;
+  let inviteAnswerAdds = 0;
   for (const sql of [...ENSURE_SETTLEMENT_COLS, ...RECEIVABLE_COLUMN_ADDS]) {
     try {
       await ddlUnderLockTimeout(sql);
       if (sql === ADD_RECEIVABLE_DELETED_AT) deletedAtReady = true;
       if (FINGERPRINT_COLUMN_ADDS.includes(sql)) fingerprintAdds++;
+      if (INVITE_ANSWER_COLUMN_ADDS.includes(sql)) inviteAnswerAdds++;
     } catch (e) {
       allColumns = false;
       console.error('[receivables] column not applied:', e);
@@ -727,6 +736,7 @@ async function runEnsureReceivablesTables(): Promise<void> {
     }
   }
   if (fingerprintAdds === FINGERPRINT_COLUMN_ADDS.length) fingerprintColumnsReady = true;
+  if (inviteAnswerAdds === INVITE_ANSWER_COLUMN_ADDS.length) inviteAnswerReady = true;
   // Indexes on added columns (S3's partial fingerprint indexes), each on its own and after every
   // column add, so no read runs before them. A failure is logged and retried on its own clock; it
   // gates nothing, because a missing index makes the twin query slower, never wrong. Skipped while
@@ -745,6 +755,12 @@ async function runEnsureReceivablesTables(): Promise<void> {
       await db.execute({ sql: `SELECT fingerprint_ref, fingerprint_inv, fingerprint_doc, fingerprint_kid, transport_doc_owner FROM receivables LIMIT 0`, args: [] });
       fingerprintColumnsReady = true;
     } catch { /* not there yet: the duplicate check reads unavailable until a later ensure adds them */ }
+  }
+  if (!inviteAnswerReady) {
+    try {
+      await db.execute({ sql: `SELECT answer_kind, answer_id FROM receivable_invites LIMIT 0`, args: [] });
+      inviteAnswerReady = true;
+    } catch { /* not there yet: answers are not bound to their link, and links offer no download */ }
   }
   columnsEnsured = allColumns;
   columnsRetryAt = allColumns ? 0 : Date.now() + COLUMN_RETRY_MS;
@@ -3371,6 +3387,114 @@ export async function listOwnProofRecords(tenantId: string, receivableId: string
   return out;
 }
 
+/**
+ * Note on an emailed request which record its answer created (receivables downloads, Part B), so
+ * the same link can later hand that record back. Best effort: the answer is already written and
+ * signed, so a failure here only means this link offers no download, never a lost answer.
+ */
+async function bindAnswerToInvite(token: string, kind: AnchorRecordKind, recordId: string): Promise<void> {
+  if (!inviteAnswerReady) return;
+  try {
+    await db.execute({
+      sql: `UPDATE receivable_invites SET answer_kind = ?, answer_id = ? WHERE token = ? AND answer_id IS NULL`,
+      args: [kind, recordId, String(token || '').trim()],
+    });
+  } catch (e) {
+    console.error('[receivables] answer not bound to its link:', e instanceof Error ? e.message : 'error');
+  }
+}
+
+export type AnswerProofWhich = 'answer' | 'receivable';
+
+export type AnswerProofRead =
+  | {
+      ok: true;
+      /** Last day the link reads, YYYY-MM-DD (UTC), and the date it counts from. */
+      readUntil: string;
+      basis: AnswerWindowBasis;
+      answer: { kind: AnchorRecordKind; id: string };
+      receivable: { id: string; ownerTenant: string } | null;
+      answerTenant: string;
+    }
+  | { ok: false; error: 'not_found' | 'revoked' | 'not_answered' | 'no_record' | 'closed'; readUntil?: string };
+
+/**
+ * What an answered emailed request may still hand out, read-only: the answer it created and the
+ * receivable that answer is about, until six months after the due date (answerWindow.ts). The
+ * link is the authority, as for the paperwork (readDocumentByToken): answering spends the right
+ * to answer, not the right to read. Revoked closes it at once; a withdrawn receivable does not.
+ */
+export async function readAnswerProofByToken(token: string, now: Date = new Date()): Promise<AnswerProofRead> {
+  await ensureReceivablesTables();
+  if (!inviteAnswerReady) return { ok: false, error: 'no_record' };
+  const r = await db.execute({
+    sql: `SELECT from_tenant, expires_at, accepted_at, revoked_at, answer_kind, answer_id
+            FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return { ok: false, error: 'revoked' };
+  if (!row.accepted_at) return { ok: false, error: 'not_answered' };
+  if (!row.answer_id || !isAnchorKind(row.answer_kind)) return { ok: false, error: 'no_record' };
+  const answerTenant = String(row.from_tenant);
+  const kind = row.answer_kind as AnchorRecordKind;
+  const answerId = String(row.answer_id);
+
+  // The answer row says which receivable it is about (a claim-bound link has no receivable_id).
+  const att = await db.execute({
+    sql: `SELECT receivable_id FROM receivable_attestations WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [answerId, answerTenant],
+  });
+  const receivableId = att.rows.length ? String((att.rows[0] as any).receivable_id) : null;
+  if (!receivableId) return { ok: false, error: 'no_record' };
+
+  const rcv = await db.execute({
+    sql: `SELECT tenant_id, due_date FROM receivables WHERE id = ? LIMIT 1`,
+    args: [receivableId],
+  });
+  const rcvRow = rcv.rows[0] as any;
+  // Extensions recorded by the financier who sent the link move the window with them.
+  const ext = await db.execute({
+    sql: `SELECT new_promised_date FROM receivable_status_events
+           WHERE receivable_id = ? AND tenant_id = ? AND kind = 'extended'`,
+    args: [receivableId, answerTenant],
+  });
+  const latestExtension = (ext.rows as any[])
+    .map((e) => (e.new_promised_date != null ? String(e.new_promised_date) : ''))
+    .filter(Boolean)
+    .sort()
+    .pop() ?? null;
+  const win = answerReadWindow({
+    dueDate: rcvRow?.due_date != null ? String(rcvRow.due_date) : null,
+    latestExtension,
+    linkExpiresAt: String(row.expires_at),
+  });
+  if (todayUtc(now) > win.readUntil) return { ok: false, error: 'closed', readUntil: win.readUntil };
+
+  return {
+    ok: true,
+    readUntil: win.readUntil,
+    basis: win.basis,
+    answer: { kind, id: answerId },
+    receivable: rcvRow ? { id: receivableId, ownerTenant: String(rcvRow.tenant_id) } : null,
+    answerTenant,
+  };
+}
+
+/** The proof file source for one of the two records an answered link hands out. */
+export async function getAnswerProofSource(
+  token: string, which: AnswerProofWhich, now: Date = new Date(),
+): Promise<{ kind: AnchorRecordKind; id: string; src: Awaited<ReturnType<typeof getRecordProofSource>> } | { error: string }> {
+  const read = await readAnswerProofByToken(token, now);
+  if (!read.ok) return { error: read.error };
+  if (which === 'answer') {
+    return { kind: read.answer.kind, id: read.answer.id, src: await getRecordProofSource(read.answerTenant, read.answer.kind, read.answer.id) };
+  }
+  if (!read.receivable) return { error: 'no_record' };
+  return { kind: 'receivable', id: read.receivable.id, src: await getRecordProofSource(read.receivable.ownerTenant, 'receivable', read.receivable.id) };
+}
+
 /** Persist an anchor receipt (JSON) onto a record. Tenant-scoped; a record with no digest to
  *  stamp yet is left alone. */
 export async function setRecordAnchor(
@@ -3891,6 +4015,7 @@ export async function confirmByToken(
   });
   if (!result.ok) return { ok: false, error: result.error };
 
+  await bindAnswerToInvite(token, 'attestation', result.attestationId);
   return { ok: true, attestationId: result.attestationId, receivableId: invite.receivableId };
 }
 
@@ -4349,6 +4474,7 @@ export async function affirmClaimByToken(
     });
   }
 
+  await bindAnswerToInvite(token, 'attestation', result.attestationId);
   return { ok: true, attestationId: result.attestationId, claimId: req.claimId, receivableId: req.receivableId };
 }
 
@@ -4640,6 +4766,7 @@ export async function confirmRecordByToken(
   });
   if (!result.ok) return { ok: false, error: result.error };
 
+  await bindAnswerToInvite(token, 'attestation', result.attestationId);
   return { ok: true, attestationId: result.attestationId, receivableId: req.receivableId };
 }
 
@@ -5002,6 +5129,7 @@ export async function respondToOffer(
     role, label: req.supplier, statement, source,
   });
   if (!result.ok) return { ok: false, error: result.error };
+  await bindAnswerToInvite(token, 'attestation', result.attestationId);
   return { ok: true, attestationId: result.attestationId, receivableId, offerId: o.id };
 }
 
