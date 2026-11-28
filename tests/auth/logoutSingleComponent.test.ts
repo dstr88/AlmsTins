@@ -133,20 +133,26 @@ describe('the page\'s styles reach the button', () => {
 
 	/** The props the compiled page passes to <LogoutButton>, as written in the compiler's output. */
 	async function propsPassedToLogoutButton(file: string, scopedStyleStrategy: (typeof STRATEGIES)[number]) {
-		const { transform } = await import('@astrojs/compiler');
-		const out = await transform(read(file), { filename: `/virtual/${file}`, scopedStyleStrategy });
-		const call = out.code.match(/\$\$renderComponent\(\$\$result,'LogoutButton',LogoutButton,(\{[^}]*\})/);
+		// The compiler the build uses (Astro 7's Rust compiler; the Go @astrojs/compiler is gone).
+		const { transform } = await import('@astrojs/compiler-rs');
+		const out = await transform(read(file), {
+			filename: `/virtual/${file}`,
+			scopedStyleStrategy,
+			internalURL: 'astro/runtime/server/index.js',
+			resolvePath: (specifier: string) => specifier,
+		});
+		const call = out.code.match(/\$\$renderComponent\(\$\$result,\s*["']LogoutButton["'],\s*LogoutButton,\s*(\{[^}]*\})/);
 		return call?.[1] ?? '';
 	}
 
 	describe.each(PAGES_WITH_SCOPED_STYLES)('%s', file => {
 		it('hands its scope marker to the button as a data-astro-cid prop (Astro\'s default scoping)', async () => {
-			expect(await propsPassedToLogoutButton(file, 'attribute')).toMatch(/"data-astro-cid-[a-z0-9]+":true/);
+			expect(await propsPassedToLogoutButton(file, 'attribute')).toMatch(/"data-astro-cid-[a-z0-9]+":\s*true/);
 		});
 
 		it.each(['where', 'class'] as const)('hands it as an extra class under the %s strategy', async strategy => {
 			const props = await propsPassedToLogoutButton(file, strategy);
-			expect(props).toMatch(/"class":"[^"]*\bastro-[a-z0-9]+"/);
+			expect(props).toMatch(/"class":\s*"[^"]*\bastro-[a-z0-9]+"/);
 		});
 	});
 

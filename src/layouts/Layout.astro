@@ -269,14 +269,14 @@ const memberSinceDisplay = memberSinceIso ? formatDate(memberSinceIso, navLang) 
 				<button id="nav-toggle" class="nav-toggle" aria-label={tNav.chrome.ariaOpenMenu} aria-expanded="false" aria-controls="nav-drawer">☰</button>
 				<nav id="nav-drawer">
 				{petroNav.tradfiNav ? (
-					<!-- TradfiTins-only nav -->
+					/* TradfiTins-only nav */
 					<>
 						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>Dashboard</a>
 						<a href="/petro-tins/docs" class={`nav-link ${isActive('/petro-tins/docs') ? 'active' : ''}`}>Docs</a>
 						<a href="/dashboard/petro-tins/upgrade" class={`nav-link ${isActive('/dashboard/petro-tins/upgrade') ? 'active' : ''}`}>Upgrade</a>
 					</>
 				) : (
-					<!-- Full Almstins nav -->
+					/* Full Almstins nav */
 					<>
 						<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>{tNav.nav.bookkeeping}</a>
 						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>{tNav.nav.vault}</a>

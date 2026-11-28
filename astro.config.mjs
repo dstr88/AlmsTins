@@ -22,6 +22,9 @@ export default defineConfig({
 		}),
 	],
 	output: 'server',
+	// Astro 7's default ('jsx') drops the space between inline elements, which runs words
+	// together across the site. true keeps the HTML-aware whitespace handling of Astro 6.
+	compressHTML: true,
 	server: {
 		host,
 		port,
@@ -37,6 +40,17 @@ export default defineConfig({
 		// against "http://localhost:10000" (url.origin) and incorrectly rejects
 		// all POST form submissions. @auth/core handles its own CSRF for auth routes.
 		checkOrigin: false,
+		// The Node adapter (11.1.7+) builds Astro.url from the Host / X-Forwarded-* headers
+		// only when the host is on this list, and only then trusts X-Forwarded-For for
+		// clientAddress. Any other host is not refused: Astro.url falls back to
+		// localhost:<port>, as it was before this list existed. TradfiTins hosts are routed
+		// in src/middleware/app.ts.
+		allowedDomains: [
+			{ hostname: 'almstins.com' },
+			{ hostname: 'www.almstins.com' },
+			{ hostname: 'tradifitins.com' },
+			{ hostname: 'www.tradifitins.com' },
+		],
 	},
 	vite: {
 		ssr: {
