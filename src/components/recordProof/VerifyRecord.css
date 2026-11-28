@@ -67,3 +67,8 @@
 .vr__commit li:last-child { border-bottom: none; }
 
 .vr__disclaimer { margin-top: 1.5rem; font-size: 0.76rem; color: var(--text-muted); line-height: 1.6; font-style: italic; }
+
+/* A receivables proof file's manifest, shown as signed. */
+.vr__signed { margin-top: 0.75rem; max-height: 20rem; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.75rem; color: var(--text-secondary); }
+.vr__hint a { color: var(--accent); }
