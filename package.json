@@ -41,7 +41,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.554.0",
     "mailparser": "^3.9.14",
-    "nodemailer": "^7.0.0",
+    "nodemailer": "^10.6.1",
     "opentimestamps": "^0.4.9",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.18.0",
@@ -57,9 +57,13 @@
     "@astrojs/sitemap": "^3.7.2",
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.5.2",
-    "@types/nodemailer": "^7.0.9",
     "@types/pdf-parse": "^1.1.5",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
+  },
+  "overrides": {
+    "@auth/core": {
+      "nodemailer": "$nodemailer"
+    }
   }
 }
