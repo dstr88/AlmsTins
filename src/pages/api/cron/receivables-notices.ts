@@ -10,10 +10,14 @@
  * Returns counts only: numbers and booleans. The workflow prints exactly those (this repo's
  * Actions logs are public), and no address, tenant or deal identifier belongs in them.
  *
+ * The same pass retries the client emails sent when a lender acts on a claim (Part B,
+ * clientActionDelivery.ts): a send that failed in the action's own request goes out here.
+ *
  * Protected by CRON_SECRET. Called by .github/workflows/receivables-notices.yml
  */
 import type { APIRoute } from 'astro';
 import { runAgingNotices } from '@/lib/receivables/server/noticeDelivery';
+import { runClientActionNotices } from '@/lib/receivables/server/clientActionDelivery';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -26,8 +30,11 @@ export const GET: APIRoute = async ({ request }) => {
 
   const started = Date.now();
   try {
-    const counts = await runAgingNotices(new Date());
-    return json({ ok: true, elapsed_ms: Date.now() - started, ...counts });
+    const now = new Date();
+    const counts = await runAgingNotices(now);
+    // Part B: retry any client email about a lender's action whose first try failed.
+    const actions = await runClientActionNotices(now);
+    return json({ ok: true, elapsed_ms: Date.now() - started, ...counts, ...actions });
   } catch (err) {
     console.error('[cron/receivables-notices] pass failed:', err);
     return json({ ok: false, error: 'notice_pass_failed', elapsed_ms: Date.now() - started }, 500);

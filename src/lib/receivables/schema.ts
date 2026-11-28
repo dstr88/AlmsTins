@@ -244,6 +244,29 @@ export const CREATE_RECEIVABLES_SUBSCRIPTIONS = `
   )
 `;
 
+/**
+ * receivable_client_action_notices (Part B, approved 2026-11-28): the outbox behind the client
+ * email sent when a lender acts on a claim (repaid, extended, marked unpaid) or the receivable is
+ * settled. One row per action, ever, keyed by event_key ('repaid:<claim>', 'extended:<event>',
+ * 'unpaid:<event>', 'settled:<receivable>'). The action route writes the row and tries the send at
+ * once; the daily notices job retries any row still pending (sent_at and skipped both null) for a
+ * few days. skipped records why a row never sends (test record, no address, opted out, the client
+ * acted itself, withdrawn). Bookkeeping only: ids and dates, no address, no reason or note.
+ */
+export const CREATE_CLIENT_ACTION_NOTICES = `
+  CREATE TABLE IF NOT EXISTS receivable_client_action_notices (
+    event_key       TEXT NOT NULL PRIMARY KEY,
+    kind            TEXT NOT NULL,
+    receivable_id   TEXT NOT NULL,
+    claim_id        TEXT,
+    actor_tenant_id TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    sent_at         TEXT,
+    skipped         TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0
+  )
+`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
 export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_ANCHOR_ATTEMPTS,
@@ -251,4 +274,5 @@ export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_NOTICE_LOG,
   CREATE_NOTICE_OPTOUTS,
   CREATE_RECEIVABLES_SUBSCRIPTIONS,
+  CREATE_CLIENT_ACTION_NOTICES,
 ];
