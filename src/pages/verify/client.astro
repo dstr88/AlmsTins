@@ -261,6 +261,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { readTransportDoc } from '@/components/receivables/TransportDocField/transportDocField.client';
     import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
+    import { proofFilesHtml } from '@/components/receivables/ProofFiles/proofFiles';
     import { anchorAfterWrite } from '@/lib/receivables/client/anchorAfterWrite';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { statusPillHtml } from '@/components/receivables/StatusPill/statusPill';
@@ -354,13 +355,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         : `<div class="ev missing"><div>!</div><div><div class="ev__t">Your buyer has not confirmed yet</div><div class="ev__d">Until they acknowledge it, a financier is trusting your paperwork alone. Send them the ID and ask them to confirm.</div></div></div>`;
 
       const claims = r.claims || [];
-      document.getElementById('t-claims')!.innerHTML = claims.length === 0
+      document.getElementById('t-claims')!.innerHTML = (claims.length === 0
         ? `<p class="muted">Nothing claimed yet. The full face value is unencumbered.</p>`
         : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th></tr></thead><tbody>` +
           claims.map((c: any) => `<tr class="${c.status === 'discharged' ? 'discharged' : ''}">
             <td>${esc(c.financier)}</td><td>${esc(money(c.amount, c.currency || ccy))}</td>
             <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
-            <td>${esc(c.status === 'discharged' ? 'discharged' : 'active')}</td></tr>`).join('') + `</tbody></table>`;
+            <td>${esc(c.status === 'discharged' ? 'discharged' : 'active')}</td></tr>`).join('') + `</tbody></table>`) + proofFilesHtml(r);
     }
 
     async function loadMine() {

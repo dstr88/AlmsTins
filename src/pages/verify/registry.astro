@@ -379,6 +379,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     import { agingPillHtml } from '@/components/receivables/AgingPill/agingPill';
     import { freshnessLineHtml } from '@/components/receivables/AgingPill/freshnessLine';
     import { anchorPillHtml, bindAnchorPills } from '@/components/receivables/AnchorPill/anchorPill';
+    import { proofFilesHtml } from '@/components/receivables/ProofFiles/proofFiles';
     import { copyText } from '@/lib/receivables/client/copyText';
     import { readTransportDoc } from '@/components/receivables/TransportDocField/transportDocField.client';
     import { TRANSPORT_DOC_REQUIRED } from '@/lib/receivables/copy/transportDoc';
@@ -615,6 +616,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <ul class="claims">${claims}</ul>
         ${attBlock}
         ${reverifyBlock}
+        ${proofFilesHtml(rcv)}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
         ${(!rcv.isTest && !(rcv.attestations || []).some((a: any) => a.role === 'buyer')) ? `<div class="note note-warn"><b>Not acknowledged by the debtor.</b> No buyer attestation is on record — this receivable is <b>Recorded</b>, not <b>Attested</b>. Any claim here rests on the supplier's word until the obligor confirms.</div>` : ''}
         ${settleBtn}

@@ -737,6 +737,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <h2>Claims standing against it</h2>
         <p class="hint">Every advance registered by any financier holding this ID.</p>
         <div id="claims"></div>
+        <div id="proof-files"></div>
       </div>
 
       <div class="card" style="margin-top:1.15rem" id="card-paper">
@@ -876,6 +877,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
     import { CLAIM_COPY_DESK, CLAIM_CHECK_FIRST, CLAIM_NEED_FIRM, CLAIM_NEED_AMOUNT } from '@/lib/receivables/copy/claim';
     import { ANCHOR_AFTER_WRITE } from '@/lib/receivables/copy/anchor';
     import { anchorChecklist, anchorEvidence } from '@/lib/receivables/anchorView';
+    import { proofFilesHtml } from '@/components/receivables/ProofFiles/proofFiles';
     import { anchorAfterWrite } from '@/lib/receivables/client/anchorAfterWrite';
     import { bindCopyButtons, delegateCopyButtons } from '@/lib/receivables/client/copyText';
     import { COPY_FAILED_LABEL } from '@/lib/receivables/copy/clipboard';
@@ -1033,6 +1035,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
       document.getElementById('claims')!.querySelectorAll('[data-ask]').forEach((b) => {
         b.addEventListener('click', () => askClient((b as HTMLElement).dataset.ask as string));
       });
+      // Proof files: only the records this account owns on the receivable (the lookup's proofFiles).
+      document.getElementById('proof-files')!.innerHTML = proofFilesHtml(r);
       claimAging.update(r);
       renderCountersignCard(claims, ccy);
 

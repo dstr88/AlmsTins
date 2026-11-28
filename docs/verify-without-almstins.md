@@ -11,7 +11,7 @@ Everything here uses open-source tools. Nothing contacts almstins.com.
 
 | Item | Where it comes from |
 |---|---|
-| The record file | Whoever gave it to you |
+| The record file | Whoever gave it to you. For your own receivables records: open the receivable on the desk, the registry page or the Client Portal, and use Download proof file under "Proof files for your records". |
 | The root key fingerprint | Posted publicly by Almstins, outside almstins.com. This is the one value you take on trust, so check it against more than one copy. |
 | The key log | `github.com/dstr88/almstins-keys`, or any mirror (Software Heritage, the Internet Archive). It must verify against the fingerprint, so a copy from anywhere is fine. |
 | The verifier | `scripts/verify-record.mjs` and `scripts/keylog.mjs`, from `github.com/dstr88/AlmsTins` or the copy in the keys repo. Both are short. Read them. |

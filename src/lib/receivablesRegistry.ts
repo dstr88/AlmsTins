@@ -3289,6 +3289,34 @@ export async function getRecordProofSource(
   };
 }
 
+/** One record a tenant can download the proof file for (GET /api/verify/receivables/proof-file). */
+export interface OwnProofRecord { kind: AnchorRecordKind; id: string }
+
+/**
+ * Every record on one receivable that this tenant owns and that has a proof file to give: a
+ * signed manifest and its digest are stored. The same rows getRecordProofSource would answer for
+ * this tenant, so a page can offer the download only where it will work. Scoped by tenant_id in
+ * every read; nothing about another tenant's records comes back, not even whether they exist.
+ * Kinds in ANCHOR_KINDS order, rows within a kind by id. Empty with no tenant.
+ */
+export async function listOwnProofRecords(receivableId: string, tenantId: string | null | undefined): Promise<OwnProofRecord[]> {
+  if (!tenantId) return [];
+  await ensureReceivablesTables();
+  const rid = String(receivableId || '').trim();
+  const perKind = await Promise.all(ANCHOR_KINDS.map(async (kind) => {
+    if (!anchorKindReady(kind)) return [];
+    const { table, digestColumn, manifestColumn, receivableColumn } = ANCHOR_SPEC[kind];
+    const r = await db.execute({
+      sql: `SELECT id FROM ${table}
+            WHERE ${receivableColumn} = ? AND tenant_id = ? AND ${digestColumn} IS NOT NULL AND ${manifestColumn} IS NOT NULL
+            ORDER BY id ASC`,
+      args: [rid, String(tenantId)],
+    });
+    return (r.rows as any[]).map((row) => ({ kind, id: String(row.id) }));
+  }));
+  return perKind.flat();
+}
+
 /** Persist an anchor receipt (JSON) onto a record. Tenant-scoped; a record with no digest to
  *  stamp yet is left alone. */
 export async function setRecordAnchor(

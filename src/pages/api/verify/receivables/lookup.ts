@@ -27,9 +27,14 @@
  * commitment. The record's owner (the caller's session, read here and never required) also gets
  * transportDocNumber, their own private copy. Nobody else ever gets the number; another lender
  * checks one they hold with POST /api/verify/receivables/transport-doc-check (yes or no).
+ *
+ * A signed-in caller also gets proofFiles: the records on this receivable that its own account
+ * owns and that have a proof file to download ({ kind, id } each, listOwnProofRecords), so the
+ * pages offer "Download proof file" only where GET /api/verify/receivables/proof-file will answer.
+ * Only the caller's own records, never whose the others are; left out when there are none.
  */
 import type { APIRoute } from 'astro';
-import { getReceivableStatus, ownTransportDocNumber } from '@/lib/receivablesRegistry';
+import { getReceivableStatus, listOwnProofRecords, ownTransportDocNumber } from '@/lib/receivablesRegistry';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { transportDocAnswerOf } from '@/lib/receivables/transportDoc';
 import { kickFingerprintBackfill } from '@/lib/receivables/server/fingerprintBackfill';
@@ -57,12 +62,18 @@ export const GET: APIRoute = async ({ request, url }) => {
   try {
     const status = await getReceivableStatus(raw.toLowerCase());
     if (!status) return publicJson({ ok: true, found: false, receivable: null });
-    if (transportDocAnswerOf(status.details) === 'number') {
-      const session = await requireTenantSession(request).catch(() => null);
-      const own = await ownTransportDocNumber(status.id, session?.tenantId);
-      if (own) return publicJson({ ok: true, found: true, receivable: { ...status, transportDocNumber: own } });
-    }
-    return publicJson({ ok: true, found: true, receivable: status });
+    const session = await requireTenantSession(request).catch(() => null);
+    const tenantId = session?.tenantId;
+    const [own, proofFiles] = await Promise.all([
+      transportDocAnswerOf(status.details) === 'number' ? ownTransportDocNumber(status.id, tenantId) : null,
+      listOwnProofRecords(status.id, tenantId).catch(() => []),
+    ]);
+    const receivable = {
+      ...status,
+      ...(own ? { transportDocNumber: own } : {}),
+      ...(proofFiles.length ? { proofFiles } : {}),
+    };
+    return publicJson({ ok: true, found: true, receivable });
   } catch (err) {
     console.error('[receivables-lookup] error:', err instanceof Error ? err.message : err);
     return publicJson({ ok: false, error: 'lookup_failed' }, 500);

@@ -13,6 +13,7 @@ import * as seenBeforeCopy from '../../src/lib/receivables/copy/seenBefore';
 import * as agingCopy from '../../src/lib/receivables/copy/aging';
 import * as noticesCopy from '../../src/lib/receivables/copy/notices';
 import * as planCopy from '../../src/lib/receivables/copy/plan';
+import * as proofFileCopy from '../../src/lib/receivables/copy/proofFile';
 import { BRIGHT_LINE_RULES, brightLineViolations } from '../helpers/brightLineWording';
 import { TERMS } from '../../src/lib/verifyTerms';
 
@@ -34,6 +35,7 @@ const COPY_MODULES: Record<string, Record<string, unknown>> = {
 	aging: agingCopy,
 	notices: noticesCopy,
 	plan: planCopy,
+	proofFile: proofFileCopy,
 };
 
 /** Every string in a copy value, with its path. null (a "show nothing" slot) is skipped. */
