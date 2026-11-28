@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
-	const apiKey = import.meta.env.SNOWTRACE_API_KEY as string | undefined;
+	const apiKey = process.env.SNOWTRACE_API_KEY as string | undefined;
 	if (!apiKey) {
 		return new Response(JSON.stringify({ error: 'SNOWTRACE_API_KEY not configured.' }), { status: 500 });
 	}

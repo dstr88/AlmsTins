@@ -22,7 +22,7 @@ export const prerender = false;
 const MAX_PER_RUN = 200;
 
 export const GET: APIRoute = async ({ request }) => {
-  const secret = import.meta.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET;
   const provided =
     request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
   if (!secret || provided !== secret) return json({ ok: false, error: 'unauthorized' }, 401);

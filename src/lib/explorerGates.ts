@@ -47,13 +47,13 @@ export const ACTIVITY_MAX_WAIT_MS = 4_000;
 export const BACKGROUND_MAX_WAIT_MS = 30_000;
 
 export const etherscanGate = createRateGate({
-  limit: callsPerWindow(import.meta.env.ETHERSCAN_CALLS_PER_SEC ?? process.env.ETHERSCAN_CALLS_PER_SEC, 3),
+  limit: callsPerWindow(process.env.ETHERSCAN_CALLS_PER_SEC, 3),
   intervalMs: WINDOW_MS,
   maxWaitMs: SAFETY_MAX_WAIT_MS,
 });
 
 export const routescanGate = createRateGate({
-  limit: callsPerWindow(import.meta.env.ROUTESCAN_CALLS_PER_SEC ?? process.env.ROUTESCAN_CALLS_PER_SEC, 2),
+  limit: callsPerWindow(process.env.ROUTESCAN_CALLS_PER_SEC, 2),
   intervalMs: WINDOW_MS,
   maxWaitMs: SAFETY_MAX_WAIT_MS,
 });

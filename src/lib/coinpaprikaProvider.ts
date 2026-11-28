@@ -5,11 +5,11 @@ const CACHE_KEY = 'coinpaprika:tickers:all:quotes=USD';
 
 const MEMORY_TTL_SECONDS = Math.min(
 	300,
-	Math.max(60, Number(import.meta.env.COINPAPRIKA_L1_TTL_SECONDS ?? 120)),
+	Math.max(60, Number(process.env.COINPAPRIKA_L1_TTL_SECONDS ?? 120)),
 );
 const TURSO_TTL_SECONDS = Math.min(
 	3600,
-	Math.max(60, Number(import.meta.env.COINPAPRIKA_L2_TTL_SECONDS ?? 600)),
+	Math.max(60, Number(process.env.COINPAPRIKA_L2_TTL_SECONDS ?? 600)),
 );
 
 const memoryCache = new Map<string, { expiresAt: number; payload: unknown }>();

@@ -18,8 +18,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
-    "@astrojs/node": "^9.5.4",
-    "@astrojs/react": "^4.4.2",
+    "@astrojs/node": "^10.1.4",
+    "@astrojs/react": "^5.0.7",
     "@auth/core": "^0.41.3",
     "@bgd-labs/aave-address-book": "^4.44.22",
     "@google-analytics/data": "^5.2.1",
@@ -30,7 +30,7 @@
     "@types/pdfkit": "^0.17.5",
     "@types/pg": "^8.20.0",
     "@types/qrcode": "^1.5.6",
-    "astro": "^5.18.0",
+    "astro": "^6.4.8",
     "bcryptjs": "^3.0.3",
     "canonicalize": "^3.0.0",
     "chart.js": "^4.5.1",
@@ -49,12 +49,11 @@
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "stripe": "^20.4.1",
-    "zod": "^3.25.76"
+    "stripe": "^20.4.1"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.6",
-    "@astrojs/sitemap": "^3.7.2",
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/sitemap": "^3.7.6",
     "@playwright/test": "^1.58.2",
     "@types/node": "^24.5.2",
     "@types/pdf-parse": "^1.1.5",

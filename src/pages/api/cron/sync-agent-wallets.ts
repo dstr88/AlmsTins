@@ -27,7 +27,7 @@ export const prerender = false;
 const RUN_BUDGET_MS = 9 * 60_000;
 
 export const GET: APIRoute = async ({ request }) => {
-  const secret = import.meta.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET;
   const provided = request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
   if (!cronSecretMatches(secret, provided)) return json({ ok: false, error: 'unauthorized' }, 401, { noStore: true });
 

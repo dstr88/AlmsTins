@@ -5,6 +5,7 @@ import node from '@astrojs/node';
 import sitemap from '@astrojs/sitemap';
 import { sitemapFilter } from './src/lib/seo/sitemapFilter.mjs';
 import { canonicalUrl } from './src/lib/seo/canonical.mjs';
+import { BODY_SIZE_LIMIT_BYTES } from './src/lib/http/bodySizeLimit.mjs';
 
 const host = process.env.HOST ?? '0.0.0.0';
 const port = process.env.PORT ? Number(process.env.PORT) : 10000;
@@ -27,6 +28,8 @@ export default defineConfig({
 	},
 	adapter: node({
 		mode: 'standalone',
+		// See src/lib/http/bodySizeLimit.mjs.
+		bodySizeLimit: BODY_SIZE_LIMIT_BYTES,
 	}),
 	security: {
 		// Render proxies requests through localhost:10000 internally, so

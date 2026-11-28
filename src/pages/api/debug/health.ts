@@ -19,9 +19,9 @@ export const GET: APIRoute = async ({ request }) => {
 	const startedAt = Date.now();
 
 	const envVars = {
-		ETHERSCAN_API_KEY: Boolean(import.meta.env.ETHERSCAN_API_KEY),
-		SNOWTRACE_API_KEY: Boolean(import.meta.env.SNOWTRACE_API_KEY),
-		AAVE_V3_SUBGRAPH_API_KEY: Boolean(import.meta.env.AAVE_V3_SUBGRAPH_API_KEY ?? import.meta.env.AAVE_API_KEY),
+		ETHERSCAN_API_KEY: Boolean(process.env.ETHERSCAN_API_KEY),
+		SNOWTRACE_API_KEY: Boolean(process.env.SNOWTRACE_API_KEY),
+		AAVE_V3_SUBGRAPH_API_KEY: Boolean(process.env.AAVE_V3_SUBGRAPH_API_KEY ?? process.env.AAVE_API_KEY),
 		// Parsed, not just present: true only when the key decodes to 32 bytes. Never the value.
 		RECEIVABLES_FINGERPRINT_KEY: fingerprintKeyAvailable(),
 		// The database is checked by connecting (below), not by a variable being present.

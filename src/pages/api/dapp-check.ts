@@ -334,8 +334,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   recordCheck({ kind: 'dapp', subject: domain, request });
 
   // Env-var-gated sources
-  const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
-  const vt   = (process.env as any).VIRUSTOTAL_API_KEY       ?? import.meta.env.VIRUSTOTAL_API_KEY       ?? '';
+  const gsb  = process.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
+  const vt   = process.env.VIRUSTOTAL_API_KEY ?? '';
 
   // Local spam-airdrop list — runs in parallel with external APIs; a hit is a caution only
   const localDbPromise = checkLocalPhishingDb(domain);

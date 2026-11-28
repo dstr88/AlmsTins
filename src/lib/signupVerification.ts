@@ -37,8 +37,7 @@ export function ensureSignupTokenTable(): Promise<void> {
 
 /** Public origin for emailed links. Never the request origin: behind Render's proxy that is localhost. */
 export function appBaseUrl(): string {
-	const importMetaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env ?? {});
-	const raw = (process.env.AUTH_URL || importMetaEnv.AUTH_URL || '').trim();
+	const raw = (process.env.AUTH_URL || '').trim();
 	if (!raw) return 'https://almstins.com';
 	const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 	return withScheme.replace(/\/+$/, '');

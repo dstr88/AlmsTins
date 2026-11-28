@@ -1043,7 +1043,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				) {
 					unpricedReason = 'unverified_contract';
 					normalizedUsd = null;
-					if (import.meta.env.WALLET_DEBUG === '1' && (globalThis as any).unverifiedLogCount < 20) {
+					if (process.env.WALLET_DEBUG === '1' && (globalThis as any).unverifiedLogCount < 20) {
 						(globalThis as any).unverifiedLogCount += 1;
 						console.log('[pricing] unverified contract', {
 							walletId,
@@ -1054,7 +1054,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 						});
 					}
 				}
-				if (import.meta.env.WALLET_DEBUG === '1') {
+				if (process.env.WALLET_DEBUG === '1') {
 					const hasSet = Boolean(verifiedSet);
 					const match = Boolean(verifiedSet && tokenAddress && verifiedSet.has(tokenAddress.toLowerCase()));
 					console.log('[pricing] verify', {
@@ -1096,7 +1096,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;
 					fallbackPriceUsed = fallbackPrice;
-					if (import.meta.env.WALLET_DEBUG === '1') {
+					if (process.env.WALLET_DEBUG === '1') {
 						console.log('[pricing] fallback price', {
 							walletId,
 							chain: tokenChain,
@@ -1106,7 +1106,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 							usdValue: normalizedUsd,
 						});
 					}
-				} else if (import.meta.env.WALLET_DEBUG === '1') {
+				} else if (process.env.WALLET_DEBUG === '1') {
 					console.log('[pricing] missing upstream price', {
 						walletId,
 						chain: tokenChain,

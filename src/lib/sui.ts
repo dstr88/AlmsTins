@@ -50,7 +50,7 @@ export type SuiQueryResult = {
 };
 
 async function suiRpc(method: string, params: unknown[]) {
-	const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY;
+	const apiKey = process.env.ALCHEMY_API_KEY;
 	if (!apiKey) throw new Error('Missing ALCHEMY_API_KEY');
 
 	const url = `https://sui-mainnet.g.alchemy.com/v2/${apiKey}`;

@@ -17,8 +17,8 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 function getMailTransport() {
-	const server = import.meta.env.EMAIL_SERVER;
-	const from = import.meta.env.EMAIL_FROM;
+	const server = process.env.EMAIL_SERVER;
+	const from = process.env.EMAIL_FROM;
 	if (!server || !from) return null;
 	return { transport: nodemailer.createTransport(server), from };
 }
@@ -116,7 +116,7 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
 	const sig = request.headers.get('stripe-signature');
-	const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
+	const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 	if (!sig || !webhookSecret) {
 		return new Response('Missing signature', { status: 400 });

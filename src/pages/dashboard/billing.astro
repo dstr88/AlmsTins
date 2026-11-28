@@ -30,16 +30,16 @@ const cancelledParam = Astro.url.searchParams.get('cancelled');
 
 const priceIds = {
   starter: {
-    monthly: import.meta.env.STRIPE_PRICE_STARTER_MONTHLY,
-    yearly:  import.meta.env.STRIPE_PRICE_STARTER_YEARLY,
+    monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY,
+    yearly:  process.env.STRIPE_PRICE_STARTER_YEARLY,
   },
   pro: {
-    monthly: import.meta.env.STRIPE_PRICE_PRO_MONTHLY,
-    yearly:  import.meta.env.STRIPE_PRICE_PRO_YEARLY,
+    monthly: process.env.STRIPE_PRICE_PRO_MONTHLY,
+    yearly:  process.env.STRIPE_PRICE_PRO_YEARLY,
   },
   unlimited: {
-    monthly: import.meta.env.STRIPE_PRICE_UNLIMITED_MONTHLY,
-    yearly:  import.meta.env.STRIPE_PRICE_UNLIMITED_YEARLY,
+    monthly: process.env.STRIPE_PRICE_UNLIMITED_MONTHLY,
+    yearly:  process.env.STRIPE_PRICE_UNLIMITED_YEARLY,
   },
 };
 ---

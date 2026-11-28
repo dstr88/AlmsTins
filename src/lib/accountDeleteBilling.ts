@@ -42,7 +42,7 @@ export async function cancelTenantStripeSubscriptions(tenantId: string): Promise
     if (row.stripe_subscription_id) subscriptionIds.add(String(row.stripe_subscription_id));
   }
 
-  if (!import.meta.env.STRIPE_SECRET_KEY) {
+  if (!process.env.STRIPE_SECRET_KEY) {
     if (customerIds.size || subscriptionIds.size) {
       throw new Error('Stripe is not configured, so the stored subscription cannot be canceled');
     }

@@ -392,8 +392,8 @@ async function callScanApi(chain: ScanChain, params: Record<string, string | num
 	const apiKeyEnv =
 		chain === 'avalanche' ? 'SNOWTRACE_API_KEY' : 'ETHERSCAN_API_KEY';
 	const apiKeyPresent = chain === 'avalanche'
-		? Boolean(import.meta.env.SNOWTRACE_API_KEY)
-		: Boolean(import.meta.env.ETHERSCAN_API_KEY);
+		? Boolean(process.env.SNOWTRACE_API_KEY)
+		: Boolean(process.env.ETHERSCAN_API_KEY);
 	const requestPath = `module=${params.module}&action=${params.action}&address=${params.address}&startblock=${params.startblock}&endblock=${params.endblock}&page=${params.page}&offset=${params.offset}&sort=${params.sort}`;
 
 	// Use Etherscan V2 for supported chains; Snowtrace for Avalanche.

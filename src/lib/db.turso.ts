@@ -6,8 +6,7 @@ import { createClient, type Client } from '@libsql/client';
 // the top of db.ts now lives inside this factory so that merely importing the
 // module never requires Turso env vars when the Postgres engine is selected.
 export function makeTursoDb(): Client {
-  const importMetaEnv = ((import.meta as any).env ?? {}) as Record<string, string | undefined>;
-  const env = { ...process.env, ...importMetaEnv };
+  const env = process.env;
   const url = env.TURSO_DATABASE_URL;
   const authToken = env.TURSO_AUTH_TOKEN;
 

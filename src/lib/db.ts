@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import type { Client } from '@libsql/client';
 import { makeTursoDb } from './db.turso';
 import { makePgDb } from './db.pg';
@@ -8,8 +9,10 @@ import { makePgDb } from './db.pg';
 // at nothing. Defaulting to pg means a missing/stray DB_ENGINE can never silently
 // route the app at the dead database. The ~800 `import { db }` call sites are
 // unaffected — only the engine behind this export changes.
-const importMetaEnv = ((import.meta as any).env ?? {}) as Record<string, string | undefined>;
-const engine = (importMetaEnv.DB_ENGINE ?? process.env.DB_ENGINE) === 'turso' ? 'turso' : 'pg';
+// Read settings from process.env only: Astro 6 copies import.meta.env values into the
+// built files, which would put secrets in the build output. `dotenv/config` loads .env
+// for local dev; on Render there is no .env file and it does nothing.
+const engine = process.env.DB_ENGINE === 'turso' ? 'turso' : 'pg';
 
 const db: Client = engine === 'pg' ? makePgDb() : makeTursoDb();
 

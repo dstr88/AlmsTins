@@ -34,7 +34,7 @@ const fmtDate = (iso: string): string => formatDate(iso, 'en', { style: 'long' }
 
 export const GET: APIRoute = async ({ request }) => {
   // ── Auth ───────────────────────────────────────────────────────────────────
-  const secret   = process.env.CRON_SECRET ?? import.meta.env.CRON_SECRET;
+  const secret   = process.env.CRON_SECRET;
   const provided =
     request.headers.get('x-cron-secret') ??
     new URL(request.url).searchParams.get('secret');
