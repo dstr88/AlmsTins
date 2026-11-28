@@ -3289,6 +3289,88 @@ export async function getRecordProofSource(
   };
 }
 
+/** One signed record a tenant holds on a receivable: enough to name it and fetch its proof file. */
+export interface OwnProofRecord {
+  kind: AnchorRecordKind;
+  id: string;
+  /** When the record was written (the kind's writtenAtColumn), as stored. */
+  at: string | null;
+  /** Kind-specific detail for the label: a claim's financier and amount, an answer's role and
+   *  whether it disputes, a status event's kind, a check's verdict. Never another tenant's data. */
+  detail: Record<string, string | number | null>;
+}
+
+/** How many "Verify now" checks the list carries, newest first: each press writes one. */
+const OWN_PROOF_REVERIFICATIONS = 20;
+
+/**
+ * Every signed record THIS tenant holds on one receivable, the ones proof-file will hand it.
+ * Each query is scoped by tenant_id as well as receivable_id, so another firm's claim or another
+ * tenant's answer on the same receivable never appears, not even as a count. Rows with no digest
+ * (nothing signed yet) are left out. Kinds whose columns are added at runtime are skipped until
+ * they exist, as getRecordProofSource skips them.
+ */
+export async function listOwnProofRecords(tenantId: string, receivableId: string): Promise<OwnProofRecord[]> {
+  await ensureReceivablesTables();
+  const rid = String(receivableId || '').trim();
+  if (!rid || !tenantId) return [];
+  const out: OwnProofRecord[] = [];
+  const str = (v: unknown) => (v == null ? null : String(v));
+
+  const rcv = await db.execute({
+    sql: `SELECT id, digest, created_at${anchorKindReady('settlement') ? ', settlement_digest, settlement_recorded_at' : ''}
+            FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [rid, tenantId],
+  });
+  const r0 = rcv.rows[0] as any;
+  if (r0?.digest) out.push({ kind: 'receivable', id: rid, at: str(r0.created_at), detail: {} });
+  if (r0?.settlement_digest) out.push({ kind: 'settlement', id: rid, at: str(r0.settlement_recorded_at), detail: {} });
+
+  const claims = await db.execute({
+    sql: `SELECT id, financier, amount, currency, digest, created_at${anchorKindReady('claim_discharge') ? ', discharge_digest, discharge_recorded_at' : ''}
+            FROM receivable_claims WHERE receivable_id = ? AND tenant_id = ? ORDER BY created_at`,
+    args: [rid, tenantId],
+  });
+  for (const c of claims.rows as any[]) {
+    const detail = { financier: str(c.financier), amount: Number(c.amount), currency: str(c.currency) };
+    if (c.digest) out.push({ kind: 'claim', id: String(c.id), at: str(c.created_at), detail });
+    if (c.discharge_digest) out.push({ kind: 'claim_discharge', id: String(c.id), at: str(c.discharge_recorded_at), detail });
+  }
+
+  const atts = await db.execute({
+    sql: `SELECT id, role, label, statement, created_at FROM receivable_attestations
+           WHERE receivable_id = ? AND tenant_id = ? AND digest IS NOT NULL ORDER BY created_at`,
+    args: [rid, tenantId],
+  });
+  for (const a of atts.rows as any[]) {
+    const st = String(a.statement ?? '');
+    out.push({
+      kind: 'attestation', id: String(a.id), at: str(a.created_at),
+      detail: { role: str(a.role), label: str(a.label), disputed: st.startsWith('DISPUTED') ? 1 : 0 },
+    });
+  }
+
+  const events = await db.execute({
+    sql: `SELECT id, kind, created_at FROM receivable_status_events
+           WHERE receivable_id = ? AND tenant_id = ? AND digest IS NOT NULL ORDER BY created_at`,
+    args: [rid, tenantId],
+  });
+  for (const e of events.rows as any[]) {
+    out.push({ kind: 'status_event', id: String(e.id), at: str(e.created_at), detail: { event: str(e.kind) } });
+  }
+
+  const checks = await db.execute({
+    sql: `SELECT id, verdict, created_at FROM receivable_reverifications
+           WHERE receivable_id = ? AND tenant_id = ? AND digest IS NOT NULL ORDER BY created_at DESC LIMIT ${OWN_PROOF_REVERIFICATIONS}`,
+    args: [rid, tenantId],
+  });
+  for (const v of (checks.rows as any[]).reverse()) {
+    out.push({ kind: 'reverification', id: String(v.id), at: str(v.created_at), detail: { verdict: str(v.verdict) } });
+  }
+
+  return out;
+}
+
 /** Persist an anchor receipt (JSON) onto a record. Tenant-scoped; a record with no digest to
  *  stamp yet is left alone. */
 export async function setRecordAnchor(

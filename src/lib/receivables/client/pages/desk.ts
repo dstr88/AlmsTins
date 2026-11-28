@@ -28,6 +28,7 @@ import { onBookLoaded, onCreateResult, onRecordLoaded } from '@/lib/receivables/
 import { closeAck } from '@/components/receivables/AckPrompt/ackPrompt.client';
 import { mountNoticeInbox } from '@/components/receivables/NoticeInbox/noticeInbox.client';
 import { mountPlanLine } from '@/components/receivables/PlanLine/planLine.client';
+import { mountProofDownloads } from '@/components/receivables/ProofDownloads/proofDownloads.client';
 import { mountWithdrawnNote } from '@/components/receivables/WithdrawnNote/withdrawnNote.client';
 import { mountDuplicateFlag } from '@/components/receivables/DuplicateFlag/duplicateFlag.client';
 import { mountTransportDocCheck } from '@/components/receivables/TransportDocCheck/transportDocCheck.client';
@@ -115,3 +116,7 @@ if (needsUpdate) mountNoticeInbox(needsUpdate);
 // recorded or released there changes the count.
 const planLine = document.querySelector<HTMLElement>('[data-rcv-root="plan"]');
 if (planLine) mountPlanLine(planLine);
+
+// Record downloads: "Your signed records" under the claims, for the record on screen.
+const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
+if (proofDownloads) mountProofDownloads(proofDownloads);

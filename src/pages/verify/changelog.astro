@@ -23,6 +23,8 @@ const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
     date: '2026-11-28',
     label: 'Saturday',
     entries: [
+      { kind: 'new', what: 'The desk lists your signed records on each receivable, with a Download link for each.',
+        why: 'Every record was signed and stamped in Bitcoin, but there was no button to take a copy away. Under the claims, "Your signed records" now lists every record your own account holds on the receivable you have open: the receivable if you recorded it, your claims and their release, the answers you asked for, status updates and Verify now checks. Each downloads as one file you can check at almstins.com/verify-record or offline. Another firm’s claim or answer on the same receivable is never listed or counted.' },
       { kind: 'new', what: 'The public checker at almstins.com/verify-record now reads a receivables proof file.',
         why: 'A proof file holds one signed record and its Bitcoin timestamp. Until today only the offline script could check one, and the checker page refused it. Drop the file on the page and it is checked in your browser: the record must hash to its fingerprint, the Bitcoin proof must be for that same fingerprint, and the signature must be valid under the published Almstins key. The page shows exactly what was signed. It does not check the Bitcoin proof against Bitcoin, or whether a signing key was ever revoked; the offline steps do both, with nothing from almstins.com.' },
     ],

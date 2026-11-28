@@ -1,0 +1,21 @@
+---
+// ProofDownloads: "Your signed records" for the receivable on screen, each with a Download link
+// to its proof file. Markup only: proofDownloads.client.ts (mounted by the host page's entry
+// module) fills the list from GET /api/verify/receivables/proof-records when a record loads, and
+// hides the card when no record is open or the route can't be reached. Only the viewer's own
+// account's records are ever listed; the route filters by tenant.
+import './ProofDownloads.css';
+import { PROOF_LIST_LEDE, PROOF_LIST_TITLE } from '@/lib/receivables/copy/proofDownloads';
+
+interface Props {
+	/** The host's own card classes, so the card itself hides when there is nothing to show. */
+	class?: string;
+}
+const { class: hostClass = '' } = Astro.props;
+---
+<section class:list={['proof-dl', hostClass]} data-rcv-root="proof-downloads" hidden>
+	<h3 class="proof-dl__title">{PROOF_LIST_TITLE}</h3>
+	<p class="proof-dl__lede">{PROOF_LIST_LEDE}</p>
+	<ul class="proof-dl__list" data-proof-list></ul>
+	<p class="proof-dl__empty" data-proof-empty hidden></p>
+</section>

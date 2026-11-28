@@ -24,6 +24,7 @@ import TransportDocField from '@/components/receivables/TransportDocField/Transp
 import TransportDocCheck from '@/components/receivables/TransportDocCheck/TransportDocCheck.astro';
 import NoticeInbox from '@/components/receivables/NoticeInbox/NoticeInbox.astro';
 import PlanLine from '@/components/receivables/PlanLine/PlanLine.astro';
+import ProofDownloads from '@/components/receivables/ProofDownloads/ProofDownloads.astro';
 import { CLAIM_CARD_HINT_DESK } from '@/lib/receivables/copy/claim';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
@@ -738,6 +739,8 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
         <p class="hint">Every advance registered by any financier holding this ID.</p>
         <div id="claims"></div>
       </div>
+
+      <ProofDownloads class="card proof-dl--spaced" />
 
       <div class="card" style="margin-top:1.15rem" id="card-paper">
         <h2>The paperwork</h2>

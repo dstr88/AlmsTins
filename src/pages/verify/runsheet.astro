@@ -20,6 +20,7 @@ const STEPS = [
   { n: '8', what: 'Client confirms the money arrived', where: '/verify/countersign', note: 'No account. This is what stops a lender registering an advance he never made.' },
   { n: '9', what: 'A second lender checks the ID', where: '/verify/registry', note: 'No account. Headroom is gone, so the check shows the receivable fully financed before a second advance. This is the demo moment.' },
   { n: '10', what: 'Debtor pays; mark the claim settled', where: '/verify/desk', note: 'Headroom returns. No old claim outlives the payment.' },
+  { n: '11', what: 'Download the records', where: '/verify/desk', note: '"Your signed records" under the claims: one file per record. Drop one on almstins.com/verify-record to show it checks out without us.' },
 ];
 
 const LINKS = [
