@@ -118,7 +118,8 @@ if (needsUpdate) mountNoticeInbox(needsUpdate);
 const planLine = document.querySelector<HTMLElement>('[data-rcv-root="plan"]');
 if (planLine) mountPlanLine(planLine);
 
-// Record downloads: "Your signed records" under the claims, for the record on screen.
+// Record downloads: "Your signed records" under the claims, for the record on screen, and
+// "Emails about each claim" (email statement) for this account's own claims on it.
 const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
 if (proofDownloads) mountProofDownloads(proofDownloads);
 

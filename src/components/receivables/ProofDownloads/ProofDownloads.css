@@ -11,3 +11,17 @@
 .proof-dl__link:hover { text-decoration: underline; }
 .proof-dl__empty { margin: 0; font-size: .85rem; color: var(--text-muted); }
 .proof-dl--spaced { margin-top: 1.15rem; }
+
+/* Emails about each claim (email statement): one block per claim, the lines in place. */
+.proof-dl__mail[hidden] { display: none; }
+.proof-dl__mail { display: flex; flex-direction: column; gap: .5rem; margin-top: .75rem; }
+.proof-dl__mail-title { margin: 0; font-size: .95rem; color: var(--text-primary); }
+.proof-dl__mail-list { display: flex; flex-direction: column; gap: .75rem; }
+.proof-dl__stmt { padding: .65rem .8rem; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-card-2); display: flex; flex-direction: column; gap: .35rem; font-size: .88rem; }
+.proof-dl__stmt-claim { margin: 0; color: var(--text-muted); font-size: .8rem; }
+.proof-dl__stmt-head { margin: 0; color: var(--text-primary); font-weight: 600; }
+.proof-dl__stmt-lines { list-style: none; margin: 0; padding: 0 0 0 .75rem; display: flex; flex-direction: column; gap: .15rem; color: var(--text-secondary); }
+.proof-dl__stmt-next { margin: 0; color: var(--text-secondary); font-style: italic; }
+.proof-dl__stmt-note { margin: 0; color: var(--text-muted); font-size: .8rem; line-height: 1.5; }
+.proof-dl__stmt-each summary { cursor: pointer; color: var(--text-secondary); }
+.proof-dl__stmt-each ul { margin: .35rem 0 0; padding-left: 1.1rem; color: var(--text-muted); font-size: .82rem; }

@@ -25,13 +25,15 @@
  * nothing for a tenant that no longer exists, and a new account starts a fresh history
  * either way.
  *
- * Receivable desk: two tenant-only steps, nothing else.
+ * Receivable desk: three tenant-only steps, nothing else.
  *   - The tenant's own open requests (receivable_invites.from_tenant, not yet answered or
  *     revoked) are revoked. Left open, the link would still show the invoice and its
  *     documents to whoever holds it, an answer or the lapse cron would write new
  *     attestations under the deleted tenant, and an accept would grant access to a dead
  *     account. Answered and already-revoked invites stay as they are.
  *   - The tenant's read markers (receivable_seen) are deleted. They are its own UI state.
+ *   - The tenant's own email statements (receivable_email_statements) are deleted: each is a
+ *     signed copy only this account can download, made from logs that stay.
  * Milestone desk: the tenant's own open requests (cairn_invites.from_tenant) are revoked
  * for the same reason, and its download links (cairn_share_links.from_tenant) are revoked
  * the same way; its projects and attestations stay, like the receivable records.
@@ -75,6 +77,9 @@ const STEPS: ReadonlyArray<{ table: string; sql: string }> = [
           WHERE from_tenant = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
   },
   { table: 'receivable_seen', sql: `DELETE FROM receivable_seen WHERE tenant_id = ?` },
+  // The tenant's own email statements (signed downloads of the emails about a claim). Each is a
+  // copy only this account can fetch; nobody else relies on it, so it goes with the account.
+  { table: 'receivable_email_statements', sql: `DELETE FROM receivable_email_statements WHERE tenant_id = ?` },
   // Milestone desk: close the tenant's own open inspection requests the same way. Left
   // open, a holder could still attest, and it would be written under the deleted tenant.
   {

@@ -23,6 +23,7 @@ import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
 import {
 	ensureReceivablesTables,
 	getReceivableStatus,
+	receivableEmailTemplateReady,
 	type PublicClaim,
 	type ReceivableStatus,
 } from '@/lib/receivablesRegistry';
@@ -39,6 +40,7 @@ import {
 	type RequestViewer,
 	type SummaryItem,
 } from '@/lib/receivables/updateRequests';
+import { UR_TEMPLATE_VERSION } from '@/lib/receivables/copy/updateRequests';
 
 const DAY_MS = 86_400_000;
 const stamp = (d: Date): string => d.toISOString().replace('T', ' ').slice(0, 19);
@@ -147,6 +149,13 @@ export async function emailLenderAboutClientRequest(
 		const { subject, text } = buildClientRequestEmail(dealOf(ctx), note, baseUrl());
 		await sendMail({ to: email, subject, text });
 		await mark('emailed_at', stamp(now));
+		// The template version the email used (email statement), once the column exists.
+		if (receivableEmailTemplateReady()) {
+			await db.execute({
+				sql: `UPDATE receivable_update_requests SET template_version = ? WHERE id = ?`,
+				args: [UR_TEMPLATE_VERSION, requestId],
+			});
+		}
 		return 'sent';
 	} catch (err) {
 		console.error('[receivables] update request email failed:', (err as Error)?.message ?? err);
@@ -272,6 +281,7 @@ export async function runUpdateRequestSummaries(now: Date = new Date()): Promise
 
 		const items: SummaryItem[] = [];
 		const ids: string[] = [];
+		const claimIds: string[] = [];
 		for (const [claimId, list] of byClaim) {
 			const rid = list[0].receivableId;
 			if (!statusCache.has(rid)) statusCache.set(rid, await getReceivableStatus(rid, now));
@@ -284,6 +294,7 @@ export async function runUpdateRequestSummaries(now: Date = new Date()): Promise
 			if (!canAskUpdate('public', { settled: rcv.settled }, claim)) { await skip(listIds, 'answered'); continue; }
 			items.push({ deal: dealOf({ rcv, claim, lenderTenantId: lender }), days: list.map((x) => x.day) });
 			ids.push(...listIds);
+			claimIds.push(claimId);
 		}
 		if (!items.length) continue;
 
@@ -298,11 +309,28 @@ export async function runUpdateRequestSummaries(now: Date = new Date()): Promise
 			continue; // nothing marked: the next run retries
 		}
 		counts.updateSummariesSent++;
-		await db.execute({
-			sql: `INSERT INTO receivable_update_request_digests (lender_tenant_id, day, sent_at) VALUES (?, ?, ?)
-			      ON CONFLICT (lender_tenant_id, day) DO NOTHING`,
-			args: [lender, today, stamp(now)],
-		});
+		const withVersion = receivableEmailTemplateReady();
+		await db.execute(withVersion
+			? {
+				sql: `INSERT INTO receivable_update_request_digests (lender_tenant_id, day, sent_at, template_version) VALUES (?, ?, ?, ?)
+				      ON CONFLICT (lender_tenant_id, day) DO NOTHING`,
+				args: [lender, today, stamp(now), UR_TEMPLATE_VERSION],
+			}
+			: {
+				sql: `INSERT INTO receivable_update_request_digests (lender_tenant_id, day, sent_at) VALUES (?, ?, ?)
+				      ON CONFLICT (lender_tenant_id, day) DO NOTHING`,
+				args: [lender, today, stamp(now)],
+			});
+		// Which claims this one summary covered (email statement): one row per claim, so a claim's
+		// statement counts the summary once however many requests it rolled up.
+		for (const claimId of claimIds) {
+			await db.execute({
+				sql: `INSERT INTO receivable_update_summary_claims (claim_id, day, lender_tenant_id, sent_at, template_version)
+				      VALUES (?, ?, ?, ?, ?)
+				      ON CONFLICT (claim_id, day) DO NOTHING`,
+				args: [claimId, today, lender, stamp(now), UR_TEMPLATE_VERSION],
+			});
+		}
 		for (const id of ids) {
 			await db.execute({ sql: `UPDATE receivable_update_requests SET emailed_at = ? WHERE id = ?`, args: [stamp(now), id] });
 		}

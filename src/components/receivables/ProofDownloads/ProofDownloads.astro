@@ -4,8 +4,14 @@
 // module) fills the list from GET /api/verify/receivables/proof-records when a record loads, and
 // hides the card when no record is open or the route can't be reached. Only the viewer's own
 // account's records are ever listed; the route filters by tenant.
+//
+// Under the list, "Emails about each claim" (email statement): for each claim the viewer may see
+// (its own as lender, every claim as the receivable's client), the four summary lines in place,
+// the forecast, each email's type and template version, and a Download link that makes a signed
+// statement as of now. Filled from GET /api/verify/receivables/email-statements.
 import './ProofDownloads.css';
 import { PROOF_LIST_LEDE, PROOF_LIST_TITLE } from '@/lib/receivables/copy/proofDownloads';
+import { ES_SECTION_LEDE, ES_SECTION_TITLE } from '@/lib/receivables/copy/emailStatement';
 
 interface Props {
 	/** The host's own card classes, so the card itself hides when there is nothing to show. */
@@ -18,4 +24,9 @@ const { class: hostClass = '' } = Astro.props;
 	<p class="proof-dl__lede">{PROOF_LIST_LEDE}</p>
 	<ul class="proof-dl__list" data-proof-list></ul>
 	<p class="proof-dl__empty" data-proof-empty hidden></p>
+	<div class="proof-dl__mail" data-email-statements hidden>
+		<h4 class="proof-dl__mail-title">{ES_SECTION_TITLE}</h4>
+		<p class="proof-dl__lede">{ES_SECTION_LEDE}</p>
+		<div class="proof-dl__mail-list" data-email-statement-list></div>
+	</div>
 </section>
