@@ -126,10 +126,10 @@ describe('Terms of Service (findings B-A7, B-A8, B-A3, A-A1)', () => {
 		}
 	});
 
-	it('is version 1.9 (1.3 added Agentics and B.9; 1.4 keeps step with the policy; 1.5 rewrites B.5.4, Verify plans; 1.6, 1.7, 1.8 and 1.9 keep step with the policy again), so readers can tell the wording changed; the date is held by agenticsPolicyV13.test.ts', () => {
-		expect(bodies.en).toMatch(/ &nbsp;·&nbsp; <strong>Version:<\/strong> 1\.9/);
-		expect(bodies.es).toMatch(/ &nbsp;·&nbsp; <strong>Versión:<\/strong> 1\.9/);
-		expect(bodies.fr).toMatch(/ &nbsp;·&nbsp; <strong>Version :<\/strong> 1\.9/);
+	it('is version 1.10 (1.3 added Agentics and B.9; 1.4 keeps step with the policy; 1.5 rewrites B.5.4, Verify plans; 1.6, 1.7, 1.8, 1.9 and 1.10 keep step with the policy again), so readers can tell the wording changed; the date is held by agenticsPolicyV13.test.ts', () => {
+		expect(bodies.en).toMatch(/ &nbsp;·&nbsp; <strong>Version:<\/strong> 1\.10/);
+		expect(bodies.es).toMatch(/ &nbsp;·&nbsp; <strong>Versión:<\/strong> 1\.10/);
+		expect(bodies.fr).toMatch(/ &nbsp;·&nbsp; <strong>Version :<\/strong> 1\.10/);
 	});
 });
 

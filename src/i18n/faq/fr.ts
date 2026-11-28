@@ -953,4 +953,31 @@ export const items: FaqItem[] = [
           <strong>Remarque :</strong> Le ref code est sélectionnable en un clic — appuyez dessus ou cliquez une fois pour surligner l'intégralité du code, puis copiez-le avant de nous contacter.
         </p>`,
   },
+  {
+    id: "faq-standing-approvals",
+    q: "Que sont les autorisations en vigueur, et comment les vérifier ?",
+    a: `<p>
+          Une autorisation est une permission que vous avez donnée à un contrat de déplacer vos tokens ou vos NFTs, en général la première fois que vous avez utilisé un site : un swap, une mise en vente sur une marketplace, une application de prêt. La plupart des autorisations n'ont pas de date de fin. Elles continuent de fonctionner après que vous avez cessé d'utiliser le site, et si ce contrat est piraté plus tard, l'attaquant peut utiliser votre autorisation pour prendre ce qu'elle couvre sans nouvelle signature de votre part.
+        </p>
+
+        <p>
+          <strong>Vérifier :</strong> sur la page Wallets, chaque portefeuille Ethereum, Polygon, Avalanche ou Arbitrum a une section <strong>Autorisations</strong>. Appuyez sur <strong>Vérifier les autorisations</strong>. Almstins lit les autorisations inscrites sur la chaîne pour cette adresse, puis demande à chaque contrat de token si l'autorisation tient toujours. Aucune connexion de portefeuille, rien à signer. Un portefeuille très actif peut prendre un moment ; la liste se complète à mesure que chaque réseau se termine.
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>À révoquer d’abord</strong> : un montant illimité ou toute une collection de NFTs, un contrat sans transaction depuis 12 mois ou plus, ou un contrat signalé par les sources du vérificateur de portefeuille.</li>
+          <li><strong>Toujours un risque</strong> : aucun de ces signalements ne s'applique. Chacune permet toujours au contrat de prendre ce qu'elle couvre jusqu'à ce que vous l'annuliez.</li>
+          <li><strong>Vérification impossible</strong> : une autorisation trouvée par Almstins dont l'état actuel n'a pas pu être lu. Consultez-la sur revoke.cash.</li>
+        </ul>
+
+        <p>Aucune autorisation n'est jamais présentée comme sûre.</p>
+
+        <p>
+          <strong>Annuler :</strong> chaque autorisation renvoie vers revoke.cash pour ce portefeuille sur ce réseau, et vers le Token Approval Checker de l'explorateur. L'annulation demande une signature dans votre propre portefeuille et de petits frais de réseau. Almstins ne vous demande jamais de signer quoi que ce soit.
+        </p>
+
+        <p>
+          <strong>Ce qu'aucun outil ne peut voir :</strong> un permit, une signature Permit2 ou une mise en vente de NFT que vous avez signé et que personne n'a encore utilisé. Il n'est pas sur la chaîne avant d'être utilisé, donc ni Almstins ni revoke.cash ne peuvent le lister. La liste correspond à l'heure affichée en haut ; l'onglet <strong>Comment ça marche</strong> donne les détails.
+        </p>`,
+  },
 ];

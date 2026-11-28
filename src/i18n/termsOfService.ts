@@ -37,7 +37,7 @@ export const en: TermsLocale = {
   body: `
 <h1>ALMSTINS USER AGREEMENT</h1>
 
-<p><strong>Effective Date:</strong> November 24, 2026 &nbsp;·&nbsp; <strong>Version:</strong> 1.9<br/>
+<p><strong>Effective Date:</strong> November 28, 2026 &nbsp;·&nbsp; <strong>Version:</strong> 1.10<br/>
 <strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <blockquote><p><strong>Scope &amp; precedence.</strong> This is the single canonical contract governing your use of Almstins. It is organized as <strong>Part A — General Terms</strong> (apply to all of Almstins) and <strong>Part B — Supplemental Terms</strong> (apply only to specific features, called "Surfaces"). If a Part B Supplemental Term conflicts with a Part A General Term, <strong>the Supplemental Term controls for that Surface only.</strong> The <strong>Privacy Policy</strong> is incorporated by reference.</p></blockquote>
@@ -257,7 +257,7 @@ export const es: TermsLocale = {
   body: `
 <h1>ACUERDO DE USUARIO DE ALMSTINS</h1>
 
-<p><strong>Fecha de vigencia:</strong> 24 de noviembre de 2026 &nbsp;·&nbsp; <strong>Versión:</strong> 1.9<br/>
+<p><strong>Fecha de vigencia:</strong> 28 de noviembre de 2026 &nbsp;·&nbsp; <strong>Versión:</strong> 1.10<br/>
 <strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <blockquote><p><strong>Ámbito y prelación.</strong> Este es el contrato canónico único que rige su uso de Almstins. Se organiza en <strong>Parte A — Condiciones Generales</strong> (aplicables a todo Almstins) y <strong>Parte B — Condiciones Complementarias</strong> (aplicables únicamente a funciones específicas denominadas "Superficies"). Si una Condición Complementaria de la Parte B entra en conflicto con una Condición General de la Parte A, <strong>la Condición Complementaria prevalece únicamente para esa Superficie.</strong> La <strong>Política de Privacidad</strong> queda incorporada por referencia.</p></blockquote>
@@ -477,7 +477,7 @@ export const fr: TermsLocale = {
   body: `
 <h1>ACCORD D'UTILISATEUR ALMSTINS</h1>
 
-<p><strong>Date d'entrée en vigueur :</strong> 24 novembre 2026 &nbsp;·&nbsp; <strong>Version :</strong> 1.9<br/>
+<p><strong>Date d'entrée en vigueur :</strong> 28 novembre 2026 &nbsp;·&nbsp; <strong>Version :</strong> 1.10<br/>
 <strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <blockquote><p><strong>Champ d'application et préséance.</strong> Le présent document constitue le contrat canonique unique régissant votre utilisation d'Almstins. Il est organisé en <strong>Partie A — Conditions Générales</strong> (applicables à l'ensemble d'Almstins) et <strong>Partie B — Conditions Complémentaires</strong> (applicables uniquement aux fonctionnalités spécifiques appelées « Surfaces »). En cas de conflit entre une Condition Complémentaire de la Partie B et une Condition Générale de la Partie A, <strong>la Condition Complémentaire prévaut uniquement pour cette Surface.</strong> La <strong>Politique de Confidentialité</strong> est incorporée par référence.</p></blockquote>

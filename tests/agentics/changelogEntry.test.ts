@@ -176,7 +176,8 @@ describe('the changelog entry for Privacy Policy and User Agreement 1.9', () => 
     // tests/sync/transactionLegsChangelog.test.ts); this one is next, right after the transaction legs one.
     const legs = page.indexOf('Wallet Watcher now keeps each movement in a transaction');
     expect(page.indexOf('<article', legs)).toBe(page.lastIndexOf('<article', start));
-    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain(`<strong>Effective Date:</strong> ${EFFECTIVE} &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.9`);
+    // The policy has moved on to 1.10 (Nov 28, 2026); its header comment keeps 1.9's date on record.
+    expect(readFileSync(path.join(ROOT, 'src/i18n/privacyPolicy.ts'), 'utf8')).toContain('// Earlier: v1.9, effective 2026-11-24.');
     expect(article).toContain('The changes are in the Privacy Policy, section 3, and the User Agreement, section B.9.7.');
     expect(article).toContain('keeps a count of its answers per day: the date, whether the call used a key, and the answer it gave');
     expect(article).toContain('Checks made without a key are still not recorded.');
