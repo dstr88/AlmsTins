@@ -1,0 +1,19 @@
+/* UpdateRequest — presentation only. One row per claim: its label, the public requested line,
+   dated request lines, and the ask button with the client's optional note. */
+.upd-req[hidden] { display: none; }
+.upd-req { display: flex; flex-direction: column; gap: .5rem; }
+.upd-req__title { margin: 0; font-size: 1rem; color: var(--text-primary); }
+.upd-req__lede { margin: 0; font-size: .85rem; line-height: 1.55; color: var(--text-muted); }
+.upd-req__list { list-style: none; margin: .25rem 0 0; padding: 0; display: flex; flex-direction: column; }
+.upd-req__row { display: flex; flex-direction: column; gap: .35rem; padding: .6rem 0; border-top: 1px solid var(--border-subtle); font-size: .88rem; }
+.upd-req__label { color: var(--text-secondary); font-weight: 600; }
+.upd-req__line { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.upd-req__line--muted { color: var(--text-muted); }
+.upd-req__note-label { font-size: .8rem; color: var(--text-muted); }
+.upd-req__note { width: 100%; min-height: 3.2rem; resize: vertical; box-sizing: border-box; padding: .45rem .55rem; border-radius: 8px; border: 1px solid var(--border-bright); background: var(--surface-card-2); color: var(--text-primary); font: inherit; font-size: .88rem; }
+.upd-req__btn { align-self: flex-start; padding: .45rem .9rem; border-radius: 8px; border: 1px solid var(--border-bright); background: transparent; color: var(--accent); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.upd-req__btn:hover { background: var(--surface-hover); }
+.upd-req__btn[disabled] { opacity: .6; cursor: default; }
+.upd-req__asked { margin: 0; padding: .45rem .6rem; border-radius: 8px; border: 1px solid var(--rcv-gain-border); background: var(--rcv-gain-bg); color: var(--text-primary); }
+.upd-req__error { margin: 0; padding: .45rem .6rem; border-radius: 8px; border: 1px solid var(--rcv-caution-border); background: var(--rcv-caution-bg); color: var(--text-primary); }
+.upd-req--spaced { margin-top: 1.15rem; }

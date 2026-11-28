@@ -112,6 +112,8 @@ describe('the receivables duplicate precheck is not public', () => {
 	it('isPublicPath leaves it out; the lookup stays in', () => {
 		expect(isPublicPath('/api/verify/receivables/precheck')).toBe(false);
 		expect(isPublicPath('/api/verify/receivables/lookup')).toBe(true);
+		// Part A: "Ask the lender to update" takes an anonymous request like the lookup does.
+		expect(isPublicPath('/api/verify/receivables/update-request')).toBe(true);
 	});
 
 	it('a signed-out POST goes through app.ts and never reaches the handler', async () => {

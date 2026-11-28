@@ -37,6 +37,7 @@ import { readPrecheckFields, wirePrecheck } from '@/components/receivables/dupli
 import { markDeskBook, markDeskBookDuplicates, markDeskBookSameShipment } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
 import { bookDuplicateIds, bookSameShipmentIds } from '@/lib/receivables/duplicateView';
+import { mountUpdateRequest } from '@/components/receivables/UpdateRequest/updateRequest.client';
 
 const claimPrompt = document.querySelector<HTMLElement>('[data-rcv-root="ack-claim"]');
 let shownId: string | null | undefined;
@@ -120,3 +121,6 @@ if (planLine) mountPlanLine(planLine);
 // Record downloads: "Your signed records" under the claims, for the record on screen.
 const proofDownloads = document.querySelector<HTMLElement>('[data-rcv-root="proof-downloads"]');
 if (proofDownloads) mountProofDownloads(proofDownloads);
+
+const updateRequest = document.querySelector<HTMLElement>('[data-rcv-root="update-request"]');
+if (updateRequest) mountUpdateRequest(updateRequest);

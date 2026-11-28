@@ -16,6 +16,7 @@ import '@/styles/tokens.css';
 import '@/components/receivables/fragments.css';
 import WithdrawnNote from '@/components/receivables/WithdrawnNote/WithdrawnNote.astro';
 import ProofDownloads from '@/components/receivables/ProofDownloads/ProofDownloads.astro';
+import UpdateRequest from '@/components/receivables/UpdateRequest/UpdateRequest.astro';
 import DuplicateFlag from '@/components/receivables/DuplicateFlag/DuplicateFlag.astro';
 import BuyerRefField from '@/components/receivables/BuyerRefField/BuyerRefField.astro';
 import TransportDocField from '@/components/receivables/TransportDocField/TransportDocField.astro';
@@ -242,6 +243,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="s-out" class="note"></div>
       </div>
 
+      <UpdateRequest class="card upd-req--spaced" />
       <ProofDownloads class="card proof-dl--spaced" />
     </div>
 

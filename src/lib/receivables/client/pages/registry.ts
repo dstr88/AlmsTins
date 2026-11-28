@@ -28,6 +28,7 @@ import { readPrecheckFields, wirePrecheck } from '@/components/receivables/dupli
 import { markRegistryMine, markRegistryMineDuplicates, markRegistryMineSameShipment } from '@/lib/receivables/client/withdrawnRows';
 import { bookWithdrawnIds } from '@/lib/receivables/withdrawn';
 import { bookDuplicateIds, bookSameShipmentIds } from '@/lib/receivables/duplicateView';
+import { mountUpdateRequest } from '@/components/receivables/UpdateRequest/updateRequest.client';
 
 const withdrawnRecord = document.querySelector<HTMLElement>('[data-rcv-root="withdrawn-record"]');
 if (withdrawnRecord) {
@@ -65,3 +66,6 @@ if (mine) {
 // "Seen before?" (S6): the invoice-details check for a lender who holds no receivable ID.
 const seenBefore = document.querySelector<HTMLFormElement>('form[data-rcv-root="seen-before"]');
 if (seenBefore) mountSeenBeforeForm(seenBefore);
+
+const updateRequest = document.querySelector<HTMLElement>('[data-rcv-root="update-request"]');
+if (updateRequest) mountUpdateRequest(updateRequest);

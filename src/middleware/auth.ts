@@ -148,6 +148,10 @@ export function isPublicPath(pathname: string): boolean {
 		// 401 for anon. Other receivables write endpoints (…/claim, …/reverify) stay gated here.
 		pathname === '/api/verify/receivables' ||
 		pathname === '/api/verify/receivables/lookup' ||
+		// "Ask the lender to update" (Part A): anyone holding the receivable ID may ask on a claim
+		// past its promised date, the same rule as the lookup; the handler resolves a session
+		// itself (the client's path) and rate-limits per network.
+		pathname === '/api/verify/receivables/update-request' ||
 		// Buyer confirmation — public, login-free. The single-use token IS the capability:
 		// the debtor being asked to confirm has no account and must never need one.
 		pathname === '/api/verify/receivables/confirm' ||

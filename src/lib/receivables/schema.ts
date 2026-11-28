@@ -267,6 +267,51 @@ export const CREATE_CLIENT_ACTION_NOTICES = `
   )
 `;
 
+/**
+ * receivable_update_requests (Part A, approved 2026-11-28): requests that a lender update a claim.
+ * An anonymous request is stored once per claim per UTC day (id 'pub:<claim>:<day>', clicks and
+ * last_at bumped on a repeat), so a bot within the rate limit cannot flood the log and the public
+ * line counts days. A client request is one row per click (id random) with the client's account
+ * and an optional note of at most 280 characters that only the lender is shown. emailed_at: when
+ * the lender was emailed about it (a client request at once, anonymous ones in the daily summary);
+ * skipped: why it never will be (test record, withdrawn, answered, no address). Every read is
+ * scoped: the lender by lender_tenant_id, the client by requester_tenant_id, the public answer
+ * by claim to day counts only.
+ */
+export const CREATE_UPDATE_REQUESTS = `
+  CREATE TABLE IF NOT EXISTS receivable_update_requests (
+    id                  TEXT NOT NULL PRIMARY KEY,
+    claim_id            TEXT NOT NULL,
+    receivable_id       TEXT NOT NULL,
+    lender_tenant_id    TEXT NOT NULL,
+    source              TEXT NOT NULL,
+    requester_tenant_id TEXT,
+    day                 TEXT NOT NULL,
+    note                TEXT,
+    clicks              INTEGER NOT NULL DEFAULT 1,
+    first_at            TEXT NOT NULL,
+    last_at             TEXT NOT NULL,
+    emailed_at          TEXT,
+    skipped             TEXT
+  )
+`;
+export const CREATE_UPDATE_REQUESTS_RCV_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_update_requests_rcv ON receivable_update_requests (receivable_id)`;
+
+/**
+ * receivable_update_request_digests (Part A): one row per lender per UTC day once that day's
+ * summary of anonymous requests went out, so a lender gets at most one summary a day however
+ * often the job runs.
+ */
+export const CREATE_UPDATE_REQUEST_DIGESTS = `
+  CREATE TABLE IF NOT EXISTS receivable_update_request_digests (
+    lender_tenant_id TEXT NOT NULL,
+    day              TEXT NOT NULL,
+    sent_at          TEXT NOT NULL,
+    PRIMARY KEY (lender_tenant_id, day)
+  )
+`;
+
 /** New tables, in order. They run after the registry's own CREATEs and before any column add. */
 export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_ANCHOR_ATTEMPTS,
@@ -275,4 +320,6 @@ export const RECEIVABLE_TABLE_CREATES: readonly string[] = [
   CREATE_NOTICE_OPTOUTS,
   CREATE_RECEIVABLES_SUBSCRIPTIONS,
   CREATE_CLIENT_ACTION_NOTICES,
+  CREATE_UPDATE_REQUESTS,
+  CREATE_UPDATE_REQUEST_DIGESTS,
 ];
