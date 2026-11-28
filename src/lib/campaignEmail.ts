@@ -7,7 +7,7 @@
  *
  * Adjust FROM / REPLY_TO below if you want a different sender identity.
  */
-const RESEND_API_KEY = (import.meta.env.RESEND_API_KEY ?? process.env.RESEND_API_KEY ?? '') as string;
+const RESEND_API_KEY = (process.env.RESEND_API_KEY ?? '') as string;
 
 /** Founder-personal sender — onboarding drips read better from a person than "no-reply". */
 const CAMPAIGN_FROM = 'Donnie at Almstins <donnie@almstins.com>';

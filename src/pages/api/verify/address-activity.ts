@@ -31,7 +31,7 @@ const CACHE = new Map<string, { at: number; result: ActivityResult }>();
 const CACHE_TTL_MS = 60_000;
 
 export const GET: APIRoute = async ({ request, url }) => {
-  const secret = import.meta.env.ADDRESS_ACTIVITY_SECRET;
+  const secret = process.env.ADDRESS_ACTIVITY_SECRET;
   const provided = request.headers.get('x-activity-secret') ?? '';
   if (!secret || provided !== secret) return json({ ok: false, error: 'unauthorized' }, 401, { noStore: true });
 

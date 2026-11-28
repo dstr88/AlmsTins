@@ -11,7 +11,7 @@
  *   - Fail closed. No secret configured (unset or empty) is never a match, not even for a caller
  *     that sends nothing: an unconfigured server is closed, never open to "".
  *
- * The secret is read by the route (`import.meta.env.CRON_SECRET`, which has to be in the
+ * The secret is read by the route (`process.env.CRON_SECRET`, which has to be in the
  * environment at build time as well as at run time); this file only compares. It logs nothing.
  */
 import { createHash, timingSafeEqual } from 'node:crypto';

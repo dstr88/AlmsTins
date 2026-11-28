@@ -50,7 +50,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 		const { tenantId } = session;
 		if (!DEV && !LOCAL_BYPASS) {
 			const authHeader = request.headers.get('authorization');
-			const expected = import.meta.env.NETWORTH_API_TOKEN;
+			const expected = process.env.NETWORTH_API_TOKEN;
 			if (expected && authHeader && authHeader !== `Bearer ${expected}`) {
 				logPerf(401);
 				return new Response('Unauthorized', { status: 401 });
@@ -131,7 +131,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 							...row,
 							capturedAt: row.capturedAt ?? overallCapturedAt,
 						}));
-						if (import.meta.env.WALLET_DEBUG === '1') {
+						if (process.env.WALLET_DEBUG === '1') {
 							console.log('[networth.summary] capturedAtByChain', {
 								tenantId,
 								capturedAt: Object.fromEntries(capturedAtByChain),
@@ -186,7 +186,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			...row,
 			capturedAt: row.capturedAt ?? overallCapturedAt,
 		}));
-		if (import.meta.env.WALLET_DEBUG === '1') {
+		if (process.env.WALLET_DEBUG === '1') {
 			console.log('[networth.summary] capturedAtByChain', {
 				tenantId,
 				capturedAt: Object.fromEntries(capturedAtByChain),

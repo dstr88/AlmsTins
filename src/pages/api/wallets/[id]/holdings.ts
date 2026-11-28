@@ -27,7 +27,7 @@ const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const SNAPSHOT_STALE_MAX_MS = 60 * 60 * 1000;
 const SNAPSHOT_LOCK_SECONDS = 20;
 
-const HOLDINGS_DEBUG = String(import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
+const HOLDINGS_DEBUG = String(process.env.HOLDINGS_DEBUG ?? '').trim() === '1';
 
 function dbg(label: string, meta: Record<string, any>) {
 	if (!HOLDINGS_DEBUG) return;
@@ -186,7 +186,7 @@ function buildScanUrl(chainId: number, params: Record<string, string | number>) 
 	if (chainId !== AVALANCHE_CHAIN_ID) {
 		throw new Error('Snowtrace URL builder only (Etherscan centralized).');
 	}
-	const apiKey = import.meta.env.SNOWTRACE_API_KEY;
+	const apiKey = process.env.SNOWTRACE_API_KEY;
 	if (!apiKey) throw new Error('Missing SNOWTRACE_API_KEY');
 	const query = new URLSearchParams({ apikey: apiKey });
 	Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));

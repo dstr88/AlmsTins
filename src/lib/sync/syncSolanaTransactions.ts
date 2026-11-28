@@ -45,7 +45,6 @@ const KNOWN_MINTS: Record<string, string> = {
 function rpcUrl(): string {
 	return (
 		process.env.SOLANA_RPC_URL ||
-		(import.meta as { env?: Record<string, string | undefined> }).env?.SOLANA_RPC_URL ||
 		PUBLIC_SOLANA_RPC
 	);
 }

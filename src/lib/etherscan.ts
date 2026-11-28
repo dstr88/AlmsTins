@@ -40,7 +40,7 @@ const DEFAULT_BACKOFF_MS = 5000;
 const DEFAULT_URL_TTL_MS = 15_000; // memoize identical URL for 15s
 const DEFAULT_URL_MAX_BYTES_LOG = 220;
 
-const DEBUG = String(import.meta.env.SCAN_DEBUG ?? '').trim() === '1';
+const DEBUG = String(process.env.SCAN_DEBUG ?? '').trim() === '1';
 
 type Provider = 'etherscan' | 'snowtrace';
 
@@ -127,14 +127,14 @@ function providerForChain(chainId: number): Provider {
 
 function getApiKey(provider: Provider): string | null {
   if (provider === 'snowtrace') {
-    const k = import.meta.env.SNOWTRACE_API_KEY;
+    const k = process.env.SNOWTRACE_API_KEY;
     if (!k) {
       console.warn('[scan] SNOWTRACE_API_KEY not set — Avalanche chain will be skipped');
       return null;
     }
     return String(k);
   }
-  const k = import.meta.env.ETHERSCAN_API_KEY;
+  const k = process.env.ETHERSCAN_API_KEY;
   if (!k) {
     console.warn('[scan] ETHERSCAN_API_KEY not set — Ethereum/Polygon chains will be skipped');
     return null;

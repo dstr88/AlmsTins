@@ -73,7 +73,7 @@ export async function getAuthSessionState(request: Request): Promise<AuthSession
 		cookieCandidates.push(secureCookie ? '__Secure-authjs.session-token' : 'authjs.session-token');
 	}
 
-	const authDebug = (import.meta.env.AUTH_DEBUG ?? process.env.AUTH_DEBUG) === '1';
+	const authDebug = (process.env.AUTH_DEBUG) === '1';
 	if (authDebug) {
 		console.log('[authSession] env check', {
 			hasSecret: Boolean(secret),

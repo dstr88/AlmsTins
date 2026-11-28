@@ -88,15 +88,15 @@ const TRANSIENT_SKIP_MS = 30_000;
 const FAILURES_BEFORE_SKIP = 3;
 
 function etherscanKey(): string {
-  return import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  return process.env.ETHERSCAN_API_KEY ?? '';
 }
 
 function routescanKey(): string {
-  return import.meta.env.SNOWTRACE_API_KEY ?? process.env.SNOWTRACE_API_KEY ?? '';
+  return process.env.SNOWTRACE_API_KEY ?? '';
 }
 
 function alchemyKey(): string {
-  return process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  return process.env.ALCHEMY_API_KEY ?? '';
 }
 
 /** Explorer transaction / token-transfer row: only the fields read here. */

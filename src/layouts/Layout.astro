@@ -97,10 +97,8 @@ const ADMIN_TENANT_IDS = new Set(
   _adminTenantIdsRaw.split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean)
 );
 const _adminEmailsRaw =
-  (process.env as any).ADMIN_EMAILS ??
-  (process.env as any).ADMIN_EMAIL ??
-  import.meta.env.ADMIN_EMAILS ??
-  import.meta.env.ADMIN_EMAIL ??
+  process.env.ADMIN_EMAILS ??
+  process.env.ADMIN_EMAIL ??
   '';
 const ADMIN_EMAILS = new Set(
   _adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)

@@ -6,7 +6,7 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { explorerAddressUrl } from '@/lib/explorerLinks';
 import { shortenAddress } from '@/lib/addressDisplay';
 
-const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
+const ETHERSCAN_KEY = process.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_800_000; // 30 min
 
 const interactionsCache = new Map<string, { expiresAt: number; payload: { ok: boolean; items: any[] } }>();

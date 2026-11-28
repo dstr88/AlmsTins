@@ -26,7 +26,7 @@ const APP_BASE = process.env.AUTH_URL ?? 'https://almstins.com';
 
 export const GET: APIRoute = async ({ request }) => {
 	// ── Auth ─────────────────────────────────────────────────────────────────
-	const secret   = import.meta.env.CRON_SECRET;
+	const secret   = process.env.CRON_SECRET;
 	const provided =
 		request.headers.get('x-cron-secret') ??
 		new URL(request.url).searchParams.get('secret');

@@ -52,8 +52,8 @@ export const POST: APIRoute = async ({ request }) => {
     // Email notification when flagged for support
     if (flaggedForSupport) {
       try {
-        const emailServer = import.meta.env.EMAIL_SERVER;
-        const emailFrom   = import.meta.env.EMAIL_FROM;
+        const emailServer = process.env.EMAIL_SERVER;
+        const emailFrom   = process.env.EMAIL_FROM;
         if (emailServer && emailFrom) {
           const { default: nodemailer } = await import('nodemailer');
           const transport = nodemailer.createTransport(emailServer);

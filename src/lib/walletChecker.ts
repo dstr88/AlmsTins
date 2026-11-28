@@ -559,7 +559,7 @@ export function resolveNoPairs(isContract: boolean | null | undefined, probe: bo
 // unset it is 'skipped' and the always-on local OFAC mirror carries the redundancy. Never
 // throws. A failed or malformed answer is 'unavailable', never a clean "not sanctioned".
 export async function chainalysisSanctioned(address: string): Promise<'match' | 'clear' | 'unavailable' | 'skipped'> {
-  const key = import.meta.env.CHAINALYSIS_API_KEY ?? process.env.CHAINALYSIS_API_KEY ?? '';
+  const key = process.env.CHAINALYSIS_API_KEY ?? '';
   if (!key) return 'skipped';
   try {
     const res = await fetchWithTimeout(
@@ -585,7 +585,7 @@ async function fetchTokenBalances(
   const errors: string[] = [];
   const holdings: WalletCheckResult['holdings'] = [];
 
-  const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  const apiKey = process.env.ALCHEMY_API_KEY ?? '';
   if (!apiKey) { errors.push('Alchemy not configured'); return { holdings, errors }; }
 
   try {
@@ -686,7 +686,7 @@ async function fetchMultiSigCheck(
   address: string,
 ): Promise<{ multiSig: boolean | null; errors: string[] }> {
   const errors: string[] = [];
-  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  const apiKey = process.env.ETHERSCAN_API_KEY ?? '';
   if (!apiKey) return { multiSig: null, errors: [] };
   try {
     // Through the shared Etherscan gate (explorerGates.ts), ahead of activity reads and sync.
@@ -992,7 +992,7 @@ async function fetchEntityLabel(
   // Without a key the name is not checked either, and the banner must say so (the activity
   // read's "Etherscan not configured" used to, but activity no longer runs with the verdict).
   const unavailable = { label: null, errors: [CONTRACT_NAME_UNAVAILABLE] };
-  const apiKey = import.meta.env.ETHERSCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? '';
+  const apiKey = process.env.ETHERSCAN_API_KEY ?? '';
   if (!apiKey) return unavailable;
   try {
     // Shared Etherscan gate, safety priority: the activity reads and background sync must
@@ -1042,7 +1042,7 @@ export function isCompromisedAddress(address: string): boolean {
 
 async function fetchENSName(address: string): Promise<string | null> {
   if (detectChain(address) !== 'evm') return null;
-  const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  const apiKey = process.env.ALCHEMY_API_KEY ?? '';
   if (!apiKey) return null;
 
   try {
@@ -1096,7 +1096,7 @@ async function fetchENSName(address: string): Promise<string | null> {
 // https://www.chainabuse.com/
 
 async function fetchChainavuseReports(address: string): Promise<{ count: number | null; errors: string[]; skipped?: boolean }> {
-  const apiKey = process.env.CHAINABUSE_API_KEY ?? import.meta.env.CHAINABUSE_API_KEY ?? '';
+  const apiKey = process.env.CHAINABUSE_API_KEY ?? '';
   // Not configured, or no network for this chain: it did not run, so never report it as checked.
   if (!apiKey) return { count: null, errors: [], skipped: true };
 

@@ -57,7 +57,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const GET: APIRoute = async ({ request }) => {
   // ── Auth ────────────────────────────────────────────────────────────────────
-  const secret = import.meta.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET;
   const provided =
     request.headers.get('x-cron-secret') ?? new URL(request.url).searchParams.get('secret');
   if (!secret || provided !== secret) {

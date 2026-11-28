@@ -131,7 +131,7 @@ const formatSnapshotDate = (capturedAt: string) => formatDate(capturedAt, getCli
 
 const DUST_THRESHOLD_USD = 1;
 const WALLET_DEBUG =
-	String(import.meta.env.WALLET_DEBUG ?? import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
+	String(process.env.WALLET_DEBUG ?? process.env.HOLDINGS_DEBUG ?? '').trim() === '1';
 
 function makeRefCode(walletId: string): string {
 	const suffix = walletId.slice(-4).toUpperCase().replace(/[^A-Z0-9]/g, 'X').padEnd(4, 'X');

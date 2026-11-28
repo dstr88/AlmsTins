@@ -11,7 +11,7 @@ const COINGECKO_MAX_RETRIES = 3;
 const COINGECKO_BASE_BACKOFF_MS = 10_000;
 const COINGECKO_TIMEOUT_MS = 2_500;
 // Host and key header per plan (src/lib/coingeckoApi.ts); the key is only read on the server.
-const COINGECKO = coingeckoConfig(import.meta.env);
+const COINGECKO = coingeckoConfig(typeof process !== 'undefined' ? process.env : {});
 
 const coingeckoCache = new Map<string, { expiresAt: number; payload: any }>();
 let lastCoingeckoCallAt = 0;

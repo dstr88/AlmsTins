@@ -19,7 +19,7 @@ const ALCHEMY_BASE_URL: Record<AlchemyChain, string> = {
 };
 
 export async function alchemyRpc(chain: AlchemyChain, body: AlchemyRpcBody) {
-	const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY;
+	const apiKey = process.env.ALCHEMY_API_KEY;
 	if (!apiKey) throw new Error('Missing ALCHEMY_API_KEY');
 
 	const url = `${ALCHEMY_BASE_URL[chain]}/${apiKey}`;

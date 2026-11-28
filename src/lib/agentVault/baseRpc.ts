@@ -463,7 +463,7 @@ export function createBaseRpcReader(opts: BaseRpcOptions = {}): BaseRpcReader {
 }
 
 /** BASE_RPC_URL when it is set to an http(s) address (another node, a local one), else the public endpoint. */
-export function configuredUrl(raw: unknown = import.meta.env.BASE_RPC_URL ?? process.env.BASE_RPC_URL): string {
+export function configuredUrl(raw: unknown = process.env.BASE_RPC_URL): string {
   const s = String(raw ?? '').trim();
   return /^https?:\/\/[^\s]+$/i.test(s) ? s : BASE_RPC_DEFAULT_URL;
 }
