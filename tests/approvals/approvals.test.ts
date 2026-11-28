@@ -16,7 +16,7 @@ import { addressTopic, decodeApprovalLog, endedByLatestEvent, fetchApprovalEvent
 import { checkCurrentState, decodeString, readState, SELECTORS, stateCalls } from '@/lib/approvals/state';
 import { flagApproval, INACTIVE_MONTHS, isUnlimitedAmount, monthsBetween, sortApprovals } from '@/lib/approvals/flags';
 import { revokeCashUrl, approvalCheckerUrl } from '@/lib/approvals/links';
-import { checkWalletApprovals } from '@/lib/approvals/index';
+import { buildReport, checkWalletApprovals } from '@/lib/approvals/index';
 import { flaggedApprovalItems, APPROVAL_DIGEST_REASON } from '@/lib/approvals/digest';
 import { PERMIT2_ADDRESS } from '@/lib/knownProtocolContracts';
 import type { ExplorerLog } from '@/lib/etherscan';
@@ -339,5 +339,30 @@ describe('the whole report, from fake chain data', () => {
 			{ ...base, id: 'a', group: 'revoke_first', reasons: [{ code: 'unlimited' }] },
 		] as StandingApproval[]);
 		expect(sorted.map((a) => a.group)).toEqual(['revoke_first', 'still_a_risk', 'unknown']);
+	});
+});
+
+describe('a slow chain never holds the check', () => {
+	it('a chain past its deadline is reported as couldn\'t be read, and the rest are listed', async () => {
+		const fetchEvents = (chainId: number) =>
+			chainId === 43114 ? new Promise<never>(() => {}) : Promise.resolve({ events: [], complete: true });
+		const seen: number[] = [];
+		const started = Date.now();
+		const report = await checkWalletApprovals('w-1', OWNER, {
+			fetchEvents: fetchEvents as never,
+			caller: (() => async () => []) as never,
+			chainDeadlineMs: 80,
+			onChain: (i) => seen.push(i),
+		});
+		expect(Date.now() - started).toBeLessThan(1000);
+		expect(report.complete).toBe(true);
+		expect(report.chains.map((c) => c.status)).toEqual(['read', 'read', 'unavailable', 'read']);
+		expect(seen.sort()).toEqual([0, 1, 2, 3]);
+	});
+
+	it('the report so far marks unread chains pending and is not complete', () => {
+		const r = buildReport('w-1', OWNER, [{ status: 'read', approvals: [] }, undefined, undefined, { status: 'partial', approvals: [] }], Date.now());
+		expect(r.complete).toBe(false);
+		expect(r.chains.map((c) => c.status)).toEqual(['read', 'pending', 'pending', 'partial']);
 	});
 });

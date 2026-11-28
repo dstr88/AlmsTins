@@ -172,6 +172,16 @@
 	color: var(--text-secondary);
 }
 
+.wa-list__pending {
+	margin: 0;
+	padding: 0.5rem 0.7rem;
+	border-left: 3px solid var(--accent-dim);
+	background: var(--surface-card-2);
+	font-size: 0.8rem;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
 .wa-list__chain-note {
 	padding: 0.5rem 0.7rem;
 	border-left: 3px solid var(--loss-border);

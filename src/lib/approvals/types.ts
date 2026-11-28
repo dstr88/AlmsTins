@@ -74,13 +74,16 @@ export interface StandingApproval {
 	links: { revoke: string; checker: string | null };
 }
 
-export type ChainReadStatus = 'read' | 'partial' | 'unavailable';
+/** `pending`: still being read (the list fills in as each chain finishes). */
+export type ChainReadStatus = 'read' | 'partial' | 'unavailable' | 'pending';
 
 export interface ApprovalsReport {
 	ok: true;
 	walletId: string;
 	/** When the check ran (ISO): approvals can change a minute later. */
 	checkedAt: string;
+	/** False while some chain is still being read: the list so far, never presented as the whole list. */
+	complete: boolean;
 	chains: Array<{ chain: ApprovalChain; status: ChainReadStatus; revoke: string; checker: string | null }>;
 	approvals: StandingApproval[];
 	counts: { total: number; revokeFirst: number; stillARisk: number; unknown: number };

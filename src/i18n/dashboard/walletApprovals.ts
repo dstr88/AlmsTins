@@ -74,6 +74,8 @@ export interface WalletApprovalsLocale {
 	cancelNote: string;
 	chainPartial: (chain: string) => string;
 	chainUnavailable: (chain: string) => string;
+	/** While a check is still running: the networks not read yet. The list so far is never presented as the whole list. */
+	stillReading: (chains: string) => string;
 	asOf: (when: string) => string;
 	rateLimited: string;
 	failed: string;
@@ -160,6 +162,7 @@ export const en: WalletApprovalsLocale = {
 		'Canceling needs a signature in your own wallet, on revoke.cash or the explorer’s Token Approval Checker. Almstins never asks you to sign anything. revoke.cash shows one network at a time, so each link opens this wallet on that network.',
 	chainPartial: (c) => `${chainName(c)}: this wallet has more approvals than one check reads. The newest are listed; see ${chainName(c)} on revoke.cash for the rest.`,
 	chainUnavailable: (c) => `${chainName(c)} couldn't be read right now, so nothing is listed for it. That doesn't mean it has no approvals.`,
+	stillReading: (c) => `Still reading ${c}. The list below is what has been read so far; it fills in as each network finishes.`,
 	asOf: (w) => `As of ${w}. An approval can change a minute later.`,
 	rateLimited: 'Too many approval checks in the last hour. Try again later.',
 	failed: "Approvals couldn't be checked right now. Try again in a few minutes.",
@@ -258,6 +261,7 @@ export const es: WalletApprovalsLocale = {
 		'Cancelar requiere una firma en tu propia wallet, en revoke.cash o en el Token Approval Checker del explorador. Almstins nunca te pide firmar nada. revoke.cash muestra una red a la vez, así que cada enlace abre esta wallet en esa red.',
 	chainPartial: (c) => `${chainName(c)}: esta wallet tiene más aprobaciones de las que lee una revisión. Se muestran las más recientes; consulta ${chainName(c)} en revoke.cash para ver el resto.`,
 	chainUnavailable: (c) => `No se pudo leer ${chainName(c)} en este momento, así que no se muestra nada para esa red. Eso no significa que no tenga aprobaciones.`,
+	stillReading: (c) => `Todavía leyendo ${c}. La lista de abajo es lo leído hasta ahora; se completa a medida que termina cada red.`,
 	asOf: (w) => `Al ${w}. Una aprobación puede cambiar un minuto después.`,
 	rateLimited: 'Demasiadas revisiones de aprobaciones en la última hora. Inténtalo más tarde.',
 	failed: 'No se pudieron revisar las aprobaciones en este momento. Inténtalo de nuevo en unos minutos.',
@@ -356,6 +360,7 @@ export const fr: WalletApprovalsLocale = {
 		'Annuler demande une signature dans votre propre portefeuille, sur revoke.cash ou le Token Approval Checker de l’explorateur. Almstins ne vous demande jamais de signer quoi que ce soit. revoke.cash affiche un réseau à la fois : chaque lien ouvre ce portefeuille sur ce réseau.',
 	chainPartial: (c) => `${chainName(c)} : ce portefeuille a plus d’autorisations qu’une vérification n’en lit. Les plus récentes sont listées ; consultez ${chainName(c)} sur revoke.cash pour le reste.`,
 	chainUnavailable: (c) => `${chainName(c)} n’a pas pu être lu pour le moment, donc rien n’est listé pour ce réseau. Cela ne veut pas dire qu’il n’a aucune autorisation.`,
+	stillReading: (c) => `Lecture en cours : ${c}. La liste ci-dessous est ce qui a été lu jusqu’ici ; elle se complète à mesure que chaque réseau se termine.`,
 	asOf: (w) => `Au ${w}. Une autorisation peut changer une minute plus tard.`,
 	rateLimited: 'Trop de vérifications d’autorisations au cours de la dernière heure. Réessayez plus tard.',
 	failed: 'Les autorisations n’ont pas pu être vérifiées pour le moment. Réessayez dans quelques minutes.',

@@ -141,11 +141,7 @@ export function buildApproval(
 	};
 }
 
-async function checkChain(
-	chain: ApprovalChain,
-	wallet: string,
-	deps: Required<ApprovalDeps>,
-): Promise<{ status: ChainReadStatus; approvals: StandingApproval[] }> {
+async function checkChain(chain: ApprovalChain, wallet: string, deps: Required<ApprovalDeps>): Promise<ChainOutcome> {
 	const chainId = CHAINS[chain].evmChainId;
 	const nowMs = deps.now();
 	const nowSeconds = Math.floor(nowMs / 1000);
@@ -198,24 +194,30 @@ async function checkChain(
 	return { status: found.complete && overflow.length === 0 ? 'read' : 'partial', approvals };
 }
 
-/** The standing approvals report for one EVM wallet. Never throws for an unreadable chain: that chain says so. */
-export async function checkWalletApprovals(walletId: string, address: string, deps: ApprovalDeps = {}): Promise<ApprovalsReport> {
+/** One chain's finished read. */
+export type ChainOutcome = { status: ChainReadStatus; approvals: StandingApproval[] };
+
+/**
+ * The longest one chain may take inside a check. A busy wallet on Avalanche can take minutes; past this
+ * the chain is reported as "couldn't be read right now" (never silently empty) and the check finishes.
+ */
+export const CHAIN_DEADLINE_MS = 4 * 60_000;
+
+/**
+ * The report from the chains read so far. A chain still being read is `pending`, and `complete` is false
+ * until every chain has an outcome. Pure.
+ */
+export function buildReport(walletId: string, address: string, outcomes: Array<ChainOutcome | undefined>, nowMs: number): ApprovalsReport {
 	const wallet = address.trim().toLowerCase();
-	const full: Required<ApprovalDeps> = {
-		fetchEvents: deps.fetchEvents ?? ((chainId, owner) => fetchApprovalEvents(chainId, owner)),
-		caller: deps.caller ?? callerFor,
-		spender: deps.spender ?? describeSpender,
-		now: deps.now ?? Date.now,
-	};
-	const results = await Promise.all(APPROVAL_CHAINS.map((chain) => checkChain(chain, wallet, full)));
-	const approvals = sortApprovals(results.flatMap((r) => r.approvals));
+	const approvals = sortApprovals(outcomes.flatMap((o) => o?.approvals ?? []));
 	return {
 		ok: true,
 		walletId,
-		checkedAt: new Date(full.now()).toISOString(),
+		checkedAt: new Date(nowMs).toISOString(),
+		complete: outcomes.length === APPROVAL_CHAINS.length && outcomes.every((o) => o !== undefined),
 		chains: APPROVAL_CHAINS.map((chain, i) => ({
 			chain,
-			status: results[i].status,
+			status: outcomes[i]?.status ?? 'pending',
 			revoke: revokeCashUrl(chain, wallet),
 			checker: approvalCheckerUrl(chain),
 		})),
@@ -227,4 +229,45 @@ export async function checkWalletApprovals(walletId: string, address: string, de
 			unknown: approvals.filter((a) => a.group === 'unknown').length,
 		},
 	};
+}
+
+export interface CheckOptions extends ApprovalDeps {
+	/** Called as each chain finishes (index into APPROVAL_CHAINS), so a caller can show the list as it fills. */
+	onChain?: (index: number, outcome: ChainOutcome) => void;
+	/** Per-chain ceiling; default CHAIN_DEADLINE_MS. */
+	chainDeadlineMs?: number;
+}
+
+/**
+ * The standing approvals report for one EVM wallet. The chains are read at the same time. Never throws
+ * for an unreadable chain, and never waits past the per-chain deadline: that chain says it couldn't be read.
+ */
+export async function checkWalletApprovals(walletId: string, address: string, opts: CheckOptions = {}): Promise<ApprovalsReport> {
+	const wallet = address.trim().toLowerCase();
+	const full: Required<ApprovalDeps> = {
+		fetchEvents: opts.fetchEvents ?? ((chainId, owner) => fetchApprovalEvents(chainId, owner)),
+		caller: opts.caller ?? callerFor,
+		spender: opts.spender ?? describeSpender,
+		now: opts.now ?? Date.now,
+	};
+	const deadline = opts.chainDeadlineMs ?? CHAIN_DEADLINE_MS;
+	const outcomes = await Promise.all(
+		APPROVAL_CHAINS.map(async (chain, i) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const timedOut = new Promise<ChainOutcome>((resolve) => {
+				timer = setTimeout(() => {
+					console.warn('[approvals] chain deadline reached', { chain });
+					resolve({ status: 'unavailable', approvals: [] });
+				}, deadline);
+			});
+			const outcome = await Promise.race([
+				checkChain(chain, wallet, full).catch((): ChainOutcome => ({ status: 'unavailable', approvals: [] })),
+				timedOut,
+			]);
+			clearTimeout(timer);
+			opts.onChain?.(i, outcome);
+			return outcome;
+		}),
+	);
+	return buildReport(walletId, wallet, outcomes, full.now());
 }

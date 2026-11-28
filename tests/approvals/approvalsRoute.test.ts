@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
 	tenant: 'tenant-a' as string | null,
 	wallets: [] as Array<{ id: string; tenant_id: string; address: string }>,
 	checks: 0,
+	/** How long the fake check takes on Avalanche (index 2); the other chains answer at once. */
+	slowMs: 0,
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -27,20 +29,6 @@ vi.mock('@/lib/tursoCache', () => ({ getCache: async () => null, setCache: async
 vi.mock('@/lib/requireTenantSession', () => ({
 	requireTenantSession: async () => (state.tenant ? { tenantId: state.tenant, isDemo: false } : null),
 }));
-vi.mock('@/lib/approvals/index', () => ({
-	checkWalletApprovals: async (walletId: string) => {
-		state.checks += 1;
-		return {
-			ok: true,
-			walletId,
-			checkedAt: new Date().toISOString(),
-			chains: [],
-			approvals: [],
-			counts: { total: 0, revokeFirst: 0, stillARisk: 0, unknown: 0 },
-		};
-	},
-}));
-
 const EVM_A = '0x1111111111111111111111111111111111111111';
 const EVM_B = '0x2222222222222222222222222222222222222222';
 
@@ -58,8 +46,20 @@ beforeEach(async () => {
 		{ id: 'w-b', tenant_id: 'tenant-b', address: EVM_B },
 		{ id: 'w-btc', tenant_id: 'tenant-a', address: 'bc1qexampleexampleexampleexampleexample0' },
 	];
-	const { _clearApprovalsCache } = await import('../../src/lib/approvals/cache');
-	_clearApprovalsCache();
+	state.slowMs = 0;
+	const cache = await import('../../src/lib/approvals/cache');
+	const { buildReport } = await import('../../src/lib/approvals/index');
+	cache._clearApprovalsCache();
+	cache._setRequestBudgetMs(60);
+	// A fake check over the real job code: each chain reports as it finishes, Avalanche after slowMs.
+	cache._setChecker(async (walletId, address, opts = {}) => {
+		state.checks += 1;
+		const outcomes = [0, 1, 2, 3].map(() => ({ status: 'read' as const, approvals: [] }));
+		for (const i of [0, 1, 3]) opts.onChain?.(i, outcomes[i]);
+		if (state.slowMs > 0) await new Promise((r) => setTimeout(r, state.slowMs));
+		opts.onChain?.(2, outcomes[2]);
+		return buildReport(walletId, address, outcomes, Date.now());
+	});
 });
 
 describe('GET /api/wallets/[id]/approvals', () => {
@@ -85,7 +85,7 @@ describe('GET /api/wallets/[id]/approvals', () => {
 	it("reads the owner's wallet once, then answers from the cache", async () => {
 		const first = await get('w-a');
 		expect(first.status).toBe(200);
-		expect(first.body).toMatchObject({ ok: true, walletId: 'w-a', cached: false });
+		expect(first.body).toMatchObject({ ok: true, walletId: 'w-a', cached: false, complete: true });
 		const second = await get('w-a');
 		expect(second.body.cached).toBe(true);
 		expect(state.checks).toBe(1);
@@ -97,6 +97,45 @@ describe('GET /api/wallets/[id]/approvals', () => {
 		expect(state.checks).toBe(0);
 	});
 
+	it('a slow chain: the request answers within its budget with the list so far, marked incomplete', async () => {
+		state.slowMs = 400;
+		const started = Date.now();
+		const res = await get('w-a');
+		const took = Date.now() - started;
+		expect(res.status).toBe(200);
+		expect(took).toBeLessThan(300);
+		expect(res.body.complete).toBe(false);
+		expect(res.body.chains.map((c: { chain: string; status: string }) => [c.chain, c.status])).toEqual([
+			['ethereum', 'read'],
+			['polygon', 'read'],
+			['avalanche', 'pending'],
+			['arbitrum', 'read'],
+		]);
+		// Not cached while incomplete; a poll reads the running check and never starts another.
+		expect((await get('w-a', '?poll=1')).body.complete).toBe(false);
+		await new Promise((r) => setTimeout(r, 500));
+		const done = await get('w-a', '?poll=1');
+		expect(done.body.complete).toBe(true);
+		expect(done.body.chains.every((c: { status: string }) => c.status === 'read')).toBe(true);
+		expect(state.checks).toBe(1);
+		// Now cached.
+		expect((await get('w-a')).body.cached).toBe(true);
+	});
+
+	it('joining a running check does not start a second one or count against the limit', async () => {
+		state.slowMs = 300;
+		await get('w-a');
+		await get('w-a');
+		expect(state.checks).toBe(1);
+		await new Promise((r) => setTimeout(r, 400));
+	});
+
+	it('a poll with no check known says so', async () => {
+		expect((await get('w-a', '?poll=1')).body).toEqual({ ok: true, status: 'missing' });
+		expect(state.checks).toBe(0);
+	});
+
+	// Last: the limiter is per process, so the account stays limited for the rest of this file.
 	it('limits fresh checks per account', async () => {
 		const statuses: number[] = [];
 		for (let i = 0; i < 14; i++) statuses.push((await get('w-a', '?refresh=1')).status);

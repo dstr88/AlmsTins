@@ -9,7 +9,7 @@
  * through revoke.cash or the explorer's checker; Almstins never asks for a signature.
  */
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { getClientLang } from '@/lib/i18n/clientLang';
 import { getWalletApprovals, type WalletApprovalsLocale } from '@/i18n/dashboard/walletApprovals';
 import { Modal } from '@/components/ui/Modal';
@@ -27,6 +27,9 @@ type Status = 'idle' | 'checking' | 'error' | 'rate_limited';
 type Tab = 'list' | 'how';
 
 const GROUPS: ApprovalGroup[] = ['revoke_first', 'still_a_risk', 'unknown'];
+/** How often the page asks for the rest of a check still running, and for how long at most. */
+const POLL_EVERY_MS = 3_000;
+const POLL_FOR_MS = 6 * 60_000;
 
 export function WalletApprovals({ walletId, walletName }: { walletId: string; walletName: string }) {
 	const lang = getClientLang();
@@ -37,25 +40,68 @@ export function WalletApprovals({ walletId, walletName }: { walletId: string; wa
 	const [tab, setTab] = useState<Tab>('list');
 	const titleId = useId();
 	const tabsId = useId();
+	const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const unmounted = useRef(false);
+	const base = `/api/wallets/${encodeURIComponent(walletId)}/approvals`;
 
-	// The last check, if one is still cached: shows the count without starting a new read.
 	useEffect(() => {
-		let gone = false;
-		fetch(`/api/wallets/${encodeURIComponent(walletId)}/approvals?cached=1`)
+		unmounted.current = false;
+		return () => {
+			unmounted.current = true;
+			if (pollTimer.current) clearTimeout(pollTimer.current);
+		};
+	}, []);
+
+	/**
+	 * A check that isn't complete is still running on the server: ask for the rest every few seconds
+	 * and show the list as it fills. A poll that finds no check (another server, or a restart) stops
+	 * with the error line, keeping what was already shown.
+	 */
+	function follow(started: number) {
+		if (pollTimer.current) clearTimeout(pollTimer.current);
+		pollTimer.current = setTimeout(async () => {
+			if (unmounted.current) return;
+			try {
+				const res = await fetch(`${base}?poll=1`);
+				const data = await res.json().catch(() => null);
+				if (unmounted.current) return;
+				if (!res.ok || !data?.ok || data.status === 'missing') {
+					setStatus('error');
+					return;
+				}
+				setReport(data as ApprovalsReport);
+				if (data.complete) {
+					setStatus('idle');
+					return;
+				}
+			} catch {
+				// A dropped poll is retried until the time is up.
+			}
+			if (Date.now() - started < POLL_FOR_MS) follow(started);
+			else setStatus('error');
+		}, POLL_EVERY_MS);
+	}
+
+	// The last check, if one is still cached or running: shows the count without starting a new read.
+	useEffect(() => {
+		fetch(`${base}?cached=1`)
 			.then((r) => (r.ok ? r.json() : null))
 			.then((data) => {
-				if (!gone && data?.ok && Array.isArray(data.approvals)) setReport(data as ApprovalsReport);
+				if (unmounted.current || !data?.ok || !Array.isArray(data.approvals)) return;
+				setReport(data as ApprovalsReport);
+				if (!data.complete) {
+					setStatus('checking');
+					follow(Date.now());
+				}
 			})
 			.catch(() => {});
-		return () => {
-			gone = true;
-		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [walletId]);
 
 	async function check(refresh: boolean) {
 		setStatus('checking');
 		try {
-			const res = await fetch(`/api/wallets/${encodeURIComponent(walletId)}/approvals${refresh ? '?refresh=1' : ''}`);
+			const res = await fetch(`${base}${refresh ? '?refresh=1' : ''}`);
 			if (res.status === 429) {
 				setStatus('rate_limited');
 				return;
@@ -66,9 +112,10 @@ export function WalletApprovals({ walletId, walletName }: { walletId: string; wa
 				return;
 			}
 			setReport(data as ApprovalsReport);
-			setStatus('idle');
 			setTab('list');
 			setOpen(true);
+			if (data.complete) setStatus('idle');
+			else follow(Date.now());
 		} catch {
 			setStatus('error');
 		}
@@ -158,11 +205,13 @@ function TabButton({ id, panel, active, onClick, children }: { id: string; panel
 }
 
 function ApprovalList({ report, t, lang }: { report: ApprovalsReport; t: WalletApprovalsLocale; lang: Lang }) {
-	const notes = report.chains.filter((c) => c.status !== 'read');
+	const notes = report.chains.filter((c) => c.status === 'partial' || c.status === 'unavailable');
+	const pending = report.chains.filter((c) => c.status === 'pending').map((c) => t.chainName(c.chain));
 	return (
 		<div className="wa-list">
 			<p className="wa-list__lead">{t.lead}</p>
 			<p className="wa-list__asof">{t.asOf(formatDateTime(report.checkedAt, lang))}</p>
+			{pending.length > 0 && <p className="wa-list__pending" role="status">{t.stillReading(pending.join(', '))}</p>}
 			{notes.map((c) => (
 				<p key={c.chain} className="wa-list__chain-note">
 					{c.status === 'partial' ? t.chainPartial(c.chain) : t.chainUnavailable(c.chain)}{' '}
@@ -170,7 +219,7 @@ function ApprovalList({ report, t, lang }: { report: ApprovalsReport; t: WalletA
 				</p>
 			))}
 			{report.approvals.length === 0 ? (
-				<p className="wa-list__empty">{t.empty}</p>
+				report.complete ? <p className="wa-list__empty">{t.empty}</p> : null
 			) : (
 				GROUPS.map((g) => {
 					const items = report.approvals.filter((a) => a.group === g);
