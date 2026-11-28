@@ -90,3 +90,25 @@ export const INBOX_HEADING = 'Needs an update';
 export const INBOX_HINT =
 	'Your own claims past their promised payment date, or in the grace window after it. Open one and record it settled, extended, or unpaid; the item clears itself once the record is current.';
 export const INBOX_OPEN_TITLE = 'Open this record on your desk';
+
+// ── Client notices on a lender's action (Part B, approved 2026-11-28) ─────────────
+//
+// One email to the client each time the lender acts on a claim against the client's invoice
+// (repaid, extended, marked unpaid) or the receivable is settled. Same rules as the aging
+// notices: the identifier block, no party name, a generic subject, the public check link, the
+// opt-out line. An email never says more than the public record: the new promised date of an
+// extension is on the public status history, its reason is not, so the reason is never here.
+// The reason is the lender's own signed-in record (status-events, owner only): the client cannot
+// read it either, so the line says it stays off the record rather than "sign in to see it".
+
+export const ACTION_SUBJECT_CLIENT = 'An update on a financing record for one of your invoices';
+/** The identifier facts for an action notice: amount + currency only (the line carries the date). */
+export const ACTION_FACTS = '{amount}';
+export const ACTION_CLIENT_REPAID =
+	'The lender released its claim recorded {recorded} against your invoice {invoice} ({facts}). That claim no longer counts against the invoice.';
+export const ACTION_CLIENT_EXTENDED =
+	'The lender extended the promised payment date of its claim recorded {recorded} against your invoice {invoice} ({facts}) to {promised}. The reason the lender gave stays off the public record.';
+export const ACTION_CLIENT_UNPAID =
+	'The lender recorded its claim recorded {recorded} against your invoice {invoice} ({facts}) as unpaid.';
+export const ACTION_CLIENT_SETTLED =
+	'Your invoice {invoice} ({facts}), recorded {recorded}, is marked paid and the record is closed.';

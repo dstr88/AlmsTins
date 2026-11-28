@@ -18,6 +18,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { markUnpaid } from '@/lib/receivablesRegistry';
 import { anchorNow, evidenceStampLimiter } from '@/lib/receivables/server/anchorNow';
+import { notifyClientOfAction } from '@/lib/receivables/server/clientActionDelivery';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -35,6 +36,8 @@ export const POST: APIRoute = async ({ request }) => {
   });
   if (result.ok) {
     const anchor = await anchorNow(session.tenantId, 'status_event', result.eventId, evidenceStampLimiter);
+    // Part B: tell the client (best effort; the flag stands either way).
+    await notifyClientOfAction(session.tenantId, 'unpaid', result.eventId);
     return json({ ...result, ...anchor });
   }
   const status =

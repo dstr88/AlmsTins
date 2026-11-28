@@ -15,6 +15,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { dischargeClaim } from '@/lib/receivablesRegistry';
 import { anchorNow, evidenceStampLimiter } from '@/lib/receivables/server/anchorNow';
+import { notifyClientOfAction } from '@/lib/receivables/server/clientActionDelivery';
 import { json } from '@/lib/http';
 
 export const prerender = false;
@@ -35,6 +36,8 @@ export const POST: APIRoute = async ({ request }) => {
   );
   if (result.ok) {
     const anchor = await anchorNow(session.tenantId, 'claim_discharge', claimId, evidenceStampLimiter);
+    // Part B: tell the client (best effort; the discharge stands either way).
+    await notifyClientOfAction(session.tenantId, 'repaid', claimId);
     return json({ ...result, ...anchor });
   }
   const status = result.error === 'not_found' ? 404 : 409;
