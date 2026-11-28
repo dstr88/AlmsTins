@@ -952,4 +952,31 @@ export const items: FaqItem[] = [
           <strong>Note:</strong> The ref code is click-to-select — tap or click it once to highlight the whole code, then copy it before reaching out.
         </p>`,
   },
+  {
+    id: "faq-standing-approvals",
+    q: "What are standing approvals, and how do I check them?",
+    a: `<p>
+          An approval is permission you gave a contract to move your tokens or NFTs, usually the first time you used a site: a swap, a marketplace listing, a lending app. Most approvals have no end date. They keep working after you stop using the site, and if that contract is hacked later, the attacker can use your approval to take what it covers with no new signature from you.
+        </p>
+
+        <p>
+          <strong>Checking:</strong> on the Wallets page, each Ethereum, Polygon, Avalanche or Arbitrum wallet has an <strong>Approvals</strong> section. Press <strong>Check approvals</strong>. Almstins reads the approvals written to the chain for that address, then asks each token contract whether the approval still stands. There is no wallet connection and nothing to sign. A busy wallet can take a while; the list fills in as each network finishes.
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Revoke first</strong>: an unlimited amount or a whole NFT collection, a contract with no transactions in 12 months or more, or a contract the wallet checker's sources flag.</li>
+          <li><strong>Still a risk</strong>: none of those flags applies. Each one still lets the contract take what it covers until you cancel it.</li>
+          <li><strong>Couldn't check</strong>: an approval Almstins found but couldn't read the current state of. Look it up on revoke.cash.</li>
+        </ul>
+
+        <p>No approval is ever shown as safe.</p>
+
+        <p>
+          <strong>Canceling:</strong> each approval links to revoke.cash for that wallet on that network, and to the explorer's Token Approval Checker. Canceling needs a signature in your own wallet there and a small network fee. Almstins never asks you to sign anything.
+        </p>
+
+        <p>
+          <strong>What no tool can see:</strong> a permit, Permit2 signature or NFT listing you signed that nobody has used yet. It isn't on the chain until it's used, so neither Almstins nor revoke.cash can list it. The list is as of the time shown at the top; the <strong>How it works</strong> tab has the details.
+        </p>`,
+  },
 ];

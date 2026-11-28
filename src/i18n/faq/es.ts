@@ -951,4 +951,31 @@ export const items: FaqItem[] = [
           <strong>Nota:</strong> El ref code es de seleccionar con un clic — tócalo o haz clic en él una vez para resaltar todo el código, luego cópialo antes de contactarnos.
         </p>`,
   },
+  {
+    id: "faq-standing-approvals",
+    q: "¿Qué son las aprobaciones vigentes y cómo las reviso?",
+    a: `<p>
+          Una aprobación es un permiso que le diste a un contrato para mover tus tokens o NFTs, normalmente la primera vez que usaste un sitio: un swap, una venta en un marketplace, una app de préstamos. La mayoría de las aprobaciones no tienen fecha de fin. Siguen funcionando cuando dejas de usar el sitio, y si ese contrato es hackeado más adelante, el atacante puede usar tu aprobación para llevarse lo que cubre sin una nueva firma tuya.
+        </p>
+
+        <p>
+          <strong>Cómo revisarlas:</strong> en la página Wallets, cada billetera de Ethereum, Polygon, Avalanche o Arbitrum tiene una sección <strong>Aprobaciones</strong>. Pulsa <strong>Revisar aprobaciones</strong>. Almstins lee las aprobaciones escritas en la cadena para esa dirección y luego pregunta a cada contrato de token si la aprobación sigue en vigor. No hay conexión de billetera ni nada que firmar. Una billetera con mucha actividad puede tardar; la lista se completa a medida que termina cada red.
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Revocar primero</strong>: una cantidad ilimitada o una colección de NFTs completa, un contrato sin transacciones en 12 meses o más, o un contrato que las fuentes del verificador de billeteras marcan.</li>
+          <li><strong>Siguen siendo un riesgo</strong>: no aplica ninguna de esas marcas. Cada una sigue permitiendo que el contrato se lleve lo que cubre hasta que la canceles.</li>
+          <li><strong>No se pudo revisar</strong>: una aprobación que Almstins encontró pero cuyo estado actual no pudo leer. Búscala en revoke.cash.</li>
+        </ul>
+
+        <p>Ninguna aprobación se muestra nunca como segura.</p>
+
+        <p>
+          <strong>Cómo cancelarlas:</strong> cada aprobación enlaza a revoke.cash para esa billetera en esa red, y al Token Approval Checker del explorador. Cancelar requiere una firma en tu propia billetera allí y una pequeña comisión de red. Almstins nunca te pide firmar nada.
+        </p>
+
+        <p>
+          <strong>Lo que ninguna herramienta puede ver:</strong> un permit, una firma de Permit2 o una venta de NFT que firmaste y que nadie ha usado todavía. No está en la cadena hasta que se usa, así que ni Almstins ni revoke.cash pueden listarla. La lista corresponde a la hora que aparece arriba; la pestaña <strong>Cómo funciona</strong> tiene los detalles.
+        </p>`,
+  },
 ];

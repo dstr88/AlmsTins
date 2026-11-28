@@ -6,7 +6,7 @@ import { verifyWelcomeLocales } from '../../src/i18n/emails/verifyWelcome';
 
 /**
  * Privacy Policy v1.7 describes the Verify welcome emails and personal notes, in English,
- * (The policy has moved on to v1.9 since; that wording is unchanged.)
+ * (The policy has moved on to v1.10 since; that wording is unchanged.)
  * Spanish and French. Section 4 lists what we use information for ("only to"), so every email
  * Almstins sends has to be in it. This file holds the new lines to the code they describe
  * (src/lib/onboardingDrip.ts, campaign `verify-welcome`):
@@ -158,9 +158,9 @@ describe('the rest of the policy agrees with the new lines', () => {
 		expect(lines).not.toMatch(/\b(safe|secure|protect|block|seguro|segura|proteg|bloque|sûr|sûre|protég|bloqu)\w*/i);
 	});
 
-	it('each language is version 1.9, the version in effect', () => {
-		expect(bodies.en).toContain('<strong>Version:</strong> 1.9');
-		expect(bodies.es).toContain('<strong>Versión:</strong> 1.9');
-		expect(bodies.fr).toContain('<strong>Version :</strong> 1.9');
+	it('each language is version 1.10, the version in effect', () => {
+		expect(bodies.en).toContain('<strong>Version:</strong> 1.10');
+		expect(bodies.es).toContain('<strong>Versión:</strong> 1.10');
+		expect(bodies.fr).toContain('<strong>Version :</strong> 1.10');
 	});
 });
