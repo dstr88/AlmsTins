@@ -22,7 +22,7 @@ const uid = `cs-${Math.random().toString(36).slice(2, 8)}`;   // unique per inst
 ---
 
 {compact ? (
-	<!-- ── Compact banner ─────────────────────────────────────────────────── -->
+	/* ── Compact banner ─────────────────────────────────────────────────── */
 	<div id={`${uid}-banner`}
 	     class="completeness-banner flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 shadow-sm text-sm"
 	     data-year={year}
@@ -35,7 +35,7 @@ const uid = `cs-${Math.random().toString(36).slice(2, 8)}`;   // unique per inst
 		<a href="/dashboard/yearEnd#completeness" class="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">Details →</a>
 	</div>
 ) : (
-	<!-- ── Full card ──────────────────────────────────────────────────────── -->
+	/* ── Full card ──────────────────────────────────────────────────────── */
 	<div id={`${uid}-card`}
 	     class="completeness-card rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"
 	     data-year={year}
