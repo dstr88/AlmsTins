@@ -7,6 +7,10 @@ key was ever stolen.
 
 Everything here uses open-source tools. Nothing contacts almstins.com.
 
+For a quick check, `almstins.com/verify-record` reads the same files in your browser. It takes
+the key list from almstins.com and does not check the Bitcoin proof or whether a key was revoked,
+so it is a convenience, not a replacement for the steps below.
+
 ## What you need
 
 | Item | Where it comes from |

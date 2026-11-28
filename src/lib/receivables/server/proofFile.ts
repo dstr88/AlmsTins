@@ -16,7 +16,10 @@ import { createHash } from 'node:crypto';
 import { canonicalManifestBytes, getPublishedKeys } from '@/lib/recordProof/signing';
 import type { AnchorRecordKind } from '@/lib/receivables/anchorSpec';
 
-export const RECORD_PROOF_FORMAT = 'almstins-signed-record/v1' as const;
+import { SIGNED_RECORD_FORMAT } from '@/lib/recordProof/signedRecord';
+
+/** The format name, shared with the checker (recordProof/signedRecord.ts) so the two can't drift. */
+export const RECORD_PROOF_FORMAT = SIGNED_RECORD_FORMAT;
 /** The public, append-only key log (scripts/keylog.mjs). Almstins does not serve it. */
 export const KEY_LOG_URL = 'https://github.com/dstr88/almstins-keys';
 

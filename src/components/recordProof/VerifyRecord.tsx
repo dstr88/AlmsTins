@@ -2,6 +2,11 @@ import { useState, useCallback } from 'react';
 import { verifyBundle, type VerifyOutcome, type PublishedKey } from '@/lib/recordProof/verify';
 import type { ProofBundle } from '@/lib/recordProof/buildProof';
 import { entriesLine, ledgerNote, ledgerRangeLine, recordKindLabel, supersededNote, versionLine } from '@/lib/recordProof/manifestText';
+import { isSignedRecordFile, verifySignedRecord, type SignedRecordFile, type SignedRecordOutcome } from '@/lib/recordProof/signedRecord';
+import {
+  OFFLINE_STEPS_URL, SIGNED_RECORD_DETAIL, SIGNED_RECORD_NOT_CHECKED, SIGNED_RECORD_VERDICT,
+  bitcoinLine, signedRecordKindLabel,
+} from '@/lib/recordProof/signedRecordText';
 import './VerifyRecord.css';
 
 const WELL_KNOWN = '/.well-known/almstins-signing-key.json';
@@ -10,6 +15,7 @@ type State =
   | { s: 'idle' }
   | { s: 'verifying' }
   | { s: 'done'; bundle: ProofBundle; outcome: VerifyOutcome; keySource: string }
+  | { s: 'record'; file: SignedRecordFile; outcome: SignedRecordOutcome; keySource: string }
   | { s: 'error'; message: string };
 
 const VERDICT_COPY: Record<VerifyOutcome['verdict'], { icon: string; title: string; cls: string }> = {
@@ -56,6 +62,10 @@ export default function VerifyRecord() {
       } catch { /* offline / unreachable — verify will report unknown_key */ }
     }
     try {
+      if (isSignedRecordFile(bundle)) {
+        setState({ s: 'record', file: bundle, outcome: verifySignedRecord(bundle, keys), keySource });
+        return;
+      }
       const outcome = verifyBundle(bundle, keys);
       setState({ s: 'done', bundle, outcome, keySource });
     } catch {
@@ -78,7 +88,7 @@ export default function VerifyRecord() {
       <header className="vr__head">
         <h1 className="vr__title">Verify an Almstins record</h1>
         <p className="vr__sub">
-          Upload a proof bundle: the <code>almstins-&lt;year&gt;-proof.json</code> of a Year-Summary, the proof of an Agent Vault report, or a signed Agent Vault ledger export. It is checked
+          Upload a proof bundle: the <code>almstins-&lt;year&gt;-proof.json</code> of a Year-Summary, the proof of an Agent Vault report, a signed Agent Vault ledger export, or a receivables proof file (<code>*.proof.json</code>). It is checked
           <strong> in your browser</strong> — no account, and you do not have to trust this site.
         </p>
       </header>
@@ -105,6 +115,7 @@ export default function VerifyRecord() {
       {state.s === 'error' && <div className="vr__result vr__result--err"><strong>{state.message}</strong></div>}
 
       {state.s === 'done' && <Result bundle={state.bundle} outcome={state.outcome} keySource={state.keySource} />}
+      {state.s === 'record' && <RecordResult file={state.file} outcome={state.outcome} keySource={state.keySource} />}
     </div>
   );
 }
@@ -159,6 +170,42 @@ export function Result({ bundle, outcome, keySource }: { bundle: ProofBundle; ou
       )}
 
       <p className="vr__disclaimer">{m.disclaimer}</p>
+    </div>
+  );
+}
+
+/** The result for a receivables proof file: one signed record, so no entries or Merkle root. */
+export function RecordResult({ file, outcome, keySource }: { file: SignedRecordFile; outcome: SignedRecordOutcome; keySource: string }) {
+  const v = SIGNED_RECORD_VERDICT[outcome.verdict];
+  const [showSigned, setShowSigned] = useState(false);
+  return (
+    <div className="vr__out">
+      <div className={`vr__result vr__result--${v.cls}`}>
+        <span className="vr__result-icon" aria-hidden="true">{v.icon}</span>
+        <div>
+          <div className="vr__result-title">{v.title}</div>
+          <div className="vr__result-detail">{SIGNED_RECORD_DETAIL[outcome.code]}</div>
+        </div>
+      </div>
+
+      <dl className="vr__facts">
+        <div><dt>Record</dt><dd>{signedRecordKindLabel(file.kind)}</dd></div>
+        {file.record_id && <div><dt>Record ID</dt><dd className="vr__mono">{file.record_id}</dd></div>}
+        <div><dt>Fingerprint</dt><dd className="vr__mono">{file.digest}</dd></div>
+        <div><dt>Signed by</dt><dd>{file.signature ? `Almstins key ${file.signature.key_id}` : 'Unsigned'}</dd></div>
+        <div><dt>Checked against</dt><dd>{keySource}</dd></div>
+        <div><dt>Bitcoin proof</dt><dd>{bitcoinLine(file.anchor)}</dd></div>
+      </dl>
+
+      <button className="vr__toggle" onClick={() => setShowSigned((x) => !x)}>
+        {showSigned ? 'Hide' : 'Show'} exactly what was signed
+      </button>
+      {showSigned && <pre className="vr__signed vr__mono">{JSON.stringify(file.manifest, null, 2)}</pre>}
+
+      <p className="vr__hint">
+        {SIGNED_RECORD_NOT_CHECKED} <a href={OFFLINE_STEPS_URL} target="_blank" rel="noopener noreferrer">Offline steps</a>
+      </p>
+      {file.disclaimer && <p className="vr__disclaimer">{file.disclaimer}</p>}
     </div>
   );
 }
